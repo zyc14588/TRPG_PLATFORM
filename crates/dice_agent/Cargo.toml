@@ -1,0 +1,11 @@
+[package]
+name = "dice_agent"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+agent_core = { path = "../agent_core" }
+dice_engine = { path = "../dice_engine" }
+schemars.workspace = true
+serde.workspace = true

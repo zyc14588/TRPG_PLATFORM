@@ -1,0 +1,5 @@
+{
+  "editor.formatOnSave": true,
+  "rust-analyzer.cargo.features": "all",
+  "typescript.tsdk": "apps/web/node_modules/typescript/lib"
+}

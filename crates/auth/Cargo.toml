@@ -1,0 +1,10 @@
+[package]
+name = "auth"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+schemars.workspace = true
+serde.workspace = true
+uuid.workspace = true

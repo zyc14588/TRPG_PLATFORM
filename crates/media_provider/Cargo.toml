@@ -1,0 +1,12 @@
+[package]
+name = "media_provider"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+schemars.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true

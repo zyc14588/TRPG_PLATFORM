@@ -58,9 +58,9 @@ schemas
 - LlmProvider、EmbeddingProvider、ImageProvider 和 Mock 实现。
 - RuleSystem、GridGeometry、VectorStore、KeywordIndex trait。
 - Optimistic locking repository，要求 expected_version；死锁/serialization 分类器与有界重试策略。
-- Docker Compose：api、worker、postgres+pgvector、redis、minio、prometheus、grafana、caddy。
+- Docker Compose：本地默认提供 postgres+pgvector、redis、minio、prometheus、grafana；api、worker、caddy 在后续部署硬化阶段接入。
 - Next.js 基础 shell 与 mock 页面，不必首轮完成视觉特效。
-- OpenAPI、JSON Schema 和测试骨架。
+- JSON Schema 和测试骨架；OpenAPI 在 Foundation 阶段接入。
 
 ## 特别约束
 

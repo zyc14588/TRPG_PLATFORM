@@ -1,0 +1,9 @@
+[package]
+name = "rule_system_generic_percentile"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+trpg_rules = { path = "../trpg_rules" }

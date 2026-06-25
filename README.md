@@ -31,9 +31,17 @@
 - 配置加载与数据库 migration
 - Auth/权限骨架
 - Health/Ready/Metrics
-- OpenAPI 与 WebSocket 合同
+- JSON Schema 和基础合同骨架；OpenAPI 与 WebSocket 合同进入 Foundation 阶段
 - Mock Provider、Mock Image Provider
 - Docker Compose
 - 关键测试骨架
 
 不要在第一轮导入任何版权不明确的规则或模组正文。
+
+## 开发工具链
+
+SQLx CLI 必须与 workspace 中 `sqlx` 版本一致：
+
+```bash
+cargo install sqlx-cli --version 0.9.0 --no-default-features --features native-tls,postgres --locked
+```

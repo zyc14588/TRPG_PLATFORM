@@ -1,0 +1,7 @@
+image:
+  repository: trpg-platform-api
+  tag: phase-0
+
+env:
+  DATABASE_URL: ""
+  REDIS_URL: ""

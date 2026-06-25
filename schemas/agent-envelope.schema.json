@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentEnvelopePhase0",
+  "type": "object",
+  "required": ["request_id", "room_id", "visibility_scope", "input"],
+  "properties": {
+    "request_id": { "type": "string", "format": "uuid" },
+    "room_id": { "type": "string", "format": "uuid" },
+    "session_id": { "type": ["string", "null"], "format": "uuid" },
+    "visibility_scope": { "type": "string" },
+    "input": { "type": "object" }
+  },
+  "additionalProperties": false
+}

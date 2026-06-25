@@ -1,0 +1,6 @@
+apiVersion: v2
+name: trpg-platform
+description: TRPG Platform Phase 0 chart placeholder
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

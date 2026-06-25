@@ -1,0 +1,10 @@
+[package]
+name = "document_ingestor"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+schemars.workspace = true
+serde.workspace = true
+thiserror.workspace = true

@@ -1,0 +1,10 @@
+[package]
+name = "creator_agent"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+agent_core = { path = "../agent_core" }
+schemars.workspace = true
+serde.workspace = true

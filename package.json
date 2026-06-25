@@ -1,0 +1,15 @@
+{
+  "name": "trpg-platform",
+  "private": true,
+  "scripts": {
+    "lint": "pnpm --filter @trpg-platform/web lint",
+    "typecheck": "pnpm --filter @trpg-platform/web typecheck",
+    "test": "pnpm --filter @trpg-platform/web test",
+    "test:e2e": "pnpm --filter @trpg-platform/web test:e2e",
+    "build": "pnpm --filter @trpg-platform/web build"
+  },
+  "packageManager": "pnpm@11.0.0",
+  "pnpm": {
+    "ignoredBuiltDependencies": ["sharp"]
+  }
+}

@@ -1,0 +1,11 @@
+[package]
+name = "game_core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+schemars.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true

@@ -1,0 +1,13 @@
+/target/
+/.sqlx/
+/node_modules/
+/.pnpm-store/
+/apps/web/.next/
+/apps/web/node_modules/
+/apps/web/coverage/
+/.env
+/.env.*
+!.env.example
+*.log
+*.tmp
+data/
