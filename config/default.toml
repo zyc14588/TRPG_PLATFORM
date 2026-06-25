@@ -1,0 +1,74 @@
+[project]
+decision_baseline = "2026-06-25-final"
+region_id = "local-1"
+
+[deployment]
+mode = "hybrid" # cloud_and_self_hosted
+api_replicas = 1
+worker_replicas = 1
+
+[capacity]
+active_rooms_target = 20
+players_per_room_max = 8
+websocket_concurrency_target = 200
+websocket_stress_target = 1000
+
+[auth]
+methods = ["magic_link", "oidc"]
+passkey_enabled = false
+
+[privacy]
+default_mode = "private_hybrid"
+available_modes = ["standard", "private_hybrid", "local_only"]
+allow_cross_privacy_fallback = false
+
+[rules]
+builtin_adapters = ["generic_percentile", "dnd5e_srd_5_2_1", "coc7e_compatible", "licensed_commercial"]
+bundled_text_packs = ["dnd5e_srd_5_2_1"]
+unknown_license_action = "pending_review"
+
+[maps]
+modes = ["scene_board", "square", "hex_flat_top", "hex_pointy_top"]
+isometric_enabled = false
+three_d_enabled = false
+
+[creator_images]
+enabled_by_default = false
+human_approval_required = true
+auto_publish = false
+monthly_image_limit = 0
+
+[motion]
+cinematic_default_ms = 1200
+cinematic_options_ms = [900, 1200, 1600]
+cinematic_max_ms = 1800
+
+[audio]
+channels = ["ui", "phase", "dice", "ambience", "combat", "voice_chat", "narration"]
+
+[concurrency]
+optimistic_locking = true
+expected_version_required = true
+idempotency_key_required = true
+deadlock_retry_max = 3
+retry_base_ms = 50
+lock_timeout_ms = 2000
+statement_timeout_ms = 5000
+crdt_scopes = ["collaborative_notes", "clue_layout"]
+
+[retention]
+audit_days = 180
+raw_model_payload_days = 30
+cost_rollup_days = 365
+redis_room_event_hours = 72
+memory_review_days = 180
+
+[disaster_recovery]
+mvp_rpo_hours = 24
+mvp_rto_hours = 4
+production_rpo_minutes = 15
+production_rto_minutes = 60
+
+[token_budget]
+hard_monthly_limit = true
+degradation_order = ["deterministic", "retrieval_only", "local_small_model", "short_response", "block"]
