@@ -1,11 +1,12 @@
 use async_trait::async_trait;
 use auth::{
-    AuditLog, AuditLogRepository, AuthContext, EmailAddress, IdempotencyCheck, IdempotencyRecord,
-    IdempotencyRepository, IdempotencyStatus, IdentityRepository, MagicLinkChallenge,
-    RefreshSession, RefreshSessionId, RefreshSessionRepository, RefreshSessionStatus,
-    RepositoryError, RepositoryTransaction, Room, RoomId, RoomInvite, RoomInviteStatus, RoomMember,
-    RoomPrivacyMode, RoomRepository, RoomRole, RoomWithRole, TokenHash, TransactionalRepository,
-    User, UserId,
+    AuditLog, AuditLogRepository, AuthContext, CreateRoomIdempotentCommand,
+    CreateRoomInviteIdempotentCommand, EmailAddress, IdempotencyCheck, IdempotencyRecord,
+    IdempotencyRepository, IdempotencyStatus, IdempotentOutcome, IdentityRepository,
+    MagicLinkChallenge, RefreshSession, RefreshSessionId, RefreshSessionRepository,
+    RefreshSessionStatus, RepositoryError, RepositoryTransaction, Room, RoomCommandRepository,
+    RoomId, RoomInvite, RoomInviteStatus, RoomMember, RoomPrivacyMode, RoomRepository, RoomRole,
+    RoomWithRole, TokenHash, TransactionalRepository, User, UserId,
 };
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres, Row, Transaction};
@@ -391,15 +392,31 @@ impl PostgresRepositories {
     ) -> Result<Transaction<'_, Postgres>, RepositoryError> {
         let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
         if let Some(role) = &self.rls_role {
-            let sql = format!(r#"SET LOCAL ROLE "{}""#, role);
-            sqlx::query(sqlx::AssertSqlSafe(sql))
-                .execute(&mut *tx)
-                .await
-                .map_err(map_sqlx)?;
+            set_database_role(&mut tx, role).await?;
         }
         set_rls_values(&mut tx, user_id, room_id, role, email).await?;
         Ok(tx)
     }
+}
+
+async fn set_database_role(
+    tx: &mut Transaction<'_, Postgres>,
+    role: &str,
+) -> Result<(), RepositoryError> {
+    let sql = format!(r#"SET LOCAL ROLE "{}""#, role);
+    sqlx::query(sqlx::AssertSqlSafe(sql))
+        .execute(&mut **tx)
+        .await
+        .map_err(map_sqlx)?;
+    Ok(())
+}
+
+async fn reset_database_role(tx: &mut Transaction<'_, Postgres>) -> Result<(), RepositoryError> {
+    sqlx::query("RESET ROLE")
+        .execute(&mut **tx)
+        .await
+        .map_err(map_sqlx)?;
+    Ok(())
 }
 
 async fn set_rls_values(
@@ -568,6 +585,99 @@ async fn insert_audit_log(
     .bind(&log.payload_json)
     .bind(log.request_id)
     .bind(log.outcome.as_str())
+    .execute(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+    Ok(())
+}
+
+enum IdempotencyTxClaim {
+    Claimed,
+    Replayed(Value),
+    Conflict,
+}
+
+async fn claim_idempotency_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    scope: &str,
+    key: &str,
+    request_hash: &str,
+    ttl: Duration,
+) -> Result<IdempotencyTxClaim, RepositoryError> {
+    sqlx::query(
+        "DELETE FROM idempotency_keys WHERE scope = $1 AND key = $2 AND expires_at <= now()",
+    )
+    .bind(scope)
+    .bind(key)
+    .execute(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+
+    let expires_at = unix_seconds(SystemTime::now() + ttl)?;
+    let inserted = sqlx::query_scalar::<_, String>(
+        r#"
+        INSERT INTO idempotency_keys (scope, key, request_hash, status, response_json, expires_at)
+        VALUES ($1, $2, $3, 'in_progress', NULL, to_timestamp($4))
+        ON CONFLICT (scope, key) DO NOTHING
+        RETURNING key
+        "#,
+    )
+    .bind(scope)
+    .bind(key)
+    .bind(request_hash)
+    .bind(expires_at)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+
+    if inserted.is_some() {
+        return Ok(IdempotencyTxClaim::Claimed);
+    }
+
+    let row = sqlx::query(
+        r#"
+        SELECT scope, key, request_hash, status, response_json
+        FROM idempotency_keys
+        WHERE scope = $1 AND key = $2
+        FOR UPDATE
+        "#,
+    )
+    .bind(scope)
+    .bind(key)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+
+    let existing = idempotency_record_from_row(row)?;
+    if existing.request_hash != request_hash {
+        return Ok(IdempotencyTxClaim::Conflict);
+    }
+    if existing.status != IdempotencyStatus::Completed {
+        return Err(RepositoryError::IdempotencyConflict);
+    }
+    let response = existing
+        .response_json
+        .ok_or(RepositoryError::IdempotencyConflict)?;
+    Ok(IdempotencyTxClaim::Replayed(response))
+}
+
+async fn complete_idempotency_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    scope: &str,
+    key: &str,
+    response_json: &Value,
+) -> Result<(), RepositoryError> {
+    sqlx::query(
+        r#"
+        UPDATE idempotency_keys
+        SET status = 'completed',
+            response_json = $3
+        WHERE scope = $1 AND key = $2
+        "#,
+    )
+    .bind(scope)
+    .bind(key)
+    .bind(response_json)
     .execute(&mut **tx)
     .await
     .map_err(map_sqlx)?;
@@ -865,6 +975,122 @@ impl RoomRepository for PostgresRepositories {
 impl AuditLogRepository for PostgresRepositories {
     async fn append_audit_log(&self, log: &AuditLog) -> Result<(), RepositoryError> {
         self.append_audit_log_with_rls(log).await
+    }
+}
+
+#[async_trait]
+impl RoomCommandRepository for PostgresRepositories {
+    async fn create_room_idempotent(
+        &self,
+        command: CreateRoomIdempotentCommand,
+    ) -> Result<IdempotentOutcome<Value>, RepositoryError> {
+        let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+        match claim_idempotency_in_tx(
+            &mut tx,
+            &command.scope,
+            &command.key,
+            &command.request_hash,
+            command.ttl,
+        )
+        .await?
+        {
+            IdempotencyTxClaim::Claimed => {}
+            IdempotencyTxClaim::Replayed(response) => {
+                tx.commit().await.map_err(map_sqlx)?;
+                return Ok(IdempotentOutcome::Replayed(response));
+            }
+            IdempotencyTxClaim::Conflict => {
+                tx.commit().await.map_err(map_sqlx)?;
+                return Ok(IdempotentOutcome::Conflict);
+            }
+        }
+
+        if let Some(role) = &self.rls_role {
+            set_database_role(&mut tx, role).await?;
+        }
+        set_rls_values(
+            &mut tx,
+            Some(command.room.owner_id.0),
+            Some(command.room.id.0),
+            Some(RoomRole::Owner.as_str()),
+            None,
+        )
+        .await?;
+        insert_room(&mut tx, &command.room).await?;
+        insert_room_member(
+            &mut tx,
+            &RoomMember {
+                room_id: command.room.id,
+                user_id: command.room.owner_id,
+                role: RoomRole::Owner,
+            },
+        )
+        .await?;
+        insert_audit_log(&mut tx, &command.audit_log).await?;
+        if self.rls_role.is_some() {
+            reset_database_role(&mut tx).await?;
+        }
+        complete_idempotency_in_tx(
+            &mut tx,
+            &command.scope,
+            &command.key,
+            &command.response_json,
+        )
+        .await?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(IdempotentOutcome::Created(command.response_json))
+    }
+
+    async fn create_room_invite_idempotent(
+        &self,
+        command: CreateRoomInviteIdempotentCommand,
+    ) -> Result<IdempotentOutcome<Value>, RepositoryError> {
+        let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+        match claim_idempotency_in_tx(
+            &mut tx,
+            &command.scope,
+            &command.key,
+            &command.request_hash,
+            command.ttl,
+        )
+        .await?
+        {
+            IdempotencyTxClaim::Claimed => {}
+            IdempotencyTxClaim::Replayed(response) => {
+                tx.commit().await.map_err(map_sqlx)?;
+                return Ok(IdempotentOutcome::Replayed(response));
+            }
+            IdempotencyTxClaim::Conflict => {
+                tx.commit().await.map_err(map_sqlx)?;
+                return Ok(IdempotentOutcome::Conflict);
+            }
+        }
+
+        if let Some(role) = &self.rls_role {
+            set_database_role(&mut tx, role).await?;
+        }
+        set_rls_values(
+            &mut tx,
+            Some(command.invite.invited_by.0),
+            Some(command.invite.room_id.0),
+            Some(RoomRole::Owner.as_str()),
+            None,
+        )
+        .await?;
+        insert_room_invite(&mut tx, &command.invite).await?;
+        insert_audit_log(&mut tx, &command.audit_log).await?;
+        if self.rls_role.is_some() {
+            reset_database_role(&mut tx).await?;
+        }
+        complete_idempotency_in_tx(
+            &mut tx,
+            &command.scope,
+            &command.key,
+            &command.response_json,
+        )
+        .await?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(IdempotentOutcome::Created(command.response_json))
     }
 }
 

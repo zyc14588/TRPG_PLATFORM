@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use auth::{
-    AuditLog, AuditOutcome, EmailAddress, IdempotencyCheck, IdempotencyRecord,
-    IdempotencyRepository, IdempotencyStatus, IdentityRepository, MagicLinkChallenge,
-    OidcLoginRequest, OidcPort, RefreshSession, RefreshSessionRepository, Room, RoomId, RoomInvite,
+    AuditLog, AuditOutcome, CreateRoomIdempotentCommand, CreateRoomInviteIdempotentCommand,
+    EmailAddress, IdempotencyCheck, IdempotencyRecord, IdempotencyRepository, IdempotencyStatus,
+    IdempotentOutcome, IdentityRepository, MagicLinkChallenge, OidcLoginRequest, OidcPort,
+    RefreshSession, RefreshSessionRepository, Room, RoomCommandRepository, RoomId, RoomInvite,
     RoomInviteId, RoomMember, RoomPrivacyMode, RoomRepository, RoomRole, RoomWithRole, TokenHash,
     User, UserId, VisibilityScope,
 };
@@ -268,6 +269,10 @@ pub trait AuthStore: Send + Sync {
         token_hash: &TokenHash,
     ) -> Result<Option<RefreshSession>, ApiError>;
     async fn create_room(&self, room: &Room) -> Result<(), ApiError>;
+    async fn create_room_idempotent(
+        &self,
+        command: CreateRoomIdempotentCommand,
+    ) -> Result<IdempotentOutcome<serde_json::Value>, ApiError>;
     async fn get_room(&self, room_id: RoomId) -> Result<Option<Room>, ApiError>;
     async fn get_room_as_member(
         &self,
@@ -293,6 +298,10 @@ pub trait AuthStore: Send + Sync {
         member: &RoomMember,
     ) -> Result<Vec<RoomMember>, ApiError>;
     async fn create_room_invite(&self, invite: &RoomInvite) -> Result<(), ApiError>;
+    async fn create_room_invite_idempotent(
+        &self,
+        command: CreateRoomInviteIdempotentCommand,
+    ) -> Result<IdempotentOutcome<serde_json::Value>, ApiError>;
     async fn find_pending_room_invite_for_user(
         &self,
         token_hash: &TokenHash,
@@ -383,6 +392,15 @@ impl AuthStore for storage::PostgresRepositories {
             .map_err(ApiError::from_repository)
     }
 
+    async fn create_room_idempotent(
+        &self,
+        command: CreateRoomIdempotentCommand,
+    ) -> Result<IdempotentOutcome<serde_json::Value>, ApiError> {
+        RoomCommandRepository::create_room_idempotent(self, command)
+            .await
+            .map_err(ApiError::from_repository)
+    }
+
     async fn get_room(&self, room_id: RoomId) -> Result<Option<Room>, ApiError> {
         RoomRepository::get_room(self, room_id)
             .await
@@ -448,6 +466,15 @@ impl AuthStore for storage::PostgresRepositories {
             .map_err(ApiError::from_repository)
     }
 
+    async fn create_room_invite_idempotent(
+        &self,
+        command: CreateRoomInviteIdempotentCommand,
+    ) -> Result<IdempotentOutcome<serde_json::Value>, ApiError> {
+        RoomCommandRepository::create_room_invite_idempotent(self, command)
+            .await
+            .map_err(ApiError::from_repository)
+    }
+
     async fn find_pending_room_invite_for_user(
         &self,
         token_hash: &TokenHash,
@@ -501,8 +528,9 @@ struct InMemoryAuthData {
     rooms_by_id: HashMap<Uuid, Room>,
     room_members: HashMap<(Uuid, Uuid), RoomMember>,
     room_invites_by_hash: HashMap<String, RoomInvite>,
-    idempotency_records: HashMap<(String, String), IdempotencyRecord>,
+    idempotency_records: HashMap<(String, String), (IdempotencyRecord, SystemTime)>,
     audit_logs: Vec<AuditLog>,
+    fail_next_create_room: bool,
 }
 
 #[async_trait]
@@ -601,6 +629,65 @@ impl AuthStore for InMemoryAuthStore {
             },
         );
         Ok(())
+    }
+
+    async fn create_room_idempotent(
+        &self,
+        command: CreateRoomIdempotentCommand,
+    ) -> Result<IdempotentOutcome<serde_json::Value>, ApiError> {
+        let mut inner = self.lock()?;
+        let idempotency_key = (command.scope.clone(), command.key.clone());
+        let now = SystemTime::now();
+        if inner
+            .idempotency_records
+            .get(&idempotency_key)
+            .is_some_and(|(_, expires_at)| *expires_at <= now)
+        {
+            inner.idempotency_records.remove(&idempotency_key);
+        }
+        if let Some((existing, _)) = inner.idempotency_records.get(&idempotency_key) {
+            if existing.request_hash != command.request_hash {
+                return Ok(IdempotentOutcome::Conflict);
+            }
+            let response = existing.response_json.clone().ok_or_else(|| {
+                ApiError::Conflict("idempotency response is unavailable".to_owned())
+            })?;
+            return Ok(IdempotentOutcome::Replayed(response));
+        }
+
+        if inner.fail_next_create_room {
+            inner.fail_next_create_room = false;
+            return Err(ApiError::Internal(
+                "injected room create failure".to_owned(),
+            ));
+        }
+
+        inner
+            .rooms_by_id
+            .insert(command.room.id.0, command.room.clone());
+        inner.room_members.insert(
+            (command.room.id.0, command.room.owner_id.0),
+            RoomMember {
+                room_id: command.room.id,
+                user_id: command.room.owner_id,
+                role: RoomRole::Owner,
+            },
+        );
+        inner.audit_logs.push(command.audit_log.clone());
+        inner.idempotency_records.insert(
+            idempotency_key,
+            (
+                IdempotencyRecord {
+                    scope: command.scope,
+                    key: command.key,
+                    request_hash: command.request_hash,
+                    status: IdempotencyStatus::Completed,
+                    response_json: Some(command.response_json.clone()),
+                },
+                now + command.ttl,
+            ),
+        );
+        Ok(IdempotentOutcome::Created(command.response_json))
     }
 
     async fn get_room(&self, room_id: RoomId) -> Result<Option<Room>, ApiError> {
@@ -708,6 +795,51 @@ impl AuthStore for InMemoryAuthStore {
         Ok(())
     }
 
+    async fn create_room_invite_idempotent(
+        &self,
+        command: CreateRoomInviteIdempotentCommand,
+    ) -> Result<IdempotentOutcome<serde_json::Value>, ApiError> {
+        let mut inner = self.lock()?;
+        let idempotency_key = (command.scope.clone(), command.key.clone());
+        let now = SystemTime::now();
+        if inner
+            .idempotency_records
+            .get(&idempotency_key)
+            .is_some_and(|(_, expires_at)| *expires_at <= now)
+        {
+            inner.idempotency_records.remove(&idempotency_key);
+        }
+        if let Some((existing, _)) = inner.idempotency_records.get(&idempotency_key) {
+            if existing.request_hash != command.request_hash {
+                return Ok(IdempotentOutcome::Conflict);
+            }
+            let response = existing.response_json.clone().ok_or_else(|| {
+                ApiError::Conflict("idempotency response is unavailable".to_owned())
+            })?;
+            return Ok(IdempotentOutcome::Replayed(response));
+        }
+
+        inner.room_invites_by_hash.insert(
+            command.invite.token_hash.as_str().to_owned(),
+            command.invite.clone(),
+        );
+        inner.audit_logs.push(command.audit_log.clone());
+        inner.idempotency_records.insert(
+            idempotency_key,
+            (
+                IdempotencyRecord {
+                    scope: command.scope,
+                    key: command.key,
+                    request_hash: command.request_hash,
+                    status: IdempotencyStatus::Completed,
+                    response_json: Some(command.response_json.clone()),
+                },
+                now + command.ttl,
+            ),
+        );
+        Ok(IdempotentOutcome::Created(command.response_json))
+    }
+
     async fn find_pending_room_invite_for_user(
         &self,
         token_hash: &TokenHash,
@@ -747,12 +879,22 @@ impl AuthStore for InMemoryAuthStore {
     async fn claim_idempotency_key(
         &self,
         record: &IdempotencyRecord,
-        _ttl: Duration,
+        ttl: Duration,
     ) -> Result<IdempotencyCheck, ApiError> {
         let mut inner = self.lock()?;
         let key = (record.scope.clone(), record.key.clone());
-        let Some(existing) = inner.idempotency_records.get(&key) else {
-            inner.idempotency_records.insert(key, record.clone());
+        let now = SystemTime::now();
+        if inner
+            .idempotency_records
+            .get(&key)
+            .is_some_and(|(_, expires_at)| *expires_at <= now)
+        {
+            inner.idempotency_records.remove(&key);
+        }
+        let Some((existing, _)) = inner.idempotency_records.get(&key) else {
+            inner
+                .idempotency_records
+                .insert(key, (record.clone(), now + ttl));
             return Ok(IdempotencyCheck::Claimed);
         };
         if existing.request_hash == record.request_hash {
@@ -1253,33 +1395,33 @@ async fn create_room(
         room: room_dto(&room, RoomRole::Owner),
     };
     let request_hash = hash_json(&request)?;
-    if let Some(duplicate) = claim_idempotent_response(
-        &state,
-        format!("user:{}:create_room", user.id.0),
-        &request.idempotency_key,
-        request_hash,
-        &response,
-    )
-    .await?
-    {
-        return Ok(Json(duplicate));
-    }
-
-    state.auth_store.create_room(&room).await?;
-    audit_success(
-        &state,
-        Some(room.id),
-        Some(user.id),
-        "room.create",
-        "room",
-        Some(room.id.0),
-        serde_json::json!({
-            "privacy_mode": room.privacy_mode,
-            "system_name": room.system_name,
-        }),
-    )
-    .await?;
-    Ok(Json(response))
+    let response_json = serde_json::to_value(&response)
+        .map_err(|_| ApiError::Internal("idempotency response encode failed".to_owned()))?;
+    let audit_payload = serde_json::json!({
+        "privacy_mode": room.privacy_mode,
+        "system_name": room.system_name,
+    });
+    let outcome = state
+        .auth_store
+        .create_room_idempotent(CreateRoomIdempotentCommand {
+            scope: format!("user:{}:create_room", user.id.0),
+            key: request.idempotency_key,
+            request_hash,
+            ttl: Duration::from_secs(IDEMPOTENCY_TTL_SECS),
+            room: room.clone(),
+            audit_log: audit_log(
+                Some(room.id),
+                Some(user.id),
+                "room.create",
+                "room",
+                Some(room.id.0),
+                AuditOutcome::Success,
+                audit_payload,
+            ),
+            response_json,
+        })
+        .await?;
+    Ok(Json(idempotent_response(outcome, response)?))
 }
 
 async fn list_rooms(
@@ -1362,33 +1504,33 @@ async fn create_room_invitation(
         invitation_url: format!("/rooms/join?token={token}"),
     };
     let request_hash = hash_json(&request)?;
-    if let Some(duplicate) = claim_idempotent_response(
-        &state,
-        format!("room:{}:create_invitation", room_id.0),
-        &request.idempotency_key,
-        request_hash,
-        &response,
-    )
-    .await?
-    {
-        return Ok(Json(duplicate));
-    }
-
-    state.auth_store.create_room_invite(&invite).await?;
-    audit_success(
-        &state,
-        Some(room_id),
-        Some(user.id),
-        "room.invite.create",
-        "room_invite",
-        Some(invite.id.0),
-        serde_json::json!({
-            "invited_email": invited_email.as_str(),
-            "role": request.role,
-        }),
-    )
-    .await?;
-    Ok(Json(response))
+    let response_json = serde_json::to_value(&response)
+        .map_err(|_| ApiError::Internal("idempotency response encode failed".to_owned()))?;
+    let audit_payload = serde_json::json!({
+        "invited_email": invited_email.as_str(),
+        "role": request.role,
+    });
+    let outcome = state
+        .auth_store
+        .create_room_invite_idempotent(CreateRoomInviteIdempotentCommand {
+            scope: format!("room:{}:create_invitation", room_id.0),
+            key: request.idempotency_key,
+            request_hash,
+            ttl: Duration::from_secs(IDEMPOTENCY_TTL_SECS),
+            invite: invite.clone(),
+            audit_log: audit_log(
+                Some(room_id),
+                Some(user.id),
+                "room.invite.create",
+                "room_invite",
+                Some(invite.id.0),
+                AuditOutcome::Success,
+                audit_payload,
+            ),
+            response_json,
+        })
+        .await?;
+    Ok(Json(idempotent_response(outcome, response)?))
 }
 
 async fn accept_room_invitation(
@@ -1746,6 +1888,23 @@ fn hash_json<T: Serialize>(value: &T) -> Result<String, ApiError> {
     let bytes = serde_json::to_vec(value)
         .map_err(|_| ApiError::Internal("request hash failed".to_owned()))?;
     Ok(hex(&Sha256::digest(bytes)))
+}
+
+fn idempotent_response<T>(
+    outcome: IdempotentOutcome<serde_json::Value>,
+    created: T,
+) -> Result<T, ApiError>
+where
+    T: DeserializeOwned,
+{
+    match outcome {
+        IdempotentOutcome::Created(_) => Ok(created),
+        IdempotentOutcome::Replayed(value) => serde_json::from_value(value)
+            .map_err(|_| ApiError::Internal("idempotency response decode failed".to_owned())),
+        IdempotentOutcome::Conflict => {
+            Err(ApiError::Conflict("idempotency key conflict".to_owned()))
+        }
+    }
 }
 
 async fn claim_idempotent_response<T>(
@@ -2633,7 +2792,43 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn duplicate_room_create_idempotency_key_returns_original_room() {
+    async fn create_room_idempotency_does_not_replay_failed_write() {
+        let store = Arc::new(InMemoryAuthStore::default());
+        let app = router_with_auth_store(test_config(), store.clone());
+        let (owner, _cookies) = login(app.clone(), "owner@example.test").await;
+        store.lock().expect("store lock").fail_next_create_room = true;
+
+        let first = json_request(
+            app.clone(),
+            "POST",
+            "/api/rooms",
+            json!({
+                "title": "Eventually Created",
+                "system_name": "generic_percentile",
+                "privacy_mode": "private_hybrid",
+                "idempotency_key": "failed-create-key"
+            }),
+            auth_header(&owner),
+        )
+        .await;
+        assert_eq!(first.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let second = create_test_room(
+            app.clone(),
+            &owner,
+            "Eventually Created",
+            "failed-create-key",
+        )
+        .await;
+        assert_eq!(second.room.title, "Eventually Created");
+
+        let list_response = empty_request(app, "GET", "/api/rooms", auth_header(&owner)).await;
+        let list: ListRoomsResponse = read_json(list_response).await;
+        assert_eq!(list.rooms.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn create_room_duplicate_replays_same_response() {
         let app = router(test_config());
         let (owner, _cookies) = login(app.clone(), "owner@example.test").await;
         let first = create_test_room(app.clone(), &owner, "Same Room", "same-create-key").await;
@@ -2643,6 +2838,83 @@ mod tests {
         let list_response = empty_request(app, "GET", "/api/rooms", auth_header(&owner)).await;
         let list: ListRoomsResponse = read_json(list_response).await;
         assert_eq!(list.rooms.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn create_room_duplicate_with_different_hash_conflicts() {
+        let app = router(test_config());
+        let (owner, _cookies) = login(app.clone(), "owner@example.test").await;
+        create_test_room(app.clone(), &owner, "Same Room", "same-create-key").await;
+
+        let conflict = json_request(
+            app,
+            "POST",
+            "/api/rooms",
+            json!({
+                "title": "Different Room",
+                "system_name": "generic_percentile",
+                "privacy_mode": "private_hybrid",
+                "idempotency_key": "same-create-key"
+            }),
+            auth_header(&owner),
+        )
+        .await;
+        assert_eq!(conflict.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn create_invitation_duplicate_replays_same_response() {
+        let app = router(test_config());
+        let (owner, _owner_cookies) = login(app.clone(), "owner@example.test").await;
+        let room = create_test_room(app.clone(), &owner, "Invite Room", "invite-room").await;
+
+        let first = invite_user(
+            app.clone(),
+            &owner,
+            room.room.id,
+            "player@example.test",
+            "same-invite-key",
+        )
+        .await;
+        let second = invite_user(
+            app,
+            &owner,
+            room.room.id,
+            "player@example.test",
+            "same-invite-key",
+        )
+        .await;
+
+        assert_eq!(first, second);
+    }
+
+    #[tokio::test]
+    async fn create_invitation_duplicate_with_different_hash_conflicts() {
+        let app = router(test_config());
+        let (owner, _owner_cookies) = login(app.clone(), "owner@example.test").await;
+        let room = create_test_room(app.clone(), &owner, "Invite Room", "invite-room").await;
+        invite_user(
+            app.clone(),
+            &owner,
+            room.room.id,
+            "player@example.test",
+            "same-invite-key",
+        )
+        .await;
+
+        let conflict = json_request(
+            app,
+            "POST",
+            &format!("/api/rooms/{}/invitations", room.room.id),
+            json!({
+                "email": "other@example.test",
+                "role": "pl",
+                "idempotency_key": "same-invite-key"
+            }),
+            auth_header(&owner),
+        )
+        .await;
+        assert_eq!(conflict.status(), StatusCode::CONFLICT);
     }
 
     #[tokio::test]

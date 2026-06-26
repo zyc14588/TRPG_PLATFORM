@@ -690,6 +690,35 @@ pub enum IdempotencyCheck {
     Conflict,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IdempotentOutcome<T> {
+    Created(T),
+    Replayed(T),
+    Conflict,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateRoomIdempotentCommand {
+    pub scope: String,
+    pub key: String,
+    pub request_hash: String,
+    pub ttl: Duration,
+    pub room: Room,
+    pub audit_log: AuditLog,
+    pub response_json: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateRoomInviteIdempotentCommand {
+    pub scope: String,
+    pub key: String,
+    pub request_hash: String,
+    pub ttl: Duration,
+    pub invite: RoomInvite,
+    pub audit_log: AuditLog,
+    pub response_json: Value,
+}
+
 pub fn authorize_room_action(
     ctx: &AuthContext,
     action: RoomAction,
@@ -762,6 +791,19 @@ pub trait RoomRepository: Send + Sync {
 #[async_trait]
 pub trait AuditLogRepository: Send + Sync {
     async fn append_audit_log(&self, log: &AuditLog) -> Result<(), RepositoryError>;
+}
+
+#[async_trait]
+pub trait RoomCommandRepository: Send + Sync {
+    async fn create_room_idempotent(
+        &self,
+        command: CreateRoomIdempotentCommand,
+    ) -> Result<IdempotentOutcome<Value>, RepositoryError>;
+
+    async fn create_room_invite_idempotent(
+        &self,
+        command: CreateRoomInviteIdempotentCommand,
+    ) -> Result<IdempotentOutcome<Value>, RepositoryError>;
 }
 
 #[async_trait]
