@@ -1431,15 +1431,22 @@ name = "server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "auth",
  "axum",
+ "base64",
  "http",
  "observability",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
+ "sqlx",
+ "storage",
  "thiserror",
  "tokio",
  "toml",
  "tower",
+ "uuid",
 ]
 
 [[package]]

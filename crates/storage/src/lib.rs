@@ -1,9 +1,10 @@
 use async_trait::async_trait;
 use auth::{
     AuditLog, AuditLogRepository, AuthContext, EmailAddress, IdempotencyCheck, IdempotencyRecord,
-    IdempotencyRepository, IdempotencyStatus, IdentityRepository, RefreshSession, RefreshSessionId,
-    RefreshSessionRepository, RefreshSessionStatus, RepositoryError, RepositoryTransaction, Room,
-    RoomId, RoomInvite, RoomMember, RoomRepository, RoomRole, TokenHash, TransactionalRepository,
+    IdempotencyRepository, IdempotencyStatus, IdentityRepository, MagicLinkChallenge,
+    RefreshSession, RefreshSessionId, RefreshSessionRepository, RefreshSessionStatus,
+    RepositoryError, RepositoryTransaction, Room, RoomId, RoomInvite, RoomInviteStatus, RoomMember,
+    RoomPrivacyMode, RoomRepository, RoomRole, RoomWithRole, TokenHash, TransactionalRepository,
     User, UserId,
 };
 use serde_json::Value;
@@ -12,17 +13,36 @@ use std::{
     str::FromStr,
     time::{Duration, SystemTime},
 };
+use uuid::Uuid;
 
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
 
 #[derive(Debug, Clone)]
 pub struct PostgresRepositories {
     pool: PgPool,
+    rls_role: Option<String>,
 }
 
 impl PostgresRepositories {
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            rls_role: None,
+        }
+    }
+
+    pub fn with_rls_role(mut self, role: impl Into<String>) -> Result<Self, RepositoryError> {
+        let role = role.into();
+        if !role
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+        {
+            return Err(RepositoryError::Database(
+                "invalid postgres role name".to_owned(),
+            ));
+        }
+        self.rls_role = Some(role);
+        Ok(self)
     }
 
     pub async fn connect(database_url: &str) -> Result<Self, RepositoryError> {
@@ -38,28 +58,520 @@ impl PostgresRepositories {
         &self.pool
     }
 
+    pub async fn find_user_by_id(&self, user_id: UserId) -> Result<Option<User>, RepositoryError> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, email, display_name
+            FROM users
+            WHERE id = $1
+            "#,
+        )
+        .bind(user_id.0)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_sqlx)?;
+
+        row.map(user_from_row).transpose()
+    }
+
+    pub async fn create_magic_link_challenge(
+        &self,
+        challenge: &MagicLinkChallenge,
+    ) -> Result<(), RepositoryError> {
+        sqlx::query(
+            r#"
+            INSERT INTO magic_link_challenges (id, email, token_hash, expires_at)
+            VALUES ($1, $2, $3, to_timestamp($4))
+            "#,
+        )
+        .bind(challenge.challenge_id)
+        .bind(challenge.email.as_str())
+        .bind(challenge.token_hash.as_str())
+        .bind(unix_seconds(challenge.expires_at)?)
+        .execute(&self.pool)
+        .await
+        .map_err(map_sqlx)?;
+        Ok(())
+    }
+
+    pub async fn find_pending_magic_link_challenge_by_token_hash(
+        &self,
+        token_hash: &TokenHash,
+    ) -> Result<Option<MagicLinkChallenge>, RepositoryError> {
+        let row = sqlx::query(
+            r#"
+            SELECT id,
+                   email,
+                   token_hash,
+                   extract(epoch from expires_at)::bigint AS expires_at_epoch
+            FROM magic_link_challenges
+            WHERE token_hash = $1 AND consumed_at IS NULL
+            "#,
+        )
+        .bind(token_hash.as_str())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_sqlx)?;
+
+        row.map(magic_link_challenge_from_row).transpose()
+    }
+
+    pub async fn consume_magic_link_challenge(
+        &self,
+        challenge_id: Uuid,
+    ) -> Result<bool, RepositoryError> {
+        let result = sqlx::query(
+            r#"
+            UPDATE magic_link_challenges
+            SET consumed_at = now()
+            WHERE id = $1 AND consumed_at IS NULL
+            "#,
+        )
+        .bind(challenge_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_sqlx)?;
+        Ok(result.rows_affected() == 1)
+    }
+
     pub async fn set_rls_context(
         tx: &mut Transaction<'_, Postgres>,
         ctx: &AuthContext,
     ) -> Result<(), RepositoryError> {
-        let room_id = ctx.room_id.map(|id| id.to_string()).unwrap_or_default();
-        sqlx::query("SELECT set_config('app.user_id', $1, true)")
-            .bind(ctx.user_id.to_string())
-            .execute(&mut **tx)
-            .await
-            .map_err(map_sqlx)?;
-        sqlx::query("SELECT set_config('app.room_id', $1, true)")
-            .bind(room_id)
-            .execute(&mut **tx)
-            .await
-            .map_err(map_sqlx)?;
-        sqlx::query("SELECT set_config('app.room_role', $1, true)")
-            .bind(ctx.role.as_str())
-            .execute(&mut **tx)
-            .await
-            .map_err(map_sqlx)?;
+        set_rls_values(
+            tx,
+            Some(ctx.user_id),
+            ctx.room_id,
+            Some(ctx.role.as_str()),
+            None,
+        )
+        .await
+    }
+
+    pub async fn create_room_with_rls(&self, room: &Room) -> Result<(), RepositoryError> {
+        let mut tx = self
+            .begin_rls_tx(
+                Some(room.owner_id.0),
+                Some(room.id.0),
+                Some(RoomRole::Owner.as_str()),
+                None,
+            )
+            .await?;
+        insert_room(&mut tx, room).await?;
+        insert_room_member(
+            &mut tx,
+            &RoomMember {
+                room_id: room.id,
+                user_id: room.owner_id,
+                role: RoomRole::Owner,
+            },
+        )
+        .await?;
+        tx.commit().await.map_err(map_sqlx)?;
         Ok(())
     }
+
+    pub async fn get_room_with_rls(
+        &self,
+        room_id: RoomId,
+        member: &RoomMember,
+    ) -> Result<Option<Room>, RepositoryError> {
+        let mut tx = self
+            .begin_rls_tx(
+                Some(member.user_id.0),
+                Some(room_id.0),
+                Some(member.role.as_str()),
+                None,
+            )
+            .await?;
+        let room = select_room(&mut tx, room_id).await?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(room)
+    }
+
+    pub async fn get_room_for_invite_with_rls(
+        &self,
+        room_id: RoomId,
+        email: &EmailAddress,
+        user_id: UserId,
+    ) -> Result<Option<Room>, RepositoryError> {
+        let mut tx = self
+            .begin_rls_tx(Some(user_id.0), Some(room_id.0), None, Some(email))
+            .await?;
+        let room = select_room(&mut tx, room_id).await?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(room)
+    }
+
+    pub async fn list_rooms_for_user_with_rls(
+        &self,
+        user_id: UserId,
+    ) -> Result<Vec<RoomWithRole>, RepositoryError> {
+        let mut tx = self.begin_rls_tx(Some(user_id.0), None, None, None).await?;
+        let rows = sqlx::query(
+            r#"
+            SELECT r.id,
+                   r.owner_id,
+                   r.title,
+                   r.system_name,
+                   r.privacy_mode,
+                   r.version,
+                   rm.role
+            FROM rooms r
+            JOIN room_members rm ON rm.room_id = r.id
+            WHERE rm.user_id = $1
+            ORDER BY r.updated_at DESC, r.created_at DESC
+            "#,
+        )
+        .bind(user_id.0)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        let rooms = rows
+            .into_iter()
+            .map(room_with_role_from_row)
+            .collect::<Result<Vec<_>, _>>()?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(rooms)
+    }
+
+    pub async fn get_room_member_with_rls(
+        &self,
+        room_id: RoomId,
+        user_id: UserId,
+    ) -> Result<Option<RoomMember>, RepositoryError> {
+        let mut tx = self
+            .begin_rls_tx(
+                Some(user_id.0),
+                Some(room_id.0),
+                Some(RoomRole::Pl.as_str()),
+                None,
+            )
+            .await?;
+        let row = sqlx::query(
+            r#"
+            SELECT room_id, user_id, role
+            FROM room_members
+            WHERE room_id = $1 AND user_id = $2
+            "#,
+        )
+        .bind(room_id.0)
+        .bind(user_id.0)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        let member = row.map(room_member_from_row).transpose()?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(member)
+    }
+
+    pub async fn list_room_members_with_rls(
+        &self,
+        room_id: RoomId,
+        member: &RoomMember,
+    ) -> Result<Vec<RoomMember>, RepositoryError> {
+        let mut tx = self
+            .begin_rls_tx(
+                Some(member.user_id.0),
+                Some(room_id.0),
+                Some(member.role.as_str()),
+                None,
+            )
+            .await?;
+        let rows = sqlx::query(
+            r#"
+            SELECT room_id, user_id, role
+            FROM room_members
+            WHERE room_id = $1
+            ORDER BY created_at ASC
+            "#,
+        )
+        .bind(room_id.0)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        let members = rows
+            .into_iter()
+            .map(room_member_from_row)
+            .collect::<Result<Vec<_>, _>>()?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(members)
+    }
+
+    pub async fn create_room_invite_with_rls(
+        &self,
+        invite: &RoomInvite,
+    ) -> Result<(), RepositoryError> {
+        let mut tx = self
+            .begin_rls_tx(
+                Some(invite.invited_by.0),
+                Some(invite.room_id.0),
+                Some(RoomRole::Owner.as_str()),
+                None,
+            )
+            .await?;
+        insert_room_invite(&mut tx, invite).await?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(())
+    }
+
+    pub async fn find_pending_room_invite_for_user_with_rls(
+        &self,
+        token_hash: &TokenHash,
+        email: &EmailAddress,
+        user_id: UserId,
+    ) -> Result<Option<RoomInvite>, RepositoryError> {
+        let mut tx = self
+            .begin_rls_tx(Some(user_id.0), None, None, Some(email))
+            .await?;
+        let row = sqlx::query(
+            r#"
+            SELECT id,
+                   room_id,
+                   invited_email,
+                   invited_role,
+                   token_hash,
+                   status,
+                   invited_by,
+                   accepted_by,
+                   extract(epoch from expires_at)::bigint AS expires_at_epoch
+            FROM room_invites
+            WHERE token_hash = $1 AND invited_email = $2 AND status = 'pending'
+            "#,
+        )
+        .bind(token_hash.as_str())
+        .bind(email.as_str())
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        let invite = row.map(room_invite_from_row).transpose()?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(invite)
+    }
+
+    pub async fn accept_room_invite_with_rls(
+        &self,
+        invite: &RoomInvite,
+        member: &RoomMember,
+    ) -> Result<(), RepositoryError> {
+        let mut tx = self
+            .begin_rls_tx(
+                Some(member.user_id.0),
+                Some(invite.room_id.0),
+                Some(member.role.as_str()),
+                Some(&invite.invited_email),
+            )
+            .await?;
+        update_room_invite(&mut tx, invite).await?;
+        insert_room_member(&mut tx, member).await?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(())
+    }
+
+    pub async fn append_audit_log_with_rls(&self, log: &AuditLog) -> Result<(), RepositoryError> {
+        let mut tx = self
+            .begin_rls_tx(
+                log.actor_id.map(|id| id.0),
+                log.room_id.map(|id| id.0),
+                None,
+                None,
+            )
+            .await?;
+        insert_audit_log(&mut tx, log).await?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(())
+    }
+
+    async fn begin_rls_tx(
+        &self,
+        user_id: Option<Uuid>,
+        room_id: Option<Uuid>,
+        role: Option<&str>,
+        email: Option<&EmailAddress>,
+    ) -> Result<Transaction<'_, Postgres>, RepositoryError> {
+        let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+        if let Some(role) = &self.rls_role {
+            let sql = format!(r#"SET LOCAL ROLE "{}""#, role);
+            sqlx::query(sqlx::AssertSqlSafe(sql))
+                .execute(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+        }
+        set_rls_values(&mut tx, user_id, room_id, role, email).await?;
+        Ok(tx)
+    }
+}
+
+async fn set_rls_values(
+    tx: &mut Transaction<'_, Postgres>,
+    user_id: Option<Uuid>,
+    room_id: Option<Uuid>,
+    role: Option<&str>,
+    email: Option<&EmailAddress>,
+) -> Result<(), RepositoryError> {
+    sqlx::query("SELECT set_config('app.user_id', $1, true)")
+        .bind(user_id.map(|id| id.to_string()).unwrap_or_default())
+        .execute(&mut **tx)
+        .await
+        .map_err(map_sqlx)?;
+    sqlx::query("SELECT set_config('app.room_id', $1, true)")
+        .bind(room_id.map(|id| id.to_string()).unwrap_or_default())
+        .execute(&mut **tx)
+        .await
+        .map_err(map_sqlx)?;
+    sqlx::query("SELECT set_config('app.room_role', $1, true)")
+        .bind(role.unwrap_or_default())
+        .execute(&mut **tx)
+        .await
+        .map_err(map_sqlx)?;
+    sqlx::query("SELECT set_config('app.user_email', $1, true)")
+        .bind(email.map(EmailAddress::as_str).unwrap_or_default())
+        .execute(&mut **tx)
+        .await
+        .map_err(map_sqlx)?;
+    Ok(())
+}
+
+async fn insert_room(
+    tx: &mut Transaction<'_, Postgres>,
+    room: &Room,
+) -> Result<(), RepositoryError> {
+    sqlx::query(
+        r#"
+        INSERT INTO rooms (id, owner_id, title, system_name, privacy_mode, version)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+    )
+    .bind(room.id.0)
+    .bind(room.owner_id.0)
+    .bind(&room.title)
+    .bind(&room.system_name)
+    .bind(room.privacy_mode.as_str())
+    .bind(room.version)
+    .execute(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+    Ok(())
+}
+
+async fn select_room(
+    tx: &mut Transaction<'_, Postgres>,
+    room_id: RoomId,
+) -> Result<Option<Room>, RepositoryError> {
+    let row = sqlx::query(
+        r#"
+        SELECT id, owner_id, title, system_name, privacy_mode, version
+        FROM rooms
+        WHERE id = $1
+        "#,
+    )
+    .bind(room_id.0)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+
+    row.map(room_from_row).transpose()
+}
+
+async fn insert_room_member(
+    tx: &mut Transaction<'_, Postgres>,
+    member: &RoomMember,
+) -> Result<(), RepositoryError> {
+    sqlx::query(
+        r#"
+        INSERT INTO room_members (room_id, user_id, role)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (room_id, user_id)
+        DO UPDATE SET role = EXCLUDED.role, updated_at = now()
+        "#,
+    )
+    .bind(member.room_id.0)
+    .bind(member.user_id.0)
+    .bind(member.role.as_str())
+    .execute(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+    Ok(())
+}
+
+async fn insert_room_invite(
+    tx: &mut Transaction<'_, Postgres>,
+    invite: &RoomInvite,
+) -> Result<(), RepositoryError> {
+    sqlx::query(
+        r#"
+        INSERT INTO room_invites (
+            id, room_id, invited_email, invited_role, token_hash, status,
+            invited_by, accepted_by, expires_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, to_timestamp($9))
+        "#,
+    )
+    .bind(invite.id.0)
+    .bind(invite.room_id.0)
+    .bind(invite.invited_email.as_str())
+    .bind(invite.role.as_str())
+    .bind(invite.token_hash.as_str())
+    .bind(invite.status.as_str())
+    .bind(invite.invited_by.0)
+    .bind(invite.accepted_by.map(|id| id.0))
+    .bind(unix_seconds(invite.expires_at)?)
+    .execute(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+    Ok(())
+}
+
+async fn update_room_invite(
+    tx: &mut Transaction<'_, Postgres>,
+    invite: &RoomInvite,
+) -> Result<(), RepositoryError> {
+    sqlx::query(
+        r#"
+        UPDATE room_invites
+        SET status = $2,
+            accepted_by = $3,
+            expires_at = to_timestamp($4),
+            updated_at = now()
+        WHERE id = $1
+        "#,
+    )
+    .bind(invite.id.0)
+    .bind(invite.status.as_str())
+    .bind(invite.accepted_by.map(|id| id.0))
+    .bind(unix_seconds(invite.expires_at)?)
+    .execute(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+    Ok(())
+}
+
+async fn insert_audit_log(
+    tx: &mut Transaction<'_, Postgres>,
+    log: &AuditLog,
+) -> Result<(), RepositoryError> {
+    sqlx::query(
+        r#"
+        INSERT INTO audit_logs (
+            room_id, actor_id, action, target_type, target_id, scope,
+            payload_json, request_id, outcome
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        "#,
+    )
+    .bind(log.room_id.map(|id| id.0))
+    .bind(log.actor_id.map(|id| id.0))
+    .bind(&log.action)
+    .bind(&log.target_type)
+    .bind(log.target_id)
+    .bind(log.scope.as_str())
+    .bind(&log.payload_json)
+    .bind(log.request_id)
+    .bind(log.outcome.as_str())
+    .execute(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+    Ok(())
 }
 
 pub struct PostgresRepositoryTransaction<'a> {
@@ -219,38 +731,30 @@ impl RefreshSessionRepository for PostgresRepositories {
 #[async_trait]
 impl RoomRepository for PostgresRepositories {
     async fn create_room(&self, room: &Room) -> Result<(), RepositoryError> {
-        let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
-        sqlx::query(
+        self.create_room_with_rls(room).await
+    }
+
+    async fn get_room(&self, room_id: RoomId) -> Result<Option<Room>, RepositoryError> {
+        let row = sqlx::query(
             r#"
-            INSERT INTO rooms (id, owner_id, title, system_name, privacy_mode, version)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            SELECT id, owner_id, title, system_name, privacy_mode, version
+            FROM rooms
+            WHERE id = $1
             "#,
         )
-        .bind(room.id.0)
-        .bind(room.owner_id.0)
-        .bind(&room.title)
-        .bind(&room.system_name)
-        .bind(room.privacy_mode.as_str())
-        .bind(room.version)
-        .execute(&mut *tx)
+        .bind(room_id.0)
+        .fetch_optional(&self.pool)
         .await
         .map_err(map_sqlx)?;
 
-        sqlx::query(
-            r#"
-            INSERT INTO room_members (room_id, user_id, role)
-            VALUES ($1, $2, 'owner')
-            ON CONFLICT (room_id, user_id) DO UPDATE SET role = 'owner', updated_at = now()
-            "#,
-        )
-        .bind(room.id.0)
-        .bind(room.owner_id.0)
-        .execute(&mut *tx)
-        .await
-        .map_err(map_sqlx)?;
+        row.map(room_from_row).transpose()
+    }
 
-        tx.commit().await.map_err(map_sqlx)?;
-        Ok(())
+    async fn list_rooms_for_user(
+        &self,
+        user_id: UserId,
+    ) -> Result<Vec<RoomWithRole>, RepositoryError> {
+        self.list_rooms_for_user_with_rls(user_id).await
     }
 
     async fn add_room_member(&self, member: &RoomMember) -> Result<(), RepositoryError> {
@@ -276,45 +780,55 @@ impl RoomRepository for PostgresRepositories {
         room_id: RoomId,
         user_id: UserId,
     ) -> Result<Option<RoomMember>, RepositoryError> {
-        let row = sqlx::query(
+        self.get_room_member_with_rls(room_id, user_id).await
+    }
+
+    async fn list_room_members(&self, room_id: RoomId) -> Result<Vec<RoomMember>, RepositoryError> {
+        let rows = sqlx::query(
             r#"
             SELECT room_id, user_id, role
             FROM room_members
-            WHERE room_id = $1 AND user_id = $2
+            WHERE room_id = $1
+            ORDER BY created_at ASC
             "#,
         )
         .bind(room_id.0)
-        .bind(user_id.0)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(map_sqlx)?;
+
+        rows.into_iter().map(room_member_from_row).collect()
+    }
+
+    async fn create_room_invite(&self, invite: &RoomInvite) -> Result<(), RepositoryError> {
+        self.create_room_invite_with_rls(invite).await
+    }
+
+    async fn find_pending_room_invite_by_token_hash(
+        &self,
+        token_hash: &TokenHash,
+    ) -> Result<Option<RoomInvite>, RepositoryError> {
+        let row = sqlx::query(
+            r#"
+            SELECT id,
+                   room_id,
+                   invited_email,
+                   invited_role,
+                   token_hash,
+                   status,
+                   invited_by,
+                   accepted_by,
+                   extract(epoch from expires_at)::bigint AS expires_at_epoch
+            FROM room_invites
+            WHERE token_hash = $1 AND status = 'pending'
+            "#,
+        )
+        .bind(token_hash.as_str())
         .fetch_optional(&self.pool)
         .await
         .map_err(map_sqlx)?;
 
-        row.map(room_member_from_row).transpose()
-    }
-
-    async fn create_room_invite(&self, invite: &RoomInvite) -> Result<(), RepositoryError> {
-        sqlx::query(
-            r#"
-            INSERT INTO room_invites (
-                id, room_id, invited_email, invited_role, token_hash, status,
-                invited_by, accepted_by, expires_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, to_timestamp($9))
-            "#,
-        )
-        .bind(invite.id.0)
-        .bind(invite.room_id.0)
-        .bind(invite.invited_email.as_str())
-        .bind(invite.role.as_str())
-        .bind(invite.token_hash.as_str())
-        .bind(invite.status.as_str())
-        .bind(invite.invited_by.0)
-        .bind(invite.accepted_by.map(|id| id.0))
-        .bind(unix_seconds(invite.expires_at)?)
-        .execute(&self.pool)
-        .await
-        .map_err(map_sqlx)?;
-        Ok(())
+        row.map(room_invite_from_row).transpose()
     }
 
     async fn save_room_invite(&self, invite: &RoomInvite) -> Result<(), RepositoryError> {
@@ -337,33 +851,20 @@ impl RoomRepository for PostgresRepositories {
         .map_err(map_sqlx)?;
         Ok(())
     }
+
+    async fn accept_room_invite(
+        &self,
+        invite: &RoomInvite,
+        member: &RoomMember,
+    ) -> Result<(), RepositoryError> {
+        self.accept_room_invite_with_rls(invite, member).await
+    }
 }
 
 #[async_trait]
 impl AuditLogRepository for PostgresRepositories {
     async fn append_audit_log(&self, log: &AuditLog) -> Result<(), RepositoryError> {
-        sqlx::query(
-            r#"
-            INSERT INTO audit_logs (
-                room_id, actor_id, action, target_type, target_id, scope,
-                payload_json, request_id, outcome
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            "#,
-        )
-        .bind(log.room_id.map(|id| id.0))
-        .bind(log.actor_id.map(|id| id.0))
-        .bind(&log.action)
-        .bind(&log.target_type)
-        .bind(log.target_id)
-        .bind(log.scope.as_str())
-        .bind(&log.payload_json)
-        .bind(log.request_id)
-        .bind(log.outcome.as_str())
-        .execute(&self.pool)
-        .await
-        .map_err(map_sqlx)?;
-        Ok(())
+        self.append_audit_log_with_rls(log).await
     }
 }
 
@@ -457,6 +958,28 @@ fn user_from_row(row: sqlx::postgres::PgRow) -> Result<User, RepositoryError> {
     })
 }
 
+fn room_from_row(row: sqlx::postgres::PgRow) -> Result<Room, RepositoryError> {
+    let privacy_mode: String = row.try_get("privacy_mode").map_err(map_sqlx)?;
+    Ok(Room {
+        id: RoomId(row.try_get("id").map_err(map_sqlx)?),
+        owner_id: UserId(row.try_get("owner_id").map_err(map_sqlx)?),
+        title: row.try_get("title").map_err(map_sqlx)?,
+        system_name: row.try_get("system_name").map_err(map_sqlx)?,
+        privacy_mode: RoomPrivacyMode::from_str(&privacy_mode)
+            .map_err(|err| RepositoryError::Database(err.to_string()))?,
+        version: row.try_get("version").map_err(map_sqlx)?,
+    })
+}
+
+fn room_with_role_from_row(row: sqlx::postgres::PgRow) -> Result<RoomWithRole, RepositoryError> {
+    let role: String = row.try_get("role").map_err(map_sqlx)?;
+    Ok(RoomWithRole {
+        room: room_from_row(row)?,
+        role: RoomRole::from_str(&role)
+            .map_err(|err| RepositoryError::Database(err.to_string()))?,
+    })
+}
+
 fn room_member_from_row(row: sqlx::postgres::PgRow) -> Result<RoomMember, RepositoryError> {
     let role: String = row.try_get("role").map_err(map_sqlx)?;
     Ok(RoomMember {
@@ -464,6 +987,31 @@ fn room_member_from_row(row: sqlx::postgres::PgRow) -> Result<RoomMember, Reposi
         user_id: UserId(row.try_get("user_id").map_err(map_sqlx)?),
         role: RoomRole::from_str(&role)
             .map_err(|err| RepositoryError::Database(err.to_string()))?,
+    })
+}
+
+fn room_invite_from_row(row: sqlx::postgres::PgRow) -> Result<RoomInvite, RepositoryError> {
+    let invited_email: String = row.try_get("invited_email").map_err(map_sqlx)?;
+    let invited_role: String = row.try_get("invited_role").map_err(map_sqlx)?;
+    let token_hash: String = row.try_get("token_hash").map_err(map_sqlx)?;
+    let status: String = row.try_get("status").map_err(map_sqlx)?;
+    let expires_at_epoch: i64 = row.try_get("expires_at_epoch").map_err(map_sqlx)?;
+    Ok(RoomInvite {
+        id: auth::RoomInviteId(row.try_get("id").map_err(map_sqlx)?),
+        room_id: RoomId(row.try_get("room_id").map_err(map_sqlx)?),
+        invited_email: EmailAddress::parse(invited_email)
+            .map_err(|err| RepositoryError::Database(err.to_string()))?,
+        role: RoomRole::from_str(&invited_role)
+            .map_err(|err| RepositoryError::Database(err.to_string()))?,
+        token_hash: TokenHash::new(token_hash)
+            .map_err(|err| RepositoryError::Database(err.to_string()))?,
+        status: room_invite_status_from_str(&status)?,
+        invited_by: UserId(row.try_get("invited_by").map_err(map_sqlx)?),
+        accepted_by: row
+            .try_get::<Option<Uuid>, _>("accepted_by")
+            .map_err(map_sqlx)?
+            .map(UserId),
+        expires_at: from_unix_seconds(expires_at_epoch)?,
     })
 }
 
@@ -492,6 +1040,23 @@ fn refresh_session_from_row(row: sqlx::postgres::PgRow) -> Result<RefreshSession
     })
 }
 
+fn magic_link_challenge_from_row(
+    row: sqlx::postgres::PgRow,
+) -> Result<MagicLinkChallenge, RepositoryError> {
+    let email: String = row.try_get("email").map_err(map_sqlx)?;
+    let token_hash: String = row.try_get("token_hash").map_err(map_sqlx)?;
+    let expires_at_epoch: i64 = row.try_get("expires_at_epoch").map_err(map_sqlx)?;
+
+    Ok(MagicLinkChallenge {
+        challenge_id: row.try_get("id").map_err(map_sqlx)?,
+        email: EmailAddress::parse(email)
+            .map_err(|err| RepositoryError::Database(err.to_string()))?,
+        token_hash: TokenHash::new(token_hash)
+            .map_err(|err| RepositoryError::Database(err.to_string()))?,
+        expires_at: from_unix_seconds(expires_at_epoch)?,
+    })
+}
+
 fn idempotency_record_from_row(
     row: sqlx::postgres::PgRow,
 ) -> Result<IdempotencyRecord, RepositoryError> {
@@ -514,6 +1079,18 @@ fn refresh_status_from_str(value: &str) -> Result<RefreshSessionStatus, Reposito
         "expired" => Ok(RefreshSessionStatus::Expired),
         _ => Err(RepositoryError::Database(format!(
             "unknown refresh session status: {value}"
+        ))),
+    }
+}
+
+fn room_invite_status_from_str(value: &str) -> Result<RoomInviteStatus, RepositoryError> {
+    match value {
+        "pending" => Ok(RoomInviteStatus::Pending),
+        "accepted" => Ok(RoomInviteStatus::Accepted),
+        "revoked" => Ok(RoomInviteStatus::Revoked),
+        "expired" => Ok(RoomInviteStatus::Expired),
+        _ => Err(RepositoryError::Database(format!(
+            "unknown room invite status: {value}"
         ))),
     }
 }

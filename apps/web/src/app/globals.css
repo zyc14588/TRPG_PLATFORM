@@ -18,3 +18,187 @@ body {
 a {
   color: inherit;
 }
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+code {
+  color: #a8d8ff;
+}
+
+.page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.page-narrow {
+  width: min(720px, 100%);
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.panel {
+  border: 1px solid #2c3441;
+  border-radius: 8px;
+  background: #171d25;
+  padding: 24px;
+}
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.room-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #93a4b8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+  line-height: 1.15;
+}
+
+h1 {
+  font-size: 2.5rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+.muted,
+.status,
+.error {
+  line-height: 1.6;
+}
+
+.muted {
+  color: #bdc8d7;
+}
+
+.status {
+  color: #a7f0c1;
+}
+
+.error {
+  color: #ffb4a8;
+}
+
+.stack {
+  display: grid;
+  gap: 14px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span {
+  color: #d5deea;
+  font-weight: 700;
+}
+
+.field input,
+.field select {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid #405064;
+  border-radius: 6px;
+  background: #0f141b;
+  color: #f4f7fb;
+  padding: 10px 12px;
+}
+
+.button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #506176;
+  border-radius: 6px;
+  background: #202a36;
+  color: #f4f7fb;
+  padding: 10px 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button-primary {
+  border-color: #5eb7ff;
+  background: #14639d;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.badge {
+  border: 1px solid #435468;
+  border-radius: 999px;
+  color: #d5deea;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+}
+
+.compact-list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.compact-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #2c3441;
+  padding-top: 8px;
+}
+
+@media (max-width: 720px) {
+  h1 {
+    font-size: 2rem;
+  }
+
+  .topbar {
+    display: grid;
+  }
+
+  .actions {
+    display: grid;
+  }
+}

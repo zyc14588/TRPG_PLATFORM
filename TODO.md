@@ -17,6 +17,11 @@
 - [x] Phase 1A RLS policies
 - [x] Phase 1A AuditLog and idempotency key storage
 - [x] Phase 1A database integration tests
-- [ ] AuthN/AuthZ request middleware
+- [x] Phase 1B stop point 1 Auth REST and cookie sessions
+- [x] Phase 1B stop point 2 Room REST API and safe room DTOs
+- [x] Phase 1B OpenAPI route contract
+- [x] Phase 1B minimal frontend auth/room flow
+- [x] Phase 1B report and roadmap sync
+- [x] Phase 1B verification pass
+- [x] SQLx query preparation check
 - [ ] WebSocket room hub
-- [ ] SQLx query preparation

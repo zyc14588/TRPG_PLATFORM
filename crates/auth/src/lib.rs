@@ -297,6 +297,12 @@ pub struct RoomMember {
     pub role: RoomRole,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct RoomWithRole {
+    pub room: Room,
+    pub role: RoomRole,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoomInvite {
     pub id: RoomInviteId,
@@ -728,14 +734,29 @@ pub trait RefreshSessionRepository: Send + Sync {
 #[async_trait]
 pub trait RoomRepository: Send + Sync {
     async fn create_room(&self, room: &Room) -> Result<(), RepositoryError>;
+    async fn get_room(&self, room_id: RoomId) -> Result<Option<Room>, RepositoryError>;
+    async fn list_rooms_for_user(
+        &self,
+        user_id: UserId,
+    ) -> Result<Vec<RoomWithRole>, RepositoryError>;
     async fn add_room_member(&self, member: &RoomMember) -> Result<(), RepositoryError>;
     async fn get_room_member(
         &self,
         room_id: RoomId,
         user_id: UserId,
     ) -> Result<Option<RoomMember>, RepositoryError>;
+    async fn list_room_members(&self, room_id: RoomId) -> Result<Vec<RoomMember>, RepositoryError>;
     async fn create_room_invite(&self, invite: &RoomInvite) -> Result<(), RepositoryError>;
+    async fn find_pending_room_invite_by_token_hash(
+        &self,
+        token_hash: &TokenHash,
+    ) -> Result<Option<RoomInvite>, RepositoryError>;
     async fn save_room_invite(&self, invite: &RoomInvite) -> Result<(), RepositoryError>;
+    async fn accept_room_invite(
+        &self,
+        invite: &RoomInvite,
+        member: &RoomMember,
+    ) -> Result<(), RepositoryError>;
 }
 
 #[async_trait]
