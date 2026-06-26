@@ -56,8 +56,12 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 name = "auth"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "schemars",
  "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
  "uuid",
 ]
 
@@ -1707,7 +1711,14 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 name = "storage"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "auth",
+ "game_core",
+ "serde_json",
  "sqlx",
+ "thiserror",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
