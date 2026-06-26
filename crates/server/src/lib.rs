@@ -17,6 +17,7 @@ use axum::{
     Json, Router,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use hmac::{Hmac, Mac};
 use observability::prometheus_bootstrap_metrics;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -41,6 +42,7 @@ pub const OPENAPI_JSON: &str = include_str!("../../../schemas/openapi.json");
 #[serde(rename_all = "snake_case")]
 pub enum AuthMode {
     Development,
+    Test,
     Production,
 }
 
@@ -50,9 +52,16 @@ impl FromStr for AuthMode {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "development" => Ok(Self::Development),
+            "test" => Ok(Self::Test),
             "production" => Ok(Self::Production),
             _ => Err(anyhow::anyhow!("unknown auth mode: {value}")),
         }
+    }
+}
+
+impl AuthMode {
+    fn allows_development_defaults(self) -> bool {
+        matches!(self, Self::Development | Self::Test)
     }
 }
 
@@ -88,21 +97,15 @@ impl AppConfig {
         let parsed = read_config_file(PathBuf::from(path))?;
         let auth_mode = load_auth_mode(env::var("TRPG_AUTH_MODE").ok())?;
         let auth_secret = env::var("TRPG_AUTH_SECRET").unwrap_or_else(|_| {
-            if auth_mode == AuthMode::Development {
+            if auth_mode.allows_development_defaults() {
                 "development-secret-do-not-use".to_owned()
             } else {
                 String::new()
             }
         });
-        if auth_mode == AuthMode::Production && auth_secret.is_empty() {
-            return Err(anyhow::anyhow!(
-                "TRPG_AUTH_SECRET is required when TRPG_AUTH_MODE=production"
-            ));
-        }
-        let cookie_secure = env::var("TRPG_COOKIE_SECURE")
-            .ok()
-            .map(|value| value == "true")
-            .unwrap_or(auth_mode == AuthMode::Production);
+        validate_auth_secret(auth_mode, &auth_secret)?;
+        let cookie_secure = env_bool("TRPG_COOKIE_SECURE", auth_mode == AuthMode::Production)?;
+        let cookie_same_site = env_same_site(cookie_secure)?;
 
         Ok(Self {
             bind_addr: env::var("TRPG_BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_owned()),
@@ -121,8 +124,7 @@ impl AppConfig {
             refresh_token_ttl_secs: env_u64("TRPG_REFRESH_TOKEN_TTL_SECS", 2_592_000),
             magic_link_ttl_secs: env_u64("TRPG_MAGIC_LINK_TTL_SECS", 600),
             cookie_secure,
-            cookie_same_site: env::var("TRPG_COOKIE_SAME_SITE")
-                .unwrap_or_else(|_| "Strict".to_owned()),
+            cookie_same_site,
         })
     }
 }
@@ -133,11 +135,101 @@ fn load_auth_mode(value: Option<String>) -> anyhow::Result<AuthMode> {
         .parse::<AuthMode>()
 }
 
+fn validate_auth_secret(auth_mode: AuthMode, auth_secret: &str) -> anyhow::Result<()> {
+    if auth_mode != AuthMode::Production {
+        return Ok(());
+    }
+    if auth_secret.is_empty() {
+        return Err(anyhow::anyhow!(
+            "TRPG_AUTH_SECRET is required when TRPG_AUTH_MODE=production"
+        ));
+    }
+    if auth_secret == "development-secret-do-not-use" {
+        return Err(anyhow::anyhow!(
+            "TRPG_AUTH_SECRET must not use the development default in production"
+        ));
+    }
+    if auth_secret.as_bytes().len() < 32 {
+        return Err(anyhow::anyhow!(
+            "TRPG_AUTH_SECRET must be at least 32 bytes when TRPG_AUTH_MODE=production"
+        ));
+    }
+    Ok(())
+}
+
+fn env_bool(name: &str, fallback: bool) -> anyhow::Result<bool> {
+    let value = match env::var(name) {
+        Ok(value) => Some(value),
+        Err(env::VarError::NotPresent) => None,
+        Err(err) => return Err(anyhow::anyhow!("{name} is invalid: {err}")),
+    };
+    parse_bool(name, value, fallback)
+}
+
+fn parse_bool(name: &str, value: Option<String>, fallback: bool) -> anyhow::Result<bool> {
+    value.map_or(Ok(fallback), |value| {
+        value
+            .parse::<bool>()
+            .map_err(|_| anyhow::anyhow!("{name} must be either true or false"))
+    })
+}
+
+fn env_same_site(cookie_secure: bool) -> anyhow::Result<String> {
+    let value = match env::var("TRPG_COOKIE_SAME_SITE") {
+        Ok(value) => value,
+        Err(env::VarError::NotPresent) => "Strict".to_owned(),
+        Err(err) => return Err(anyhow::anyhow!("TRPG_COOKIE_SAME_SITE is invalid: {err}")),
+    };
+    validate_cookie_same_site(&value, cookie_secure)
+}
+
+fn validate_cookie_same_site(value: &str, cookie_secure: bool) -> anyhow::Result<String> {
+    match value {
+        "Strict" | "Lax" => Ok(value.to_owned()),
+        "None" if cookie_secure => Ok(value.to_owned()),
+        "None" => Err(anyhow::anyhow!(
+            "TRPG_COOKIE_SAME_SITE=None requires TRPG_COOKIE_SECURE=true"
+        )),
+        _ => Err(anyhow::anyhow!(
+            "TRPG_COOKIE_SAME_SITE must be one of Strict, Lax, or None"
+        )),
+    }
+}
+
 fn env_u64(name: &str, fallback: u64) -> u64 {
     env::var(name)
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(fallback)
+}
+
+pub fn database_url_or_in_memory_from_env(config: &AppConfig) -> anyhow::Result<Option<String>> {
+    database_url_or_in_memory(
+        config,
+        env::var("DATABASE_URL").ok(),
+        env::var("TRPG_ALLOW_IN_MEMORY_STORE").ok(),
+    )
+}
+
+fn database_url_or_in_memory(
+    config: &AppConfig,
+    database_url: Option<String>,
+    allow_in_memory: Option<String>,
+) -> anyhow::Result<Option<String>> {
+    if let Some(database_url) = database_url.filter(|value| !value.is_empty()) {
+        return Ok(Some(database_url));
+    }
+    if config.auth_mode == AuthMode::Production {
+        return Err(anyhow::anyhow!(
+            "DATABASE_URL is required when TRPG_AUTH_MODE=production"
+        ));
+    }
+    if parse_bool("TRPG_ALLOW_IN_MEMORY_STORE", allow_in_memory, false)? {
+        return Ok(None);
+    }
+    Err(anyhow::anyhow!(
+        "InMemoryAuthStore requires TRPG_ALLOW_IN_MEMORY_STORE=true in development or test"
+    ))
 }
 
 fn read_config_file(path: PathBuf) -> anyhow::Result<ConfigFile> {
@@ -875,6 +967,10 @@ impl IntoResponse for ApiError {
 }
 
 pub fn router(config: AppConfig) -> Router {
+    assert!(
+        config.auth_mode.allows_development_defaults(),
+        "InMemoryAuthStore is only allowed in development or test"
+    );
     router_with_auth_store(config, Arc::new(InMemoryAuthStore::default()))
 }
 
@@ -1738,13 +1834,10 @@ fn verify_access_token(config: &AppConfig, token: &str) -> Result<AccessTokenCla
     let Some((payload, signature)) = token.split_once('.') else {
         return Err(ApiError::Unauthorized("access token is invalid".to_owned()));
     };
-    let expected = sign_bytes(config, payload.as_bytes())?;
     let actual = URL_SAFE_NO_PAD
         .decode(signature)
         .map_err(|_| ApiError::Unauthorized("access token is invalid".to_owned()))?;
-    if actual != expected {
-        return Err(ApiError::Unauthorized("access token is invalid".to_owned()));
-    }
+    verify_signature(config, payload.as_bytes(), &actual)?;
     let claims: AccessTokenClaims = decode_json_b64(payload)?;
     if system_time_unix(SystemTime::now())? >= claims.exp {
         return Err(ApiError::Unauthorized("access token expired".to_owned()));
@@ -1761,34 +1854,18 @@ fn decode_json_b64<T: DeserializeOwned>(value: &str) -> Result<T, ApiError> {
 }
 
 fn sign_bytes(config: &AppConfig, bytes: &[u8]) -> Result<Vec<u8>, ApiError> {
-    Ok(hmac_sha256(config.auth_secret.as_bytes(), bytes))
+    let mut mac = Hmac::<Sha256>::new_from_slice(config.auth_secret.as_bytes())
+        .map_err(|_| ApiError::Internal("token signing failed".to_owned()))?;
+    mac.update(bytes);
+    Ok(mac.finalize().into_bytes().to_vec())
 }
 
-fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
-    const BLOCK_SIZE: usize = 64;
-    let mut key_block = [0_u8; BLOCK_SIZE];
-    if key.len() > BLOCK_SIZE {
-        key_block[..32].copy_from_slice(&Sha256::digest(key));
-    } else {
-        key_block[..key.len()].copy_from_slice(key);
-    }
-
-    let mut outer = [0x5c_u8; BLOCK_SIZE];
-    let mut inner = [0x36_u8; BLOCK_SIZE];
-    for index in 0..BLOCK_SIZE {
-        outer[index] ^= key_block[index];
-        inner[index] ^= key_block[index];
-    }
-
-    let mut inner_hash = Sha256::new();
-    inner_hash.update(inner);
-    inner_hash.update(data);
-    let inner_digest = inner_hash.finalize();
-
-    let mut outer_hash = Sha256::new();
-    outer_hash.update(outer);
-    outer_hash.update(inner_digest);
-    outer_hash.finalize().to_vec()
+fn verify_signature(config: &AppConfig, bytes: &[u8], signature: &[u8]) -> Result<(), ApiError> {
+    let mut mac = Hmac::<Sha256>::new_from_slice(config.auth_secret.as_bytes())
+        .map_err(|_| ApiError::Internal("token verification failed".to_owned()))?;
+    mac.update(bytes);
+    mac.verify_slice(signature)
+        .map_err(|_| ApiError::Unauthorized("access token is invalid".to_owned()))
 }
 
 fn token_hash(config: &AppConfig, token: &str) -> Result<TokenHash, ApiError> {
@@ -2220,6 +2297,67 @@ mod tests {
         );
     }
 
+    #[test]
+    fn production_without_database_url_fails() {
+        let mut config = test_config();
+        config.auth_mode = AuthMode::Production;
+
+        let error = database_url_or_in_memory(&config, None, Some("true".to_owned()))
+            .expect_err("production must require DATABASE_URL");
+
+        assert!(error.to_string().contains("DATABASE_URL is required"));
+    }
+
+    #[test]
+    fn production_rejects_short_auth_secret() {
+        let error = validate_auth_secret(AuthMode::Production, "short")
+            .expect_err("production secret must be long enough");
+
+        assert!(error.to_string().contains("at least 32 bytes"));
+    }
+
+    #[test]
+    fn production_rejects_development_secret() {
+        let error = validate_auth_secret(AuthMode::Production, "development-secret-do-not-use")
+            .expect_err("production must reject development default");
+
+        assert!(error.to_string().contains("development default"));
+    }
+
+    #[test]
+    fn production_rejects_insecure_samesite_none() {
+        let error = validate_cookie_same_site("None", false)
+            .expect_err("SameSite=None must require Secure");
+
+        assert!(error
+            .to_string()
+            .contains("requires TRPG_COOKIE_SECURE=true"));
+    }
+
+    #[test]
+    fn invalid_bool_env_is_rejected() {
+        let error = parse_bool("TRPG_COOKIE_SECURE", Some("yes".to_owned()), false)
+            .expect_err("bool env parser must reject non-bool values");
+
+        assert!(error.to_string().contains("either true or false"));
+    }
+
+    #[test]
+    fn development_can_use_in_memory_only_when_explicit() {
+        let config = test_config();
+        let error = database_url_or_in_memory(&config, None, None)
+            .expect_err("development in-memory store must be explicit");
+        assert!(error
+            .to_string()
+            .contains("TRPG_ALLOW_IN_MEMORY_STORE=true"));
+
+        assert_eq!(
+            database_url_or_in_memory(&config, None, Some("true".to_owned()))
+                .expect("explicit development in-memory store"),
+            None
+        );
+    }
+
     #[tokio::test]
     async fn openapi_contract_is_readable_and_matches_registered_routes() {
         let document: serde_json::Value =
@@ -2324,7 +2462,7 @@ mod tests {
         let mut config = test_config();
         config.auth_mode = AuthMode::Production;
         config.cookie_secure = true;
-        let app = router(config);
+        let app = router_with_auth_store(config, Arc::new(InMemoryAuthStore::default()));
         let response = json_request(
             app,
             "POST",

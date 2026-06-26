@@ -926,11 +926,11 @@ LOCAL_STORAGE_PATH=./data/blob
 
 | 阶段 | 目标 | 交付物 |
 |---|---|---|
-| Phase 1 | 工作区、DB、基础 REST/WS、骰子与角色基础结构 | 可编译 monorepo |
-| Phase 2 | 文档导入、切块、embedding provider trait、混合检索 | `ingest` 与 `query` 跑通 |
-| Phase 3 | Dice/Character/KP Agent 与结构化出参 | 基础跑团循环 |
-| Phase 4 | 前端房间页、线索图、战况面板、导出 | 可玩 demo |
-| Phase 5 | Memory Agent、反馈审核、长期记忆检索 | 可控“学习”闭环 |
+| Phase 1 | 工作区、DB、基础 REST、骰子与角色基础结构 | 可编译 monorepo |
+| Phase 2 | Rules/RAG/Document Ingestion：规则适配器边界、文档导入、切块、embedding provider trait、混合检索 | `ingest` 与 `query` 跑通 |
+| Phase 3 | Realtime/WebSocket/Redis/Outbox Replay、断线恢复、并发冲突处理 | 可恢复实时房间 |
+| Phase 4 | Dice/Character/KP Agent 与结构化出参 | 基础跑团循环 |
+| Phase 5 | 前端房间页、线索图、战况面板、导出、Memory Agent | 可玩 demo 与可控“学习”闭环 |
 
 ### 可直接交给 Codex 的任务清单
 
@@ -1247,6 +1247,7 @@ Phase 1:
 - frontend skeleton
 
 Phase 2:
+- rule adapter boundaries
 - document ingestor
 - chunking
 - license checker
@@ -1254,13 +1255,18 @@ Phase 2:
 - hybrid retrieval
 
 Phase 3:
+- realtime / WebSocket / Redis
+- outbox replay
+- reconnect and conflict handling
+
+Phase 4:
 - llm_client
 - Dice Agent
 - Character Agent
 - KP Agent
 - game loop
 
-Phase 4:
+Phase 5:
 - Creator Agent
 - export_core
 - React Flow clue graph
@@ -1285,7 +1291,7 @@ Phase 5:
 3. 建立 PostgreSQL migrations 与 `sqlx` 配置。
 4. 在 `auth` 中定义用户、房间、角色、可见性与授权决策。
 5. 在 `server` 中搭建 Axum REST 路由与统一错误处理中间件。
-6. 加入 Axum WebSocket 房间总线，跑通基础聊天。
+6. 预留 Realtime/WebSocket 边界；实际房间总线、Redis 与重连回放推迟到 Phase 3/P2B。
 7. 在 `dice_engine` 实现骰式 parser、seedable RNG、优势/劣势/奖惩支持。
 8. 在 `trpg_rules` 设计通用 `RuleSystem` trait 与角色卡扩展字段接口。
 9. 在 `rag_core` 定义 `DocumentChunk / Evidence / RetrievalFilter / EmbeddingProvider / VectorStore / SearchIndex`。

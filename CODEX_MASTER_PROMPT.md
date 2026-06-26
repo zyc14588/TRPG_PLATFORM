@@ -1,5 +1,7 @@
 # Codex Master Prompt — 初始化完整 TRPG 平台
 
+当前活动阶段：P1.5 Stabilization。P2 只能在 P1.5 gate 通过后进入，且唯一主线是 Rules/RAG/Ingestion；Realtime/WebSocket/Redis 工作延后到 Phase 3/P2B。
+
 你正在一个空仓库或仅含设计文档的仓库中工作。必须先阅读：
 
 1. `DECISIONS.md`

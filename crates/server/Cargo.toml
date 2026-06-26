@@ -10,6 +10,7 @@ async-trait.workspace = true
 axum.workspace = true
 auth = { path = "../auth" }
 base64.workspace = true
+hmac.workspace = true
 observability = { path = "../observability" }
 serde.workspace = true
 serde_json.workspace = true
