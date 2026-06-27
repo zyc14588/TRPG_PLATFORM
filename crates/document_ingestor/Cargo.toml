@@ -5,6 +5,4 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-schemars.workspace = true
-serde.workspace = true
-thiserror.workspace = true
+rag_core = { path = "../rag_core" }
