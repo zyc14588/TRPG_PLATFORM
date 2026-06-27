@@ -31,6 +31,7 @@ describe("frontend auth and room E2E flow", () => {
     delete env.DATABASE_URL;
     Object.assign(env, {
       TRPG_AUTH_MODE: "development",
+      TRPG_ALLOW_IN_MEMORY_STORE: "true",
       TRPG_AUTH_SECRET: "test-secret",
       TRPG_BIND_ADDR: `127.0.0.1:${port}`
     });

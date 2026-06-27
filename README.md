@@ -45,3 +45,13 @@ SQLx CLI 必须与 workspace 中 `sqlx` 版本一致：
 ```bash
 cargo install sqlx-cli --version 0.9.0 --no-default-features --features native-tls,postgres --locked
 ```
+
+## Release source package
+
+生成干净源码包：
+
+```bash
+bash scripts/package_source.sh
+```
+
+输出：`dist/trpg-platform-source.tar.gz`。脚本会排除 `.git/`、`node_modules/`、`target/`、`.next/`、`dist/`、`coverage/`、`*.tsbuildinfo`、`.env` 和临时文件；当前 P1 源码包应小于 5 MB。
