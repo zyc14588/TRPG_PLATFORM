@@ -3,10 +3,11 @@ use auth::{
     AcceptRoomInviteIdempotentCommand, AcceptRoomInviteResult, AuditLog, AuditLogRepository,
     AuthContext, CreateRoomIdempotentCommand, CreateRoomInviteIdempotentCommand, EmailAddress,
     IdempotencyCheck, IdempotencyRecord, IdempotencyRepository, IdempotencyStatus,
-    IdempotentOutcome, IdentityRepository, MagicLinkChallenge, RefreshSession, RefreshSessionId,
-    RefreshSessionRepository, RefreshSessionStatus, RepositoryError, RepositoryTransaction, Room,
-    RoomCommandRepository, RoomId, RoomInvite, RoomInviteStatus, RoomMember, RoomPrivacyMode,
-    RoomRepository, RoomRole, RoomWithRole, TokenHash, TransactionalRepository, User, UserId,
+    IdempotentOutcome, IdentityRepository, MagicLinkChallenge, RefreshRotationOutcome,
+    RefreshSession, RefreshSessionId, RefreshSessionRepository, RefreshSessionStatus,
+    RepositoryError, RepositoryTransaction, Room, RoomCommandRepository, RoomId, RoomInvite,
+    RoomInviteStatus, RoomMember, RoomPrivacyMode, RoomRepository, RoomRole, RoomWithRole,
+    TokenHash, TransactionalRepository, User, UserId,
 };
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres, Row, Transaction};
@@ -836,6 +837,118 @@ impl RefreshSessionRepository for PostgresRepositories {
 
         row.map(refresh_session_from_row).transpose()
     }
+
+    async fn rotate_refresh_session(
+        &self,
+        presented_hash: &TokenHash,
+        next_hash: TokenHash,
+        now: SystemTime,
+    ) -> Result<RefreshRotationOutcome, RepositoryError> {
+        let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+        let row = sqlx::query(
+            r#"
+            SELECT id,
+                   user_id,
+                   session_family_id,
+                   current_token_hash,
+                   previous_token_hash,
+                   status,
+                   extract(epoch from expires_at)::bigint AS expires_at_epoch,
+                   extract(epoch from rotated_at)::bigint AS rotated_at_epoch,
+                   extract(epoch from revoked_at)::bigint AS revoked_at_epoch
+            FROM refresh_sessions
+            WHERE current_token_hash = $1 OR previous_token_hash = $1
+            FOR UPDATE
+            "#,
+        )
+        .bind(presented_hash.as_str())
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+
+        let Some(row) = row else {
+            tx.commit().await.map_err(map_sqlx)?;
+            return Ok(RefreshRotationOutcome::Rejected(
+                auth::RefreshSessionError::InvalidToken,
+            ));
+        };
+
+        let mut session = refresh_session_from_row(row)?;
+        match session.rotate(presented_hash, next_hash, now) {
+            Ok(()) => {
+                sqlx::query(
+                    r#"
+                    UPDATE refresh_sessions
+                    SET current_token_hash = $2,
+                        previous_token_hash = $3,
+                        status = $4,
+                        expires_at = to_timestamp($5),
+                        rotated_at = to_timestamp($6),
+                        revoked_at = NULL,
+                        updated_at = now()
+                    WHERE id = $1
+                    "#,
+                )
+                .bind(session.id.0)
+                .bind(session.current_token_hash.as_str())
+                .bind(session.previous_token_hash.as_ref().map(TokenHash::as_str))
+                .bind(session.status.as_str())
+                .bind(unix_seconds(session.expires_at)?)
+                .bind(optional_unix_seconds(session.rotated_at)?.ok_or_else(|| {
+                    RepositoryError::Database(
+                        "rotated refresh session missing rotated_at".to_owned(),
+                    )
+                })?)
+                .execute(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+                tx.commit().await.map_err(map_sqlx)?;
+                Ok(RefreshRotationOutcome::Rotated(session))
+            }
+            Err(auth::RefreshSessionError::ReuseDetected) => {
+                sqlx::query(
+                    r#"
+                    UPDATE refresh_sessions
+                    SET status = 'revoked',
+                        revoked_at = to_timestamp($2),
+                        updated_at = now()
+                    WHERE session_family_id = $1
+                    "#,
+                )
+                .bind(session.session_family_id)
+                .bind(unix_seconds(now)?)
+                .execute(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+                tx.commit().await.map_err(map_sqlx)?;
+                Ok(RefreshRotationOutcome::Rejected(
+                    auth::RefreshSessionError::ReuseDetected,
+                ))
+            }
+            Err(auth::RefreshSessionError::Expired) => {
+                sqlx::query(
+                    r#"
+                    UPDATE refresh_sessions
+                    SET status = 'expired',
+                        updated_at = now()
+                    WHERE id = $1
+                    "#,
+                )
+                .bind(session.id.0)
+                .execute(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+                tx.commit().await.map_err(map_sqlx)?;
+                Ok(RefreshRotationOutcome::Rejected(
+                    auth::RefreshSessionError::Expired,
+                ))
+            }
+            Err(error) => {
+                tx.commit().await.map_err(map_sqlx)?;
+                Ok(RefreshRotationOutcome::Rejected(error))
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -1489,6 +1602,10 @@ mod tests {
         TokenHash::new(value).map_err(|err| RepositoryError::Database(err.to_string()))
     }
 
+    fn unique_token_hash(prefix: &str) -> Result<TokenHash, RepositoryError> {
+        token_hash(&format!("{prefix}_{}", Uuid::new_v4()))
+    }
+
     fn user(display: &str) -> Result<User, RepositoryError> {
         let id = Uuid::new_v4();
         Ok(User {
@@ -1571,44 +1688,181 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refresh_reuse_can_be_detected_after_persisted_rotation() -> Result<(), RepositoryError>
-    {
+    async fn previous_refresh_token_reuse_policy_is_explicit() -> Result<(), RepositoryError> {
         let Some(repo) = migrated_repo().await else {
             return Ok(());
         };
         let owner = user("Owner")?;
         repo.upsert_user(&owner).await?;
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
-        let old_hash = token_hash("old_refresh_hash")?;
-        let mut session =
+        let old_hash = unique_token_hash("old_refresh_hash")?;
+        let session =
             RefreshSession::active(owner.id, old_hash.clone(), now, Duration::from_secs(3_600));
         repo.create_refresh_session(&session).await?;
 
-        session
-            .rotate(
-                &old_hash,
-                token_hash("new_refresh_hash")?,
-                now + Duration::from_secs(1),
-            )
-            .map_err(|err| RepositoryError::Database(err.to_string()))?;
-        repo.save_refresh_session(&session).await?;
+        let new_hash = unique_token_hash("new_refresh_hash")?;
+        let rotated = repo
+            .rotate_refresh_session(&old_hash, new_hash.clone(), now + Duration::from_secs(1))
+            .await?;
+        assert!(matches!(rotated, RefreshRotationOutcome::Rotated(_)));
 
+        let reuse_result = repo
+            .rotate_refresh_session(
+                &old_hash,
+                unique_token_hash("reused_refresh_hash")?,
+                now + Duration::from_secs(2),
+            )
+            .await?;
+
+        assert_eq!(
+            reuse_result,
+            RefreshRotationOutcome::Rejected(auth::RefreshSessionError::ReuseDetected)
+        );
         let loaded = repo
-            .find_refresh_session_by_token_hash(&old_hash)
+            .find_refresh_session_by_token_hash(&new_hash)
             .await?
             .ok_or(RepositoryError::NotFound)?;
-        let mut loaded = loaded;
-        let reuse_result = loaded.rotate(
-            &old_hash,
-            token_hash("reused_refresh_hash")?,
-            now + Duration::from_secs(2),
+        assert_eq!(loaded.status, RefreshSessionStatus::Revoked);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn refresh_reuse_revokes_session_family() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        let owner = user("Owner")?;
+        repo.upsert_user(&owner).await?;
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(2_000);
+        let old_hash = unique_token_hash("family_old_refresh_hash")?;
+        let session =
+            RefreshSession::active(owner.id, old_hash.clone(), now, Duration::from_secs(3_600));
+        repo.create_refresh_session(&session).await?;
+
+        let sibling_hash = unique_token_hash("family_sibling_refresh_hash")?;
+        let mut sibling = RefreshSession::active(
+            owner.id,
+            sibling_hash.clone(),
+            now,
+            Duration::from_secs(3_600),
         );
+        sibling.session_family_id = session.session_family_id;
+        repo.create_refresh_session(&sibling).await?;
+
+        repo.rotate_refresh_session(
+            &old_hash,
+            unique_token_hash("family_new_refresh_hash")?,
+            now + Duration::from_secs(1),
+        )
+        .await?;
+        let reuse_result = repo
+            .rotate_refresh_session(
+                &old_hash,
+                unique_token_hash("family_reused_refresh_hash")?,
+                now + Duration::from_secs(2),
+            )
+            .await?;
 
         assert!(matches!(
             reuse_result,
-            Err(auth::RefreshSessionError::ReuseDetected)
+            RefreshRotationOutcome::Rejected(auth::RefreshSessionError::ReuseDetected)
         ));
-        assert_eq!(loaded.status, RefreshSessionStatus::Revoked);
+        let sibling = repo
+            .find_refresh_session_by_token_hash(&sibling_hash)
+            .await?
+            .ok_or(RepositoryError::NotFound)?;
+        assert_eq!(sibling.status, RefreshSessionStatus::Revoked);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stale_refresh_cookie_after_race_is_rejected() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        let owner = user("Owner")?;
+        repo.upsert_user(&owner).await?;
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(3_000);
+        let old_hash = unique_token_hash("stale_old_refresh_hash")?;
+        let session =
+            RefreshSession::active(owner.id, old_hash.clone(), now, Duration::from_secs(3_600));
+        repo.create_refresh_session(&session).await?;
+
+        repo.rotate_refresh_session(
+            &old_hash,
+            unique_token_hash("stale_new_refresh_hash")?,
+            now + Duration::from_secs(1),
+        )
+        .await?;
+        let stale = repo
+            .rotate_refresh_session(
+                &old_hash,
+                unique_token_hash("stale_loser_refresh_hash")?,
+                now + Duration::from_secs(2),
+            )
+            .await?;
+
+        assert_eq!(
+            stale,
+            RefreshRotationOutcome::Rejected(auth::RefreshSessionError::ReuseDetected)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn concurrent_refresh_only_one_rotation_wins() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        let owner = user("Owner")?;
+        repo.upsert_user(&owner).await?;
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(4_000);
+        let old_hash = unique_token_hash("concurrent_old_refresh_hash")?;
+        let session =
+            RefreshSession::active(owner.id, old_hash.clone(), now, Duration::from_secs(3_600));
+        repo.create_refresh_session(&session).await?;
+
+        let first_repo = repo.clone();
+        let second_repo = repo.clone();
+        let first_hash = old_hash.clone();
+        let second_hash = old_hash.clone();
+        let first = async move {
+            first_repo
+                .rotate_refresh_session(
+                    &first_hash,
+                    unique_token_hash("concurrent_first_refresh_hash")?,
+                    now + Duration::from_secs(1),
+                )
+                .await
+        };
+        let second = async move {
+            second_repo
+                .rotate_refresh_session(
+                    &second_hash,
+                    unique_token_hash("concurrent_second_refresh_hash")?,
+                    now + Duration::from_secs(1),
+                )
+                .await
+        };
+        let (first, second) = tokio::join!(first, second);
+        let first = first?;
+        let second = second?;
+        let results = [&first, &second];
+
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, RefreshRotationOutcome::Rotated(_)))
+                .count(),
+            1
+        );
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, RefreshRotationOutcome::Rejected(_)))
+                .count(),
+            1
+        );
         Ok(())
     }
 

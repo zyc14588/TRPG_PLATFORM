@@ -476,6 +476,12 @@ impl fmt::Display for RefreshSessionStatus {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RefreshRotationOutcome {
+    Rotated(RefreshSession),
+    Rejected(RefreshSessionError),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct MagicLinkRequest {
     pub email: EmailAddress,
@@ -777,6 +783,12 @@ pub trait RefreshSessionRepository: Send + Sync {
         &self,
         token_hash: &TokenHash,
     ) -> Result<Option<RefreshSession>, RepositoryError>;
+    async fn rotate_refresh_session(
+        &self,
+        presented_hash: &TokenHash,
+        next_hash: TokenHash,
+        now: SystemTime,
+    ) -> Result<RefreshRotationOutcome, RepositoryError>;
 }
 
 #[async_trait]

@@ -3,10 +3,10 @@ use auth::{
     AcceptRoomInviteIdempotentCommand, AcceptRoomInviteResult, AuditLog, AuditOutcome,
     CreateRoomIdempotentCommand, CreateRoomInviteIdempotentCommand, EmailAddress, IdempotencyCheck,
     IdempotencyRecord, IdempotencyRepository, IdempotencyStatus, IdempotentOutcome,
-    IdentityRepository, MagicLinkChallenge, OidcLoginRequest, OidcPort, RefreshSession,
-    RefreshSessionRepository, Room, RoomCommandRepository, RoomId, RoomInvite, RoomInviteId,
-    RoomMember, RoomPrivacyMode, RoomRepository, RoomRole, RoomWithRole, TokenHash, User, UserId,
-    VisibilityScope,
+    IdentityRepository, MagicLinkChallenge, OidcLoginRequest, OidcPort, RefreshRotationOutcome,
+    RefreshSession, RefreshSessionRepository, Room, RoomCommandRepository, RoomId, RoomInvite,
+    RoomInviteId, RoomMember, RoomPrivacyMode, RoomRepository, RoomRole, RoomWithRole, TokenHash,
+    User, UserId, VisibilityScope,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -151,7 +151,7 @@ fn validate_auth_secret(auth_mode: AuthMode, auth_secret: &str) -> anyhow::Resul
             "TRPG_AUTH_SECRET must not use the development default in production"
         ));
     }
-    if auth_secret.as_bytes().len() < 32 {
+    if auth_secret.len() < 32 {
         return Err(anyhow::anyhow!(
             "TRPG_AUTH_SECRET must be at least 32 bytes when TRPG_AUTH_MODE=production"
         ));
@@ -269,6 +269,12 @@ pub trait AuthStore: Send + Sync {
         &self,
         token_hash: &TokenHash,
     ) -> Result<Option<RefreshSession>, ApiError>;
+    async fn rotate_refresh_session(
+        &self,
+        presented_hash: &TokenHash,
+        next_hash: TokenHash,
+        now: SystemTime,
+    ) -> Result<RefreshRotationOutcome, ApiError>;
     async fn create_room(&self, room: &Room) -> Result<(), ApiError>;
     async fn create_room_idempotent(
         &self,
@@ -387,6 +393,17 @@ impl AuthStore for storage::PostgresRepositories {
         token_hash: &TokenHash,
     ) -> Result<Option<RefreshSession>, ApiError> {
         RefreshSessionRepository::find_refresh_session_by_token_hash(self, token_hash)
+            .await
+            .map_err(ApiError::from_repository)
+    }
+
+    async fn rotate_refresh_session(
+        &self,
+        presented_hash: &TokenHash,
+        next_hash: TokenHash,
+        now: SystemTime,
+    ) -> Result<RefreshRotationOutcome, ApiError> {
+        RefreshSessionRepository::rotate_refresh_session(self, presented_hash, next_hash, now)
             .await
             .map_err(ApiError::from_repository)
     }
@@ -629,6 +646,48 @@ impl AuthStore for InMemoryAuthStore {
                     || session.previous_token_hash.as_ref() == Some(token_hash)
             })
             .cloned())
+    }
+
+    async fn rotate_refresh_session(
+        &self,
+        presented_hash: &TokenHash,
+        next_hash: TokenHash,
+        now: SystemTime,
+    ) -> Result<RefreshRotationOutcome, ApiError> {
+        let mut inner = self.lock()?;
+        let Some(session_id) = inner
+            .refresh_sessions_by_id
+            .iter()
+            .find(|(_, session)| {
+                session.current_token_hash == *presented_hash
+                    || session.previous_token_hash.as_ref() == Some(presented_hash)
+            })
+            .map(|(session_id, _)| *session_id)
+        else {
+            return Ok(RefreshRotationOutcome::Rejected(
+                auth::RefreshSessionError::InvalidToken,
+            ));
+        };
+
+        let session = inner
+            .refresh_sessions_by_id
+            .get_mut(&session_id)
+            .ok_or_else(|| ApiError::Internal("refresh session disappeared".to_owned()))?;
+        match session.rotate(presented_hash, next_hash, now) {
+            Ok(()) => Ok(RefreshRotationOutcome::Rotated(session.clone())),
+            Err(auth::RefreshSessionError::ReuseDetected) => {
+                let family_id = session.session_family_id;
+                for family_session in inner.refresh_sessions_by_id.values_mut() {
+                    if family_session.session_family_id == family_id {
+                        family_session.revoke(now);
+                    }
+                }
+                Ok(RefreshRotationOutcome::Rejected(
+                    auth::RefreshSessionError::ReuseDetected,
+                ))
+            }
+            Err(error) => Ok(RefreshRotationOutcome::Rejected(error)),
+        }
     }
 
     async fn create_room(&self, room: &Room) -> Result<(), ApiError> {
@@ -1392,28 +1451,21 @@ async fn refresh(State(state): State<AppState>, headers: HeaderMap) -> Result<Re
     let refresh_token = cookie_value(&headers, REFRESH_COOKIE)
         .ok_or_else(|| ApiError::Unauthorized("refresh session is required".to_owned()))?;
     let presented_hash = token_hash(&state.config, &refresh_token)?;
-    let Some(mut session) = state
-        .auth_store
-        .find_refresh_session_by_token_hash(&presented_hash)
-        .await?
-    else {
-        return Err(ApiError::Unauthorized(
-            "refresh session is invalid".to_owned(),
-        ));
-    };
-
     let next_refresh_token = generate_secret_token("rt");
     let next_hash = token_hash(&state.config, &next_refresh_token)?;
     let now = SystemTime::now();
-    if let Err(error) = session.rotate(&presented_hash, next_hash, now) {
-        if !matches!(error, auth::RefreshSessionError::InvalidToken) {
-            state.auth_store.save_refresh_session(&session).await?;
+    let session = match state
+        .auth_store
+        .rotate_refresh_session(&presented_hash, next_hash, now)
+        .await?
+    {
+        RefreshRotationOutcome::Rotated(session) => session,
+        RefreshRotationOutcome::Rejected(_) => {
+            return Err(ApiError::Unauthorized(
+                "refresh session is invalid".to_owned(),
+            ));
         }
-        return Err(ApiError::Unauthorized(
-            "refresh session is invalid".to_owned(),
-        ));
-    }
-    state.auth_store.save_refresh_session(&session).await?;
+    };
     let user = state
         .auth_store
         .find_user_by_id(session.user_id)

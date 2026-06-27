@@ -136,6 +136,19 @@ RETURNING ...;
 - concurrent_refresh_only_one_rotation_wins
 - refresh_reuse_revokes_session_family
 - stale_refresh_cookie_after_race_is_rejected
+- previous_refresh_token_reuse_policy_is_explicit
+
+### Batch 5 复验缺口
+
+当前实现应使用 PostgreSQL repository 的单事务 `SELECT ... FOR UPDATE` 路径完成 refresh rotation，而不是 HTTP handler 中的 `find -> memory rotate -> blind save`。复验时必须检查 `crates/storage/src/lib.rs` 中 `PostgresRepositories::rotate_refresh_session` 是否仍满足：
+
+- `pool.begin()` 开启事务。
+- 按 `current_token_hash = presented OR previous_token_hash = presented` 查询同一 session 行。
+- 查询带 `FOR UPDATE`，或改为等价 CAS `UPDATE ... WHERE current_token_hash = presented AND status='active' RETURNING ...`。
+- 成功路径更新 `current_token_hash`、`previous_token_hash`、`rotated_at`、`updated_at`。
+- previous token reuse 检测和 `session_family_id` revoke 在同一事务内提交。
+
+测试缺口：`crates/storage/src/lib.rs` 中的并发与复用测试调用的是 `PostgresRepositories`，不是 `InMemoryAuthStore`；但这些测试通过 `migrated_repo()` 依赖 `DATABASE_URL`。如果测试环境没有设置 `DATABASE_URL` 或迁移失败，测试会提前 `return Ok(())`，因此只证明编译通过，不证明真实 PostgreSQL 行锁行为。CI/验收必须提供 PostgreSQL `DATABASE_URL`，并确认这些测试实际连接数据库运行。
 
 ## 任务 5：RLS 访问模型修正
 
