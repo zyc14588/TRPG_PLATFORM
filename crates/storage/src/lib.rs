@@ -23,6 +23,7 @@ pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations"
 pub struct PostgresRepositories {
     pool: PgPool,
     rls_role: Option<String>,
+    private_role: Option<String>,
 }
 
 impl PostgresRepositories {
@@ -30,20 +31,21 @@ impl PostgresRepositories {
         Self {
             pool,
             rls_role: None,
+            private_role: None,
         }
     }
 
     pub fn with_rls_role(mut self, role: impl Into<String>) -> Result<Self, RepositoryError> {
         let role = role.into();
-        if !role
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
-        {
-            return Err(RepositoryError::Database(
-                "invalid postgres role name".to_owned(),
-            ));
-        }
+        validate_role_name(&role)?;
         self.rls_role = Some(role);
+        Ok(self)
+    }
+
+    pub fn with_private_role(mut self, role: impl Into<String>) -> Result<Self, RepositoryError> {
+        let role = role.into();
+        validate_role_name(&role)?;
+        self.private_role = Some(role);
         Ok(self)
     }
 
@@ -80,6 +82,7 @@ impl PostgresRepositories {
         &self,
         challenge: &MagicLinkChallenge,
     ) -> Result<(), RepositoryError> {
+        let mut tx = self.begin_private_tx().await?;
         sqlx::query(
             r#"
             INSERT INTO magic_link_challenges (id, email, token_hash, expires_at)
@@ -90,9 +93,10 @@ impl PostgresRepositories {
         .bind(challenge.email.as_str())
         .bind(challenge.token_hash.as_str())
         .bind(unix_seconds(challenge.expires_at)?)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(map_sqlx)?;
+        tx.commit().await.map_err(map_sqlx)?;
         Ok(())
     }
 
@@ -100,6 +104,7 @@ impl PostgresRepositories {
         &self,
         token_hash: &TokenHash,
     ) -> Result<Option<MagicLinkChallenge>, RepositoryError> {
+        let mut tx = self.begin_private_tx().await?;
         let row = sqlx::query(
             r#"
             SELECT id,
@@ -111,17 +116,20 @@ impl PostgresRepositories {
             "#,
         )
         .bind(token_hash.as_str())
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(map_sqlx)?;
 
-        row.map(magic_link_challenge_from_row).transpose()
+        let challenge = row.map(magic_link_challenge_from_row).transpose()?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(challenge)
     }
 
     pub async fn consume_magic_link_challenge(
         &self,
         challenge_id: Uuid,
     ) -> Result<bool, RepositoryError> {
+        let mut tx = self.begin_private_tx().await?;
         let result = sqlx::query(
             r#"
             UPDATE magic_link_challenges
@@ -130,9 +138,10 @@ impl PostgresRepositories {
             "#,
         )
         .bind(challenge_id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(map_sqlx)?;
+        tx.commit().await.map_err(map_sqlx)?;
         Ok(result.rows_affected() == 1)
     }
 
@@ -397,6 +406,47 @@ impl PostgresRepositories {
         }
         set_rls_values(&mut tx, user_id, room_id, role, email).await?;
         Ok(tx)
+    }
+
+    async fn begin_private_tx(&self) -> Result<Transaction<'_, Postgres>, RepositoryError> {
+        let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+        if let Some(role) = &self.private_role {
+            set_database_role(&mut tx, role).await?;
+        }
+        Ok(tx)
+    }
+
+    async fn set_private_role(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+    ) -> Result<(), RepositoryError> {
+        if let Some(role) = &self.private_role {
+            set_database_role(tx, role).await?;
+        }
+        Ok(())
+    }
+
+    async fn reset_role_if_configured(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+    ) -> Result<(), RepositoryError> {
+        if self.private_role.is_some() || self.rls_role.is_some() {
+            reset_database_role(tx).await?;
+        }
+        Ok(())
+    }
+}
+
+fn validate_role_name(role: &str) -> Result<(), RepositoryError> {
+    if role
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+    {
+        Ok(())
+    } else {
+        Err(RepositoryError::Database(
+            "invalid postgres role name".to_owned(),
+        ))
     }
 }
 
@@ -762,6 +812,7 @@ impl RefreshSessionRepository for PostgresRepositories {
         &self,
         session: &RefreshSession,
     ) -> Result<(), RepositoryError> {
+        let mut tx = self.begin_private_tx().await?;
         sqlx::query(
             r#"
             INSERT INTO refresh_sessions (
@@ -778,13 +829,15 @@ impl RefreshSessionRepository for PostgresRepositories {
         .bind(session.previous_token_hash.as_ref().map(TokenHash::as_str))
         .bind(session.status.as_str())
         .bind(unix_seconds(session.expires_at)?)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(map_sqlx)?;
+        tx.commit().await.map_err(map_sqlx)?;
         Ok(())
     }
 
     async fn save_refresh_session(&self, session: &RefreshSession) -> Result<(), RepositoryError> {
+        let mut tx = self.begin_private_tx().await?;
         sqlx::query(
             r#"
             UPDATE refresh_sessions
@@ -805,9 +858,10 @@ impl RefreshSessionRepository for PostgresRepositories {
         .bind(unix_seconds(session.expires_at)?)
         .bind(optional_unix_seconds(session.rotated_at)?)
         .bind(optional_unix_seconds(session.revoked_at)?)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(map_sqlx)?;
+        tx.commit().await.map_err(map_sqlx)?;
         Ok(())
     }
 
@@ -815,6 +869,7 @@ impl RefreshSessionRepository for PostgresRepositories {
         &self,
         token_hash: &TokenHash,
     ) -> Result<Option<RefreshSession>, RepositoryError> {
+        let mut tx = self.begin_private_tx().await?;
         let row = sqlx::query(
             r#"
             SELECT id,
@@ -831,11 +886,13 @@ impl RefreshSessionRepository for PostgresRepositories {
             "#,
         )
         .bind(token_hash.as_str())
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(map_sqlx)?;
 
-        row.map(refresh_session_from_row).transpose()
+        let session = row.map(refresh_session_from_row).transpose()?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(session)
     }
 
     async fn rotate_refresh_session(
@@ -844,7 +901,7 @@ impl RefreshSessionRepository for PostgresRepositories {
         next_hash: TokenHash,
         now: SystemTime,
     ) -> Result<RefreshRotationOutcome, RepositoryError> {
-        let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+        let mut tx = self.begin_private_tx().await?;
         let row = sqlx::query(
             r#"
             SELECT id,
@@ -1098,6 +1155,7 @@ impl RoomCommandRepository for PostgresRepositories {
         command: CreateRoomIdempotentCommand,
     ) -> Result<IdempotentOutcome<Value>, RepositoryError> {
         let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+        self.set_private_role(&mut tx).await?;
         match claim_idempotency_in_tx(
             &mut tx,
             &command.scope,
@@ -1118,6 +1176,7 @@ impl RoomCommandRepository for PostgresRepositories {
             }
         }
 
+        self.reset_role_if_configured(&mut tx).await?;
         if let Some(role) = &self.rls_role {
             set_database_role(&mut tx, role).await?;
         }
@@ -1140,9 +1199,8 @@ impl RoomCommandRepository for PostgresRepositories {
         )
         .await?;
         insert_audit_log(&mut tx, &command.audit_log).await?;
-        if self.rls_role.is_some() {
-            reset_database_role(&mut tx).await?;
-        }
+        self.reset_role_if_configured(&mut tx).await?;
+        self.set_private_role(&mut tx).await?;
         complete_idempotency_in_tx(
             &mut tx,
             &command.scope,
@@ -1159,6 +1217,7 @@ impl RoomCommandRepository for PostgresRepositories {
         command: CreateRoomInviteIdempotentCommand,
     ) -> Result<IdempotentOutcome<Value>, RepositoryError> {
         let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+        self.set_private_role(&mut tx).await?;
         match claim_idempotency_in_tx(
             &mut tx,
             &command.scope,
@@ -1179,6 +1238,7 @@ impl RoomCommandRepository for PostgresRepositories {
             }
         }
 
+        self.reset_role_if_configured(&mut tx).await?;
         if let Some(role) = &self.rls_role {
             set_database_role(&mut tx, role).await?;
         }
@@ -1192,9 +1252,8 @@ impl RoomCommandRepository for PostgresRepositories {
         .await?;
         insert_room_invite(&mut tx, &command.invite).await?;
         insert_audit_log(&mut tx, &command.audit_log).await?;
-        if self.rls_role.is_some() {
-            reset_database_role(&mut tx).await?;
-        }
+        self.reset_role_if_configured(&mut tx).await?;
+        self.set_private_role(&mut tx).await?;
         complete_idempotency_in_tx(
             &mut tx,
             &command.scope,
@@ -1211,6 +1270,7 @@ impl RoomCommandRepository for PostgresRepositories {
         command: AcceptRoomInviteIdempotentCommand,
     ) -> Result<IdempotentOutcome<AcceptRoomInviteResult>, RepositoryError> {
         let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+        self.set_private_role(&mut tx).await?;
         match claim_idempotency_in_tx(
             &mut tx,
             &command.scope,
@@ -1233,6 +1293,7 @@ impl RoomCommandRepository for PostgresRepositories {
             }
         }
 
+        self.reset_role_if_configured(&mut tx).await?;
         if let Some(role) = &self.rls_role {
             set_database_role(&mut tx, role).await?;
         }
@@ -1304,9 +1365,8 @@ impl RoomCommandRepository for PostgresRepositories {
         audit_log.target_id = Some(invite.id.0);
         audit_log.payload_json = serde_json::json!({ "role": invite.role });
         insert_audit_log(&mut tx, &audit_log).await?;
-        if self.rls_role.is_some() {
-            reset_database_role(&mut tx).await?;
-        }
+        self.reset_role_if_configured(&mut tx).await?;
+        self.set_private_role(&mut tx).await?;
 
         let result = AcceptRoomInviteResult {
             room,
@@ -1327,12 +1387,13 @@ impl IdempotencyRepository for PostgresRepositories {
         record: &IdempotencyRecord,
         ttl: Duration,
     ) -> Result<IdempotencyCheck, RepositoryError> {
+        let mut tx = self.begin_private_tx().await?;
         sqlx::query(
             "DELETE FROM idempotency_keys WHERE scope = $1 AND key = $2 AND expires_at <= now()",
         )
         .bind(&record.scope)
         .bind(&record.key)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(map_sqlx)?;
 
@@ -1351,11 +1412,12 @@ impl IdempotencyRepository for PostgresRepositories {
         .bind(record.status.as_str())
         .bind(&record.response_json)
         .bind(expires_at)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(map_sqlx)?;
 
         if inserted.is_some() {
+            tx.commit().await.map_err(map_sqlx)?;
             return Ok(IdempotencyCheck::Claimed);
         }
 
@@ -1368,16 +1430,18 @@ impl IdempotencyRepository for PostgresRepositories {
         )
         .bind(&record.scope)
         .bind(&record.key)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(map_sqlx)?;
 
         let existing = idempotency_record_from_row(row)?;
-        if existing.request_hash == record.request_hash {
+        let check = if existing.request_hash == record.request_hash {
             Ok(IdempotencyCheck::Duplicate(existing))
         } else {
             Ok(IdempotencyCheck::Conflict)
-        }
+        }?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(check)
     }
 }
 
@@ -1390,9 +1454,11 @@ fn map_sqlx(error: sqlx::Error) -> RepositoryError {
             if code == "23505" {
                 return RepositoryError::Duplicate;
             }
+            return RepositoryError::Database(format!("{}: {}", code, database_error.message()));
         }
+        return RepositoryError::Database(database_error.message().to_owned());
     }
-    RepositoryError::Database("database error".to_owned())
+    RepositoryError::Database(error.to_string())
 }
 
 #[cfg(test)]
@@ -1585,6 +1651,9 @@ mod tests {
     use sqlx::Executor;
     use uuid::Uuid;
 
+    static MIGRATE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    static RLS_ROLE_SETUP_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
     async fn maybe_test_pool() -> Option<PgPool> {
         let database_url = std::env::var("DATABASE_URL").ok()?;
         PgPoolOptions::new()
@@ -1628,6 +1697,7 @@ mod tests {
 
     async fn migrated_repo() -> Option<PostgresRepositories> {
         let pool = maybe_test_pool().await?;
+        let _guard = MIGRATE_LOCK.lock().await;
         if MIGRATOR.run(&pool).await.is_err() {
             return None;
         }
@@ -1635,6 +1705,7 @@ mod tests {
     }
 
     async fn ensure_rls_test_role(repo: &PostgresRepositories) -> Result<(), RepositoryError> {
+        let _guard = RLS_ROLE_SETUP_LOCK.lock().await;
         repo.pool()
             .execute(
                 r#"
@@ -1657,6 +1728,190 @@ mod tests {
             .execute("GRANT SELECT ON ALL TABLES IN SCHEMA public TO trpg_rls_test")
             .await
             .map_err(map_sqlx)?;
+        Ok(())
+    }
+
+    fn app_role_repo(repo: &PostgresRepositories) -> Result<PostgresRepositories, RepositoryError> {
+        repo.clone()
+            .with_rls_role("trpg_rls_test")?
+            .with_private_role("trpg_app_private")
+    }
+
+    async fn insert_source(
+        repo: &PostgresRepositories,
+        room_id: Option<RoomId>,
+        title: &str,
+        license_status: &str,
+        visibility_scope: VisibilityScope,
+        created_by: Option<UserId>,
+    ) -> Result<Uuid, RepositoryError> {
+        sqlx::query_scalar(
+            r#"
+            INSERT INTO document_sources (
+                room_id, source_kind, title, license_status, visibility_scope,
+                content_hash, created_by
+            )
+            VALUES ($1, 'user_upload', $2, $3, $4, $5, $6)
+            RETURNING id
+            "#,
+        )
+        .bind(room_id.map(|id| id.0))
+        .bind(title)
+        .bind(license_status)
+        .bind(visibility_scope.as_str())
+        .bind(format!("sha256:{}", Uuid::new_v4().simple()))
+        .bind(created_by.map(|id| id.0))
+        .fetch_one(repo.pool())
+        .await
+        .map_err(map_sqlx)
+    }
+
+    async fn insert_document(
+        repo: &PostgresRepositories,
+        room_id: Option<RoomId>,
+        source_id: Option<Uuid>,
+        title: &str,
+        license_status: &str,
+        visibility_scope: VisibilityScope,
+        uploaded_by: Option<UserId>,
+    ) -> Result<Uuid, RepositoryError> {
+        sqlx::query_scalar(
+            r#"
+            INSERT INTO documents (
+                room_id, source_id, document_type, title, status, visibility_scope,
+                license_status, content_hash, uploaded_by
+            )
+            VALUES ($1, $2, 'rulebook', $3, $4, $5, $4, $6, $7)
+            RETURNING id
+            "#,
+        )
+        .bind(room_id.map(|id| id.0))
+        .bind(source_id)
+        .bind(title)
+        .bind(license_status)
+        .bind(visibility_scope.as_str())
+        .bind(format!("sha256:{}", Uuid::new_v4().simple()))
+        .bind(uploaded_by.map(|id| id.0))
+        .fetch_one(repo.pool())
+        .await
+        .map_err(map_sqlx)
+    }
+
+    async fn insert_chunk(
+        repo: &PostgresRepositories,
+        document_id: Uuid,
+        room_id: Option<RoomId>,
+        source_id: Option<Uuid>,
+        content: &str,
+        license_status: &str,
+        visibility_scope: VisibilityScope,
+    ) -> Result<Uuid, RepositoryError> {
+        sqlx::query_scalar(
+            r#"
+            INSERT INTO chunks (
+                document_id, room_id, source_id, visibility_scope, content,
+                content_hash, license_status
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
+            "#,
+        )
+        .bind(document_id)
+        .bind(room_id.map(|id| id.0))
+        .bind(source_id)
+        .bind(visibility_scope.as_str())
+        .bind(content)
+        .bind(format!("sha256:{}", Uuid::new_v4().simple()))
+        .bind(license_status)
+        .fetch_one(repo.pool())
+        .await
+        .map_err(map_sqlx)
+    }
+
+    #[tokio::test]
+    async fn app_role_can_complete_magic_link_flow() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let app_repo = app_role_repo(&repo)?;
+        let challenge = MagicLinkChallenge {
+            challenge_id: Uuid::new_v4(),
+            email: email("magic@example.test")?,
+            token_hash: unique_token_hash("magic_hash")?,
+            expires_at: SystemTime::UNIX_EPOCH + Duration::from_secs(600),
+        };
+
+        app_repo.create_magic_link_challenge(&challenge).await?;
+        let loaded = app_repo
+            .find_pending_magic_link_challenge_by_token_hash(&challenge.token_hash)
+            .await?;
+        assert_eq!(loaded, Some(challenge.clone()));
+        assert!(
+            app_repo
+                .consume_magic_link_challenge(challenge.challenge_id)
+                .await?
+        );
+        assert!(app_repo
+            .find_pending_magic_link_challenge_by_token_hash(&challenge.token_hash)
+            .await?
+            .is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn app_role_can_rotate_refresh_session() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let app_repo = app_role_repo(&repo)?;
+        let owner = user("Owner")?;
+        repo.upsert_user(&owner).await?;
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
+        let old_hash = unique_token_hash("private_refresh_old")?;
+        let new_hash = unique_token_hash("private_refresh_new")?;
+        let session =
+            RefreshSession::active(owner.id, old_hash.clone(), now, Duration::from_secs(3_600));
+
+        app_repo.create_refresh_session(&session).await?;
+        let rotated = app_repo
+            .rotate_refresh_session(&old_hash, new_hash.clone(), now + Duration::from_secs(1))
+            .await?;
+
+        assert!(matches!(rotated, RefreshRotationOutcome::Rotated(_)));
+        assert!(app_repo
+            .find_refresh_session_by_token_hash(&new_hash)
+            .await?
+            .is_some());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn app_role_can_claim_idempotency_inside_allowed_function_or_role(
+    ) -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let app_repo = app_role_repo(&repo)?;
+        let record = IdempotencyRecord {
+            scope: format!("private:{}", Uuid::new_v4()),
+            key: "same-key".to_owned(),
+            request_hash: "hash-a".to_owned(),
+            status: IdempotencyStatus::InProgress,
+            response_json: None,
+        };
+
+        let first = app_repo
+            .claim_idempotency_key(&record, Duration::from_secs(60))
+            .await?;
+        let second = app_repo
+            .claim_idempotency_key(&record, Duration::from_secs(60))
+            .await?;
+
+        assert_eq!(first, IdempotencyCheck::Claimed);
+        assert!(matches!(second, IdempotencyCheck::Duplicate(_)));
         Ok(())
     }
 
@@ -1940,10 +2195,11 @@ mod tests {
 
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(2_000);
         let auth_provider = MockAuthProvider;
+        let owner_email = email(&format!("owner-{}@example.test", Uuid::new_v4()))?;
         let owner_challenge = auth_provider
             .issue_magic_link(
                 MagicLinkRequest {
-                    email: email("owner@example.test")?,
+                    email: owner_email,
                     redirect_uri: "http://localhost/auth/callback".to_owned(),
                 },
                 now,
@@ -1970,7 +2226,7 @@ mod tests {
 
         let refresh = RefreshSession::active(
             owner.id,
-            token_hash("vertical_refresh_hash")?,
+            unique_token_hash("vertical_refresh_hash")?,
             now,
             Duration::from_secs(3_600),
         );
@@ -1983,7 +2239,7 @@ mod tests {
             room_id: room.id,
             invited_email: pl.email.clone(),
             role: RoomRole::Pl,
-            token_hash: token_hash("vertical_invite_hash")?,
+            token_hash: unique_token_hash("vertical_invite_hash")?,
             status: auth::RoomInviteStatus::Pending,
             invited_by: owner.id,
             accepted_by: None,
@@ -2005,8 +2261,8 @@ mod tests {
             .claim_idempotency_key(
                 &IdempotencyRecord {
                     scope: format!("room:{}", room.id.0),
-                    key: "vertical-flow".to_owned(),
-                    request_hash: "vertical-hash".to_owned(),
+                    key: format!("vertical-flow-{}", Uuid::new_v4()),
+                    request_hash: format!("vertical-hash-{}", Uuid::new_v4()),
                     status: IdempotencyStatus::InProgress,
                     response_json: None,
                 },
@@ -2124,6 +2380,417 @@ mod tests {
 
         tx.rollback().await.map_err(map_sqlx)?;
         assert_eq!(visible_count, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn app_role_cannot_select_cross_room_documents() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let owner = user("Owner")?;
+        let pl = user("PL")?;
+        repo.upsert_user(&owner).await?;
+        repo.upsert_user(&pl).await?;
+        let room_a = room(owner.id);
+        let room_b = room(owner.id);
+        repo.create_room(&room_a).await?;
+        repo.create_room(&room_b).await?;
+        repo.add_room_member(&RoomMember {
+            room_id: room_a.id,
+            user_id: pl.id,
+            role: RoomRole::Pl,
+        })
+        .await?;
+        let source_b = insert_source(
+            &repo,
+            Some(room_b.id),
+            "room b source",
+            "allowed",
+            VisibilityScope::RoomRule,
+            Some(owner.id),
+        )
+        .await?;
+        let doc_b = insert_document(
+            &repo,
+            Some(room_b.id),
+            Some(source_b),
+            "room b document",
+            "allowed",
+            VisibilityScope::RoomRule,
+            Some(owner.id),
+        )
+        .await?;
+
+        let mut tx = repo.pool().begin().await.map_err(map_sqlx)?;
+        sqlx::query("SET LOCAL ROLE trpg_rls_test")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        PostgresRepositories::set_rls_context(
+            &mut tx,
+            &AuthContext {
+                user_id: pl.id.0,
+                room_id: Some(room_a.id.0),
+                role: RoomRole::Pl,
+            },
+        )
+        .await?;
+        let visible_count: i64 = sqlx::query_scalar("SELECT count(*) FROM documents WHERE id = $1")
+            .bind(doc_b)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        tx.rollback().await.map_err(map_sqlx)?;
+
+        assert_eq!(visible_count, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn app_role_cannot_select_kp_only_as_pl() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let owner = user("Owner")?;
+        let pl = user("PL")?;
+        repo.upsert_user(&owner).await?;
+        repo.upsert_user(&pl).await?;
+        let room = room(owner.id);
+        repo.create_room(&room).await?;
+        repo.add_room_member(&RoomMember {
+            room_id: room.id,
+            user_id: pl.id,
+            role: RoomRole::Pl,
+        })
+        .await?;
+        let source = insert_source(
+            &repo,
+            Some(room.id),
+            "secret source",
+            "allowed",
+            VisibilityScope::KpOnlyModule,
+            Some(owner.id),
+        )
+        .await?;
+        let doc = insert_document(
+            &repo,
+            Some(room.id),
+            Some(source),
+            "secret document",
+            "allowed",
+            VisibilityScope::KpOnlyModule,
+            Some(owner.id),
+        )
+        .await?;
+        let chunk = insert_chunk(
+            &repo,
+            doc,
+            Some(room.id),
+            Some(source),
+            "kp only",
+            "allowed",
+            VisibilityScope::KpOnlyModule,
+        )
+        .await?;
+
+        let mut tx = repo.pool().begin().await.map_err(map_sqlx)?;
+        sqlx::query("SET LOCAL ROLE trpg_rls_test")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        PostgresRepositories::set_rls_context(
+            &mut tx,
+            &AuthContext {
+                user_id: pl.id.0,
+                room_id: Some(room.id.0),
+                role: RoomRole::Pl,
+            },
+        )
+        .await?;
+        let visible_count: i64 = sqlx::query_scalar("SELECT count(*) FROM chunks WHERE id = $1")
+            .bind(chunk)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        tx.rollback().await.map_err(map_sqlx)?;
+
+        assert_eq!(visible_count, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pl_retrieval_cannot_select_pending_or_denied_chunks() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let owner = user("Owner")?;
+        let pl = user("PL")?;
+        repo.upsert_user(&owner).await?;
+        repo.upsert_user(&pl).await?;
+        let room = room(owner.id);
+        repo.create_room(&room).await?;
+        repo.add_room_member(&RoomMember {
+            room_id: room.id,
+            user_id: pl.id,
+            role: RoomRole::Pl,
+        })
+        .await?;
+
+        for status in ["allowed", "pending_review", "denied"] {
+            let source = insert_source(
+                &repo,
+                Some(room.id),
+                &format!("{status} source"),
+                status,
+                VisibilityScope::RoomRule,
+                Some(owner.id),
+            )
+            .await?;
+            let doc = insert_document(
+                &repo,
+                Some(room.id),
+                Some(source),
+                &format!("{status} document"),
+                status,
+                VisibilityScope::RoomRule,
+                Some(owner.id),
+            )
+            .await?;
+            insert_chunk(
+                &repo,
+                doc,
+                Some(room.id),
+                Some(source),
+                status,
+                status,
+                VisibilityScope::RoomRule,
+            )
+            .await?;
+        }
+
+        let mut tx = repo.pool().begin().await.map_err(map_sqlx)?;
+        sqlx::query("SET LOCAL ROLE trpg_rls_test")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        PostgresRepositories::set_rls_context(
+            &mut tx,
+            &AuthContext {
+                user_id: pl.id.0,
+                room_id: Some(room.id.0),
+                role: RoomRole::Pl,
+            },
+        )
+        .await?;
+        let rows: Vec<String> =
+            sqlx::query_scalar("SELECT content FROM chunks WHERE room_id = $1 ORDER BY content")
+                .bind(room.id.0)
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+        tx.rollback().await.map_err(map_sqlx)?;
+
+        assert_eq!(rows, vec!["allowed".to_owned()]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn kp_retrieval_cannot_select_denied_chunks() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let owner = user("Owner")?;
+        repo.upsert_user(&owner).await?;
+        let room = room(owner.id);
+        repo.create_room(&room).await?;
+
+        for status in ["allowed", "denied"] {
+            let source = insert_source(
+                &repo,
+                Some(room.id),
+                &format!("{status} kp source"),
+                status,
+                VisibilityScope::KpOnlyModule,
+                Some(owner.id),
+            )
+            .await?;
+            let doc = insert_document(
+                &repo,
+                Some(room.id),
+                Some(source),
+                &format!("{status} kp document"),
+                status,
+                VisibilityScope::KpOnlyModule,
+                Some(owner.id),
+            )
+            .await?;
+            insert_chunk(
+                &repo,
+                doc,
+                Some(room.id),
+                Some(source),
+                status,
+                status,
+                VisibilityScope::KpOnlyModule,
+            )
+            .await?;
+        }
+
+        let mut tx = repo.pool().begin().await.map_err(map_sqlx)?;
+        sqlx::query("SET LOCAL ROLE trpg_rls_test")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        PostgresRepositories::set_rls_context(
+            &mut tx,
+            &AuthContext {
+                user_id: owner.id.0,
+                room_id: Some(room.id.0),
+                role: RoomRole::Owner,
+            },
+        )
+        .await?;
+        let rows: Vec<String> =
+            sqlx::query_scalar("SELECT content FROM chunks WHERE room_id = $1 ORDER BY content")
+                .bind(room.id.0)
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+        tx.rollback().await.map_err(map_sqlx)?;
+
+        assert_eq!(rows, vec!["allowed".to_owned()]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn kp_review_can_list_pending_sources_only_through_review_path(
+    ) -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let owner = user("Owner")?;
+        repo.upsert_user(&owner).await?;
+        let room = room(owner.id);
+        repo.create_room(&room).await?;
+        insert_source(
+            &repo,
+            Some(room.id),
+            "pending source",
+            "pending_review",
+            VisibilityScope::RoomRule,
+            Some(owner.id),
+        )
+        .await?;
+
+        let mut tx = repo.pool().begin().await.map_err(map_sqlx)?;
+        sqlx::query("SET LOCAL ROLE trpg_rls_test")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        PostgresRepositories::set_rls_context(
+            &mut tx,
+            &AuthContext {
+                user_id: owner.id.0,
+                room_id: Some(room.id.0),
+                role: RoomRole::Owner,
+            },
+        )
+        .await?;
+        let ordinary_count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM document_sources WHERE room_id = $1")
+                .bind(room.id.0)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+        sqlx::query("SELECT set_config('app.rag_access_path', 'license_review', true)")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        let review_count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM document_sources WHERE room_id = $1")
+                .bind(room.id.0)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+        tx.rollback().await.map_err(map_sqlx)?;
+
+        assert_eq!(ordinary_count, 0);
+        assert_eq!(review_count, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn public_rule_requires_allowed_license() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let marker = format!("public-{}", Uuid::new_v4());
+
+        for status in ["allowed", "pending_review", "denied"] {
+            let source = insert_source(
+                &repo,
+                None,
+                &format!("{marker} {status} source"),
+                status,
+                VisibilityScope::PublicRule,
+                None,
+            )
+            .await?;
+            let doc = insert_document(
+                &repo,
+                None,
+                Some(source),
+                &format!("{marker} {status} document"),
+                status,
+                VisibilityScope::PublicRule,
+                None,
+            )
+            .await?;
+            insert_chunk(
+                &repo,
+                doc,
+                None,
+                Some(source),
+                &format!("{marker} {status} chunk"),
+                status,
+                VisibilityScope::PublicRule,
+            )
+            .await?;
+        }
+
+        let mut tx = repo.pool().begin().await.map_err(map_sqlx)?;
+        sqlx::query("SET LOCAL ROLE trpg_rls_test")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        let title_like = format!("{marker}%");
+        let sources: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM document_sources WHERE title LIKE $1")
+                .bind(&title_like)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+        let documents: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM documents WHERE title LIKE $1")
+                .bind(&title_like)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+        let chunks: i64 = sqlx::query_scalar("SELECT count(*) FROM chunks WHERE content LIKE $1")
+            .bind(&title_like)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        tx.rollback().await.map_err(map_sqlx)?;
+
+        assert_eq!((sources, documents, chunks), (1, 1, 1));
         Ok(())
     }
 

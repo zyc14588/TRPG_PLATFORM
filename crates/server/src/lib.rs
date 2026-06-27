@@ -219,6 +219,13 @@ fn database_url_or_in_memory(
     allow_in_memory: Option<String>,
 ) -> anyhow::Result<Option<String>> {
     if let Some(database_url) = database_url.filter(|value| !value.is_empty()) {
+        if config.auth_mode == AuthMode::Production
+            && database_url_username(&database_url) == Some("postgres")
+        {
+            return Err(anyhow::anyhow!(
+                "DATABASE_URL must not use the postgres superuser in production"
+            ));
+        }
         return Ok(Some(database_url));
     }
     if config.auth_mode == AuthMode::Production {
@@ -232,6 +239,17 @@ fn database_url_or_in_memory(
     Err(anyhow::anyhow!(
         "InMemoryAuthStore requires TRPG_ALLOW_IN_MEMORY_STORE=true in development or test"
     ))
+}
+
+fn database_url_username(database_url: &str) -> Option<&str> {
+    let (_, rest) = database_url.split_once("://")?;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let userinfo = authority.rsplit_once('@')?.0;
+    Some(
+        userinfo
+            .split_once(':')
+            .map_or(userinfo, |(username, _)| username),
+    )
 }
 
 fn read_config_file(path: PathBuf) -> anyhow::Result<ConfigFile> {
@@ -2424,7 +2442,12 @@ mod tests {
             .ok()?;
         storage::MIGRATOR.run(repo.pool()).await.ok()?;
         ensure_rls_test_role(&repo).await.ok()?;
-        let app_repo = repo.clone().with_rls_role("trpg_rls_test").ok()?;
+        let app_repo = repo
+            .clone()
+            .with_rls_role("trpg_rls_test")
+            .ok()?
+            .with_private_role("trpg_app_private")
+            .ok()?;
         Some((
             router_with_auth_store(test_config(), Arc::new(app_repo)),
             repo,
@@ -2547,6 +2570,21 @@ mod tests {
             .expect_err("production must require DATABASE_URL");
 
         assert!(error.to_string().contains("DATABASE_URL is required"));
+    }
+
+    #[test]
+    fn production_database_url_must_not_use_postgres_superuser() {
+        let mut config = test_config();
+        config.auth_mode = AuthMode::Production;
+
+        let error = database_url_or_in_memory(
+            &config,
+            Some("postgres://postgres:postgres@localhost/trpg_platform".to_owned()),
+            None,
+        )
+        .expect_err("production must reject postgres superuser");
+
+        assert!(error.to_string().contains("postgres superuser"));
     }
 
     #[test]
