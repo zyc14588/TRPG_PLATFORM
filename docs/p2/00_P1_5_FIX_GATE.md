@@ -51,13 +51,18 @@ The repo-level first-run scope calls for health/ready/metrics support. Before P2
 
 Tracked generated artifacts must be removed from Git index. At minimum verify:
 
-```bash
-git ls-files | rg '(^target/|node_modules/|\.next/|dist/|\.tsbuildinfo$|tsconfig\.tsbuildinfo$)' && exit 1 || true
+```powershell
+$artifactPattern = '(^target/|node_modules/|\.next/|dist/|\.tsbuildinfo$|tsconfig\.tsbuildinfo$)'
+$artifactMatches = git ls-files | Select-String -Pattern $artifactPattern
+if ($artifactMatches) {
+  $artifactMatches | ForEach-Object { $_.Line }
+  throw "Tracked generated artifacts found"
+}
 ```
 
 If `apps/web/tsconfig.tsbuildinfo` is tracked:
 
-```bash
+```powershell
 git rm --cached apps/web/tsconfig.tsbuildinfo
 ```
 
@@ -95,23 +100,62 @@ Add tests for the chosen policy.
 
 ## Gate commands
 
-```bash
+```powershell
+$ErrorActionPreference = "Stop"
+
+function Invoke-Checked {
+  param(
+    [scriptblock]$Command,
+    [string]$Name
+  )
+
+  & $Command
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Name failed with exit code $LASTEXITCODE"
+  }
+}
+
 git status --short
-cargo fmt --all --check
-cargo check --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo sqlx migrate run
-cargo sqlx prepare --check --workspace
-pnpm install --frozen-lockfile
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
-rg -n "TODO|FIXME|panic!|unwrap\(|expect\(" crates apps docs || true
-rg -n "/healthz|/readyz|/metrics" crates/server crates/observability schemas/openapi.json || true
-git ls-files | rg '(^target/|node_modules/|\.next/|dist/|\.tsbuildinfo$|tsconfig\.tsbuildinfo$)' && exit 1 || true
+
+Invoke-Checked { cargo fmt --all --check } "cargo fmt"
+Invoke-Checked { cargo check --workspace } "cargo check"
+Invoke-Checked { cargo clippy --workspace --all-targets -- -D warnings } "cargo clippy"
+Invoke-Checked { cargo test --workspace } "cargo test"
+
+if ($env:DATABASE_URL) {
+  Invoke-Checked { cargo sqlx migrate run } "cargo sqlx migrate run"
+  Invoke-Checked { cargo sqlx prepare --check --workspace } "cargo sqlx prepare"
+} else {
+  Write-Host "CONDITIONAL: DATABASE_URL is not set; skipped SQLx migrate/prepare. Do not mark this gate PASS until a DB-backed run is recorded."
+}
+
+Invoke-Checked { pnpm install --frozen-lockfile } "pnpm install"
+Invoke-Checked { pnpm lint } "pnpm lint"
+Invoke-Checked { pnpm typecheck } "pnpm typecheck"
+Invoke-Checked { pnpm test } "pnpm test"
+Invoke-Checked { pnpm test:e2e } "pnpm test:e2e"
+Invoke-Checked { pnpm build } "pnpm build"
+
+rg -n "TODO|FIXME|panic!|unwrap\(|expect\(" crates apps docs
+if ($LASTEXITCODE -eq 1) {
+  $global:LASTEXITCODE = 0
+} elseif ($LASTEXITCODE -ne 0) {
+  throw "rg failed while scanning TODO/FIXME patterns"
+}
+
+rg -n "/healthz|/readyz|/metrics" crates/server crates/observability schemas/openapi.json
+if ($LASTEXITCODE -eq 1) {
+  throw "health/readiness/metrics contract references not found"
+} elseif ($LASTEXITCODE -ne 0) {
+  throw "rg failed while checking health/readiness/metrics contract"
+}
+
+$artifactPattern = '(^target/|node_modules/|\.next/|dist/|\.tsbuildinfo$|tsconfig\.tsbuildinfo$)'
+$artifactMatches = git ls-files | Select-String -Pattern $artifactPattern
+if ($artifactMatches) {
+  $artifactMatches | ForEach-Object { $_.Line }
+  throw "Tracked generated artifacts found"
+}
 ```
 
 P1.5 is closed only when all commands either pass or the status report explains an intentional, reviewed exception.

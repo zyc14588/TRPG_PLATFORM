@@ -27,7 +27,7 @@ Start only after Batch 00 is green.
 
 ## Checks
 
-```bash
+```powershell
 cargo fmt --all --check
 cargo check --workspace
 cargo clippy --workspace --all-targets -- -D warnings

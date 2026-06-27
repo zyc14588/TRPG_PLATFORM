@@ -33,7 +33,7 @@ Start only after Batch 03 is green.
 
 ## Checks
 
-```bash
+```powershell
 cargo fmt --all --check
 cargo check --workspace
 cargo clippy --workspace --all-targets -- -D warnings

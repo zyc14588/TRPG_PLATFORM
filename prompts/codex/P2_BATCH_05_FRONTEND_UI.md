@@ -29,7 +29,7 @@ Start only after Batch 04 is green.
 
 ## Checks
 
-```bash
+```powershell
 pnpm install --frozen-lockfile
 pnpm lint
 pnpm typecheck

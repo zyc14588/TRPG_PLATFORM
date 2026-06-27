@@ -21,7 +21,7 @@ Copy this file to `docs/status/P2_STATUS.md` at the end of Batch 06.
 
 ## Commands run
 
-```bash
+```powershell
 cargo fmt --all --check
 cargo check --workspace
 cargo clippy --workspace --all-targets -- -D warnings

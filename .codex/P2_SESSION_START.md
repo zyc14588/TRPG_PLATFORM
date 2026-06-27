@@ -2,12 +2,22 @@
 
 Paste this at the beginning of every new Codex P2 session.
 
-```text
 You are in the TRPG_PLATFORM repository.
 
-First, run:
-- git status --short
-- rg -n "TODO|FIXME|panic!|unwrap\(|expect\(" crates apps docs || true
+First, run this lightweight read-only PowerShell context check from the repository root:
+
+```powershell
+$ErrorActionPreference = "Stop"
+
+git status --short
+
+rg -n "P2|RAG|SQLx|Windows|PowerShell" README.md docs prompts .codex
+if ($LASTEXITCODE -eq 1) {
+  $global:LASTEXITCODE = 0
+} elseif ($LASTEXITCODE -ne 0) {
+  throw "rg failed while reading project context"
+}
+```
 
 Then read:
 - README.md
@@ -26,4 +36,3 @@ Then read:
 - prompts/codex/P2_CHECK_COMMANDS.md
 
 Do not implement future batches. Ask no product-scope questions unless a blocking contradiction exists. Make the smallest coherent patch for the requested batch, add tests, run the batch checks, and summarize exact results.
-```
