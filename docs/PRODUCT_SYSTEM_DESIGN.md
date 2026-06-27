@@ -659,7 +659,9 @@ Axum 的 extractor 模型很适合把 `Path / Query / Json / State / AuthContext
 
 | 方法 | 路径 | 权限 | 用途 |
 |---|---|---|---|
-| `GET` | `/health` | public | 健康检查 |
+| `GET` | `/healthz` | public | 进程存活检查，不依赖数据库 |
+| `GET` | `/readyz` | public | 就绪检查，包含数据库 readiness |
+| `GET` | `/metrics` | public | Prometheus 指标 |
 | `POST` | `/api/rooms` | user | 创建房间 |
 | `GET` | `/api/rooms/:id` | member | 房间详情 |
 | `POST` | `/api/documents/upload` | KP/owner | 上传规则书/模组 |
@@ -907,8 +909,10 @@ touch README.md AGENTS.md ARCHITECTURE.md LEGAL_POLICY.md AGENT_DESIGN.md
 
 建议环境变量：
 
+应用运行时 `DATABASE_URL` 必须使用非超级用户；`postgres` 超级用户仅限本地一次性 bootstrap/migration，不得作为 app runtime `DATABASE_URL`，生产环境禁止使用 `postgres` 作为应用用户。
+
 ```bash
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/trpg_platform
+DATABASE_URL=postgres://trpg_app:trpg_app_dev_password@localhost:5432/trpg_platform
 REDIS_URL=redis://localhost:6379
 
 OPENAI_API_KEY=

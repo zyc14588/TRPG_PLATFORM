@@ -25,6 +25,12 @@ Production uses option A: a controlled `trpg_app_private` role for authenticatio
 
 `DATABASE_URL` must not use the `postgres` superuser in production. Migrations create `trpg_app_private`; production deployment must grant that role to the non-superuser application login role.
 
+## CSRF and Bearer Mutations
+
+Refresh and logout are cookie-authenticated mutations. They must require the `trpg_refresh` cookie and the double-submit CSRF pair: `trpg_csrf` cookie plus matching `x-csrf-token` header.
+
+Bearer-token JSON mutations, such as room creation, invitation creation, and invitation acceptance, authenticate only with `Authorization: Bearer ...`. They must not accept refresh-cookie-only requests, even when browser clients send `credentials: include`.
+
 ## RAG License RLS
 
 Normal retrieval is DB-deny-by-default for unapproved licenses:

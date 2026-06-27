@@ -11,6 +11,11 @@
 5. `docs/UI_UX_SPEC.md`
 6. `docs/IMPLEMENTATION_HANDBOOK.md`
 7. `CODEX_MASTER_PROMPT.md`
+8. `CODEX_P2_MASTER_PROMPT.md`
+9. `docs/p2/INDEX.md`
+10. `docs/p2/00_P1_5_FIX_GATE.md`
+11. `docs/p2/01_P2_MASTER_SPEC.md`
+12. `docs/p2/07_ACCEPTANCE_TEST_MATRIX.md`
 
 ## 已锁定的差异化范围
 
@@ -55,3 +60,11 @@ bash scripts/package_source.sh
 ```
 
 输出：`dist/trpg-platform-source.tar.gz`。脚本会排除 `.git/`、`node_modules/`、`target/`、`.next/`、`dist/`、`coverage/`、`*.tsbuildinfo`、`.env` 和临时文件；当前 P1 源码包应小于 5 MB。
+
+## License
+
+Project license: AGPL-3.0-or-later.
+
+See LICENSE.
+
+Documentation and bundled example data follow the same license unless a file explicitly states otherwise.

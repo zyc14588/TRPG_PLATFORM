@@ -62,6 +62,14 @@ impl PostgresRepositories {
         &self.pool
     }
 
+    pub async fn readiness_check(&self) -> Result<(), RepositoryError> {
+        sqlx::query("SELECT 1 FROM users LIMIT 1")
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(map_sqlx)?;
+        Ok(())
+    }
+
     pub async fn find_user_by_id(&self, user_id: UserId) -> Result<Option<User>, RepositoryError> {
         let row = sqlx::query(
             r#"

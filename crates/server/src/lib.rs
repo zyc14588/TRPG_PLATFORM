@@ -38,6 +38,8 @@ const CSRF_COOKIE: &str = "trpg_csrf";
 const CSRF_HEADER: &str = "x-csrf-token";
 const ROOM_INVITE_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 const IDEMPOTENCY_TTL_SECS: u64 = 24 * 60 * 60;
+const DEVELOPMENT_AUTH_SECRET: &str = "development-secret-do-not-use";
+const ENV_EXAMPLE_DEVELOPMENT_AUTH_SECRET: &str = "development-secret-at-least-32-bytes-change-me";
 pub const OPENAPI_JSON: &str = include_str!("../../../schemas/openapi.json");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,7 +102,7 @@ impl AppConfig {
         let auth_mode = load_auth_mode(env::var("TRPG_AUTH_MODE").ok())?;
         let auth_secret = env::var("TRPG_AUTH_SECRET").unwrap_or_else(|_| {
             if auth_mode.allows_development_defaults() {
-                "development-secret-do-not-use".to_owned()
+                DEVELOPMENT_AUTH_SECRET.to_owned()
             } else {
                 String::new()
             }
@@ -146,7 +148,7 @@ fn validate_auth_secret(auth_mode: AuthMode, auth_secret: &str) -> anyhow::Resul
             "TRPG_AUTH_SECRET is required when TRPG_AUTH_MODE=production"
         ));
     }
-    if auth_secret == "development-secret-do-not-use" {
+    if [DEVELOPMENT_AUTH_SECRET, ENV_EXAMPLE_DEVELOPMENT_AUTH_SECRET].contains(&auth_secret) {
         return Err(anyhow::anyhow!(
             "TRPG_AUTH_SECRET must not use the development default in production"
         ));
@@ -219,12 +221,17 @@ fn database_url_or_in_memory(
     allow_in_memory: Option<String>,
 ) -> anyhow::Result<Option<String>> {
     if let Some(database_url) = database_url.filter(|value| !value.is_empty()) {
-        if config.auth_mode == AuthMode::Production
-            && database_url_username(&database_url) == Some("postgres")
-        {
-            return Err(anyhow::anyhow!(
-                "DATABASE_URL must not use the postgres superuser in production"
-            ));
+        if config.auth_mode == AuthMode::Production {
+            if !is_postgres_database_url(&database_url) {
+                return Err(anyhow::anyhow!(
+                    "DATABASE_URL must be a postgres URL in production"
+                ));
+            }
+            if database_url_username(&database_url) == Some("postgres") {
+                return Err(anyhow::anyhow!(
+                    "DATABASE_URL must not use the postgres superuser in production"
+                ));
+            }
         }
         return Ok(Some(database_url));
     }
@@ -239,6 +246,10 @@ fn database_url_or_in_memory(
     Err(anyhow::anyhow!(
         "InMemoryAuthStore requires TRPG_ALLOW_IN_MEMORY_STORE=true in development or test"
     ))
+}
+
+fn is_postgres_database_url(database_url: &str) -> bool {
+    database_url.starts_with("postgres://") || database_url.starts_with("postgresql://")
 }
 
 fn database_url_username(database_url: &str) -> Option<&str> {
@@ -269,6 +280,7 @@ pub struct AppState {
 
 #[async_trait]
 pub trait AuthStore: Send + Sync {
+    async fn readiness_database_status(&self) -> &'static str;
     async fn upsert_user(&self, user: &User) -> Result<(), ApiError>;
     async fn find_user_by_email(&self, email: &EmailAddress) -> Result<Option<User>, ApiError>;
     async fn find_user_by_id(&self, user_id: UserId) -> Result<Option<User>, ApiError>;
@@ -352,6 +364,13 @@ pub trait AuthStore: Send + Sync {
 
 #[async_trait]
 impl AuthStore for storage::PostgresRepositories {
+    async fn readiness_database_status(&self) -> &'static str {
+        match self.readiness_check().await {
+            Ok(()) => "ok",
+            Err(_) => "unavailable",
+        }
+    }
+
     async fn upsert_user(&self, user: &User) -> Result<(), ApiError> {
         IdentityRepository::upsert_user(self, user)
             .await
@@ -584,6 +603,10 @@ struct InMemoryAuthData {
 
 #[async_trait]
 impl AuthStore for InMemoryAuthStore {
+    async fn readiness_database_status(&self) -> &'static str {
+        "in_memory_store"
+    }
+
     async fn upsert_user(&self, user: &User) -> Result<(), ApiError> {
         let mut inner = self.lock()?;
         inner
@@ -1330,16 +1353,30 @@ async fn healthz(State(state): State<AppState>) -> Json<HealthResponse> {
     })
 }
 
-async fn readyz() -> Json<ReadyResponse> {
+async fn readyz(State(state): State<AppState>) -> Response {
     let mut checks = BTreeMap::new();
-    checks.insert("database", "not_checked_phase_1b_auth");
-    checks.insert("redis", "not_checked_phase_1b_auth");
-    checks.insert("object_storage", "not_checked_phase_1b_auth");
+    let database = state.auth_store.readiness_database_status().await;
+    checks.insert("database", database);
+    checks.insert("redis", "not_configured");
+    checks.insert("object_storage", "not_configured");
 
-    Json(ReadyResponse {
-        status: "ready_phase_1b_auth",
-        checks,
-    })
+    let status = if database == "unavailable" {
+        StatusCode::SERVICE_UNAVAILABLE
+    } else {
+        StatusCode::OK
+    };
+    (
+        status,
+        Json(ReadyResponse {
+            status: if status == StatusCode::OK {
+                "ready"
+            } else {
+                "not_ready"
+            },
+            checks,
+        }),
+    )
+        .into_response()
 }
 
 async fn metrics() -> &'static str {
@@ -2300,6 +2337,13 @@ mod tests {
         serde_json::from_slice(&bytes).expect("body should be json")
     }
 
+    async fn read_text(response: axum::response::Response) -> String {
+        let bytes = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should read");
+        String::from_utf8(bytes.to_vec()).expect("body should be utf8")
+    }
+
     fn set_cookie_headers(response: &axum::response::Response) -> Vec<String> {
         response
             .headers()
@@ -2553,6 +2597,33 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    #[tokio::test]
+    async fn readyz_reports_store_without_secrets() {
+        let app = router(test_config());
+        let response = empty_request(app, "GET", "/readyz", vec![]).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: serde_json::Value = read_json(response).await;
+        assert_eq!(body["status"], "ready");
+        assert_eq!(body["checks"]["database"], "in_memory_store");
+
+        let raw = body.to_string();
+        assert!(!raw.contains("test-secret"));
+        assert!(!raw.contains("postgres://"));
+        assert!(!raw.contains("trpg_refresh"));
+    }
+
+    #[tokio::test]
+    async fn metrics_returns_prometheus_text_without_secrets() {
+        let app = router(test_config());
+        let response = empty_request(app, "GET", "/metrics", vec![]).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let text = read_text(response).await;
+        assert!(text.contains("# HELP"));
+        assert!(!text.contains("test-secret"));
+        assert!(!text.contains("postgres://"));
+        assert!(!text.contains("TRPG_AUTH_SECRET"));
+    }
+
     #[test]
     fn missing_auth_mode_defaults_to_production() {
         assert_eq!(
@@ -2588,7 +2659,23 @@ mod tests {
     }
 
     #[test]
+    fn production_database_url_must_be_postgres() {
+        let mut config = test_config();
+        config.auth_mode = AuthMode::Production;
+
+        let error = database_url_or_in_memory(&config, Some("not-a-url".to_owned()), None)
+            .expect_err("production must require a postgres URL");
+
+        assert!(error.to_string().contains("postgres URL"));
+    }
+
+    #[test]
     fn production_rejects_short_auth_secret() {
+        let error = validate_auth_secret(AuthMode::Production, "")
+            .expect_err("production must require an explicit auth secret");
+
+        assert!(error.to_string().contains("required"));
+
         let error = validate_auth_secret(AuthMode::Production, "short")
             .expect_err("production secret must be long enough");
 
@@ -2599,6 +2686,14 @@ mod tests {
     fn production_rejects_development_secret() {
         let error = validate_auth_secret(AuthMode::Production, "development-secret-do-not-use")
             .expect_err("production must reject development default");
+
+        assert!(error.to_string().contains("development default"));
+
+        let error = validate_auth_secret(
+            AuthMode::Production,
+            "development-secret-at-least-32-bytes-change-me",
+        )
+        .expect_err("production must reject env example development default");
 
         assert!(error.to_string().contains("development default"));
     }
@@ -2836,6 +2931,78 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn refresh_rejects_wrong_csrf_token() {
+        let app = router(test_config());
+        let (login_body, login_cookies) = login(app.clone(), "owner@example.test").await;
+        let response = empty_request(
+            app.clone(),
+            "POST",
+            "/api/auth/refresh",
+            vec![
+                ("cookie", cookie_header(&login_cookies)),
+                (CSRF_HEADER, "wrong-csrf-token".to_owned()),
+            ],
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        let valid_response = empty_request(
+            app,
+            "POST",
+            "/api/auth/refresh",
+            vec![
+                ("cookie", cookie_header(&login_cookies)),
+                (CSRF_HEADER, login_body.csrf_token),
+            ],
+        )
+        .await;
+        assert_eq!(valid_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn csrf_is_required_for_logout() {
+        let app = router(test_config());
+        let (_login_body, login_cookies) = login(app.clone(), "owner@example.test").await;
+        let response = empty_request(
+            app,
+            "POST",
+            "/api/auth/logout",
+            vec![("cookie", cookie_header(&login_cookies))],
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn logout_rejects_wrong_csrf_token() {
+        let app = router(test_config());
+        let (login_body, login_cookies) = login(app.clone(), "owner@example.test").await;
+        let response = empty_request(
+            app.clone(),
+            "POST",
+            "/api/auth/logout",
+            vec![
+                ("cookie", cookie_header(&login_cookies)),
+                (CSRF_HEADER, "wrong-csrf-token".to_owned()),
+            ],
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        let refresh_response = empty_request(
+            app,
+            "POST",
+            "/api/auth/refresh",
+            vec![
+                ("cookie", cookie_header(&login_cookies)),
+                (CSRF_HEADER, login_body.csrf_token),
+            ],
+        )
+        .await;
+        assert_eq!(refresh_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn me_rejects_unauthenticated_access() {
         let app = router(test_config());
         let response = empty_request(app, "GET", "/api/me", vec![]).await;
@@ -2875,6 +3042,53 @@ mod tests {
                 "idempotency_key": "create-no-auth"
             }),
             vec![],
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn create_room_rejects_invalid_bearer_token() {
+        let app = router(test_config());
+        let (owner, login_cookies) = login(app.clone(), "owner@example.test").await;
+        let response = json_request(
+            app.clone(),
+            "POST",
+            "/api/rooms",
+            json!({
+                "title": "Invalid Bearer",
+                "system_name": "generic_percentile",
+                "privacy_mode": "standard",
+                "idempotency_key": "invalid-bearer-create"
+            }),
+            vec![
+                ("authorization", "Bearer not-a-valid-token".to_owned()),
+                ("cookie", cookie_header(&login_cookies)),
+            ],
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let list_response = empty_request(app, "GET", "/api/rooms", auth_header(&owner)).await;
+        let list: ListRoomsResponse = read_json(list_response).await;
+        assert!(list.rooms.is_empty());
+    }
+
+    #[tokio::test]
+    async fn bearer_mutation_rejects_cookie_only_auth() {
+        let app = router(test_config());
+        let (_login_body, login_cookies) = login(app.clone(), "owner@example.test").await;
+        let response = json_request(
+            app,
+            "POST",
+            "/api/rooms",
+            json!({
+                "title": "Cookie Only",
+                "system_name": "generic_percentile",
+                "privacy_mode": "standard",
+                "idempotency_key": "cookie-only-create"
+            }),
+            vec![("cookie", cookie_header(&login_cookies))],
         )
         .await;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -3035,6 +3249,41 @@ mod tests {
         )
         .await;
         assert_eq!(conflict.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn accept_invite_rejects_invalid_bearer_token() {
+        let app = router(test_config());
+        let (owner, _owner_cookies) = login(app.clone(), "owner@example.test").await;
+        let room = create_test_room(app.clone(), &owner, "Invite Room", "invite-room").await;
+        let invite = invite_user(
+            app.clone(),
+            &owner,
+            room.room.id,
+            "player@example.test",
+            "invite-player",
+        )
+        .await;
+        let (player, player_cookies) = login(app.clone(), "player@example.test").await;
+
+        let response = json_request(
+            app.clone(),
+            "POST",
+            &format!("/api/room-invitations/{}/accept", invite.token),
+            json!({ "idempotency_key": "invalid-bearer-accept" }),
+            vec![
+                (
+                    "authorization",
+                    "Bearer invalid.payload.signature".to_owned(),
+                ),
+                ("cookie", cookie_header(&player_cookies)),
+            ],
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let joined = accept_invite(app, &player, &invite.token, "valid-accept-after-invalid").await;
+        assert_eq!(joined.room.id, room.room.id);
     }
 
     #[tokio::test]

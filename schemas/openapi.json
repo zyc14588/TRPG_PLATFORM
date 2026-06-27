@@ -3,7 +3,7 @@
   "info": {
     "title": "TRPG Platform API",
     "version": "0.1.0",
-    "description": "Phase 1B stop point 3 contract for Auth and Room REST APIs."
+    "description": "TRPG Platform system, auth, and room REST API contract."
   },
   "servers": [
     {
@@ -47,6 +47,16 @@
         "responses": {
           "200": {
             "description": "Readiness status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not ready; response omits secrets and raw internal errors.",
             "content": {
               "application/json": {
                 "schema": {
