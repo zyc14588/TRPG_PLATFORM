@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use auth::{
-    AuditLog, AuditLogRepository, AuthContext, CreateRoomIdempotentCommand,
-    CreateRoomInviteIdempotentCommand, EmailAddress, IdempotencyCheck, IdempotencyRecord,
-    IdempotencyRepository, IdempotencyStatus, IdempotentOutcome, IdentityRepository,
-    MagicLinkChallenge, RefreshSession, RefreshSessionId, RefreshSessionRepository,
-    RefreshSessionStatus, RepositoryError, RepositoryTransaction, Room, RoomCommandRepository,
-    RoomId, RoomInvite, RoomInviteStatus, RoomMember, RoomPrivacyMode, RoomRepository, RoomRole,
-    RoomWithRole, TokenHash, TransactionalRepository, User, UserId,
+    AcceptRoomInviteIdempotentCommand, AcceptRoomInviteResult, AuditLog, AuditLogRepository,
+    AuthContext, CreateRoomIdempotentCommand, CreateRoomInviteIdempotentCommand, EmailAddress,
+    IdempotencyCheck, IdempotencyRecord, IdempotencyRepository, IdempotencyStatus,
+    IdempotentOutcome, IdentityRepository, MagicLinkChallenge, RefreshSession, RefreshSessionId,
+    RefreshSessionRepository, RefreshSessionStatus, RepositoryError, RepositoryTransaction, Room,
+    RoomCommandRepository, RoomId, RoomInvite, RoomInviteStatus, RoomMember, RoomPrivacyMode,
+    RoomRepository, RoomRole, RoomWithRole, TokenHash, TransactionalRepository, User, UserId,
 };
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres, Row, Transaction};
@@ -1091,6 +1091,119 @@ impl RoomCommandRepository for PostgresRepositories {
         .await?;
         tx.commit().await.map_err(map_sqlx)?;
         Ok(IdempotentOutcome::Created(command.response_json))
+    }
+
+    async fn accept_room_invite_idempotent(
+        &self,
+        command: AcceptRoomInviteIdempotentCommand,
+    ) -> Result<IdempotentOutcome<AcceptRoomInviteResult>, RepositoryError> {
+        let mut tx = self.pool.begin().await.map_err(map_sqlx)?;
+        match claim_idempotency_in_tx(
+            &mut tx,
+            &command.scope,
+            &command.key,
+            &command.request_hash,
+            command.ttl,
+        )
+        .await?
+        {
+            IdempotencyTxClaim::Claimed => {}
+            IdempotencyTxClaim::Replayed(response) => {
+                tx.commit().await.map_err(map_sqlx)?;
+                let replayed = serde_json::from_value(response)
+                    .map_err(|err| RepositoryError::Database(err.to_string()))?;
+                return Ok(IdempotentOutcome::Replayed(replayed));
+            }
+            IdempotencyTxClaim::Conflict => {
+                tx.commit().await.map_err(map_sqlx)?;
+                return Ok(IdempotentOutcome::Conflict);
+            }
+        }
+
+        if let Some(role) = &self.rls_role {
+            set_database_role(&mut tx, role).await?;
+        }
+        set_rls_values(
+            &mut tx,
+            Some(command.user_id.0),
+            None,
+            None,
+            Some(&command.user_email),
+        )
+        .await?;
+
+        let row = sqlx::query(
+            r#"
+            SELECT id,
+                   room_id,
+                   invited_email,
+                   invited_role,
+                   token_hash,
+                   status,
+                   invited_by,
+                   accepted_by,
+                   extract(epoch from expires_at)::bigint AS expires_at_epoch
+            FROM room_invites
+            WHERE token_hash = $1 AND invited_email = $2
+            FOR UPDATE
+            "#,
+        )
+        .bind(command.token_hash.as_str())
+        .bind(command.user_email.as_str())
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        let mut invite = row
+            .map(room_invite_from_row)
+            .transpose()?
+            .ok_or(RepositoryError::NotFound)?;
+        if invite.status != RoomInviteStatus::Pending {
+            return Err(RepositoryError::NotFound);
+        }
+
+        let room = select_room(&mut tx, invite.room_id)
+            .await?
+            .ok_or(RepositoryError::NotFound)?;
+        invite
+            .accept(command.user_id, command.now)
+            .map_err(|err| RepositoryError::Invalid(err.to_string()))?;
+
+        set_rls_values(
+            &mut tx,
+            Some(command.user_id.0),
+            Some(invite.room_id.0),
+            Some(invite.role.as_str()),
+            Some(&command.user_email),
+        )
+        .await?;
+        update_room_invite(&mut tx, &invite).await?;
+        insert_room_member(
+            &mut tx,
+            &RoomMember {
+                room_id: invite.room_id,
+                user_id: command.user_id,
+                role: invite.role,
+            },
+        )
+        .await?;
+        let mut audit_log = command.audit_log;
+        audit_log.room_id = Some(invite.room_id);
+        audit_log.target_id = Some(invite.id.0);
+        audit_log.payload_json = serde_json::json!({ "role": invite.role });
+        insert_audit_log(&mut tx, &audit_log).await?;
+        if self.rls_role.is_some() {
+            reset_database_role(&mut tx).await?;
+        }
+
+        let result = AcceptRoomInviteResult {
+            room,
+            role: invite.role,
+        };
+        let response_json = serde_json::to_value(&result)
+            .map_err(|err| RepositoryError::Database(err.to_string()))?;
+        complete_idempotency_in_tx(&mut tx, &command.scope, &command.key, &response_json).await?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(IdempotentOutcome::Created(result))
     }
 }
 

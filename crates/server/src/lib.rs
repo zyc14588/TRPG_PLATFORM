@@ -1,11 +1,12 @@
 use async_trait::async_trait;
 use auth::{
-    AuditLog, AuditOutcome, CreateRoomIdempotentCommand, CreateRoomInviteIdempotentCommand,
-    EmailAddress, IdempotencyCheck, IdempotencyRecord, IdempotencyRepository, IdempotencyStatus,
-    IdempotentOutcome, IdentityRepository, MagicLinkChallenge, OidcLoginRequest, OidcPort,
-    RefreshSession, RefreshSessionRepository, Room, RoomCommandRepository, RoomId, RoomInvite,
-    RoomInviteId, RoomMember, RoomPrivacyMode, RoomRepository, RoomRole, RoomWithRole, TokenHash,
-    User, UserId, VisibilityScope,
+    AcceptRoomInviteIdempotentCommand, AcceptRoomInviteResult, AuditLog, AuditOutcome,
+    CreateRoomIdempotentCommand, CreateRoomInviteIdempotentCommand, EmailAddress, IdempotencyCheck,
+    IdempotencyRecord, IdempotencyRepository, IdempotencyStatus, IdempotentOutcome,
+    IdentityRepository, MagicLinkChallenge, OidcLoginRequest, OidcPort, RefreshSession,
+    RefreshSessionRepository, Room, RoomCommandRepository, RoomId, RoomInvite, RoomInviteId,
+    RoomMember, RoomPrivacyMode, RoomRepository, RoomRole, RoomWithRole, TokenHash, User, UserId,
+    VisibilityScope,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -302,6 +303,10 @@ pub trait AuthStore: Send + Sync {
         &self,
         command: CreateRoomInviteIdempotentCommand,
     ) -> Result<IdempotentOutcome<serde_json::Value>, ApiError>;
+    async fn accept_room_invite_idempotent(
+        &self,
+        command: AcceptRoomInviteIdempotentCommand,
+    ) -> Result<IdempotentOutcome<AcceptRoomInviteResult>, ApiError>;
     async fn find_pending_room_invite_for_user(
         &self,
         token_hash: &TokenHash,
@@ -471,6 +476,15 @@ impl AuthStore for storage::PostgresRepositories {
         command: CreateRoomInviteIdempotentCommand,
     ) -> Result<IdempotentOutcome<serde_json::Value>, ApiError> {
         RoomCommandRepository::create_room_invite_idempotent(self, command)
+            .await
+            .map_err(ApiError::from_repository)
+    }
+
+    async fn accept_room_invite_idempotent(
+        &self,
+        command: AcceptRoomInviteIdempotentCommand,
+    ) -> Result<IdempotentOutcome<AcceptRoomInviteResult>, ApiError> {
+        RoomCommandRepository::accept_room_invite_idempotent(self, command)
             .await
             .map_err(ApiError::from_repository)
     }
@@ -840,6 +854,92 @@ impl AuthStore for InMemoryAuthStore {
         Ok(IdempotentOutcome::Created(command.response_json))
     }
 
+    async fn accept_room_invite_idempotent(
+        &self,
+        command: AcceptRoomInviteIdempotentCommand,
+    ) -> Result<IdempotentOutcome<AcceptRoomInviteResult>, ApiError> {
+        let mut inner = self.lock()?;
+        let idempotency_key = (command.scope.clone(), command.key.clone());
+        let now = SystemTime::now();
+        if inner
+            .idempotency_records
+            .get(&idempotency_key)
+            .is_some_and(|(_, expires_at)| *expires_at <= now)
+        {
+            inner.idempotency_records.remove(&idempotency_key);
+        }
+        if let Some((existing, _)) = inner.idempotency_records.get(&idempotency_key) {
+            if existing.request_hash != command.request_hash {
+                return Ok(IdempotentOutcome::Conflict);
+            }
+            let response = existing.response_json.clone().ok_or_else(|| {
+                ApiError::Conflict("idempotency response is unavailable".to_owned())
+            })?;
+            let replayed = serde_json::from_value(response)
+                .map_err(|_| ApiError::Internal("idempotency response decode failed".to_owned()))?;
+            return Ok(IdempotentOutcome::Replayed(replayed));
+        }
+
+        let mut invite = inner
+            .room_invites_by_hash
+            .get(command.token_hash.as_str())
+            .cloned()
+            .ok_or_else(|| ApiError::NotFound("invitation not found".to_owned()))?;
+        if invite.invited_email != command.user_email
+            || invite.status != auth::RoomInviteStatus::Pending
+        {
+            return Err(ApiError::NotFound("invitation not found".to_owned()));
+        }
+        let room = inner
+            .rooms_by_id
+            .get(&invite.room_id.0)
+            .cloned()
+            .ok_or_else(|| ApiError::NotFound("invitation not found".to_owned()))?;
+        invite
+            .accept(command.user_id, command.now)
+            .map_err(|err| match err {
+                auth::AuthDomainError::InviteExpired => ApiError::BadRequest(err.to_string()),
+                _ => ApiError::NotFound("invitation not found".to_owned()),
+            })?;
+
+        inner
+            .room_invites_by_hash
+            .insert(invite.token_hash.as_str().to_owned(), invite.clone());
+        inner.room_members.insert(
+            (invite.room_id.0, command.user_id.0),
+            RoomMember {
+                room_id: invite.room_id,
+                user_id: command.user_id,
+                role: invite.role,
+            },
+        );
+        let mut audit_log = command.audit_log;
+        audit_log.room_id = Some(invite.room_id);
+        audit_log.target_id = Some(invite.id.0);
+        audit_log.payload_json = serde_json::json!({ "role": invite.role });
+        inner.audit_logs.push(audit_log);
+        let result = AcceptRoomInviteResult {
+            room,
+            role: invite.role,
+        };
+        let response_json = serde_json::to_value(&result)
+            .map_err(|_| ApiError::Internal("idempotency response encode failed".to_owned()))?;
+        inner.idempotency_records.insert(
+            idempotency_key,
+            (
+                IdempotencyRecord {
+                    scope: command.scope,
+                    key: command.key,
+                    request_hash: command.request_hash,
+                    status: IdempotencyStatus::Completed,
+                    response_json: Some(response_json),
+                },
+                now + command.ttl,
+            ),
+        );
+        Ok(IdempotentOutcome::Created(result))
+    }
+
     async fn find_pending_room_invite_for_user(
         &self,
         token_hash: &TokenHash,
@@ -1075,6 +1175,7 @@ impl ApiError {
             auth::RepositoryError::Forbidden => Self::Forbidden("forbidden".to_owned()),
             auth::RepositoryError::NotFound => Self::NotFound("not found".to_owned()),
             auth::RepositoryError::Duplicate => Self::Conflict("duplicate".to_owned()),
+            auth::RepositoryError::Invalid(message) => Self::BadRequest(message),
             auth::RepositoryError::IdempotencyConflict => {
                 Self::Conflict("idempotency key conflict".to_owned())
             }
@@ -1537,89 +1638,44 @@ async fn accept_room_invitation(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(token): Path<String>,
-    Json(request): Json<AcceptInvitationRequest>,
+    Json(raw_request): Json<serde_json::Value>,
 ) -> Result<Json<RoomResponse>, ApiError> {
+    let request: AcceptInvitationRequest = serde_json::from_value(raw_request.clone())
+        .map_err(|_| ApiError::BadRequest("request body is invalid".to_owned()))?;
     require_idempotency_key(&request.idempotency_key)?;
     let user = authenticated_user(&state, &headers).await?;
     let token_hash = token_hash(&state.config, &token)?;
-    let Some(mut invite) = state
+    let request_hash = hash_json(&raw_request)?;
+    let outcome = state
         .auth_store
-        .find_pending_room_invite_for_user(&token_hash, &user.email, user.id)
-        .await?
-    else {
-        audit_failure(
-            &state,
-            None,
-            Some(user.id),
-            "access.denied",
-            "room_invite",
-            None,
-            serde_json::json!({ "reason": "invitation_not_found" }),
-        )
+        .accept_room_invite_idempotent(AcceptRoomInviteIdempotentCommand {
+            scope: format!("invite:{}:accept", token_hash.as_str()),
+            key: request.idempotency_key,
+            request_hash,
+            ttl: Duration::from_secs(IDEMPOTENCY_TTL_SECS),
+            token_hash,
+            user_id: user.id,
+            user_email: user.email,
+            now: SystemTime::now(),
+            audit_log: audit_log(
+                None,
+                Some(user.id),
+                "room.invite.accept",
+                "room_invite",
+                None,
+                AuditOutcome::Success,
+                serde_json::json!({ "role": "invitee" }),
+            ),
+        })
         .await?;
-        return Err(ApiError::NotFound("invitation not found".to_owned()));
-    };
-    if invite.invited_email != user.email {
-        audit_failure(
-            &state,
-            Some(invite.room_id),
-            Some(user.id),
-            "access.denied",
-            "room_invite",
-            Some(invite.id.0),
-            serde_json::json!({ "reason": "wrong_invited_user" }),
-        )
-        .await?;
-        return Err(ApiError::Forbidden(
-            "invitation is not for this user".to_owned(),
-        ));
+    match outcome {
+        IdempotentOutcome::Created(result) | IdempotentOutcome::Replayed(result) => {
+            Ok(Json(accepted_room_response(result)))
+        }
+        IdempotentOutcome::Conflict => {
+            Err(ApiError::Conflict("idempotency key conflict".to_owned()))
+        }
     }
-    let room = state
-        .auth_store
-        .get_room_for_invite(invite.room_id, &user.email, user.id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("invitation not found".to_owned()))?;
-    let response = RoomResponse {
-        room: room_dto(&room, invite.role),
-    };
-    let request_hash = hash_json(&request)?;
-    if let Some(duplicate) = claim_idempotent_response(
-        &state,
-        format!("invite:{}:accept", invite.token_hash.as_str()),
-        &request.idempotency_key,
-        request_hash,
-        &response,
-    )
-    .await?
-    {
-        return Ok(Json(duplicate));
-    }
-
-    invite
-        .accept(user.id, SystemTime::now())
-        .map_err(|err| ApiError::BadRequest(err.to_string()))?;
-    state
-        .auth_store
-        .accept_room_invite(
-            &invite,
-            &RoomMember {
-                room_id: invite.room_id,
-                user_id: user.id,
-                role: invite.role,
-            },
-        )
-        .await?;
-    audit_success(
-        &state,
-        Some(invite.room_id),
-        Some(user.id),
-        "room.invite.accept",
-        "room_invite",
-        Some(invite.id.0),
-        serde_json::json!({ "role": invite.role }),
-    )
-    .await?;
-    Ok(Json(response))
 }
 
 async fn list_room_members(
@@ -1734,6 +1790,12 @@ fn room_dto(room: &Room, my_role: RoomRole) -> RoomDto {
         privacy_mode: room.privacy_mode,
         version: room.version,
         my_role,
+    }
+}
+
+fn accepted_room_response(result: AcceptRoomInviteResult) -> RoomResponse {
+    RoomResponse {
+        room: room_dto(&result.room, result.role),
     }
 }
 
@@ -1902,47 +1964,6 @@ where
         IdempotentOutcome::Replayed(value) => serde_json::from_value(value)
             .map_err(|_| ApiError::Internal("idempotency response decode failed".to_owned())),
         IdempotentOutcome::Conflict => {
-            Err(ApiError::Conflict("idempotency key conflict".to_owned()))
-        }
-    }
-}
-
-async fn claim_idempotent_response<T>(
-    state: &AppState,
-    scope: String,
-    key: &str,
-    request_hash: String,
-    response: &T,
-) -> Result<Option<T>, ApiError>
-where
-    T: Serialize + DeserializeOwned,
-{
-    // ponytail: stop point 2 stores the completed payload before the write;
-    // move claim+write into one DB transaction when the repository exposes it.
-    let response_json = serde_json::to_value(response)
-        .map_err(|_| ApiError::Internal("idempotency response encode failed".to_owned()))?;
-    let record = IdempotencyRecord {
-        scope,
-        key: key.to_owned(),
-        request_hash,
-        status: IdempotencyStatus::Completed,
-        response_json: Some(response_json),
-    };
-    match state
-        .auth_store
-        .claim_idempotency_key(&record, Duration::from_secs(IDEMPOTENCY_TTL_SECS))
-        .await?
-    {
-        IdempotencyCheck::Claimed => Ok(None),
-        IdempotencyCheck::Duplicate(existing) => {
-            let value = existing.response_json.ok_or_else(|| {
-                ApiError::Conflict("idempotency response is unavailable".to_owned())
-            })?;
-            serde_json::from_value(value)
-                .map(Some)
-                .map_err(|_| ApiError::Internal("idempotency response decode failed".to_owned()))
-        }
-        IdempotencyCheck::Conflict => {
             Err(ApiError::Conflict("idempotency key conflict".to_owned()))
         }
     }
@@ -2333,6 +2354,15 @@ mod tests {
 
     fn audit_logs(store: &InMemoryAuthStore) -> Vec<AuditLog> {
         store.lock().expect("audit store lock").audit_logs.clone()
+    }
+
+    fn has_idempotency_key(store: &InMemoryAuthStore, key: &str) -> bool {
+        store
+            .lock()
+            .expect("idempotency store lock")
+            .idempotency_records
+            .keys()
+            .any(|(_, existing_key)| existing_key == key)
     }
 
     async fn postgres_router_with_rls_role() -> Option<(Router, storage::PostgresRepositories)> {
@@ -2967,6 +2997,114 @@ mod tests {
             .members
             .iter()
             .any(|member| member.role == RoomRole::Pl));
+    }
+
+    #[tokio::test]
+    async fn accept_invite_duplicate_replays_after_invite_is_accepted() {
+        let app = router(test_config());
+        let (owner, _owner_cookies) = login(app.clone(), "owner@example.test").await;
+        let room = create_test_room(app.clone(), &owner, "Invite Room", "invite-room").await;
+        let invite = invite_user(
+            app.clone(),
+            &owner,
+            room.room.id,
+            "player@example.test",
+            "invite-player",
+        )
+        .await;
+        let (player, _player_cookies) = login(app.clone(), "player@example.test").await;
+
+        let first = accept_invite(app.clone(), &player, &invite.token, "accept-player").await;
+        let second = accept_invite(app, &player, &invite.token, "accept-player").await;
+
+        assert_eq!(first, second);
+    }
+
+    #[tokio::test]
+    async fn accept_invite_duplicate_different_hash_conflicts() {
+        let app = router(test_config());
+        let (owner, _owner_cookies) = login(app.clone(), "owner@example.test").await;
+        let room = create_test_room(app.clone(), &owner, "Invite Room", "invite-room").await;
+        let invite = invite_user(
+            app.clone(),
+            &owner,
+            room.room.id,
+            "player@example.test",
+            "invite-player",
+        )
+        .await;
+        let (player, _player_cookies) = login(app.clone(), "player@example.test").await;
+        accept_invite(app.clone(), &player, &invite.token, "accept-player").await;
+
+        let conflict = json_request(
+            app,
+            "POST",
+            &format!("/api/room-invitations/{}/accept", invite.token),
+            json!({
+                "idempotency_key": "accept-player",
+                "client_nonce": "different-body"
+            }),
+            auth_header(&player),
+        )
+        .await;
+
+        assert_eq!(conflict.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn accept_invite_expired_does_not_create_completed_idempotency() {
+        let store = Arc::new(InMemoryAuthStore::default());
+        let app = router_with_auth_store(test_config(), store.clone());
+        let (owner, _owner_cookies) = login(app.clone(), "owner@example.test").await;
+        let room = create_test_room(app.clone(), &owner, "Invite Room", "invite-room").await;
+        let invite = invite_user(
+            app.clone(),
+            &owner,
+            room.room.id,
+            "player@example.test",
+            "invite-player",
+        )
+        .await;
+        let invite_hash = token_hash(&test_config(), &invite.token).expect("invite hash");
+        store
+            .lock()
+            .expect("store lock")
+            .room_invites_by_hash
+            .get_mut(invite_hash.as_str())
+            .expect("invite exists")
+            .expires_at = SystemTime::UNIX_EPOCH;
+        let (player, _player_cookies) = login(app.clone(), "player@example.test").await;
+
+        let response = json_request(
+            app,
+            "POST",
+            &format!("/api/room-invitations/{}/accept", invite.token),
+            json!({ "idempotency_key": "expired-accept" }),
+            auth_header(&player),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert!(!has_idempotency_key(&store, "expired-accept"));
+    }
+
+    #[tokio::test]
+    async fn accept_invite_invalid_token_does_not_create_completed_idempotency() {
+        let store = Arc::new(InMemoryAuthStore::default());
+        let app = router_with_auth_store(test_config(), store.clone());
+        let (player, _player_cookies) = login(app.clone(), "player@example.test").await;
+
+        let response = json_request(
+            app,
+            "POST",
+            "/api/room-invitations/not-a-real-token/accept",
+            json!({ "idempotency_key": "invalid-token-accept" }),
+            auth_header(&player),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert!(!has_idempotency_key(&store, "invalid-token-accept"));
     }
 
     #[tokio::test]

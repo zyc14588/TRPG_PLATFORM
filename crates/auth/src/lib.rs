@@ -719,6 +719,25 @@ pub struct CreateRoomInviteIdempotentCommand {
     pub response_json: Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AcceptRoomInviteIdempotentCommand {
+    pub scope: String,
+    pub key: String,
+    pub request_hash: String,
+    pub ttl: Duration,
+    pub token_hash: TokenHash,
+    pub user_id: UserId,
+    pub user_email: EmailAddress,
+    pub now: SystemTime,
+    pub audit_log: AuditLog,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AcceptRoomInviteResult {
+    pub room: Room,
+    pub role: RoomRole,
+}
+
 pub fn authorize_room_action(
     ctx: &AuthContext,
     action: RoomAction,
@@ -804,6 +823,11 @@ pub trait RoomCommandRepository: Send + Sync {
         &self,
         command: CreateRoomInviteIdempotentCommand,
     ) -> Result<IdempotentOutcome<Value>, RepositoryError>;
+
+    async fn accept_room_invite_idempotent(
+        &self,
+        command: AcceptRoomInviteIdempotentCommand,
+    ) -> Result<IdempotentOutcome<AcceptRoomInviteResult>, RepositoryError>;
 }
 
 #[async_trait]
@@ -878,6 +902,8 @@ pub enum RepositoryError {
     Duplicate,
     #[error("forbidden")]
     Forbidden,
+    #[error("{0}")]
+    Invalid(String),
     #[error("idempotency conflict")]
     IdempotencyConflict,
     #[error("retryable database error: {0}")]
