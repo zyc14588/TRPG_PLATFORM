@@ -1733,6 +1733,7 @@ dependencies = [
  "async-trait",
  "auth",
  "game_core",
+ "rag_core",
  "serde_json",
  "sqlx",
  "thiserror",

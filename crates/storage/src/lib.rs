@@ -7,7 +7,11 @@ use auth::{
     RefreshSession, RefreshSessionId, RefreshSessionRepository, RefreshSessionStatus,
     RepositoryError, RepositoryTransaction, Room, RoomCommandRepository, RoomId, RoomInvite,
     RoomInviteStatus, RoomMember, RoomPrivacyMode, RoomRepository, RoomRole, RoomWithRole,
-    TokenHash, TransactionalRepository, User, UserId,
+    TokenHash, TransactionalRepository, User, UserId, VisibilityScope,
+};
+use rag_core::{
+    ChunkDraft, Citation, Document, DocumentSource, DocumentType, Evidence, LicenseStatus,
+    ProviderMetadata, SourceKind, TopK,
 };
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres, Row, Transaction};
@@ -24,6 +28,130 @@ pub struct PostgresRepositories {
     pool: PgPool,
     rls_role: Option<String>,
     private_role: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RagIngestJobStatus {
+    Claimed,
+    Parsing,
+    Embedding,
+    Indexed,
+    PendingReview,
+    Denied,
+    Failed,
+}
+
+impl RagIngestJobStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Claimed => "claimed",
+            Self::Parsing => "parsing",
+            Self::Embedding => "embedding",
+            Self::Indexed => "indexed",
+            Self::PendingReview => "pending_review",
+            Self::Denied => "denied",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RagIngestJob {
+    pub id: Uuid,
+    pub room_id: RoomId,
+    pub source_id: Option<Uuid>,
+    pub document_id: Option<Uuid>,
+    pub idempotency_key: String,
+    pub request_hash: String,
+    pub status: RagIngestJobStatus,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
+    pub chunk_count: i32,
+    pub provider_metadata: Value,
+    pub response_json: Option<Value>,
+    pub created_by: UserId,
+    pub created_at: SystemTime,
+    pub updated_at: SystemTime,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateRagIngestJob {
+    pub ctx: AuthContext,
+    pub job_id: Uuid,
+    pub idempotency_key: String,
+    pub request_hash: String,
+    pub provider_metadata: ProviderMetadata,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PersistRagDocument {
+    pub ctx: AuthContext,
+    pub job_id: Uuid,
+    pub source: DocumentSource,
+    pub source_content_hash: String,
+    pub document: Document,
+    pub document_type: DocumentType,
+    pub chunks: Vec<ChunkDraft>,
+    pub response_json: Value,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FailRagIngestJob {
+    pub ctx: AuthContext,
+    pub job_id: Uuid,
+    pub error_code: String,
+    pub error_message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RagRetrievalFilter {
+    pub top_k: TopK,
+    pub visibility_scopes: Vec<VisibilityScope>,
+    pub source_kinds: Vec<SourceKind>,
+    pub query_text: String,
+}
+
+#[async_trait]
+pub trait RagRepository: Send + Sync {
+    async fn create_ingest_job_idempotent(
+        &self,
+        command: CreateRagIngestJob,
+    ) -> Result<IdempotentOutcome<RagIngestJob>, RepositoryError>;
+
+    async fn create_document_with_chunks(
+        &self,
+        command: PersistRagDocument,
+    ) -> Result<RagIngestJob, RepositoryError>;
+
+    async fn fail_ingest_job(
+        &self,
+        command: FailRagIngestJob,
+    ) -> Result<RagIngestJob, RepositoryError>;
+
+    async fn list_pending_sources_for_review(
+        &self,
+        ctx: &AuthContext,
+    ) -> Result<Vec<DocumentSource>, RepositoryError>;
+
+    async fn review_source(
+        &self,
+        ctx: &AuthContext,
+        source_id: Uuid,
+        status: LicenseStatus,
+        reason: Option<&str>,
+    ) -> Result<Option<DocumentSource>, RepositoryError>;
+
+    async fn retrieve_candidate_chunks(
+        &self,
+        ctx: &AuthContext,
+        filter: RagRetrievalFilter,
+    ) -> Result<Vec<Evidence>, RepositoryError>;
+
+    async fn get_document_metadata(
+        &self,
+        ctx: &AuthContext,
+        document_id: Uuid,
+    ) -> Result<Option<Document>, RepositoryError>;
 }
 
 impl PostgresRepositories {
@@ -1157,6 +1285,538 @@ impl AuditLogRepository for PostgresRepositories {
 }
 
 #[async_trait]
+impl RagRepository for PostgresRepositories {
+    async fn create_ingest_job_idempotent(
+        &self,
+        command: CreateRagIngestJob,
+    ) -> Result<IdempotentOutcome<RagIngestJob>, RepositoryError> {
+        let room_id = room_id_from_ctx(&command.ctx)?;
+        let provider_metadata = serde_json::to_value(&command.provider_metadata)
+            .map_err(|err| RepositoryError::Database(err.to_string()))?;
+        let mut tx = self
+            .begin_rls_tx(
+                Some(command.ctx.user_id),
+                Some(room_id.0),
+                Some(command.ctx.role.as_str()),
+                None,
+            )
+            .await?;
+
+        let inserted = sqlx::query(
+            r#"
+            INSERT INTO ingest_jobs (
+                id, room_id, idempotency_key, request_hash, status,
+                provider_metadata, created_by
+            )
+            VALUES ($1, $2, $3, $4, 'claimed', $5, $6)
+            ON CONFLICT (room_id, created_by, idempotency_key) DO NOTHING
+            RETURNING id,
+                   room_id,
+                   source_id,
+                   document_id,
+                   idempotency_key,
+                   request_hash,
+                   status,
+                   error_code,
+                   error_message,
+                   chunk_count,
+                   provider_metadata,
+                   response_json,
+                   created_by,
+                   extract(epoch from created_at)::bigint AS created_at_epoch,
+                   extract(epoch from updated_at)::bigint AS updated_at_epoch
+            "#,
+        )
+        .bind(command.job_id)
+        .bind(room_id.0)
+        .bind(&command.idempotency_key)
+        .bind(&command.request_hash)
+        .bind(&provider_metadata)
+        .bind(command.ctx.user_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+
+        if let Some(row) = inserted {
+            let job = rag_ingest_job_from_row(row)?;
+            tx.commit().await.map_err(map_sqlx)?;
+            return Ok(IdempotentOutcome::Created(job));
+        }
+
+        let row = sqlx::query(
+            r#"
+            SELECT id,
+                   room_id,
+                   source_id,
+                   document_id,
+                   idempotency_key,
+                   request_hash,
+                   status,
+                   error_code,
+                   error_message,
+                   chunk_count,
+                   provider_metadata,
+                   response_json,
+                   created_by,
+                   extract(epoch from created_at)::bigint AS created_at_epoch,
+                   extract(epoch from updated_at)::bigint AS updated_at_epoch
+            FROM ingest_jobs
+            WHERE room_id = $1 AND created_by = $2 AND idempotency_key = $3
+            FOR UPDATE
+            "#,
+        )
+        .bind(room_id.0)
+        .bind(command.ctx.user_id)
+        .bind(&command.idempotency_key)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        let job = rag_ingest_job_from_row(row)?;
+        tx.commit().await.map_err(map_sqlx)?;
+
+        if job.request_hash == command.request_hash {
+            Ok(IdempotentOutcome::Replayed(job))
+        } else {
+            Ok(IdempotentOutcome::Conflict)
+        }
+    }
+
+    async fn create_document_with_chunks(
+        &self,
+        command: PersistRagDocument,
+    ) -> Result<RagIngestJob, RepositoryError> {
+        validate_persist_rag_document(&command)?;
+        let room_id = room_id_from_ctx(&command.ctx)?;
+        let document_provider_metadata = serde_json::to_value(&command.document.provider_metadata)
+            .map_err(|err| RepositoryError::Database(err.to_string()))?;
+        let source_metadata = command.source.metadata.clone();
+        let mut tx = self
+            .begin_rls_tx(
+                Some(command.ctx.user_id),
+                Some(room_id.0),
+                Some(command.ctx.role.as_str()),
+                None,
+            )
+            .await?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO document_sources (
+                id, room_id, source_kind, title, license_status, license_reason,
+                visibility_scope, visibility_default, content_hash, created_by, metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10)
+            ON CONFLICT (id) DO UPDATE
+            SET title = EXCLUDED.title,
+                license_status = EXCLUDED.license_status,
+                license_reason = EXCLUDED.license_reason,
+                visibility_scope = EXCLUDED.visibility_scope,
+                visibility_default = EXCLUDED.visibility_default,
+                metadata = EXCLUDED.metadata,
+                updated_at = now()
+            "#,
+        )
+        .bind(command.source.id)
+        .bind(room_id.0)
+        .bind(source_kind_as_str(command.source.source_kind))
+        .bind(&command.source.title)
+        .bind(command.source.license_status.as_str())
+        .bind(&command.source.license_reason)
+        .bind(command.source.visibility_default.as_str())
+        .bind(&command.source_content_hash)
+        .bind(command.source.created_by)
+        .bind(&source_metadata)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO documents (
+                id, room_id, source_id, document_type, source_kind, title, status,
+                visibility_scope, visibility, license_status, content_hash, normalized_hash,
+                provider_metadata, uploaded_by
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $9, $9, $10, $11)
+            ON CONFLICT (id) DO UPDATE
+            SET title = EXCLUDED.title,
+                status = EXCLUDED.status,
+                visibility_scope = EXCLUDED.visibility_scope,
+                visibility = EXCLUDED.visibility,
+                license_status = EXCLUDED.license_status,
+                content_hash = EXCLUDED.content_hash,
+                normalized_hash = EXCLUDED.normalized_hash,
+                provider_metadata = EXCLUDED.provider_metadata,
+                updated_at = now()
+            "#,
+        )
+        .bind(command.document.id)
+        .bind(room_id.0)
+        .bind(command.document.source_id)
+        .bind(document_type_as_str(command.document_type))
+        .bind(source_kind_as_str(command.source.source_kind))
+        .bind(&command.document.title)
+        .bind(command.document.license_status.as_str())
+        .bind(command.document.visibility.as_str())
+        .bind(&command.document.normalized_hash)
+        .bind(&document_provider_metadata)
+        .bind(command.source.created_by)
+        .execute(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+
+        sqlx::query("DELETE FROM chunks WHERE document_id = $1")
+            .bind(command.document.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+
+        for chunk in &command.chunks {
+            let section_path = Value::Array(
+                chunk
+                    .heading_path
+                    .iter()
+                    .map(|part| Value::String(part.clone()))
+                    .collect(),
+            );
+            let citation = serde_json::to_value(&chunk.citation)
+                .map_err(|err| RepositoryError::Database(err.to_string()))?;
+            sqlx::query(
+                r#"
+                INSERT INTO chunks (
+                    id, document_id, room_id, source_id, session_id, section_path,
+                    heading_path, ordinal, page_start, page_end, visibility_scope,
+                    visibility, content, content_hash, license_status, license_name,
+                    source_url, token_estimate, citation, metadata
+                )
+                VALUES (
+                    gen_random_uuid(), $1, $2, $3, NULL, $4, $5, $6,
+                    $7, $8, $9, $9, $10, $11, $12, $13, $14, $15, $16, $17
+                )
+                "#,
+            )
+            .bind(chunk.document_id)
+            .bind(room_id.0)
+            .bind(chunk.source_id)
+            .bind(&section_path)
+            .bind(&chunk.heading_path)
+            .bind(i32::try_from(chunk.ordinal).map_err(|err| {
+                RepositoryError::Invalid(format!("chunk ordinal is too large: {err}"))
+            })?)
+            .bind(chunk.citation.page_start)
+            .bind(chunk.citation.page_end)
+            .bind(chunk.visibility.as_str())
+            .bind(&chunk.normalized_text)
+            .bind(&chunk.content_hash)
+            .bind(chunk.license_status.as_str())
+            .bind(chunk.citation.license_name.as_deref())
+            .bind(chunk.citation.source_url.as_deref())
+            .bind(i32::try_from(chunk.token_estimate).map_err(|err| {
+                RepositoryError::Invalid(format!("token estimate is too large: {err}"))
+            })?)
+            .bind(&citation)
+            .bind(&source_metadata)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        }
+
+        let job = update_ingest_job_success(
+            &mut tx,
+            &command,
+            room_id,
+            i32::try_from(command.chunks.len())
+                .map_err(|err| RepositoryError::Invalid(err.to_string()))?,
+            &document_provider_metadata,
+            &command.response_json,
+        )
+        .await?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(job)
+    }
+
+    async fn fail_ingest_job(
+        &self,
+        command: FailRagIngestJob,
+    ) -> Result<RagIngestJob, RepositoryError> {
+        let room_id = room_id_from_ctx(&command.ctx)?;
+        let mut tx = self
+            .begin_rls_tx(
+                Some(command.ctx.user_id),
+                Some(room_id.0),
+                Some(command.ctx.role.as_str()),
+                None,
+            )
+            .await?;
+        let row = sqlx::query(
+            r#"
+            UPDATE ingest_jobs
+            SET status = 'failed',
+                error_code = $3,
+                error_message = $4,
+                last_error = $4,
+                updated_at = now()
+            WHERE id = $1 AND room_id = $2 AND created_by = $5
+            RETURNING id,
+                   room_id,
+                   source_id,
+                   document_id,
+                   idempotency_key,
+                   request_hash,
+                   status,
+                   error_code,
+                   error_message,
+                   chunk_count,
+                   provider_metadata,
+                   response_json,
+                   created_by,
+                   extract(epoch from created_at)::bigint AS created_at_epoch,
+                   extract(epoch from updated_at)::bigint AS updated_at_epoch
+            "#,
+        )
+        .bind(command.job_id)
+        .bind(room_id.0)
+        .bind(&command.error_code)
+        .bind(&command.error_message)
+        .bind(command.ctx.user_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        let job = rag_ingest_job_from_row(row)?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(job)
+    }
+
+    async fn list_pending_sources_for_review(
+        &self,
+        ctx: &AuthContext,
+    ) -> Result<Vec<DocumentSource>, RepositoryError> {
+        let room_id = room_id_from_ctx(ctx)?;
+        let mut tx = self
+            .begin_rls_tx(
+                Some(ctx.user_id),
+                Some(room_id.0),
+                Some(ctx.role.as_str()),
+                None,
+            )
+            .await?;
+        set_rag_access_path(&mut tx, "license_review").await?;
+        let rows = sqlx::query(
+            r#"
+            SELECT id,
+                   room_id,
+                   source_kind,
+                   title,
+                   license_status,
+                   COALESCE(license_reason, '') AS license_reason,
+                   created_by,
+                   visibility_default,
+                   metadata,
+                   extract(epoch from created_at)::bigint AS created_at_epoch
+            FROM document_sources
+            WHERE room_id = $1 AND license_status = 'pending_review'
+            ORDER BY updated_at, id
+            "#,
+        )
+        .bind(room_id.0)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        let sources = rows
+            .into_iter()
+            .map(document_source_from_row)
+            .collect::<Result<Vec<_>, _>>()?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(sources)
+    }
+
+    async fn review_source(
+        &self,
+        ctx: &AuthContext,
+        source_id: Uuid,
+        status: LicenseStatus,
+        reason: Option<&str>,
+    ) -> Result<Option<DocumentSource>, RepositoryError> {
+        if status == LicenseStatus::PendingReview {
+            return Err(RepositoryError::Invalid(
+                "review must approve or deny the source".to_owned(),
+            ));
+        }
+        let room_id = room_id_from_ctx(ctx)?;
+        let mut tx = self
+            .begin_rls_tx(
+                Some(ctx.user_id),
+                Some(room_id.0),
+                Some(ctx.role.as_str()),
+                None,
+            )
+            .await?;
+        set_rag_access_path(&mut tx, "license_review").await?;
+        let row = sqlx::query(
+            r#"
+            UPDATE document_sources
+            SET license_status = $3,
+                license_reason = $4,
+                updated_at = now()
+            WHERE id = $1 AND room_id = $2
+            RETURNING id,
+                   room_id,
+                   source_kind,
+                   title,
+                   license_status,
+                   COALESCE(license_reason, '') AS license_reason,
+                   created_by,
+                   visibility_default,
+                   metadata,
+                   extract(epoch from created_at)::bigint AS created_at_epoch
+            "#,
+        )
+        .bind(source_id)
+        .bind(room_id.0)
+        .bind(status.as_str())
+        .bind(reason)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        sqlx::query("UPDATE documents SET license_status = $2, status = $2 WHERE source_id = $1")
+            .bind(source_id)
+            .bind(status.as_str())
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        sqlx::query("UPDATE chunks SET license_status = $2 WHERE source_id = $1")
+            .bind(source_id)
+            .bind(status.as_str())
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        let source = row.map(document_source_from_row).transpose()?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(source)
+    }
+
+    async fn retrieve_candidate_chunks(
+        &self,
+        ctx: &AuthContext,
+        filter: RagRetrievalFilter,
+    ) -> Result<Vec<Evidence>, RepositoryError> {
+        let room_id = room_id_from_ctx(ctx)?;
+        let visibility_scopes = allowed_retrieval_scopes(ctx, &filter);
+        if visibility_scopes.is_empty() {
+            return Ok(Vec::new());
+        }
+        let source_kinds = filter
+            .source_kinds
+            .iter()
+            .map(|kind| source_kind_as_str(*kind).to_owned())
+            .collect::<Vec<_>>();
+        let mut tx = self
+            .begin_rls_tx(
+                Some(ctx.user_id),
+                Some(room_id.0),
+                Some(ctx.role.as_str()),
+                None,
+            )
+            .await?;
+        let rows = sqlx::query(
+            r#"
+            WITH filtered_chunks AS (
+                SELECT c.id AS chunk_id,
+                       c.document_id,
+                       c.source_id,
+                       c.content_hash,
+                       c.content,
+                       c.visibility_scope,
+                       c.heading_path,
+                       c.ordinal,
+                       c.page_start,
+                       c.page_end,
+                       c.license_name,
+                       c.source_url,
+                       d.title AS document_title,
+                       ds.title AS source_title,
+                       ds.metadata AS source_metadata
+                FROM chunks c
+                JOIN documents d ON d.id = c.document_id
+                JOIN document_sources ds ON ds.id = c.source_id
+                WHERE c.room_id = $1
+                  AND d.room_id = $1
+                  AND ds.room_id = $1
+                  AND c.license_status = 'allowed'
+                  AND d.license_status = 'allowed'
+                  AND ds.license_status = 'allowed'
+                  AND c.visibility_scope = ANY($2)
+                  AND c.visibility_scope <> 'system_internal'
+                  AND ($3::text[] = '{}'::text[] OR ds.source_kind = ANY($3))
+            )
+            SELECT *,
+                   CASE
+                       WHEN $4 = '' THEN 0::real
+                       WHEN content ILIKE ('%' || $4 || '%') THEN 1::real
+                       ELSE 0::real
+                   END AS score
+            FROM filtered_chunks
+            WHERE $4 = '' OR content ILIKE ('%' || $4 || '%')
+            ORDER BY score DESC, ordinal ASC, chunk_id
+            LIMIT $5
+            "#,
+        )
+        .bind(room_id.0)
+        .bind(&visibility_scopes)
+        .bind(&source_kinds)
+        .bind(&filter.query_text)
+        .bind(i64::from(filter.top_k.get()))
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        let evidence = rows
+            .into_iter()
+            .map(evidence_from_row)
+            .collect::<Result<Vec<_>, _>>()?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(evidence)
+    }
+
+    async fn get_document_metadata(
+        &self,
+        ctx: &AuthContext,
+        document_id: Uuid,
+    ) -> Result<Option<Document>, RepositoryError> {
+        let room_id = room_id_from_ctx(ctx)?;
+        let mut tx = self
+            .begin_rls_tx(
+                Some(ctx.user_id),
+                Some(room_id.0),
+                Some(ctx.role.as_str()),
+                None,
+            )
+            .await?;
+        let row = sqlx::query(
+            r#"
+            SELECT id,
+                   source_id,
+                   room_id,
+                   title,
+                   normalized_hash,
+                   license_status,
+                   visibility,
+                   provider_metadata,
+                   extract(epoch from created_at)::bigint AS created_at_epoch
+            FROM documents
+            WHERE id = $1
+            "#,
+        )
+        .bind(document_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(map_sqlx)?;
+        let document = row.map(document_from_row).transpose()?;
+        tx.commit().await.map_err(map_sqlx)?;
+        Ok(document)
+    }
+}
+
+#[async_trait]
 impl RoomCommandRepository for PostgresRepositories {
     async fn create_room_idempotent(
         &self,
@@ -1632,6 +2292,307 @@ fn idempotency_status_from_str(value: &str) -> Result<IdempotencyStatus, Reposit
     }
 }
 
+fn room_id_from_ctx(ctx: &AuthContext) -> Result<RoomId, RepositoryError> {
+    ctx.room_id
+        .map(RoomId)
+        .ok_or_else(|| RepositoryError::Invalid("room context is required".to_owned()))
+}
+
+fn validate_persist_rag_document(command: &PersistRagDocument) -> Result<(), RepositoryError> {
+    let room_id = room_id_from_ctx(&command.ctx)?;
+    if command.source.room_id != Some(room_id.0) || command.document.room_id != Some(room_id.0) {
+        return Err(RepositoryError::Invalid(
+            "source and document must match room context".to_owned(),
+        ));
+    }
+    if command.document.source_id != command.source.id {
+        return Err(RepositoryError::Invalid(
+            "document source_id must match source id".to_owned(),
+        ));
+    }
+    if command.source.license_status != LicenseStatus::Allowed
+        || command.document.license_status != LicenseStatus::Allowed
+    {
+        return Err(RepositoryError::Invalid(
+            "only allowed sources can create documents and chunks".to_owned(),
+        ));
+    }
+    for chunk in &command.chunks {
+        if chunk.source_id != command.source.id || chunk.document_id != command.document.id {
+            return Err(RepositoryError::Invalid(
+                "chunk provenance must match source and document".to_owned(),
+            ));
+        }
+        if chunk.room_id != Some(room_id.0) {
+            return Err(RepositoryError::Invalid(
+                "chunk room_id must match room context".to_owned(),
+            ));
+        }
+        if chunk.license_status != LicenseStatus::Allowed {
+            return Err(RepositoryError::Invalid(
+                "pending or denied chunks cannot be persisted".to_owned(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+async fn set_rag_access_path(
+    tx: &mut Transaction<'_, Postgres>,
+    access_path: &str,
+) -> Result<(), RepositoryError> {
+    sqlx::query("SELECT set_config('app.rag_access_path', $1, true)")
+        .bind(access_path)
+        .execute(&mut **tx)
+        .await
+        .map_err(map_sqlx)?;
+    Ok(())
+}
+
+async fn update_ingest_job_success(
+    tx: &mut Transaction<'_, Postgres>,
+    command: &PersistRagDocument,
+    room_id: RoomId,
+    chunk_count: i32,
+    provider_metadata: &Value,
+    response_json: &Value,
+) -> Result<RagIngestJob, RepositoryError> {
+    let row = sqlx::query(
+        r#"
+        UPDATE ingest_jobs
+        SET source_id = $3,
+            document_id = $4,
+            status = 'indexed',
+            chunk_count = $5,
+            provider_metadata = $6,
+            response_json = $7,
+            error_code = NULL,
+            error_message = NULL,
+            last_error = NULL,
+            completed_at = now(),
+            updated_at = now()
+        WHERE id = $1 AND room_id = $2 AND created_by = $8
+        RETURNING id,
+               room_id,
+               source_id,
+               document_id,
+               idempotency_key,
+               request_hash,
+               status,
+               error_code,
+               error_message,
+               chunk_count,
+               provider_metadata,
+               response_json,
+               created_by,
+               extract(epoch from created_at)::bigint AS created_at_epoch,
+               extract(epoch from updated_at)::bigint AS updated_at_epoch
+        "#,
+    )
+    .bind(command.job_id)
+    .bind(room_id.0)
+    .bind(command.source.id)
+    .bind(command.document.id)
+    .bind(chunk_count)
+    .bind(provider_metadata)
+    .bind(response_json)
+    .bind(command.ctx.user_id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(map_sqlx)?;
+    rag_ingest_job_from_row(row)
+}
+
+fn rag_ingest_job_from_row(row: sqlx::postgres::PgRow) -> Result<RagIngestJob, RepositoryError> {
+    let status: String = row.get("status");
+    let created_by = row
+        .get::<Option<Uuid>, _>("created_by")
+        .ok_or_else(|| RepositoryError::Database("ingest job missing created_by".to_owned()))?;
+    Ok(RagIngestJob {
+        id: row.get("id"),
+        room_id: RoomId(row.get("room_id")),
+        source_id: row.get("source_id"),
+        document_id: row.get("document_id"),
+        idempotency_key: row.get("idempotency_key"),
+        request_hash: row.get("request_hash"),
+        status: rag_ingest_job_status_from_str(&status)?,
+        error_code: row.get("error_code"),
+        error_message: row.get("error_message"),
+        chunk_count: row.get("chunk_count"),
+        provider_metadata: row.get("provider_metadata"),
+        response_json: row.get("response_json"),
+        created_by: UserId(created_by),
+        created_at: from_unix_seconds(row.get("created_at_epoch"))?,
+        updated_at: from_unix_seconds(row.get("updated_at_epoch"))?,
+    })
+}
+
+fn document_source_from_row(row: sqlx::postgres::PgRow) -> Result<DocumentSource, RepositoryError> {
+    let source_kind: String = row.get("source_kind");
+    let license_status: String = row.get("license_status");
+    let visibility_default: String = row.get("visibility_default");
+    Ok(DocumentSource {
+        id: row.get("id"),
+        room_id: row.get("room_id"),
+        source_kind: source_kind_from_str(&source_kind)?,
+        title: row.get("title"),
+        license_status: license_status_from_str(&license_status)?,
+        license_reason: row.get("license_reason"),
+        created_by: row.get("created_by"),
+        visibility_default: visibility_from_str(&visibility_default)?,
+        metadata: row.get("metadata"),
+        created_at: from_unix_seconds(row.get("created_at_epoch"))?,
+    })
+}
+
+fn document_from_row(row: sqlx::postgres::PgRow) -> Result<Document, RepositoryError> {
+    let license_status: String = row.get("license_status");
+    let visibility: String = row.get("visibility");
+    let provider_metadata: Value = row.get("provider_metadata");
+    let provider_metadata = serde_json::from_value(provider_metadata).unwrap_or_default();
+    Ok(Document {
+        id: row.get("id"),
+        source_id: row.get("source_id"),
+        room_id: row.get("room_id"),
+        title: row.get("title"),
+        normalized_hash: row.get("normalized_hash"),
+        license_status: license_status_from_str(&license_status)?,
+        visibility: visibility_from_str(&visibility)?,
+        provider_metadata,
+        created_at: from_unix_seconds(row.get("created_at_epoch"))?,
+    })
+}
+
+fn evidence_from_row(row: sqlx::postgres::PgRow) -> Result<Evidence, RepositoryError> {
+    let visibility: String = row.get("visibility_scope");
+    let content: String = row.get("content");
+    let content_hash: String = row.get("content_hash");
+    let heading_path: Vec<String> = row.get("heading_path");
+    let source_title: String = row.get("source_title");
+    Ok(Evidence {
+        source_id: row.get("source_id"),
+        document_id: row.get("document_id"),
+        chunk_id: row.get("chunk_id"),
+        content_hash: content_hash.clone(),
+        score: row.get("score"),
+        citation: Citation {
+            source_title,
+            section_path: heading_path,
+            location_hint: Some(format!("chunk {}", row.get::<i32, _>("ordinal") + 1)),
+            content_hash,
+            source_url: row.get("source_url"),
+            page_start: row.get("page_start"),
+            page_end: row.get("page_end"),
+            span: None,
+            license_name: row.get("license_name"),
+        },
+        preview_text: content.chars().take(500).collect(),
+        visibility: visibility_from_str(&visibility)?,
+        source_metadata: row.get("source_metadata"),
+    })
+}
+
+fn rag_ingest_job_status_from_str(value: &str) -> Result<RagIngestJobStatus, RepositoryError> {
+    match value {
+        "claimed" => Ok(RagIngestJobStatus::Claimed),
+        "parsing" => Ok(RagIngestJobStatus::Parsing),
+        "embedding" => Ok(RagIngestJobStatus::Embedding),
+        "indexed" => Ok(RagIngestJobStatus::Indexed),
+        "pending_review" => Ok(RagIngestJobStatus::PendingReview),
+        "denied" => Ok(RagIngestJobStatus::Denied),
+        "failed" => Ok(RagIngestJobStatus::Failed),
+        _ => Err(RepositoryError::Database(format!(
+            "unknown ingest job status: {value}"
+        ))),
+    }
+}
+
+fn source_kind_as_str(value: SourceKind) -> &'static str {
+    match value {
+        SourceKind::OfficialSrd => "official_srd",
+        SourceKind::OpenText => "open_text",
+        SourceKind::UserProvidedText => "user_provided_text",
+        SourceKind::CampaignNotes => "campaign_notes",
+        SourceKind::CharacterSheet => "character_sheet",
+        SourceKind::ModulePrivateNotes => "module_private_notes",
+        SourceKind::CommercialAdapterMetadata => "commercial_adapter_metadata",
+        SourceKind::Unknown => "unknown",
+    }
+}
+
+fn source_kind_from_str(value: &str) -> Result<SourceKind, RepositoryError> {
+    match value {
+        "official_srd" => Ok(SourceKind::OfficialSrd),
+        "open_license" | "open_text" => Ok(SourceKind::OpenText),
+        "user_upload" | "user_provided_text" => Ok(SourceKind::UserProvidedText),
+        "campaign_notes" => Ok(SourceKind::CampaignNotes),
+        "character_sheet" => Ok(SourceKind::CharacterSheet),
+        "module_private_notes" => Ok(SourceKind::ModulePrivateNotes),
+        "commercial_adapter" | "commercial_adapter_metadata" => {
+            Ok(SourceKind::CommercialAdapterMetadata)
+        }
+        "unknown" => Ok(SourceKind::Unknown),
+        _ => Err(RepositoryError::Database(format!(
+            "unknown source kind: {value}"
+        ))),
+    }
+}
+
+fn document_type_as_str(value: DocumentType) -> &'static str {
+    match value {
+        DocumentType::Rulebook => "rulebook",
+        DocumentType::Module => "module",
+        DocumentType::Clue => "clue",
+        DocumentType::SessionLog => "session_log",
+        DocumentType::Memory => "memory",
+        DocumentType::CharacterSheet => "character_sheet",
+        DocumentType::CommercialAdapterMetadata => "commercial_adapter_metadata",
+    }
+}
+
+fn license_status_from_str(value: &str) -> Result<LicenseStatus, RepositoryError> {
+    match value {
+        "allowed" => Ok(LicenseStatus::Allowed),
+        "pending_review" => Ok(LicenseStatus::PendingReview),
+        "denied" => Ok(LicenseStatus::Denied),
+        _ => Err(RepositoryError::Database(format!(
+            "unknown license status: {value}"
+        ))),
+    }
+}
+
+fn visibility_from_str(value: &str) -> Result<VisibilityScope, RepositoryError> {
+    VisibilityScope::from_str(value).map_err(|err| RepositoryError::Database(err.to_string()))
+}
+
+fn allowed_retrieval_scopes(ctx: &AuthContext, filter: &RagRetrievalFilter) -> Vec<String> {
+    let scopes = if filter.visibility_scopes.is_empty() {
+        vec![
+            VisibilityScope::PublicRule,
+            VisibilityScope::RoomRule,
+            VisibilityScope::PlVisibleClue,
+            VisibilityScope::CharacterPrivate,
+            VisibilityScope::SessionLog,
+            VisibilityScope::KpOnlyModule,
+            VisibilityScope::KpSecret,
+            VisibilityScope::MemoryPrivate,
+        ]
+    } else {
+        filter.visibility_scopes.clone()
+    };
+    let actor_id = UserId(ctx.user_id);
+    let mut allowed = Vec::new();
+    for scope in scopes {
+        if scope != VisibilityScope::SystemInternal
+            && scope.visible_to(ctx.role, actor_id, None)
+            && !allowed.contains(&scope.as_str().to_owned())
+        {
+            allowed.push(scope.as_str().to_owned());
+        }
+    }
+    allowed
+}
+
 fn unix_seconds(value: SystemTime) -> Result<i64, RepositoryError> {
     let duration = value
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -1736,6 +2697,16 @@ mod tests {
             .execute("GRANT SELECT ON ALL TABLES IN SCHEMA public TO trpg_rls_test")
             .await
             .map_err(map_sqlx)?;
+        repo.pool()
+            .execute(
+                r#"
+                GRANT INSERT, UPDATE, DELETE
+                ON document_sources, documents, chunks, ingest_jobs
+                TO trpg_rls_test
+                "#,
+            )
+            .await
+            .map_err(map_sqlx)?;
         Ok(())
     }
 
@@ -1757,9 +2728,9 @@ mod tests {
             r#"
             INSERT INTO document_sources (
                 room_id, source_kind, title, license_status, visibility_scope,
-                content_hash, created_by
+                visibility_default, content_hash, created_by
             )
-            VALUES ($1, 'user_upload', $2, $3, $4, $5, $6)
+            VALUES ($1, 'user_upload', $2, $3, $4, $4, $5, $6)
             RETURNING id
             "#,
         )
@@ -1787,9 +2758,9 @@ mod tests {
             r#"
             INSERT INTO documents (
                 room_id, source_id, document_type, title, status, visibility_scope,
-                license_status, content_hash, uploaded_by
+                visibility, license_status, content_hash, normalized_hash, uploaded_by
             )
-            VALUES ($1, $2, 'rulebook', $3, $4, $5, $4, $6, $7)
+            VALUES ($1, $2, 'rulebook', $3, $4, $5, $5, $4, $6, $6, $7)
             RETURNING id
             "#,
         )
@@ -1818,9 +2789,10 @@ mod tests {
             r#"
             INSERT INTO chunks (
                 document_id, room_id, source_id, visibility_scope, content,
-                content_hash, license_status
+                visibility, content_hash, license_status, ordinal, heading_path,
+                token_estimate, citation
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            VALUES ($1, $2, $3, $4, $5, $4, $6, $7, 0, '{}'::text[], 1, '{}'::jsonb)
             RETURNING id
             "#,
         )
@@ -1834,6 +2806,70 @@ mod tests {
         .fetch_one(repo.pool())
         .await
         .map_err(map_sqlx)
+    }
+
+    fn rag_source(room_id: RoomId, created_by: UserId, title: &str) -> DocumentSource {
+        DocumentSource {
+            id: Uuid::new_v4(),
+            room_id: Some(room_id.0),
+            source_kind: SourceKind::UserProvidedText,
+            title: title.to_owned(),
+            license_status: LicenseStatus::Allowed,
+            license_reason: "user declared rights".to_owned(),
+            created_by: Some(created_by.0),
+            visibility_default: VisibilityScope::RoomRule,
+            metadata: serde_json::json!({ "fixture": "storage" }),
+            created_at: SystemTime::UNIX_EPOCH,
+        }
+    }
+
+    fn rag_document(source: &DocumentSource, title: &str) -> Document {
+        Document {
+            id: Uuid::new_v4(),
+            source_id: source.id,
+            room_id: source.room_id,
+            title: title.to_owned(),
+            normalized_hash: format!("sha256:{}", Uuid::new_v4().simple()),
+            license_status: LicenseStatus::Allowed,
+            visibility: VisibilityScope::RoomRule,
+            provider_metadata: ProviderMetadata::deterministic_local(16),
+            created_at: SystemTime::UNIX_EPOCH,
+        }
+    }
+
+    fn rag_chunk(source: &DocumentSource, document: &Document, text: &str) -> ChunkDraft {
+        let content_hash = rag_core::hash_normalized_text(text);
+        ChunkDraft {
+            document_id: document.id,
+            source_id: source.id,
+            room_id: document.room_id,
+            ordinal: 0,
+            heading_path: vec!["Rules".to_owned()],
+            normalized_text: text.to_owned(),
+            content_hash: content_hash.clone(),
+            license_status: LicenseStatus::Allowed,
+            visibility: VisibilityScope::RoomRule,
+            token_estimate: 3,
+            citation: Citation {
+                source_title: source.title.clone(),
+                section_path: vec!["Rules".to_owned()],
+                location_hint: Some("test".to_owned()),
+                content_hash,
+                source_url: None,
+                page_start: None,
+                page_end: None,
+                span: None,
+                license_name: Some("user-provided-rights".to_owned()),
+            },
+        }
+    }
+
+    fn owner_ctx(owner: UserId, room_id: RoomId) -> AuthContext {
+        AuthContext {
+            user_id: owner.0,
+            room_id: Some(room_id.0),
+            role: RoomRole::Owner,
+        }
     }
 
     #[tokio::test]
@@ -2457,6 +3493,81 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rls_blocks_cross_room_chunks() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let owner = user("Owner")?;
+        let pl = user("PL")?;
+        repo.upsert_user(&owner).await?;
+        repo.upsert_user(&pl).await?;
+        let room_a = room(owner.id);
+        let room_b = room(owner.id);
+        repo.create_room(&room_a).await?;
+        repo.create_room(&room_b).await?;
+        repo.add_room_member(&RoomMember {
+            room_id: room_a.id,
+            user_id: pl.id,
+            role: RoomRole::Pl,
+        })
+        .await?;
+        let source_b = insert_source(
+            &repo,
+            Some(room_b.id),
+            "room b source",
+            "allowed",
+            VisibilityScope::RoomRule,
+            Some(owner.id),
+        )
+        .await?;
+        let doc_b = insert_document(
+            &repo,
+            Some(room_b.id),
+            Some(source_b),
+            "room b document",
+            "allowed",
+            VisibilityScope::RoomRule,
+            Some(owner.id),
+        )
+        .await?;
+        let chunk_b = insert_chunk(
+            &repo,
+            doc_b,
+            Some(room_b.id),
+            Some(source_b),
+            "room b chunk",
+            "allowed",
+            VisibilityScope::RoomRule,
+        )
+        .await?;
+
+        let mut tx = repo.pool().begin().await.map_err(map_sqlx)?;
+        sqlx::query("SET LOCAL ROLE trpg_rls_test")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        PostgresRepositories::set_rls_context(
+            &mut tx,
+            &AuthContext {
+                user_id: pl.id.0,
+                room_id: Some(room_a.id.0),
+                role: RoomRole::Pl,
+            },
+        )
+        .await?;
+        let visible_count: i64 = sqlx::query_scalar("SELECT count(*) FROM chunks WHERE id = $1")
+            .bind(chunk_b)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        tx.rollback().await.map_err(map_sqlx)?;
+
+        assert_eq!(visible_count, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn app_role_cannot_select_kp_only_as_pl() -> Result<(), RepositoryError> {
         let Some(repo) = migrated_repo().await else {
             return Ok(());
@@ -2530,7 +3641,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn pl_retrieval_cannot_select_pending_or_denied_chunks() -> Result<(), RepositoryError> {
+    async fn rls_blocks_pending_denied_chunks() -> Result<(), RepositoryError> {
         let Some(repo) = migrated_repo().await else {
             return Ok(());
         };
@@ -2676,8 +3787,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn kp_review_can_list_pending_sources_only_through_review_path(
-    ) -> Result<(), RepositoryError> {
+    async fn review_path_lists_pending_for_kp() -> Result<(), RepositoryError> {
         let Some(repo) = migrated_repo().await else {
             return Ok(());
         };
@@ -2730,6 +3840,64 @@ mod tests {
 
         assert_eq!(ordinary_count, 0);
         assert_eq!(review_count, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pl_cannot_review_sources() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let owner = user("Owner")?;
+        let pl = user("PL")?;
+        repo.upsert_user(&owner).await?;
+        repo.upsert_user(&pl).await?;
+        let room = room(owner.id);
+        repo.create_room(&room).await?;
+        repo.add_room_member(&RoomMember {
+            room_id: room.id,
+            user_id: pl.id,
+            role: RoomRole::Pl,
+        })
+        .await?;
+        insert_source(
+            &repo,
+            Some(room.id),
+            "pending source",
+            "pending_review",
+            VisibilityScope::RoomRule,
+            Some(owner.id),
+        )
+        .await?;
+
+        let mut tx = repo.pool().begin().await.map_err(map_sqlx)?;
+        sqlx::query("SET LOCAL ROLE trpg_rls_test")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        PostgresRepositories::set_rls_context(
+            &mut tx,
+            &AuthContext {
+                user_id: pl.id.0,
+                room_id: Some(room.id.0),
+                role: RoomRole::Pl,
+            },
+        )
+        .await?;
+        sqlx::query("SELECT set_config('app.rag_access_path', 'license_review', true)")
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx)?;
+        let review_count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM document_sources WHERE room_id = $1")
+                .bind(room.id.0)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(map_sqlx)?;
+        tx.rollback().await.map_err(map_sqlx)?;
+
+        assert_eq!(review_count, 0);
         Ok(())
     }
 
@@ -2799,6 +3967,321 @@ mod tests {
         tx.rollback().await.map_err(map_sqlx)?;
 
         assert_eq!((sources, documents, chunks), (1, 1, 1));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn ingest_duplicate_replays() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let app_repo = app_role_repo(&repo)?;
+        let owner = user("Owner")?;
+        repo.upsert_user(&owner).await?;
+        let room = room(owner.id);
+        repo.create_room(&room).await?;
+        let ctx = owner_ctx(owner.id, room.id);
+        let command = CreateRagIngestJob {
+            ctx: ctx.clone(),
+            job_id: Uuid::new_v4(),
+            idempotency_key: format!("ingest-{}", Uuid::new_v4()),
+            request_hash: "sha256:same-request".to_owned(),
+            provider_metadata: ProviderMetadata::deterministic_local(16),
+        };
+
+        let first = app_repo
+            .create_ingest_job_idempotent(command.clone())
+            .await?;
+        let IdempotentOutcome::Created(job) = first else {
+            panic!("first ingest claim should create a job");
+        };
+        let source = rag_source(room.id, owner.id, "source");
+        let document = rag_document(&source, "document");
+        let chunks = vec![rag_chunk(&source, &document, "allowed text")];
+        let response_json = serde_json::json!({ "document_id": document.id, "chunk_count": 1 });
+        let completed = app_repo
+            .create_document_with_chunks(PersistRagDocument {
+                ctx,
+                job_id: job.id,
+                source: source.clone(),
+                source_content_hash: "sha256:source".to_owned(),
+                document,
+                document_type: DocumentType::Rulebook,
+                chunks,
+                response_json: response_json.clone(),
+            })
+            .await?;
+        assert_eq!(completed.response_json, Some(response_json.clone()));
+
+        let replay = app_repo.create_ingest_job_idempotent(command).await?;
+        let IdempotentOutcome::Replayed(replayed) = replay else {
+            panic!("duplicate ingest should replay");
+        };
+        assert_eq!(replayed.id, completed.id);
+        assert_eq!(replayed.response_json, Some(response_json));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn ingest_conflict_on_hash_mismatch() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let app_repo = app_role_repo(&repo)?;
+        let owner = user("Owner")?;
+        repo.upsert_user(&owner).await?;
+        let room = room(owner.id);
+        repo.create_room(&room).await?;
+        let key = format!("ingest-{}", Uuid::new_v4());
+        let ctx = owner_ctx(owner.id, room.id);
+        let first = CreateRagIngestJob {
+            ctx: ctx.clone(),
+            job_id: Uuid::new_v4(),
+            idempotency_key: key.clone(),
+            request_hash: "sha256:first".to_owned(),
+            provider_metadata: ProviderMetadata::deterministic_local(16),
+        };
+        let second = CreateRagIngestJob {
+            request_hash: "sha256:second".to_owned(),
+            job_id: Uuid::new_v4(),
+            ..first.clone()
+        };
+
+        assert!(matches!(
+            app_repo.create_ingest_job_idempotent(first).await?,
+            IdempotentOutcome::Created(_)
+        ));
+        assert_eq!(
+            app_repo.create_ingest_job_idempotent(second).await?,
+            IdempotentOutcome::Conflict
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn ingest_idempotency_is_scoped_to_created_by() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let app_repo = app_role_repo(&repo)?;
+        let owner = user("Owner")?;
+        let assistant = user("Assistant")?;
+        repo.upsert_user(&owner).await?;
+        repo.upsert_user(&assistant).await?;
+        let room = room(owner.id);
+        repo.create_room(&room).await?;
+        repo.add_room_member(&RoomMember {
+            room_id: room.id,
+            user_id: assistant.id,
+            role: RoomRole::AssistantKp,
+        })
+        .await?;
+        let key = format!("ingest-{}", Uuid::new_v4());
+
+        let owner_claim = CreateRagIngestJob {
+            ctx: owner_ctx(owner.id, room.id),
+            job_id: Uuid::new_v4(),
+            idempotency_key: key.clone(),
+            request_hash: "sha256:owner".to_owned(),
+            provider_metadata: ProviderMetadata::deterministic_local(16),
+        };
+        let assistant_claim = CreateRagIngestJob {
+            ctx: AuthContext {
+                user_id: assistant.id.0,
+                room_id: Some(room.id.0),
+                role: RoomRole::AssistantKp,
+            },
+            job_id: Uuid::new_v4(),
+            idempotency_key: key,
+            request_hash: "sha256:assistant".to_owned(),
+            provider_metadata: ProviderMetadata::deterministic_local(16),
+        };
+
+        assert!(matches!(
+            app_repo.create_ingest_job_idempotent(owner_claim).await?,
+            IdempotentOutcome::Created(_)
+        ));
+        assert!(matches!(
+            app_repo
+                .create_ingest_job_idempotent(assistant_claim)
+                .await?,
+            IdempotentOutcome::Created(_)
+        ));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn retrieval_filters_before_scoring() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let app_repo = app_role_repo(&repo)?;
+        let owner = user("Owner")?;
+        let pl = user("PL")?;
+        repo.upsert_user(&owner).await?;
+        repo.upsert_user(&pl).await?;
+        let room = room(owner.id);
+        repo.create_room(&room).await?;
+        repo.add_room_member(&RoomMember {
+            room_id: room.id,
+            user_id: pl.id,
+            role: RoomRole::Pl,
+        })
+        .await?;
+
+        let allowed_source = insert_source(
+            &repo,
+            Some(room.id),
+            "allowed source",
+            "allowed",
+            VisibilityScope::RoomRule,
+            Some(owner.id),
+        )
+        .await?;
+        let allowed_doc = insert_document(
+            &repo,
+            Some(room.id),
+            Some(allowed_source),
+            "allowed doc",
+            "allowed",
+            VisibilityScope::RoomRule,
+            Some(owner.id),
+        )
+        .await?;
+        insert_chunk(
+            &repo,
+            allowed_doc,
+            Some(room.id),
+            Some(allowed_source),
+            "boring text",
+            "allowed",
+            VisibilityScope::RoomRule,
+        )
+        .await?;
+
+        for (status, visibility) in [
+            ("denied", VisibilityScope::RoomRule),
+            ("allowed", VisibilityScope::KpOnlyModule),
+        ] {
+            let source = insert_source(
+                &repo,
+                Some(room.id),
+                &format!("{status} source"),
+                status,
+                visibility,
+                Some(owner.id),
+            )
+            .await?;
+            let doc = insert_document(
+                &repo,
+                Some(room.id),
+                Some(source),
+                &format!("{status} doc"),
+                status,
+                visibility,
+                Some(owner.id),
+            )
+            .await?;
+            insert_chunk(
+                &repo,
+                doc,
+                Some(room.id),
+                Some(source),
+                "secret",
+                status,
+                visibility,
+            )
+            .await?;
+        }
+
+        let evidence = app_repo
+            .retrieve_candidate_chunks(
+                &AuthContext {
+                    user_id: pl.id.0,
+                    room_id: Some(room.id.0),
+                    role: RoomRole::Pl,
+                },
+                RagRetrievalFilter {
+                    top_k: TopK::new(5, rag_core::DEFAULT_MAX_TOP_K)
+                        .map_err(|err| RepositoryError::Invalid(err.to_string()))?,
+                    visibility_scopes: vec![
+                        VisibilityScope::RoomRule,
+                        VisibilityScope::KpOnlyModule,
+                    ],
+                    source_kinds: Vec::new(),
+                    query_text: "secret".to_owned(),
+                },
+            )
+            .await?;
+
+        assert!(evidence.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn failed_ingest_rolls_back_document_writes() -> Result<(), RepositoryError> {
+        let Some(repo) = migrated_repo().await else {
+            return Ok(());
+        };
+        ensure_rls_test_role(&repo).await?;
+        let app_repo = app_role_repo(&repo)?;
+        let owner = user("Owner")?;
+        repo.upsert_user(&owner).await?;
+        let room = room(owner.id);
+        repo.create_room(&room).await?;
+        let ctx = owner_ctx(owner.id, room.id);
+        let command = CreateRagIngestJob {
+            ctx: ctx.clone(),
+            job_id: Uuid::new_v4(),
+            idempotency_key: format!("ingest-{}", Uuid::new_v4()),
+            request_hash: "sha256:rollback".to_owned(),
+            provider_metadata: ProviderMetadata::deterministic_local(16),
+        };
+        let IdempotentOutcome::Created(job) =
+            app_repo.create_ingest_job_idempotent(command).await?
+        else {
+            panic!("first ingest claim should create a job");
+        };
+        let source = rag_source(room.id, owner.id, "rollback source");
+        let document = rag_document(&source, "rollback document");
+        let mut chunk = rag_chunk(&source, &document, "rollback text");
+        chunk.token_estimate = u32::MAX;
+
+        let result = app_repo
+            .create_document_with_chunks(PersistRagDocument {
+                ctx,
+                job_id: job.id,
+                source: source.clone(),
+                source_content_hash: "sha256:rollback-source".to_owned(),
+                document: document.clone(),
+                document_type: DocumentType::Rulebook,
+                chunks: vec![chunk],
+                response_json: serde_json::json!({ "should": "not persist" }),
+            })
+            .await;
+        assert!(result.is_err());
+
+        let sources: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM document_sources WHERE id = $1")
+                .bind(source.id)
+                .fetch_one(repo.pool())
+                .await
+                .map_err(map_sqlx)?;
+        let documents: i64 = sqlx::query_scalar("SELECT count(*) FROM documents WHERE id = $1")
+            .bind(document.id)
+            .fetch_one(repo.pool())
+            .await
+            .map_err(map_sqlx)?;
+        let chunks: i64 = sqlx::query_scalar("SELECT count(*) FROM chunks WHERE document_id = $1")
+            .bind(document.id)
+            .fetch_one(repo.pool())
+            .await
+            .map_err(map_sqlx)?;
+        assert_eq!((sources, documents, chunks), (0, 0, 0));
         Ok(())
     }
 
