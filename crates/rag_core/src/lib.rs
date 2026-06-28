@@ -9,11 +9,28 @@ use std::time::SystemTime;
 use uuid::Uuid;
 
 pub type Visibility = VisibilityScope;
-pub type PrivacyMode = RoomPrivacyMode;
 
 pub const DEFAULT_MAX_TOP_K: u8 = 15;
 pub const DEFAULT_MAX_CHUNK_CHARS: usize = 1_200;
 pub const DEFAULT_MAX_RAW_TEXT_CHARS: usize = 200_000;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PrivacyMode {
+    LocalOnly,
+    AllowConfiguredCloud,
+}
+
+impl From<RoomPrivacyMode> for PrivacyMode {
+    fn from(value: RoomPrivacyMode) -> Self {
+        match value {
+            RoomPrivacyMode::LocalOnly => Self::LocalOnly,
+            RoomPrivacyMode::Standard | RoomPrivacyMode::PrivateHybrid => {
+                Self::AllowConfiguredCloud
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -24,7 +41,9 @@ pub enum SourceKind {
     CampaignNotes,
     CharacterSheet,
     ModulePrivateNotes,
+    KpPrivateModule,
     CommercialAdapterMetadata,
+    SystemInternal,
     Unknown,
 }
 
@@ -86,6 +105,18 @@ pub fn decide_license(input: &LicenseCheckInput) -> LicenseDecision {
         SourceKind::UserProvidedText if input.declared_has_rights => LicenseDecision {
             status: LicenseStatus::Allowed,
             reason: "user declared rights".to_owned(),
+        },
+        SourceKind::CampaignNotes | SourceKind::CharacterSheet | SourceKind::KpPrivateModule
+            if input.declared_has_rights =>
+        {
+            LicenseDecision {
+                status: LicenseStatus::Allowed,
+                reason: "user declared rights for room-scoped content".to_owned(),
+            }
+        }
+        SourceKind::SystemInternal => LicenseDecision {
+            status: LicenseStatus::Allowed,
+            reason: "system internal generated metadata".to_owned(),
         },
         SourceKind::OpenText if is_recognized_open_license(input.license_name.as_deref()) => {
             LicenseDecision {
@@ -155,6 +186,20 @@ pub enum DocumentType {
     Memory,
     CharacterSheet,
     CommercialAdapterMetadata,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum IngestJobStatus {
+    Queued,
+    Claimed,
+    Parsing,
+    Embedding,
+    Indexed,
+    Completed,
+    PendingReview,
+    Denied,
+    Failed,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -269,6 +314,45 @@ pub struct Evidence {
     pub source_metadata: Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct VisibilityMetadata {
+    pub scope: VisibilityScope,
+}
+
+impl Evidence {
+    pub fn from_scored_chunk(scored: ScoredChunk) -> Self {
+        let indexed = scored.indexed_chunk;
+        let chunk = indexed.chunk;
+        Self {
+            source_id: chunk.source_id,
+            document_id: chunk.document_id,
+            chunk_id: chunk.id,
+            content_hash: chunk.content_hash.clone(),
+            score: scored.score,
+            citation: chunk.citation,
+            preview_text: preview_text(&chunk.normalized_text),
+            visibility: chunk.visibility,
+            source_metadata: with_provider_metadata(
+                indexed.source_metadata,
+                &indexed.provider_metadata,
+            ),
+        }
+    }
+
+    pub fn safe_visibility_metadata(&self) -> VisibilityMetadata {
+        VisibilityMetadata {
+            scope: self.visibility,
+        }
+    }
+
+    pub fn provider_metadata(&self) -> Option<ProviderMetadata> {
+        self.source_metadata
+            .get("provider_metadata")
+            .cloned()
+            .and_then(|value| serde_json::from_value(value).ok())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct TopK(u8);
@@ -381,6 +465,21 @@ impl ProviderMetadata {
         }
     }
 
+    pub fn cloud(
+        provider_kind: impl Into<String>,
+        model: impl Into<String>,
+        dimension: u16,
+    ) -> Self {
+        Self {
+            provider_kind: provider_kind.into(),
+            provider_version: None,
+            model: Some(model.into()),
+            location: ProviderLocation::Cloud,
+            dimension: Some(dimension),
+            request_id: None,
+        }
+    }
+
     pub fn ensure_privacy_mode(self, privacy_mode: PrivacyMode) -> Result<Self> {
         if privacy_mode == PrivacyMode::LocalOnly && self.location == ProviderLocation::Cloud {
             return Err(RagError::ProviderRejectedPrivacyMode);
@@ -472,6 +571,8 @@ pub enum RagError {
     VisibilityDenied,
     #[error("provider rejected privacy mode")]
     ProviderRejectedPrivacyMode,
+    #[error("provider unavailable: {0}")]
+    ProviderUnavailable(String),
     #[error("chunk too large: {actual} > {limit}")]
     ChunkTooLarge { limit: usize, actual: usize },
     #[error("top_k too large: {requested} > {max}")]
@@ -480,6 +581,8 @@ pub enum RagError {
     InvalidSourceMetadata(String),
     #[error("storage conflict: {0}")]
     StorageConflict(String),
+    #[error("forbidden")]
+    Forbidden,
 }
 
 pub type Result<T> = std::result::Result<T, RagError>;
@@ -498,6 +601,8 @@ pub trait Embedder: Send + Sync {
     fn metadata(&self) -> ProviderMetadata;
 
     async fn embed(&self, input: &[ChunkDraft], ctx: ProviderContext) -> Result<Vec<Embedding>>;
+
+    async fn embed_query(&self, query_text: &str, ctx: ProviderContext) -> Result<EmbeddedQuery>;
 }
 
 #[async_trait]
@@ -744,6 +849,14 @@ impl Embedder for DeterministicLocalEmbedder {
             })
             .collect())
     }
+
+    async fn embed_query(&self, query_text: &str, ctx: ProviderContext) -> Result<EmbeddedQuery> {
+        self.metadata().ensure_privacy_mode(ctx.privacy_mode)?;
+        Ok(EmbeddedQuery {
+            vector: self.embed_text(query_text),
+            text: normalize_text(query_text),
+        })
+    }
 }
 
 #[derive(Debug, Default)]
@@ -823,6 +936,12 @@ pub struct SimpleKeywordIndex {
     chunks: Mutex<Vec<IndexedChunk>>,
 }
 
+impl SimpleKeywordIndex {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 #[async_trait]
 impl KeywordIndex for SimpleKeywordIndex {
     async fn upsert(&self, chunks: &[IndexedChunk]) -> Result<()> {
@@ -879,6 +998,85 @@ impl KeywordIndex for SimpleKeywordIndex {
     }
 }
 
+#[derive(Debug)]
+pub struct LocalHybridRetriever<E, V, K> {
+    embedder: E,
+    vector_store: V,
+    keyword_index: K,
+}
+
+impl<E, V, K> LocalHybridRetriever<E, V, K> {
+    pub fn new(embedder: E, vector_store: V, keyword_index: K) -> Self {
+        Self {
+            embedder,
+            vector_store,
+            keyword_index,
+        }
+    }
+}
+
+#[async_trait]
+impl<E, V, K> HybridRetriever for LocalHybridRetriever<E, V, K>
+where
+    E: Embedder,
+    V: VectorStore,
+    K: KeywordIndex,
+{
+    async fn retrieve(&self, query: RetrievalQuery) -> Result<RetrievalResult> {
+        let embedded_query = self
+            .embedder
+            .embed_query(
+                &query.query_text,
+                ProviderContext {
+                    privacy_mode: query.privacy_mode,
+                },
+            )
+            .await?;
+        let filter = query.filters.clone();
+        let mut merged = self
+            .vector_store
+            .search(embedded_query, filter.clone())
+            .await?;
+        let keyword_hits = self
+            .keyword_index
+            .search(&query.query_text, filter.clone())
+            .await?;
+
+        // ponytail: O(n^2) merge is fine for the local test provider; use a map if this grows.
+        for hit in keyword_hits {
+            if let Some(existing) = merged
+                .iter_mut()
+                .find(|existing| existing.indexed_chunk.chunk.id == hit.indexed_chunk.chunk.id)
+            {
+                existing.score = existing.score.max(hit.score);
+            } else {
+                merged.push(hit);
+            }
+        }
+
+        merged.sort_by(|left, right| {
+            right.score.total_cmp(&left.score).then_with(|| {
+                left.indexed_chunk
+                    .chunk
+                    .ordinal
+                    .cmp(&right.indexed_chunk.chunk.ordinal)
+            })
+        });
+        merged.truncate(filter.top_k.get() as usize);
+        let evidence = merged
+            .into_iter()
+            .map(Evidence::from_scored_chunk)
+            .collect();
+
+        Ok(RetrievalResult::new(
+            evidence,
+            query.filters,
+            self.embedder.metadata(),
+            query.trace_id,
+        ))
+    }
+}
+
 fn passes_filter(indexed: &IndexedChunk, filter: &RetrievalFilter) -> bool {
     let chunk = &indexed.chunk;
     if chunk.license_status != LicenseStatus::Allowed {
@@ -914,6 +1112,27 @@ pub fn hash_normalized_text(normalized: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(normalized.as_bytes());
     format!("sha256:{:x}", hasher.finalize())
+}
+
+fn preview_text(text: &str) -> String {
+    const PREVIEW_CHARS: usize = 240;
+    text.chars().take(PREVIEW_CHARS).collect()
+}
+
+fn with_provider_metadata(source_metadata: Value, provider_metadata: &ProviderMetadata) -> Value {
+    let mut map = match source_metadata {
+        Value::Object(map) => map,
+        Value::Null => serde_json::Map::new(),
+        other => {
+            let mut map = serde_json::Map::new();
+            map.insert("source".to_owned(), other);
+            map
+        }
+    };
+    if let Ok(value) = serde_json::to_value(provider_metadata) {
+        map.insert("provider_metadata".to_owned(), value);
+    }
+    Value::Object(map)
 }
 
 fn estimate_tokens(text: &str) -> u32 {
@@ -972,6 +1191,230 @@ mod tests {
             document_types: vec![DocumentType::Rulebook],
             top_k: TopK::new(top_k, DEFAULT_MAX_TOP_K).expect("valid top_k"),
         }
+    }
+
+    #[test]
+    fn license_allowed_pending_denied_semantics() {
+        assert_eq!(
+            decide_license(&LicenseCheckInput {
+                source_kind: SourceKind::OfficialSrd,
+                license_name: None,
+                declared_has_rights: false,
+                contains_commercial_rule_text: false,
+            })
+            .status,
+            LicenseStatus::Allowed
+        );
+        assert_eq!(
+            check_declared_license(None, false).status,
+            LicenseStatus::PendingReview
+        );
+        assert_eq!(
+            decide_license(&LicenseCheckInput {
+                source_kind: SourceKind::CommercialAdapterMetadata,
+                license_name: None,
+                declared_has_rights: false,
+                contains_commercial_rule_text: true,
+            })
+            .status,
+            LicenseStatus::Denied
+        );
+    }
+
+    #[test]
+    fn privacy_mode_supports_local_only_and_allow_configured_cloud() {
+        assert_eq!(
+            PrivacyMode::from(RoomPrivacyMode::LocalOnly),
+            PrivacyMode::LocalOnly
+        );
+        assert_eq!(
+            PrivacyMode::from(RoomPrivacyMode::PrivateHybrid),
+            PrivacyMode::AllowConfiguredCloud
+        );
+    }
+
+    #[test]
+    fn visibility_scope_supports_pl_kp_and_system_internal_boundaries() {
+        let actor = auth::UserId(Uuid::from_u128(1));
+        assert!(VisibilityScope::PublicRule.visible_to(auth::RoomRole::Pl, actor, None));
+        assert!(!VisibilityScope::KpOnlyModule.visible_to(auth::RoomRole::Pl, actor, None));
+        assert!(VisibilityScope::KpOnlyModule.visible_to(auth::RoomRole::Kp, actor, None));
+        assert!(!VisibilityScope::SystemInternal.visible_to(auth::RoomRole::Kp, actor, None));
+    }
+
+    #[test]
+    fn chunk_hash_stable() {
+        let normalized = normalize_text("alpha\r\nbeta  ");
+        assert_eq!(
+            hash_normalized_text(&normalized),
+            hash_normalized_text("alpha\nbeta")
+        );
+    }
+
+    #[test]
+    fn chunk_hash_changes_on_content_change() {
+        assert_ne!(
+            hash_normalized_text("same text"),
+            hash_normalized_text("changed text")
+        );
+    }
+
+    #[tokio::test]
+    async fn markdown_heading_path_preserved() {
+        let chunker = MarkdownChunker;
+        let chunks = chunker
+            .chunk(
+                &input("# Combat\nRules.\n## Initiative\nRoll quickly."),
+                ChunkingOptions::default(),
+            )
+            .await
+            .expect("allowed text chunks");
+
+        assert!(chunks
+            .iter()
+            .any(|chunk| chunk.heading_path == vec!["Combat", "Initiative"]));
+    }
+
+    #[tokio::test]
+    async fn chunk_size_is_bounded() {
+        let chunks = MarkdownChunker
+            .chunk(
+                &input("abcdefghij"),
+                ChunkingOptions {
+                    max_chunk_chars: 4,
+                    ..ChunkingOptions::default()
+                },
+            )
+            .await
+            .expect("bounded chunks");
+
+        assert!(chunks
+            .iter()
+            .all(|chunk| chunk.normalized_text.chars().count() <= 4));
+    }
+
+    #[tokio::test]
+    async fn local_embedder_is_deterministic() {
+        let embedder = DeterministicLocalEmbedder::default();
+        let first = embedder
+            .embed_query(
+                "same query",
+                ProviderContext {
+                    privacy_mode: PrivacyMode::LocalOnly,
+                },
+            )
+            .await
+            .expect("first local query embed");
+        let second = embedder
+            .embed_query(
+                "same query",
+                ProviderContext {
+                    privacy_mode: PrivacyMode::LocalOnly,
+                },
+            )
+            .await
+            .expect("second local query embed");
+
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn local_only_rejects_cloud_provider() {
+        let metadata = ProviderMetadata::cloud("cloud_embedder", "remote-model", 3);
+        assert_eq!(
+            metadata
+                .ensure_privacy_mode(PrivacyMode::LocalOnly)
+                .expect_err("cloud rejected"),
+            RagError::ProviderRejectedPrivacyMode
+        );
+    }
+
+    #[tokio::test]
+    async fn citation_required_for_evidence() {
+        let embedder = DeterministicLocalEmbedder::default();
+        let chunk = MarkdownChunker
+            .chunk(&input("# Rules\nvisible clue"), ChunkingOptions::default())
+            .await
+            .expect("chunk")
+            .remove(0)
+            .into_chunk(Uuid::from_u128(42));
+        let indexed = IndexedChunk {
+            embedding: embedder.embed_text(&chunk.normalized_text),
+            chunk,
+            document_type: DocumentType::Rulebook,
+            source_metadata: serde_json::json!({"source_kind": "test"}),
+            provider_metadata: embedder.metadata(),
+        };
+        let evidence = Evidence::from_scored_chunk(ScoredChunk {
+            indexed_chunk: indexed,
+            score: 1.0,
+        });
+
+        assert_eq!(evidence.source_id, Uuid::from_u128(2));
+        assert_eq!(evidence.document_id, Uuid::from_u128(1));
+        assert_eq!(evidence.chunk_id, Uuid::from_u128(42));
+        assert!(!evidence.content_hash.is_empty());
+        assert_eq!(evidence.citation.source_title, "Test Source");
+        assert_eq!(
+            evidence.safe_visibility_metadata().scope,
+            VisibilityScope::RoomRule
+        );
+        assert_eq!(
+            evidence
+                .provider_metadata()
+                .expect("provider metadata")
+                .location,
+            ProviderLocation::Local
+        );
+    }
+
+    #[tokio::test]
+    async fn local_hybrid_retriever_returns_evidence_without_network() {
+        let embedder = DeterministicLocalEmbedder::default();
+        let chunk = MarkdownChunker
+            .chunk(
+                &input("# Rules\ninitiative order"),
+                ChunkingOptions::default(),
+            )
+            .await
+            .expect("chunk")
+            .remove(0)
+            .into_chunk(Uuid::from_u128(43));
+        let indexed = IndexedChunk {
+            embedding: embedder.embed_text(&chunk.normalized_text),
+            chunk,
+            document_type: DocumentType::Rulebook,
+            source_metadata: Value::Null,
+            provider_metadata: embedder.metadata(),
+        };
+        let vector_store = InMemoryVectorStore::new();
+        vector_store
+            .upsert(std::slice::from_ref(&indexed))
+            .await
+            .expect("vector upsert");
+        let keyword_index = SimpleKeywordIndex::new();
+        keyword_index
+            .upsert(&[indexed])
+            .await
+            .expect("keyword upsert");
+
+        let retriever = LocalHybridRetriever::new(embedder, vector_store, keyword_index);
+        let result = retriever
+            .retrieve(RetrievalQuery {
+                actor_id: Uuid::from_u128(9),
+                room_id: Some(Uuid::from_u128(3)),
+                query_text: "initiative".to_owned(),
+                top_k: TopK::new(1, DEFAULT_MAX_TOP_K).expect("valid top_k"),
+                filters: filter(1, vec![VisibilityScope::RoomRule]),
+                privacy_mode: PrivacyMode::LocalOnly,
+                trace_id: Some(Uuid::from_u128(99)),
+            })
+            .await
+            .expect("retrieve");
+
+        assert_eq!(result.evidence.len(), 1);
+        assert_eq!(result.trace_id, Some(Uuid::from_u128(99)));
+        assert_eq!(result.provider_metadata.location, ProviderLocation::Local);
     }
 
     #[test]
