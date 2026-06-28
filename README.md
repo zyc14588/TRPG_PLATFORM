@@ -19,6 +19,16 @@ P2 Codex reading order:
 4. `docs/p2/02_BATCH_PLAN.md`
 5. Open the current batch document listed in `docs/p2/INDEX.md`.
 
+P2 DB build reading order:
+1. `CODEX_P2_MASTER_PROMPT.md`
+2. `docs/p2/db/INDEX.md`
+3. `docs/p2/db/02_DATABASE_URL_CONTRACT.md`
+4. `docs/p2/db/08_B02_DATABASE_BUILD_RUNBOOK.md`
+5. `docs/p2/db/09_TROUBLESHOOTING_DATABASE_URL_EMPTY.md`
+6. `docs/p2/db/10_ACCEPTANCE_MATRIX.md`
+7. `docs/p2/11_DATABASE_SETUP.md`
+8. `docs/p2/15_DB_TEST_MIGRATOR_POLICY.md`
+
 ## 已锁定的差异化范围
 
 - Generic Percentile、D&D SRD 5.2.1、COC/商业规则适配器与合法规则包机制。

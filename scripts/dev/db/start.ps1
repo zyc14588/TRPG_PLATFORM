@@ -33,6 +33,6 @@ Invoke-Docker exec $container psql -U postgres -d trpg_platform -v ON_ERROR_STOP
 Write-Host "Local DB bootstrap complete."
 Write-Host "Next:"
 Write-Host "  . .\scripts\dev\db\env.ps1"
-Write-Host "  cargo sqlx migrate run --database-url `"$env:TRPG_DATABASE_ADMIN_URL`""
+Write-Host '  cargo sqlx migrate run --database-url "$env:TRPG_DATABASE_ADMIN_URL"'
 Write-Host "  .\scripts\dev\db\grant-app-role.ps1"
 Write-Host "  cargo sqlx prepare --check --workspace"
