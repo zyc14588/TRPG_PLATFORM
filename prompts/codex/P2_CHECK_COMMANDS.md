@@ -30,6 +30,21 @@ cargo test -p server
 
 ## SQLx / PostgreSQL
 
+P2 B02/B07 DB-backed gate:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+docker compose -f docker-compose.dev-db.yml up -d
+. .\scripts\dev\db\env.ps1
+cargo sqlx migrate run --database-url "$env:TRPG_DATABASE_ADMIN_URL"
+.\scripts\dev\db\grant-app-role.ps1
+.\scripts\dev\db\verify.ps1
+cargo sqlx prepare --check --workspace
+cargo test -p storage
+```
+
+`DATABASE_URL` must use the non-superuser app role (`trpg_app` locally). Use `TRPG_DATABASE_ADMIN_URL` only for local migration/bootstrap. If Docker, PostgreSQL, pgvector, or SQLx is unavailable, mark the DB-backed gate `BLOCKED` with the exact failing command; do not report P2 B02/B07 as PASS. If `cargo test -p storage` fails after DB verify and SQLx prepare pass, report the exact storage/migration failure instead of switching `DATABASE_URL` to `postgres`.
+
 ```powershell
 cargo sqlx migrate run
 cargo sqlx prepare --check --workspace

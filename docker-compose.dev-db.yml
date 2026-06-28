@@ -1,0 +1,35 @@
+# Local PostgreSQL + pgvector target for TRPG_PLATFORM development and DB-backed checks.
+#
+# This file is for local development only. It deliberately maps PostgreSQL to
+# localhost:55432 to avoid colliding with a native PostgreSQL on 5432.
+#
+# Start:
+#   docker compose -f docker-compose.dev-db.yml up -d
+#
+# Stop:
+#   docker compose -f docker-compose.dev-db.yml down
+#
+# Destroy local DB data:
+#   docker compose -f docker-compose.dev-db.yml down -v
+
+services:
+  trpg-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: trpg-platform-pgvector
+    restart: unless-stopped
+    ports:
+      - "55432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: trpg_platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trpg_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - trpg_pgvector_data:/var/lib/postgresql/data
+
+volumes:
+  trpg_pgvector_data:

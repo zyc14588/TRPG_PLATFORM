@@ -2623,13 +2623,88 @@ mod tests {
     static MIGRATE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
     static RLS_ROLE_SETUP_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-    async fn maybe_test_pool() -> Option<PgPool> {
+    fn is_postgres_superuser_url(database_url: &str) -> bool {
+        let lower = database_url.to_ascii_lowercase();
+        let Some(rest) = lower
+            .strip_prefix("postgres://")
+            .or_else(|| lower.strip_prefix("postgresql://"))
+        else {
+            return false;
+        };
+        rest.starts_with("postgres:") || rest.starts_with("postgres@")
+    }
+
+    fn app_database_url() -> Option<String> {
         let database_url = std::env::var("DATABASE_URL").ok()?;
+        assert!(
+            !is_postgres_superuser_url(&database_url),
+            "DATABASE_URL must use an ordinary app role, not the postgres superuser"
+        );
+        Some(database_url)
+    }
+
+    fn migrator_database_url() -> Result<String, RepositoryError> {
+        let database_url = std::env::var("TRPG_TEST_MIGRATOR_DATABASE_URL")
+            .or_else(|_| std::env::var("TRPG_DATABASE_ADMIN_URL"))
+            .map_err(|_| {
+                RepositoryError::Database(
+                    "storage migration bootstrap requires TRPG_TEST_MIGRATOR_DATABASE_URL or TRPG_DATABASE_ADMIN_URL".to_owned(),
+                )
+            })?;
+
+        if std::env::var("DATABASE_URL").ok().as_deref() == Some(database_url.as_str()) {
+            return Err(RepositoryError::Database(
+                "migrator/admin URL must not be the same as app DATABASE_URL".to_owned(),
+            ));
+        }
+
+        Ok(database_url)
+    }
+
+    async fn connect_migrator_pool() -> Result<PgPool, RepositoryError> {
+        let database_url = migrator_database_url()?;
         PgPoolOptions::new()
-            .max_connections(5)
+            .max_connections(1)
             .connect(&database_url)
             .await
-            .ok()
+            .map_err(map_sqlx)
+    }
+
+    async fn current_database_user(pool: &PgPool) -> Result<String, RepositoryError> {
+        sqlx::query_scalar("SELECT current_user::text")
+            .fetch_one(pool)
+            .await
+            .map_err(map_sqlx)
+    }
+
+    async fn assert_app_role_is_ordinary(pool: &PgPool) -> Result<(), RepositoryError> {
+        let row = sqlx::query(
+            "SELECT current_user::text AS role_name, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user",
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(map_sqlx)?;
+        let role_name: String = row.try_get("role_name").map_err(map_sqlx)?;
+        let rolsuper: bool = row.try_get("rolsuper").map_err(map_sqlx)?;
+        let rolbypassrls: bool = row.try_get("rolbypassrls").map_err(map_sqlx)?;
+
+        assert!(
+            role_name != "postgres" && !rolsuper && !rolbypassrls,
+            "DATABASE_URL must use a non-superuser app role with no BYPASSRLS; got role={role_name}, rolsuper={rolsuper}, rolbypassrls={rolbypassrls}"
+        );
+        Ok(())
+    }
+
+    async fn connect_app_pool(database_url: &str) -> PgPool {
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(database_url)
+            .await
+            .unwrap_or_else(|err| panic!("DATABASE_URL app-role connection failed: {err}"));
+        assert_app_role_is_ordinary(&pool)
+            .await
+            .unwrap_or_else(|err| panic!("{err}"));
+        pool
     }
 
     fn email(value: &str) -> Result<EmailAddress, RepositoryError> {
@@ -2665,19 +2740,64 @@ mod tests {
     }
 
     async fn migrated_repo() -> Option<PostgresRepositories> {
-        let pool = maybe_test_pool().await?;
+        let database_url = app_database_url()?;
         let _guard = MIGRATE_LOCK.lock().await;
-        if MIGRATOR.run(&pool).await.is_err() {
-            return None;
+        let migrator_pool = connect_migrator_pool()
+            .await
+            .unwrap_or_else(|err| panic!("{err}"));
+        let migration_result = MIGRATOR.run(&migrator_pool).await.map_err(map_migrate);
+        migrator_pool.close().await;
+        migration_result.unwrap_or_else(|err| panic!("{err}"));
+
+        let pool = connect_app_pool(&database_url).await;
+        ensure_app_test_grants(&pool)
+            .await
+            .unwrap_or_else(|err| panic!("{err}"));
+        Some(
+            PostgresRepositories::new(pool)
+                .with_private_role("trpg_app_private")
+                .unwrap_or_else(|err| panic!("{err}")),
+        )
+    }
+
+    async fn ensure_app_test_grants(pool: &PgPool) -> Result<(), RepositoryError> {
+        let app_role = current_database_user(pool).await?;
+        validate_role_name(&app_role)?;
+        let admin = connect_migrator_pool().await?;
+        let role = format!(r#""{app_role}""#);
+        let result = async {
+            for sql in [
+                format!("GRANT USAGE ON SCHEMA public TO {role}"),
+                format!("GRANT USAGE ON SCHEMA app TO {role}"),
+                format!("GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA app TO {role}"),
+                format!(
+                    "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {role}"
+                ),
+                format!("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {role}"),
+                format!("GRANT trpg_app_private TO {role}"),
+            ] {
+                sqlx::query(AssertSqlSafe(sql))
+                    .execute(&admin)
+                    .await
+                    .map_err(map_sqlx)?;
+            }
+            Ok::<(), RepositoryError>(())
         }
-        Some(PostgresRepositories::new(pool))
+        .await;
+        admin.close().await;
+        result
     }
 
     async fn ensure_rls_test_role(repo: &PostgresRepositories) -> Result<(), RepositoryError> {
         let _guard = RLS_ROLE_SETUP_LOCK.lock().await;
-        repo.pool()
-            .execute(
-                r#"
+        let app_role = current_database_user(repo.pool()).await?;
+        validate_role_name(&app_role)?;
+        let admin = connect_migrator_pool().await?;
+        let role = format!(r#""{app_role}""#);
+        let result = async {
+            admin
+                .execute(
+                    r#"
                 DO $$
                 BEGIN
                     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'trpg_rls_test') THEN
@@ -2686,28 +2806,40 @@ mod tests {
                 END
                 $$;
                 "#,
-            )
-            .await
-            .map_err(map_sqlx)?;
-        repo.pool()
-            .execute("GRANT USAGE ON SCHEMA public, app TO trpg_rls_test")
-            .await
-            .map_err(map_sqlx)?;
-        repo.pool()
-            .execute("GRANT SELECT ON ALL TABLES IN SCHEMA public TO trpg_rls_test")
-            .await
-            .map_err(map_sqlx)?;
-        repo.pool()
-            .execute(
-                r#"
+                )
+                .await
+                .map_err(map_sqlx)?;
+            admin
+                .execute("ALTER ROLE trpg_rls_test NOSUPERUSER NOBYPASSRLS NOLOGIN")
+                .await
+                .map_err(map_sqlx)?;
+            admin
+                .execute("GRANT USAGE ON SCHEMA public, app TO trpg_rls_test")
+                .await
+                .map_err(map_sqlx)?;
+            admin
+                .execute("GRANT SELECT ON ALL TABLES IN SCHEMA public TO trpg_rls_test")
+                .await
+                .map_err(map_sqlx)?;
+            admin
+                .execute(
+                    r#"
                 GRANT INSERT, UPDATE, DELETE
                 ON document_sources, documents, chunks, ingest_jobs
                 TO trpg_rls_test
                 "#,
-            )
-            .await
-            .map_err(map_sqlx)?;
-        Ok(())
+                )
+                .await
+                .map_err(map_sqlx)?;
+            sqlx::query(AssertSqlSafe(format!("GRANT trpg_rls_test TO {role}")))
+                .execute(&admin)
+                .await
+                .map_err(map_sqlx)?;
+            Ok::<(), RepositoryError>(())
+        }
+        .await;
+        admin.close().await;
+        result
     }
 
     fn app_role_repo(repo: &PostgresRepositories) -> Result<PostgresRepositories, RepositoryError> {
@@ -2716,15 +2848,40 @@ mod tests {
             .with_private_role("trpg_app_private")
     }
 
+    async fn add_room_member_fixture(
+        _repo: &PostgresRepositories,
+        member: &RoomMember,
+    ) -> Result<(), RepositoryError> {
+        let admin = connect_migrator_pool().await?;
+        let result = sqlx::query(
+            r#"
+            INSERT INTO room_members (room_id, user_id, role)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (room_id, user_id)
+            DO UPDATE SET role = EXCLUDED.role, updated_at = now()
+            "#,
+        )
+        .bind(member.room_id.0)
+        .bind(member.user_id.0)
+        .bind(member.role.as_str())
+        .execute(&admin)
+        .await
+        .map(|_| ())
+        .map_err(map_sqlx);
+        admin.close().await;
+        result
+    }
+
     async fn insert_source(
-        repo: &PostgresRepositories,
+        _repo: &PostgresRepositories,
         room_id: Option<RoomId>,
         title: &str,
         license_status: &str,
         visibility_scope: VisibilityScope,
         created_by: Option<UserId>,
     ) -> Result<Uuid, RepositoryError> {
-        sqlx::query_scalar(
+        let admin = connect_migrator_pool().await?;
+        let result = sqlx::query_scalar(
             r#"
             INSERT INTO document_sources (
                 room_id, source_kind, title, license_status, visibility_scope,
@@ -2740,13 +2897,15 @@ mod tests {
         .bind(visibility_scope.as_str())
         .bind(format!("sha256:{}", Uuid::new_v4().simple()))
         .bind(created_by.map(|id| id.0))
-        .fetch_one(repo.pool())
+        .fetch_one(&admin)
         .await
-        .map_err(map_sqlx)
+        .map_err(map_sqlx);
+        admin.close().await;
+        result
     }
 
     async fn insert_document(
-        repo: &PostgresRepositories,
+        _repo: &PostgresRepositories,
         room_id: Option<RoomId>,
         source_id: Option<Uuid>,
         title: &str,
@@ -2754,7 +2913,8 @@ mod tests {
         visibility_scope: VisibilityScope,
         uploaded_by: Option<UserId>,
     ) -> Result<Uuid, RepositoryError> {
-        sqlx::query_scalar(
+        let admin = connect_migrator_pool().await?;
+        let result = sqlx::query_scalar(
             r#"
             INSERT INTO documents (
                 room_id, source_id, document_type, title, status, visibility_scope,
@@ -2771,13 +2931,15 @@ mod tests {
         .bind(visibility_scope.as_str())
         .bind(format!("sha256:{}", Uuid::new_v4().simple()))
         .bind(uploaded_by.map(|id| id.0))
-        .fetch_one(repo.pool())
+        .fetch_one(&admin)
         .await
-        .map_err(map_sqlx)
+        .map_err(map_sqlx);
+        admin.close().await;
+        result
     }
 
     async fn insert_chunk(
-        repo: &PostgresRepositories,
+        _repo: &PostgresRepositories,
         document_id: Uuid,
         room_id: Option<RoomId>,
         source_id: Option<Uuid>,
@@ -2785,7 +2947,8 @@ mod tests {
         license_status: &str,
         visibility_scope: VisibilityScope,
     ) -> Result<Uuid, RepositoryError> {
-        sqlx::query_scalar(
+        let admin = connect_migrator_pool().await?;
+        let result = sqlx::query_scalar(
             r#"
             INSERT INTO chunks (
                 document_id, room_id, source_id, visibility_scope, content,
@@ -2803,9 +2966,11 @@ mod tests {
         .bind(content)
         .bind(format!("sha256:{}", Uuid::new_v4().simple()))
         .bind(license_status)
-        .fetch_one(repo.pool())
+        .fetch_one(&admin)
         .await
-        .map_err(map_sqlx)
+        .map_err(map_sqlx);
+        admin.close().await;
+        result
     }
 
     fn rag_source(room_id: RoomId, created_by: UserId, title: &str) -> DocumentSource {
@@ -3178,11 +3343,14 @@ mod tests {
         let room_b = room(owner.id);
         repo.create_room(&room_a).await?;
         repo.create_room(&room_b).await?;
-        repo.add_room_member(&RoomMember {
-            room_id: room_a.id,
-            user_id: pl.id,
-            role: RoomRole::Pl,
-        })
+        add_room_member_fixture(
+            &repo,
+            &RoomMember {
+                room_id: room_a.id,
+                user_id: pl.id,
+                role: RoomRole::Pl,
+            },
+        )
         .await?;
 
         let in_room = repo.get_room_member(room_a.id, pl.id).await?;
@@ -3218,13 +3386,15 @@ mod tests {
             .await?;
         }
 
+        let admin = connect_migrator_pool().await?;
         let count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM audit_logs WHERE room_id = $1 AND action = 'phase_1a.audit_test'",
         )
         .bind(room.id.0)
-        .fetch_one(repo.pool())
+        .fetch_one(&admin)
         .await
         .map_err(map_sqlx)?;
+        admin.close().await;
 
         assert_eq!(count, 2);
         Ok(())
@@ -3294,11 +3464,14 @@ mod tests {
             .accept(pl.id, now + Duration::from_secs(2))
             .map_err(|err| RepositoryError::Database(err.to_string()))?;
         repo.save_room_invite(&invite).await?;
-        repo.add_room_member(&RoomMember {
-            room_id: room.id,
-            user_id: pl.id,
-            role: RoomRole::Pl,
-        })
+        add_room_member_fixture(
+            &repo,
+            &RoomMember {
+                room_id: room.id,
+                user_id: pl.id,
+                role: RoomRole::Pl,
+            },
+        )
         .await?;
 
         let idempotency = repo
@@ -3441,11 +3614,14 @@ mod tests {
         let room_b = room(owner.id);
         repo.create_room(&room_a).await?;
         repo.create_room(&room_b).await?;
-        repo.add_room_member(&RoomMember {
-            room_id: room_a.id,
-            user_id: pl.id,
-            role: RoomRole::Pl,
-        })
+        add_room_member_fixture(
+            &repo,
+            &RoomMember {
+                room_id: room_a.id,
+                user_id: pl.id,
+                role: RoomRole::Pl,
+            },
+        )
         .await?;
         let source_b = insert_source(
             &repo,
@@ -3506,11 +3682,14 @@ mod tests {
         let room_b = room(owner.id);
         repo.create_room(&room_a).await?;
         repo.create_room(&room_b).await?;
-        repo.add_room_member(&RoomMember {
-            room_id: room_a.id,
-            user_id: pl.id,
-            role: RoomRole::Pl,
-        })
+        add_room_member_fixture(
+            &repo,
+            &RoomMember {
+                room_id: room_a.id,
+                user_id: pl.id,
+                role: RoomRole::Pl,
+            },
+        )
         .await?;
         let source_b = insert_source(
             &repo,
@@ -3579,11 +3758,14 @@ mod tests {
         repo.upsert_user(&pl).await?;
         let room = room(owner.id);
         repo.create_room(&room).await?;
-        repo.add_room_member(&RoomMember {
-            room_id: room.id,
-            user_id: pl.id,
-            role: RoomRole::Pl,
-        })
+        add_room_member_fixture(
+            &repo,
+            &RoomMember {
+                room_id: room.id,
+                user_id: pl.id,
+                role: RoomRole::Pl,
+            },
+        )
         .await?;
         let source = insert_source(
             &repo,
@@ -3652,11 +3834,14 @@ mod tests {
         repo.upsert_user(&pl).await?;
         let room = room(owner.id);
         repo.create_room(&room).await?;
-        repo.add_room_member(&RoomMember {
-            room_id: room.id,
-            user_id: pl.id,
-            role: RoomRole::Pl,
-        })
+        add_room_member_fixture(
+            &repo,
+            &RoomMember {
+                room_id: room.id,
+                user_id: pl.id,
+                role: RoomRole::Pl,
+            },
+        )
         .await?;
 
         for status in ["allowed", "pending_review", "denied"] {
@@ -3855,11 +4040,14 @@ mod tests {
         repo.upsert_user(&pl).await?;
         let room = room(owner.id);
         repo.create_room(&room).await?;
-        repo.add_room_member(&RoomMember {
-            room_id: room.id,
-            user_id: pl.id,
-            role: RoomRole::Pl,
-        })
+        add_room_member_fixture(
+            &repo,
+            &RoomMember {
+                room_id: room.id,
+                user_id: pl.id,
+                role: RoomRole::Pl,
+            },
+        )
         .await?;
         insert_source(
             &repo,
@@ -4073,11 +4261,14 @@ mod tests {
         repo.upsert_user(&assistant).await?;
         let room = room(owner.id);
         repo.create_room(&room).await?;
-        repo.add_room_member(&RoomMember {
-            room_id: room.id,
-            user_id: assistant.id,
-            role: RoomRole::AssistantKp,
-        })
+        add_room_member_fixture(
+            &repo,
+            &RoomMember {
+                room_id: room.id,
+                user_id: assistant.id,
+                role: RoomRole::AssistantKp,
+            },
+        )
         .await?;
         let key = format!("ingest-{}", Uuid::new_v4());
 
@@ -4126,11 +4317,14 @@ mod tests {
         repo.upsert_user(&pl).await?;
         let room = room(owner.id);
         repo.create_room(&room).await?;
-        repo.add_room_member(&RoomMember {
-            room_id: room.id,
-            user_id: pl.id,
-            role: RoomRole::Pl,
-        })
+        add_room_member_fixture(
+            &repo,
+            &RoomMember {
+                room_id: room.id,
+                user_id: pl.id,
+                role: RoomRole::Pl,
+            },
+        )
         .await?;
 
         let allowed_source = insert_source(
@@ -4287,11 +4481,11 @@ mod tests {
 
     #[tokio::test]
     async fn migration_fresh_install_and_rerun_idempotence() -> Result<(), RepositoryError> {
-        let Some(database_url) = std::env::var("DATABASE_URL").ok() else {
-            return Ok(());
-        };
+        let database_url = migrator_database_url()?;
         let Some((base_url, _database)) = database_url.rsplit_once('/') else {
-            return Ok(());
+            return Err(RepositoryError::Database(
+                "migrator/admin URL must include a database path".to_owned(),
+            ));
         };
         let admin_url = format!("{base_url}/postgres");
         let db_name = format!("trpg_phase_1a_{}", Uuid::new_v4().simple());
