@@ -1,97 +1,76 @@
-# CODEX P2 MASTER PROMPT - TRPG_PLATFORM
+# TRPG_PLATFORM — Codex P2 Master Prompt
 
-You are working in the TRPG_PLATFORM repository. Your mission is Phase 2: Rules / RAG / Document Ingestion, but P2 implementation may start only after the P1.5 Fix Gate passes.
+本文件是 Phase 2 的最高优先级执行文档。Codex 在处理任何 P2 任务前必须先阅读本文件，再阅读 `docs/p2/INDEX.md` 和对应批次文档。
 
-This is the global control prompt for future P2 batches. The P2 Master Preparation batch is docs-only: it may update planning and check-command documents, but it must not implement P2 runtime features.
+## P2 一句话目标
 
-## P2 mission
+P2 交付一个面向 TRPG room 的 Rules / RAG / Document Ingestion / Rig Agent Engine foundation：允许用户安全导入可用文本，确定性 chunk，持久化 provenance，经过 PostgreSQL/RLS/license/visibility gate 检索证据，并用 Rig 作为 Rust agent/provider orchestration engine 暴露可控、可审计、可测试的 evidence-first workflow。
 
-Deliver a secure RAG retrieval foundation for TRPG rooms. The system must ingest allowed text sources, chunk them deterministically, embed through a provider abstraction, store provenance, apply license and visibility filtering before scoring, and return citation-bearing evidence.
+## P2 明确不做
 
-## Non-goals
+- 不导入未经授权的商业规则原文。
+- 不把 UI 或 API handler 当作唯一安全边界。
+- 不让 `pending_review`、`denied`、KP-only、SystemInternal 内容进入 ordinary retrieval candidate set。
+- 不在 LocalOnly room 调用 cloud LLM、cloud embedding、cloud rerank、cloud OCR 或 image provider。
+- 不在 P2 生成最终剧情/GM 回答；P2 的默认 query/agent 输出是 evidence、citations、provenance、applied filters 和 provider metadata。
+- 不在测试中调用真实云 provider 或真实付费服务。
+- 不把 API key、DB URL、JWT secret、hidden content 写进 docs、examples、OpenAPI examples、snapshots、logs 或 metrics。
 
-- Do not import unauthorized commercial rule prose.
-- Do not require full PDF/OCR in P2. Text and Markdown ingestion is enough.
-- Do not implement final LLM answer generation in P2. Retrieval returns evidence only.
-- Do not make WebSocket, Redis, or outbox replay part of the P2 mainline.
-- Do not make CI tests call real cloud providers.
-- Do not treat frontend UI as an access-control boundary.
+## Rig 在 P2 中的角色
 
-## Mandatory reading order
+Rig 是 agent/provider orchestration engine，不是安全边界。P2 中 `crates/agent_engine` 应封装 Rig provider、completion、embedding、tool-call 和 workflow adapter；但 license gate、visibility gate、room membership、RLS、idempotency、DTO safety 必须在 `rag_core`、`storage`、`document_ingestor` 和 `server` 层强制。
 
-Read these files before modifying P2 code:
+推荐 crate 边界：
 
-1. `README.md`
-2. `AGENTS.md` if present
-3. `CODEX_MASTER_PROMPT.md` if present
-4. `docs/P1_5_FIX_PLAN.md`
-5. `docs/p2/00_P1_5_FIX_GATE.md`
-6. `docs/SECURITY_RLS_POLICY.md`
-7. `docs/LEGAL_POLICY.md`
-8. `docs/RAG_DESIGN.md`
-9. `docs/P2_CODEX_HANDOFF.md`
-10. `docs/P2_RAG_IMPLEMENTATION_SPEC.md`
-11. `docs/P2_RAG_ACCEPTANCE_TESTS.md`
-12. `docs/p2/INDEX.md`
-13. `docs/p2/01_P2_MASTER_SPEC.md`
-14. `docs/p2/02_RAG_CORE_DOMAIN_SPEC.md`
-15. `docs/p2/03_STORAGE_RLS_AND_MIGRATIONS.md`
-16. `docs/p2/04_SERVER_API_OPENAPI_SPEC.md`
-17. `docs/p2/05_FRONTEND_RAG_UI_SPEC.md`
-18. `docs/p2/06_SECURITY_LEGAL_PROVIDER_POLICY.md`
-19. `docs/p2/07_ACCEPTANCE_TEST_MATRIX.md`
-20. The current batch prompt in `prompts/codex/`
-21. `prompts/codex/P2_CHECK_COMMANDS.md`
+```text
+crates/rag_core            # 领域类型、traits、错误、不变量；无 DB/HTTP/env/cloud secret
+crates/storage             # PostgreSQL schema, SQLx, RLS, repository, idempotency
+crates/document_ingestor   # deterministic ingest orchestration, license-first
+crates/worker              # optional job runner; no HTTP/UI
+crates/agent_engine        # Rig-backed provider/agent adapters; no RLS bypass
+crates/server              # HTTP routes, auth, CSRF, OpenAPI, DTO mapping
+apps/web                   # UI surface only; never a security boundary
+```
 
-When code changes are planned, also read the relevant current implementation files under `crates/rag_core`, `crates/document_ingestor`, `crates/storage`, `crates/server`, `apps/web`, `schemas/openapi.json`, and the workspace `Cargo.toml`.
+## 全局强制不变量
 
-The existing `docs/CODEX_P2_MASTER_PROMPT.md` is a historical design-control input. Keep it unless the owner explicitly asks to remove or move it.
+1. License gate 在 chunking、embedding、indexing、retrieval、agent tool-call 之前执行。
+2. Visibility gate 在 vector/keyword scoring、ranking、reranking、prompt construction 之前执行。
+3. ordinary DB role / ordinary retrieval path 对 `pending_review` 与 `denied` DB-deny-by-default。
+4. KP-only / GM-only / SystemInternal 内容不能进入 PL/observer retrieval candidate set。
+5. 每条 evidence 必须包含 source/document/chunk identity、content_hash、citation/location、safe visibility metadata、provider metadata。
+6. `top_k`、upload size、raw text size、chunk size、prompt/evidence token budget 必须有硬上限。
+7. Ingest 必须 idempotent：同 key + 同 payload replay；同 key + 不同 payload conflict。
+8. 所有 RLS/security tests 必须使用 ordinary app role 或项目等价低权限 role；不能用 `postgres` superuser 证明安全。
+9. API 返回 DTO，不泄露 raw DB rows 或 hidden existence。
+10. Rig 工具调用只能调用 policy-guarded repository/service；不得直接读 DB 绕过 repository/RLS。
 
-## Global constraints
+## 批次纪律
 
-- P1.5 Fix Gate must be green before P2 implementation starts.
-- License gate must happen before chunking, embedding, indexing, and retrieval.
-- Visibility filter must happen before scoring, ranking, or reranking.
-- `pending_review` and `denied` content must not enter ordinary chunking, embedding, indexing, retrieval, normal API responses, or ordinary DB-role reads.
-- Every retrieval result must include `source_id`, `document_id`, `chunk_id`, `content_hash`, `citation`, and `visibility` metadata.
-- Bound `top_k`, upload size, raw text size, and chunk size.
-- Ingestion must be idempotent: same key plus same payload replays the response; same key plus different payload conflicts.
-- LocalOnly rooms must reject cloud providers and use deterministic local test providers.
-- API responses must be DTOs, not raw DB rows.
-- Do not add unauthorized commercial rule text, fixtures, screenshots, generated examples, or copied passages.
-- Do not use the `postgres` superuser as a production application login role.
-- Do not bypass ABAC/RLS with application comments or UI-only checks.
+每个批次必须独立分支、独立 Codex session、独立验收 session。禁止跨批次偷跑：
 
-## Batch discipline
+- B01 Domain 不写 DB migration、server route、frontend UI。
+- B02 Storage/RLS 不暴露 public HTTP route，不写 frontend。
+- B03 Ingest Worker 不暴露 API/UI，不接 cloud live provider。
+- B04 Rig Agent Engine 不绕过 storage/RLS，不做 final answer UX。
+- B05 Server API 不写 frontend pages，不把 generated final answer 作为 P2 交付。
+- B06 Frontend UI 不改变 backend security semantics。
+- B07 Hardening 只做测试、docs、小 bug fix，不扩产品范围。
 
-Work in order:
+## Codex 工作方式
 
-0. P2 Master Preparation - docs/control only; no runtime feature work
-1. P1.5 Fix Gate
-2. Domain
-3. Storage/RLS
-4. Ingest Worker
-5. Server API
-6. Frontend UI
-7. Hardening
+- 先读文档，再改代码。
+- 优先小 patch，避免大范围重构。
+- 不通过削弱断言“修复”测试。
+- 不自动升级依赖，除非当前批次明确需要并记录理由。
+- Windows 环境优先使用 PowerShell 兼容命令。
+- DB、Docker、E2E 缺失时继续静态审查和非 DB 检查，但最终报告必须标明未运行命令与原因；不能伪造 PASS。
 
-A batch may not start until the previous batch gate passes. If a batch discovers a blocker, fix it in the same batch only when it is required for that batch. Otherwise document the blocker and stop.
+## P2 Done Definition
 
-This master prompt is a control document. It does not itself mark P2 complete.
+P2 完成必须满足：
 
-## Definition of P2 done
-
-P2 is complete only when all of the following are true:
-
-- `cargo fmt --all --check` passes.
-- `cargo check --workspace` passes.
-- `cargo clippy --workspace --all-targets -- -D warnings` passes.
-- `cargo test --workspace` passes.
-- SQLx migrations run on a fresh database.
-- `cargo sqlx prepare --check --workspace` passes.
-- `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build` pass.
-- Retrieval returns evidence/citation/provenance, not final generated answers.
-- Direct DB role tests prove normal retrieval cannot read pending/denied or invisible chunks.
-- LocalOnly mode never invokes cloud model, embedding, rerank, OCR, or image providers.
-- Every row in `docs/p2/07_ACCEPTANCE_TEST_MATRIX.md` is implemented with a passing test or explicitly deferred with owner-approved rationale in `docs/status/P2_STATUS.md`.
-- `docs/status/P2_STATUS.md` records exact commands and results.
+- `docs/p2/10_ACCEPTANCE_MATRIX.md` 中每个必需项都有 automated test、SQLx proof、OpenAPI proof 或明确 deferred rationale。
+- `docs/status/P2_STATUS.md` 存在且不把未实现项写成已完成。
+- Rust workspace、SQLx/migrations、frontend gates、OpenAPI/schema checks 在可用环境中通过。
+- 无 tracked generated artifacts、无 secret leakage、无 license/RLS/visibility/auth blocker。

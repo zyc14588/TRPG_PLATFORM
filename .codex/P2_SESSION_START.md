@@ -1,38 +1,30 @@
-# P2 Codex Session Start
+# Codex Session Start — P2
 
-Paste this at the beginning of every new Codex P2 session.
+在任何 P2 session 中先阅读：
 
-You are in the TRPG_PLATFORM repository.
+1. `CODEX_P2_MASTER_PROMPT.md`
+2. `docs/p2/INDEX.md`
+3. `docs/p2/00_EXECUTION_RULES.md`
+4. 当前批次对应文档
+5. `prompts/codex/P2_CHECK_COMMANDS.md`
 
-First, run this lightweight read-only PowerShell context check from the repository root:
+当前 P2 批次顺序：
 
-```powershell
-$ErrorActionPreference = "Stop"
-
-git status --short
-
-rg -n "P2|RAG|SQLx|Windows|PowerShell" README.md docs prompts .codex
-if ($LASTEXITCODE -eq 1) {
-  $global:LASTEXITCODE = 0
-} elseif ($LASTEXITCODE -ne 0) {
-  throw "rg failed while reading project context"
-}
+```text
+B00 docs install / prep gate
+B01 rag_core domain model
+B02 storage + PostgreSQL + RLS + database
+B03 document_ingestor + worker
+B04 Rig agent_engine
+B05 server API + OpenAPI
+B06 frontend UI
+B07 hardening + final gate
 ```
 
-Then read:
-- README.md
-- CODEX_MASTER_PROMPT.md, if present
-- CODEX_P2_MASTER_PROMPT.md
-- docs/P1_5_FIX_PLAN.md
-- docs/SECURITY_RLS_POLICY.md
-- docs/LEGAL_POLICY.md
-- docs/RAG_DESIGN.md
-- docs/P2_CODEX_HANDOFF.md
-- docs/P2_RAG_IMPLEMENTATION_SPEC.md
-- docs/P2_RAG_ACCEPTANCE_TESTS.md
-- docs/p2/INDEX.md
-- docs/p2/00_P1_5_FIX_GATE.md
-- docs/p2/01_P2_MASTER_SPEC.md
-- prompts/codex/P2_CHECK_COMMANDS.md
+禁止事项：
 
-Do not implement future batches. Ask no product-scope questions unless a blocking contradiction exists. Make the smallest coherent patch for the requested batch, add tests, run the batch checks, and summarize exact results.
+- 不要一次实现多个批次。
+- 不要在实现 session 中做最终验收报告冒充独立验收。
+- 不要在验收 session 中修改代码。
+- 不要在 LocalOnly 路径调用 cloud provider。
+- 不要让 UI/API handler 替代 storage/RLS/license/visibility 安全边界。

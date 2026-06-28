@@ -4,9 +4,11 @@ Start only after Batch 02 is green.
 
 ## Read first
 
-- `docs/p2/02_RAG_CORE_DOMAIN_SPEC.md`
-- `docs/p2/03_STORAGE_RLS_AND_MIGRATIONS.md`
-- `docs/p2/06_SECURITY_LEGAL_PROVIDER_POLICY.md`
+- `CODEX_P2_MASTER_PROMPT.md`
+- `docs/p2/INDEX.md`
+- `docs/p2/00_EXECUTION_RULES.md`
+- `docs/p2/02_BATCH_PLAN.md`
+- `docs/p2/05_INGEST_WORKER.md`
 - `docs/OUTBOX_AND_RETRY.md` if present
 
 ## Tasks

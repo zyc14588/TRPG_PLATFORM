@@ -11,11 +11,13 @@
 5. `docs/UI_UX_SPEC.md`
 6. `docs/IMPLEMENTATION_HANDBOOK.md`
 7. `CODEX_MASTER_PROMPT.md`
-8. `CODEX_P2_MASTER_PROMPT.md`
-9. `docs/p2/INDEX.md`
-10. `docs/p2/00_P1_5_FIX_GATE.md`
-11. `docs/p2/01_P2_MASTER_SPEC.md`
-12. `docs/p2/07_ACCEPTANCE_TEST_MATRIX.md`
+
+P2 Codex reading order:
+1. `CODEX_P2_MASTER_PROMPT.md`
+2. `docs/p2/INDEX.md`
+3. `docs/p2/00_EXECUTION_RULES.md`
+4. `docs/p2/02_BATCH_PLAN.md`
+5. Open the current batch document listed in `docs/p2/INDEX.md`.
 
 ## 已锁定的差异化范围
 

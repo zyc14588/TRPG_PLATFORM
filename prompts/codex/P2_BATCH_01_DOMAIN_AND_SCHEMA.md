@@ -1,14 +1,14 @@
-# Codex Batch 01 — RAG Domain and Schema Contracts
+# Codex Batch 01 — RAG Core Domain Model
 
 Start only after Batch 00 is green.
 
 ## Read first
 
-- `docs/p2/01_P2_MASTER_SPEC.md`
-- `docs/p2/02_RAG_CORE_DOMAIN_SPEC.md`
-- `docs/p2/06_SECURITY_LEGAL_PROVIDER_POLICY.md`
-- existing `docs/P2_RAG_IMPLEMENTATION_SPEC.md`
-- existing `docs/P2_RAG_ACCEPTANCE_TESTS.md`
+- `CODEX_P2_MASTER_PROMPT.md`
+- `docs/p2/INDEX.md`
+- `docs/p2/00_EXECUTION_RULES.md`
+- `docs/p2/02_BATCH_PLAN.md`
+- `docs/p2/03_RAG_CORE_DOMAIN_MODEL.md`
 
 ## Tasks
 

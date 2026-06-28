@@ -1,43 +1,32 @@
-# Codex Batch 00 — P1.5 Fix Gate
+# Codex Batch 00 — P2 Docs Install / Prep Gate
 
-You are in TRPG_PLATFORM. Complete only the P1.5 pre-P2 fix gate. Do not implement P2 RAG features.
+You are in TRPG_PLATFORM. This is the compatibility entry for P2 B00. Repair only P2 documentation entry points, repo prompt references, and Git staging state. Do not implement P2 runtime features.
 
 ## Read first
 
 - `CODEX_P2_MASTER_PROMPT.md`
-- `docs/P1_5_FIX_PLAN.md`
-- `docs/SECURITY_RLS_POLICY.md`
-- `docs/p2/00_P1_5_FIX_GATE.md`
+- `docs/p2/INDEX.md`
+- `docs/p2/00_EXECUTION_RULES.md`
+- `docs/p2/02_BATCH_PLAN.md`
 - `prompts/codex/P2_CHECK_COMMANDS.md`
 
 ## Tasks
 
-1. Verify `.env.example` supports local development without accidentally using production defaults.
-2. Verify production boot rejects missing DB, short/default auth secret, and superuser `postgres` app role.
-3. Resolve or document license declaration mismatch. If maintainer decision is needed, stop after creating a clear issue/status note; do not guess.
-4. Confirm `/healthz`, `/readyz`, and `/metrics` implementation. If absent, implement minimal routes, tests, and OpenAPI entries.
-5. Remove tracked generated artifacts such as `tsconfig.tsbuildinfo`.
-6. Replace stale frontend phase copy.
-7. Pin or rationalize frontend dependency ranges; do not do broad upgrades.
-8. Document and test CSRF/auth mutation policy.
-9. Do not add RAG APIs in this batch.
+1. Ensure README contains the current P2 Codex reading order.
+2. Ensure `prompts/codex/P2_BATCH_*.md` points to the persisted P2 docs listed in `docs/p2/INDEX.md`.
+3. Ensure legacy prompt filenames safely redirect to the current batch order and do not skip B04 Rig Agent Engine.
+4. Ensure the P2 docs/status/session-start/master-prompt files are tracked or staged.
+5. Run doc-only hygiene checks plus `cargo metadata --no-deps`.
+
+## Out of scope
+
+- Do not edit `.env.example`, env/config, auth, health, CSRF, license, database, API, frontend, or runtime files.
+- Do not add RAG APIs, migrations, provider calls, OpenAPI routes, or frontend UI.
 
 ## Acceptance
 
-- P1.5 gate commands in `docs/p2/00_P1_5_FIX_GATE.md` pass.
-- No generated artifact remains tracked.
+- README points to `CODEX_P2_MASTER_PROMPT.md`, `docs/p2/INDEX.md`, `00_EXECUTION_RULES.md`, and `02_BATCH_PLAN.md`.
+- No prompt references deleted P2 document names.
+- B01-B07 prompts map to the current P2 docs.
+- The required P2 document group is staged.
 - Status summary lists exact commands run.
-
-## Completion response
-
-Use:
-
-```md
-## Batch summary
-- Batch: 00 Fix Gate
-- Files changed:
-- Tests run:
-- Results:
-- Acceptance criteria met:
-- Deferred items:
-```
