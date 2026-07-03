@@ -1,0 +1,36 @@
+# Extractable workflow for `.github/workflows/golden-scenarios.yml`
+
+> Codex 提取本文件第一个 fenced `yaml` 代码块，写入 `.github/workflows/golden-scenarios.yml`。
+
+# `.github/workflows/golden-scenarios.yml`
+
+```yaml
+
+name: golden-scenarios
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Golden Scenario CI
+        run: cargo test -p trpg-testing --test golden_scenarios_ci --all-features -- --nocapture
+      - name: Model Certification Tests
+        run: cargo test -p trpg-testing --test model_certification_tests --all-features -- --nocapture
+      - name: Export snapshots
+        run: cargo test -p trpg-testing --test export_snapshot_tests --all-features -- --nocapture
+      - name: Upload golden artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-scenario-artifacts
+          path: |
+            target/golden/**
+            artifacts/test-reports/**
+```
