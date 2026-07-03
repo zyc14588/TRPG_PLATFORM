@@ -1,5 +1,5 @@
 > [v2.21 自包含来源清理标记]
-> 原始路径：`docs/codex/00-index/README.md`
+> 原始路径：`docs/codex/00-index/readme.md`
 > 筛选状态：`active-index`
 > 清理日期：2026-07-01
 > 使用规则：当前可引用：可由 Codex 读取并参与施工，但必须服从顶层设计与 v2.21 阶段门禁。
@@ -27,3 +27,20 @@ Per-file prompts：48
 - `codex-module-test-prompt.md`
 - `codex-module-review-prompt.md`
 - per-file prompts：`codex-prompts/00-index/`
+
+## BATCH-001 current-safe coverage
+
+- Batch: `BATCH-001-00-index`
+- Prompt count: 25
+- Primary prompts: 0
+- Allowed output: Markdown documentation and traceability only
+- Evidence path: `evidence/batches/BATCH-001/`
+
+## BATCH-002 current-safe coverage
+
+- Batch: `BATCH-002-00-index`
+- Prompt count: 23
+- Primary prompts: 0
+- Allowed output: Markdown documentation, index governance, traceability, and
+  evidence only
+- Evidence path: `evidence/batches/BATCH-002/`

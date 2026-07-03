@@ -1,0 +1,43 @@
+# BATCH-003 Changed Files
+
+Only the following files are part of this BATCH-003 change set. Other modified
+or untracked files already present in the worktree belong to earlier work and
+were not edited for this batch.
+
+```text
+.gitignore
+Cargo.lock
+Cargo.toml
+crates/trpg-shared-kernel/Cargo.toml
+crates/trpg-shared-kernel/src/lib.rs
+crates/trpg-shared-kernel/src/cargo_workspace.rs
+crates/trpg-shared-kernel/src/config_model.rs
+crates/trpg-shared-kernel/src/crate_ownership.rs
+crates/trpg-shared-kernel/src/dependency_direction.rs
+crates/trpg-shared-kernel/src/error_model.rs
+crates/trpg-shared-kernel/src/open_source_reference_matrix.rs
+crates/trpg-shared-kernel/src/rust_cargo_workspace.rs
+crates/trpg-shared-kernel/src/rust_coding_model.rs
+crates/trpg-shared-kernel/src/shared_kernel.rs
+crates/trpg-shared-kernel/tests/cargo_workspace_contract_tests.rs
+crates/trpg-shared-kernel/tests/config_model_contract_tests.rs
+crates/trpg-shared-kernel/tests/crate_ownership_contract_tests.rs
+crates/trpg-shared-kernel/tests/dependency_direction_contract_tests.rs
+crates/trpg-shared-kernel/tests/error_model_contract_tests.rs
+crates/trpg-shared-kernel/tests/open_source_reference_matrix_contract_tests.rs
+crates/trpg-shared-kernel/tests/rust_cargo_workspace_contract_tests.rs
+crates/trpg-shared-kernel/tests/rust_coding_model_contract_tests.rs
+crates/trpg-shared-kernel/tests/shared_kernel_contract_tests.rs
+docs/codex/01-foundation/m_01_foundation.md
+docs/reports/stages/S01_ACCEPTANCE_EVIDENCE.md
+docs/reports/stages/S01_TEST_RESULTS.md
+docs/reports/stages/S01_TRACEABILITY.md
+evidence/batches/BATCH-003/acceptance-report.md
+evidence/batches/BATCH-003/changed-files.txt
+evidence/batches/BATCH-003/handoff.md
+evidence/batches/BATCH-003/plan.md
+evidence/batches/BATCH-003/prompt-traceability.md
+evidence/batches/BATCH-003/test-output.txt
+evidence/stages/S01/kernel-contract-tests.txt
+```
+

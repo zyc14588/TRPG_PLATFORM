@@ -1319,7 +1319,7 @@ Files: 2356
 | `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` |
 | `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` |
 | `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md` | 1290 | `04799a9d4fb559c9936815c49a495ba330e8340652c8a75f25ab0bf3d030dc0c` |
-| `docs/codex/00-index/README.md` | 1768 | `2845c857994ea9c8f44ed5eda773910d69e569b25e4ed16376afe048ef978030` |
+| `docs/codex/00-index/readme.md` | 1985 | `6a397c5a90c8ee01a499998f106a038e16116d82f9b1c6a1fb2494cab75d3ae9` |
 | `docs/codex/00-index/codex-batch-plan.md` | 5578 | `34ae638a0a836bb2d703739c823b19d9d46233a968fc2ad5e8d6ab2bbed48efa` |
 | `docs/codex/00-index/codex-execution-map.md` | 5850 | `abf3c430a1a10552cb92210fc522036153bb88df7e30756a57a9c649382a8c5e` |
 | `docs/codex/00-index/codex-module-code-prompt.md` | 3954 | `b3b301598396c28694f68447fe24d9e9639373f32f3e17b3f55341822b371390` |

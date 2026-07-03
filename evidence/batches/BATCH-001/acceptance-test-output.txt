@@ -1,0 +1,67 @@
+BATCH-001 acceptance check output
+Date: 2026-07-03
+
+Acceptance checks performed:
+
+1. Batch inventory
+   rows=25
+   primary=0
+   documentation_or_traceability=25
+   prompt_files_existing=25
+
+2. Normalized current-safe target closure
+   safe_map_ids=25
+   missing_current_safe_targets=0
+
+3. Case-sensitive current-safe output casing
+   lowercase_in_git_ls_files=True
+   uppercase_in_git_ls_files=False
+   uppercase_current_output_references=0
+   remaining_uppercase_references_are_provenance_only=True
+
+4. Markdown structural check
+   markdown_files_checked=38
+   odd_fence_files=0
+
+5. S00 stage scaffold check
+   cargo_toml_count=0
+   pnpm_entry_count=0
+   docker_entry_count=0
+   batch_files=52
+   start_prompts=52
+   accept_prompts=52
+   s00_required_docs_exist=True
+
+6. S00 fixture check
+   fixtures/stages/S00_stage_acceptance_fixture.v1.json.md=JSON_OK
+   fixtures/stages/detailed/S00_governance_onboarding.current.json.md=JSON_OK
+   test-data/prompt_inventory_fixture.md=JSON_OK
+   test-data/change_control_cases.md=JSON_OK
+   basic_required_documents_missing=0
+   detailed_required_inputs_missing=0
+   fixture_required_evidence_count=5
+   fixture_required_evidence_missing=0
+
+7. Scope guard
+   Changed paths are limited to:
+   - MANIFEST.md
+   - docs/reports/stages/S00_ACCEPTANCE_EVIDENCE.md
+   - docs/reports/stages/S00_TEST_RESULTS.md
+   - docs/reports/stages/S00_TRACEABILITY.md
+   - docs/codex/00-index/*
+   - evidence/batches/BATCH-001/*
+   - evidence/stages/S00/directory-boundary-check.txt
+   - evidence/stages/S00/readiness.md
+   - inventory/ALL_PROVIDED_FILE_SCREENING.md
+   - inventory/ORIGINAL_V6_EXACT_ZIP_COVERAGE.md
+   - inventory/SOURCE_SELECTION_DECISION_LOG.md
+   - inventory/V221_FULL_FILE_CLEANUP_AUDIT.md
+   - manifests/CURRENT_PACKAGE_MANIFEST.md
+   - manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md
+
+Acceptance result: PASS for BATCH-001 scope.
+
+Stage-wide notes:
+- Full S00 acceptance remains a stage concern across all S00 batches.
+- Cargo, pnpm, and docker checks are not applicable in this checkout because
+  their entry files are absent.

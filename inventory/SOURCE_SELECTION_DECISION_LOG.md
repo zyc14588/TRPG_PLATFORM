@@ -69,7 +69,7 @@
 | 输入源 | 原路径 | v2.21 包内路径 | 原因 |
 |---|---|---|---|
 | original-v6-codex-strict-governance | `docs/codex/00-index/AGENTS.md` | `docs/codex/00-index/AGENTS.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
-| original-v6-codex-strict-governance | `docs/codex/00-index/README.md` | `docs/codex/00-index/README.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
+| original-v6-codex-strict-governance | `docs/codex/00-index/README.md` | `docs/codex/00-index/readme.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
 | original-v6-codex-strict-governance | `docs/codex/00-index/codex-batch-plan.md` | `docs/codex/00-index/codex-batch-plan.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
 | original-v6-codex-strict-governance | `docs/codex/00-index/codex-execution-map.md` | `docs/codex/00-index/codex-execution-map.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
 | original-v6-codex-strict-governance | `docs/codex/00-index/codex-module-code-prompt.md` | `docs/codex/00-index/codex-module-code-prompt.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |

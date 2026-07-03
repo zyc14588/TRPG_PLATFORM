@@ -1,0 +1,31 @@
+# BATCH-004 Changed Files
+
+Only the following files are part of this BATCH-004 change set. Other modified
+or untracked files already present in the worktree belong to earlier work and
+were not reverted or edited for this batch.
+
+```text
+crates/trpg-shared-kernel/src/lib.rs
+crates/trpg-shared-kernel/src/cargo_workspace_impl.rs
+crates/trpg-shared-kernel/src/constitution.rs
+crates/trpg-shared-kernel/src/constitution_impl.rs
+crates/trpg-shared-kernel/src/document_set.rs
+crates/trpg-shared-kernel/src/document_set_impl.rs
+crates/trpg-shared-kernel/src/readme.rs
+crates/trpg-shared-kernel/src/system_context.rs
+crates/trpg-shared-kernel/src/workspace_and_governance.rs
+crates/trpg-shared-kernel/tests/cargo_workspace_impl_contract_tests.rs
+crates/trpg-shared-kernel/tests/constitution_contract_tests.rs
+crates/trpg-shared-kernel/tests/constitution_impl_contract_tests.rs
+crates/trpg-shared-kernel/tests/document_set_contract_tests.rs
+crates/trpg-shared-kernel/tests/document_set_impl_contract_tests.rs
+crates/trpg-shared-kernel/tests/readme_contract_tests.rs
+crates/trpg-shared-kernel/tests/system_context_contract_tests.rs
+crates/trpg-shared-kernel/tests/workspace_and_governance_contract_tests.rs
+evidence/batches/BATCH-004/acceptance-report.md
+evidence/batches/BATCH-004/changed-files.txt
+evidence/batches/BATCH-004/handoff.md
+evidence/batches/BATCH-004/plan.md
+evidence/batches/BATCH-004/prompt-traceability.md
+evidence/batches/BATCH-004/test-output.txt
+```

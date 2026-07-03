@@ -1,0 +1,7 @@
+scope=S00 governance onboarding
+batch=BATCH-001
+docs_reports_stages_present=True
+evidence_stages_S00_present=True
+source_archive_as_current=False
+current_safe_readme_lowercase=True
+product_code_changed=False

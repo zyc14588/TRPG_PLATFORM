@@ -1,0 +1,7 @@
+[package]
+name = "trpg-shared-kernel"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "UNLICENSED"
+

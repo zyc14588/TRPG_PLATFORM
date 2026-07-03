@@ -16,7 +16,7 @@
 | 6 | `STRICT_CODEX_SEMANTIC_VALIDATION.md` | `covered` | `source-archive/v6-root/S0006.md` |
 | 7 | `VALIDATION.md` | `covered` | `source-archive/v6-root/S0007.md` |
 | 8 | `docs/codex/00-index/AGENTS.md` | `covered` | `docs/codex/00-index/AGENTS.md` |
-| 9 | `docs/codex/00-index/README.md` | `covered` | `docs/codex/00-index/README.md` |
+| 9 | `docs/codex/00-index/README.md` | `covered` | `docs/codex/00-index/readme.md` |
 | 10 | `docs/codex/00-index/codex-batch-plan.md` | `covered` | `docs/codex/00-index/codex-batch-plan.md` |
 | 11 | `docs/codex/00-index/codex-execution-map.md` | `covered` | `docs/codex/00-index/codex-execution-map.md` |
 | 12 | `docs/codex/00-index/codex-module-code-prompt.md` | `covered` | `docs/codex/00-index/codex-module-code-prompt.md` |

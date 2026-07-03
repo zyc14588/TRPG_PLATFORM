@@ -14,9 +14,23 @@
 
 ## 推荐命令
 
-- `python scripts/validate_codex_prompt_inventory.py`
-- `python scripts/validate_markdown_links.py`
-- `cargo fmt --all -- --check || true`
+- Active strict checks for S00 are the inline inventory, prompt-row,
+  traceability, fixture, Markdown evidence-link, and docs-only boundary checks
+  recorded in `evidence/batches/BATCH-002/test-output.txt`.
+- `python scripts/validate_codex_prompt_inventory.py` is an optional local
+  helper when present; its absence is not an S00 blocker.
+- `python scripts/validate_markdown_links.py` is an optional local helper when
+  present; its absence is not an S00 blocker.
+- Cargo checks are not applicable to S00 while this checkout has no
+  `Cargo.toml` and the active S00 batch contains only
+  `documentation-or-traceability` prompts. Product-code stages must run Cargo
+  once a workspace manifest exists.
+
+S00 docs-only applicability: for `BATCH-002-00-index`, product-code
+Unit/Integration/Contract/Golden test layers are represented by the active
+traceability, fixture, evidence-link, sensitive-label, and docs-only boundary
+checks above. Rust/Cargo-backed variants are not applicable until a
+product-code batch owns a Cargo workspace.
 
 ## 必须补齐的测试类型
 

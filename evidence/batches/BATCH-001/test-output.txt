@@ -1,0 +1,57 @@
+BATCH-001 minimal related checks
+Date: 2026-07-03
+
+Command: B001 prompt inventory check
+Result:
+rows=25
+primary=0
+documentation_or_traceability=25
+prompt_files_existing=25
+
+Command: current-safe target closure check
+Result:
+safe_map_ids=25
+missing_current_safe_targets=0
+
+Command: case-sensitive git ls-files current-safe casing check
+Result:
+lowercase_in_git_ls_files=True
+uppercase_in_git_ls_files=False
+uppercase_current_output_references=0
+remaining_uppercase_references_are_provenance_only=True
+
+Command: changed Markdown fence parity check
+Result:
+markdown_files_checked=38
+odd_fence_files=0
+
+Command: stage scaffold availability check
+Result:
+cargo_toml_count=0
+pnpm_entry_count=0
+docker_entry_count=0
+batch_files=52
+start_prompts=52
+accept_prompts=52
+s00_required_docs_exist=True
+
+Command: S00 fixture check
+Result:
+fixtures/stages/S00_stage_acceptance_fixture.v1.json.md=JSON_OK
+fixtures/stages/detailed/S00_governance_onboarding.current.json.md=JSON_OK
+test-data/prompt_inventory_fixture.md=JSON_OK
+test-data/change_control_cases.md=JSON_OK
+basic_required_documents_missing=0
+detailed_required_inputs_missing=0
+fixture_required_evidence_count=5
+fixture_required_evidence_missing=0
+
+Notes:
+- No Cargo command was run because this checkout contains no Cargo.toml.
+- No pnpm command was run because this checkout contains no package.json,
+  pnpm-lock.yaml, or pnpm-workspace.yaml.
+- No docker command was run because this checkout contains no Dockerfile or
+  docker-compose/compose file.
+- B001 has no primary prompts, so no Rust src, tests, migrations, API handlers,
+  event schemas, NATS subjects, workflows, metrics, or provider code were in
+  scope.

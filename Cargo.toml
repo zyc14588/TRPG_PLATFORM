@@ -1,0 +1,4 @@
+[workspace]
+members = ["crates/trpg-shared-kernel"]
+resolver = "2"
+

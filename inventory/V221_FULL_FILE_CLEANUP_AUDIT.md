@@ -1319,7 +1319,7 @@ Markdown files traversed: 2356
 | `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | current-root-or-design | active current design/guide; stale markers removed |
 | `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | current-root-or-design | active current design/guide; stale markers removed |
 | `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md` | current-root-or-design | active current design/guide; stale markers removed |
-| `docs/codex/00-index/README.md` | current-root-or-design | active current design/guide; stale markers removed |
+| `docs/codex/00-index/readme.md` | current-root-or-design | active current design/guide; stale markers removed |
 | `docs/codex/00-index/codex-batch-plan.md` | current-root-or-design | active current design/guide; stale markers removed |
 | `docs/codex/00-index/codex-execution-map.md` | current-root-or-design | active current design/guide; stale markers removed |
 | `docs/codex/00-index/codex-module-code-prompt.md` | current-root-or-design | active current design/guide; stale markers removed |

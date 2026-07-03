@@ -1,0 +1,104 @@
+# BATCH-003 Test Output
+
+## Minimal B003 Current-Safe Assertions
+
+Command: inline PowerShell B003 prompt/target assertion script.
+
+Exit code: 0
+
+```text
+B003 prompt rows: 25
+B003 primary rows: 9
+B003 supplemental rows: 15
+B003 documentation rows: 1
+Missing current-safe targets: 0
+B003 current-safe assertions passed.
+```
+
+## Rust Format
+
+Command: `cargo fmt --all -- --check`
+
+Exit code: 0
+
+## Clippy
+
+Command: `cargo clippy -p trpg-shared-kernel --all-targets --all-features -- -D warnings`
+
+Exit code: 0
+
+```text
+Finished `dev` profile target(s)
+```
+
+## Shared Kernel Tests
+
+Command: `cargo test -p trpg-shared-kernel --all-features`
+
+Exit code: 0
+
+```text
+29 integration contract tests passed.
+0 failed.
+Doc-tests passed.
+```
+
+Covered test files:
+
+```text
+cargo_workspace_contract_tests.rs: 3 passed
+config_model_contract_tests.rs: 3 passed
+crate_ownership_contract_tests.rs: 3 passed
+dependency_direction_contract_tests.rs: 3 passed
+error_model_contract_tests.rs: 3 passed
+open_source_reference_matrix_contract_tests.rs: 3 passed
+rust_cargo_workspace_contract_tests.rs: 3 passed
+rust_coding_model_contract_tests.rs: 3 passed
+shared_kernel_contract_tests.rs: 4 passed
+```
+
+## Workspace Tests
+
+Command: `cargo test --workspace --all-features`
+
+Exit code: 0
+
+```text
+29 integration contract tests passed.
+0 failed.
+Doc-tests passed.
+```
+
+## Static Boundary Checks
+
+Commands:
+
+```text
+rg -n "ModuleService|ModuleCommand|ModuleError|serde_json::Value" crates/trpg-shared-kernel/src crates/trpg-shared-kernel/tests
+rg -n -i "openai|ollama|llama\.cpp|chat_completion|responses" crates/trpg-shared-kernel/src crates/trpg-shared-kernel/tests
+rg -n "source-archive|generated-from-source|docs-implementation|v5|V5|v4|V4" crates/trpg-shared-kernel/src crates/trpg-shared-kernel/tests
+```
+
+Expected exit code: 1 for each `rg` command because no matches were found.
+
+Observed result: no matches.
+
+## S01 Detailed Fixture Assertions
+
+Command: inline PowerShell fixture-token assertion script for
+`fixtures/stages/detailed/S01_foundation_shared_kernel.current.json.md`.
+
+Exit code: 0
+
+```text
+S01 detailed fixture required tokens missing: 0
+S01 fixture assertions passed.
+```
+
+## Non-Failing Tool Notes
+
+Some cargo invocations printed `warn: could not canonicalize path
+C:\Users\zyc14588` and occasional build-directory lock waits while parallel
+checks were running. These warnings did not change exit codes and did not
+indicate test or lint failures.
+

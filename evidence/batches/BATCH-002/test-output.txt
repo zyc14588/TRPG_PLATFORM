@@ -1,0 +1,149 @@
+# BATCH-002 Test Output
+
+## Minimal Current-Safe Assertions
+
+Command: inline PowerShell Batch-002 current-safe assertion script.
+
+Exit code: 0
+
+Output:
+
+```text
+B002 prompt rows: 23
+B002 primary rows: 0
+B002 supplemental rows: 0
+Missing prompt files: 0
+Missing current-safe targets: 0
+Targets outside docs/codex/00-index: 0
+B002 rows not exactly represented in CURRENT_SAFE map: 0
+Minimal Batch-002 current-safe assertions passed.
+```
+
+## Prompt ID Consistency Check
+
+Command: inline PowerShell comparison of `batches/B002.md` and
+`evidence/batches/BATCH-002/prompt-traceability.md`.
+
+Exit code: 0
+
+Output:
+
+```text
+Batch unique IDs: 23
+Evidence unique row IDs: 23
+Missing exact batch IDs in evidence: 0
+Non-current evidence IDs: 0
+```
+
+## S00 Active Strict Checks
+
+Command: inline PowerShell S00 strict acceptance script.
+
+Exit code: 0
+
+Output:
+
+```text
+Batch file count: 52
+AGENTS.md exists: True
+persistent context exists: True
+prompt boundary exists: True
+52 batch files present: True
+B002 target list has no implementation paths: True
+B002 prompt rows with row conclusion: 23
+B002 prompt rows missing row conclusion: 0
+Primary prompts requiring implementation evidence: 0
+Supplemental prompts: 0
+S00 strict acceptance checks passed.
+```
+
+## S00 Fixture Checks
+
+Command: inline PowerShell fixture existence and JSON fence parse check.
+
+Exit code: 0
+
+Output:
+
+```text
+Fixture missing count: 0
+READ test-data/prompt_inventory_fixture.md
+READ test-data/change_control_cases.md
+READ fixtures/stages/S00_stage_acceptance_fixture.v1.json.md
+READ fixtures/stages/detailed/S00_governance_onboarding.current.json.md
+S00 fixture stage: S00 required_documents=5 required_evidence=3 p0_allowed=0 p1_allowed=0
+S00 fixture checks passed.
+```
+
+## Markdown Evidence-Link Checks
+
+Command: inline PowerShell evidence path existence check.
+
+Exit code: 0
+
+Output:
+
+```text
+Missing evidence link targets: 0
+```
+
+## Sensitive Fixture Output Check
+
+Command: inline PowerShell sensitive-label output check wrapping `rg -i "keeper_only|private_to_player|ai_internal" docs/codex test-data fixtures -g "*player*" -g "*visible*" -g "*output*"`.
+
+Exit code: 0
+
+Output:
+
+```text
+No player-visible output matches for sensitive fixture labels.
+```
+
+## Implementation Boundary Check
+
+Command: inline PowerShell changed-path and repository-path boundary check.
+
+Exit code: 0
+
+Output:
+
+```text
+Implementation-like changed paths: 0
+Rust source/test/migration files present: 0
+Direct provider or LLM implementation paths introduced: 0
+Formal game-state implementation paths introduced: 0
+```
+
+## Cargo, pnpm, and Docker Applicability
+
+Command: inline PowerShell root entry-file applicability check.
+
+Exit code: 0
+
+Output:
+
+```text
+Cargo.toml exists: False
+package.json exists: False
+pnpm-lock.yaml exists: False
+docker-compose.yml exists: False
+docker-compose.yaml exists: False
+compose.yml exists: False
+compose.yaml exists: False
+B002 product-code rows: 0
+Cargo checks: NOT APPLICABLE for S00 docs-only Batch-002 because no Cargo.toml exists and the batch has 0 product-code prompts.
+pnpm checks: NOT APPLICABLE because no package entry file exists.
+Docker checks: NOT APPLICABLE because no compose entry file exists.
+```
+
+## Optional Legacy Helpers
+
+`scripts/validate_codex_prompt_inventory.py` and
+`scripts/validate_markdown_links.py` are optional local helpers for S00 in this
+self-contained checkout. They are not required strict checks, so their absence
+is not a failure. Cargo commands were not re-run as required S00 checks because
+Cargo is explicitly not applicable to this docs-only batch.
+
+## Strict Result
+
+PASS. The current S00 strict checks applicable to `BATCH-002-00-index` passed.

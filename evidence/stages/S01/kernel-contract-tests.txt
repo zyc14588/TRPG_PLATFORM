@@ -1,0 +1,24 @@
+# S01 Kernel Contract Tests
+
+Command: `cargo test -p trpg-shared-kernel --all-features`
+
+Exit code: 0
+
+Result:
+
+```text
+29 integration contract tests passed.
+0 failed.
+Doc-tests passed.
+```
+
+Fixture coverage:
+
+```text
+typed_ids_enforced: covered by shared_kernel_contract_tests.rs
+visibility_enum_closed: covered by shared_kernel_contract_tests.rs
+errors_are_stable: covered by error_model_contract_tests.rs
+invalid_visibility_label: covered by shared_kernel_contract_tests.rs
+empty_id: covered by shared_kernel_contract_tests.rs
+```
+

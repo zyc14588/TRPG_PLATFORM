@@ -20,7 +20,7 @@
 | original-v6-codex-strict-governance | `source-archive/v6-root/S0006.md` | `screened-provenance` | `source-archive/v6-root/S0006.md` | 原 V6 包根报告/manifest；保留用于输入追踪，当前施工入口以 v2 根文档为准。 |
 | original-v6-codex-strict-governance | `source-archive/v6-root/S0007.md` | `screened-provenance` | `source-archive/v6-root/S0007.md` | 原 V6 包根报告/manifest；保留用于输入追踪，当前施工入口以 v2 根文档为准。 |
 | original-v6-codex-strict-governance | `docs/codex/00-index/AGENTS.md` | `active-index` | `docs/codex/00-index/AGENTS.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
-| original-v6-codex-strict-governance | `docs/codex/00-index/README.md` | `active-index` | `docs/codex/00-index/README.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
+| original-v6-codex-strict-governance | `docs/codex/00-index/README.md` | `active-index` | `docs/codex/00-index/readme.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
 | original-v6-codex-strict-governance | `docs/codex/00-index/codex-batch-plan.md` | `active-index` | `docs/codex/00-index/codex-batch-plan.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
 | original-v6-codex-strict-governance | `docs/codex/00-index/codex-execution-map.md` | `active-index` | `docs/codex/00-index/codex-execution-map.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
 | original-v6-codex-strict-governance | `docs/codex/00-index/codex-module-code-prompt.md` | `active-index` | `docs/codex/00-index/codex-module-code-prompt.md` | Codex 持久化上下文、prompt boundary、batch plan、execution map；阶段启动必读。 |
