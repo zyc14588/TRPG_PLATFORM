@@ -19,10 +19,12 @@ pub const REQUIRED_COMMAND_FIELDS: &[&str] = &[
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GovernanceSurface {
+    Adr0001RustFirst,
     Constitution,
     DocumentSet,
     SystemContext,
     Readme,
+    TechnologySelectionRust,
     WorkspaceAndGovernance,
     CargoWorkspaceImplementation,
     ConstitutionImplementation,
