@@ -6,10 +6,18 @@ pub mod command_cqrs;
 pub mod command_cqrs_idempotency;
 pub mod ddd;
 pub mod decision_record_model;
+pub mod domain_command_cqrs;
 pub mod domain_entities_value_objects;
+pub mod domain_event_sourcing_projection;
+pub mod domain_model;
 pub mod domain_policy_hooks;
+pub mod domain_visibility_fact_provenance;
 pub mod event_sourcing_snapshot_projection;
 pub mod fork_canon_lineage;
+pub mod openfga_opa_visibility;
+pub mod readme;
+pub mod visibility_enforcement_points;
 pub mod visibility_fact_provenance;
+pub mod visibility_leakage_tests;
 
 pub use ddd::{DomainError, DomainResult, FactSource};
