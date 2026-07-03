@@ -1,0 +1,14 @@
+S02 authority fixture assertions:
+
+- loaded fixtures/stages/S02_stage_acceptance_fixture.v1.json.md
+- loaded fixtures/stages/detailed/S02_authority_event_expected_records.current.json.md
+- loaded fixtures/authority/authority_contract_cases.v1.json.md
+- loaded fixtures/authority/fork_lineage_cases.v1.json.md
+- asserted AUTHORITY_CONTRACT_IMMUTABLE for in-place authority mutation
+- asserted CampaignForked semantics through fork_campaign
+- asserted parent campaign authority remains AI_KP while child authority becomes HUMAN_KP
+- asserted child Authority Contract remains locked
+
+Executable test:
+
+`cargo test -p trpg-domain-core s02 --all-features`

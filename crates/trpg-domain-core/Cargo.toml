@@ -1,0 +1,9 @@
+[package]
+name = "trpg-domain-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "UNLICENSED"
+
+[dependencies]
+trpg-shared-kernel = { path = "../trpg-shared-kernel" }

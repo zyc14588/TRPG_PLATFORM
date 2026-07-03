@@ -1,4 +1,3 @@
 [workspace]
-members = ["crates/trpg-shared-kernel"]
+members = ["crates/trpg-shared-kernel", "crates/trpg-domain-core"]
 resolver = "2"
-

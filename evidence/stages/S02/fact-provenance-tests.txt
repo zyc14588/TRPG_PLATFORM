@@ -1,0 +1,14 @@
+S02 fact provenance and visibility fixture assertions:
+
+- loaded fixtures/stages/detailed/S02_authority_event_expected_records.current.json.md
+- loaded test-data/visibility_leakage_cases.md
+- asserted INVALID_CONFIRMED_FACT_SOURCE for AgentDraft promotion
+- asserted GameEvent can be promoted to confirmed fact
+- asserted keeper_only is redacted from player export
+- asserted private_to_player is redacted from another player's party summary
+- asserted ai_internal is redacted or audit-only for player/KP export
+- asserted combined public + keeper_only uses keeper_only as most restrictive label
+
+Executable test:
+
+`cargo test -p trpg-domain-core s02 --all-features`

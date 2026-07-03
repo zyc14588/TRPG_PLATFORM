@@ -3,5 +3,12 @@
 version = 4
 
 [[package]]
+name = "trpg-domain-core"
+version = "0.1.0"
+dependencies = [
+ "trpg-shared-kernel",
+]
+
+[[package]]
 name = "trpg-shared-kernel"
 version = "0.1.0"
