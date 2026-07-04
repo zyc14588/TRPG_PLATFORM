@@ -1,0 +1,49 @@
+# BATCH-009 Changed Files
+
+Rust implementation:
+- crates/trpg-domain-core/src/lib.rs
+- crates/trpg-domain-core/src/authority_contract_impl.rs
+- crates/trpg-domain-core/src/character_combat_san_chase_impl.rs
+- crates/trpg-domain-core/src/command_cqrs_impl.rs
+- crates/trpg-domain-core/src/domain_model_impl.rs
+- crates/trpg-domain-core/src/event_sourcing_projection_impl.rs
+- crates/trpg-domain-core/src/investigation_clue_npc_time_impl.rs
+- crates/trpg-domain-core/src/rule_runtime_coc7_impl.rs
+- crates/trpg-domain-core/src/visibility_fact_provenance_impl.rs
+
+Tests:
+- crates/trpg-domain-core/tests/authority_contract_impl_contract_tests.rs
+- crates/trpg-domain-core/tests/character_combat_san_chase_impl_contract_tests.rs
+- crates/trpg-domain-core/tests/command_cqrs_impl_contract_tests.rs
+- crates/trpg-domain-core/tests/domain_model_impl_contract_tests.rs
+- crates/trpg-domain-core/tests/event_sourcing_projection_impl_contract_tests.rs
+- crates/trpg-domain-core/tests/investigation_clue_npc_time_impl_contract_tests.rs
+- crates/trpg-domain-core/tests/rule_runtime_coc7_impl_contract_tests.rs
+- crates/trpg-domain-core/tests/visibility_fact_provenance_impl_contract_tests.rs
+
+Traceability docs:
+- docs/codex/02-domain-core/source_processing_record_docs_adr_adr_0003_authority_contract.md
+- docs/codex/02-domain-core/source_processing_record_docs_domain_authority_contract.md
+- docs/codex/02-domain-core/source_processing_record_docs_domain_command_cqrs.md
+- docs/codex/02-domain-core/source_processing_record_docs_domain_domain_model.md
+- docs/codex/02-domain-core/source_processing_record_docs_domain_event_sourcing_projection.md
+- docs/codex/02-domain-core/source_processing_record_docs_domain_visibility_fact_provenance.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_authority_contract_guard.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_command_cqrs_idempotency.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_decision_record_model.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_domain_entities_value_objects.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_domain_policy_hooks.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_fork_canon_lineage.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_readme.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_visibility_fact_provenance.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_visibility_fact_provenance.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_event_sourcing_projection.md
+- docs/codex/02-domain-core/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_domain_model.md
+
+Evidence:
+- evidence/batches/BATCH-009/WORK_PLAN.md
+- evidence/batches/BATCH-009/PROMPT_COVERAGE.md
+- evidence/batches/BATCH-009/TEST_RESULTS.md
+- evidence/batches/BATCH-009/ACCEPTANCE_EVIDENCE.md
+- evidence/batches/BATCH-009/changed-files.txt
+- evidence/batches/BATCH-009/handoff.md
