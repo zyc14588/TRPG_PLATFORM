@@ -67,6 +67,8 @@ pub enum AgentModule {
     ModelProviderLocalCloudImpl,
     RagSnapshotImpl,
     Adr0009AgentGovernance,
+    Adr0010RagSnapshot,
+    EvaluationGoldenScenario,
 }
 
 pub const BATCH_017_PRIMARY_MODULES: &[AgentModule] = &[
@@ -149,6 +151,34 @@ pub const BATCH_019_PROMPT_IDS: &[&str] = &[
     "CODEX-0505-04-AI-AGENT-SYSTEM-9f37999d40",
     "CODEX-0506-04-AI-AGENT-SYSTEM-e75d4617db",
     "CODEX-0507-04-AI-AGENT-SYSTEM-a1e5d3d499",
+];
+
+pub const BATCH_020_PRIMARY_MODULES: &[AgentModule] = &[
+    AgentModule::Adr0010RagSnapshot,
+    AgentModule::EvaluationGoldenScenario,
+];
+
+pub const BATCH_020_PROMPT_IDS: &[&str] = &[
+    "CODEX-0508-04-AI-AGENT-SYSTEM-f2ee9f2b79",
+    "CODEX-0509-04-AI-AGENT-SYSTEM-90fc5447c3",
+    "CODEX-0510-04-AI-AGENT-SYSTEM-c10997b277",
+    "CODEX-0511-04-AI-AGENT-SYSTEM-d4b544c710",
+    "CODEX-0512-04-AI-AGENT-SYSTEM-9aca88599f",
+    "CODEX-0513-04-AI-AGENT-SYSTEM-61890cfc3d",
+    "CODEX-0514-04-AI-AGENT-SYSTEM-a5ddc4c4c8",
+    "CODEX-0515-04-AI-AGENT-SYSTEM-3d03dccf07",
+    "CODEX-0516-04-AI-AGENT-SYSTEM-9146c6434e",
+    "CODEX-0517-04-AI-AGENT-SYSTEM-43ed30f2e9",
+    "CODEX-0518-04-AI-AGENT-SYSTEM-b0096db6a4",
+    "CODEX-0519-04-AI-AGENT-SYSTEM-bd4d1ae282",
+    "CODEX-0520-04-AI-AGENT-SYSTEM-e81ac9192d",
+    "CODEX-0521-04-AI-AGENT-SYSTEM-0a9a11d351",
+    "CODEX-0522-04-AI-AGENT-SYSTEM-0979831cd7",
+    "CODEX-0523-04-AI-AGENT-SYSTEM-e5a5c03c2c",
+    "CODEX-0524-04-AI-AGENT-SYSTEM-43adbfc936",
+    "CODEX-0525-04-AI-AGENT-SYSTEM-adbdea50ff",
+    "CODEX-0526-04-AI-AGENT-SYSTEM-934a081c8e",
+    "CODEX-0527-04-AI-AGENT-SYSTEM-3d3a1f2aad",
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

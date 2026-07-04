@@ -1,0 +1,11 @@
+crates/trpg-agent-runtime/src/lib.rs
+crates/trpg-agent-runtime/src/agent_runtime.rs
+crates/trpg-agent-runtime/src/adr_0010_rag_snapshot.rs
+crates/trpg-agent-runtime/src/evaluation_golden_scenario.rs
+crates/trpg-agent-runtime/tests/adr_0010_rag_snapshot_contract_tests.rs
+crates/trpg-agent-runtime/tests/evaluation_golden_scenario_contract_tests.rs
+evidence/batches/BATCH-020/plan.md
+evidence/batches/BATCH-020/prompt-coverage.md
+evidence/batches/BATCH-020/test-results.md
+evidence/batches/BATCH-020/changed-files.txt
+evidence/batches/BATCH-020/acceptance.md
