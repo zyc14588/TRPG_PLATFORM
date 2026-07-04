@@ -1,0 +1,23 @@
+S07 model certification tests
+
+Fixtures:
+- fixtures/stages/detailed/S07_provider_rag_model_cert_expected.current.json.md
+- fixtures/provider/model_certification_matrix.v1.json.md
+
+Automated assertions:
+- crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs::s07_fixtures_drive_provider_model_rag_assertions
+- crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs::local_model_certification_requires_level4_for_ai_keeper
+
+Covered fixture requirements:
+- expected_events: ModelCertificationRecorded is represented by concrete Level1, Level3, and Level4 certification assertions.
+- expected_errors: LOCAL_MODEL_NOT_CERTIFIED_FOR_AI_KP is asserted for Level3 AI Keeper use.
+- pass_criteria: level4_required_for_ai_kp is asserted by rejecting Level3 and accepting Level4.
+- provider matrix: unstable-chat is asserted as Level1; json-tool-stable is asserted as Level4; dev Ollama and llama.cpp configs are accepted; exposed prod local OpenAI-compatible config is denied.
+
+Commands run:
+- cargo test -p trpg-agent-runtime --test batch_017_agent_runtime_contract_tests --all-features: PASS, 12 passed.
+- cargo test -p trpg-agent-runtime --all-features: PASS.
+- cargo check --workspace --all-targets --all-features: PASS.
+
+pnpm/docker:
+- N/A. Repo-wide package.json, pnpm-lock.yaml, pnpm-workspace.yaml, Dockerfile, docker-compose.yml, and docker-compose.yaml were not present.

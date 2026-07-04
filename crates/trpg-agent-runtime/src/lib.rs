@@ -1,0 +1,37 @@
+pub mod adr_0009_agent_governance_agent_governance;
+pub mod agent_context_assembler;
+pub mod agent_evaluation_golden_scenario;
+pub mod agent_runtime;
+pub mod agent_runtime_tool_protocol;
+pub mod ai_evaluation_golden_scenario;
+pub mod ai_evaluation_runtime;
+pub mod local_model_certification;
+pub mod memory_rag;
+pub mod memory_rag_rag_snapshot;
+pub mod model_provider;
+pub mod model_provider_local_cloud;
+pub mod rag_snapshot;
+pub mod tool_protocol;
+pub mod working_memory_long_memory_rag;
+pub mod working_memory_rag_rag_snapshot;
+
+pub use agent_runtime::{
+    assemble_context, commit_agent_decision, evaluate_agent_tool_request,
+    evaluate_prompt_injection, replay_agent_events_for_principal, AgentDecision, AgentError,
+    AgentEventPayload, AgentKind, AgentModule, AgentResult, AgentTool, AssembledAgentContext,
+    ContextFact, PromptInjectionReport, ToolDecision, ToolRequest, BATCH_017_PRIMARY_MODULES,
+    BATCH_017_PROMPT_IDS,
+};
+pub use local_model_certification::{
+    certify_local_model, ensure_ai_keeper_model, CertificationInput, LocalModelLevel,
+};
+pub use model_provider::{
+    evaluate_cloud_fallback, provider_boundary_snapshot, validate_provider_config, Environment,
+    FallbackDecision, FallbackPolicy, ModelProviderBoundarySnapshot, ModelRouteSnapshot,
+    ProviderConfig, ProviderType,
+};
+pub use rag_snapshot::{query_visible_chunks, require_visible_chunk, RagChunk};
+pub use trpg_shared_kernel::{
+    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
+    EventStore, FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
+};

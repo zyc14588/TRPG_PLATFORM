@@ -11,7 +11,7 @@ pub const ADR_0003_INVARIANTS: &[&str] = &[
 ];
 
 pub fn validate_adr_0003_contract(contract: &DomainAuthorityContract) -> DomainResult<()> {
-    if contract.locked && contract.change_policy == ChangePolicy::ForkOnly {
+    if contract.is_locked() && contract.change_policy() == ChangePolicy::ForkOnly {
         Ok(())
     } else {
         Err(DomainError::AuthorityContractImmutable)

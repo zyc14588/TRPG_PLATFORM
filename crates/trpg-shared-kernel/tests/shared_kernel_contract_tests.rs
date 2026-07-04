@@ -52,7 +52,9 @@ fn shared_kernel_keeps_authority_contract_immutable() {
     contract.validate_command(&command).unwrap();
 
     let forked = contract.fork(AuthorityMode::AiKp, 2).unwrap();
-    assert_eq!(forked.version, 2);
+    assert_eq!(forked.version(), 2);
+    assert_eq!(forked.mode(), &AuthorityMode::AiKp);
+    assert_eq!(forked.campaign_id().as_str(), "campaign_001");
     assert_eq!(
         contract.fork(AuthorityMode::AiKp, 1).unwrap_err(),
         TrpgError::AuthorityContractMutation

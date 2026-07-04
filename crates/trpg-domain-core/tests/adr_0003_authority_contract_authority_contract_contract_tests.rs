@@ -6,7 +6,7 @@ use trpg_domain_core::ddd::{AuthorityMode, DomainError};
 
 #[test]
 fn adr_0003_authority_contract_requires_locked_fork_only_contract() {
-    let mut contract = DomainAuthorityContract::new_locked(
+    let contract = DomainAuthorityContract::new_locked(
         "camp_ai_harbor",
         AuthorityMode::AiKp,
         "ai_kp_local_level4",
@@ -16,10 +16,9 @@ fn adr_0003_authority_contract_requires_locked_fork_only_contract() {
 
     assert!(ADR_0003_INVARIANTS.contains(&"authority_contract_locked"));
     validate_adr_0003_contract(&contract).unwrap();
-
-    contract.locked = false;
     assert_eq!(
-        validate_adr_0003_contract(&contract).unwrap_err(),
+        DomainAuthorityContract::new_locked("camp_bad", AuthorityMode::AiKp, "ai_kp", 0)
+            .unwrap_err(),
         DomainError::AuthorityContractImmutable
     );
 }

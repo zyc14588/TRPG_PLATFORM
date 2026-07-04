@@ -1,0 +1,41 @@
+BATCH-017 changed files
+
+Workspace membership:
+- Cargo.toml
+- Cargo.lock
+
+Current-safe documentation output:
+- docs/codex/04-ai-agent-system/m_04_ai_agent_system.md
+
+New crate:
+- crates/trpg-agent-runtime/Cargo.toml
+- crates/trpg-agent-runtime/src/lib.rs
+
+Primary implementation modules:
+- crates/trpg-agent-runtime/src/adr_0009_agent_governance_agent_governance.rs
+- crates/trpg-agent-runtime/src/agent_context_assembler.rs
+- crates/trpg-agent-runtime/src/agent_evaluation_golden_scenario.rs
+- crates/trpg-agent-runtime/src/agent_runtime.rs
+- crates/trpg-agent-runtime/src/agent_runtime_tool_protocol.rs
+- crates/trpg-agent-runtime/src/ai_evaluation_golden_scenario.rs
+- crates/trpg-agent-runtime/src/ai_evaluation_runtime.rs
+- crates/trpg-agent-runtime/src/local_model_certification.rs
+- crates/trpg-agent-runtime/src/memory_rag.rs
+- crates/trpg-agent-runtime/src/memory_rag_rag_snapshot.rs
+- crates/trpg-agent-runtime/src/model_provider.rs
+- crates/trpg-agent-runtime/src/model_provider_local_cloud.rs
+- crates/trpg-agent-runtime/src/rag_snapshot.rs
+- crates/trpg-agent-runtime/src/tool_protocol.rs
+- crates/trpg-agent-runtime/src/working_memory_long_memory_rag.rs
+- crates/trpg-agent-runtime/src/working_memory_rag_rag_snapshot.rs
+
+Tests:
+- crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs
+
+Evidence:
+- evidence/batches/BATCH-017/plan.md
+- evidence/batches/BATCH-017/changed-files.txt
+- evidence/batches/BATCH-017/test-output.txt
+- evidence/batches/BATCH-017/prompt-traceability.md
+- evidence/batches/BATCH-017/handoff.md
+- evidence/batches/BATCH-017/acceptance-report.md

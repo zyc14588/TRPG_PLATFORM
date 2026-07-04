@@ -73,7 +73,7 @@ pub fn fork_campaign(
     parent_contract: &DomainAuthorityContract,
     request: &CampaignForkRequest,
 ) -> DomainResult<CampaignFork> {
-    if parent_contract.campaign_id != request.source_campaign_id {
+    if parent_contract.campaign_id() != &request.source_campaign_id {
         return Err(DomainError::AuthorityViolation);
     }
 
@@ -84,7 +84,7 @@ pub fn fork_campaign(
     )?;
 
     Ok(CampaignFork {
-        parent_campaign_id: parent_contract.campaign_id.clone(),
+        parent_campaign_id: parent_contract.campaign_id().clone(),
         child_campaign_id: request.new_campaign_id.clone(),
         child_authority_contract,
         canon_status: CanonStatus::WhatIf,

@@ -48,7 +48,7 @@ fn authority_contract_impl_preserves_visibility_and_provenance_on_replay() {
             .unwrap();
 
     assert_eq!(event.fact_provenance, provenance);
-    assert_eq!(child.version, 1);
+    assert_eq!(child.version(), 1);
     assert_eq!(store.replay_visible(&PrincipalScope::Keeper).len(), 1);
     assert!(store
         .replay_visible(&PrincipalScope::Player(

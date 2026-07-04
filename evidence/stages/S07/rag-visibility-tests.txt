@@ -1,0 +1,27 @@
+S07 RAG visibility tests
+
+Fixtures:
+- fixtures/stages/detailed/S07_provider_rag_model_cert_expected.current.json.md
+- fixtures/rag/rag_snapshot_cases.v1.json.md
+- fixtures/agent/agent_tool_gate_cases.v1.json.md
+
+Automated assertions:
+- crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs::s07_fixtures_drive_provider_model_rag_assertions
+- crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs::context_and_rag_do_not_expose_keeper_only_facts_to_players
+- crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs::commit_agent_decision_redacts_restricted_fixture_tokens
+- crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs::prompt_injection_is_flagged_and_redacted
+
+Covered fixture requirements:
+- expected_records: RAGChunk fields source_type, visibility, version, and allowed_use are asserted.
+- expected_errors: RAG_VISIBILITY_SCOPE_VIOLATION is asserted for public access to scenario_keeper_truth_001.
+- pass_criteria: rag_visibility_enforced is asserted by allowing the public rules chunk and denying keeper-only scenario truth to player/public scope.
+- leakage guard: DecisionCommitted player_visible_text is asserted not to contain keeper_truth, secret_operator, npc_true_identity, keeper_only, private_to_player, or ai_internal, including a commit-path mutation after AgentDecision construction.
+- agent tool gate fixture cases are bound to real assertions for human_kp_agent_draft_only, ai_kp_orchestrator_can_request_check, atmosphere_writer_cannot_reveal_clue, and prompt_injection_note_ignored.
+
+Commands run:
+- cargo test -p trpg-agent-runtime --test batch_017_agent_runtime_contract_tests --all-features: PASS, 12 passed.
+- cargo test -p trpg-agent-runtime --all-features: PASS.
+- cargo check --workspace --all-targets --all-features: PASS.
+
+pnpm/docker:
+- N/A. Repo-wide package.json, pnpm-lock.yaml, pnpm-workspace.yaml, Dockerfile, docker-compose.yml, and docker-compose.yaml were not present.

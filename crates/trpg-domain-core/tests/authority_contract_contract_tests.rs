@@ -1,5 +1,5 @@
 use trpg_domain_core::authority_contract::{
-    patch_locked_authority_contract, DomainAuthorityContract,
+    patch_locked_authority_contract, ChangePolicy, DomainAuthorityContract,
 };
 use trpg_domain_core::ddd::{AuthorityMode, DomainError};
 
@@ -39,8 +39,30 @@ fn authority_contract_fork_creates_locked_child_without_mutating_parent() {
         )
         .unwrap();
 
-    assert_eq!(parent.authority_mode, AuthorityMode::AiKp);
-    assert_eq!(child.authority_mode, AuthorityMode::HumanKp);
-    assert!(child.locked);
-    assert_eq!(child.version, 1);
+    assert_eq!(parent.authority_mode(), &AuthorityMode::AiKp);
+    assert_eq!(child.authority_mode(), &AuthorityMode::HumanKp);
+    assert_eq!(parent.authority_owner().as_str(), "ai_kp_local_level4");
+    assert_eq!(child.authority_owner().as_str(), "user_human_kp");
+    assert!(child.is_locked());
+    assert_eq!(child.change_policy(), ChangePolicy::ForkOnly);
+    assert_eq!(child.version(), 1);
+}
+
+#[test]
+fn authority_contract_exposes_only_read_only_accessors() {
+    let contract = DomainAuthorityContract::new_locked(
+        "camp_ai_harbor",
+        AuthorityMode::AiKp,
+        "ai_kp_local_level4",
+        1,
+    )
+    .unwrap();
+
+    assert!(contract.contract_id().as_str().contains("camp_ai_harbor"));
+    assert_eq!(contract.campaign_id().as_str(), "camp_ai_harbor");
+    assert_eq!(contract.authority_mode(), &AuthorityMode::AiKp);
+    assert_eq!(contract.authority_owner().as_str(), "ai_kp_local_level4");
+    assert_eq!(contract.version(), 1);
+    assert!(contract.is_locked());
+    assert_eq!(contract.change_policy(), ChangePolicy::ForkOnly);
 }

@@ -1,0 +1,25 @@
+S07 provider adapter tests
+
+Fixtures:
+- fixtures/stages/S07_stage_acceptance_fixture.v1.json.md
+- fixtures/stages/detailed/S07_provider_rag_model_cert_expected.current.json.md
+- fixtures/provider/model_certification_matrix.v1.json.md
+
+Automated assertions:
+- crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs::s07_fixtures_drive_provider_model_rag_assertions
+- crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs::provider_boundary_blocks_prod_exposure_and_silent_cloud_fallback
+- crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs::primary_wrapper_modules_call_entrypoints_and_cover_prompt_ids
+
+Covered fixture requirements:
+- expected_events: FallbackBlocked is asserted through evaluate_cloud_fallback(Ollama -> Cloud) returning SILENT_FALLBACK_FORBIDDEN.
+- expected_records: ModelRouteSnapshot fields provider_type, model_id, fallback_policy, privacy_boundary are instantiated and asserted.
+- expected_errors: SILENT_FALLBACK_FORBIDDEN, UNAUTHENTICATED_LOCAL_PROVIDER_EXPOSED, and DIRECT_LLM_CALL_FORBIDDEN are asserted.
+- pass_criteria: provider_adapter_only and no_silent_fallback are asserted through provider_boundary_snapshot and fallback policy checks.
+
+Commands run:
+- cargo test -p trpg-agent-runtime --test batch_017_agent_runtime_contract_tests --all-features: PASS, 12 passed.
+- cargo test -p trpg-agent-runtime --all-features: PASS.
+- cargo check --workspace --all-targets --all-features: PASS.
+
+pnpm/docker:
+- N/A. Repo-wide package.json, pnpm-lock.yaml, pnpm-workspace.yaml, Dockerfile, docker-compose.yml, and docker-compose.yaml were not present.

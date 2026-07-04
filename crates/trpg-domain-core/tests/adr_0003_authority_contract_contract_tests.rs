@@ -65,7 +65,7 @@ fn adr_0003_authority_contract_keeps_visibility_and_fact_provenance_on_replay() 
             .unwrap();
 
     assert_eq!(event.fact_provenance, provenance);
-    assert_eq!(child.version, 1);
+    assert_eq!(child.version(), 1);
     assert_eq!(store.replay_visible(&PrincipalScope::Keeper).len(), 1);
     assert!(store
         .replay_visible(&PrincipalScope::Player(
@@ -76,7 +76,7 @@ fn adr_0003_authority_contract_keeps_visibility_and_fact_provenance_on_replay() 
 
 #[test]
 fn adr_0003_authority_contract_requires_locked_fork_only_policy() {
-    let mut contract =
+    let contract =
         DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
             .unwrap();
 
@@ -87,9 +87,9 @@ fn adr_0003_authority_contract_requires_locked_fork_only_policy() {
         DomainError::AuthorityContractImmutable
     );
 
-    contract.locked = false;
     assert_eq!(
-        validate_adr_0003_contract(&contract).unwrap_err(),
+        DomainAuthorityContract::new_locked("campaign_bad", AuthorityMode::AiKp, "ai_kp", 0)
+            .unwrap_err(),
         DomainError::AuthorityContractImmutable
     );
 }

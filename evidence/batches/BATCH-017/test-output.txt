@@ -1,0 +1,51 @@
+BATCH-017 test evidence
+
+Current related checks:
+
+1. cargo test -p trpg-agent-runtime --all-features
+   Result: PASS
+   Relevant result: 12 BATCH-017 contract tests passed.
+
+2. cargo test -p trpg-agent-runtime --test batch_017_agent_runtime_contract_tests --all-features
+   Result: PASS
+   Relevant result: 12 tests passed.
+
+AuthorityContract repair check:
+
+3. cargo test -p trpg-domain-core --all-features
+   Result: PASS
+   Relevant result: domain-core tests passed, including 4 compile_fail doctests proving external writes to DomainAuthorityContract authority_mode, version, locked, and authority_owner do not compile.
+
+Formatting and patch checks:
+
+4. cargo fmt --all -- --check
+   Result: PASS
+
+5. git diff --check
+   Result: PASS
+   Note: Git reported LF-to-CRLF working-copy warnings only.
+
+Stage/workspace checks:
+
+6. cargo clippy --workspace --all-targets --all-features -- -D warnings
+   Result: PASS
+
+7. cargo test --workspace --all-features
+   Result: PASS
+   Relevant result: all workspace tests passed, including the 12-test trpg-agent-runtime BATCH-017 suite and DomainAuthorityContract compile_fail doctests.
+
+pnpm/docker:
+
+8. Repo-wide package.json, pnpm-lock.yaml, pnpm-workspace.yaml, Dockerfile, docker-compose.yml, and docker-compose.yaml were not present.
+   Result: N/A
+
+Governance boundary spot check:
+
+9. rg -n "(reqwest|ureq|hyper|sqlx|diesel|openai::|ollama::|llama_cpp|chat_completion|responses\.create)" crates/trpg-agent-runtime
+   Result: PASS
+   Relevant result: no direct HTTP, DB, OpenAI, Ollama, llama.cpp, chat-completion, or responses client calls found in the B017 crate.
+
+Recurring non-failing cargo warning:
+
+- cargo printed: "warn: could not canonicalize path C:\Users\zyc14588"
+- This warning did not fail fmt, test, or clippy.

@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "trpg-agent-runtime"
+version = "0.1.0"
+dependencies = [
+ "trpg-shared-kernel",
+]
+
+[[package]]
 name = "trpg-domain-core"
 version = "0.1.0"
 dependencies = [

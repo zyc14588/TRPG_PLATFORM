@@ -29,10 +29,10 @@ fn fork_canon_lineage_copies_public_state_and_locks_child_contract() {
     assert!(fork.parent_unchanged);
     assert_eq!(fork.canon_status, CanonStatus::WhatIf);
     assert_eq!(
-        fork.child_authority_contract.authority_mode,
-        AuthorityMode::HumanKp
+        fork.child_authority_contract.authority_mode(),
+        &AuthorityMode::HumanKp
     );
-    assert!(fork.child_authority_contract.locked);
+    assert!(fork.child_authority_contract.is_locked());
     assert!(fork.copied_by_default.contains(&CopyScope::PublicEvents));
     assert!(fork
         .requires_explicit_permission

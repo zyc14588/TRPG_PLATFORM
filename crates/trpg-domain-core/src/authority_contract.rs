@@ -7,15 +7,56 @@ pub enum ChangePolicy {
     ForkOnly,
 }
 
+/// Immutable campaign authority contract.
+///
+/// ```compile_fail
+/// use trpg_domain_core::authority_contract::DomainAuthorityContract;
+/// use trpg_domain_core::ddd::AuthorityMode;
+///
+/// let mut contract =
+///     DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
+///         .unwrap();
+/// contract.authority_mode = AuthorityMode::HumanKp;
+/// ```
+///
+/// ```compile_fail
+/// use trpg_domain_core::authority_contract::DomainAuthorityContract;
+/// use trpg_domain_core::ddd::AuthorityMode;
+///
+/// let mut contract =
+///     DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
+///         .unwrap();
+/// contract.version = 2;
+/// ```
+///
+/// ```compile_fail
+/// use trpg_domain_core::authority_contract::DomainAuthorityContract;
+/// use trpg_domain_core::ddd::AuthorityMode;
+///
+/// let mut contract =
+///     DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
+///         .unwrap();
+/// contract.locked = false;
+/// ```
+///
+/// ```compile_fail
+/// use trpg_domain_core::authority_contract::DomainAuthorityContract;
+/// use trpg_domain_core::ddd::{AuthorityMode, EntityId};
+///
+/// let mut contract =
+///     DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
+///         .unwrap();
+/// contract.authority_owner = EntityId::new("keeper_2").unwrap();
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DomainAuthorityContract {
-    pub contract_id: EntityId,
-    pub campaign_id: EntityId,
-    pub authority_mode: AuthorityMode,
-    pub authority_owner: EntityId,
-    pub version: u64,
-    pub locked: bool,
-    pub change_policy: ChangePolicy,
+    contract_id: EntityId,
+    campaign_id: EntityId,
+    authority_mode: AuthorityMode,
+    authority_owner: EntityId,
+    version: u64,
+    locked: bool,
+    change_policy: ChangePolicy,
 }
 
 impl DomainAuthorityContract {
@@ -45,6 +86,34 @@ impl DomainAuthorityContract {
             locked: true,
             change_policy: ChangePolicy::ForkOnly,
         })
+    }
+
+    pub fn contract_id(&self) -> &EntityId {
+        &self.contract_id
+    }
+
+    pub fn campaign_id(&self) -> &EntityId {
+        &self.campaign_id
+    }
+
+    pub fn authority_mode(&self) -> &AuthorityMode {
+        &self.authority_mode
+    }
+
+    pub fn authority_owner(&self) -> &EntityId {
+        &self.authority_owner
+    }
+
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
+    pub fn is_locked(&self) -> bool {
+        self.locked
+    }
+
+    pub fn change_policy(&self) -> ChangePolicy {
+        self.change_policy
     }
 
     pub fn validate_command<T>(&self, command: &CommandEnvelope<T>) -> DomainResult<()> {

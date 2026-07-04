@@ -3,5 +3,6 @@ members = [
     "crates/trpg-shared-kernel",
     "crates/trpg-domain-core",
     "crates/trpg-runtime",
+    "crates/trpg-agent-runtime",
 ]
 resolver = "2"

@@ -140,12 +140,12 @@ fn s02_authority_and_fork_fixtures_map_to_domain_fork_contract() {
     let fork = fork_campaign(&parent, &request).unwrap();
     assert!(fork.parent_unchanged);
     assert_eq!(fork.canon_status, CanonStatus::WhatIf);
-    assert_eq!(parent.authority_mode, AuthorityMode::AiKp);
+    assert_eq!(parent.authority_mode(), &AuthorityMode::AiKp);
     assert_eq!(
-        fork.child_authority_contract.authority_mode,
-        AuthorityMode::HumanKp
+        fork.child_authority_contract.authority_mode(),
+        &AuthorityMode::HumanKp
     );
-    assert!(fork.child_authority_contract.locked);
+    assert!(fork.child_authority_contract.is_locked());
     assert!(fork.copied_by_default.contains(&CopyScope::PublicEvents));
     assert!(fork
         .requires_explicit_permission

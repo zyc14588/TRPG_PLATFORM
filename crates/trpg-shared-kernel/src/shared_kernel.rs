@@ -275,9 +275,9 @@ pub enum FormalWritePath {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthorityContract {
-    pub campaign_id: EntityId,
-    pub mode: AuthorityMode,
-    pub version: u64,
+    campaign_id: EntityId,
+    mode: AuthorityMode,
+    version: u64,
 }
 
 impl AuthorityContract {
@@ -295,6 +295,18 @@ impl AuthorityContract {
             mode,
             version,
         })
+    }
+
+    pub fn campaign_id(&self) -> &EntityId {
+        &self.campaign_id
+    }
+
+    pub fn mode(&self) -> &AuthorityMode {
+        &self.mode
+    }
+
+    pub fn version(&self) -> u64 {
+        self.version
     }
 
     pub fn fork(&self, mode: AuthorityMode, version: u64) -> KernelResult<Self> {

@@ -15,6 +15,6 @@ pub fn guard_authority_contract<T>(
 
     Ok(AuthorityGuardDecision {
         accepted: true,
-        contract_id: contract.contract_id.clone(),
+        contract_id: contract.contract_id().clone(),
     })
 }
