@@ -63,6 +63,10 @@ pub enum AgentModule {
     AiEvaluationGoldenScenario,
     WorkingMemoryRagRagSnapshot,
     MemoryRag,
+    MemoryRagImpl,
+    ModelProviderLocalCloudImpl,
+    RagSnapshotImpl,
+    Adr0009AgentGovernance,
 }
 
 pub const BATCH_017_PRIMARY_MODULES: &[AgentModule] = &[
@@ -110,6 +114,41 @@ pub const BATCH_017_PROMPT_IDS: &[&str] = &[
     "CODEX-0455-04-AI-AGENT-SYSTEM-a49d9b14ee",
     "CODEX-0456-04-AI-AGENT-SYSTEM-d68068a022",
     "CODEX-0457-04-AI-AGENT-SYSTEM-487c497469",
+];
+
+pub const BATCH_019_PRIMARY_MODULES: &[AgentModule] = &[
+    AgentModule::MemoryRagImpl,
+    AgentModule::ModelProviderLocalCloudImpl,
+    AgentModule::RagSnapshotImpl,
+    AgentModule::Adr0009AgentGovernance,
+];
+
+pub const BATCH_019_PROMPT_IDS: &[&str] = &[
+    "CODEX-0483-04-AI-AGENT-SYSTEM-a577767984",
+    "CODEX-0484-04-AI-AGENT-SYSTEM-e96dc3868d",
+    "CODEX-0485-04-AI-AGENT-SYSTEM-962b774429",
+    "CODEX-0486-04-AI-AGENT-SYSTEM-9ce89f19f8",
+    "CODEX-0487-04-AI-AGENT-SYSTEM-dbe6de7e59",
+    "CODEX-0488-04-AI-AGENT-SYSTEM-03fc2209c6",
+    "CODEX-0489-04-AI-AGENT-SYSTEM-752b9c9430",
+    "CODEX-0490-04-AI-AGENT-SYSTEM-475b10a2a4",
+    "CODEX-0491-04-AI-AGENT-SYSTEM-a7c5faa922",
+    "CODEX-0492-04-AI-AGENT-SYSTEM-f219f76442",
+    "CODEX-0493-04-AI-AGENT-SYSTEM-eb040218e6",
+    "CODEX-0494-04-AI-AGENT-SYSTEM-e007c89f57",
+    "CODEX-0495-04-AI-AGENT-SYSTEM-799fc14dc2",
+    "CODEX-0496-04-AI-AGENT-SYSTEM-c0f67c85c7",
+    "CODEX-0497-04-AI-AGENT-SYSTEM-044ab5dc87",
+    "CODEX-0498-04-AI-AGENT-SYSTEM-13927ff7ed",
+    "CODEX-0499-04-AI-AGENT-SYSTEM-04b8aaf7da",
+    "CODEX-0500-04-AI-AGENT-SYSTEM-9f239edf80",
+    "CODEX-0501-04-AI-AGENT-SYSTEM-687782b527",
+    "CODEX-0502-04-AI-AGENT-SYSTEM-1cc19ac6d6",
+    "CODEX-0503-04-AI-AGENT-SYSTEM-0e7645f3a5",
+    "CODEX-0504-04-AI-AGENT-SYSTEM-2d75990472",
+    "CODEX-0505-04-AI-AGENT-SYSTEM-9f37999d40",
+    "CODEX-0506-04-AI-AGENT-SYSTEM-e75d4617db",
+    "CODEX-0507-04-AI-AGENT-SYSTEM-a1e5d3d499",
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

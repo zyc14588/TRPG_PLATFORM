@@ -1,3 +1,4 @@
+pub mod adr_0009_agent_governance;
 pub mod adr_0009_agent_governance_agent_governance;
 pub mod agent_context_assembler;
 pub mod agent_evaluation_golden_scenario;
@@ -11,11 +12,14 @@ pub mod ai_evaluation_runtime;
 pub mod evaluation_golden_scenario_impl;
 pub mod local_model_certification;
 pub mod memory_rag;
+pub mod memory_rag_impl;
 pub mod memory_rag_rag_snapshot;
 pub mod model_provider;
 pub mod model_provider_local_cloud;
+pub mod model_provider_local_cloud_impl;
 pub mod plugin_ruleset_agent_pack_sdk;
 pub mod rag_snapshot;
+pub mod rag_snapshot_impl;
 pub mod readme;
 pub mod tool_protocol;
 pub mod working_memory_long_memory_rag;
@@ -26,7 +30,7 @@ pub use agent_runtime::{
     evaluate_prompt_injection, replay_agent_events_for_principal, AgentDecision, AgentError,
     AgentEventPayload, AgentKind, AgentModule, AgentResult, AgentTool, AssembledAgentContext,
     ContextFact, PromptInjectionReport, ToolDecision, ToolRequest, BATCH_017_PRIMARY_MODULES,
-    BATCH_017_PROMPT_IDS,
+    BATCH_017_PROMPT_IDS, BATCH_019_PRIMARY_MODULES, BATCH_019_PROMPT_IDS,
 };
 pub use local_model_certification::{
     certify_local_model, ensure_ai_keeper_model, CertificationInput, LocalModelLevel,
