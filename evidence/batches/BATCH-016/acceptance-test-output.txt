@@ -1,0 +1,15 @@
+BATCH-016 acceptance test output
+
+PASS: git diff --name-only -- crates/trpg-runtime/src crates/trpg-runtime/tests
+PASS: 15 expected supplemental merge notes exist, missing=0
+PASS: direct provider pattern scan returned no matches in crates/trpg-runtime/src and crates/trpg-runtime/tests
+PASS: cargo fmt --all -- --check
+PASS: cargo check --workspace --all-features
+PASS: cargo test -p trpg-runtime --all-features --jobs 1
+PASS: cargo test --test runtime_pending_decision --jobs 1
+PASS: cargo test --test workflow_engine_contract --jobs 1
+
+Warnings:
+- cargo fmt and selected cargo test commands emitted "could not canonicalize path C:\Users\zyc14588". This warning did not affect command success.
+
+Acceptance result: PASS

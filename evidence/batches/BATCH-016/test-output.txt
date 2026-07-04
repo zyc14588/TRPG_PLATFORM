@@ -1,0 +1,28 @@
+BATCH-016 test output summary
+
+Scope checks:
+- PASS: git diff --name-only -- crates/trpg-runtime/src crates/trpg-runtime/tests
+  Result: no output; no Rust source or Rust test files changed.
+- PASS: supplemental merge note count
+  Command: PowerShell Test-Path check for the 15 expected files under docs/codex/90-traceability/supplemental-requirements/
+  Result: expected=15 missing=0
+- PASS: direct provider pattern scan
+  Command: rg -n "OpenAI|openai|Ollama|ollama|llama|chat_completion|responses\.create|OPENAI_API_KEY|reqwest|ureq|hyper::Client|ProviderAdapter|ModelProvider" crates\trpg-runtime\src crates\trpg-runtime\tests --glob "*.rs"
+  Result: exit code 1 with no matches, expected for a no-match scan.
+
+Rust checks:
+- PASS: cargo fmt --all -- --check
+  Note: emitted warning "could not canonicalize path C:\Users\zyc14588".
+- PASS: cargo check --workspace --all-features
+- PASS: cargo test -p trpg-runtime --all-features --jobs 1
+  Result: all listed trpg-runtime tests passed, including governed decision pipeline, direct agent write rejection, pending decision, workflow/session/saga/scheduler/realtime contracts, and doc tests.
+- PASS: cargo test --test runtime_pending_decision --jobs 1
+  Result: 1 passed.
+  Note: emitted warning "could not canonicalize path C:\Users\zyc14588".
+- PASS: cargo test --test workflow_engine_contract --jobs 1
+  Result: 1 passed.
+  Note: emitted warning "could not canonicalize path C:\Users\zyc14588".
+
+Conclusion:
+- BATCH-016 has zero primary implementation prompts. No Rust implementation or Rust test changes were made.
+- Existing S06 runtime tests remain green after adding supplemental traceability evidence.
