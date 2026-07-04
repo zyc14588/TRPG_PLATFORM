@@ -49,6 +49,10 @@ pub enum RuntimeModule {
     CapabilityLayer,
     RealtimeRoomSync,
     RuntimePendingDecision,
+    Saga,
+    CampaignSessionRuntimeService,
+    Runtime,
+    Readme,
 }
 
 pub const BATCH_012_PRIMARY_MODULES: &[RuntimeModule] = &[
@@ -66,6 +70,13 @@ pub const BATCH_012_PRIMARY_MODULES: &[RuntimeModule] = &[
     RuntimeModule::CapabilityLayer,
     RuntimeModule::RealtimeRoomSync,
     RuntimeModule::RuntimePendingDecision,
+];
+
+pub const BATCH_013_PRIMARY_MODULES: &[RuntimeModule] = &[
+    RuntimeModule::Saga,
+    RuntimeModule::CampaignSessionRuntimeService,
+    RuntimeModule::Readme,
+    RuntimeModule::Runtime,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

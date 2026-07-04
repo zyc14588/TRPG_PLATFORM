@@ -1,0 +1,35 @@
+S06 tool gate evidence - BATCH-013
+Date: 2026-07-04
+
+Commands rerun during strict acceptance:
+
+- cargo test -p trpg-runtime tool_gate --all-features
+  Result: PASS, 1 matching test passed.
+  Covered:
+  - tool_gate_fixture_error_cases_are_asserted
+
+- cargo test -p trpg-runtime --all-features
+  Result: PASS.
+  Covered S06 tool-gate related tests:
+  - ai_kp_orchestrator_commits_decision_through_tool_and_event_log
+  - non_orchestrator_agent_cannot_request_formal_state_tool
+  - human_kp_ai_formal_tool_becomes_draft_only_pending_decision
+  - direct_agent_state_write_is_rejected_before_event_append
+
+Fixture coverage:
+
+- fixtures/stages/detailed/S06_decision_pipeline_commit_expected.current.json.md parsed successfully.
+- fixtures/agent/ai_decision_record_cases.v1.json.md parsed successfully.
+- test-data/agent_tool_call_cases.md parsed successfully.
+
+Expected error coverage:
+
+- atmosphere_writer_state_mutation -> AGENT_TOOL_NOT_ALLOWED
+- human_kp_ai_formal_commit -> HUMAN_KP_AI_DRAFT_ONLY
+- direct_db_write_by_agent -> AGENT_DIRECT_STATE_WRITE_FORBIDDEN
+
+Governance boundary:
+
+- HUMAN_KP AI formal tool requests remain draft-only and require human confirmation.
+- AI_KP formal state tools are limited to the AI Keeper Orchestrator path.
+- Non-orchestrator and expression-only agents cannot request formal state mutation tools.

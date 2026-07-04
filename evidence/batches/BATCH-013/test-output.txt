@@ -1,0 +1,28 @@
+# BATCH-013 Test Output
+
+## Commands
+
+- `cargo fmt --all`: PASS.
+- `cargo fmt --all -- --check`: PASS.
+- `cargo test -p trpg-runtime --test saga_contract_tests --all-features`: PASS, 2 passed.
+- `cargo test -p trpg-runtime --test campaign_session_runtime_service_contract_tests --all-features`: PASS, 2 passed.
+- `cargo test -p trpg-runtime --test runtime_contract_tests --all-features`: PASS, 5 passed.
+- `cargo test -p trpg-runtime --test readme_contract_tests --all-features`: PASS, 1 passed.
+- Initial parallel run of multiple Cargo test commands: FAIL due Windows linker `LNK1104` output file lock while tests were running concurrently. Sequential rerun passed.
+- `cargo test -p trpg-runtime --all-features`: PASS, B012 and B013 runtime tests passed.
+- `cargo test -p trpg-runtime decision_pipeline --all-features`: PASS, 1 matching test passed.
+- `cargo test -p trpg-runtime tool_gate --all-features`: PASS, 1 matching test passed.
+- `cargo check --workspace --all-features`: PASS.
+- `cargo test --workspace --all-features`: PASS.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS.
+- Fixture JSON parse check for S06 stage, S06 detailed decision pipeline, AI decision record, and event stream fixtures: PASS.
+- `rg --files -g package.json -g pnpm-lock.yaml -g Dockerfile -g docker-compose.yml -g docker-compose.yaml -g compose.yml -g compose.yaml`: no matches; pnpm and Docker checks not applicable.
+- `rg -n "openai|ollama|llama|chat_completion|responses" crates/trpg-runtime crates/trpg-shared-kernel`: no matches.
+
+## Runtime Contract Cases Covered
+
+- B013 `saga` compensation writes only through governed event append and rejects direct agent state write.
+- B013 campaign/session service appends `SessionStarted` and `WorkflowAdvanced` through the same governed event path.
+- B013 runtime index exposes the current-safe primary modules and commits AI_KP decisions through `ToolRequestApproved` then `DecisionCommitted`.
+- B013 runtime replay redacts keeper-only events from public principals.
+- B013 readme contract records runtime governance invariants and explicit non-goals.

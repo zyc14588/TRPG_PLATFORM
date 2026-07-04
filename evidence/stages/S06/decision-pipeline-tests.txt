@@ -1,0 +1,36 @@
+S06 decision pipeline evidence - BATCH-013
+Date: 2026-07-04
+
+Commands rerun during strict acceptance:
+
+- cargo test -p trpg-runtime --test runtime_contract_tests --all-features
+  Result: PASS, 5 passed.
+  Covered:
+  - runtime_commits_ai_kp_decision_through_evented_pipeline
+  - runtime_rejects_agent_direct_write_before_append
+  - runtime_replay_does_not_expose_keeper_only_events_to_public
+  - runtime_boundary_snapshot_preserves_s06_governance_fields
+  - runtime_indexes_current_batch_primary_modules
+
+- cargo test -p trpg-runtime decision_pipeline --all-features
+  Result: PASS, 1 matching test passed.
+  Covered:
+  - decision_pipeline_fixture_expected_records_are_asserted
+
+- cargo test -p trpg-runtime --test workflow_engine_contract --all-features
+  Result: PASS, 1 passed.
+  Covered:
+  - workflow_engine_contract_commits_decision_event_chain
+
+Fixture coverage:
+
+- fixtures/stages/detailed/S06_decision_pipeline_commit_expected.current.json.md parsed successfully.
+- Required expected events are represented by ToolRequestApproved and DecisionCommitted assertions.
+- Required linked records are represented by DecisionRecord, DiceRoll, and GameEvent assertions.
+- Required audit fields are represented by agent_pack_version, prompt_version, model_provider, context_hash, tool_calls, and decision_summary assertions.
+
+Governance boundary:
+
+- AI_KP formal decisions are committed through the runtime decision pipeline.
+- Direct agent state write is rejected before event append.
+- Keeper-only runtime events are not replayed to public principals.
