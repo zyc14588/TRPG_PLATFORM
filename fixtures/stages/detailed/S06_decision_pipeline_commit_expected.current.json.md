@@ -1,9 +1,9 @@
-# Detailed Stage Acceptance Fixture — v2.21
+# Detailed Stage Acceptance Fixture - v2.21
 
 ```json
 {
   "stage": "S06",
-  "purpose": "验证 Agent 裁定请求只能经 Decision Commit Pipeline 写入正式状态。",
+  "purpose": "Validate that agent adjudication requests can write formal state only through the Decision Commit Pipeline.",
   "inputs": {
     "authority_mode": "AI_KP",
     "agent_id": "coc_ai_keeper_orchestrator",
@@ -76,7 +76,7 @@
     "evidence/stages/S06/decision-pipeline-tests.txt",
     "evidence/stages/S06/tool-gate-tests.txt"
   ],
-  "automation_target": "cargo test -p trpg-runtime decision_pipeline tool_gate --all-features",
+  "automation_target": "cargo test -p trpg-runtime --test batch_012_runtime_contract_tests --all-features",
   "pass_criteria": [
     "tool_gate_required",
     "decision_commit_evented",

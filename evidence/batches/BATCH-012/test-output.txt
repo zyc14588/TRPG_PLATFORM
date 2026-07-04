@@ -1,0 +1,30 @@
+# BATCH-012 Test Output
+
+## Commands
+
+- `cargo fmt --all`: PASS.
+- `cargo fmt --all -- --check`: PASS.
+- `cargo test -p trpg-runtime --test batch_012_runtime_contract_tests --all-features`: PASS, 15 passed.
+- `cargo test -p trpg-runtime --test runtime_pending_decision --all-features`: PASS, 1 passed.
+- `cargo test -p trpg-runtime --test workflow_engine_contract --all-features`: PASS, 1 passed.
+- `cargo test -p trpg-runtime --all-features`: PASS, 15 batch tests plus 2 target tests passed; lib/doc test harnesses passed.
+- `cargo test -p trpg-runtime decision_pipeline --all-features`: PASS, 1 matching test passed.
+- `cargo test -p trpg-runtime tool_gate --all-features`: PASS, 1 matching test passed.
+- JSON fixture parse check for `fixtures/stages/S06_stage_acceptance_fixture.v1.json.md` and `fixtures/stages/detailed/S06_decision_pipeline_commit_expected.current.json.md`: PASS.
+- `cargo check --workspace --all-features`: PASS.
+- `cargo test --workspace --all-features`: PASS.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: PASS.
+
+`pnpm` and Docker checks are not applicable for this batch because `rg --files -g package.json -g pnpm-lock.yaml -g Dockerfile -g docker-compose.yml -g docker-compose.yaml -g compose.yml -g compose.yaml` found no matching files.
+
+## Runtime Contract Cases Covered
+
+- AI_KP keeper orchestrator commits only through `ToolRequestApproved` then `DecisionCommitted` events.
+- HUMAN_KP AI formal tool request becomes draft-only and returns `HUMAN_KP_AI_DRAFT_ONLY`.
+- Non-orchestrator expression agent formal state tool request returns `AGENT_TOOL_NOT_ALLOWED`.
+- Direct agent state write returns `AGENT_DIRECT_STATE_WRITE_FORBIDDEN` before event append.
+- S06 stage and detailed fixtures are included through `include_str!` and asserted by runtime tests.
+- Detailed fixture expected records, audit fields, tool gate errors, and direct write failure are asserted.
+- Keeper-only and private-player runtime events do not leak to public or other-player room views.
+- `expected_version` conflict and duplicate idempotency key are enforced.
+- Saga compensation, scheduler due-task filtering, session start, ADR boundary, workflow engine, capability layer, runtime pending decision, and realtime runtime binding primary prompts have targeted tests or explicit non-code evidence.

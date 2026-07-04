@@ -1,3 +1,7 @@
 [workspace]
-members = ["crates/trpg-shared-kernel", "crates/trpg-domain-core"]
+members = [
+    "crates/trpg-shared-kernel",
+    "crates/trpg-domain-core",
+    "crates/trpg-runtime",
+]
 resolver = "2"
