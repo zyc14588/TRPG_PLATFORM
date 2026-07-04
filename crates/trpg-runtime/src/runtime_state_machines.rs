@@ -53,6 +53,14 @@ pub enum RuntimeModule {
     CampaignSessionRuntimeService,
     Runtime,
     Readme,
+    RuntimeWorkflowStateMachines,
+    CapabilityLayerImpl,
+    PendingDecisionImpl,
+    RealtimeRoomSyncImpl,
+    SagaTransactionImpl,
+    SchedulerServiceImpl,
+    SessionRuntimeImpl,
+    WorkflowEngineImpl,
 }
 
 pub const BATCH_012_PRIMARY_MODULES: &[RuntimeModule] = &[
@@ -77,6 +85,17 @@ pub const BATCH_013_PRIMARY_MODULES: &[RuntimeModule] = &[
     RuntimeModule::CampaignSessionRuntimeService,
     RuntimeModule::Readme,
     RuntimeModule::Runtime,
+];
+
+pub const BATCH_014_PRIMARY_MODULES: &[RuntimeModule] = &[
+    RuntimeModule::RuntimeWorkflowStateMachines,
+    RuntimeModule::CapabilityLayerImpl,
+    RuntimeModule::PendingDecisionImpl,
+    RuntimeModule::RealtimeRoomSyncImpl,
+    RuntimeModule::SagaTransactionImpl,
+    RuntimeModule::SchedulerServiceImpl,
+    RuntimeModule::SessionRuntimeImpl,
+    RuntimeModule::WorkflowEngineImpl,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

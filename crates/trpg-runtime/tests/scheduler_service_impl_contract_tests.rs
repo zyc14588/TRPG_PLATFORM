@@ -1,0 +1,165 @@
+use trpg_runtime::runtime_state_machines::{
+    RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeModule, RuntimeTool, ToolRequest,
+    BATCH_014_PRIMARY_MODULES,
+};
+use trpg_runtime::scheduler_service_impl::{self, SchedulerServiceImplTask};
+use trpg_runtime::{
+    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventStore,
+    FormalWritePath, PrincipalScope, Visibility, VisibilityLabel,
+};
+
+fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
+    RuntimeDecision::new(decision_id, "B014 scheduler decision", request).unwrap()
+}
+
+fn command(payload: RuntimeDecision) -> CommandEnvelope<RuntimeDecision> {
+    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+}
+
+fn string_command(
+    payload: &str,
+    expected_version: u64,
+    idempotency_key: &str,
+) -> CommandEnvelope<String> {
+    let mut command =
+        CommandEnvelope::governed(payload.to_owned(), ActorRole::Workflow, AuthorityMode::AiKp);
+    command.command_id =
+        EntityId::new(format!("command_{idempotency_key}")).expect("valid command id");
+    command.idempotency_key = idempotency_key.to_owned();
+    command.expected_version = expected_version;
+    command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
+    command
+}
+
+#[test]
+fn scheduler_service_impl_preserves_governed_decision_event_contract() {
+    assert_eq!(
+        scheduler_service_impl::PROMPT_ID,
+        "CODEX-0390-03-RUNTIME-ORCHESTRATION-12323c9bd9"
+    );
+    assert!(BATCH_014_PRIMARY_MODULES.contains(&RuntimeModule::SchedulerServiceImpl));
+
+    let due = SchedulerServiceImplTask::new("task_b014_due", 7).unwrap();
+    let later = SchedulerServiceImplTask::new("task_b014_later", 9).unwrap();
+    assert_eq!(
+        scheduler_service_impl::due_scheduler_service_impl_tasks(&[due.clone(), later], 7),
+        vec![due.clone()]
+    );
+
+    let request = ToolRequest::formal(
+        RuntimeAgent::AiKeeperOrchestrator,
+        RuntimeTool::RequestSkillCheck,
+    );
+    let decision = decision("decision_b014_scheduler", request);
+    let mut command = command(decision.clone());
+    command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
+    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let mut store = EventStore::default();
+
+    let events = scheduler_service_impl::commit_scheduler_service_impl_decision(
+        &mut store, &contract, &command, decision,
+    )
+    .unwrap();
+    let task_event = scheduler_service_impl::record_scheduler_service_impl_due_task(
+        &mut store,
+        &contract,
+        &string_command("record due task", 2, "idem_b014_scheduler"),
+        due,
+    )
+    .unwrap();
+
+    assert_eq!(events[0].event_type, "ToolRequestApproved");
+    assert_eq!(events[1].event_type, "DecisionCommitted");
+    assert_eq!(task_event.event_type, "ScheduledTaskDue");
+    assert!(store.replay_visible(&PrincipalScope::Public).is_empty());
+    assert_eq!(store.replay_visible(&PrincipalScope::Keeper).len(), 3);
+    for event in store.events() {
+        assert_eq!(event.visibility.label(), &VisibilityLabel::KeeperOnly);
+        assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
+        assert_eq!(event.fact_provenance.recorded_by.as_str(), "rules_001");
+    }
+    match &events[1].payload {
+        RuntimeEventPayload::DecisionCommitted {
+            linked_records,
+            audit_fields,
+            ..
+        } => {
+            assert!(linked_records.contains(&"GameEvent"));
+            assert!(audit_fields.contains(&"model_provider"));
+        }
+        other => panic!("unexpected payload: {other:?}"),
+    }
+}
+
+#[test]
+fn scheduler_service_impl_denies_contract_tool_gate_and_direct_agent_write() {
+    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    assert_eq!(
+        contract.fork(AuthorityMode::HumanKp, 1).unwrap_err().code(),
+        "AUTHORITY_CONTRACT_MUTATION"
+    );
+
+    let allowed = decision(
+        "decision_b014_scheduler_contract",
+        ToolRequest::formal(
+            RuntimeAgent::AiKeeperOrchestrator,
+            RuntimeTool::RequestSkillCheck,
+        ),
+    );
+    let wrong_contract =
+        AuthorityContract::new("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
+    let mut store = EventStore::default();
+    assert_eq!(
+        scheduler_service_impl::commit_scheduler_service_impl_decision(
+            &mut store,
+            &wrong_contract,
+            &command(allowed.clone()),
+            allowed,
+        )
+        .unwrap_err()
+        .code(),
+        "AUTHORITY_CONTRACT_MUTATION"
+    );
+    assert!(store.events().is_empty());
+
+    let denied = decision(
+        "decision_b014_scheduler_tool",
+        ToolRequest::formal(RuntimeAgent::AtmosphereWriter, RuntimeTool::ChangeScene),
+    );
+    let mut store = EventStore::default();
+    assert_eq!(
+        scheduler_service_impl::commit_scheduler_service_impl_decision(
+            &mut store,
+            &contract,
+            &command(denied.clone()),
+            denied,
+        )
+        .unwrap_err()
+        .code(),
+        "AGENT_TOOL_NOT_ALLOWED"
+    );
+    assert!(store.events().is_empty());
+
+    let direct = decision(
+        "decision_b014_scheduler_direct",
+        ToolRequest::formal(
+            RuntimeAgent::AiKeeperOrchestrator,
+            RuntimeTool::RequestSkillCheck,
+        ),
+    );
+    let mut direct_command = command(direct.clone());
+    direct_command.write_path = FormalWritePath::DirectAgent;
+    let mut store = EventStore::default();
+    assert_eq!(
+        scheduler_service_impl::commit_scheduler_service_impl_decision(
+            &mut store,
+            &contract,
+            &direct_command,
+            direct,
+        )
+        .unwrap_err()
+        .code(),
+        "AGENT_DIRECT_STATE_WRITE_FORBIDDEN"
+    );
+    assert!(store.events().is_empty());
+}
