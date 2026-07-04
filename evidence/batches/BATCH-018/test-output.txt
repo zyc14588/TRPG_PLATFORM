@@ -1,0 +1,70 @@
+BATCH-018 Strict Repair Test Output
+
+Formatting:
+- `cargo fmt --all -- --check`
+- Result: PASS
+- Note: cargo emitted `warn: could not canonicalize path C:\Users\zyc14588`; non-fatal.
+
+Clippy:
+- `cargo clippy -p trpg-agent-runtime --all-targets --all-features --target-dir target\b018-check --jobs 1 -- -D warnings`
+- Result: PASS
+- Output: finished `dev` profile successfully.
+
+Cargo check:
+- `cargo check -p trpg-agent-runtime --target-dir target\b018-check`
+- Result: PASS
+- Output: finished `dev` profile successfully.
+
+S07 package test:
+- `cargo test -p trpg-agent-runtime --all-features --target-dir target\b018-check --jobs 1`
+- Result: PASS
+- Output summary:
+  - `agent_pack_sdk_contract_tests`: 2 passed
+  - `agent_runtime_impl_contract_tests`: 2 passed
+  - `ai_agent_contract_tests`: 2 passed
+  - `batch_017_agent_runtime_contract_tests`: 12 passed
+  - `evaluation_golden_scenario_impl_contract_tests`: 2 passed
+  - `plugin_ruleset_agent_pack_sdk_contract_tests`: 2 passed
+  - `readme_contract_tests`: 1 passed
+  - doc tests: 0 tests, pass
+
+B018 primary contract targets:
+- `cargo test -p trpg-agent-runtime --test ai_agent_contract_tests --target-dir target\b018-check --jobs 1`: PASS, 2 passed
+- `cargo test -p trpg-agent-runtime --test readme_contract_tests --target-dir target\b018-check --jobs 1`: PASS, 1 passed
+- `cargo test -p trpg-agent-runtime --test agent_pack_sdk_contract_tests --target-dir target\b018-check --jobs 1`: PASS, 2 passed
+- `cargo test -p trpg-agent-runtime --test plugin_ruleset_agent_pack_sdk_contract_tests --target-dir target\b018-check --jobs 1`: PASS, 2 passed
+- `cargo test -p trpg-agent-runtime --test agent_runtime_impl_contract_tests --target-dir target\b018-check --jobs 1`: PASS, 2 passed
+- `cargo test -p trpg-agent-runtime --test evaluation_golden_scenario_impl_contract_tests --target-dir target\b018-check --jobs 1`: PASS, 2 passed
+
+S07 existing fixture-bearing target:
+- `cargo test -p trpg-agent-runtime --test batch_017_agent_runtime_contract_tests --target-dir target\b018-check --jobs 1`
+- Result: PASS, 12 passed
+- Covered: Tool Permission Gate, HUMAN_KP draft-only, direct agent write denial, local model Level 4 requirement, provider boundary, no silent fallback, RAG visibility, prompt injection, private-token redaction.
+
+S07 TEST_PLAN target-name note:
+- `agent_tool_permission_gate` and `model_certification_tests` are not current test target files in this repository.
+- No B018 repair file was added under those non-B018 names because the user limited creation to current-safe B018 targets.
+- Equivalent current coverage passed in `batch_017_agent_runtime_contract_tests` and the six B018 contract targets.
+
+Fixture parse:
+- Command parsed JSON fences with `Get-Content -Raw -Encoding UTF8` and `ConvertFrom-Json -ErrorAction Stop`.
+- Parsed:
+  - `fixtures/agent/agent_tool_gate_cases.v1.json.md`
+  - `fixtures/provider/model_certification_matrix.v1.json.md`
+  - `fixtures/rag/rag_snapshot_cases.v1.json.md`
+  - `fixtures/stages/S07_stage_acceptance_fixture.v1.json.md`
+  - `fixtures/stages/detailed/S07_provider_rag_model_cert_expected.current.json.md`
+- Result: PASS
+
+Static scans:
+- Direct provider/HTTP/SDK scan across runtime/core/shared source: PASS
+  - Only existing allowed provider enum token found: `crates/trpg-agent-runtime/src/model_provider.rs:8: Ollama`
+- Agent-runtime write-path scan: PASS
+  - Only existing `EventStore.append` calls in `agent_runtime.rs` found.
+- New B018 current-safe naming scan for V3/V4/V5/V6/hash/legacy/template tokens: PASS, no matches.
+- Private-token scan in new tests/source: PASS
+  - Tokens appear only as negative-test fixtures or existing redaction constants/assertions.
+
+pnpm/docker:
+- Root `package.json`, `pnpm-lock.yaml`, `Dockerfile`, and `docker-compose*.yml/yaml`: absent.
+- Result: NOT APPLICABLE.

@@ -1,0 +1,61 @@
+BATCH-018 Acceptance Test Output
+
+PASS commands:
+
+1. `cargo fmt --all -- --check`
+   - PASS
+
+2. `cargo clippy -p trpg-agent-runtime --all-targets --all-features --target-dir target\b018-check --jobs 1 -- -D warnings`
+   - PASS
+
+3. `cargo check -p trpg-agent-runtime --target-dir target\b018-check`
+   - PASS
+
+4. `cargo test -p trpg-agent-runtime --all-features --target-dir target\b018-check --jobs 1`
+   - PASS
+   - 23 integration tests passed across current agent-runtime targets.
+
+5. `cargo test -p trpg-agent-runtime --test ai_agent_contract_tests --target-dir target\b018-check --jobs 1`
+   - PASS, 2 passed
+
+6. `cargo test -p trpg-agent-runtime --test readme_contract_tests --target-dir target\b018-check --jobs 1`
+   - PASS, 1 passed
+
+7. `cargo test -p trpg-agent-runtime --test agent_pack_sdk_contract_tests --target-dir target\b018-check --jobs 1`
+   - PASS, 2 passed
+
+8. `cargo test -p trpg-agent-runtime --test plugin_ruleset_agent_pack_sdk_contract_tests --target-dir target\b018-check --jobs 1`
+   - PASS, 2 passed
+
+9. `cargo test -p trpg-agent-runtime --test agent_runtime_impl_contract_tests --target-dir target\b018-check --jobs 1`
+   - PASS, 2 passed
+
+10. `cargo test -p trpg-agent-runtime --test evaluation_golden_scenario_impl_contract_tests --target-dir target\b018-check --jobs 1`
+    - PASS, 2 passed
+
+11. `cargo test -p trpg-agent-runtime --test batch_017_agent_runtime_contract_tests --target-dir target\b018-check --jobs 1`
+    - PASS, 12 passed
+
+12. Fixture parse:
+    - `fixtures/agent/agent_tool_gate_cases.v1.json.md`: PASS
+    - `fixtures/provider/model_certification_matrix.v1.json.md`: PASS
+    - `fixtures/rag/rag_snapshot_cases.v1.json.md`: PASS
+    - `fixtures/stages/S07_stage_acceptance_fixture.v1.json.md`: PASS
+    - `fixtures/stages/detailed/S07_provider_rag_model_cert_expected.current.json.md`: PASS
+
+13. Static direct-provider scan:
+    - PASS
+    - Only existing provider enum token found: `crates/trpg-agent-runtime/src/model_provider.rs:8: Ollama`
+
+14. Static write-path scan:
+    - PASS
+    - Only existing `EventStore.append` calls in `agent_runtime.rs`.
+
+15. pnpm/docker entrypoint scan:
+    - NOT APPLICABLE
+    - No root `package.json`, `pnpm-lock.yaml`, `Dockerfile`, or `docker-compose*.yml/yaml`.
+
+Observed non-fatal warnings:
+- Cargo warned `could not canonicalize path C:\Users\zyc14588`.
+- Some commands waited on Cargo build-directory locks.
+- First package test without isolated target dir hit Windows `LNK1104`; isolated target-dir rerun passed.
