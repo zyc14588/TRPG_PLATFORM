@@ -1,0 +1,11 @@
+crate::define_data_event_module!(
+    EventSourcingCqrsCommand,
+    EventSourcingCqrsOperation,
+    append_event_sourcing_cqrs_event,
+    "CODEX-0585-06-DATA-EVENTING-11db1301e6",
+    "adr_0002_event_sourcing_cqrs_event_sourcing_cqrs",
+    "EventSourcingCqrsDecisionRecorded",
+    "data_eventing.adr_0002_event_sourcing_cqrs.event_schema",
+    crate::DataEventOperation::ArchitectureDecisionRecord,
+    ["architecture_decision_index"]
+);

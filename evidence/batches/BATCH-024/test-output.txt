@@ -1,0 +1,68 @@
+BATCH-024 repaired ordered verification
+
+1. cargo test -p trpg-data-eventing --test batch_024_data_eventing_contract_tests -- --nocapture
+Result: PASS
+Key output:
+running 8 tests
+test b024_appends_formal_events_through_contract_and_preserves_replay_metadata ... ok
+test b024_blocks_direct_agent_business_and_authority_contract_bypass ... ok
+test b024_contracts_map_all_primary_prompts_to_current_safe_outputs ... ok
+test b024_declares_current_safe_sqlx_migration_contract ... ok
+test b024_declares_required_command_event_schema_fields ... ok
+test b024_enforces_expected_version_and_idempotency_for_event_store_canon ... ok
+test b024_redacts_private_keeper_and_ai_internal_from_player_visible_replay ... ok
+test b024_rejects_legacy_or_source_derived_names ... ok
+test result: ok. 8 passed; 0 failed
+
+2. cargo test --test event_store_contract -- --nocapture
+Result: PASS
+Key output:
+running 4 tests
+test event_store_contract_enforces_version_idempotency_and_visibility ... ok
+test migration_entry_is_repeatable_sqlx_evidence ... ok
+test rag_and_realtime_fixtures_preserve_metadata_and_private_visibility ... ok
+test s03_fixtures_are_bound_to_event_store_contract_assertions ... ok
+test result: ok. 4 passed; 0 failed
+
+3. cargo test --test projection_replay -- --nocapture
+Result: PASS
+Key output:
+running 2 tests
+test projection_replay_hash_is_stable_and_event_store_derived ... ok
+test projection_replay_redacts_private_keeper_and_ai_internal_events ... ok
+test result: ok. 2 passed; 0 failed
+
+4. cargo test -p trpg-data-eventing --all-features
+Result: PASS
+Key output:
+running 8 tests in batch_024_data_eventing_contract_tests ... ok
+running 4 tests in event_store_contract ... ok
+running 2 tests in projection_replay ... ok
+Doc-tests trpg_data_eventing: ok
+
+5. cargo fmt --all -- --check
+Result: PASS
+Note: cargo emitted `warn: could not canonicalize path C:\Users\zyc14588`; exit code was 0.
+
+6. cargo check -p trpg-data-eventing
+Result: PASS
+Key output:
+Checking trpg-data-eventing v0.1.0
+Finished `dev` profile
+
+7. cargo clippy -p trpg-data-eventing --all-targets --all-features -- -D warnings
+Result: PASS
+Key output:
+Checking trpg-shared-kernel v0.1.0
+Checking trpg-data-eventing v0.1.0
+Finished `dev` profile
+
+8. cargo test --workspace --all-features
+Result: PASS
+Key output:
+all workspace test targets, including trpg-data-eventing event_store_contract and projection_replay, passed.
+
+SQLx migration note:
+- Concrete migration entry added: `migrations/20260705000100_create_data_eventing_event_store.sql`.
+- Live `sqlx migrate run` still requires a caller-provided `DATABASE_URL`.
+- Repeatable database migration evidence is covered by `event_store_contract::migration_entry_is_repeatable_sqlx_evidence`.

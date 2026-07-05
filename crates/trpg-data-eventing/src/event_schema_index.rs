@@ -1,0 +1,11 @@
+crate::define_data_event_module!(
+    EventSchemaIndexCommand,
+    EventSchemaIndexOperation,
+    append_event_schema_index_event,
+    "CODEX-0060-06-DATA-EVENTING-34e6c845e3",
+    "event_schema_index",
+    "EventSchemaIndexEventRecorded",
+    "data_eventing.event_schema_index.event_schema",
+    crate::DataEventOperation::SchemaRegister,
+    ["event_schema_catalog"]
+);

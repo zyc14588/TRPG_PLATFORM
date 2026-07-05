@@ -1,0 +1,11 @@
+crate::define_data_event_module!(
+    SnapshotStrategyCommand,
+    SnapshotStrategyOperation,
+    append_snapshot_strategy_event,
+    "CODEX-0064-06-DATA-EVENTING-2031b0ef61",
+    "snapshot_strategy",
+    "SnapshotStrategyRecorded",
+    "data_eventing.snapshot_strategy.event_schema",
+    crate::DataEventOperation::SnapshotCreate,
+    ["snapshot_projection"]
+);

@@ -1,0 +1,15 @@
+crate::define_data_event_module!(
+    SqlxOutboxProjectionCommand,
+    SqlxOutboxProjectionOperation,
+    append_sqlx_outbox_projection_event,
+    "CODEX-0595-06-DATA-EVENTING-f8fc21553c",
+    "event_store_sqlx_outbox_projection",
+    "SqlxOutboxProjectionRecorded",
+    "data_eventing.event_store_sqlx_outbox_projection.event_schema",
+    crate::DataEventOperation::EventStoreAppend,
+    [
+        "event_outbox",
+        "projection_view",
+        "sqlx_transaction_boundary"
+    ]
+);
