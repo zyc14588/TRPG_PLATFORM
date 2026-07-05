@@ -17,6 +17,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "trpg-ruleset-coc7"
+version = "0.1.0"
+dependencies = [
+ "trpg-shared-kernel",
+]
+
+[[package]]
 name = "trpg-runtime"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,63 @@
+BATCH-021 acceptance rerun summary
+
+Commands rerun during S05 fixture-gate repair and acceptance:
+
+1. `cargo fmt --all`
+   - PASS
+   - Applied rustfmt to the new test file only.
+
+2. `cargo fmt --all -- --check`
+   - PASS
+   - Formatting check passed.
+
+3. `cargo check -p trpg-ruleset-coc7`
+   - PASS
+   - Validated the current-safe COC7 ruleset crate compiles.
+
+4. `cargo test -p trpg-ruleset-coc7 --test s05_fixture_acceptance_contract_tests --all-features`
+   - PASS
+   - 4/4 S05 fixture acceptance tests passed.
+   - Character fixture `Move: 7` is asserted against the same STR 45 / DEX 50 / SIZ 60 attributes.
+
+5. `cargo test -p trpg-ruleset-coc7 --all-features`
+   - PASS
+   - COC7 package tests passed, including 30 integration tests.
+
+6. `cargo test -p trpg-ruleset-coc7 dice`
+   - PASS
+   - 4 matching dice-related tests passed.
+
+7. `cargo test -p trpg-ruleset-coc7 sanity`
+   - PASS
+   - 2 matching sanity tests passed.
+
+8. `cargo test --workspace`
+   - PASS
+   - Workspace regression suite passed, including the new S05 fixture gate.
+
+9. `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+   - PASS
+   - Workspace clippy passed with warnings denied.
+
+10. `rg --files -g package.json -g pnpm-lock.yaml -g pnpm-workspace.yaml`
+    - N/A
+    - No pnpm/package manifest files are present.
+
+11. `rg --files -g Dockerfile -g docker-compose.yml -g docker-compose.yaml`
+    - N/A
+    - No Docker manifest files are present.
+
+12. `rg -n -i "openai|ollama|llama|chat\.completions|responses\.create|direct llm|provider call" crates\trpg-ruleset-coc7`
+    - PASS
+    - No direct LLM/provider call matches were found in the COC7 ruleset crate.
+
+Fixture/evidence corrections:
+- `fixtures/rules/coc7_character_creation_review.v1.json.md`: `Move` aligned to existing COC7 derivation as `7`.
+- `fixtures/stages/detailed/S05_coc7_roll_san_combat_chase_expected.current.json.md`: `automation_target` package corrected to `trpg-ruleset-coc7`.
+- `docs/reports/stages/S05_TRACEABILITY.md`: stage prompt paths corrected to `stages/s05-ruleset-coc7-engine/...`.
+
+Observed during this repair:
+- One S05 fixture test rerun hit a transient Windows linker file lock (`LNK1104` on the existing test exe); no test assertion failed.
+- Immediate final rerun of the same S05 fixture command passed 4/4.
+
+Final acceptance reruns produced passing results for all required cargo commands.

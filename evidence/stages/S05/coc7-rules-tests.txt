@@ -1,0 +1,37 @@
+S05 COC7 rules fixture acceptance evidence
+Date: 2026-07-05
+Scope: tests and evidence only. No product implementation code was changed in this repair.
+
+Command: cargo test -p trpg-ruleset-coc7 --test s05_fixture_acceptance_contract_tests --all-features
+Result: PASS
+Summary: 4 fixture acceptance tests passed.
+
+Fixture files loaded by the gate:
+- fixtures/stages/S05_stage_acceptance_fixture.v1.json.md
+- fixtures/stages/detailed/S05_coc7_roll_san_combat_chase_expected.current.json.md
+- fixtures/rules/coc7_character_creation_review.v1.json.md
+- fixtures/rules/coc7_dice_matrix.v1.json.md
+- fixtures/rules/coc7_san_combat_chase_flow.v1.json.md
+- test-data/dice_san_combat_chase_cases.md
+
+Fixture-to-existing-assertion mapping:
+- Character derivation: derive_character_stats validates HP, MP, SAN, Luck, damage bonus, build, and Move 7 from the same STR 45 / DEX 50 / SIZ 60 fixture attributes.
+- Dice: success_level, adjusted_percentile_roll, adjudicate_skill_check, and record_dice_roll_contract validate server-side percentile outcomes and event recording.
+- SAN: resolve_san_check and record_san_decision validate success/failure loss and event logging.
+- Combat: apply_damage and record_combat_transition validate damage results and evented combat state update.
+- Chase: advance_chase and record_chase_transition validate lead/caught transitions and evented chase state update.
+- Core clue fail-forward: resolve_clue_check and record_investigation_clue_npc_time_decision validate core clue reveal-with-cost behavior and event logging.
+- Visibility/provenance/event assertions: Event payloads carry ruleset_id, visibility_label, and provenance_kind; public replay hides system-only events.
+- Private leakage assertion: keeper-only NPC secret is hidden from PrincipalScope::Public and visible to PrincipalScope::Keeper.
+- Formal-write guard: a DirectAgent write path is rejected with DirectAgentStateWrite.
+
+Command: cargo test -p trpg-ruleset-coc7 --all-features
+Result: PASS
+Summary: trpg-ruleset-coc7 package tests passed, including 30 integration tests across the COC7 contract suite and the new S05 fixture gate.
+
+Command: cargo test -p trpg-ruleset-coc7 sanity
+Result: PASS
+Summary: 2 matching sanity tests passed.
+
+Observed non-failing cargo note:
+- warn: could not canonicalize path C:\Users\zyc14588

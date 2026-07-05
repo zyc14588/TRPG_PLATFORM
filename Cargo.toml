@@ -4,5 +4,6 @@ members = [
     "crates/trpg-domain-core",
     "crates/trpg-runtime",
     "crates/trpg-agent-runtime",
+    "crates/trpg-ruleset-coc7",
 ]
 resolver = "2"

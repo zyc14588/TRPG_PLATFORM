@@ -1,0 +1,44 @@
+BATCH-021 test evidence
+
+Command: cargo fmt --all
+Result: PASS
+Notes: emitted warning `could not canonicalize path C:\Users\zyc14588`; formatting completed with exit code 0.
+
+Command: cargo check -p trpg-ruleset-coc7
+Result: PASS
+Summary: `Finished dev profile` for `trpg-ruleset-coc7`.
+
+Command: cargo test -p trpg-ruleset-coc7
+Result: PASS
+Summary: initial implementation test pass completed before the S05 fixture gate was added.
+
+Command: cargo test -p trpg-ruleset-coc7 --test s05_fixture_acceptance_contract_tests --all-features
+Result: PASS
+Summary: 4 S05 fixture acceptance tests passed, loading all required S05 fixture and test-data files. Character fixture `Move: 7` is asserted against the same STR 45 / DEX 50 / SIZ 60 attributes.
+
+Command: cargo test -p trpg-ruleset-coc7 --all-features
+Result: PASS
+Summary: COC7 package tests passed, including 30 integration tests across the ruleset contract suite and S05 fixture gate.
+
+Command: cargo test -p trpg-ruleset-coc7 dice
+Result: PASS
+Summary: 4 matching dice-related tests passed.
+
+Command: cargo test -p trpg-ruleset-coc7 sanity
+Result: PASS
+Summary: 2 matching sanity tests passed.
+
+Command: cargo fmt --all -- --check
+Result: PASS
+Notes: emitted warning `could not canonicalize path C:\Users\zyc14588`; check completed with exit code 0.
+
+Command: cargo test --workspace
+Result: PASS
+Summary: workspace test suite completed with exit code 0, including the new S05 fixture gate.
+
+Command: cargo clippy --workspace --all-targets --all-features -- -D warnings
+Result: PASS
+Summary: workspace clippy completed with warnings denied.
+
+Observed non-failing warning:
+- `warn: could not canonicalize path C:\Users\zyc14588`

@@ -105,7 +105,7 @@
     "evidence/stages/S05/coc7-rules-tests.txt",
     "evidence/stages/S05/dice-audit-tests.txt"
   ],
-  "automation_target": "cargo test -p trpg-rules-coc7 dice sanity combat chase --all-features",
+  "automation_target": "cargo test -p trpg-ruleset-coc7 dice sanity combat chase --all-features",
   "pass_criteria": [
     "server_dice_only",
     "success_level_correct",

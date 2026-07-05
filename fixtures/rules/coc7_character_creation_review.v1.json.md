@@ -22,7 +22,7 @@
       "Luck": 55,
       "DamageBonus": "0",
       "Build": 0,
-      "Move": 8
+      "Move": 7
     },
     "occupational_skill_points": 300,
     "personal_interest_points": 140,

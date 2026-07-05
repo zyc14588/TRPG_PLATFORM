@@ -1,0 +1,24 @@
+S05 dice audit fixture evidence
+Date: 2026-07-05
+Scope: tests and evidence only. No product implementation code was changed in this repair.
+
+Command: cargo test -p trpg-ruleset-coc7 dice
+Result: PASS
+Summary: 4 matching dice-related tests passed:
+- dice_roll_event_rejects_direct_agent_write
+- dice_roll_uses_server_digits_and_bonus_die
+- rules_metadata_requires_server_dice_and_no_direct_llm
+- s05_character_and_dice_fixtures_map_to_ruleset_assertions
+
+Dice fixture coverage:
+- fixtures/rules/coc7_dice_matrix.v1.json.md is loaded by s05_fixture_acceptance_contract_tests.rs.
+- test-data/dice_san_combat_chase_cases.md is loaded by s05_fixture_acceptance_contract_tests.rs.
+- The gate asserts percentile success levels, bonus die selection, penalty die selection, and formal event recording.
+- The gate rejects DirectAgent formal dice writes with DirectAgentStateWrite.
+
+Command: cargo test -p trpg-ruleset-coc7 --test s05_fixture_acceptance_contract_tests --all-features
+Result: PASS
+Summary: 4/4 S05 fixture acceptance tests passed.
+
+Observed non-failing cargo note:
+- warn: could not canonicalize path C:\Users\zyc14588
