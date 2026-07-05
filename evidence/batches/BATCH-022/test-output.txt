@@ -1,0 +1,52 @@
+BATCH-022 test evidence
+
+Command: cargo fmt --all
+Result: PASS
+Notes: emitted warning `could not canonicalize path C:\Users\zyc14588`; formatting completed.
+
+Command: cargo test -p trpg-ruleset-coc7 coc7 / readme / ruleset_pack_sdk
+Result: RETRIED
+Notes: initial parallel run on Windows failed with LNK1104 linker output-file locks. No Rust test assertion failed. Re-run sequentially below.
+
+Command: cargo test -p trpg-ruleset-coc7 --test coc7_contract_tests
+Result: PASS
+Summary: 3 tests passed.
+
+Command: cargo test -p trpg-ruleset-coc7 --test readme_contract_tests
+Result: PASS
+Summary: 3 tests passed.
+
+Command: cargo test -p trpg-ruleset-coc7 --test ruleset_pack_sdk_contract_tests
+Result: PASS
+Summary: 3 tests passed.
+
+Command: cargo test -p trpg-ruleset-coc7 --all-features
+Result: PASS
+Summary: COC7 package tests passed, including 39 integration tests and S05 fixture gate.
+
+Command: cargo test -p trpg-ruleset-coc7 dice
+Result: PASS
+Summary: dice-related tests passed, including server dice and fixture assertions.
+
+Command: cargo test -p trpg-ruleset-coc7 sanity
+Result: PASS
+Summary: sanity-related tests passed.
+
+Command: cargo fmt --all -- --check
+Result: PASS
+Notes: emitted warning `could not canonicalize path C:\Users\zyc14588`.
+
+Command: cargo clippy --workspace --all-targets --all-features -- -D warnings
+Result: PASS
+
+Command: cargo test --workspace
+Result: PASS
+Summary: workspace test suite completed successfully.
+
+Command: rg -n "openai|ollama|llama|chat_completion|responses" crates/trpg-ruleset-coc7/src crates/trpg-ruleset-coc7/tests
+Result: PASS
+Summary: no matches.
+
+Command: rg -n "source-archive|v3|v4|v5|v6|legacy" on new B022 Rust src/test files
+Result: PASS
+Summary: no matches.
