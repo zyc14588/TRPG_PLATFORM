@@ -1,0 +1,41 @@
+BATCH-023 test output summary
+
+Minimal related checks:
+
+1. Command:
+   rg "CODEX-057[0-9]|CODEX-058[0-4]" docs/codex/05-ruleset-coc7 docs/codex/90-traceability/supplemental-requirements evidence/batches/BATCH-023
+   Result: PASS, exit code 0. All B023 Prompt IDs are represented in prompt-traceability evidence, plan rows, category manifest, traceability records, or supplemental merge records.
+
+2. Command:
+   rg "crates/trpg-ruleset-coc7/(src|tests)|src/[A-Za-z0-9_/-]+\\.rs|tests/[A-Za-z0-9_/-]+\\.rs|migrations/[A-Za-z0-9_/-]+\\.sql" docs/codex/90-traceability/supplemental-requirements/CODEX-0576-05-RULESET-COC7-c4db17f4ae.md docs/codex/90-traceability/supplemental-requirements/CODEX-0577-05-RULESET-COC7-beeb6daa0d.md docs/codex/90-traceability/supplemental-requirements/CODEX-0578-05-RULESET-COC7-67fad89a16.md docs/codex/90-traceability/supplemental-requirements/CODEX-0579-05-RULESET-COC7-ad43ae3bfd.md docs/codex/90-traceability/supplemental-requirements/CODEX-0580-05-RULESET-COC7-60e84aa01c.md docs/codex/90-traceability/supplemental-requirements/CODEX-0581-05-RULESET-COC7-4272e1db6a.md docs/codex/90-traceability/supplemental-requirements/CODEX-0582-05-RULESET-COC7-f9d12478d9.md docs/codex/90-traceability/supplemental-requirements/CODEX-0583-05-RULESET-COC7-a3d270fccb.md docs/codex/90-traceability/supplemental-requirements/CODEX-0584-05-RULESET-COC7-14b91df550.md
+   Result: PASS, exit code 1 is expected for no matches. Supplemental rows do not claim concrete Rust src/test or migration paths.
+
+3. Command:
+   cargo check -p trpg-ruleset-coc7
+   Result: PASS, exit code 0.
+
+Stage checks:
+
+4. Command:
+   cargo test -p trpg-ruleset-coc7 --all-features
+   Result: PASS, exit code 0.
+   Summary: 39 tests passed across the current S05 test targets; 0 failed.
+   Note: Cargo emitted `warn: could not canonicalize path C:\Users\zyc14588`, but the command completed successfully.
+
+5. Command:
+   cargo test -p trpg-ruleset-coc7 dice
+   Result: PASS, exit code 0.
+   Summary: filtered dice-related checks passed, including server dice and direct agent write rejection assertions.
+   Note: Cargo emitted the same canonicalize warning and completed successfully.
+
+6. Command:
+   cargo test -p trpg-ruleset-coc7 sanity
+   Result: PASS, exit code 0.
+   Summary: 2 sanity-madness filtered tests passed; 0 failed.
+   Note: Cargo emitted the same canonicalize warning and completed successfully.
+
+7. Command:
+   cargo fmt --all -- --check
+   Result: PASS, exit code 0.
+   Note: Cargo emitted the same canonicalize warning and completed successfully.
+

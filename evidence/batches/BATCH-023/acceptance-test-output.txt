@@ -1,0 +1,24 @@
+BATCH-023 acceptance check output summary
+
+1. Direct LLM/provider token check on B023-created docs:
+   Command: rg "openai|ollama|llama|chat_completion|responses" <B023-created-docs>
+   Result: PASS, exit code 1 is expected for no matches.
+
+2. Governance keyword retention check on B023-created docs:
+   Command: rg "Authority Contract|Event Store|Visibility|Fact Provenance|Policy Gate|server dice|server-side" <B023-created-docs>
+   Result: PASS, exit code 0.
+   Evidence: supplemental merge records retain Authority Contract, Event Store, Visibility, Fact Provenance, Policy Gate, server dice, and server-side roll constraints.
+
+3. Supplemental boundary check:
+   Command: rg concrete Rust src/test and migration path patterns over B023 supplemental merge records.
+   Result: PASS, no matches.
+
+4. Stage command gate:
+   Commands:
+   - cargo check -p trpg-ruleset-coc7
+   - cargo test -p trpg-ruleset-coc7 --all-features
+   - cargo test -p trpg-ruleset-coc7 dice
+   - cargo test -p trpg-ruleset-coc7 sanity
+   - cargo fmt --all -- --check
+   Result: PASS.
+
