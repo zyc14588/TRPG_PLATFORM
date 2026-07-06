@@ -36,6 +36,7 @@ CREATE TABLE event_store (
 pub const EVENT_OUTBOX_MIGRATION_SQL: &str = "\
 CREATE TABLE event_outbox (
     outbox_id BIGSERIAL PRIMARY KEY,
+    event_id BIGINT NOT NULL,
     event_sequence BIGINT NOT NULL,
     nats_subject TEXT NOT NULL,
     idempotency_key TEXT NOT NULL UNIQUE,
@@ -50,6 +51,8 @@ CREATE TABLE event_outbox (
 pub const PROJECTION_CHECKPOINT_MIGRATION_SQL: &str = "\
 CREATE TABLE projection_checkpoint (
     projection_name TEXT PRIMARY KEY,
+    stream_id TEXT NOT NULL,
+    version BIGINT NOT NULL,
     last_event_sequence BIGINT NOT NULL,
     projection_hash TEXT NOT NULL,
     rebuilt_at TIMESTAMPTZ NOT NULL DEFAULT now()

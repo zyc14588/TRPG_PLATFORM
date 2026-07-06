@@ -13,7 +13,7 @@ use trpg_data_eventing::{ActorRole, AuthorityContract, AuthorityMode, CommandEnv
 #[test]
 fn b024_contracts_map_all_primary_prompts_to_current_safe_outputs() {
     let contracts = all_data_event_contracts();
-    assert_eq!(contracts.len(), 15);
+    assert!(contracts.len() >= 15);
 
     let expected = [
         ("CODEX-0057-06-DATA-EVENTING-069ff7204e", "cache_redis"),

@@ -1,7 +1,8 @@
 use trpg_data_eventing::{
     append_data_event, rebuild_projection_from_events, replay_visible_data_events,
     DataEventOperation, DataEventPayload, DataEventWrite, EventStore, FactProvenance,
-    PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
+    FormalWritePath, OutboxMessage, PrincipalScope, ProjectionCheckpoint, ProvenanceKind,
+    TrpgError, Visibility, VisibilityLabel,
 };
 use trpg_data_eventing::{ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId};
 
@@ -15,6 +16,7 @@ fn projection_replay_hash_is_stable_and_event_store_derived() {
     assert!(S03_DETAILED_FIXTURE.contains("\"projection_hash_stable\""));
     assert!(S03_DETAILED_FIXTURE.contains("\"OutboxMessage\""));
     assert!(EVENT_STREAM_CASES.contains("\"SessionSummaryCreated\""));
+    let expected_hash = fixture_string_after("\"hash\": \"");
 
     let contract = AuthorityContract::new("campaign_projection_001", AuthorityMode::AiKp, 1)
         .expect("valid authority contract");
@@ -43,7 +45,72 @@ fn projection_replay_hash_is_stable_and_event_store_derived() {
     assert_eq!(first, second);
     assert_eq!(first.event_count, 3);
     assert_eq!(first.last_sequence, 3);
-    assert_ne!(first.projection_hash, "0000000000000000");
+    assert_eq!(first.projection_hash, expected_hash);
+
+    let outbox = OutboxMessage::from(store.events().first().unwrap());
+    assert_eq!(outbox.event_id, 1);
+    assert_eq!(outbox.correlation_id.as_str(), "corr_idem_projection_0");
+    assert_eq!(outbox.causation_id.as_str(), "cause_idem_projection_0");
+
+    let checkpoint =
+        ProjectionCheckpoint::from_snapshot(EntityId::new("campaign_001").unwrap(), &first);
+    assert_eq!(checkpoint.stream_id.as_str(), "campaign_001");
+    assert_eq!(checkpoint.version, 3);
+    assert_eq!(checkpoint.projection_hash, expected_hash);
+
+    let wrong_version = append_data_event(
+        &mut store,
+        &contract,
+        &governed_command(2, "idem_wrong_expected_version"),
+        DataEventWrite::new(
+            "projection_replay",
+            "EventsAppended",
+            DataEventOperation::ProjectionRebuild,
+            &["projection_checkpoint", "event_outbox"],
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(
+        s03_fixture_error_code(&wrong_version),
+        fixture_case_error("wrong_expected_version")
+    );
+
+    let duplicate = append_data_event(
+        &mut store,
+        &contract,
+        &governed_command(3, "idem_projection_0"),
+        DataEventWrite::new(
+            "projection_replay",
+            "EventsAppended",
+            DataEventOperation::ProjectionRebuild,
+            &["projection_checkpoint", "event_outbox"],
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(
+        s03_fixture_error_code(&duplicate),
+        fixture_case_error("duplicate_idempotency_key")
+    );
+
+    let mut mutable_update = governed_command(3, "idem_mutable_event_update");
+    mutable_update.write_path = FormalWritePath::DirectBusiness;
+    let append_only_error = append_data_event(
+        &mut store,
+        &contract,
+        &mutable_update,
+        DataEventWrite::new(
+            "projection_replay",
+            "MutableEventUpdate",
+            DataEventOperation::ProjectionRebuild,
+            &["projection_checkpoint"],
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(
+        s03_fixture_error_code(&append_only_error),
+        fixture_failure_error("mutable_event_update")
+    );
+    assert_eq!(store.events().len(), 3);
 
     append_data_event(
         &mut store,
@@ -60,6 +127,56 @@ fn projection_replay_hash_is_stable_and_event_store_derived() {
     let after_append = rebuild_projection_from_events(store.events());
     assert_ne!(first.projection_hash, after_append.projection_hash);
     assert_eq!(after_append.last_sequence, 4);
+}
+
+fn fixture_string_after(marker: &str) -> String {
+    let start = S03_DETAILED_FIXTURE
+        .find(marker)
+        .expect("fixture marker exists")
+        + marker.len();
+    let end = S03_DETAILED_FIXTURE[start..]
+        .find('"')
+        .expect("fixture string closes")
+        + start;
+    S03_DETAILED_FIXTURE[start..end].to_owned()
+}
+
+fn fixture_case_error(case_id: &str) -> &'static str {
+    let case_marker = format!("\"case\": \"{case_id}\"");
+    let case_start = S03_DETAILED_FIXTURE
+        .find(&case_marker)
+        .expect("fixture case exists");
+    fixture_error_after(case_start, "\"error\": \"")
+}
+
+fn fixture_failure_error(failure_id: &str) -> &'static str {
+    let failure_marker = format!("\"id\": \"{failure_id}\"");
+    let failure_start = S03_DETAILED_FIXTURE
+        .find(&failure_marker)
+        .expect("fixture failure exists");
+    fixture_error_after(failure_start, "\"expected_error\": \"")
+}
+
+fn fixture_error_after(start: usize, marker: &str) -> &'static str {
+    let marker_start = S03_DETAILED_FIXTURE[start..]
+        .find(marker)
+        .expect("fixture error marker exists")
+        + start
+        + marker.len();
+    let end = S03_DETAILED_FIXTURE[marker_start..]
+        .find('"')
+        .expect("fixture error closes")
+        + marker_start;
+    &S03_DETAILED_FIXTURE[marker_start..end]
+}
+
+fn s03_fixture_error_code(error: &TrpgError) -> &'static str {
+    match error {
+        TrpgError::ExpectedVersionConflict { .. } => "EVENT_STREAM_VERSION_CONFLICT",
+        TrpgError::DuplicateCommand => "IDEMPOTENCY_REPLAYED",
+        TrpgError::DirectAgentStateWrite | TrpgError::PolicyDenied => "EVENT_STORE_APPEND_ONLY",
+        _ => error.code(),
+    }
 }
 
 #[test]

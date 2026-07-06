@@ -14,7 +14,7 @@ const EVENT_STREAM_CASES: &str = include_str!("../../../test-data/event_store_st
 const RAG_SNAPSHOT_CASES: &str = include_str!("../../../test-data/rag_snapshot_cases.md");
 const API_WS_CONTRACT_CASES: &str = include_str!("../../../test-data/api_ws_contract_samples.md");
 const DATA_EVENTING_MIGRATION: &str =
-    include_str!("../../../migrations/20260705000100_create_data_eventing_event_store.sql");
+    include_str!("../../../migrations/20260705000100_create_data_eventing_event_store.up.sql");
 
 #[test]
 fn s03_fixtures_are_bound_to_event_store_contract_assertions() {
@@ -187,6 +187,9 @@ fn migration_entry_is_repeatable_sqlx_evidence() {
             "fact_provenance_kind TEXT NOT NULL",
             "correlation_id TEXT NOT NULL",
             "causation_id TEXT NOT NULL",
+            "event_id BIGINT NOT NULL",
+            "stream_id TEXT NOT NULL",
+            "version BIGINT NOT NULL",
             "REFERENCES event_store(sequence)",
         ],
     );

@@ -1,0 +1,24 @@
+Command: cargo test -p trpg-data-eventing --test projection_replay
+
+Output:
+running 2 tests
+test projection_replay_redacts_private_keeper_and_ai_internal_events ... ok
+test projection_replay_hash_is_stable_and_event_store_derived ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+warn: could not canonicalize path C:\Users\zyc14588
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s
+     Running tests\projection_replay.rs (target\debug\deps\projection_replay-539f56a74f7c6b34.exe)
+
+Fixture hash:
+sha256:a83861bce178f274e6a2e809c790770577445268b48fedfb889af4b87f8c1c50
+
+Fixture record assertions:
+- OutboxMessage: `event_id`, `correlation_id`, `causation_id`.
+- ProjectionCheckpoint: `stream_id`, `version`, `projection_hash`.
+
+Fixture error assertions:
+- `wrong_expected_version` -> `EVENT_STREAM_VERSION_CONFLICT`.
+- `duplicate_idempotency_key` -> `IDEMPOTENCY_REPLAYED`.
+- `mutable_event_update` -> `EVENT_STORE_APPEND_ONLY`.

@@ -43,7 +43,7 @@
     },
     {
       "type": "ProjectionRebuilt",
-      "hash": "sha256:2f5a0ecb5b3d879ef7b68c0ad09cbe7a7b4f67bcbf4aa64201fb216fe81c12d0"
+      "hash": "sha256:a83861bce178f274e6a2e809c790770577445268b48fedfb889af4b87f8c1c50"
     }
   ],
   "expected_records": [

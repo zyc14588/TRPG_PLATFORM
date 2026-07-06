@@ -1,0 +1,19 @@
+Command: cargo test -p trpg-data-eventing --test event_store_contract
+
+Output:
+running 4 tests
+test rag_and_realtime_fixtures_preserve_metadata_and_private_visibility ... ok
+test migration_entry_is_repeatable_sqlx_evidence ... ok
+test event_store_contract_enforces_version_idempotency_and_visibility ... ok
+test s03_fixtures_are_bound_to_event_store_contract_assertions ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+warn: could not canonicalize path C:\Users\zyc14588
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.30s
+     Running tests\event_store_contract.rs (target\debug\deps\event_store_contract-7652b0bd96035808.exe)
+
+Fixture evidence:
+- S03 stage fixture is included by `include_str!`.
+- Detailed S03 fixture is included by `include_str!`.
+- Live SQLx schema check confirmed `idempotency_key`, `expected_version`, `visibility_label`, `fact_provenance_kind`, `correlation_id`, `causation_id`, `event_id`, `stream_id`, `version`, and `projection_hash`.
