@@ -2,9 +2,13 @@ pub mod adr_0002_event_sourcing_cqrs_event_sourcing_cqrs;
 pub mod adr_0004_nats_jetstream;
 pub mod adr_0005_postgres_pgvector_postgre_sql_pgvector;
 pub mod adr_0010_rag_snapshot_rag_snapshot;
+pub mod api_websocket_nats_contracts;
 pub mod cache_redis;
+pub mod cache_redis_impl;
 pub mod database_schema_index;
+pub mod domain_event_sourcing_projection;
 pub mod event_bus_nats;
+pub mod event_bus_nats_impl;
 pub mod event_command_json_schema;
 pub mod event_json_schema_source_contract;
 pub mod event_schema_index;
@@ -12,10 +16,15 @@ pub mod event_sourcing_snapshot_projection;
 pub mod event_store_projections;
 pub mod event_store_sqlx_outbox_projection;
 pub mod nats_jet_stream;
+pub mod nats_subject_contracts;
+pub mod nats_subjects;
+pub mod nats_subjects_source_contract;
 pub mod outbox_projection_workers;
 pub mod persistence_migrations;
 pub mod persistence_postgresql;
+pub mod persistence_postgresql_impl;
 pub mod postgre_sql_sq_lx_pgvector;
+pub mod rag_snapshot;
 pub mod readme;
 pub mod redis_cache_presence;
 pub mod redis_presence;
@@ -302,6 +311,7 @@ pub fn all_data_event_contracts() -> Vec<DataEventContract> {
         redis_cache_presence::contract(),
     ];
     contracts.extend(batch_025_data_event_contracts());
+    contracts.extend(batch_026_data_event_contracts());
     contracts
 }
 
@@ -318,6 +328,20 @@ pub fn batch_025_data_event_contracts() -> Vec<DataEventContract> {
         snapshot::contract(),
         event_command_json_schema::contract(),
         sqlx_migrations_contract::contract(),
+    ]
+}
+
+pub fn batch_026_data_event_contracts() -> Vec<DataEventContract> {
+    vec![
+        api_websocket_nats_contracts::contract(),
+        nats_subjects::contract(),
+        nats_subject_contracts::contract(),
+        nats_subjects_source_contract::contract(),
+        domain_event_sourcing_projection::contract(),
+        rag_snapshot::contract(),
+        cache_redis_impl::contract(),
+        event_bus_nats_impl::contract(),
+        persistence_postgresql_impl::contract(),
     ]
 }
 
