@@ -10,6 +10,7 @@ pub mod openapi;
 pub mod openapi_contract;
 pub mod openapi_index;
 pub mod provider;
+pub mod readme;
 pub mod realtime_room_sync;
 pub mod realtime_sync;
 pub mod request_idempotency_contract;
