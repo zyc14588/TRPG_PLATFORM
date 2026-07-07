@@ -88,7 +88,7 @@
     "evidence/stages/S08/websocket-contract.txt",
     "evidence/stages/S08/nats-contract.txt"
   ],
-  "automation_target": "cargo test -p trpg-api openapi websocket nats_subject --all-features",
+  "automation_target": "cargo test -p trpg-api --test s08_fixture_acceptance_contract_tests --all-features",
   "pass_criteria": [
     "openapi_stable",
     "websocket_visibility_enforced",

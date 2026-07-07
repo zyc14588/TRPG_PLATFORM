@@ -10,6 +10,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "trpg-api"
+version = "0.1.0"
+dependencies = [
+ "trpg-shared-kernel",
+]
+
+[[package]]
 name = "trpg-data-eventing"
 version = "0.1.0"
 dependencies = [
