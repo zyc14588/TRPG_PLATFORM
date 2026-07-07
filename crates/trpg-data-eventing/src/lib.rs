@@ -12,6 +12,7 @@ pub mod domain_event_sourcing_projection;
 pub mod event_bus_nats;
 pub mod event_bus_nats_impl;
 pub mod event_command_json_schema;
+pub mod event_json_schema;
 pub mod event_json_schema_source_contract;
 pub mod event_schema_index;
 pub mod event_sourcing_snapshot_projection;
@@ -311,6 +312,7 @@ pub fn all_data_event_contracts() -> Vec<DataEventContract> {
         adr_0005_postgres_pgvector_postgre_sql_pgvector::contract(),
         adr_0010_rag_snapshot_rag_snapshot::contract(),
         event_json_schema_source_contract::contract(),
+        event_json_schema::contract(),
         event_store_sqlx_outbox_projection::contract(),
         redis_cache_presence::contract(),
     ];
@@ -347,6 +349,10 @@ pub fn batch_026_data_event_contracts() -> Vec<DataEventContract> {
         event_bus_nats_impl::contract(),
         persistence_postgresql_impl::contract(),
     ]
+}
+
+pub fn batch_028_data_event_contracts() -> Vec<DataEventContract> {
+    vec![event_json_schema::contract()]
 }
 
 pub fn is_current_safe_name(value: &str) -> bool {
