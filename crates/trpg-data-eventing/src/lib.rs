@@ -1,5 +1,7 @@
+pub mod adr_0002_event_sourcing_cqrs;
 pub mod adr_0002_event_sourcing_cqrs_event_sourcing_cqrs;
 pub mod adr_0004_nats_jetstream;
+pub mod adr_0005_postgres_pgvector;
 pub mod adr_0005_postgres_pgvector_postgre_sql_pgvector;
 pub mod adr_0010_rag_snapshot_rag_snapshot;
 pub mod api_websocket_nats_contracts;
@@ -302,8 +304,10 @@ pub fn all_data_event_contracts() -> Vec<DataEventContract> {
         outbox_projection_workers::contract(),
         persistence_migrations::contract(),
         snapshot_strategy::contract(),
+        adr_0002_event_sourcing_cqrs::contract(),
         adr_0002_event_sourcing_cqrs_event_sourcing_cqrs::contract(),
         adr_0004_nats_jetstream::contract(),
+        adr_0005_postgres_pgvector::contract(),
         adr_0005_postgres_pgvector_postgre_sql_pgvector::contract(),
         adr_0010_rag_snapshot_rag_snapshot::contract(),
         event_json_schema_source_contract::contract(),
