@@ -1,0 +1,6 @@
+﻿{
+    "service":  "api",
+    "status":  "healthy",
+    "latency_ms":  52,
+    "checked_at":  "2026-07-08T14:11:46.7721932+10:00"
+}

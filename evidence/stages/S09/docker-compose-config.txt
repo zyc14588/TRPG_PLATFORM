@@ -1,0 +1,178 @@
+﻿Command: docker compose config
+Result: PASS
+Checked at: 2026-07-08T11:25:20.4133316+10:00
+
+Output:
+name: coc-ai-trpg-s09
+services:
+  admin:
+    command:
+      - sh
+      - -c
+      - |-
+        printf 'admin ok
+        ' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1/healthz >/dev/null
+      timeout: 3s
+      interval: 10s
+      retries: 6
+    image: nginx:alpine
+    networks:
+      default: null
+  agent-worker:
+    command:
+      - sh
+      - -c
+      - |-
+        printf 'agent-worker ok
+        ' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1/healthz >/dev/null
+      timeout: 3s
+      interval: 10s
+      retries: 6
+    image: nginx:alpine
+    networks:
+      default: null
+  api:
+    command:
+      - sh
+      - -c
+      - |-
+        printf '{"status":"ok","service":"api"}
+        ' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1/healthz >/dev/null
+      timeout: 3s
+      interval: 10s
+      retries: 6
+    image: nginx:alpine
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 80
+        published: "8080"
+        protocol: tcp
+  minio:
+    command:
+      - server
+      - /data
+      - --console-address
+      - :9001
+    environment:
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: minioadmin
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:9000/minio/health/live
+      timeout: 3s
+      interval: 10s
+      retries: 6
+    image: minio/minio:latest
+    networks:
+      default: null
+  nats:
+    command:
+      - -js
+      - -m
+      - "8222"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://localhost:8222/healthz >/dev/null
+      timeout: 3s
+      interval: 10s
+      retries: 6
+    image: nats:2-alpine
+    networks:
+      default: null
+  postgres:
+    environment:
+      POSTGRES_DB: coc_ai_trpg
+      POSTGRES_PASSWORD: coc_ai_trpg
+      POSTGRES_USER: coc_ai_trpg
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U coc_ai_trpg -d coc_ai_trpg
+      timeout: 3s
+      interval: 10s
+      retries: 6
+    image: postgres:16-alpine
+    networks:
+      default: null
+  realtime:
+    command:
+      - sh
+      - -c
+      - |-
+        printf 'realtime ok
+        ' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1/healthz >/dev/null
+      timeout: 3s
+      interval: 10s
+      retries: 6
+    image: nginx:alpine
+    networks:
+      default: null
+  redis:
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      timeout: 3s
+      interval: 10s
+      retries: 6
+    image: redis:7-alpine
+    networks:
+      default: null
+  reverse-proxy:
+    depends_on:
+      api:
+        condition: service_healthy
+        required: true
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1/ >/dev/null
+      timeout: 3s
+      interval: 10s
+      retries: 6
+    image: nginx:alpine
+    networks:
+      default: null
+  web:
+    command:
+      - sh
+      - -c
+      - |-
+        printf 'web ok
+        ' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1/ >/dev/null
+      timeout: 3s
+      interval: 10s
+      retries: 6
+    image: nginx:alpine
+    networks:
+      default: null
+networks:
+  default:
+    name: coc-ai-trpg-s09_default
