@@ -1,19 +1,19 @@
 ﻿Command: powershell -ExecutionPolicy Bypass -File scripts\dev\smoke.ps1
 Result: PASS
-Checked at: 2026-07-08T21:44:45.7011539+10:00
+Checked at: 2026-07-08T23:25:41.0896155+10:00
 
 docker compose ps:
 NAME                              IMAGE                COMMAND                  SERVICE         CREATED        STATUS                  PORTS
-coc-ai-trpg-s09-admin-1           nginx:alpine         "/docker-entrypoint.…"   admin           10 hours ago   Up 10 hours (healthy)   80/tcp
-coc-ai-trpg-s09-agent-worker-1    nginx:alpine         "/docker-entrypoint.…"   agent-worker    10 hours ago   Up 10 hours (healthy)   80/tcp
-coc-ai-trpg-s09-api-1             nginx:alpine         "/docker-entrypoint.…"   api             5 hours ago    Up 5 hours (healthy)    0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
-coc-ai-trpg-s09-minio-1           minio/minio:latest   "/usr/bin/docker-ent…"   minio           10 hours ago   Up 10 hours (healthy)   9000/tcp
-coc-ai-trpg-s09-nats-1            nats:2-alpine        "docker-entrypoint.s…"   nats            5 hours ago    Up 5 hours (healthy)    4222/tcp, 6222/tcp, 8222/tcp
-coc-ai-trpg-s09-postgres-1        postgres:16-alpine   "docker-entrypoint.s…"   postgres        10 hours ago   Up 10 hours (healthy)   5432/tcp
-coc-ai-trpg-s09-realtime-1        nginx:alpine         "/docker-entrypoint.…"   realtime        10 hours ago   Up 10 hours (healthy)   80/tcp
-coc-ai-trpg-s09-redis-1           redis:7-alpine       "docker-entrypoint.s…"   redis           10 hours ago   Up 10 hours (healthy)   6379/tcp
-coc-ai-trpg-s09-reverse-proxy-1   nginx:alpine         "/docker-entrypoint.…"   reverse-proxy   10 hours ago   Up 10 hours (healthy)   80/tcp
-coc-ai-trpg-s09-web-1             nginx:alpine         "/docker-entrypoint.…"   web             10 hours ago   Up 10 hours (healthy)   80/tcp
+coc-ai-trpg-s09-admin-1           nginx:alpine         "/docker-entrypoint.…"   admin           12 hours ago   Up 12 hours (healthy)   80/tcp
+coc-ai-trpg-s09-agent-worker-1    nginx:alpine         "/docker-entrypoint.…"   agent-worker    12 hours ago   Up 12 hours (healthy)   80/tcp
+coc-ai-trpg-s09-api-1             nginx:alpine         "/docker-entrypoint.…"   api             7 hours ago    Up 7 hours (healthy)    0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
+coc-ai-trpg-s09-minio-1           minio/minio:latest   "/usr/bin/docker-ent…"   minio           12 hours ago   Up 12 hours (healthy)   9000/tcp
+coc-ai-trpg-s09-nats-1            nats:2-alpine        "docker-entrypoint.s…"   nats            7 hours ago    Up 7 hours (healthy)    4222/tcp, 6222/tcp, 8222/tcp
+coc-ai-trpg-s09-postgres-1        postgres:16-alpine   "docker-entrypoint.s…"   postgres        12 hours ago   Up 12 hours (healthy)   5432/tcp
+coc-ai-trpg-s09-realtime-1        nginx:alpine         "/docker-entrypoint.…"   realtime        12 hours ago   Up 12 hours (healthy)   80/tcp
+coc-ai-trpg-s09-redis-1           redis:7-alpine       "docker-entrypoint.s…"   redis           12 hours ago   Up 12 hours (healthy)   6379/tcp
+coc-ai-trpg-s09-reverse-proxy-1   nginx:alpine         "/docker-entrypoint.…"   reverse-proxy   12 hours ago   Up 12 hours (healthy)   80/tcp
+coc-ai-trpg-s09-web-1             nginx:alpine         "/docker-entrypoint.…"   web             12 hours ago   Up 12 hours (healthy)   80/tcp
 
 healthz http://localhost:8080/healthz => 200
 {"status":"ok","service":"api"}

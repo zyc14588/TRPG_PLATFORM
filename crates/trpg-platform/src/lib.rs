@@ -17,6 +17,7 @@ pub mod policy_authz_impl;
 pub mod readme;
 pub mod reliability_performance;
 pub mod reliability_performance_impl;
+pub mod security_privacy_copyright;
 pub mod security_privacy_copyrightmpl;
 
 pub use readme::{

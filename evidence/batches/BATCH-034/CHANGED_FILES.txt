@@ -1,0 +1,10 @@
+crates/trpg-platform/src/lib.rs
+crates/trpg-platform/src/security_privacy_copyright.rs
+crates/trpg-platform/tests/security_privacy_copyright_contract_tests.rs
+evidence/batches/BATCH-034/WORK_PLAN.md
+evidence/batches/BATCH-034/PROMPT_COVERAGE.md
+evidence/batches/BATCH-034/TEST_RESULTS.md
+evidence/batches/BATCH-034/CHANGED_FILES.txt
+evidence/batches/BATCH-034/ACCEPTANCE_EVIDENCE.md
+evidence/batches/BATCH-034/HANDOFF.md
+evidence/batches/BATCH-034/SUMMARY.md
