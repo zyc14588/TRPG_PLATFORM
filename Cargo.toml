@@ -7,5 +7,6 @@ members = [
     "crates/trpg-ruleset-coc7",
     "crates/trpg-data-eventing",
     "crates/trpg-api",
+    "crates/trpg-platform",
 ]
 resolver = "2"
