@@ -1,0 +1,52 @@
+BATCH-033 test output summary
+Date: 2026-07-08
+
+Commands run:
+
+1. cargo fmt --all -- --check
+   - Initial result: failed only on formatting in `crates/trpg-platform/tests/api_contracts_contract_tests.rs`.
+
+2. cargo fmt --all
+   - Result: passed; formatting applied.
+
+3. cargo fmt --all -- --check
+   - Result: passed.
+   - Note: cargo emitted `warn: could not canonicalize path C:\Users\zyc14588`.
+
+4. cargo test -p trpg-platform --test api_contracts_contract_tests
+   - Result: passed.
+   - Tests: 4 passed, 0 failed.
+
+5. cargo test -p trpg-platform --test plugin_sdk_contract_tests
+   - Result: passed.
+   - Tests: 4 passed, 0 failed.
+
+6. cargo test -p trpg-platform --test policy_authz_contract_tests
+   - Result: passed.
+   - Tests: 4 passed, 0 failed.
+
+7. cargo test -p trpg-platform
+   - Result: failed before test execution during parallel Windows linking.
+   - Error class: `LINK : fatal error LNK1104: cannot open output exe`.
+   - Follow-up: rerun serially with `-j 1`.
+
+8. cargo test -p trpg-platform -j 1
+   - Result: passed.
+   - All trpg-platform unit, integration, contract, fixture, and doc tests passed.
+
+9. cargo check
+   - Result: passed.
+
+10. cargo clippy -p trpg-platform --all-targets --all-features -- -D warnings
+    - Result: passed.
+
+11. cargo clippy --workspace --all-targets --all-features -- -D warnings
+    - Result: passed.
+
+12. cargo test --workspace --all-features -j 1
+    - Result: passed.
+    - All workspace crate tests and doc-tests completed successfully.
+
+13. git diff --check
+    - Result: passed.
+    - Note: Git warned that `crates/trpg-platform/src/lib.rs` LF may be replaced by CRLF on next Git touch.

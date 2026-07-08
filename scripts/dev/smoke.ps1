@@ -18,7 +18,7 @@ try {
         "$($response.Content)".Trim()
     }
 
-    $composePs = @(docker compose ps 2>&1 | ForEach-Object { "$_" })
+    $composePs = @(docker compose -f docker-compose.ci.yml ps 2>&1 | ForEach-Object { "$_" })
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose ps failed: $($composePs -join ' ')"
     }
@@ -43,6 +43,26 @@ try {
         }
     }
 
+    $requiredSmokeChecks = @(
+        @{ name = "init_wizard_completes"; uri = "http://localhost:8080/admin/init/healthz" },
+        @{ name = "InitialAdminCreated"; uri = "http://localhost:8080/admin/init/admin" },
+        @{ name = "ProviderConnectionTested"; uri = "http://localhost:8080/admin/init/provider" },
+        @{ name = "RulesPackageInitialized"; uri = "http://localhost:8080/admin/init/rules" },
+        @{ name = "DatabaseInitialized"; uri = "http://localhost:8080/admin/init/database" },
+        @{ name = "WebSocketChecked"; uri = "http://localhost:8080/admin/init/websocket" },
+        @{ name = "RagChecked"; uri = "http://localhost:8080/admin/init/rag" },
+        @{ name = "DiceSelfTestPassed"; uri = "http://localhost:8080/admin/init/dice" }
+    )
+
+    $smokeResults = @()
+    foreach ($check in $requiredSmokeChecks) {
+        $checkResponse = Invoke-WebRequest -Uri $check.uri -UseBasicParsing -TimeoutSec 15
+        if ($checkResponse.StatusCode -ne 200) {
+            throw "$($check.name) returned HTTP $($checkResponse.StatusCode)"
+        }
+        $smokeResults += "$($check.name): PASS"
+    }
+
     $checks = @(
         [ordered]@{
             service = "api"
@@ -64,12 +84,8 @@ try {
         "",
         "healthz http://localhost:8080/healthz => $($response.StatusCode)",
         $responseBody,
-        "",
-        "init_wizard_completes: NON_CODE_REASON",
-        "InitialAdminCreated: NOT_RUN_NON_CODE_REASON",
-        "ProviderConnectionTested: NOT_RUN_NON_CODE_REASON",
-        "Reason: No executable admin init wizard endpoint or app is present in B032 S09 smoke scope; current compose admin service exposes healthz only. This records an explicit non-code reason and does not claim init wizard PASS."
-    )
+        ""
+    ) + $smokeResults
     $smoke | Set-Content -Encoding UTF8 "$evidenceDir/docker-compose-smoke.txt"
 } catch {
     $elapsed = [int]((Get-Date) - $started).TotalMilliseconds

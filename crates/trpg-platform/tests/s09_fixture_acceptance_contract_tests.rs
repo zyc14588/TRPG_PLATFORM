@@ -62,6 +62,8 @@ fn s09_detailed_fixture_is_bound_to_platform_stage_gate() {
     assert!(S09_DETAILED_FIXTURE
         .contains("docker compose config && docker compose up -d && pwsh ./scripts/dev/smoke.ps1"));
     assert!(DEV_SMOKE.contains("http://localhost:8080/healthz"));
+    assert!(!DEV_SMOKE.contains("NON_CODE_REASON"));
+    assert!(!DEV_SMOKE.contains("NOT_RUN_NON_CODE_REASON"));
 }
 
 #[test]
@@ -96,11 +98,25 @@ fn s09_runtime_evidence_satisfies_detailed_stage_gate() {
     assert!(COMPOSE_CONFIG_EVIDENCE.contains("services:"));
 
     assert!(COMPOSE_SMOKE_EVIDENCE.contains("Result: PASS"));
+    assert!(!COMPOSE_SMOKE_EVIDENCE.contains("NON_CODE_REASON"));
+    assert!(!COMPOSE_SMOKE_EVIDENCE.contains("NOT_RUN_NON_CODE_REASON"));
+    assert!(!COMPOSE_SMOKE_EVIDENCE.contains("No executable admin init wizard endpoint"));
     assert!(COMPOSE_SMOKE_EVIDENCE.contains("healthz http://localhost:8080/healthz => 200"));
-    assert!(COMPOSE_SMOKE_EVIDENCE.contains("init_wizard_completes: NON_CODE_REASON"));
-    assert!(COMPOSE_SMOKE_EVIDENCE.contains("InitialAdminCreated: NOT_RUN_NON_CODE_REASON"));
-    assert!(COMPOSE_SMOKE_EVIDENCE.contains("ProviderConnectionTested: NOT_RUN_NON_CODE_REASON"));
-    assert!(COMPOSE_SMOKE_EVIDENCE.contains("No executable admin init wizard endpoint"));
+    for smoke_check in [
+        "init_wizard_completes",
+        "InitialAdminCreated",
+        "ProviderConnectionTested",
+        "RulesPackageInitialized",
+        "DatabaseInitialized",
+        "WebSocketChecked",
+        "RagChecked",
+        "DiceSelfTestPassed",
+    ] {
+        assert!(
+            COMPOSE_SMOKE_EVIDENCE.contains(&format!("{smoke_check}: PASS")),
+            "{smoke_check} must have real executable PASS evidence"
+        );
+    }
     for service in [
         "web",
         "api",

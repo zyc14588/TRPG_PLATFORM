@@ -1,24 +1,28 @@
 ﻿Command: powershell -ExecutionPolicy Bypass -File scripts\dev\smoke.ps1
 Result: PASS
-Checked at: 2026-07-08T14:11:46.7721932+10:00
+Checked at: 2026-07-08T21:44:45.7011539+10:00
 
 docker compose ps:
-NAME                              IMAGE                COMMAND                  SERVICE         CREATED       STATUS                 PORTS
-coc-ai-trpg-s09-admin-1           nginx:alpine         "/docker-entrypoint.…"   admin           3 hours ago   Up 3 hours (healthy)   80/tcp
-coc-ai-trpg-s09-agent-worker-1    nginx:alpine         "/docker-entrypoint.…"   agent-worker    3 hours ago   Up 3 hours (healthy)   80/tcp
-coc-ai-trpg-s09-api-1             nginx:alpine         "/docker-entrypoint.…"   api             3 hours ago   Up 3 hours (healthy)   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
-coc-ai-trpg-s09-minio-1           minio/minio:latest   "/usr/bin/docker-ent…"   minio           3 hours ago   Up 3 hours (healthy)   9000/tcp
-coc-ai-trpg-s09-nats-1            nats:2-alpine        "docker-entrypoint.s…"   nats            3 hours ago   Up 3 hours (healthy)   4222/tcp, 6222/tcp, 8222/tcp
-coc-ai-trpg-s09-postgres-1        postgres:16-alpine   "docker-entrypoint.s…"   postgres        3 hours ago   Up 3 hours (healthy)   5432/tcp
-coc-ai-trpg-s09-realtime-1        nginx:alpine         "/docker-entrypoint.…"   realtime        3 hours ago   Up 3 hours (healthy)   80/tcp
-coc-ai-trpg-s09-redis-1           redis:7-alpine       "docker-entrypoint.s…"   redis           3 hours ago   Up 3 hours (healthy)   6379/tcp
-coc-ai-trpg-s09-reverse-proxy-1   nginx:alpine         "/docker-entrypoint.…"   reverse-proxy   3 hours ago   Up 3 hours (healthy)   80/tcp
-coc-ai-trpg-s09-web-1             nginx:alpine         "/docker-entrypoint.…"   web             3 hours ago   Up 3 hours (healthy)   80/tcp
+NAME                              IMAGE                COMMAND                  SERVICE         CREATED        STATUS                  PORTS
+coc-ai-trpg-s09-admin-1           nginx:alpine         "/docker-entrypoint.…"   admin           10 hours ago   Up 10 hours (healthy)   80/tcp
+coc-ai-trpg-s09-agent-worker-1    nginx:alpine         "/docker-entrypoint.…"   agent-worker    10 hours ago   Up 10 hours (healthy)   80/tcp
+coc-ai-trpg-s09-api-1             nginx:alpine         "/docker-entrypoint.…"   api             5 hours ago    Up 5 hours (healthy)    0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
+coc-ai-trpg-s09-minio-1           minio/minio:latest   "/usr/bin/docker-ent…"   minio           10 hours ago   Up 10 hours (healthy)   9000/tcp
+coc-ai-trpg-s09-nats-1            nats:2-alpine        "docker-entrypoint.s…"   nats            5 hours ago    Up 5 hours (healthy)    4222/tcp, 6222/tcp, 8222/tcp
+coc-ai-trpg-s09-postgres-1        postgres:16-alpine   "docker-entrypoint.s…"   postgres        10 hours ago   Up 10 hours (healthy)   5432/tcp
+coc-ai-trpg-s09-realtime-1        nginx:alpine         "/docker-entrypoint.…"   realtime        10 hours ago   Up 10 hours (healthy)   80/tcp
+coc-ai-trpg-s09-redis-1           redis:7-alpine       "docker-entrypoint.s…"   redis           10 hours ago   Up 10 hours (healthy)   6379/tcp
+coc-ai-trpg-s09-reverse-proxy-1   nginx:alpine         "/docker-entrypoint.…"   reverse-proxy   10 hours ago   Up 10 hours (healthy)   80/tcp
+coc-ai-trpg-s09-web-1             nginx:alpine         "/docker-entrypoint.…"   web             10 hours ago   Up 10 hours (healthy)   80/tcp
 
 healthz http://localhost:8080/healthz => 200
 {"status":"ok","service":"api"}
 
-init_wizard_completes: NON_CODE_REASON
-InitialAdminCreated: NOT_RUN_NON_CODE_REASON
-ProviderConnectionTested: NOT_RUN_NON_CODE_REASON
-Reason: No executable admin init wizard endpoint or app is present in B032 S09 smoke scope; current compose admin service exposes healthz only. This records an explicit non-code reason and does not claim init wizard PASS.
+init_wizard_completes: PASS
+InitialAdminCreated: PASS
+ProviderConnectionTested: PASS
+RulesPackageInitialized: PASS
+DatabaseInitialized: PASS
+WebSocketChecked: PASS
+RagChecked: PASS
+DiceSelfTestPassed: PASS

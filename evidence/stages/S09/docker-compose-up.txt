@@ -1,0 +1,18 @@
+﻿Command: docker compose -f docker-compose.ci.yml up -d --build
+Result: PASS
+Checked at: 2026-07-08T21:44:33.5204511+10:00
+Exit code: 0
+
+Output:
+ Container coc-ai-trpg-s09-api-1 Running 
+ Container coc-ai-trpg-s09-postgres-1 Running 
+ Container coc-ai-trpg-s09-redis-1 Running 
+ Container coc-ai-trpg-s09-agent-worker-1 Running 
+ Container coc-ai-trpg-s09-admin-1 Running 
+ Container coc-ai-trpg-s09-web-1 Running 
+ Container coc-ai-trpg-s09-minio-1 Running 
+ Container coc-ai-trpg-s09-nats-1 Running 
+ Container coc-ai-trpg-s09-reverse-proxy-1 Running 
+ Container coc-ai-trpg-s09-realtime-1 Running 
+ Container coc-ai-trpg-s09-api-1 Waiting 
+ Container coc-ai-trpg-s09-api-1 Healthy 

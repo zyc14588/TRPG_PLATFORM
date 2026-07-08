@@ -1,0 +1,14 @@
+crates/trpg-platform/src/api_contracts.rs
+crates/trpg-platform/src/lib.rs
+crates/trpg-platform/src/plugin_sdk.rs
+crates/trpg-platform/src/policy_authz.rs
+crates/trpg-platform/tests/api_contracts_contract_tests.rs
+crates/trpg-platform/tests/plugin_sdk_contract_tests.rs
+crates/trpg-platform/tests/policy_authz_contract_tests.rs
+evidence/batches/BATCH-033/acceptance-report.md
+evidence/batches/BATCH-033/acceptance-test-output.txt
+evidence/batches/BATCH-033/changed-files.txt
+evidence/batches/BATCH-033/handoff.md
+evidence/batches/BATCH-033/plan.md
+evidence/batches/BATCH-033/prompt-traceability.md
+evidence/batches/BATCH-033/test-output.txt

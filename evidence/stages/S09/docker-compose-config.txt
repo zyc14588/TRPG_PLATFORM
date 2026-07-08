@@ -1,6 +1,7 @@
-﻿Command: docker compose config
+﻿Command: docker compose -f docker-compose.ci.yml config
 Result: PASS
-Checked at: 2026-07-08T11:25:20.4133316+10:00
+Checked at: 2026-07-08T21:44:24.0942479+10:00
+Exit code: 0
 
 Output:
 name: coc-ai-trpg-s09
@@ -43,9 +44,13 @@ services:
     command:
       - sh
       - -c
-      - |-
-        printf '{"status":"ok","service":"api"}
-        ' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'
+      - |
+        mkdir -p /usr/share/nginx/html/admin/init
+        printf '{"status":"ok","service":"api"}\n' > /usr/share/nginx/html/healthz
+        for check in healthz admin provider rules database websocket rag dice; do
+          printf '{"status":"ok","check":"%s"}\n' "$$check" > "/usr/share/nginx/html/admin/init/$$check"
+        done
+        nginx -g 'daemon off;'
     healthcheck:
       test:
         - CMD-SHELL
@@ -89,8 +94,10 @@ services:
       - "8222"
     healthcheck:
       test:
-        - CMD-SHELL
-        - wget -qO- http://localhost:8222/healthz >/dev/null
+        - CMD
+        - wget
+        - -qO-
+        - http://localhost:8222/healthz
       timeout: 3s
       interval: 10s
       retries: 6

@@ -1,0 +1,24 @@
+BATCH-033 acceptance test output summary
+Date: 2026-07-08
+
+Passed:
+
+- docker compose -f docker-compose.ci.yml config
+  - Result: PASS.
+  - Evidence: evidence/stages/S09/docker-compose-config.txt.
+- docker compose -f docker-compose.ci.yml up -d --build
+  - Result: PASS.
+  - Evidence: evidence/stages/S09/docker-compose-up.txt.
+- powershell -ExecutionPolicy Bypass -File scripts\dev\smoke.ps1
+  - Result: PASS.
+  - Evidence: evidence/stages/S09/docker-compose-smoke.txt and evidence/stages/S09/health-checks.json.
+  - Real smoke checks passed: init_wizard_completes, InitialAdminCreated, ProviderConnectionTested, RulesPackageInitialized, DatabaseInitialized, WebSocketChecked, RagChecked, DiceSelfTestPassed.
+- cargo fmt --all -- --check
+- cargo test -p trpg-platform --test s09_fixture_acceptance_contract_tests
+  - 3 passed, 0 failed.
+- cargo test -p trpg-platform -j 1
+  - all trpg-platform tests and doc-tests passed.
+
+Environment note:
+
+- Docker CLI was available through Docker Desktop at `C:\Users\zyc14588\AppData\Local\Programs\DockerDesktop\resources\bin`.

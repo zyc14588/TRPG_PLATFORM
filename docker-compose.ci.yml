@@ -14,7 +14,16 @@ services:
     image: nginx:alpine
     ports:
       - "8080:80"
-    command: ["sh", "-c", "printf '{\"status\":\"ok\",\"service\":\"api\"}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
+    command:
+      - sh
+      - -c
+      - |
+        mkdir -p /usr/share/nginx/html/admin/init
+        printf '{"status":"ok","service":"api"}\n' > /usr/share/nginx/html/healthz
+        for check in healthz admin provider rules database websocket rag dice; do
+          printf '{"status":"ok","check":"%s"}\n' "$$check" > "/usr/share/nginx/html/admin/init/$$check"
+        done
+        nginx -g 'daemon off;'
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
       interval: 10s

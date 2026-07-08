@@ -1,3 +1,4 @@
+pub mod api_contracts;
 pub mod api_contracts_impl;
 pub mod background_workers;
 pub mod deployment_observability;
@@ -9,7 +10,9 @@ pub mod observability;
 pub mod observability_audit_trace;
 pub mod observability_impl;
 pub mod performance_budget;
+pub mod plugin_sdk;
 pub mod plugin_sdk_impl;
+pub mod policy_authz;
 pub mod policy_authz_impl;
 pub mod readme;
 pub mod reliability_performance;
