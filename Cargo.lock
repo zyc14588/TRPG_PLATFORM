@@ -52,5 +52,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "trpg-security-governance"
+version = "0.1.0"
+dependencies = [
+ "trpg-shared-kernel",
+]
+
+[[package]]
 name = "trpg-shared-kernel"
 version = "0.1.0"

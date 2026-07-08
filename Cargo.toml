@@ -8,5 +8,6 @@ members = [
     "crates/trpg-data-eventing",
     "crates/trpg-api",
     "crates/trpg-platform",
+    "crates/trpg-security-governance",
 ]
 resolver = "2"

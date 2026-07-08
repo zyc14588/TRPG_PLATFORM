@@ -15,7 +15,7 @@
 ## 推荐命令
 
 - `cargo test -p trpg-security-governance --all-features`
-- `cargo test --test visibility_leakage`
+- `cargo test -p trpg-domain-core --test visibility_leakage_tests_contract_tests --all-features`
 - `opa test policy/opa`
 
 ## 必须补齐的测试类型
