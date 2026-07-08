@@ -20,6 +20,8 @@ const S04_VISIBILITY_ERRORS_FIXTURE: &str =
     include_str!("../../../fixtures/stages/detailed/S04_visibility_policy_errors.current.json.md");
 const S04_PERMISSION_MATRIX_FIXTURE: &str =
     include_str!("../../../fixtures/security/permission_matrix.v1.json.md");
+const S04_OPENFGA_SECURITY_GOVERNANCE_MODEL: &str =
+    include_str!("../../../policy/openfga/security_governance.fga");
 const S04_VISIBILITY_REDACTION_FIXTURE: &str =
     include_str!("../../../fixtures/visibility/visibility_redaction_matrix.v1.json.md");
 
@@ -69,6 +71,52 @@ fn policy_openfga_opa_fails_closed() {
 
         assert_eq!(err, TrpgError::PolicyDenied);
         assert!(repository.events().is_empty());
+    }
+}
+
+#[test]
+fn openfga_security_governance_model_matches_permission_matrix_fixture() {
+    assert!(S04_OPENFGA_SECURITY_GOVERNANCE_MODEL.contains("model"));
+    assert!(S04_OPENFGA_SECURITY_GOVERNANCE_MODEL.contains("schema 1.1"));
+    assert!(S04_OPENFGA_SECURITY_GOVERNANCE_MODEL.contains("type campaign"));
+
+    for (fixture_action, relation, role) in [
+        ("pause_room", "can_pause_room", "server_owner"),
+        ("mute_player", "can_mute_player", "moderator"),
+        ("confirm_agent_draft", "can_confirm_agent_draft", "human_kp"),
+        (
+            "request_reconsideration",
+            "can_request_reconsideration",
+            "player",
+        ),
+    ] {
+        assert!(S04_PERMISSION_MATRIX_FIXTURE.contains(fixture_action));
+        assert!(
+            S04_OPENFGA_SECURITY_GOVERNANCE_MODEL.contains(&format!("define {relation}: {role}"))
+        );
+    }
+
+    for (fixture_action, relation, denied_role) in [
+        (
+            "override_dice_roll",
+            "can_override_dice_roll",
+            "server_owner",
+        ),
+        (
+            "change_game_decision",
+            "can_change_game_decision",
+            "moderator",
+        ),
+        ("override_ai_decision", "can_override_ai_decision", "player"),
+    ] {
+        assert!(S04_PERMISSION_MATRIX_FIXTURE.contains(fixture_action));
+        assert!(S04_OPENFGA_SECURITY_GOVERNANCE_MODEL
+            .contains(&format!("# deny: {denied_role} {fixture_action}")));
+        assert!(
+            S04_OPENFGA_SECURITY_GOVERNANCE_MODEL.contains(&format!("define {relation}: no_grant"))
+        );
+        assert!(!S04_OPENFGA_SECURITY_GOVERNANCE_MODEL
+            .contains(&format!("define {relation}: {denied_role}")));
     }
 }
 

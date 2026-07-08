@@ -1,0 +1,28 @@
+model
+  schema 1.1
+
+type user
+
+type denied_principal
+
+type campaign
+  relations
+    define server_owner: [user]
+    define moderator: [user]
+    define human_kp: [user]
+    define player: [user]
+    define no_grant: [denied_principal]
+
+    define can_pause_room: server_owner
+    define can_mute_player: moderator
+    define can_confirm_agent_draft: human_kp
+    define can_request_reconsideration: player
+
+    # deny: server_owner override_dice_roll
+    define can_override_dice_roll: no_grant
+
+    # deny: moderator change_game_decision
+    define can_change_game_decision: no_grant
+
+    # deny: player override_ai_decision
+    define can_override_ai_decision: no_grant
