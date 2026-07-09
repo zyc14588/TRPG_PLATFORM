@@ -57,6 +57,11 @@ pub fn requirement_links() -> Vec<RequirementTestLink> {
             test_command: "cargo test -p trpg-testing --all-features",
             evidence_path: "evidence/batches/BATCH-039/TEST_RESULTS.md",
         },
+        RequirementTestLink {
+            requirement: "s12_ui_role_snapshot_boundary",
+            test_command: "pnpm test -- sdk-boundary ui-role-snapshots",
+            evidence_path: "evidence/stages/S12/ui-role-snapshots.txt",
+        },
     ]
 }
 

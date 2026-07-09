@@ -17,6 +17,9 @@ fn requirement_to_test_trace_links_v1_requirements_to_commands_and_evidence() {
     assert!(requirement_to_test_trace::has_test_for(
         "model_certification_enforced"
     ));
+    assert!(requirement_to_test_trace::has_test_for(
+        "s12_ui_role_snapshot_boundary"
+    ));
     assert!(requirement_to_test_trace::requirement_links()
         .iter()
         .all(|link| !link.evidence_path.is_empty()));

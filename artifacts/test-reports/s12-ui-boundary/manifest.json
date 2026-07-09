@@ -1,0 +1,54 @@
+[
+  {
+    "role": "player",
+    "snapshot_file": "artifacts/test-reports/s12-ui-boundary/player.svg",
+    "snapshot_hash": "sha256:d4fa8b0325a60f3a4d6410c6d88e14f2aa85fa2876fc0623f4609ad7c5bb3ba2",
+    "redacted_fields": [
+      "keeper_note",
+      "player_private_note",
+      "ai_reasoning",
+      "developer_debug",
+      "tool_gate_internal",
+      "raw_extension_trace"
+    ]
+  },
+  {
+    "role": "human_kp",
+    "snapshot_file": "artifacts/test-reports/s12-ui-boundary/human_kp.svg",
+    "snapshot_hash": "sha256:4c6de739b7a1321dcb53bc13d67b09ef0da4e297d662355593d1a6ef3238f26d",
+    "redacted_fields": [
+      "keeper_note",
+      "player_private_note",
+      "ai_reasoning",
+      "developer_debug",
+      "tool_gate_internal",
+      "raw_extension_trace"
+    ]
+  },
+  {
+    "role": "admin",
+    "snapshot_file": "artifacts/test-reports/s12-ui-boundary/admin.svg",
+    "snapshot_hash": "sha256:ea270753393ac19e22664d5f2664d495d920f25ee5c32385453a6b361c2b0505",
+    "redacted_fields": [
+      "keeper_note",
+      "player_private_note",
+      "ai_reasoning",
+      "developer_debug",
+      "tool_gate_internal",
+      "raw_extension_trace"
+    ]
+  },
+  {
+    "role": "developer",
+    "snapshot_file": "artifacts/test-reports/s12-ui-boundary/developer.svg",
+    "snapshot_hash": "sha256:906d11badb06ef60b7d56d3ac6905cda132b649584c91ff015d765288d569894",
+    "redacted_fields": [
+      "keeper_note",
+      "player_private_note",
+      "ai_reasoning",
+      "developer_debug",
+      "tool_gate_internal",
+      "raw_extension_trace"
+    ]
+  }
+]

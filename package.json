@@ -1,0 +1,8 @@
+{
+  "name": "coc-ai-trpg-contract-harness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/s12_ui_boundary_test.mjs"
+  }
+}

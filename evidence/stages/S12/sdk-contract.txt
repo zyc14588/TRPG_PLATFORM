@@ -1,0 +1,13 @@
+S12 SDK contract evidence
+
+status: PASS
+
+Fixture requirements covered:
+- expected event: ExtensionLoaded with extension_id=coc7_sample_extension
+- expected record: SdkCompatibilityReport with extension_id, ruleset_version, tool_schema_version, compatibility_result
+- expected error: EXTENSION_STATE_WRITE_FORBIDDEN for extension_state_write_bypass
+- failure case: EXTENSION_DIRECT_LLM_FORBIDDEN for sdk_can_call_llm_directly
+
+Automated check:
+- crates/trpg-extension-sdk/tests/s12_fixture_acceptance_contract_tests.rs
+

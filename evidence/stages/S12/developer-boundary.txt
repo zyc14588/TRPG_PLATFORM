@@ -1,0 +1,28 @@
+S12 developer boundary evidence
+
+status: PASS
+
+Owner:
+- CODEX-0865-10-TESTING-QUALITY-aea366b339 / testing_quality::requirement_to_test_trace
+- Scope: fixture automation only; no production UI was added under BATCH-045 supplemental scope.
+
+Automated command:
+- pnpm test -- sdk-boundary ui-role-snapshots
+
+Fixture assertions:
+- developer_debug_view: PASS
+- debug_data_redacted: PASS
+- Tool Gate internals absent from player-visible output: PASS
+- restricted extension traces absent from player-visible output: PASS
+- player_hidden_keeper_note: PASS
+- player_sees_developer_debug -> UI_ROLE_BOUNDARY_VIOLATION PASS
+
+Snapshot evidence:
+- player_snapshot_file: artifacts/test-reports/s12-ui-boundary/player.svg
+- player_snapshot_hash: sha256:d4fa8b0325a60f3a4d6410c6d88e14f2aa85fa2876fc0623f4609ad7c5bb3ba2
+- developer_snapshot_file: artifacts/test-reports/s12-ui-boundary/developer.svg
+- developer_snapshot_hash: sha256:906d11badb06ef60b7d56d3ac6905cda132b649584c91ff015d765288d569894
+- redacted_fields: keeper_note, player_private_note, ai_reasoning, developer_debug, tool_gate_internal, raw_extension_trace
+- developer_debug_payload: [redacted]
+- player_visible_debug_terms: 0
+- player_visible_restricted_fixture_tokens: 0
