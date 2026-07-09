@@ -1,0 +1,47 @@
+BATCH-044 validation output summary
+
+Minimum related checks:
+
+1. cargo check -p trpg-extension-sdk --all-features
+   Result: PASS
+   Summary: trpg-extension-sdk compiled successfully against trpg-shared-kernel.
+
+2. cargo test -p trpg-extension-sdk --test plugin_sdk_contract_tests --test extension_compatibility_matrix_contract_tests --test s12_fixture_acceptance_contract_tests
+   Result: PASS
+   Summary:
+   - plugin_sdk_contract_tests: 4 passed
+   - extension_compatibility_matrix_contract_tests: 3 passed
+   - s12_fixture_acceptance_contract_tests: 3 passed
+
+Stage and repository checks:
+
+3. cargo fmt --all -- --check
+   Result: PASS
+
+4. cargo test -p trpg-extension-sdk --all-features
+   Result: PASS
+   Summary: all trpg-extension-sdk unit, integration, and doc tests passed. Integration tests cover agent pack SDK, plugin SDK, ruleset pack SDK, tool provider SDK, ADR 0008 plugin boundaries, compatibility matrix, SDK registry, readme shared helpers, and S12 fixture acceptance.
+
+5. cargo test -p trpg-extension-sdk --test extension_compatibility_matrix
+   Result: PASS
+   Summary: S12 compatibility matrix stage gate accepted the COC7 fixture.
+
+6. cargo clippy -p trpg-extension-sdk --all-targets --all-features -- -D warnings
+   Result: PASS
+
+7. cargo check --workspace --all-features
+   Result: PASS
+
+Node / UI checks:
+
+8. pnpm test --if-present
+   Result: NOT APPLICABLE / ENVIRONMENT BLOCKED
+   Summary: no package.json or pnpm-lock.yaml exists in the workspace root. pnpm also attempted a registry metadata fetch and failed under restricted network access.
+
+9. pnpm build --if-present
+   Result: NOT APPLICABLE / ENVIRONMENT BLOCKED
+   Summary: no package.json or pnpm-lock.yaml exists in the workspace root. pnpm also attempted a registry metadata fetch and failed under restricted network access.
+
+Cleanup:
+
+- Removed the transient .pnpm-store directory created by the failed pnpm checks after verifying the resolved path was inside the workspace.

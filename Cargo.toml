@@ -11,5 +11,6 @@ members = [
     "crates/trpg-security-governance",
     "crates/trpg-testing",
     "crates/trpg-ops",
+    "crates/trpg-extension-sdk",
 ]
 resolver = "2"
