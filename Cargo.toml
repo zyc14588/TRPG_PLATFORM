@@ -10,5 +10,6 @@ members = [
     "crates/trpg-platform",
     "crates/trpg-security-governance",
     "crates/trpg-testing",
+    "crates/trpg-ops",
 ]
 resolver = "2"

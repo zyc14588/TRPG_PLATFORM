@@ -31,6 +31,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "trpg-ops"
+version = "0.1.0"
+dependencies = [
+ "trpg-shared-kernel",
+]
+
+[[package]]
 name = "trpg-platform"
 version = "0.1.0"
 dependencies = [

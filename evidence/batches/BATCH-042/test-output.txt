@@ -1,0 +1,147 @@
+BATCH-042 test evidence
+=======================
+
+Scope:
+- Batch: BATCH-042-11-ops-migration -- Strict Governance Final
+- Stage: S10 ops migration runbooks
+- Crate added: trpg-ops
+
+Commands:
+1. cargo fmt --all
+   Result: PASS
+   Note: cargo emitted the existing workspace warning "could not canonicalize path C:\\Users\\zyc14588".
+
+2. cargo fmt --all -- --check
+   Result: PASS
+   Note: same canonicalize warning only.
+
+3. cargo test -p trpg-ops --all-features
+   Result: PASS
+   Coverage: trpg-ops unit/integration contract tests, including backup/restore, incident response, migration upgrade/rollback, projection rebuild, release checklist, README/docs contract, backlog, implementation plan, upgrade backup replay, and S10 fixture acceptance contracts.
+
+4. cargo clippy -p trpg-ops --all-targets --all-features -- -D warnings
+   Result: PASS
+   Note: same canonicalize warning only.
+
+5. cargo check --workspace --all-features
+   Result: PASS
+
+6. rg --files scripts | rg "backup|restore|projection|ops"
+   Result: NO MATCHING S10 SCRIPT FILES FOUND
+   Interpretation: stage TEST_PLAN recommended script checks were not runnable because the repository has no matching scripts in scripts/.
+
+7. cargo test --workspace --all-features
+   Result: PASS
+   Interpretation: full workspace Rust test suite passed after BATCH-042 changes.
+
+Observed non-failing warnings:
+- Cargo repeatedly warned that it could not canonicalize C:\\Users\\zyc14588.
+- Git warned that LF in Cargo.lock and Cargo.toml will be replaced by CRLF the next time Git touches them.
+
+Initial failure repaired:
+- The first trpg-ops test pass failed one README evidence-path assertion.
+- The assertion was corrected to allow the normalized docs/codex/11-ops-migration evidence path used by BATCH-042.
+- All listed checks passed after repair.
+
+Strict acceptance repair rerun (2026-07-09)
+==========================================
+
+Repair scope:
+- Added the minimal migration upgrade/rollback check for irreversible migrations without a rollback runbook.
+- Bound the S10 detailed fixture expected error `irreversible_migration_without_runbook` / `ROLLBACK_RUNBOOK_REQUIRED` to an executable contract assertion.
+- No provider, LLM, direct database write, or bypass path was added.
+
+Commands:
+1. cargo fmt --all
+   Exit code: 0
+   Result: PASS
+   Output: existing workspace warning only, "could not canonicalize path C:\\Users\\zyc14588".
+
+2. cargo check --workspace --all-features
+   Exit code: 0
+   Result: PASS
+   Output: checked `trpg-ops` and finished successfully.
+
+3. cargo clippy -p trpg-ops --all-targets --all-features -- -D warnings
+   Exit code: 0
+   Result: PASS
+   Output: existing workspace warning only, then finished successfully.
+
+4. cargo test -p trpg-ops --all-features
+   Exit code: 0
+   Result: PASS
+   Output: includes new test `migration_upgrade_rollback_requires_runbook_for_irreversible_migration ... ok`; all trpg-ops tests and doc-tests passed.
+
+5. cargo fmt --all -- --check
+   Exit code: 0
+   Result: PASS
+   Output: no formatting diff.
+
+6. docker compose -f compose.yml -f docker-compose.ci.yml config --quiet
+   Exit code: 1
+   Result: BLOCKED, not PASS
+   Output: PowerShell CommandNotFoundException: `docker` is not recognized as a cmdlet, function, script file, or operable program.
+   Applicability note: BATCH-042 changed only `trpg-ops` runbook contract code/tests and traceability evidence; it did not change Docker or compose files. Because strict S10 acceptance asks for docker-related checking, the compose config command was still attempted and must be rerun in an environment with Docker CLI before claiming a docker PASS.
+
+Guard checks:
+- `rg -n "openai|ollama|llama|reqwest|hyper|ureq|api[_-]?key|base_url|ModelProvider|provider" crates/trpg-ops Cargo.toml crates/trpg-ops/Cargo.toml`
+  Exit code: 1
+  Result: PASS, no matches.
+- `rg -n "DirectAgent|sqlx|INSERT|UPDATE|DELETE|keeper_only|private_to_player|ai_internal" crates/trpg-ops/src crates/trpg-ops/tests`
+  Exit code: 0
+  Result: PASS with expected test-only matches for `DirectAgent`, `private_to_player`, and `ai_internal` negative/visibility checks.
+
+Docker compose rerun (2026-07-09)
+=================================
+
+Command:
+docker compose -f compose.yml -f docker-compose.ci.yml config --quiet
+
+Exit code: 1
+
+Result: BLOCKED, not PASS
+
+Output:
+PowerShell CommandNotFoundException: `docker` is not recognized as a cmdlet, function, script file, or operable program.
+
+Applicability:
+BATCH-042 changed `trpg-ops` runbook contract code/tests and traceability evidence only; it did not change Docker or compose files. However, strict S10/BATCH-042 acceptance requested the compose config check, so the docker check is not accepted as PASS in this environment. Rerun the same command in an environment with Docker CLI before claiming Docker/compose PASS.
+
+Docker compose rerun output recorded from latest attempt (2026-07-09)
+====================================================================
+
+Command:
+docker compose -f compose.yml -f docker-compose.ci.yml config --quiet
+
+Exit code: 1
+
+Result: FAIL, not PASS
+
+Output:
+docker is not recognized / CommandNotFoundException
+
+Docker compose rerun output recorded from requested Docker-CLI environment check (2026-07-09, repeat)
+===================================================================================================
+
+Command:
+docker compose -f compose.yml -f docker-compose.ci.yml config --quiet
+
+Exit code: 1
+
+Result: FAIL, not PASS
+
+Output:
+docker is not recognized / CommandNotFoundException
+
+Docker compose rerun output recorded from requested Docker-CLI environment check (2026-07-09)
+===========================================================================================
+
+Command:
+docker compose -f compose.yml -f docker-compose.ci.yml config --quiet
+
+Exit code: 1
+
+Result: FAIL, not PASS
+
+Output:
+docker is not recognized / CommandNotFoundException
