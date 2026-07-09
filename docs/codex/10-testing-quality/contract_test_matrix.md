@@ -26,5 +26,7 @@ Current crate: `trpg-testing`
 | B039 principle-to-doc trace | `testing_quality::principle_to_doc_trace` | `crates/trpg-testing/tests/principle_to_doc_trace_contract_tests.rs` |
 | B039 golden scenarios CI implementation | `testing_quality::golden_scenarios_ci_impl` | `crates/trpg-testing/tests/golden_scenarios_ci_impl_contract_tests.rs` |
 | B039 test strategy implementation | `testing_quality::test_strategy_impl` | `crates/trpg-testing/tests/test_strategy_impl_contract_tests.rs` |
+| B040 latest Rust research summary | `testing_quality::latest_deep_research_rust_summary` | `crates/trpg-testing/tests/latest_deep_research_rust_summary_contract_tests.rs` |
+| B040 research decision matrix | `testing_quality::research_decision_matrix` | `crates/trpg-testing/tests/research_decision_matrix_contract_tests.rs` |
 
-Supplemental prompts in B038 and B039 do not own Rust modules or migrations. Their test responsibility is merged into the primary module named in the current-safe batch map.
+Supplemental prompts in B038, B039, and B040 do not own Rust modules or migrations. Their test responsibility is merged into the primary module named in the current-safe batch map.

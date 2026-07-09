@@ -7,11 +7,13 @@ pub mod golden_scenario_ci;
 pub mod golden_scenarios_ci_impl;
 pub mod implementation_acceptance_checklist;
 pub mod implementation_acceptance_checklist_source_contract;
+pub mod latest_deep_research_rust_summary;
 pub mod model_certification_tests;
 pub mod principle_to_doc_trace;
 pub mod readme;
 pub mod replay_consistency_tests;
 pub mod requirement_to_test_trace;
+pub mod research_decision_matrix;
 pub mod runtime_pending_decision;
 pub mod test_strategy;
 pub mod test_strategy_impl;
@@ -68,6 +70,8 @@ pub enum TestingQualityAction {
     VerifyPrincipleToDocTrace,
     VerifyGoldenScenariosCiImpl,
     VerifyTestStrategyImpl,
+    VerifyLatestDeepResearchRustSummary,
+    VerifyResearchDecisionMatrix,
 }
 
 impl TestingQualityAction {
@@ -96,6 +100,8 @@ impl TestingQualityAction {
             Self::VerifyPrincipleToDocTrace => "verify_principle_to_doc_trace",
             Self::VerifyGoldenScenariosCiImpl => "verify_golden_scenarios_ci_impl",
             Self::VerifyTestStrategyImpl => "verify_test_strategy_impl",
+            Self::VerifyLatestDeepResearchRustSummary => "verify_latest_deep_research_rust_summary",
+            Self::VerifyResearchDecisionMatrix => "verify_research_decision_matrix",
         }
     }
 }
@@ -277,6 +283,8 @@ pub fn primary_contracts() -> Vec<TestingQualityModuleContract> {
         principle_to_doc_trace::contract(),
         golden_scenarios_ci_impl::contract(),
         test_strategy_impl::contract(),
+        latest_deep_research_rust_summary::contract(),
+        research_decision_matrix::contract(),
     ]
 }
 
