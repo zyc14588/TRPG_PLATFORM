@@ -1,0 +1,26 @@
+# BATCH-046 test output
+
+## Minimal B046 docs-only checks
+
+- Command: PowerShell inline B046 prompt/current-safe/docs-only validation
+- Prompt rows: 25
+- Unique current-safe outputs: 22
+- Changed files observed before cargo check: 25
+
+## S00 applicable governance checks
+
+- Batch files present: 52
+- Required S00 authority, prompt-boundary, and fixture files: checked
+- Product-code tests: not added; B046 has zero primary prompts and docs-only ownership
+
+Result: PASS
+
+## Stage command checks
+
+- Command: cargo check
+- Result: PASS
+- Output summary: Finished dev profile target(s) successfully.
+
+- Command: cargo fmt --all -- --check
+- Result: PASS
+- Output summary: rustfmt completed; warning observed: could not canonicalize path C:\Users\zyc14588.

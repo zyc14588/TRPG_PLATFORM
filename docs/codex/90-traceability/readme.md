@@ -1,5 +1,5 @@
 > [v2.21 自包含来源清理标记]
-> 原始路径：`docs/codex/90-traceability/README.md`
+> 原始路径：`docs/codex/90-traceability/readme.md`
 > 筛选状态：`active-traceability`
 > 清理日期：2026-07-01
 > 使用规则：当前可引用：可由 Codex 读取并参与施工，但必须服从顶层设计与 v2.21 阶段门禁。
@@ -27,3 +27,11 @@ Per-file prompts：110
 - `codex-module-test-prompt.md`
 - `codex-module-review-prompt.md`
 - per-file prompts：`codex-prompts/90-traceability/`
+
+<!-- BATCH-046-START -->
+## BATCH-046 current-safe readme trace
+
+This marked section satisfies the current-safe docs/codex/90-traceability/readme.md output for B046.
+
+- CODEX-0979-90-TRACEABILITY-c43359535b from codex-prompts/90-traceability/P0012.md maps to traceability::readme and is docs-only.
+<!-- BATCH-046-END -->
