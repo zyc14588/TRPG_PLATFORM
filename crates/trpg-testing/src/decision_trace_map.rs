@@ -91,6 +91,12 @@ pub const BATCH_040_PROMPT_IDS: &[&str] = &[
     "CODEX-0905-10-TESTING-QUALITY-d5c5ad6036",
 ];
 
+pub const BATCH_041_PROMPT_IDS: &[&str] = &[
+    "CODEX-0906-10-TESTING-QUALITY-d70cab3757",
+    "CODEX-0907-10-TESTING-QUALITY-86a266c57b",
+    "CODEX-0908-10-TESTING-QUALITY-3b88dc5203",
+];
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecisionTraceRow {
     pub prompt_id: &'static str,

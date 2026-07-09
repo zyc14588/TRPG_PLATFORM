@@ -1,0 +1,28 @@
+S11 Golden Scenario Evidence
+Run date: 2026-07-09
+
+Command:
+cargo test -p trpg-testing --test golden_scenarios_ci --all-features
+
+Result:
+PASS. 1 passed, 0 failed.
+
+Fixture coverage:
+- Scenario fixture: fixtures/scenarios/golden_salt_bell.scenario.yaml.md
+- Action sequence fixture: fixtures/actions/golden_salt_bell_action_sequence.v1.json.md
+- Detailed S11 fixture: fixtures/stages/detailed/S11_golden_visibility_export_diff_expected.current.json.md
+
+Expected event mapping:
+- GoldenScenarioCompleted: represented by the passing golden_scenarios_ci stage gate.
+
+ScenarioTestReport required fields:
+- steps: covered by golden action sequence marker checks.
+- dice: covered by server dice source marker checks.
+- decisions: covered by Command -> Workflow -> Decision -> EventStore -> Projection assertion.
+- final_state_hash: covered by S11 replay/golden stage evidence and trpg-testing replay consistency tests.
+
+Governance boundaries:
+- Formal decisions stay on the governed event path.
+- Server dice source is required.
+- Prompt injection marker is checked and does not reveal keeper truth.
+- History preservation marker blocks deleting prior decisions during reconsideration.

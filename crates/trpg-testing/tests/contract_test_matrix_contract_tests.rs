@@ -6,7 +6,7 @@ fn contract_test_matrix_has_one_row_per_primary_module() {
 
     let rows = contract_test_matrix::matrix_rows();
 
-    assert_eq!(rows.len(), 23);
+    assert_eq!(rows.len(), 24);
     assert!(rows
         .iter()
         .any(|row| row.test_file.ends_with("benchmark_plan_contract_tests.rs")));
@@ -28,6 +28,9 @@ fn contract_test_matrix_has_one_row_per_primary_module() {
     assert!(rows.iter().any(|row| row
         .test_file
         .ends_with("research_decision_matrix_contract_tests.rs")));
+    assert!(rows.iter().any(|row| row
+        .test_file
+        .ends_with("golden_scenarios_ci_contract_tests.rs")));
     assert!(rows
         .iter()
         .all(|row| row.module.starts_with("testing_quality::")));

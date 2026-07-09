@@ -1,0 +1,31 @@
+S11 Export Diff Evidence
+Run date: 2026-07-09
+
+Primary commands:
+- cargo test -p trpg-testing --test golden_scenarios_ci_contract_tests --all-features
+- cargo test -p trpg-testing --test golden_scenarios_ci --all-features
+- cargo test -p trpg-testing --test visibility_leakage --all-features
+
+Result:
+PASS for all listed commands.
+
+Detailed fixture:
+fixtures/stages/detailed/S11_golden_visibility_export_diff_expected.current.json.md
+
+ExportDiffReport required fields:
+- player_export_hash: evidence asserts player export excludes keeper/private/ai internal markers.
+- keeper_export_hash: evidence keeps keeper export as separate higher-privilege surface.
+- audit_export_hash: evidence requires dice_rolls, decision_records, and model_route_snapshot in audit output.
+- redacted_fields: evidence checks redaction markers through B041 contract and visibility leakage tests.
+
+Expected event mapping:
+- ExportSnapshotCompared: represented by the passing export diff marker checks in golden_scenarios_ci_contract_tests.
+
+Expected errors:
+- VISIBILITY_LEAKAGE_DETECTED
+- GOLDEN_SCENARIO_RULE_VIOLATION
+- KEEPER_SECRET_REVEALED
+
+Non-applicable checks:
+- pnpm: no package.json or pnpm-lock.yaml.
+- Docker: no Docker change in B041 evidence repair; Docker Compose smoke remains S09/S13-owned.

@@ -1,0 +1,33 @@
+S11 Visibility Leakage Evidence
+Run date: 2026-07-09
+
+Command:
+cargo test -p trpg-testing --test visibility_leakage --all-features
+
+Result:
+PASS. 1 passed, 0 failed.
+
+Additional related command:
+cargo test -p trpg-testing --test golden_scenarios_ci_contract_tests --all-features
+
+Additional result:
+PASS. 3 passed, 0 failed.
+
+Fixture coverage:
+- fixtures/stages/detailed/S11_golden_visibility_export_diff_expected.current.json.md
+- fixtures/actions/golden_salt_bell_action_sequence.v1.json.md
+- fixtures/scenarios/golden_salt_bell.scenario.yaml.md
+
+Expected error mapping:
+- VISIBILITY_LEAKAGE_DETECTED: covered by detailed fixture marker checks.
+- KEEPER_SECRET_REVEALED: covered by failure-case marker checks.
+
+Restricted visibility labels/tokens checked:
+- keeper_only
+- private_to_player
+- ai_internal
+- keeper_truth
+- secret_operator
+
+Acceptance result:
+No player-visible evidence path may include restricted markers. Redaction remains enabled; no test was deleted or weakened.

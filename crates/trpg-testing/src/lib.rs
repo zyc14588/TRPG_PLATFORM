@@ -4,6 +4,7 @@ pub mod contract_test_matrix;
 pub mod decision_trace_map;
 pub mod golden_ci_test_matrix;
 pub mod golden_scenario_ci;
+pub mod golden_scenarios_ci;
 pub mod golden_scenarios_ci_impl;
 pub mod implementation_acceptance_checklist;
 pub mod implementation_acceptance_checklist_source_contract;
@@ -59,6 +60,7 @@ pub enum TestingQualityAction {
     VerifyDecisionTraceMap,
     VerifyGoldenScenarioSuite,
     VerifyGoldenScenarioCi,
+    VerifyGoldenScenariosCi,
     VerifyImplementationAcceptance,
     VerifyReadme,
     VerifyGoldenCiTestMatrix,
@@ -87,6 +89,7 @@ impl TestingQualityAction {
             Self::VerifyDecisionTraceMap => "verify_decision_trace_map",
             Self::VerifyGoldenScenarioSuite => "verify_golden_scenario_suite",
             Self::VerifyGoldenScenarioCi => "verify_golden_scenario_ci",
+            Self::VerifyGoldenScenariosCi => "verify_golden_scenarios_ci",
             Self::VerifyImplementationAcceptance => "verify_implementation_acceptance",
             Self::VerifyReadme => "verify_readme",
             Self::VerifyGoldenCiTestMatrix => "verify_golden_ci_test_matrix",
@@ -272,6 +275,7 @@ pub fn primary_contracts() -> Vec<TestingQualityModuleContract> {
         contract_test_matrix::contract(),
         testing_golden_scenarios_ci::contract(),
         golden_scenario_ci::contract(),
+        golden_scenarios_ci::contract(),
         implementation_acceptance_checklist::contract(),
         readme::contract(),
         golden_ci_test_matrix::contract(),
