@@ -61,3 +61,11 @@ dependencies = [
 [[package]]
 name = "trpg-shared-kernel"
 version = "0.1.0"
+
+[[package]]
+name = "trpg-testing"
+version = "0.1.0"
+dependencies = [
+ "trpg-agent-runtime",
+ "trpg-shared-kernel",
+]
