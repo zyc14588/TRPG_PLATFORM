@@ -1,0 +1,49 @@
+BATCH-043 repair validation output summary
+
+Primary repair checks:
+
+1. cargo test -p trpg-ops --test upgrade_rollback_impl_contract_tests
+   Result: PASS
+   Summary: 5 passed; covers governed EventStore append, SQLx/EventStore transaction evidence, OpenAPI/Event/NATS current-safe contract constants, Tool/OpenFGA/OPA deny gates, visibility redaction, and correlation_id/causation_id observability.
+
+2. cargo test -p trpg-ops --test upgrade_rollback_contract_tests
+   Result: PASS
+   Summary: 5 passed; covers governed EventStore append, SQLx/EventStore transaction evidence, OpenAPI/Event/NATS current-safe contract constants, Tool/OpenFGA/OPA deny gates, visibility redaction, and correlation_id/causation_id observability.
+
+S10 fixture and script checks:
+
+3. cargo test -p trpg-ops --test s10_fixture_acceptance_contract_tests
+   Result: PASS
+   Summary: 3 passed:
+   - s10_fixtures_are_bound_to_ops_runbook_contracts
+   - backup_restore_smoke_checks_are_executable
+   - projection_rebuild_verify_checks_are_executable
+
+4. & 'C:\Program Files\Git\bin\bash.exe' scripts/backup_restore/smoke.sh
+   Result: PASS
+   Key line: test backup_restore_smoke_checks_are_executable ... ok
+
+5. & 'C:\Program Files\Git\bin\bash.exe' scripts/projection_rebuild/verify.sh
+   Result: PASS
+   Key line: test projection_rebuild_verify_checks_are_executable ... ok
+
+Repository gates:
+
+6. cargo fmt --all -- --check
+   Result: PASS
+
+7. cargo test -p trpg-ops --all-features
+   Result: PASS
+   Summary: all trpg-ops unit, integration, and doc tests passed.
+
+8. cargo check --workspace --all-features
+   Result: PASS
+
+9. cargo clippy --workspace --all-targets --all-features -- -D warnings
+   Result: PASS
+
+Non-applicable / environment notes:
+
+- pnpm checks are not applicable to this workspace: no package.json or pnpm-lock.yaml exists.
+- docker compose was not rerun for BATCH-043 repair: S10 TEST_PLAN names the two ops scripts above; Docker Compose one-key deployment is tracked by S09/S13 in V1_ACCEPTANCE_EVIDENCE_MATRIX. The local docker CLI is also unavailable in this environment.
+- Windows system bash points to WSL and failed because WSL is not installed; the S10 .sh scripts were actually run with Git Bash at C:\Program Files\Git\bin\bash.exe.

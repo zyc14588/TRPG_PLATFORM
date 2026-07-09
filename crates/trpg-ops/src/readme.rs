@@ -36,6 +36,8 @@ pub enum OpsRunbookOperation {
     ImplementationPlan,
     BacklogReview,
     UpgradeBackupReplay,
+    UpgradeRollbackImpl,
+    UpgradeRollback,
 }
 
 impl OpsRunbookOperation {
@@ -50,6 +52,8 @@ impl OpsRunbookOperation {
             Self::ImplementationPlan => "implementation_plan",
             Self::BacklogReview => "backlog_review",
             Self::UpgradeBackupReplay => "upgrade_backup_replay",
+            Self::UpgradeRollbackImpl => "upgrade_rollback_impl",
+            Self::UpgradeRollback => "upgrade_rollback",
         }
     }
 }
@@ -304,6 +308,13 @@ pub fn all_batch_042_contracts() -> Vec<OpsRunbookContract> {
         crate::implementation_plan::contract(),
         crate::backlog::contract(),
         crate::upgrade_backup_replay_runbooks::contract(),
+    ]
+}
+
+pub fn all_batch_043_contracts() -> Vec<OpsRunbookContract> {
+    vec![
+        crate::upgrade_rollback_impl::contract(),
+        crate::upgrade_rollback::contract(),
     ]
 }
 

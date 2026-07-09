@@ -7,9 +7,11 @@ pub mod projection_rebuild_runbook;
 pub mod readme;
 pub mod release_checklist;
 pub mod upgrade_backup_replay_runbooks;
+pub mod upgrade_rollback;
+pub mod upgrade_rollback_impl;
 
 pub use readme::{
-    all_batch_042_contracts, append_ops_event, is_current_safe_name,
+    all_batch_042_contracts, all_batch_043_contracts, append_ops_event, is_current_safe_name,
     rebuild_projection_from_ops_events, redact_ops_output, verify_projection_rebuild,
     verify_restore_hash, BackupManifest, OpsEvent, OpsEventEnvelope, OpsEventStore,
     OpsProjectionReport, OpsRunbookCommand, OpsRunbookContract, OpsRunbookError,

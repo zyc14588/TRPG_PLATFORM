@@ -50,6 +50,9 @@ where
                     .starts_with("evidence/batches/BATCH-042/")
                     || record
                         .evidence_path
+                        .starts_with("evidence/batches/BATCH-043/")
+                    || record
+                        .evidence_path
                         .starts_with("docs/codex/11-ops-migration/")
             );
         }
@@ -142,10 +145,21 @@ where
         &mut store,
         &authority,
         &governed_command(
-            payload,
+            payload.clone(),
             1,
             "idem_ai_internal",
             Visibility::new(VisibilityLabel::AiInternal),
+        ),
+    )
+    .unwrap();
+    append(
+        &mut store,
+        &authority,
+        &governed_command(
+            payload,
+            2,
+            "idem_keeper_only",
+            Visibility::new(VisibilityLabel::KeeperOnly),
         ),
     )
     .unwrap();
@@ -157,6 +171,10 @@ where
     assert!(replay_visible_ops_events(&store, &PrincipalScope::Public).is_empty());
     assert_eq!(
         replay_visible_ops_events(&store, &PrincipalScope::System).len(),
+        3
+    );
+    assert_eq!(
+        replay_visible_ops_events(&store, &PrincipalScope::Keeper).len(),
         2
     );
 
@@ -171,13 +189,20 @@ where
         trpg_ops::redact_ops_output(&Visibility::new(VisibilityLabel::Public), "public note"),
         "public note"
     );
+    assert_eq!(
+        trpg_ops::redact_ops_output(
+            &Visibility::new(VisibilityLabel::KeeperOnly),
+            "keeper secret"
+        ),
+        VISIBILITY_REDACTED
+    );
 }
 
-fn authority_contract() -> AuthorityContract {
+pub fn authority_contract() -> AuthorityContract {
     AuthorityContract::new("campaign_ops_001", AuthorityMode::AiKp, 1).unwrap()
 }
 
-fn governed_command<T>(
+pub fn governed_command<T>(
     payload: T,
     expected_version: u64,
     idempotency_key: &'static str,
