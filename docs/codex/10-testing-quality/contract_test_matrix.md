@@ -17,5 +17,14 @@ Current crate: `trpg-testing`
 | Golden scenario CI decision path | `testing_quality::golden_scenario_ci` | `crates/trpg-testing/tests/golden_scenario_ci_contract_tests.rs` |
 | Implementation acceptance checklist | `testing_quality::implementation_acceptance_checklist` | `crates/trpg-testing/tests/implementation_acceptance_checklist_contract_tests.rs` |
 | Testing-quality readme/metrics | `testing_quality::readme` | `crates/trpg-testing/tests/readme_contract_tests.rs` |
+| B039 golden CI matrix | `testing_quality::golden_ci_test_matrix` | `crates/trpg-testing/tests/golden_ci_test_matrix_contract_tests.rs` |
+| B039 acceptance source contract | `testing_quality::implementation_acceptance_checklist_source_contract` | `crates/trpg-testing/tests/implementation_acceptance_checklist_source_contract_contract_tests.rs` |
+| B039 top-level principle trace | `testing_quality::top_level_principle_trace` | `crates/trpg-testing/tests/top_level_principle_trace_contract_tests.rs` |
+| B039 runtime pending decision | `testing_quality::runtime_pending_decision` | `crates/trpg-testing/tests/runtime_pending_decision_contract_tests.rs` |
+| B039 AI evaluation golden scenario | `testing_quality::ai_evaluation_golden_scenario` | `crates/trpg-testing/tests/ai_evaluation_golden_scenario_contract_tests.rs` |
+| B039 requirement-to-test trace | `testing_quality::requirement_to_test_trace` | `crates/trpg-testing/tests/requirement_to_test_trace_contract_tests.rs` |
+| B039 principle-to-doc trace | `testing_quality::principle_to_doc_trace` | `crates/trpg-testing/tests/principle_to_doc_trace_contract_tests.rs` |
+| B039 golden scenarios CI implementation | `testing_quality::golden_scenarios_ci_impl` | `crates/trpg-testing/tests/golden_scenarios_ci_impl_contract_tests.rs` |
+| B039 test strategy implementation | `testing_quality::test_strategy_impl` | `crates/trpg-testing/tests/test_strategy_impl_contract_tests.rs` |
 
-Supplemental prompts in B038 do not own Rust modules or migrations. They are recorded under `docs/codex/90-traceability/supplemental-requirements/` and their test responsibility is merged into the primary module named in `batches/B038.md`.
+Supplemental prompts in B038 and B039 do not own Rust modules or migrations. Their test responsibility is merged into the primary module named in the current-safe batch map.

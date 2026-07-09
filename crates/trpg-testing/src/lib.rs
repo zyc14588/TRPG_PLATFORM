@@ -1,14 +1,23 @@
+pub mod ai_evaluation_golden_scenario;
 pub mod benchmark_plan;
 pub mod contract_test_matrix;
 pub mod decision_trace_map;
+pub mod golden_ci_test_matrix;
 pub mod golden_scenario_ci;
+pub mod golden_scenarios_ci_impl;
 pub mod implementation_acceptance_checklist;
+pub mod implementation_acceptance_checklist_source_contract;
 pub mod model_certification_tests;
+pub mod principle_to_doc_trace;
 pub mod readme;
 pub mod replay_consistency_tests;
+pub mod requirement_to_test_trace;
+pub mod runtime_pending_decision;
 pub mod test_strategy;
+pub mod test_strategy_impl;
 pub mod testing_golden_ci;
 pub mod testing_golden_scenarios_ci;
+pub mod top_level_principle_trace;
 pub mod visibility_leakage_tests;
 
 use trpg_shared_kernel::{
@@ -50,6 +59,15 @@ pub enum TestingQualityAction {
     VerifyGoldenScenarioCi,
     VerifyImplementationAcceptance,
     VerifyReadme,
+    VerifyGoldenCiTestMatrix,
+    VerifyImplementationAcceptanceChecklistSourceContract,
+    VerifyTopLevelPrincipleTrace,
+    VerifyRuntimePendingDecision,
+    VerifyAiEvaluationGoldenScenario,
+    VerifyRequirementToTestTrace,
+    VerifyPrincipleToDocTrace,
+    VerifyGoldenScenariosCiImpl,
+    VerifyTestStrategyImpl,
 }
 
 impl TestingQualityAction {
@@ -67,6 +85,17 @@ impl TestingQualityAction {
             Self::VerifyGoldenScenarioCi => "verify_golden_scenario_ci",
             Self::VerifyImplementationAcceptance => "verify_implementation_acceptance",
             Self::VerifyReadme => "verify_readme",
+            Self::VerifyGoldenCiTestMatrix => "verify_golden_ci_test_matrix",
+            Self::VerifyImplementationAcceptanceChecklistSourceContract => {
+                "verify_implementation_acceptance_checklist_source_contract"
+            }
+            Self::VerifyTopLevelPrincipleTrace => "verify_top_level_principle_trace",
+            Self::VerifyRuntimePendingDecision => "verify_runtime_pending_decision",
+            Self::VerifyAiEvaluationGoldenScenario => "verify_ai_evaluation_golden_scenario",
+            Self::VerifyRequirementToTestTrace => "verify_requirement_to_test_trace",
+            Self::VerifyPrincipleToDocTrace => "verify_principle_to_doc_trace",
+            Self::VerifyGoldenScenariosCiImpl => "verify_golden_scenarios_ci_impl",
+            Self::VerifyTestStrategyImpl => "verify_test_strategy_impl",
         }
     }
 }
@@ -239,6 +268,15 @@ pub fn primary_contracts() -> Vec<TestingQualityModuleContract> {
         golden_scenario_ci::contract(),
         implementation_acceptance_checklist::contract(),
         readme::contract(),
+        golden_ci_test_matrix::contract(),
+        implementation_acceptance_checklist_source_contract::contract(),
+        top_level_principle_trace::contract(),
+        runtime_pending_decision::contract(),
+        ai_evaluation_golden_scenario::contract(),
+        requirement_to_test_trace::contract(),
+        principle_to_doc_trace::contract(),
+        golden_scenarios_ci_impl::contract(),
+        test_strategy_impl::contract(),
     ]
 }
 
