@@ -1,0 +1,112 @@
+# BATCH-050 Test Output
+
+Recorded: 2026-07-11T14:32:05+10:00
+
+## Minimum B050 scoped check
+
+Command: inline PowerShell checker over `batches/B050.md`, both current-safe
+maps, all ten prompt files, and all eight unique current-safe target documents.
+
+Exit code: 0
+
+~~~text
+row_count=10
+primary_count=0
+normalized_rows=10
+safe_rows=10
+target_count=10
+unique_target_count=8
+row_failures=0
+provider_call_hits=0
+state_write_hits=0
+sensitive_label_hits=0
+RESULT=PASS
+~~~
+
+For each row the checker validates the documentation role, empty primary
+field, prompt path, normalized/safe crate-module-output agreement, target
+existence, Prompt ID, source path/SHA, current-safe module, Markdown H1/fence/
+table structure, and documentation-only boundary. Duplicate batch IDs fail the
+check. P0107 is checked against the normalized
+`input_traversal_audit_previous_provenance` /
+`read_every_file_audit_previous.md` override.
+
+## Targeted existing contract tests
+
+| Command | Exit code | Result |
+|---|---:|---|
+| `cargo test -p trpg-testing --test requirement_to_test_trace_contract_tests --all-features` | 0 | PASS; 1 passed |
+| `cargo test -p trpg-testing --test top_level_principle_trace_contract_tests --all-features` | 0 | PASS; 1 passed |
+
+No product test file was added or changed: B050 has zero primary prompts. The
+two executable tests above already own the requirement/top-level assertions;
+the remaining rows are verified by the scoped document checker and S00 gate.
+
+## S00 detailed fixture automation
+
+Command:
+
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1
+~~~
+
+Exit code: 0
+
+~~~text
+S00 governance boundary check
+required_files=4 PASS
+expected_event=GovernanceReadinessRecorded visibility=system_only PASS
+expected_record=StageReadinessReport fields=4 PASS
+required_evidence=2 PASS
+normalized_overlay_files=3 PASS
+normalized_rows=1109 PASS
+safe_rows=1109 PASS
+provenance_boundary=PASS
+pass_criteria=3 PASS
+RESULT=PASS
+~~~
+
+## Cargo and workspace checks
+
+| Command | Exit code | Result |
+|---|---:|---|
+| `cargo fmt --all -- --check` | 0 | PASS |
+| `cargo metadata --no-deps --format-version 1` | 0 | PASS; 12 workspace packages; `trpg-docs-governance` absent |
+| `cargo check --workspace --all-features` | 0 | PASS |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | PASS |
+| `cargo test --workspace --all-features` | 0 | PASS; all workspace unit, integration, contract, fixture, leakage, and doc tests completed |
+| `cargo test -p trpg-testing --test visibility_leakage --all-features` | 0 | PASS; 1 passed |
+
+The recurring `could not canonicalize path C:\Users\zyc14588` message is an
+existing environment warning and did not change an exit code.
+
+## Frontend supplemental check
+
+Command: `pnpm.cmd test`
+
+Exit code: 0
+
+~~~text
+S12 UI boundary fixture automation passed
+snapshots: artifacts/test-reports/s12-ui-boundary
+$ node scripts/s12_ui_boundary_test.mjs
+~~~
+
+This is supplemental shared-workspace evidence owned by S12, not a B050
+product-code gate. It produced no working-tree changes.
+
+## Diff and optional validators
+
+- `git diff --check`: exit 0; no whitespace errors. Git emitted only existing
+  LF-to-CRLF conversion warnings.
+- `scripts/validate_codex_prompt_inventory.py`: absent and explicitly optional
+  under S00.
+- `scripts/validate_markdown_links.py`: absent and explicitly optional under
+  S00. B050 path/provenance fields and Markdown tables are checked directly by
+  the scoped checker.
+
+## SQLx and Docker
+
+Not applicable. B050 owns documentation and evidence only and changes no
+database, migration, compose, container, or deployment surface. Docker
+deployment belongs to S09/S13.

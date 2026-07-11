@@ -68,3 +68,25 @@ prompt-specific aliases.
   product-test, or formal state-write output.
 - Test evidence is recorded in `evidence/batches/BATCH-049/test-output.txt`.
 <!-- BATCH-049-END -->
+
+<!-- BATCH-050-START -->
+## BATCH-050 current-safe readme trace
+
+The three B050 prompts below share this exact canonical Markdown output. They
+are merged here without replacing earlier batch traces or creating
+prompt-specific aliases.
+
+| Prompt ID | Prompt file | Current crate | Current module | Source file (provenance only) | Source SHA256 |
+|---|---|---|---|---|---|
+| `CODEX-1068-90-TRACEABILITY-c50cc50eaf` | `codex-prompts/90-traceability/P0101.md` | `trpg-docs-governance` | `traceability::readme` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-docs-implementation-99-appendix-readme-8ddeaed7a2.v5-code-ready.md` | `6588e7b3b50b275f58aa272d354d053a721176ce47225b635c47c6cea03886b6` |
+| `CODEX-1069-90-TRACEABILITY-e8e261e885` | `codex-prompts/90-traceability/P0102.md` | `trpg-docs-governance` | `traceability::readme` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-docs-implementation-readme-5b65f2638b.v5-code-ready.md` | `848f5fc34f2d93dcc16e2641dd167e97ca25bd35f9ef85dd2f7dab4e8dfa28c6` |
+| `CODEX-1071-90-TRACEABILITY-289dbea468` | `codex-prompts/90-traceability/P0104.md` | `trpg-docs-governance` | `traceability::readme` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-readme-9483616cdb.v5-code-ready.md` | `e85c37962f570ba4ab7cd6e7d5b33490501488a2f546cc45d55818faf3834c77` |
+
+- All three rows are implemented as additive docs-only traceability.
+- Historical path, version, and hash tokens are provenance only.
+- No row owns Rust, migration, API, event, NATS, metric, workflow, provider,
+  product-test, or formal state-write output.
+- B050 checks must verify all three Prompt IDs, prompt and provenance paths,
+  source SHA256 values, current-safe map agreement, Markdown table shape, and
+  the docs-only boundary.
+<!-- BATCH-050-END -->

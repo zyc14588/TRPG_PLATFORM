@@ -46,3 +46,17 @@
   source path/SHA, documentation-only boundary, and S00 governance checks in
   `evidence/batches/BATCH-048/test-output.txt`.
 
+<!-- BATCH-050-START -->
+## BATCH-050 current-safe trace
+
+| Prompt ID | Prompt file | Current crate | Current module | Source file | Source SHA256 |
+|---|---|---|---|---|---|
+| `CODEX-1067-90-TRACEABILITY-9bb3354c34` | `codex-prompts/90-traceability/P0099.md` | `trpg-docs-governance` | `traceability::implementation_plan_impl` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-docs-implementation-90-traceability-source-breakdown-roadmap-implementation-6d0ed24630.v5-code-ready.md` | `c1e243dd361b6f89ae2b75b03a8ab366b5758cd1afc6c24cfd9667ac83c42465` |
+
+- Disposition: implemented as additive docs-only traceability; this prompt owns
+  no Rust `src/` or product-test output, migration, API, event schema, NATS
+  subject, metric, workflow, provider adapter, or formal state-write path.
+- Test responsibility: target existence, Prompt ID uniqueness, current-safe map
+  and source path/SHA agreement, documentation-only boundary, and applicable
+  S00 governance checks in `evidence/batches/BATCH-050/test-output.txt`.
+<!-- BATCH-050-END -->

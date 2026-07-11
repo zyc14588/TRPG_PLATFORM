@@ -1,0 +1,15 @@
+docs/codex/90-traceability/backlog_open_questions_impl.md
+docs/codex/90-traceability/chatgpt_followup_research_prompts_impl.md
+docs/codex/90-traceability/implementation_plan_impl.md
+docs/codex/90-traceability/manifest.md
+docs/codex/90-traceability/read_every_file_audit_previous.md
+docs/codex/90-traceability/readme.md
+docs/codex/90-traceability/requirement_to_test_trace.md
+docs/codex/90-traceability/top_level_principle_trace.md
+evidence/batches/BATCH-050/acceptance-report.md
+evidence/batches/BATCH-050/acceptance-test-output.txt
+evidence/batches/BATCH-050/changed-files.txt
+evidence/batches/BATCH-050/handoff.md
+evidence/batches/BATCH-050/plan.md
+evidence/batches/BATCH-050/prompt-traceability.md
+evidence/batches/BATCH-050/test-output.txt

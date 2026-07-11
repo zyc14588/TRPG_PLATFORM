@@ -1,0 +1,109 @@
+# BATCH-050 Acceptance Test Output
+
+Recorded: 2026-07-11T14:35:59+10:00
+
+## Acceptance input reread
+
+Exit code: 0
+
+The acceptance pass reread `AGENTS.md`, `batches/B050.md`, all three current
+mapping/rewrite files, and all ten per-file prompts. It also reread the plan,
+changed-file manifest, implementation test output, and prompt traceability.
+The two large maps were read completely and reported with SHA256 values before
+the checks ran.
+
+## Strict B050 acceptance checker
+
+Exit code: 0
+
+~~~text
+row_count=10
+primary_count=0
+unique_target_count=8
+map_agreement=10/10
+evidence_inputs=4/4
+provider_call_hits=0
+state_write_hits=0
+sensitive_label_hits=0
+acceptance_failures=0
+RESULT=PASS
+~~~
+
+The checker independently verifies every prompt row, exact current-safe
+crate/module/output, prompt/source/SHA metadata, target existence, Markdown
+structure, documentation-only scope, shared targets, evidence inputs, and the
+P0107 normalized previous-provenance override.
+
+## S00 governance replay
+
+Command:
+
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1
+~~~
+
+Exit code: 0
+
+~~~text
+S00 governance boundary check
+required_files=4 PASS
+expected_event=GovernanceReadinessRecorded visibility=system_only PASS
+expected_record=StageReadinessReport fields=4 PASS
+required_evidence=2 PASS
+normalized_overlay_files=3 PASS
+normalized_rows=1109 PASS
+safe_rows=1109 PASS
+provenance_boundary=PASS
+pass_criteria=3 PASS
+RESULT=PASS
+~~~
+
+## Cargo acceptance replay
+
+| Command | Exit code | Result |
+|---|---:|---|
+| `cargo fmt --all -- --check` | 0 | PASS |
+| `cargo check --workspace --all-features` | 0 | PASS |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | PASS |
+| `cargo test --workspace --all-features` | 0 | PASS; all workspace and doc tests completed |
+| `cargo test -p trpg-testing --test requirement_to_test_trace_contract_tests --all-features` | 0 | PASS; 1 passed |
+| `cargo test -p trpg-testing --test top_level_principle_trace_contract_tests --all-features` | 0 | PASS; 1 passed |
+| `cargo test -p trpg-testing --test visibility_leakage --all-features` | 0 | PASS; 1 passed |
+
+The existing Cargo home-path canonicalization warning remained non-blocking.
+
+## Frontend and diff replay
+
+- `pnpm.cmd test`: exit 0; S12 UI boundary fixture automation passed and
+  produced no working-tree changes.
+- `git diff --check`: exit 0; no whitespace errors. LF-to-CRLF notices are
+  environment warnings only.
+
+## Final path closure
+
+The final checker runs after all acceptance/handoff files exist and requires:
+
+~~~text
+declared_paths=15
+actual_paths=15
+missing_paths=0
+extra_paths=0
+scope_violations=0
+RESULT=PASS
+~~~
+
+## Independent read-only review
+
+PASS. A separate final reviewer confirmed 15/15 declared/actual path closure,
+ten prompt rows across eight targets, both current-safe maps, the P0107
+previous-provenance override, seven internally consistent evidence files, the
+docs-only boundary, and zero B051 target content. Findings: P0/P1/P2 none.
+
+## Applicability
+
+- Product-code primary tests: N/A; primary count is zero.
+- SQLx/migration: N/A; no database surface changed.
+- Docker/compose: N/A; B050 is S00 documentation-only work; deployment gates
+  belong to S09/S13.
+- Optional Python prompt/link validators: absent under the S00 allowance; the
+  scoped checker covers prompt rows, paths, metadata, and Markdown structure.

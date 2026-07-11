@@ -30,3 +30,30 @@
 
 - Disposition: retain as the B049 docs-only current-safe target; this record contains only its mapped prompt row and does not fabricate a source manifest or execution history.
 - Test responsibility: B049 checks must verify the H1, Prompt ID, current-safe target/module, prompt and provenance paths, source SHA256, map agreement, Markdown table shape, and docs-only boundary.
+
+<!-- BATCH-050-START -->
+## BATCH-050 current-safe manifest trace
+
+This additive section records only the current-safe B050 manifest mapping; it
+does not replace the B049 record or assert a broader source inventory or
+execution history.
+
+- Batch: BATCH-050-90-traceability — Strict Governance Final
+- Output role: documentation-or-traceability
+- Task type: traceability-maintenance
+- Current output: docs/codex/90-traceability/manifest.md
+
+| Prompt ID | Prompt file | Current crate | Current module | Source file (provenance only) | Source SHA256 |
+|---|---|---|---|---|---|
+| `CODEX-1070-90-TRACEABILITY-90042976ac` | `codex-prompts/90-traceability/P0103.md` | `trpg-docs-governance` | `traceability::manifest` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-manifest-16c5a85699.v5-code-ready.md` | `4b6db1e7c4a42d8443d61d9cd0b03e4bf64c02310f964f983f5eed4a1b4fae1e` |
+
+### Disposition and test responsibility
+
+- Disposition: retain this row as additive docs-only current-safe
+  traceability; historical paths, versions, and hashes remain provenance only,
+  and this prompt owns no Rust, migration, API, event, NATS, metric, workflow,
+  provider, product-test, or formal state-write output.
+- Test responsibility: B050 checks must verify the H1, Prompt ID, current-safe
+  target/module, prompt and provenance paths, source SHA256, map agreement,
+  Markdown table shape, and docs-only boundary.
+<!-- BATCH-050-END -->
