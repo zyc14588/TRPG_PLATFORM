@@ -1,0 +1,101 @@
+# BATCH-049 Acceptance Test Output
+
+Recorded: 2026-07-11T13:51:00+10:00
+
+## Independent prompt and ownership checker
+
+The acceptance checker reparsed `batches/B049.md`, all 25 prompt files,
+`CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md`,
+`CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md`, all 20 targets,
+`prompt-traceability.md`, and `changed-files.txt`.
+
+Exit code: 0
+
+~~~text
+rows=25
+primary=0
+supplemental=0
+row_failures=0
+declared=27
+declared_unique=27
+actual_pre_acceptance=25
+docs=20
+evidence_pre_acceptance=5
+expected_pending=2
+missing_now=0
+unexpected=0
+pending_already=0
+implementation=0
+provider_calls=0
+state_writes=0
+sensitive_labels=0
+RESULT=PASS
+~~~
+
+The two expected pending paths were this acceptance output and the acceptance
+report. No other path was missing or unexpected.
+
+## Replayed S00 and workspace gates
+
+| Command | Exit code | Result |
+|---|---:|---|
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1` | 0 | PASS; 1109 normalized and safe rows, provenance boundary PASS |
+| `cargo fmt --all -- --check` | 0 | PASS |
+| `cargo check --workspace --all-features` | 0 | PASS |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | PASS |
+| `cargo test --workspace --all-features` | 0 | PASS; clean acceptance replay |
+| `cargo test -p trpg-testing --test visibility_leakage --all-features` | 0 | PASS; 1 passed |
+| `pnpm.cmd test` | 0 | PASS; supplemental S12 UI boundary fixture automation |
+| `git diff --check` | 0 | PASS; only existing LF-to-CRLF warnings |
+
+Acceptance workspace-test tail:
+
+~~~text
+test result: ok. 0 passed; 0 failed; 0 ignored
+Doc-tests trpg_platform
+Doc-tests trpg_ruleset_coc7
+Doc-tests trpg_runtime
+Doc-tests trpg_security_governance
+Doc-tests trpg_shared_kernel
+Doc-tests trpg_testing
+workspace_test_exit=0
+~~~
+
+The earlier implementation-phase `LNK1104` transient did not recur during the
+independent acceptance replay. No code, test, policy, or visibility rule was
+changed to obtain the pass.
+
+## Applicability
+
+- Primary implementation evidence: N/A; primary count is 0.
+- Supplemental scope: N/A; supplemental count is 0.
+- `trpg-docs-governance` package test: N/A; no such workspace package exists.
+- SQLx migration and Docker: N/A; B049 changes no database, compose, container,
+  or deployment surface.
+- Optional S00 Python validators: absent and non-blocking by stage policy.
+
+## Final manifest closure
+
+After both acceptance files were created, the final checker compared the
+declared manifest with `git status --porcelain --untracked-files=all`, verified
+every path exists, replayed Markdown structure checks, checked the seven
+additive B049 marker pairs, verified both shared-target ID sets, and rejected
+any B050 trace.
+
+Exit code: 0
+
+~~~text
+declared=27
+declared_unique=27
+actual=27
+docs=20
+evidence=7
+missing=0
+unexpected=0
+absent=0
+markdown_files=24
+structure_failures=0
+marker_failures=0
+b050_hits=0
+RESULT=PASS
+~~~

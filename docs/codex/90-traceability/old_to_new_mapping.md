@@ -41,3 +41,22 @@
 
 - CODEX-1011-90-TRACEABILITY-32e59e6840: implemented as docs-only traceability under current-safe target `docs/codex/90-traceability/old_to_new_mapping.md`; no Rust, migration, API, event, NATS, metric, workflow, provider, or formal state-write output is owned by this prompt.
 <!-- BATCH-047-END -->
+
+<!-- BATCH-049-START -->
+## BATCH-049 current-safe historical-to-current trace
+
+The normalized maps merge both prompts into this canonical
+`old_to_new_mapping.md` documentation target. The source-derived names remain
+provenance and are not current module or output names.
+
+| Prompt ID | Prompt file | Current crate | Current module | Source file | Source SHA256 |
+|---|---|---|---|---|---|
+| `CODEX-1057-90-TRACEABILITY-d04d7696e9` | `codex-prompts/90-traceability/P0090.md` | `trpg-docs-governance` | `traceability::historical_to_current_mapping` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-docs-implementation-00-index-old-to-new-mapping-125023975d.v5-code-ready.md` | `3270d81dff943c80c1cdfc1e10d9fceded13fd319fd4b81ae53dc9847b005a23` |
+| `CODEX-1061-90-TRACEABILITY-5ef9be1888` | `codex-prompts/90-traceability/P0094.md` | `trpg-docs-governance` | `traceability::historical_to_current_mapping` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-docs-implementation-90-traceability-old-to-new-mapping-125023975d.v5-code-ready.md` | `074fb19d95fdb6263cdfe49995dc8d4e3c4cacc9088bf744509bd7b9167aad4e` |
+
+- Both rows are implemented as additive provenance traceability at the exact
+  current-safe target; neither is a current acceptance entry.
+- Neither row owns Rust, migration, API, event, NATS, metric, workflow,
+  provider, product-test, or formal state-write output.
+- Test evidence is recorded in `evidence/batches/BATCH-049/test-output.txt`.
+<!-- BATCH-049-END -->

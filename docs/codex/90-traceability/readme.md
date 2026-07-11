@@ -46,3 +46,25 @@ This marked section satisfies the current-safe `docs/codex/90-traceability/readm
 - Provenance source SHA256: `8993b23f1477f440ae03c573784ba12c68003d80b86ed8842a1f62ecd76181d8`.
 - No Rust, migration, API, event, NATS, metric, workflow, provider, or formal state-write output is owned by this prompt.
 <!-- BATCH-047-END -->
+
+<!-- BATCH-049-START -->
+## BATCH-049 current-safe readme trace
+
+The five B049 prompts below share this exact canonical Markdown output. They
+are merged here without replacing earlier batch traces or creating
+prompt-specific aliases.
+
+| Prompt ID | Prompt file | Current crate | Current module | Source file | Source SHA256 |
+|---|---|---|---|---|---|
+| `CODEX-1053-90-TRACEABILITY-91cc9c1979` | `codex-prompts/90-traceability/P0086.md` | `trpg-docs-governance` | `traceability::readme` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/docs-implementation-99-appendix-readme-b62fd66b20.v5-code-ready.md` | `62c70a0dffc838684aaee315e59e31fbee945a9779cccdf2c8196e095d99404b` |
+| `CODEX-1054-90-TRACEABILITY-74f2cf5e3b` | `codex-prompts/90-traceability/P0087.md` | `trpg-docs-governance` | `traceability::readme` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/docs-implementation-readme-4906731413.v5-code-ready.md` | `cc0df06102546c24cc442d12727665807920a6973de2791f9697a2684cdc7157` |
+| `CODEX-1056-90-TRACEABILITY-cc337fd4d2` | `codex-prompts/90-traceability/P0089.md` | `trpg-docs-governance` | `traceability::readme` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/readme-8ebbb20182.v5-code-ready.md` | `e6a29631f029a10e177a521164e75f8f3b5e61294e3d930a62c679a70ea4c496` |
+| `CODEX-1058-90-TRACEABILITY-d3a03a9d63` | `codex-prompts/90-traceability/P0091.md` | `trpg-docs-governance` | `traceability::readme` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-docs-implementation-00-index-readme-8ce4f7c2ad.v5-code-ready.md` | `4aad1df5b3e03162ce1933d0e1bb59b2033bc00d90db1f80e7d8e64ee143b423` |
+| `CODEX-1064-90-TRACEABILITY-20708447f6` | `codex-prompts/90-traceability/P0097.md` | `trpg-docs-governance` | `traceability::readme` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-docs-implementation-90-traceability-readme-e7268538a3.v5-code-ready.md` | `990e5435b418fd4ea381cc2d43ed7a5bbb372cec580ba9b4834053b3a06b91e9` |
+
+- All five rows are implemented as additive docs-only traceability.
+- Historical path, version, and hash tokens are provenance only.
+- No row owns Rust, migration, API, event, NATS, metric, workflow, provider,
+  product-test, or formal state-write output.
+- Test evidence is recorded in `evidence/batches/BATCH-049/test-output.txt`.
+<!-- BATCH-049-END -->

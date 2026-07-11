@@ -1,0 +1,129 @@
+# BATCH-049 Test Output
+
+Recorded: 2026-07-11T13:46:26+10:00
+
+## Minimum B049 scoped check
+
+Command: inline PowerShell checker over `batches/B049.md`, both current-safe
+maps, all 25 prompt files, and all 20 unique target documents.
+
+Exit code: 0
+
+~~~text
+row_count=25
+primary_count=0
+normalized_rows=25
+safe_rows=25
+target_count=25
+unique_target_count=20
+row_failures=0
+implementation_paths=0
+provider_call_hits=0
+state_write_hits=0
+sensitive_label_hits=0
+RESULT=PASS
+~~~
+
+Per row, the checker validates the documentation role, empty primary field,
+prompt path, normalized/safe crate-module-output agreement, target existence,
+Prompt ID, current-safe module/output, source path/SHA, and docs-only boundary.
+
+## Markdown structure check
+
+Command: inline PowerShell H1/fence/table checker over the 20 target documents
+and `plan.md`.
+
+Exit code: 0
+
+~~~text
+markdown_files=21
+structure_failures=0
+RESULT=PASS
+~~~
+
+## S00 detailed fixture automation
+
+Command:
+
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1
+~~~
+
+Exit code: 0
+
+~~~text
+S00 governance boundary check
+required_files=4 PASS
+expected_event=GovernanceReadinessRecorded visibility=system_only PASS
+expected_record=StageReadinessReport fields=4 PASS
+required_evidence=2 PASS
+normalized_overlay_files=3 PASS
+normalized_rows=1109 PASS
+safe_rows=1109 PASS
+provenance_boundary=PASS
+pass_criteria=3 PASS
+RESULT=PASS
+~~~
+
+## Cargo and workspace checks
+
+| Command | Exit code | Result |
+|---|---:|---|
+| `cargo fmt --all -- --check` | 0 | PASS |
+| `cargo metadata --no-deps --format-version 1` | 0 | PASS; 12 workspace packages; `trpg-docs-governance` absent |
+| `cargo check --workspace --all-features` | 0 | PASS |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | PASS |
+| `cargo test --workspace --all-features` (first run) | 1 | Transient Windows linker `LNK1104` on the S12 test executable; no compile assertion failed |
+| `cargo test -p trpg-extension-sdk --test s12_fixture_acceptance_contract_tests --all-features` | 0 | PASS; 5 passed |
+| `cargo test --workspace --all-features` (retry) | 0 | PASS; all workspace unit, integration, contract, fixture, leakage, and doc tests completed |
+| `cargo test -p trpg-testing --test visibility_leakage --all-features` | 0 | PASS; 1 passed |
+
+First-run failure excerpt:
+
+~~~text
+error: linking with `link.exe` failed: exit code: 1104
+LINK : fatal error LNK1104: cannot open
+target/debug/deps/s12_fixture_acceptance_contract_tests-52d99105036ba321.exe
+~~~
+
+Immediate diagnostics found no remaining target executable and no running
+`s12_fixture*`, Cargo, rustc, or linker process. The exact failed target then
+linked and passed, followed by a clean full-workspace retry. This is recorded
+as a recovered environment/toolchain transient, not hidden as an initial PASS.
+
+The recurring `could not canonicalize path C:\Users\zyc14588` warning is an
+existing environment warning and did not change any exit code.
+
+`cargo test -p trpg-docs-governance` is not applicable: that package is not a
+workspace member, and this docs-only batch does not authorize creating it.
+
+## Frontend supplemental check
+
+Command: `pnpm.cmd test`
+
+Exit code: 0
+
+~~~text
+S12 UI boundary fixture automation passed
+snapshots: artifacts/test-reports/s12-ui-boundary
+$ node scripts/s12_ui_boundary_test.mjs
+~~~
+
+This is supplemental workspace evidence owned by S12, not an S00 product-code
+gate.
+
+## Diff and optional validators
+
+- `git diff --check`: exit 0; no whitespace errors. Git emitted only existing
+  LF-to-CRLF conversion warnings.
+- `scripts/validate_codex_prompt_inventory.py`: absent and explicitly optional
+  under S00.
+- `scripts/validate_markdown_links.py`: absent and explicitly optional under
+  S00. B049 targets contain no Markdown URL links; their path/provenance fields
+  are checked directly by the scoped checker.
+
+## SQLx and Docker
+
+Not applicable. B049 owns documentation and evidence only and changes no SQLx
+migration, database, compose, container, or deployment surface. Docker
+deployment is owned by S09/S13.

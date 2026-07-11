@@ -31,3 +31,16 @@
 
 - CODEX-0110-90-TRACEABILITY-2341b21c7e: implemented as docs-only traceability; test responsibility is covered by B046 prompt coverage, current-safe output, docs-only boundary, and provenance checks in evidence/batches/BATCH-046/test-output.txt.
 - CODEX-0982-90-TRACEABILITY-f9341893bc: implemented as docs-only traceability; test responsibility is covered by B046 prompt coverage, current-safe output, docs-only boundary, and provenance checks in evidence/batches/BATCH-046/test-output.txt.
+
+<!-- BATCH-049-START -->
+## BATCH-049 current-safe trace
+
+| Prompt ID | Prompt file | Current crate | Current module | Source file | Source SHA256 |
+|---|---|---|---|---|---|
+| `CODEX-1060-90-TRACEABILITY-c30586dd61` | `codex-prompts/90-traceability/P0093.md` | `trpg-docs-governance` | `traceability::completion_matrix` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-docs-implementation-90-traceability-completion-matrix-da38d7ba71.v5-code-ready.md` | `be97612a90bcb9502486a66f4d15516075d2de39c2db1df99f317f9d1ddcd1ef` |
+
+- `CODEX-1060-90-TRACEABILITY-c30586dd61`: implemented as additive
+  docs-only matrix traceability. Historical tokens are provenance only; no
+  product implementation is owned. Test evidence:
+  `evidence/batches/BATCH-049/test-output.txt`.
+<!-- BATCH-049-END -->

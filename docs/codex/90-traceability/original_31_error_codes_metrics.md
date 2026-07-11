@@ -22,3 +22,16 @@
 ## Batch disposition
 
 - CODEX-1012-90-TRACEABILITY-9a9068cc0b: implemented as docs-only traceability; test responsibility is covered by B047 prompt coverage, current-safe output, docs-only boundary, and provenance checks in evidence/batches/BATCH-047/test-output.txt.
+
+<!-- BATCH-049-START -->
+## BATCH-049 current-safe provenance trace
+
+| Prompt ID | Prompt file | Current crate | Current module | Source file | Source SHA256 |
+|---|---|---|---|---|---|
+| `CODEX-1062-90-TRACEABILITY-d2f07cf2be` | `codex-prompts/90-traceability/P0096.md` | `trpg-docs-governance` | `traceability::original_31_error_codes_metrics` | `docs/implementation/90-traceability/per-file-code-ready/90-traceability/sources-v3-baseline-document-group-docs-implementation-90-traceability-original-31-error-codes-metrics-e8c0035221.v5-code-ready.md` | `b02baf6703a5c6eafe6d2eb9ffe97142229c5f682430b90eb56fe7273585b4e4` |
+
+- `CODEX-1062-90-TRACEABILITY-d2f07cf2be`: implemented as additive
+  docs-only provenance. Historical metric suggestions are not current metric
+  definitions; this prompt owns no executable metric or product output. Test
+  evidence: `evidence/batches/BATCH-049/test-output.txt`.
+<!-- BATCH-049-END -->
