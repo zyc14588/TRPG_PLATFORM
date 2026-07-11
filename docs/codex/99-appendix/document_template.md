@@ -1,6 +1,6 @@
 # Current documentation template
 
-> BATCH-051 current-safe documentation output. This template is a governance
+> BATCH-051/BATCH-052 current-safe documentation output. This template is a governance
 > aid only and cannot override the repository authority order.
 
 ## Current-safe metadata
@@ -9,6 +9,7 @@
 |---|---|---|---|---|---|---|
 | `CODEX-1072-99-APPENDIX-b9f2731490` | `codex-prompts/99-appendix/P0001.md` | `trpg-docs-governance` | `appendix_research::document_template` | `docs/codex/99-appendix/document_template.md` | `docs/implementation/90-traceability/per-file-code-ready/99-appendix/docs-implementation-99-appendix-document-template-63097f74aa.v5-code-ready.md` | `f5e81f2d14c22ca703c1c6a1f0dba8903cd7d757b4878a4806755d53839a3e98` |
 | `CODEX-1089-99-APPENDIX-668b316c7b` | `codex-prompts/99-appendix/P0018.md` | `trpg-docs-governance` | `appendix_research::document_template` | `docs/codex/99-appendix/document_template.md` | `docs/implementation/90-traceability/per-file-code-ready/99-appendix/sources-v3-baseline-document-group-docs-implementation-99-appendix-document-template-cd55a430c7.v5-code-ready.md` | `0905942302ed080070705b5a29cf3f02f0ddba9f4a89d4b5717b436d1e40a932` |
+| `CODEX-1100-99-APPENDIX-a6df9c35b5` | `codex-prompts/99-appendix/P0025.md` | `trpg-docs-governance` | `appendix_research::document_template` | `docs/codex/99-appendix/document_template.md` | `docs/implementation/99-appendix/document-template.md` | `4814385db06541bbd0ba7d0d08f530d90025119052a56cbf393882f17e31d3b7` |
 
 ## Allowed boundary
 
@@ -41,12 +42,13 @@ path, or prior report to current authority.
   outputs.
 - Tool Permission and Policy Gate checks remain default-deny and auditable.
 
-## BATCH-051 disposition and test responsibility
+## BATCH-051/BATCH-052 disposition and test responsibility
 
-The two BATCH-051 inputs are merged into this single current-safe artifact.
-B051 checks both Prompt IDs, provenance metadata, current-safe map agreement,
-Markdown structure, shared-target merging, and the documentation-only
-boundary. No executable implementation test is owned by these prompts.
+The two BATCH-051 inputs and BATCH-052 P0025 are merged into this single
+current-safe artifact. Each batch checks its Prompt IDs, provenance metadata,
+current-safe map agreement, Markdown structure, shared-target merging, and the
+documentation-only boundary. No executable implementation test is owned by
+these prompts.
 
 ## Minimal usable Markdown template
 

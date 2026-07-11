@@ -1,0 +1,15 @@
+docs/codex/99-appendix/document_template.md
+docs/codex/99-appendix/followup_research_prompts.md
+docs/codex/99-appendix/glossary.md
+docs/codex/99-appendix/implementation_doc_template.md
+docs/codex/99-appendix/open_source_reference_notes.md
+docs/codex/99-appendix/prototype_catalog_previous.md
+docs/codex/99-appendix/research_decision_matrix_previous.md
+docs/codex/99-appendix/unresolved_questions.md
+evidence/batches/BATCH-052/acceptance-report.md
+evidence/batches/BATCH-052/acceptance-test-output.txt
+evidence/batches/BATCH-052/changed-files.txt
+evidence/batches/BATCH-052/handoff.md
+evidence/batches/BATCH-052/plan.md
+evidence/batches/BATCH-052/prompt-traceability.md
+evidence/batches/BATCH-052/test-output.txt

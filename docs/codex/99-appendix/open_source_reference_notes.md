@@ -1,6 +1,6 @@
 # Open-source reference notes
 
-> BATCH-051 current-safe documentation output. References collected here are
+> BATCH-051/BATCH-052 current-safe documentation output. References collected here are
 > advisory inputs only and never override the current top-level design.
 
 ## Current-safe metadata
@@ -10,13 +10,14 @@
 | CODEX-1079-99-APPENDIX-8cfa2d0624 | codex-prompts/99-appendix/P0006.md | docs/implementation/90-traceability/per-file-code-ready/99-appendix/docs-implementation-99-appendix-generated-from-source-strict-docs-implementation-99-appendix-open-source-refer-224a23681e.v5-code-ready.md | dd3dde91fc89ad9bfb014115b4010be73537b8eadff5dbd980d74435c4eef29e | trpg-docs-governance | appendix_research::open_source_reference_notes | docs/codex/99-appendix/open_source_reference_notes.md |
 | CODEX-1086-99-APPENDIX-678a4fceb9 | codex-prompts/99-appendix/P0015.md | docs/implementation/90-traceability/per-file-code-ready/99-appendix/docs-implementation-99-appendix-open-source-reference-notes-d7843d5f9a.v5-code-ready.md | cbd505a58fb0b7c6ce57270d8a0b03bf0796607c86e98d955c92fc821c878e90 | trpg-docs-governance | appendix_research::open_source_reference_notes | docs/codex/99-appendix/open_source_reference_notes.md |
 | CODEX-1093-99-APPENDIX-e48b12230c | codex-prompts/99-appendix/P0022.md | docs/implementation/90-traceability/per-file-code-ready/99-appendix/sources-v3-baseline-document-group-docs-implementation-99-appendix-open-source-reference-notes-8a1c838908.v5-code-ready.md | 8bae0fc0ca79a06ceb0951b4fc64d2d3a9c6230ba9c2ffc3f984a53d384b9d14 | trpg-docs-governance | appendix_research::open_source_reference_notes | docs/codex/99-appendix/open_source_reference_notes.md |
+| CODEX-1105-99-APPENDIX-853faddcb9 | codex-prompts/99-appendix/P0030.md | docs/implementation/99-appendix/open-source-reference-notes.md | 8a08ef712b577950692eff711b1ef2567dedfb3f9c99ea735178cb3b859871b7 | trpg-docs-governance | appendix_research::open_source_reference_notes | docs/codex/99-appendix/open_source_reference_notes.md |
 
 Source paths and hashes above are provenance only. Current naming comes from
 the normalized and current-safe maps.
 
 ## Allowed change boundary
 
-- Maintain this Markdown reference trace and BATCH-051 evidence only.
+- Maintain this Markdown reference trace and BATCH-051/BATCH-052 evidence only.
 - Do not infer current versions, licenses, security posture, compatibility, or
   adoption decisions without separately gathered and cited evidence.
 - Do not promote reference material into Rust source or tests, migrations,
@@ -48,9 +49,9 @@ the normalized and current-safe maps.
 ## Batch disposition and test responsibility
 
 - Disposition: implemented as documentation-only traceability.
-- All three prompt rows share this single target and must remain present.
-- BATCH-051 checks must verify map agreement, all Prompt IDs and provenance
+- All four prompt rows share this single target and must remain present.
+- BATCH-051 and BATCH-052 checks must verify map agreement, their Prompt IDs and provenance
   fields, Markdown structure, relative links, the advisory-only status of
   references, governance invariants, and the docs-only boundary.
 - S00 verification is the applicable stage check; this page owns no product
-  test because BATCH-051 has no primary implementation prompt.
+  test because neither batch has a primary implementation prompt.

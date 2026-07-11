@@ -1,0 +1,136 @@
+# BATCH-052 Acceptance Test Output
+
+Recorded: 2026-07-12T00:11:06.3443594+10:00
+
+## Acceptance input reread
+
+Exit code: 0
+
+~~~text
+authority_and_evidence_inputs=9
+prompt_files_reread=8
+read_failures=0
+RESULT=PASS
+~~~
+
+The acceptance pass reread `AGENTS.md`, B052, both current maps, the token
+rewrite table, implementation evidence inputs, and all 8 per-file prompts.
+
+## Independent B052 scoped checker
+
+Exit code: 0
+
+~~~text
+row_count=8
+primary_count=0
+normalized_rows=8
+safe_rows=8
+target_count=8
+unique_target_count=8
+row_failures=0
+provider_call_hits=0
+state_write_hits=0
+rust_output_hits=0
+RESULT=PASS
+~~~
+
+The checker independently derives prompt/module/target rows from the current
+maps, source/SHA values from each prompt, and complete owner sets from all map
+rows sharing a target.
+
+## Independent Markdown check
+
+Exit code: 0
+
+~~~text
+document_count=8
+local_link_count=4
+fence_marker_count=4
+markdown_failures=0
+RESULT=PASS
+~~~
+
+## Independent S00 fixture checks
+
+Test-data and fixture parser exit code: 0
+
+~~~text
+fixture_json_count=4
+inventory_prompt_count=1109
+inventory_batch_count=52
+change_control_cases=4
+required_path_failures=0
+RESULT=PASS
+~~~
+
+Governance verifier command:
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1 -RepositoryRoot .`
+
+Exit code: 0
+
+~~~text
+S00 governance boundary check
+required_files=4 PASS
+expected_event=GovernanceReadinessRecorded visibility=system_only PASS
+expected_record=StageReadinessReport fields=4 PASS
+required_evidence=2 PASS
+normalized_overlay_files=3 PASS
+normalized_rows=1109 PASS
+safe_rows=1109 PASS
+provenance_boundary=PASS
+pass_criteria=3 PASS
+RESULT=PASS
+~~~
+
+## Independent workspace checks
+
+| Command | Exit code | Result |
+|---|---:|---|
+| `cargo fmt --all -- --check` | 0 | PASS |
+| `cargo metadata --no-deps --format-version 1` | 0 | PASS; 12 packages; `trpg-docs-governance` absent |
+| `cargo check --workspace --all-features` | 0 | PASS |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | PASS |
+| `cargo test --workspace --all-features` | 0 | PASS; all workspace and doc tests completed in 69.5 seconds |
+| `cargo test -p trpg-testing --test visibility_leakage --all-features` | 0 | PASS; 1 passed |
+| `pnpm.cmd test` | 0 | PASS; supplemental shared S12 UI-boundary fixture automation |
+
+The complete workspace, explicit leakage, and pnpm checks were rerun during
+acceptance. The existing home-path canonicalization warning did not affect an
+exit code.
+
+## N/A checks
+
+- SQLx: no schema or migration changed.
+- Docker: no deployment or container surface changed.
+- `trpg-docs-governance` package test: package absent; B052 cannot create it.
+
+## Final path and file closure
+
+~~~text
+manifest_count=15
+working_tree_path_count=15
+modified_path_count=6
+untracked_path_count=9
+missing_manifest_paths=0
+unexpected_working_tree_paths=0
+staged_status_entries=0
+utf8_failures=0
+trailing_whitespace_files=0
+forbidden_scope_paths=0
+RESULT=PASS
+~~~
+
+- `git diff --check`: exit 0; only existing LF-to-CRLF warnings were emitted.
+- UTF-8 and trailing-whitespace checks: 15/15 manifest files passed.
+- Scope closure: exactly 8 appendix docs and 7 B052 evidence files; no staged,
+  product-code, workflow, migration, or `source-archive/**` path.
+
+## Independent read-only review
+
+PASS. A separate reviewer confirmed 15/15 path closure, 8 prompt rows and 8
+targets, all 6 shared B051 owner sets, both previous/provenance boundaries,
+exact Prompt/source/SHA/current-safe metadata, zero forbidden scope paths, and
+no P0/P1 finding. The known lower-priority P0029/P0032 map differences remain
+non-blocking provenance/input risk.
+
+Final independent result: PASS.

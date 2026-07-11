@@ -1,6 +1,6 @@
 # Current implementation-document template
 
-> BATCH-051 current-safe documentation output. This is a template for
+> BATCH-051/BATCH-052 current-safe documentation output. This is a template for
 > describing authorized work, not authorization to implement it.
 
 ## Current-safe ownership
@@ -9,6 +9,7 @@
 |---|---|---|---|---|---|---|
 | `CODEX-1083-99-APPENDIX-cd4ea494b1` | `codex-prompts/99-appendix/P0012.md` | `trpg-docs-governance` | `appendix_research::implementation_doc_template` | `docs/codex/99-appendix/implementation_doc_template.md` | `docs/implementation/90-traceability/per-file-code-ready/99-appendix/docs-implementation-99-appendix-implementation-doc-template-c78a6ad159.v5-code-ready.md` | `bd7a87c13b5a00ccdf576a8bd18a068035bb3c233f7867213d5c54446964ab93` |
 | `CODEX-1092-99-APPENDIX-63da50377b` | `codex-prompts/99-appendix/P0021.md` | `trpg-docs-governance` | `appendix_research::implementation_doc_template` | `docs/codex/99-appendix/implementation_doc_template.md` | `docs/implementation/90-traceability/per-file-code-ready/99-appendix/sources-v3-baseline-document-group-docs-implementation-99-appendix-implementation-doc-template-c8c2d42b0d.v5-code-ready.md` | `bcca1b1b4044b5028b7d96f91c7d20746640a85b21e1977adbfc3158a60e2a1b` |
+| `CODEX-1103-99-APPENDIX-94a27a771a` | `codex-prompts/99-appendix/P0028.md` | `trpg-docs-governance` | `appendix_research::implementation_doc_template` | `docs/codex/99-appendix/implementation_doc_template.md` | `docs/implementation/99-appendix/implementation-doc-template.md` | `0d00e00e6ddde90bcd0745a053acd1a353110f7eea9b0ab5cdf4aa2a52201f09` |
 
 ## Required sections for an implementation document
 
@@ -29,5 +30,6 @@ traceability and cannot create product code by implication.
 
 ## Test responsibility
 
-B051 checks the two owning rows, current-safe metadata, shared-target merge,
-Markdown structure, and the explicit no-code authorization boundary.
+B051 and B052 check all three owning rows, current-safe metadata,
+shared-target merge, Markdown structure, and the explicit no-code
+authorization boundary.

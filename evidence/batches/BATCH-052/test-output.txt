@@ -1,0 +1,117 @@
+# BATCH-052 Test Output
+
+Recorded: 2026-07-12T00:03:57.8980048+10:00
+
+## Minimum B052 scoped checker
+
+Command: inline PowerShell checker over `batches/B052.md`, both current-safe
+maps, all 8 prompt files, and all 8 current-safe targets.
+
+Exit code: 0
+
+~~~text
+row_count=8
+primary_count=0
+normalized_rows=8
+safe_rows=8
+target_count=8
+unique_target_count=8
+shared_target_count=6
+previous_target_count=2
+provider_call_hits=0
+state_write_hits=0
+rust_output_hits=0
+failure_count=0
+RESULT=PASS
+~~~
+
+The checker validates roles, Prompt IDs, prompt/source/SHA metadata, both map
+rows, exact shared-owner sets, both normalized overrides, retained governance
+terms, previous/provenance isolation, docs-only scope, and untouched
+`source-archive/**`.
+
+## Markdown check
+
+Exit code: 0
+
+~~~text
+document_count=8
+local_link_count=4
+fence_marker_count=4
+markdown_failures=0
+RESULT=PASS
+~~~
+
+All targets start with H1, contain a metadata table, have balanced fences,
+resolve local links, and contain no trailing whitespace.
+
+## S00 test-data and fixture parsing
+
+Exit code: 0
+
+~~~text
+fixture_json_count=4
+inventory_prompt_count=1109
+inventory_primary_count=257
+inventory_supplemental_count=451
+inventory_documentation_count=401
+inventory_batch_count=52
+change_control_cases=4
+s00_required_documents=5
+s00_required_stage_evidence=3
+s00_detailed_required_evidence=2
+failure_count=0
+RESULT=PASS
+~~~
+
+The check parses both S00 test-data JSON fences and both S00 fixture JSON
+fences, validates inventory counts, and confirms all fixture-required files
+and evidence paths exist.
+
+## S00 detailed fixture automation
+
+Command:
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1 -RepositoryRoot .`
+
+Exit code: 0
+
+~~~text
+S00 governance boundary check
+required_files=4 PASS
+expected_event=GovernanceReadinessRecorded visibility=system_only PASS
+expected_record=StageReadinessReport fields=4 PASS
+required_evidence=2 PASS
+normalized_overlay_files=3 PASS
+normalized_rows=1109 PASS
+safe_rows=1109 PASS
+provenance_boundary=PASS
+pass_criteria=3 PASS
+RESULT=PASS
+~~~
+
+## Workspace checks
+
+| Command | Exit code | Result |
+|---|---:|---|
+| `cargo fmt --all -- --check` | 0 | PASS |
+| `cargo metadata --no-deps --format-version 1` | 0 | PASS; 12 packages; `trpg-docs-governance` absent |
+| `cargo check --workspace --all-features` | 0 | PASS |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | PASS |
+| `cargo test --workspace --all-features` | 0 | PASS; all workspace and doc tests completed in 94.9 seconds |
+| `cargo test -p trpg-testing --test visibility_leakage --all-features` | 0 | PASS; 1 passed |
+| `pnpm.cmd test` | 0 | PASS; shared S12 UI-boundary fixture automation |
+
+The recurring `could not canonicalize path C:\Users\zyc14588` warning is
+pre-existing and did not change any exit code.
+
+## Applicability
+
+- No product test was added: B052 has zero primary prompts, and its document
+  mapping is exercised by the scoped checker.
+- `cargo test -p trpg-docs-governance ...` is N/A because that package is
+  absent and B052 cannot create it.
+- SQLx and Docker are N/A because no schema, migration, compose, container,
+  or deployment surface changed.
+- Early checker-authoring preflights exposed whitespace/CRLF/JSON-array
+  parsing false positives; the final corrected checks above all pass and did
+  not require a product or governance relaxation.
