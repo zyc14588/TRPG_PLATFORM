@@ -35,3 +35,14 @@ This marked section satisfies the current-safe docs/codex/90-traceability/readme
 
 - CODEX-0979-90-TRACEABILITY-c43359535b from codex-prompts/90-traceability/P0012.md maps to traceability::readme and is docs-only.
 <!-- BATCH-046-END -->
+
+<!-- BATCH-047-START -->
+## BATCH-047 current-safe readme trace
+
+This marked section satisfies the current-safe `docs/codex/90-traceability/readme.md` output for B047.
+
+- CODEX-1014-90-TRACEABILITY-3e2e7e413e from `codex-prompts/90-traceability/P0047.md` maps to `traceability::readme` and is docs-only.
+- Provenance source file: `docs/implementation/90-traceability/per-file-code-ready/90-traceability/docs-implementation-90-traceability-readme-dc8438b8d7.v5-code-ready.md`.
+- Provenance source SHA256: `8993b23f1477f440ae03c573784ba12c68003d80b86ed8842a1f62ecd76181d8`.
+- No Rust, migration, API, event, NATS, metric, workflow, provider, or formal state-write output is owned by this prompt.
+<!-- BATCH-047-END -->

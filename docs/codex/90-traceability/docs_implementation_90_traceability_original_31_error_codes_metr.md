@@ -29,3 +29,13 @@
 ## Batch disposition
 
 - CODEX-0984-90-TRACEABILITY-61c7a1d956: implemented as docs-only traceability; test responsibility is covered by B046 prompt coverage, current-safe output, docs-only boundary, and provenance checks in evidence/batches/BATCH-046/test-output.txt.
+
+<!-- BATCH-047-START -->
+## BATCH-047 current-safe trace
+
+| Prompt ID | Prompt file | Current crate | Current module | Source file | Source SHA256 |
+|---|---|---|---|---|---|
+| CODEX-0994-90-TRACEABILITY-734ecdf4a7 | codex-prompts/90-traceability/P0032.md | trpg-docs-governance | traceability::docs_implementation_90_traceability_original_31_error_codes_metr | docs/implementation/90-traceability/per-file-code-ready/90-traceability/docs-implementation-90-traceability-generated-from-source-strict-docs-implementation-90-traceability-original-7f40490272.v5-code-ready.md | 5a4f081e8d344a566915d7dedc4129114661522fe3271b2033ec989b628574a7 |
+
+- CODEX-0994-90-TRACEABILITY-734ecdf4a7: implemented as docs-only traceability; no Rust, migration, API, event, NATS, metric, workflow, provider, or formal state-write output is owned by this prompt.
+<!-- BATCH-047-END -->

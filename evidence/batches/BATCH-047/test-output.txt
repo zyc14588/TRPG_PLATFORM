@@ -1,0 +1,238 @@
+# BATCH-047 Test Output
+
+Recorded: 2026-07-10T20:21:50+10:00
+
+## Reproducible B047 strict check
+
+Command:
+
+~~~powershell
+[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new()
+$ErrorActionPreference='Stop'
+function Cells([string]$Line) {
+    @($Line.Split('|') | ForEach-Object { $_.Trim().Trim([char]96) })
+}
+$tick=[char]96
+$batchLines=@(Get-Content -Encoding UTF8 'batches/B047.md' |
+    Where-Object { $_.StartsWith('| CODEX-') })
+$normalized=@{}
+Get-Content -Encoding UTF8 'docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md' |
+    Where-Object { $_.StartsWith("| $tick" + 'CODEX-') } |
+    ForEach-Object { $c=Cells $_; $normalized[$c[1]]=$c }
+$safe=@{}
+Get-Content -Encoding UTF8 'docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md' |
+    Where-Object { $_.StartsWith("| $tick" + 'CODEX-') } |
+    ForEach-Object { $c=Cells $_; $safe[$c[1]]=$c }
+$trace=Get-Content -Raw -Encoding UTF8 'evidence/batches/BATCH-047/prompt-traceability.md'
+$rowFailures=@()
+foreach($line in $batchLines){
+    $b=Cells $line
+    $id=$b[1]
+    $prompt=$b[9]
+    $n=$normalized[$id]
+    $s=$safe[$id]
+    $issues=@()
+    if($b[3] -ne 'documentation-or-traceability' -or $b[4]){$issues+='role'}
+    if(-not $n -or -not $s){$issues+='map-missing'}
+    elseif($n[2] -ne $prompt -or $n[3] -ne $s[2] -or
+           $n[4] -ne $s[3] -or $n[6] -ne $s[4]){$issues+='map-mismatch'}
+    else {
+        $target=$n[6]
+        if(-not (Test-Path -LiteralPath $target)){$issues+='target-missing'}
+        else {
+            $body=Get-Content -Raw -Encoding UTF8 -LiteralPath $target
+            $promptBody=Get-Content -Raw -Encoding UTF8 -LiteralPath $prompt
+            $sha=[regex]::Match(
+                $promptBody,'源 SHA256：.([0-9a-f]{64}).'
+            ).Groups[1].Value
+            $source=[regex]::Match(
+                $promptBody,'(?m)^> 源文件：.(.+).$'
+            ).Groups[1].Value.Trim([char]96)
+            if(-not $body.Contains($id)){$issues+='prompt-id'}
+            if(-not $body.Contains($n[4])){$issues+='module'}
+            if(-not $body.Contains($sha)){$issues+='source-sha'}
+            if(-not $body.Contains($source)){$issues+='source-path'}
+        }
+    }
+    $acceptancePattern='(?m)^\| .?'+[regex]::Escape($id)+
+        '.?.*\| implemented \| PASS \|'
+    if($trace -notmatch $acceptancePattern){$issues+='acceptance-result'}
+    if($issues.Count){$rowFailures+="$($id):$($issues -join ',')"}
+}
+$declared=@(
+    Get-Content -Encoding UTF8 'evidence/batches/BATCH-047/changed-files.txt' |
+    Where-Object { $_.Trim() }
+)
+$actual=@(
+    git status --porcelain=v1 -uall |
+    ForEach-Object { $_.Substring(3).Replace('\','/') }
+)
+$b047Actual=@(
+    $actual | Where-Object {
+        $_ -like 'docs/codex/90-traceability/*' -or
+        $_ -like 'evidence/batches/BATCH-047/*'
+    }
+)
+$s00Repair=@(
+    $actual | Where-Object { $_ -eq 'scripts/verify-governance-boundary.ps1' }
+)
+$unexpected=@(
+    $actual | Where-Object { $_ -notin $b047Actual -and $_ -notin $s00Repair }
+)
+$manifestDiff=@(
+    Compare-Object ($declared|Sort-Object) ($b047Actual|Sort-Object)
+)
+$targets=@(
+    $b047Actual | Where-Object { $_ -like 'docs/codex/90-traceability/*' }
+)
+$evidence=@(
+    $b047Actual | Where-Object { $_ -like 'evidence/batches/BATCH-047/*' }
+)
+$implementation=@(
+    $b047Actual | Where-Object {
+        $_ -match '(^|/)(src|tests|migrations)(/|$)|\.(rs|sql|toml|ya?ml|js|ts|tsx)$'
+    }
+)
+$providerCalls=@(
+    Select-String -Path $targets -Pattern (
+        'reqwest::|Client::new\(|chat_completion\(|responses\(|'+
+        'openai\.com|11434/v1|8080/v1'
+    ) -CaseSensitive:$false
+)
+$stateWrites=@(
+    Select-String -Path $targets -Pattern (
+        'INSERT\s+INTO|UPDATE\s+[a-z_]+\s+SET|DELETE\s+FROM|sqlx::query'
+    ) -CaseSensitive:$false
+)
+$sensitive=@(
+    Select-String -Path $targets -Pattern (
+        'keeper_only|private_to_player|ai_internal'
+    ) -CaseSensitive:$false
+)
+"B047 row count=$($batchLines.Count)"
+"Primary rows=$(($batchLines|Where-Object{(Cells $_)[4]}).Count)"
+"Supplemental rows=$(($batchLines|Where-Object{
+    (Cells $_)[3] -eq 'supplemental-requirement'
+}).Count)"
+"Row acceptance failures=$($rowFailures.Count)"
+$rowFailures
+"B047 declared paths=$($declared.Count)"
+"B047 unique declared paths=$(($declared|Sort-Object -Unique).Count)"
+"B047 actual scoped paths=$($b047Actual.Count)"
+"B047 docs paths=$($targets.Count)"
+"B047 evidence paths=$($evidence.Count)"
+"B047 manifest differences=$($manifestDiff.Count)"
+"Authorized S00 repair paths=$($s00Repair.Count)"
+"Combined relevant paths=$($b047Actual.Count + $s00Repair.Count)"
+"Unexpected paths=$($unexpected.Count)"
+"Implementation paths=$($implementation.Count)"
+"Direct provider call syntax hits=$($providerCalls.Count)"
+"Formal state write syntax hits=$($stateWrites.Count)"
+"Sensitive fixture label hits in current-safe targets=$($sensitive.Count)"
+if($batchLines.Count -ne 25 -or $rowFailures.Count -or
+   $declared.Count -ne 32 -or
+   ($declared|Sort-Object -Unique).Count -ne 32 -or
+   $b047Actual.Count -ne 32 -or $targets.Count -ne 25 -or
+   $evidence.Count -ne 7 -or $manifestDiff.Count -or
+   $s00Repair.Count -ne 1 -or $unexpected.Count -or
+   $implementation.Count -or $providerCalls.Count -or
+   $stateWrites.Count -or $sensitive.Count){exit 1}
+'RESULT=PASS'
+~~~
+
+Exit code: 0
+
+Output:
+
+~~~text
+B047 row count=25
+Primary rows=0
+Supplemental rows=0
+Row acceptance failures=0
+B047 declared paths=32
+B047 unique declared paths=32
+B047 actual scoped paths=32
+B047 docs paths=25
+B047 evidence paths=7
+B047 manifest differences=0
+Authorized S00 repair paths=1
+Combined relevant paths=33
+Unexpected paths=0
+Implementation paths=0
+Direct provider call syntax hits=0
+Formal state write syntax hits=0
+Sensitive fixture label hits in current-safe targets=0
+RESULT=PASS
+~~~
+
+The 32-path count is the B047 batch manifest. The separately authorized S00
+repair script is reported independently and is not a B047 prompt output.
+
+## S00 detailed fixture automation
+
+Command:
+
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1
+~~~
+
+Exit code: 0
+
+Output:
+
+~~~text
+S00 governance boundary check
+required_files=4 PASS
+expected_event=GovernanceReadinessRecorded visibility=system_only PASS
+expected_record=StageReadinessReport fields=4 PASS
+required_evidence=2 PASS
+normalized_overlay_files=3 PASS
+normalized_rows=1109 PASS
+safe_rows=1109 PASS
+provenance_boundary=PASS
+pass_criteria=3 PASS
+RESULT=PASS
+~~~
+
+The fixture names pwsh; this Windows checkout provides Windows PowerShell
+5.1, so the equivalent powershell.exe host was used.
+
+## Cargo
+
+| Command | Exit code | Output |
+|---|---:|---|
+| cargo fmt --all -- --check | 0 | Format check passed; only the existing home-path canonicalization warning was emitted. |
+| cargo check --workspace --all-features | 0 | Finished dev profile successfully. |
+| cargo test --workspace --all-features | 0 | All workspace unit, integration, contract, fixture, leakage, and doc tests passed. |
+| cargo test -p trpg-testing --test visibility_leakage --all-features | 0 | visibility_leakage_stage_gate passed; 1 passed, 0 failed. |
+
+## pnpm
+
+Command: pnpm.cmd test
+
+Exit code: 0
+
+Output:
+
+~~~text
+S12 UI boundary fixture automation passed
+snapshots: artifacts/test-reports/s12-ui-boundary
+$ node scripts/s12_ui_boundary_test.mjs
+~~~
+
+This is supplemental workspace evidence from the only root package script. It
+belongs to S12 and is not a B047/S00 gate.
+
+## Docker
+
+Not applicable. B047 is S00 documentation-only work and changes no compose or
+container surface; Docker deployment is owned by S09/S13. The current host
+also has no Docker CLI, but CLI absence is not the applicability reason.
+
+## Diff check
+
+Command: git diff --check
+
+Exit code: 0
+
+Output: no whitespace errors; only Git line-ending conversion warnings.

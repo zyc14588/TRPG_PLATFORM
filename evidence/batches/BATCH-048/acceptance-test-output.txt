@@ -1,0 +1,50 @@
+# BATCH-048 Acceptance Test Output
+
+Recorded: 2026-07-10T21:26:26+10:00
+
+## Final independent B048 checker
+
+The acceptance checker reparsed `batches/B048.md`, all 25 prompt files,
+`CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md`,
+`CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md`, all 25 targets,
+`prompt-traceability.md`, and `changed-files.txt`. It separately allowed
+the exact pre-existing B047/S00 33-path set.
+
+Exit code: 0
+
+~~~text
+rows=25
+primary=0
+supplemental=0
+row_failures=0
+declared=32
+declared_unique=32
+actual_b048=32
+docs=25
+evidence=7
+manifest_differences=0
+preexisting_present=33
+unexpected=0
+implementation=0
+provider_calls=0
+state_writes=0
+sensitive_labels=0
+RESULT=PASS
+~~~
+
+Markdown structure replay: 29 Markdown files, 0 H1/fence/table failures,
+`RESULT=PASS`.
+
+## Replayed S00 and workspace gates
+
+| Command | Exit code | Result |
+|---|---:|---|
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1` | 0 | PASS |
+| `cargo fmt --all -- --check` | 0 | PASS |
+| `cargo check --workspace --all-features` | 0 | PASS |
+| `cargo test --workspace --all-features` | 0 | PASS |
+| `cargo test -p trpg-testing --test visibility_leakage --all-features` | 0 | PASS; 1 passed |
+| `pnpm.cmd test` | 0 | PASS, supplemental S12 evidence |
+| `git diff --check` | 0 | PASS |
+
+Docker is N/A because B048 changes no compose/container surface.

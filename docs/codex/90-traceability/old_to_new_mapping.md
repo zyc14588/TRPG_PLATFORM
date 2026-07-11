@@ -31,3 +31,13 @@
 
 - CODEX-0113-90-TRACEABILITY-9629d02bc9: implemented as docs-only traceability; test responsibility is covered by B046 prompt coverage, current-safe output, docs-only boundary, and provenance checks in evidence/batches/BATCH-046/test-output.txt.
 - CODEX-0978-90-TRACEABILITY-4c2114e61c: implemented as docs-only traceability; test responsibility is covered by B046 prompt coverage, current-safe output, docs-only boundary, and provenance checks in evidence/batches/BATCH-046/test-output.txt.
+
+<!-- BATCH-047-START -->
+## BATCH-047 current-safe trace
+
+| Prompt ID | Prompt file | Current crate | Current module | Source file | Source SHA256 |
+|---|---|---|---|---|---|
+| CODEX-1011-90-TRACEABILITY-32e59e6840 | codex-prompts/90-traceability/P0044.md | trpg-docs-governance | traceability::historical_to_current_mapping | docs/implementation/90-traceability/per-file-code-ready/90-traceability/docs-implementation-90-traceability-old-to-new-mapping-0d62147f3d.v5-code-ready.md | 44b91e3eda21c4364c44a055e56d7b2151f3040740a58786fed54d8a86389d32 |
+
+- CODEX-1011-90-TRACEABILITY-32e59e6840: implemented as docs-only traceability under current-safe target `docs/codex/90-traceability/old_to_new_mapping.md`; no Rust, migration, API, event, NATS, metric, workflow, provider, or formal state-write output is owned by this prompt.
+<!-- BATCH-047-END -->

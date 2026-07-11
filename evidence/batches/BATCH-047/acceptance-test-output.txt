@@ -1,0 +1,139 @@
+# BATCH-047 Independent Acceptance Test Output
+
+Recorded: 2026-07-10T20:21:50+10:00
+
+## Independent evidence closure check
+
+Command:
+
+~~~powershell
+[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new()
+$ErrorActionPreference='Stop'
+$traceRows=@(
+    Get-Content -Encoding UTF8 'evidence/batches/BATCH-047/prompt-traceability.md' |
+    Where-Object {
+        $_ -match '^\| .?CODEX-' -and
+        $_ -match '\| implemented \| PASS \|'
+    }
+)
+$manifest=@(
+    Get-Content -Encoding UTF8 'evidence/batches/BATCH-047/changed-files.txt' |
+    Where-Object { $_.Trim() }
+)
+$actual=@(
+    git status --porcelain=v1 -uall |
+    ForEach-Object { $_.Substring(3).Replace('\','/') }
+)
+$b047=@(
+    $actual | Where-Object {
+        $_ -like 'docs/codex/90-traceability/*' -or
+        $_ -like 'evidence/batches/BATCH-047/*'
+    }
+)
+$s00=@(
+    $actual | Where-Object {
+        $_ -eq 'scripts/verify-governance-boundary.ps1'
+    }
+)
+$unexpected=@(
+    $actual | Where-Object { $_ -notin $b047 -and $_ -notin $s00 }
+)
+$manifestDiff=@(
+    Compare-Object ($manifest|Sort-Object) ($b047|Sort-Object)
+)
+$readme=Get-Content -Raw -Encoding UTF8 'docs/codex/90-traceability/readme.md'
+$tests=Get-Content -Raw -Encoding UTF8 'evidence/batches/BATCH-047/test-output.txt'
+$report=Get-Content -Raw -Encoding UTF8 'evidence/batches/BATCH-047/acceptance-report.md'
+$plan=Get-Content -Raw -Encoding UTF8 'evidence/batches/BATCH-047/plan.md'
+$source='docs/implementation/90-traceability/per-file-code-ready/90-traceability/docs-implementation-90-traceability-readme-dc8438b8d7.v5-code-ready.md'
+$sha='8993b23f1477f440ae03c573784ba12c68003d80b86ed8842a1f62ecd76181d8'
+"Trace PASS rows=$($traceRows.Count)"
+"B047 manifest paths=$($manifest.Count)"
+"B047 actual paths=$($b047.Count)"
+"Manifest differences=$($manifestDiff.Count)"
+"Authorized S00 paths=$($s00.Count)"
+"Combined relevant paths=$($b047.Count + $s00.Count)"
+"Unexpected paths=$($unexpected.Count)"
+"CODEX-1014 source present=$($readme.Contains($source))"
+"CODEX-1014 SHA present=$($readme.Contains($sha))"
+"Fixture result recorded=$($tests.Contains('S00 governance boundary check'))"
+"Cargo applicability recorded=$($tests.Contains('cargo test --workspace --all-features'))"
+"Docker N/A recorded=$($tests.Contains('Docker deployment is owned by S09/S13'))"
+"Stale 26-count present=$($tests.Contains('Changed paths total: 26'))"
+"Plan still says Cargo N/A=$($plan.Contains('Record cargo checks as not applicable'))"
+"Final report PASS=$($report -match '(?m)^Conclusion: PASS$')"
+if($traceRows.Count -ne 25 -or $manifest.Count -ne 32 -or
+   ($manifest|Sort-Object -Unique).Count -ne 32 -or $b047.Count -ne 32 -or
+   $manifestDiff.Count -or $s00.Count -ne 1 -or $unexpected.Count -or
+   -not $readme.Contains($source) -or -not $readme.Contains($sha) -or
+   -not $tests.Contains('S00 governance boundary check') -or
+   -not $tests.Contains('cargo test --workspace --all-features') -or
+   -not $tests.Contains('Docker deployment is owned by S09/S13') -or
+   $tests.Contains('Changed paths total: 26') -or
+   $plan.Contains('Record cargo checks as not applicable') -or
+   $report -notmatch '(?m)^Conclusion: PASS$'){exit 1}
+'RESULT=PASS'
+~~~
+
+Exit code: 0
+
+Output:
+
+~~~text
+Trace PASS rows=25
+B047 manifest paths=32
+B047 actual paths=32
+Manifest differences=0
+Authorized S00 paths=1
+Combined relevant paths=33
+Unexpected paths=0
+CODEX-1014 source present=True
+CODEX-1014 SHA present=True
+Fixture result recorded=True
+Cargo applicability recorded=True
+Docker N/A recorded=True
+Stale 26-count present=False
+Plan still says Cargo N/A=False
+Final report PASS=True
+RESULT=PASS
+~~~
+
+## Independent S00 fixture rerun
+
+Command:
+
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1
+~~~
+
+Exit code: 0
+
+Output:
+
+~~~text
+S00 governance boundary check
+required_files=4 PASS
+expected_event=GovernanceReadinessRecorded visibility=system_only PASS
+expected_record=StageReadinessReport fields=4 PASS
+required_evidence=2 PASS
+normalized_overlay_files=3 PASS
+normalized_rows=1109 PASS
+safe_rows=1109 PASS
+provenance_boundary=PASS
+pass_criteria=3 PASS
+RESULT=PASS
+~~~
+
+## Final command matrix
+
+| Check | Exit code | Result |
+|---|---:|---|
+| Reproducible B047 strict check | 0 | PASS |
+| S00 detailed fixture verifier | 0 | PASS |
+| cargo fmt --all -- --check | 0 | PASS |
+| cargo check --workspace --all-features | 0 | PASS |
+| cargo test --workspace --all-features | 0 | PASS |
+| visibility_leakage target | 0 | PASS |
+| pnpm.cmd test | 0 | PASS, supplemental S12 evidence |
+| Docker | N/A | S00/B047 has no compose or container change |
+| git diff --check | 0 | PASS |
