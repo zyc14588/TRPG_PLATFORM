@@ -1,0 +1,110 @@
+# BATCH-051 Acceptance Test Output
+
+Recorded: 2026-07-11T19:15:38+10:00
+
+## Acceptance input reread
+
+Exit code: 0
+
+~~~text
+authority_and_evidence_inputs=9
+prompt_files_reread=25
+RESULT=PASS
+~~~
+
+The acceptance pass reread `AGENTS.md`, B051, both current maps, the token
+rewrite table, implementation evidence inputs, and all 25 per-file prompts.
+
+## Independent B051 scoped checker
+
+Exit code: 0
+
+~~~text
+row_count=25
+primary_count=0
+normalized_rows=25
+safe_rows=25
+target_count=25
+unique_target_count=16
+row_failures=0
+provider_call_hits=0
+state_write_hits=0
+rust_output_hits=0
+RESULT=PASS
+~~~
+
+## Independent Markdown check
+
+Exit code: 0
+
+~~~text
+document_count=16
+local_link_count=23
+fence_marker_count=6
+markdown_failures=0
+RESULT=PASS
+~~~
+
+## Independent S00 gate
+
+Command:
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1 -RepositoryRoot .`
+
+Exit code: 0
+
+~~~text
+S00 governance boundary check
+required_files=4 PASS
+expected_event=GovernanceReadinessRecorded visibility=system_only PASS
+expected_record=StageReadinessReport fields=4 PASS
+required_evidence=2 PASS
+normalized_overlay_files=3 PASS
+normalized_rows=1109 PASS
+safe_rows=1109 PASS
+provenance_boundary=PASS
+pass_criteria=3 PASS
+RESULT=PASS
+~~~
+
+## Independent shared-workspace checks
+
+| Command | Exit code | Result |
+|---|---:|---|
+| `cargo fmt --all -- --check` | 0 | PASS |
+| `cargo check --workspace --all-features` | 0 | PASS |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | PASS |
+| `cargo test --workspace --all-features` | 0 | PASS; all workspace and doc tests completed in 59.3 seconds |
+| `cargo test -p trpg-testing --test visibility_leakage --all-features` | 0 | PASS; 1 passed |
+| `pnpm.cmd test` | 0 | PASS; supplemental shared S12 UI-boundary fixture automation |
+
+The complete workspace check, clippy, test suite, and explicit leakage gate
+were rerun during acceptance. No B051 product-code path was created.
+
+## N/A checks
+
+- SQLx: no schema or migration changed.
+- Docker: no deployment or container surface changed.
+- `trpg-docs-governance` package test: package absent; B051 cannot create it.
+
+Final independent result: PASS.
+
+## Final path and file closure
+
+~~~text
+manifest_count=23
+working_tree_path_count=23
+missing_manifest_paths=0
+unexpected_working_tree_paths=0
+non_untracked_status_entries=0
+RESULT=PASS
+~~~
+
+- `git diff --check`: exit 0; only existing LF-to-CRLF warnings were emitted.
+- UTF-8 read check: 23/23 manifest files readable.
+
+## Independent read-only review
+
+PASS. A separate reviewer confirmed 23/23 path closure, 25 prompt rows across
+16 current-safe targets, 25/25 map agreement, five previous boundaries, zero
+implementation-surface changes, no B052 Prompt ID or B052-only target, and no
+P0/P1/P2 finding.

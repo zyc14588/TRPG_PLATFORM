@@ -1,0 +1,94 @@
+# BATCH-051 Test Output
+
+Recorded: 2026-07-11T19:15:38+10:00
+
+## Minimum B051 scoped checker
+
+Command: inline PowerShell checker over `batches/B051.md`, both current-safe
+maps, all 25 prompt files, and all 16 unique current-safe targets.
+
+Exit code: 0
+
+~~~text
+row_count=25
+primary_count=0
+normalized_rows=25
+safe_rows=25
+target_count=25
+unique_target_count=16
+row_failures=0
+provider_call_hits=0
+state_write_hits=0
+rust_output_hits=0
+RESULT=PASS
+~~~
+
+The checker validates role/primary boundaries, duplicate IDs, prompt paths,
+normalized/safe crate-module-output agreement, target existence, Prompt/source/
+SHA metadata, owner counts, B052 isolation, governance terms, and absence of
+direct-provider, formal-state-write, and concrete Rust output proposals.
+
+An initial preflight found that six concise pages referred to governance
+indirectly rather than stating every retained red line. The affected pages
+were minimally clarified, then the complete checker passed as shown above.
+
+## Markdown check
+
+Exit code: 0
+
+~~~text
+document_count=16
+local_link_count=23
+fence_marker_count=6
+markdown_failures=0
+RESULT=PASS
+~~~
+
+All targets start with an H1; local links resolve; fenced blocks are balanced;
+target trailing-whitespace hits are zero.
+
+## S00 detailed fixture automation
+
+Command:
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-governance-boundary.ps1 -RepositoryRoot .`
+
+Exit code: 0
+
+~~~text
+S00 governance boundary check
+required_files=4 PASS
+expected_event=GovernanceReadinessRecorded visibility=system_only PASS
+expected_record=StageReadinessReport fields=4 PASS
+required_evidence=2 PASS
+normalized_overlay_files=3 PASS
+normalized_rows=1109 PASS
+safe_rows=1109 PASS
+provenance_boundary=PASS
+pass_criteria=3 PASS
+RESULT=PASS
+~~~
+
+## Cargo and workspace checks
+
+| Command | Exit code | Result |
+|---|---:|---|
+| `cargo fmt --all -- --check` | 0 | PASS |
+| `cargo metadata --no-deps --format-version 1` | 0 | PASS; 12 packages; `trpg-docs-governance` absent |
+| `cargo check --workspace --all-features` | 0 | PASS |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | PASS |
+| `cargo test --workspace --all-features` | 0 | PASS; all workspace unit, integration, contract, fixture, leakage, and doc tests completed |
+| `cargo test -p trpg-testing --test visibility_leakage --all-features` | 0 | PASS; 1 passed |
+| `pnpm.cmd test` | 0 | PASS; shared S12 UI-boundary fixture automation, no B051 implementation output |
+
+The recurring `could not canonicalize path C:\Users\zyc14588` message is an
+existing non-blocking warning and did not change any exit code.
+
+## Applicability
+
+- No new product test was added: B051 has zero primary prompts, and its
+  non-trivial document mapping is exercised by the scoped checker.
+- `cargo test -p trpg-docs-governance ...` from prompt provenance is N/A
+  because that package is absent and B051 cannot create it.
+- pnpm is supplemental shared-workspace evidence and passed. SQLx and Docker
+  are N/A because no database, migration, compose, container, or deployment
+  surface changed.
