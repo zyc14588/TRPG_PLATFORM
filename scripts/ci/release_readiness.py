@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from repo_truth import (
+    EVIDENCE_GENERATOR_VERSION,
     PRODUCT_SERVICES,
     ROOT,
     base_commit,
@@ -31,6 +32,21 @@ REQUIRED_SCRIPTS = (
     "scripts/ci/verify_manifest.py",
     "scripts/ci/verify_evidence_schema.py",
 )
+RELEASE_COMMAND = ["bash", "scripts/ci/test-all.sh"]
+
+
+def release_evidence_errors(data: dict, root: Path, artifact_base: Path) -> list[str]:
+    errors = validate_evidence(data, root, artifact_base)
+    if data.get("status") != "PASS" or data.get("exit_code") != 0:
+        errors.append("release evidence must record a passing command")
+    if data.get("generator_version") != EVIDENCE_GENERATOR_VERSION:
+        errors.append("release evidence generator_version mismatch")
+    if data.get("command_argv") != RELEASE_COMMAND:
+        errors.append("release evidence must execute bash scripts/ci/test-all.sh")
+    artifacts = data.get("artifact_sha256")
+    if not isinstance(artifacts, dict) or "MANIFEST.md" not in artifacts:
+        errors.append("release evidence must bind MANIFEST.md")
+    return errors
 
 
 def assess(root: Path, evidence: Path | None = None) -> dict:
@@ -68,7 +84,15 @@ def assess(root: Path, evidence: Path | None = None) -> dict:
         blockers.append({"id": "MISSING_CURRENT_EVIDENCE", "reason": "no runtime evidence supplied"})
     else:
         try:
-            errors = validate_evidence(json.loads(evidence.read_text(encoding="utf-8")), root)
+            resolved_evidence = evidence.resolve()
+            if resolved_evidence.is_relative_to(root.resolve()):
+                errors = ["release evidence must be outside the repository"]
+            else:
+                errors = release_evidence_errors(
+                    json.loads(resolved_evidence.read_text(encoding="utf-8")),
+                    root,
+                    resolved_evidence.parent,
+                )
         except (OSError, json.JSONDecodeError) as error:
             errors = [str(error)]
         blockers.extend({"id": "INVALID_CURRENT_EVIDENCE", "reason": error} for error in errors)
@@ -78,12 +102,17 @@ def assess(root: Path, evidence: Path | None = None) -> dict:
     ).stdout.strip()
     if status:
         blockers.append({"id": "DIRTY_WORKTREE", "reason": "release candidates require a clean worktree"})
+    whitespace = subprocess.run(
+        ["git", "diff", "--check"], cwd=root, check=False, text=True, capture_output=True
+    )
+    if whitespace.returncode:
+        blockers.append({"id": "WHITESPACE_ERROR", "reason": whitespace.stdout.strip()})
 
     return {
         "status": "BLOCKED" if blockers else "READY",
         "base_commit": base_commit(root),
         "worktree_diff_sha256": worktree_diff_sha256(root),
-        "generator_version": "p00a-1",
+        "generator_version": "p00-2",
         "blockers": blockers,
     }
 
@@ -94,6 +123,10 @@ def main() -> int:
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--require-ready", action="store_true")
     args = parser.parse_args()
+    if args.report:
+        args.report = args.report.resolve()
+        if args.report.is_relative_to(ROOT.resolve()):
+            parser.error("--report must be outside the repository")
     report = assess(ROOT, args.evidence)
     payload = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.report:

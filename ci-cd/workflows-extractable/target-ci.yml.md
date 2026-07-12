@@ -18,10 +18,12 @@ concurrency:
 
 jobs:
   workspace:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 2
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.14.6"
@@ -32,18 +34,20 @@ jobs:
         run: corepack enable && corepack prepare pnpm@11.9.0 --activate
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
-      - name: Rust format
-        run: cargo fmt --all -- --check
-      - name: Rust check
-        run: cargo check --workspace --all-targets --all-features --locked
-      - name: Rust tests
-        run: cargo test --workspace --all-features --locked
-      - name: Node and repository truth tests
-        run: npm test
-      - name: OPA tests
+      - name: Full CI with evidence
         run: |
-          curl -fsSLo "$RUNNER_TEMP/opa" https://openpolicyagent.org/downloads/v1.18.2/opa_linux_amd64_static
-          chmod 0755 "$RUNNER_TEMP/opa"
-          "$RUNNER_TEMP/opa" version
-          "$RUNNER_TEMP/opa" test policy/opa
+          python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/ci-evidence.json" --artifact MANIFEST.md -- bash scripts/ci/test-all.sh
+          python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/ci-evidence.json"
+      - name: Upload CI evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ci-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ci-evidence.json
+            ${{ runner.temp }}/ci-evidence.log
+            ${{ runner.temp }}/ci-evidence.junit.xml
+            ${{ runner.temp }}/ci-evidence.sarif
+          if-no-files-found: error
+          retention-days: 30
 ```

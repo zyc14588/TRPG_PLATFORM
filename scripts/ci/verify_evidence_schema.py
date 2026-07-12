@@ -6,18 +6,35 @@ import sys
 import tempfile
 from pathlib import Path
 
-from repo_truth import ROOT, validate_evidence
+from repo_truth import (
+    EVIDENCE_REQUIRED,
+    EVIDENCE_SCHEMA_VERSION,
+    EVIDENCE_STATUSES,
+    ROOT,
+    validate_evidence,
+)
+
+
+def schema_errors(schema: dict) -> list[str]:
+    expected = {
+        "schema_version": EVIDENCE_SCHEMA_VERSION,
+        "required": list(EVIDENCE_REQUIRED),
+        "statuses": list(EVIDENCE_STATUSES),
+    }
+    return [] if schema == expected else ["evidence schema definition drift"]
 
 
 def main() -> int:
     schema = json.loads((ROOT / "scripts/ci/evidence.schema.json").read_text(encoding="utf-8"))
-    if not schema.get("required") or not schema.get("statuses"):
-        print("invalid evidence schema", file=sys.stderr)
-        return 1
-    errors = []
+    errors = schema_errors(schema)
     for name in sys.argv[1:]:
+        path = Path(name)
         try:
-            errors.extend(validate_evidence(json.loads(Path(name).read_text(encoding="utf-8"))))
+            errors.extend(
+                validate_evidence(
+                    json.loads(path.read_text(encoding="utf-8")), artifact_base=path.parent
+                )
+            )
         except (OSError, json.JSONDecodeError) as error:
             errors.append(str(error))
     legacy = ROOT / "evidence/stages/S09/docker-compose-smoke.txt"

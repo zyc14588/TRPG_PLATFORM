@@ -6,8 +6,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import re
+import shlex
 import subprocess
+from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 
@@ -18,12 +22,59 @@ MANIFEST_OUTPUTS = {
     "manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md",
 }
 PRODUCT_SERVICES = ("web", "api", "realtime", "agent-worker", "admin")
+EVIDENCE_SCHEMA_VERSION = "p00-2"
+EVIDENCE_GENERATOR_VERSION = "p00-2"
+EVIDENCE_REQUIRED = (
+    "base_commit",
+    "worktree_diff_sha256",
+    "generated_at_utc",
+    "generator_version",
+    "tool_versions",
+    "environment_sha256",
+    "command",
+    "command_argv",
+    "exit_code",
+    "artifact_sha256",
+    "generated_artifact_sha256",
+    "status",
+)
+EVIDENCE_STATUSES = ("PASS", "FAIL")
 
 
 def run(*args: str, root: Path = ROOT, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args, cwd=root, check=check, text=True, encoding="utf-8", errors="replace", capture_output=True
     )
+
+
+@lru_cache(maxsize=None)
+def command_version(*command: str, root: Path = ROOT) -> str:
+    try:
+        result = subprocess.run(
+            command,
+            cwd=root,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+        )
+    except OSError:
+        return "NOT_VERIFIED"
+    return (result.stdout or result.stderr).splitlines()[0] if result.returncode == 0 else "NOT_VERIFIED"
+
+
+def current_tool_versions(root: Path = ROOT) -> dict[str, str]:
+    return {
+        "platform": platform.platform(),
+        "python": platform.python_version(),
+        "rustc": command_version("rustc", "--version", root=root),
+        "cargo": command_version("cargo", "--version", root=root),
+        "node": command_version("node", "--version", root=root),
+        "npm": command_version("npm.cmd" if os.name == "nt" else "npm", "--version", root=root),
+        "pnpm": command_version(
+            "pnpm.cmd" if os.name == "nt" else "pnpm", "--version", root=root
+        ),
+    }
 
 
 def git_files(root: Path = ROOT) -> list[str]:
@@ -100,6 +151,23 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def canonical_json_sha256(value: object) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def repository_artifact_path(name: str, root: Path = ROOT) -> Path:
+    relative = Path(name)
+    if relative.is_absolute() or ".." in relative.parts or relative.as_posix() != name:
+        raise ValueError(f"artifact path must be repository-relative: {name}")
+    path = (root / relative).resolve()
+    try:
+        path.relative_to(root.resolve())
+    except ValueError as error:
+        raise ValueError(f"artifact path escapes repository: {name}") from error
+    return path
+
+
 def base_commit(root: Path = ROOT) -> str:
     return run("git", "rev-parse", "HEAD", root=root).stdout.strip()
 
@@ -156,33 +224,123 @@ def compose_services(path: Path) -> dict[str, dict[str, object]]:
     return services
 
 
-def validate_evidence(data: dict, root: Path = ROOT) -> list[str]:
-    required = {
-        "base_commit",
-        "worktree_diff_sha256",
-        "generated_at_utc",
-        "generator_version",
-        "tool_versions",
-        "command",
-        "exit_code",
-        "artifact_sha256",
-        "status",
-    }
+def validate_evidence(
+    data: dict, root: Path = ROOT, artifact_base: Path | None = None
+) -> list[str]:
+    required = set(EVIDENCE_REQUIRED)
     errors = [f"missing field: {name}" for name in sorted(required - data.keys())]
-    if data.get("status") not in {"PASS", "FAIL", "BLOCKED", "NOT_VERIFIED"}:
+    if data.get("generator_version") != EVIDENCE_GENERATOR_VERSION:
+        errors.append("generator_version mismatch")
+    try:
+        generated_at = datetime.fromisoformat(str(data.get("generated_at_utc")))
+        if generated_at.tzinfo is None:
+            raise ValueError
+    except ValueError:
+        errors.append("generated_at_utc must be an ISO-8601 timestamp with timezone")
+    if data.get("status") not in EVIDENCE_STATUSES:
         errors.append("invalid status")
+    exit_code = data.get("exit_code")
+    if type(exit_code) is not int:
+        errors.append("exit_code must be an integer")
+    elif (data.get("status") == "PASS") != (exit_code == 0):
+        errors.append("status does not match exit_code")
+    if not isinstance(data.get("command"), str) or not data.get("command"):
+        errors.append("command must be a non-empty string")
+    argv = data.get("command_argv")
+    if not isinstance(argv, list) or not argv or not all(isinstance(item, str) for item in argv):
+        errors.append("command_argv must be a non-empty string array")
+    elif data.get("command") != shlex.join(argv):
+        errors.append("command does not match command_argv")
     if data.get("base_commit") != base_commit(root):
         errors.append("base_commit mismatch")
     if not re.fullmatch(r"[0-9a-f]{64}", str(data.get("worktree_diff_sha256", ""))):
         errors.append("invalid worktree_diff_sha256")
     elif data.get("worktree_diff_sha256") != worktree_diff_sha256(root):
         errors.append("worktree_diff_sha256 mismatch")
-    artifacts = data.get("artifact_sha256")
-    if not isinstance(artifacts, dict):
-        errors.append("artifact_sha256 must be an object")
+    tool_versions = data.get("tool_versions")
+    if not isinstance(tool_versions, dict) or not tool_versions:
+        errors.append("tool_versions must be a non-empty object")
+    elif data.get("environment_sha256") != canonical_json_sha256(tool_versions):
+        errors.append("environment_sha256 mismatch")
     else:
+        actual_versions = current_tool_versions(root)
+        for name in ("platform", "python", "rustc", "cargo", "node", "npm", "pnpm"):
+            if not tool_versions.get(name) or tool_versions[name] == "NOT_VERIFIED":
+                errors.append(f"tool version not verified: {name}")
+            elif tool_versions[name] != actual_versions[name]:
+                errors.append(f"tool version does not match current environment: {name}")
+        rust_match = re.search(
+            r'(?m)^channel\s*=\s*"([^"]+)"',
+            (root / "rust-toolchain.toml").read_text(encoding="utf-8"),
+        )
+        node_pin = (root / ".nvmrc").read_text(encoding="utf-8").strip()
+        package_manager = json.loads((root / "package.json").read_text(encoding="utf-8"))[
+            "packageManager"
+        ]
+        pnpm_pin = package_manager.removeprefix("pnpm@")
+        if rust_match:
+            for name in ("rustc", "cargo"):
+                if not re.match(
+                    rf"^{name} {re.escape(rust_match.group(1))}(?:\s|$)",
+                    str(tool_versions.get(name, "")),
+                ):
+                    errors.append(f"{name} version does not match rust-toolchain.toml")
+        python_pin_path = root / ".python-version"
+        if python_pin_path.is_file() and tool_versions.get("python") != python_pin_path.read_text(
+            encoding="utf-8"
+        ).strip():
+            errors.append("python version does not match .python-version")
+        if str(tool_versions.get("node", "")).removeprefix("v") != node_pin:
+            errors.append("node version does not match .nvmrc")
+        if str(tool_versions.get("pnpm", "")) != pnpm_pin:
+            errors.append("pnpm version does not match packageManager")
+    artifacts = data.get("artifact_sha256")
+    if not isinstance(artifacts, dict) or not artifacts:
+        errors.append("artifact_sha256 must be a non-empty object")
+    else:
+        tracked = git_modes(root)
         for name, expected in artifacts.items():
-            path = root / name
-            if not path.is_file() or sha256_file(path) != expected:
+            try:
+                path = repository_artifact_path(name, root)
+            except (TypeError, ValueError) as error:
+                errors.append(str(error))
+                continue
+            if name not in tracked:
+                errors.append(f"artifact is not tracked: {name}")
+            elif not re.fullmatch(r"[0-9a-f]{64}", str(expected)):
+                errors.append(f"invalid artifact hash: {name}")
+            elif not path.is_file() or sha256_file(path) != expected:
                 errors.append(f"artifact hash mismatch: {name}")
+    generated = data.get("generated_artifact_sha256")
+    if not isinstance(generated, dict) or not generated:
+        errors.append("generated_artifact_sha256 must be a non-empty object")
+    else:
+        generated_by_suffix = {
+            suffix: [name for name in generated if name.endswith(suffix)]
+            for suffix in (".log", ".junit.xml", ".sarif")
+        }
+        for suffix, names in generated_by_suffix.items():
+            if len(names) != 1:
+                errors.append(f"expected exactly one generated artifact: *{suffix}")
+        for name, expected in generated.items():
+            candidate = artifact_base / name if artifact_base is not None else None
+            if Path(name).name != name or artifact_base is None:
+                errors.append(f"invalid generated artifact path: {name}")
+            elif candidate.is_symlink():
+                errors.append(f"generated artifact must not be a symlink: {name}")
+            elif not candidate.resolve().is_relative_to(artifact_base.resolve()):
+                errors.append(f"generated artifact escapes artifact directory: {name}")
+            elif not re.fullmatch(r"[0-9a-f]{64}", str(expected)):
+                errors.append(f"invalid generated artifact hash: {name}")
+            elif not candidate.is_file() or sha256_file(candidate) != expected:
+                errors.append(f"generated artifact hash mismatch: {name}")
+        raw_names = generated_by_suffix[".log"]
+        if artifact_base is not None and len(raw_names) == 1:
+            raw_path = artifact_base / raw_names[0]
+            if raw_path.is_file():
+                raw = raw_path.read_text(encoding="utf-8")
+                if not raw.startswith(f"$ {data.get('command', '')}\n"):
+                    errors.append("raw output command mismatch")
+                if not raw.endswith(f"[exit_code]\n{data.get('exit_code')}\n"):
+                    errors.append("raw output exit_code mismatch")
     return errors

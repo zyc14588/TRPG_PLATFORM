@@ -1,15 +1,18 @@
 {
-  "schema_version": "p00a-1",
+  "schema_version": "p00-2",
   "required": [
     "base_commit",
     "worktree_diff_sha256",
     "generated_at_utc",
     "generator_version",
     "tool_versions",
+    "environment_sha256",
     "command",
+    "command_argv",
     "exit_code",
     "artifact_sha256",
+    "generated_artifact_sha256",
     "status"
   ],
-  "statuses": ["PASS", "FAIL", "BLOCKED", "NOT_VERIFIED"]
+  "statuses": ["PASS", "FAIL"]
 }

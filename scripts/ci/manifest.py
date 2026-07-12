@@ -5,30 +5,35 @@ import argparse
 import hashlib
 from pathlib import Path
 
-from repo_truth import MANIFEST_OUTPUTS, ROOT, git_blob_bytes, git_files, git_modes
+from repo_truth import MANIFEST_OUTPUTS, ROOT, git_blob_bytes, git_modes
 
 
 OUTPUTS = tuple(sorted(MANIFEST_OUTPUTS))
 
 
 def render(root: Path = ROOT) -> str:
-    all_files = git_files(root)
+    modes = git_modes(root)
+    all_files = sorted(modes)
     files = [path for path in all_files if path not in MANIFEST_OUTPUTS]
     blobs = git_blob_bytes(root)
-    modes = git_modes(root)
     lines = [
         "# Repository Source Manifest v1",
         "",
         f"Repository files: {len(all_files)}",
         f"Hashed files: {len(files)}",
         "",
-        "The three generated manifest outputs are excluded from their own hash set to avoid self-reference.",
-        "Their paths remain fixed and `verify_manifest.py` requires all three outputs to be byte-identical.",
+        "All tracked paths are listed. The three generated outputs use a self-reference sentinel instead of an impossible self-hash.",
+        "CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manifest.py` requires all three outputs to be byte-identical.",
         "",
         "| path | size_bytes | sha256 | git_mode |",
         "|---|---:|---|---|",
     ]
-    for name in files:
+    for name in all_files:
+        if name in MANIFEST_OUTPUTS:
+            lines.append(
+                f"| `{name}` | self | `evidence-bound-self-reference` | `{modes[name]}` |"
+            )
+            continue
         content = blobs[name] if name in blobs else (root / name).read_bytes()
         digest = hashlib.sha256(content).hexdigest()
         lines.append(f"| `{name}` | {len(content)} | `{digest}` | `{modes.get(name, '100644')}` |")

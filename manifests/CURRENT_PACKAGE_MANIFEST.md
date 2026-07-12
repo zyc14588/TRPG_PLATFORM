@@ -1,20 +1,21 @@
 # Repository Source Manifest v1
 
-Repository files: 3729
-Hashed files: 3726
+Repository files: 3731
+Hashed files: 3728
 
-The three generated manifest outputs are excluded from their own hash set to avoid self-reference.
-Their paths remain fixed and `verify_manifest.py` requires all three outputs to be byte-identical.
+All tracked paths are listed. The three generated outputs use a self-reference sentinel instead of an impossible self-hash.
+CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manifest.py` requires all three outputs to be byte-identical.
 
 | path | size_bytes | sha256 | git_mode |
 |---|---:|---|---|
-| `.github/workflows/ci.yml` | 1420 | `03f04e5cced9cb4b0937a141abfb67d1c88d56f2931c7943832af23e4ed32bcf` | `100644` |
-| `.github/workflows/contracts.yml` | 1925 | `41690b35162a40a0859a720c17857f4c42ed9facb3e63575667c9990a13632e7` | `100644` |
-| `.github/workflows/docker-compose-smoke.yml` | 612 | `8b1e0e709741d4f30e800b49c03707ef2bc3de465f35497bd3beeb8f057b079e` | `100644` |
-| `.github/workflows/golden-scenarios.yml` | 783 | `1a6bb22d5c02f4f169f0e0c58386556b7030ba4fce7d318390cd1c346230771e` | `100644` |
-| `.github/workflows/release.yml` | 644 | `96542f3dac5bbbbbc31c2d9011ce72b4f5f3d6af5c97f1c6dac321be81c56759` | `100644` |
+| `.github/workflows/ci.yml` | 1652 | `f113cf397b037cf316667f8363fd2e3a37cd1095999130a47f291eb8ce8dae23` | `100644` |
+| `.github/workflows/contracts.yml` | 1637 | `6c55854c0ac63a1c3ca0133af835838b634b36c62ea39d68bb8a95b22a74474b` | `100644` |
+| `.github/workflows/docker-compose-smoke.yml` | 986 | `92e119d62800f84896068679dd6e480228f8d134f714fd579b7da3fccf4a09f9` | `100644` |
+| `.github/workflows/golden-scenarios.yml` | 782 | `13ea4e058f986244fb4f53b00c7987125c2a8c37cbd4ce60adc18fd448413cd8` | `100644` |
+| `.github/workflows/release.yml` | 1939 | `45552dd194d86524bd9837ef7b690d49fdf9453468bbedec7ffe7c5fe6321c19` | `100644` |
 | `.gitignore` | 57 | `540fdaa2c06057dfdffa97c4881d1916c3ea2776abf6b1f01131f20629c77b09` | `100644` |
 | `.nvmrc` | 8 | `98182b41c9ce3357797985cf12dc3b0124490ef88bc918a905373e7688e6aec9` | `100644` |
+| `.python-version` | 7 | `3a55324cbeddc91df012407d051dad08c88624c95a82fbdb856728729fbd14ab` | `100644` |
 | `00_INPUT_ANALYSIS_AND_TRACEABILITY.md` | 3896 | `2126a2ffce0a127a70339d5ce58023b6121b1849d30658908eb703339a123925` | `100644` |
 | `01_OVERALL_CONSTRUCTION_PLAN.md` | 8538 | `02a467687b00d5090f10ff6986622b339b974bf98a7cefd3bd7ee8019e1d97f4` | `100644` |
 | `02_STAGE_CONFIRMATION_MATRIX.md` | 7237 | `13455846a98d99a0a817d4669650b92d7ae1e4b1a712c7382fc478e7cfb39691` | `100644` |
@@ -31,6 +32,7 @@ Their paths remain fixed and `verify_manifest.py` requires all three outputs to 
 | `Cargo.lock` | 1262 | `0e7c63ce394c4ea9e1830896159d65d0eaa5adf7edc7c820c09f4e5d514825a8` | `100644` |
 | `Cargo.toml` | 403 | `ccf1121ebec502af850d5d58aefa07cd2be8b449d045eef8f9e8fae40ab77494` | `100644` |
 | `DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md` | 3692 | `77f7e4acf141e50b7128dce020f266978824c23274c02250511da6157535c34d` | `100644` |
+| `MANIFEST.md` | self | `evidence-bound-self-reference` | `100644` |
 | `PER_STAGE_FIXTURE_EXPANSION_PLAN.md` | 3838 | `2a45897e80fd56b1266a2c5d63b9d71d8179db4f2db13271a16c22fd8f2b623e` | `100644` |
 | `README.md` | 7244 | `8055b6e40b0c53a21a70d8d4d59a829dcd7c789a8e0d2584fa574ccfc3526238` | `100644` |
 | `SOURCE_BUNDLE_INTEGRATION_GUIDE.md` | 4696 | `1da3d086e5084d0908780988ff89b809f69b4bcaffc19042c5398d027ddd7d26` | `100644` |
@@ -203,11 +205,11 @@ Their paths remain fixed and `verify_manifest.py` requires all three outputs to 
 | `batches/B051.md` | 12312 | `23ba19a008e78ae5bc434f745e1c4ad224947ab940c43c55f62901b85e62b42b` | `100644` |
 | `batches/B052.md` | 4131 | `008df235bbdd3d50a2cfaffd0df147b1887585293af85cc981ce42c49860559f` | `100644` |
 | `ci-cd/README.md` | 736 | `bd37ed1d3b8262ded9adff7932f5b7de0fb09445b260c4cc42f080948358655b` | `100644` |
-| `ci-cd/workflows-extractable/target-ci.yml.md` | 1483 | `520b4b77d9e2c9a24e5030deceb9bd21c06a14e5808da72553b4f72c10586ca4` | `100644` |
-| `ci-cd/workflows-extractable/target-contracts.yml.md` | 1995 | `afb1a7d98208a9ca66d275eaf8223ead2764e7174a4f82122f402d9bba11606a` | `100644` |
-| `ci-cd/workflows-extractable/target-docker-compose-smoke.yml.md` | 693 | `2e9be8d74326f7587e35847e19df4b707ab840ef56683bd46a2a6f908220a2c1` | `100644` |
-| `ci-cd/workflows-extractable/target-golden-scenarios.yml.md` | 860 | `0cf946533cafe7b63dab3c34c39a569b21365e405e6c4d86284a27dee55f3ad3` | `100644` |
-| `ci-cd/workflows-extractable/target-release.yml.md` | 712 | `0592a7db212752812533925420e9c14f2ec97aaf3d3ddc93b08c316494f61935` | `100644` |
+| `ci-cd/workflows-extractable/target-ci.yml.md` | 1715 | `8a6883a8cf1928a96b0344904ee7b288a0a18a13d918fda48d4a12066b5289ab` | `100644` |
+| `ci-cd/workflows-extractable/target-contracts.yml.md` | 1707 | `7129e832d0fc962bb83b5cdc096d2297dff19d0b1f45618de28930370c7b1a4c` | `100644` |
+| `ci-cd/workflows-extractable/target-docker-compose-smoke.yml.md` | 1067 | `3aa4baae8ac760f8ee958ea1c0cba5df6e2834459e2e5451af9000b668e7843d` | `100644` |
+| `ci-cd/workflows-extractable/target-golden-scenarios.yml.md` | 859 | `410adf21ba1c28d89514b229ef4affef9008f9a6735a81e10d1231e1ce7222c5` | `100644` |
+| `ci-cd/workflows-extractable/target-release.yml.md` | 2007 | `5e8d1e5fece1abaf395dc779a73813bb1190f59a0614efd8f68df48e03201b56` | `100644` |
 | `codex-active-normalized/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` | `100644` |
 | `codex-active-normalized/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` | `100644` |
 | `codex-active-normalized/README.md` | 484 | `5c82f74c4d621744b10ebaa0197cd996796839d5ea12311a57d033a1450799e4` | `100644` |
@@ -2835,7 +2837,9 @@ Their paths remain fixed and `verify_manifest.py` requires all three outputs to 
 | `inventory/SOURCE_SELECTION_DECISION_LOG.md` | 23900 | `6691644c204647c7b03ae992890b4d35d518fa7b848f3a87aec7948f50cc324f` | `100644` |
 | `inventory/V221_FULL_FILE_CLEANUP_AUDIT.md` | 281988 | `020adb0f5640947a42ec77cbb84a733aa96d68bad80184409f1095a902fbb191` | `100644` |
 | `inventory/V221_FULL_PACKAGE_MARKDOWN_CLOSURE_MATRIX.md` | 512 | `d8e7b5398997b82b41f129a9773d75af1c4152b26bce5492762ea1599a698d40` | `100644` |
+| `manifests/CURRENT_PACKAGE_MANIFEST.md` | self | `evidence-bound-self-reference` | `100644` |
 | `manifests/README.md` | 856 | `db07e216412e570d8f2f10bef5173ba84b4b0e71ebc4b5a197c6941d1aabe711` | `100644` |
+| `manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md` | self | `evidence-bound-self-reference` | `100644` |
 | `manifests/V221_BUILD_SUMMARY.json.md` | 218 | `e751edc1561449786c558b0ae754a426e04f6cf7b66547164e0d9aa80a76f1a7` | `100644` |
 | `manifests/V221_STRICT_VALIDATION_REPORT.md` | 273 | `af861c475f257ad9f28ff2f69f1d1a8c5c03db179939913ae103ec722329bfed` | `100644` |
 | `migrations/20260705000100_create_data_eventing_event_store.down.sql` | 113 | `3b058e599237b8ab932903b295f74fa8275b6754da1404c8c72ff5894300c5a3` | `100644` |
@@ -2863,17 +2867,18 @@ Their paths remain fixed and `verify_manifest.py` requires all three outputs to 
 | `prompts/persistent/15_CURRENT_NORMALIZATION_PROMPT.md` | 688 | `e4f62b47e9ee06bdb4cf6e8396831fb588cfe905683ebe6b902093973607632b` | `100644` |
 | `rust-toolchain.toml` | 86 | `fa0addad5676243d360310f981a69528b0341d295cb5012253d9721aba4d30c0` | `100644` |
 | `scripts/backup_restore/smoke.sh` | 141 | `64d1fb3094d0ab680ddffb1de8c0ee6e8aa7b0f54024c9d390cf33c7bf95d2e1` | `100755` |
-| `scripts/ci/evidence.schema.json` | 298 | `4615406a198e872b75e1f8f1b466b33d9b898ce3c546b5aa9cb78d97aefe16ec` | `100644` |
-| `scripts/ci/generate_evidence.py` | 2168 | `1bbafefa8f04eeeff16a83610d165da5e5fd45fc1847ad6cfba2e9f3121024a0` | `100644` |
+| `scripts/ci/evidence.schema.json` | 349 | `3a9ecbeccbc3f7886676c7741b6becc9a009f38f41e756cc5a6af28947b5efc0` | `100644` |
+| `scripts/ci/generate_evidence.py` | 6139 | `017341e6808d38a020fb6afcd6911e74201b93a5692e97391332a668dbdc2011` | `100644` |
 | `scripts/ci/init-smoke.sh` | 168 | `88b4439abb55f867eb91659f2f71a6db85625a4892a2411eac769cb683849684` | `100755` |
-| `scripts/ci/manifest.py` | 1717 | `313a9c8d7c0ad9c006b65215c96e2bbb39b203b42104d872b05e7324b181e20f` | `100644` |
-| `scripts/ci/release_readiness.py` | 3857 | `d27f07b598a2567e88b714844238ab7d8a1125b3e0f292d4a3b3eb6017e47404` | `100644` |
-| `scripts/ci/repo_truth.py` | 6740 | `ff92bddd9c79d7d3f3e367bf57c74c06c98cca387b485d6b048f85176d49fb55` | `100644` |
-| `scripts/ci/test_repo_truth.py` | 3351 | `3d2cece3c434619004b7cae3f91b4c5d5e7403fd6800d785b72780c28a80d5e6` | `100644` |
-| `scripts/ci/validate_workflows.py` | 3006 | `8cd48d8806e4dcc6ba73f17f86dfe1ee24ee169d1328513f5d97ea4d22fb6c52` | `100644` |
-| `scripts/ci/verify_evidence_schema.py` | 1258 | `8ea2fc4fe7f23c3472aae10612516bcbfddcdcfdf40bbb8bcf854b21134ec621` | `100644` |
+| `scripts/ci/manifest.py` | 1960 | `e3ed3148d834c7a23831c89af586b0e422444cf6a72e1fb2e673fb7ea64a8393` | `100644` |
+| `scripts/ci/release_readiness.py` | 5469 | `b15817a892ad6364ba9bf4ebfb17b8086fef07e7348b49aa493e1d73fd10a8f8` | `100644` |
+| `scripts/ci/repo_truth.py` | 14330 | `26af0c6789ed13d0cb3c0f6edc19de302e3dacce45d6b6e43fd498ce8fb0c520` | `100644` |
+| `scripts/ci/test-all.sh` | 2612 | `e5680d35988dbf2f6737076846812ff3f5d906aea3c19afb3a59b54e67ae1194` | `100755` |
+| `scripts/ci/test_repo_truth.py` | 9119 | `915726b9d61c7781ef4d53556863d288c3be845f7cf7cbde31eb971e5e682b75` | `100644` |
+| `scripts/ci/validate_workflows.py` | 6065 | `276945ad92be1af8cc1875d4d6beb5c16eb55545b9c93ba49450c00f7613eda4` | `100644` |
+| `scripts/ci/verify_evidence_schema.py` | 1630 | `d78ca61b3aa2d805ba9250c78b4919b5b55309b74db8227363698a1502462c5f` | `100644` |
 | `scripts/ci/verify_manifest.py` | 1004 | `080307fce0ece3fcb183da6df33cbd6421344100aea738d7fe95704b428bff82` | `100644` |
-| `scripts/ci/verify_test_inventory.py` | 3517 | `db28c427624132db338e3a54521186a3db54f25507f7a7d950333b4f0f57d0dd` | `100644` |
+| `scripts/ci/verify_test_inventory.py` | 3911 | `03563b5d4a47e1c3147c5b52447dd0bda9a7327dd4313b7cc28d1b21d1068ae9` | `100644` |
 | `scripts/dev/smoke.ps1` | 869 | `1ed347292e9485d2a14bc95a436e88320b73003d4739aa91f5d28b49db02bf5a` | `100644` |
 | `scripts/projection_rebuild/verify.sh` | 146 | `9e486ee8973e96364b057c1bbc7e13877ee419b49ef31dde154c3bafbd5fcbc8` | `100755` |
 | `scripts/s12_ui_boundary_test.mjs` | 8864 | `07dc0ddf7e375479e80a272cf0642223585859a4c6f81e0451f190bac2998b34` | `100644` |

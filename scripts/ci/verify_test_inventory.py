@@ -52,9 +52,15 @@ def inventory(root: Path = ROOT) -> tuple[dict, list[str]]:
     for key in ("rust_test_targets", "node_scripts", "opa_tests", "powershell", "shell", "fixtures", "workflows"):
         if not report[key]:
             errors.append(f"empty test inventory category: {key}")
+    workflow_text = "\n".join((root / path).read_text(encoding="utf-8") for path in report["workflows"])
+    ci_text = workflow_text + "\n" + (root / "scripts/ci/test-all.sh").read_text(encoding="utf-8")
+    for script in report["powershell"]:
+        if script not in ci_text:
+            errors.append(f"PowerShell script is not referenced by CI: {script}")
     modes = git_modes(root)
     for script in (
         "scripts/ci/init-smoke.sh",
+        "scripts/ci/test-all.sh",
         "scripts/backup_restore/smoke.sh",
         "scripts/projection_rebuild/verify.sh",
     ):
