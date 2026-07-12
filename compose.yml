@@ -3,7 +3,9 @@ name: coc-ai-trpg-s09
 services:
   web:
     image: nginx:alpine
-    command: ["sh", "-c", "printf 'web ok\n' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"]
+    labels:
+      coc_ai_trpg.placeholder: "true"
+    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
       interval: 10s
@@ -12,9 +14,11 @@ services:
 
   api:
     image: nginx:alpine
+    labels:
+      coc_ai_trpg.placeholder: "true"
     ports:
       - "8080:80"
-    command: ["sh", "-c", "printf '{\"status\":\"ok\",\"service\":\"api\"}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
+    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true,\"service\":\"api\"}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
       interval: 10s
@@ -23,7 +27,9 @@ services:
 
   realtime:
     image: nginx:alpine
-    command: ["sh", "-c", "printf 'realtime ok\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
+    labels:
+      coc_ai_trpg.placeholder: "true"
+    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
       interval: 10s
@@ -32,7 +38,9 @@ services:
 
   agent-worker:
     image: nginx:alpine
-    command: ["sh", "-c", "printf 'agent-worker ok\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
+    labels:
+      coc_ai_trpg.placeholder: "true"
+    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
       interval: 10s
@@ -82,6 +90,8 @@ services:
 
   reverse-proxy:
     image: nginx:alpine
+    labels:
+      coc_ai_trpg.placeholder: "true"
     depends_on:
       api:
         condition: service_healthy
@@ -93,7 +103,9 @@ services:
 
   admin:
     image: nginx:alpine
-    command: ["sh", "-c", "printf 'admin ok\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
+    labels:
+      coc_ai_trpg.placeholder: "true"
+    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
       interval: 10s

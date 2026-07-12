@@ -34,11 +34,12 @@
 ```powershell
 cargo fmt --all -- --check
 cargo test --workspace --all-features
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-docker compose config
+npm test
+python scripts/ci/verify_test_inventory.py
+python scripts/ci/release_readiness.py --require-ready
 ```
+
+当前仓库没有产品前端或可执行 E2E 运行时，不提供 no-op `typecheck` / `test:e2e` 命令；最后一条命令预期在产品运行时落地前 Fail-Closed。
 
 ## 预期证据
 

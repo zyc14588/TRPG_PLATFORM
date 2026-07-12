@@ -1,7 +1,4 @@
-# Canonical source for `.github/workflows/release.yml`
-
-```yaml
-name: release-readiness
+name: docker-compose-smoke
 
 on:
   workflow_dispatch:
@@ -10,11 +7,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-readiness-${{ github.ref }}
+  group: docker-compose-smoke-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  require-ready:
+  require-real-runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -22,6 +19,5 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.14.6"
-      - name: Fail closed until real product runtime exists
-        run: python3 scripts/ci/release_readiness.py --report "$RUNNER_TEMP/release-readiness.json" --require-ready
-```
+      - name: Refuse placeholder Compose services
+        run: bash scripts/ci/init-smoke.sh "$RUNNER_TEMP/release-readiness.json"

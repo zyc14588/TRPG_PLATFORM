@@ -1,6 +1,3 @@
-# Canonical source for `.github/workflows/release.yml`
-
-```yaml
 name: release-readiness
 
 on:
@@ -24,4 +21,3 @@ jobs:
           python-version: "3.14.6"
       - name: Fail closed until real product runtime exists
         run: python3 scripts/ci/release_readiness.py --report "$RUNNER_TEMP/release-readiness.json" --require-ready
-```

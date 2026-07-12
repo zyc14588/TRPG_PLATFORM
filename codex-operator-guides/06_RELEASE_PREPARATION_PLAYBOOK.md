@@ -34,10 +34,11 @@
 ```powershell
 git status --short
 cargo test --workspace --all-features
-pnpm test:e2e
-docker compose config
-docker compose up -d
+npm test
+python scripts/ci/release_readiness.py --require-ready
 ```
+
+当前仓库尚无产品前端或真实 Compose 产品服务，因此不提供 `pnpm test:e2e`；Readiness 非零退出会阻断发布。
 
 ## 预期证据
 

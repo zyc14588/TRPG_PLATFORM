@@ -1,6 +1,3 @@
-# Canonical source for `.github/workflows/golden-scenarios.yml`
-
-```yaml
 name: golden-scenarios
 
 on:
@@ -29,4 +26,3 @@ jobs:
         run: cargo test -p trpg-testing --test model_certification_tests --all-features --locked
       - name: Visibility leakage
         run: cargo test -p trpg-testing --test visibility_leakage --all-features --locked
-```

@@ -2,7 +2,12 @@
   "name": "coc-ai-trpg-contract-harness",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": "24.17.0"
+  },
   "scripts": {
-    "test": "node scripts/s12_ui_boundary_test.mjs"
+    "test": "node scripts/s12_ui_boundary_test.mjs && python scripts/ci/test_repo_truth.py",
+    "test:inventory": "python scripts/ci/verify_test_inventory.py"
   }
 }

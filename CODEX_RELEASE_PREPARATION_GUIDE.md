@@ -33,11 +33,12 @@
 
 ```powershell
 git status --short
-pnpm test:e2e
+npm test
 cargo test --workspace --all-features
-docker compose config
-docker compose up -d
+python scripts/ci/release_readiness.py --require-ready
 ```
+
+当前仓库尚无产品前端或 E2E 运行时，因此不提供 `pnpm test:e2e` 空脚本；Release Readiness 在真实运行时出现前必须返回 `BLOCKED`。
 
 ## 预期证据
 

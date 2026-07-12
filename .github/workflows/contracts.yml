@@ -1,6 +1,3 @@
-# Canonical source for `.github/workflows/contracts.yml`
-
-```yaml
 name: repository-truth
 
 on:
@@ -49,4 +46,3 @@ jobs:
         run: |
           python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/repository-truth.json" --command "repository truth checks" --exit-code 0 --status PASS --artifact MANIFEST.md
           python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/repository-truth.json"
-```

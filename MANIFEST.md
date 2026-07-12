@@ -1,2362 +1,3736 @@
-# V221 Package Manifest
+# Repository Source Manifest v1
 
-Files: 2356
+Repository files: 3729
+Hashed files: 3726
 
-| path | size_bytes | sha256 |
-|---|---:|---|
-| `00_INPUT_ANALYSIS_AND_TRACEABILITY.md` | 3896 | `2126a2ffce0a127a70339d5ce58023b6121b1849d30658908eb703339a123925` |
-| `01_OVERALL_CONSTRUCTION_PLAN.md` | 8538 | `02a467687b00d5090f10ff6986622b339b974bf98a7cefd3bd7ee8019e1d97f4` |
-| `02_STAGE_CONFIRMATION_MATRIX.md` | 7237 | `13455846a98d99a0a817d4669650b92d7ae1e4b1a712c7382fc478e7cfb39691` |
-| `03_ENGINEERING_DIRECTORY_PLAN.md` | 7152 | `dae6972519e20b599aa77a69b223ccb73e2fd26d2e2d99a2bd930391b8d38baa` |
-| `04_TEST_STRATEGY_AND_TEST_DATA.md` | 5179 | `44a50009f208b3e011e276b7584da9a42c41f4abed72cbd9205bfbd78ff06c95` |
-| `05_CI_CD_CONFIGURATION.md` | 7682 | `39e7fad1cd07b5bd8bd201dacf89919de3ca95b1316386a135dc5777b486fc00` |
-| `AGENTS.md` | 5779 | `9f8e4fa9c2f16f44a8db035b62e1c2d7eb4d89639dd584935c0c2be1fc0e5b0a` |
-| `CI_CD_EXTRACTION_PROMPT.md` | 2740 | `806844c11b7f75d78059d7871d6c871f9f02f4e17b3bff39da49c6ab54575dcb` |
-| `CODEX_MASTER_EXECUTION_GUIDE.md` | 2759 | `36a1c688e8fc018fbbe4e32b1591ce4b42599f9d0cef339ab418bfa41bddb4e3` |
-| `CODEX_RELEASE_PREPARATION_GUIDE.md` | 2078 | `7d1b2d6b883f21f694a6f703260efe71ea315d2615193c9e3e3f1c830b64fd63` |
-| `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md` | 4197 | `875b7156f0bc76685586dae8ac115a67ec4f8fc414f1d56c81788e5fcfe96e44` |
-| `CODEX_START_ACCEPT_TEST_RELEASE_GUIDE.md` | 2482 | `d678e3f920bcc4eba2ea1d8b1d285d236d48c30624e55ea2360361c852117757` |
-| `CODEX_STRICT_OPERATION_CHECKLIST.md` | 2493 | `a90c0b23a22d8c2772c551baa7c4805a5c90f130e51068346c43f1fa0e452a18` |
-| `DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md` | 3692 | `77f7e4acf141e50b7128dce020f266978824c23274c02250511da6157535c34d` |
-| `MANIFEST.md` | SELF-REFERENTIAL | `SELF-REFERENTIAL` |
-| `PER_STAGE_FIXTURE_EXPANSION_PLAN.md` | 3838 | `2a45897e80fd56b1266a2c5d63b9d71d8179db4f2db13271a16c22fd8f2b623e` |
-| `README.md` | 7244 | `8055b6e40b0c53a21a70d8d4d59a829dcd7c789a8e0d2584fa574ccfc3526238` |
-| `SOURCE_BUNDLE_INTEGRATION_GUIDE.md` | 4696 | `1da3d086e5084d0908780988ff89b809f69b4bcaffc19042c5398d027ddd7d26` |
-| `STRICT_LINK_AND_REFERENCE_VALIDATION.md` | 9176 | `b2e9005f3ce08a2f73ca2f7559a759b0d9574bb8f9f75ff275ce34d50e94d784` |
-| `STRICT_REPAIR_CHANGELOG.md` | 1826 | `908aea55a78a134f7a31a06f86da552a815ac5d5de7178ef8c82ad1249942656` |
-| `STRICT_SELF_CONTAINED_ACCEPTANCE_REPORT.md` | 930 | `ea6226f111d94ebf313d88993f181728fd098f9a3b4212ce6b0ac7bb2c01c716` |
-| `STRICT_V221_ACCEPTANCE_REPORT.md` | 930 | `ea6226f111d94ebf313d88993f181728fd098f9a3b4212ce6b0ac7bb2c01c716` |
-| `V1_ACCEPTANCE_EVIDENCE_MATRIX.md` | 6477 | `1ac1391527c0f79a89d10aa9e8cce2dee5c1cb7496bb003feac1403a284b1ab9` |
-| `V221_FULL_PACKAGE_MARKDOWN_CLEANUP_REPORT.md` | 1337 | `fe17bacfb425121f89df0ba78957338cf40c2192d4fba53346f91e79e8a25782` |
-| `batch-prompts/README.md` | 704 | `2aebc7256d326bd7bef5248049364d925e2c4a707d5d4b1774355216e97943be` |
-| `batch-prompts/accept/B001.md` | 2896 | `405d2ace8938c5a5f6c373434f4415865b241bd31f61718a5f842c0454c8de3f` |
-| `batch-prompts/accept/B002.md` | 2896 | `86221aaf68d2f863ac89c37f1fc478c4750a96d6b1a3f0b51949e421714aee00` |
-| `batch-prompts/accept/B003.md` | 2906 | `791e50e6543db552e7d244a6fc8ecea995d1f87a68cba26da0d6acd6b2e33528` |
-| `batch-prompts/accept/B004.md` | 2906 | `b6b58bc9d1d952cb3da821f9c259e753853f9b8dfcbec1aa759dc404635c26a6` |
-| `batch-prompts/accept/B005.md` | 2906 | `4d82c08fc70eb1a2be3b9c686c2082d9a3746b2d0700dea9c13a89e7762bc15b` |
-| `batch-prompts/accept/B006.md` | 2906 | `b74f4f9414c3413cbd3a10fe5c2958693c9aeaa25ec654e2f1296646ed210cf7` |
-| `batch-prompts/accept/B007.md` | 2908 | `2f35531921c9bceb351218c2735bc4652cbdeb0a7a5dc38bb05801d1e86dc43f` |
-| `batch-prompts/accept/B008.md` | 2908 | `dea56000f441f8e5db64dc49503c985a0e2af928db9606961756a5c4f5610b31` |
-| `batch-prompts/accept/B009.md` | 2908 | `0e01d26a395494d7a6070ba453298817d5542c5b05aac282e948ee344ce4e7de` |
-| `batch-prompts/accept/B010.md` | 2908 | `089dbb65c9548d3bb2d69fc16c6c7a7c1373879bcad499fde74683bf11567390` |
-| `batch-prompts/accept/B011.md` | 2908 | `8458f46493472ccdfb10a34c0f00be8cd50bdebffafe9ebf063603122e7468a9` |
-| `batch-prompts/accept/B012.md` | 2928 | `849d59bce576ae2c0d13b89af5df1067d58d605aed0834392087cd006bf20abf` |
-| `batch-prompts/accept/B013.md` | 2928 | `a221114910d40d5bed0def773f6b13ceb72dfb4d8054865319310974412e583e` |
-| `batch-prompts/accept/B014.md` | 2928 | `20da1dd3e684fda0f6cc965e00f23024c8e06ff0421d551abc63b63f049bc84e` |
-| `batch-prompts/accept/B015.md` | 2928 | `661d2508333af5fa39ad59b3f5795673cd7b1bc6efcc09f5bba6cc5fb04fd67a` |
-| `batch-prompts/accept/B016.md` | 2928 | `8b553d48a4f53efb53d469f8880e20f0d80703a86c80f270c852fad57649461f` |
-| `batch-prompts/accept/B017.md` | 2916 | `8e58556006b2d5ab334538712c0d01e3019074f40eca530ece56b44c4d1c25e2` |
-| `batch-prompts/accept/B018.md` | 2916 | `6406db3aa845d866c245537bb841945fd65eabf359d287bc0c846c4778914ff9` |
-| `batch-prompts/accept/B019.md` | 2916 | `6e541b1bc0f2e5940008aea2c2991c9360ae541f923c798f2d574ae7aeee58dc` |
-| `batch-prompts/accept/B020.md` | 2916 | `06cfe539f79dc6851e088cce1719c7fc7d9719f7a6133b64c5ee5de3dd18148d` |
-| `batch-prompts/accept/B021.md` | 2910 | `372f81a28e4e7b5acce2a65ca0c887f845b2f52f240a595a89b4a9c1571db2df` |
-| `batch-prompts/accept/B022.md` | 2910 | `7b39b1af1453ad71a919aa8e6d6bc47ebea9815e6553dfa9b65b4ccf3aa6c6d6` |
-| `batch-prompts/accept/B023.md` | 2910 | `835f743946415068d47727330e6685b540d24273de9504aa3e7b5daa3c4a0d79` |
-| `batch-prompts/accept/B024.md` | 2912 | `d299e822d3703f72c6fbd08fa588f8e32ade9b5697c0a81ee6e84a49a510dd00` |
-| `batch-prompts/accept/B025.md` | 2912 | `4707c1d30effce1850d9654e302c64dbdf6643752d0c0835aec06031f0e2c651` |
-| `batch-prompts/accept/B026.md` | 2912 | `7e6dcb25ded4a68999be24911bad116538ca6153efe537f5f142dc4ef447efc2` |
-| `batch-prompts/accept/B027.md` | 2912 | `3bd0f17f3c1c89dc5f77a35d59a58149afc4b329ad85337c0f7ccea2107b1631` |
-| `batch-prompts/accept/B028.md` | 2912 | `e9487bf78225cfb46a88f6c9cbe1e6ad418e4c825d41fc4a723a71156b51d037` |
-| `batch-prompts/accept/B029.md` | 2930 | `3bb399ba03d9720cd45bc258274c18546795e605422dc12689f819365e13acf6` |
-| `batch-prompts/accept/B030.md` | 2930 | `dee9ab1873a675446b3e0df88f47b61cbde6e3ed6f8838166a568892e972399e` |
-| `batch-prompts/accept/B031.md` | 2932 | `0e4ab6b5cb9e16f07313b8aea31488cd271f8fc3b80aa3d6bad4f3ea7f3d08ad` |
-| `batch-prompts/accept/B032.md` | 2932 | `537cd513355a37d4809dee4e61aa3aae2f27d97ad1702cdbecfee4233e86eaac` |
-| `batch-prompts/accept/B033.md` | 2932 | `1e6b2155c8fd9497b4e108411bd13035ec9c8b4fa2117cf322d6b172f0e47cc6` |
-| `batch-prompts/accept/B034.md` | 2932 | `18d85822238d9be71d361372135fa49a772b69155e5865a218fbc92c786fd6db` |
-| `batch-prompts/accept/B035.md` | 2924 | `c8c7fbb3bb26bf8da47057323c7c667e5e5613a8e9b68c1598c2ff7714dd62f8` |
-| `batch-prompts/accept/B036.md` | 2924 | `f31dc530db60dccfe009cad5a0209e39018e3b0a8780906368ee0071a1ab240c` |
-| `batch-prompts/accept/B037.md` | 2924 | `fce6dcccc88dcabc26cb6f28279dba18081851a9aa4bcd06db00b3d17ec03189` |
-| `batch-prompts/accept/B038.md` | 2916 | `975bd4a0c1f40f0b3ced5afbbd1489a3a43aab21deb420c536f09c376bc97f65` |
-| `batch-prompts/accept/B039.md` | 2916 | `44144381376b9768467096bb3a7ab56e1aef16706ef597c807b55fa1c47ce248` |
-| `batch-prompts/accept/B040.md` | 2916 | `41689a34b06e74193cdd05132489f1f391f35058c3504b01da4f313580e3acd1` |
-| `batch-prompts/accept/B041.md` | 2916 | `f2a7e51d01a43baa195373480e54d57e30919ca9ae8e6de80db014f982c3c838` |
-| `batch-prompts/accept/B042.md` | 2912 | `89fb4423685e73b3dafa51463041f2db44f96c6410d8612272a6b03921620c6e` |
-| `batch-prompts/accept/B043.md` | 2912 | `5fe2086ba371694f8897d9dbbbf934f2876280fc42dd949e81c9aa6b910ec466` |
-| `batch-prompts/accept/B044.md` | 2912 | `8d940033159197158e0dc3843bfa23e188fb75e4df66a4968339408061008218` |
-| `batch-prompts/accept/B045.md` | 2912 | `ad11033c984d69cdd13f5063816612b55e07a9f3aba452aafb932e436b5430c3` |
-| `batch-prompts/accept/B046.md` | 2910 | `ab79c4a12fd94043141c4c81bf7f6fb57b141c00619755c9379ea14649eb8ab7` |
-| `batch-prompts/accept/B047.md` | 2910 | `f4edc89f94876fab04201ef59a10686f96002622644f323b4d211f1f33f5ce86` |
-| `batch-prompts/accept/B048.md` | 2910 | `49a8902f6d1ff92dbd1fc36d3a29f1d8e190b2bfb2d921af760cb6b368162fea` |
-| `batch-prompts/accept/B049.md` | 2910 | `9d429fa359504928620dbedbc35e5df1fbc309551a786f94d052f1348dcea429` |
-| `batch-prompts/accept/B050.md` | 2910 | `58e122b57fd7e399e5b400973b7eb45f0c6c7c4ac5f0f91fdf231d647ed0b707` |
-| `batch-prompts/accept/B051.md` | 2902 | `79ff7586126f95fab467f21c00572d9c8931c08a74e813182a492ce4ea3f35ca` |
-| `batch-prompts/accept/B052.md` | 2902 | `292c5dc0f36b4514e2372681c7aebaefb525c15458f07b1e1fa1eba9b7b0f3f5` |
-| `batch-prompts/start/B001.md` | 3393 | `d26cbd0b61b402dc1e65db303793eb384067b39347dcdf9a1eac4c63e1ff34e4` |
-| `batch-prompts/start/B002.md` | 3393 | `f266128bd7a73978433775e70951c671de901addd54221dda81aeeae30a65329` |
-| `batch-prompts/start/B003.md` | 3403 | `00d724ce2ffbf54decfb9a88e8a9426648ae70ac51df5af0f4a438dc8a71cd4a` |
-| `batch-prompts/start/B004.md` | 3403 | `fc8835b23dc622cc326d5ba5ee965838885e4cc8318fe84a8ca809361cde286d` |
-| `batch-prompts/start/B005.md` | 3403 | `1ac7576060fa59f57a91358b915c276fa2ae1058c594054de9dbc7d21cb5f682` |
-| `batch-prompts/start/B006.md` | 3403 | `368024b6f977e8bd3c6d216c7e6808fe656be43718938cc7f05e307a042d597f` |
-| `batch-prompts/start/B007.md` | 3405 | `13459b7e6eeb4986f29cd6bfac3901a9bedea1e6ebf97d1ca6ec77d8c01a0e18` |
-| `batch-prompts/start/B008.md` | 3405 | `5acdf800f89ea1fe77050ff45d40c384ac279d36b897261691e03560e201458e` |
-| `batch-prompts/start/B009.md` | 3405 | `88921a966522286f1d620170d0aeab287a55c2e3479effad95f28064d4e4b52b` |
-| `batch-prompts/start/B010.md` | 3405 | `062245a1fdeac7a667bbc11f6f2036b46b67f87517df22c9679598e23cddced4` |
-| `batch-prompts/start/B011.md` | 3404 | `1bc152fa933ddcbbefdef04a2ca40564e4b311b9ea443f614660ee146c6a6cbc` |
-| `batch-prompts/start/B012.md` | 3425 | `8428dccdcba69b4a6778be3da38f5ade1b110e5f7a020796b8a0bde96b89a773` |
-| `batch-prompts/start/B013.md` | 3425 | `95a9da3e3ede3c3d552f305522885c6f84f4bb2ddf8b459d66462b5a5c81e082` |
-| `batch-prompts/start/B014.md` | 3425 | `1a9f388bee3ffccbddf2871b76a79df013402ae4b95aebdbc10209946b458066` |
-| `batch-prompts/start/B015.md` | 3425 | `ab66549c4e6ebf1845473ed1621554797c78ffd9ee4085d7c3d0cc6059b72e21` |
-| `batch-prompts/start/B016.md` | 3425 | `893f022be17d0152074fe5ac2d6674999e2405576676ec2ead928f507aeb93b7` |
-| `batch-prompts/start/B017.md` | 3413 | `5eb7ad6b72dd0365bf15e7d235ea73f7a590ae7dd3675a63596e008dea326f12` |
-| `batch-prompts/start/B018.md` | 3413 | `f74e3fee43e8d7feae4b8fd3581697a484636b0dfaf4be451f431abfc81ec07c` |
-| `batch-prompts/start/B019.md` | 3413 | `795613424559a681495d3e6800a226c868a3f9d3e488a92e9979889b7b3dd75c` |
-| `batch-prompts/start/B020.md` | 3413 | `1d2680cef0b08c39b7fa755b50ee8d4e99de27d6820ac2fd279e6fc1c4b1ddae` |
-| `batch-prompts/start/B021.md` | 3407 | `9a5819771bcc09a727a5407ef007794a7aba5144004aa4f234340118239b1dee` |
-| `batch-prompts/start/B022.md` | 3407 | `aa188fbf531482099787125a087b83e596bec50255b6f3720ba92c412746699e` |
-| `batch-prompts/start/B023.md` | 3407 | `abcbc07e1640f3c37b06ad1de8387919481681076b389d1eeb302612de8c22a4` |
-| `batch-prompts/start/B024.md` | 3409 | `157ce1f1c16503079abcecc49d20361a0d24f345d542ef5fad7497bebcee7f21` |
-| `batch-prompts/start/B025.md` | 3409 | `20277de72e231deb874479a4025a7213db91df1e1209eb5af37174c727d95702` |
-| `batch-prompts/start/B026.md` | 3409 | `67b1b1a244bcd148bb735c405ad21dd79f8dbc592869f4dc9941a0d61f0603ba` |
-| `batch-prompts/start/B027.md` | 3409 | `f9915360d8640066da5eb1a4e0082fb55ffacfcc4a295ec11d6f8cc4b30b0ec0` |
-| `batch-prompts/start/B028.md` | 3408 | `dc24fee705a34a9ef1ddf5eb518263cc34fd89abaed6a9cf94b0b535fd593098` |
-| `batch-prompts/start/B029.md` | 3427 | `60784e9522918834cd65e43c1ba377b4b106fae904017fd8eb03e4b81bf188c9` |
-| `batch-prompts/start/B030.md` | 3427 | `ee33c906d77859089ac6b378ac8d4fbbfd1bb15f59a5b93e1c45c2f4a15659a5` |
-| `batch-prompts/start/B031.md` | 3429 | `20b3e6f56a872b8efb084ae4819d46173648b12b59c5cb7e912136955c3ae11f` |
-| `batch-prompts/start/B032.md` | 3429 | `ddbb7bcecdf10ddc08828abbfa8ef1e251e8405fd5cfc2cd8a464b5ef396bef9` |
-| `batch-prompts/start/B033.md` | 3429 | `6d9b018822ecb2a467ba2ba16b42fe867abc975ac46702cb5b02833785148dca` |
-| `batch-prompts/start/B034.md` | 3428 | `2186e5f2753c73bf23d19fb193405df21ad571ffd991d12cb0a9c05f00b1620e` |
-| `batch-prompts/start/B035.md` | 3421 | `3e5bebd7a6574e706f5b3ae205a98620d26eb86dd38af4e0f75424faf180380c` |
-| `batch-prompts/start/B036.md` | 3421 | `bf2b3a89487c6ea92d90ce82073ae92a12535c94465ac55152ec2585b8b7664b` |
-| `batch-prompts/start/B037.md` | 3420 | `027837ba4ae7ee3898e64a73f40ef6f848de4b6c83f4d7d677279966f1aea8fa` |
-| `batch-prompts/start/B038.md` | 3413 | `1ca8ea632dc643ad0ed5117d7d8793abd6e3dd4c005bad381d692fc41c8d1e50` |
-| `batch-prompts/start/B039.md` | 3413 | `c7b04efcc962464d443d684a76351a23ef1430a79dd4f5e3a6ccba74b0d7bc50` |
-| `batch-prompts/start/B040.md` | 3413 | `95dd5e4c8687357967807b108ed63ad7268781394ed700182722ce2335f0a9d8` |
-| `batch-prompts/start/B041.md` | 3412 | `84ab790fda985e0c55297b79c89def85fafdbe0382c3b237014f227071b58b78` |
-| `batch-prompts/start/B042.md` | 3409 | `cd366341ab8d47d0df456c6382066678da95516dce2b4e32aae7d86e1cd68d23` |
-| `batch-prompts/start/B043.md` | 3409 | `8e535ba97e9e8a87422b9af9a84bec866b95f8909c32b98a7a7af972278d2b1d` |
-| `batch-prompts/start/B044.md` | 3409 | `8eb2ae9d0f51c20020fa5cf0fd5636284f5a1af729e4f33e106cd6e979ce18d1` |
-| `batch-prompts/start/B045.md` | 3408 | `508e3eb11c34536d8f9a608abc32205ac2a45f6ae3004df6e7bcc668675c0aeb` |
-| `batch-prompts/start/B046.md` | 3407 | `fbca814d359950f387038435eeaae6b648b6927aef094f7eab95c7534a8b7d08` |
-| `batch-prompts/start/B047.md` | 3407 | `5b63ad06d09a076aa702f57f2bf3e747f320348ebf59df7cc45efe86e2f82f80` |
-| `batch-prompts/start/B048.md` | 3407 | `098263ca25d0468858ba7ec207f4158d908794eedd8dcf05cbcb3047c69ea12c` |
-| `batch-prompts/start/B049.md` | 3407 | `7466f3be2569245770320a4d479ceca0dba232e7f156c4a6912ede73bdf89bb4` |
-| `batch-prompts/start/B050.md` | 3407 | `d63b4f195607f312ade9dd2ef928df78b1fe45404ce5b54602021186159caade` |
-| `batch-prompts/start/B051.md` | 3399 | `2b2d4301d0f74fc2a9407e4029f630c4eabdb995baa6eb694e91af1151d881d1` |
-| `batch-prompts/start/B052.md` | 3398 | `8e354a33317c811343608e54a5775a4a37dd8f89ebd8ade00e2f1dd0b52ef71d` |
-| `batches/B001.md` | 10263 | `5143ab4f9c11d68d595432c5b27984fd4561f9d445a641d20ef5ec12fc419abf` |
-| `batches/B002.md` | 10523 | `3a064016fadaa360c3262c8d98379e7af05eeaf7e806247ca43735c5b95dcd56` |
-| `batches/B003.md` | 13094 | `5164bfd23e88fafbf6e658ab8e3013b4714f3ae11808523de4fad72c51882b0a` |
-| `batches/B004.md` | 14303 | `84999767c91eaf7d096c43b74fc00e4331aa1c80ce66e8258e557fab14e536cd` |
-| `batches/B005.md` | 15990 | `17803b1ff75b99fca6cfaa8b9ed47caad3d9c6bf6ef5ff554bd55c67c8f1e156` |
-| `batches/B006.md` | 12935 | `e7fe7176fd7e2cea96ba1873c0f7bc115fc4e3d3eac9027b1cf789f55296b27f` |
-| `batches/B007.md` | 13562 | `f6774255ca00e208fffafd2a331901b1dba4232a608271f689f2eb70afbbfa29` |
-| `batches/B008.md` | 14628 | `3383c179b86903ae663451cf44f18508ec2e9d3dc374e92031ff8de52648d768` |
-| `batches/B009.md` | 15854 | `d4f22007e3550def2cad8109ec58c3adfc377879df239472c7257207053e45dc` |
-| `batches/B010.md` | 14665 | `f0be8d9846543856b6f561637ef369ffe15b29f5b6148834a6a8b374a5064a19` |
-| `batches/B011.md` | 4771 | `96ebd92d18e47bd88aced49d073bbc8c2d47818c8df98912d587183433ca5aa1` |
-| `batches/B012.md` | 14881 | `d048aab02183e8b15b5a456aec4e2e8a8ff21368e5a97ca7f6e501b3c662abc1` |
-| `batches/B013.md` | 15921 | `45003bfd80505664b541e6f251acc46e48fcc3c77f78177a4c304368fc935521` |
-| `batches/B014.md` | 16328 | `a86aaf88d372747d957d6ad71cf4b393caadbc41b512b2854cdc460c4b6d34b1` |
-| `batches/B015.md` | 16824 | `0a4d499d9409c5ddc4ed630bc5217f45fe60b610c02b5448527381c91ca174c2` |
-| `batches/B016.md` | 10010 | `f224c1b3d1f9f8fc480cea2328bf630b2a75cebdd8dd523452a7813022135ac9` |
-| `batches/B017.md` | 14421 | `cb78f6c6251b3b4013c5e4b6e332c7ac9bfc6cf30683127db4c23a1a31323abd` |
-| `batches/B018.md` | 14899 | `436c99b2615febca3161702e60a16484fc4b9654d678fa2b6910beecb86f24e0` |
-| `batches/B019.md` | 16342 | `7b3678bc2c06331bdc71b0102a7f201f6abc1e36f4b1ec08e08922e8240a80ac` |
-| `batches/B020.md` | 12086 | `fb69184f105c8f572d404fc1280a0d1293afa0e26d1c69204c48dad9560c0693` |
-| `batches/B021.md` | 13637 | `e89b797f00a2312f4c7520fa6229e0b1bc18d6b701578eca3a08907383e489df` |
-| `batches/B022.md` | 14940 | `893fa46b60baf2e14ba6a3a2511bb319714a7f1506ba8835591123357c6c73b8` |
-| `batches/B023.md` | 9873 | `c839875cb594839d9a2883c69e5299eb3f15af0f871cc379e0b45da8bd0933e4` |
-| `batches/B024.md` | 13966 | `b569f37ff21e8fb1cc41c7d94f8acf8e6caddd2f9d28e878b1d97505ee2cb759` |
-| `batches/B025.md` | 14989 | `328571c4dbe233adff39bb88f11435af0c439fda64f86c6069bc2e381af7a69d` |
-| `batches/B026.md` | 15743 | `3121d8ebfd2a76bf323fa7d4e5e85860e46f00f927bc6f555f20063a84ef212f` |
-| `batches/B027.md` | 15197 | `d76494953de37d06f869ad70c509095b8b90650209c833de0e74f8b261461872` |
-| `batches/B028.md` | 5215 | `14e9ba7ebfd70909a45e470721529ceade9a5218f0e4f955f6df214f0feb1c96` |
-| `batches/B029.md` | 14693 | `e50cf70e945d2ed7b2c272cb58720e2fa78b2e08216d219a5bbd4278440e0213` |
-| `batches/B030.md` | 15132 | `6d76d9063d74bd797384657c989d6c234d21c3e9af4fd52762730c7a303927b8` |
-| `batches/B031.md` | 15259 | `23be8771abac947bd9635971c25124bb7c362b6fa8c570f4dfe37f07d282dd97` |
-| `batches/B032.md` | 16606 | `80a1dc7bf10b3a5b1e8648e436122697cfa81d7f8bf95a2d9b4fb7402b05a278` |
-| `batches/B033.md` | 16403 | `6cd375b81dbb22ece51c8c06282e70857590b5cb71188b9c559d3f5d38ce529e` |
-| `batches/B034.md` | 2839 | `53ea93e1088116bf99bbf4fd4c9182f62aadb3c6d2959a586056586922b79574` |
-| `batches/B035.md` | 14957 | `18de7d85ddcd80e4f517ee1476b00d337b6011ddde0b3582c2167f94f175a530` |
-| `batches/B036.md` | 16444 | `c6fae592d8a9f7a95b05e455b1ff030b82ffd4fcbe9ab5a4e0f8e8789ac3222b` |
-| `batches/B037.md` | 3760 | `d8bd7fc184be19d7fd88719062038ae01e03f1c5f45a9129afc5736472160f96` |
-| `batches/B038.md` | 13872 | `9983880eb11b37ff178821325b30b3ebe7fb947edb2aa448ebec47fd82f61e6a` |
-| `batches/B039.md` | 15265 | `388fcd8ae1ced6d12d2b77fe7eac0745f78c0a31ee72903610e81f83c8a9b290` |
-| `batches/B040.md` | 15560 | `30fef2c7fb4880cc61db4f9069f2aee2a520760bedf80a7afceb94317a6c3659` |
-| `batches/B041.md` | 3189 | `99cfa5a263a8d7b015ded42afb38aa7f7381a4f77fd9eca7838cbc4f51ab62d7` |
-| `batches/B042.md` | 13518 | `cd69584da20e3b77e4cb0b61c5a6d9999d40382eb79acd2da037f5235e2ca8d6` |
-| `batches/B043.md` | 11438 | `7015ca3e2b2ff2d4b4a122bbe32e67172b04bde4bd031ec37e75933c68a162c6` |
-| `batches/B044.md` | 14043 | `013ea4158906f7ea045e0a87f5b1047398fb9276382dc9de5b62b55ad2925f37` |
-| `batches/B045.md` | 5333 | `d16ae4639308bdd02c4cfddfa918149c7513646f5ace51c17300fffd4a2d8b43` |
-| `batches/B046.md` | 12409 | `8622e62e898975dcab4abc2d1e43b0e5fc6ad872484f9a9bf0d2b0f68bc79b2d` |
-| `batches/B047.md` | 13868 | `6402c272892c155138f2fb553c4e6a27b08e9a12a45ae007c2325feba9eed615` |
-| `batches/B048.md` | 15928 | `e32791fbb07122055d1019b1d921d9479481f57e987b6a1b6b015c3c19272f2e` |
-| `batches/B049.md` | 13678 | `8e82ebe8caa6b89165c67fd8f14cae1a42bfd43634cdb3c5b7f2f6e0be3b73e5` |
-| `batches/B050.md` | 5709 | `70cf1076fcabbd654757a7309e4e614ed38d7832a69dfad0e08f16eaa367a89b` |
-| `batches/B051.md` | 12312 | `23ba19a008e78ae5bc434f745e1c4ad224947ab940c43c55f62901b85e62b42b` |
-| `batches/B052.md` | 4131 | `008df235bbdd3d50a2cfaffd0df147b1887585293af85cc981ce42c49860559f` |
-| `ci-cd/README.md` | 736 | `bd37ed1d3b8262ded9adff7932f5b7de0fb09445b260c4cc42f080948358655b` |
-| `ci-cd/workflows-extractable/target-ci.yml.md` | 1098 | `020ae07be7f446e08872f282e61539a08464e695d2807969702362ee50f55edb` |
-| `ci-cd/workflows-extractable/target-contracts.yml.md` | 2205 | `3bcc714ac6667c353d37809488d82c72678fa41fc70ac54db7552a95e26ffb25` |
-| `ci-cd/workflows-extractable/target-docker-compose-smoke.yml.md` | 1127 | `d11261de8120e49c4464c7d363f4f9f1d4a972e005a1e3b6f62e1cb76b129615` |
-| `ci-cd/workflows-extractable/target-golden-scenarios.yml.md` | 1116 | `cde30f95952eb7331560f3ee1230c2f1fe3ec8ea7256946624e312971787d7c0` |
-| `ci-cd/workflows-extractable/target-release.yml.md` | 1213 | `281ae73c165c532cdd86d0ce777141785fd0d432a3aaa30795bda6de0ae50602` |
-| `codex-active-normalized/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` |
-| `codex-active-normalized/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` |
-| `codex-active-normalized/README.md` | 484 | `5c82f74c4d621744b10ebaa0197cd996796839d5ea12311a57d033a1450799e4` |
-| `codex-operator-guides/00_QUICK_START.md` | 1607 | `df5c5f5875b13e782d9df49d06d747607cfe6809b81fcc2b922ce0664481bd66` |
-| `codex-operator-guides/01_WORKSPACE_AND_REPOSITORY_SETUP.md` | 1665 | `8a67b7939014d36a4cea911efa0b9924c23d6075563dbea2d981bb0b032a75f7` |
-| `codex-operator-guides/02_STAGE_EXECUTION_PLAYBOOK.md` | 1564 | `0c69ee8dd59a00809fafea4df86c1f80cb58223bed686df3904f867d3662f4a4` |
-| `codex-operator-guides/03_ACCEPTANCE_AND_REPAIR_PLAYBOOK.md` | 1557 | `c61e8aa5b4d76684f6474fda8713ca6dd8f49ced2b4a6ed6beea4efc933d8b6d` |
-| `codex-operator-guides/04_TESTING_PLAYBOOK.md` | 1511 | `8d73d726f8bdd4c9ed20034eb792e049b244dc86a057ae758d1149da8e60c865` |
-| `codex-operator-guides/05_CI_CD_SETUP_PLAYBOOK.md` | 1635 | `4faef610ea17bcea18a74fc659f527a8b523e09a7f2865b9bf98df13048b9b2c` |
-| `codex-operator-guides/06_RELEASE_PREPARATION_PLAYBOOK.md` | 1415 | `dd06d0fe73030ab644126fa005557a7ed0ee90c8e6a264330af716a9cfe714d3` |
-| `codex-operator-guides/07_EVIDENCE_AND_AUDIT_PLAYBOOK.md` | 1542 | `b6e28122735200556f849e77b25c48587f955c2efee5a33b90ed664ae666c2fa` |
-| `codex-operator-guides/08_TROUBLESHOOTING_AND_ROLLBACK.md` | 1491 | `d1809311d8a6c8065eb1266d9207456204d799e2f6f8281114e67ce078f36e6c` |
-| `codex-operator-guides/09_CODEX_SESSION_PROMPTS.md` | 3172 | `9a22049c75a2d8c6ee62c6dcda794b96944dd03150068e5bce5fcc57088ea535` |
-| `codex-operator-guides/10_STRICT_VALIDATION_COMMANDS.md` | 1927 | `7eb92d8a99136549d0c728df1784b4735c5dd0d51a614dd30b896a6b841d4718` |
-| `codex-operator-guides/README.md` | 1802 | `ce0100649f9afa5b062f49097f56d6d3b943e3950907b4aed7e1f01a92313253` |
-| `codex-prompts/00-index/P0001.md` | 9090 | `9a139dac1241f111846926d0cf698e6fc2471a9df2aa7891334818b84cc4ce07` |
-| `codex-prompts/00-index/P0002.md` | 12635 | `5f651148b087c80335c19a8efc0662f61d4b70a02d68330a997748cd8a9a431f` |
-| `codex-prompts/00-index/P0003.md` | 12739 | `33a05ee3d367a6d33b34adf08a912d8a1900f6518628988533c04cfd9543e6f1` |
-| `codex-prompts/00-index/P0004.md` | 12686 | `f7249d0641f7991cb59c654d48da3839e256ce7f2f990d1f8ca1ee7e243799c0` |
-| `codex-prompts/00-index/P0005.md` | 12671 | `c25e0374d36eb7178537a63a7723f2fc4072da730816be3131cc8581db6a830c` |
-| `codex-prompts/00-index/P0006.md` | 12687 | `e87965992f701fdab26a771e210e86c3690fe3dd8b9dd9cba22616f43f9f4b88` |
-| `codex-prompts/00-index/P0007.md` | 12765 | `9fb502eeac429062374a91ede8e0a2f2599a39c44d32e71ef5c08dc5ea188d24` |
-| `codex-prompts/00-index/P0008.md` | 12569 | `222236d6858f6fbb4875544dcb38ca4581d3caebb14ba597999774f20147b495` |
-| `codex-prompts/00-index/P0009.md` | 12562 | `712bb657d166e8284157a2a97ef6673f294f5aeb9fedbe008081a7c2d9af74d9` |
-| `codex-prompts/00-index/P0010.md` | 15193 | `6c1a53aaa02fbea6ec882731e90c1371409ce278df8d345790f30ba0863ad081` |
-| `codex-prompts/00-index/P0011.md` | 12787 | `7159cedd8fc65a0e3c10507b8fa7a12ca8c948257a897dfae23b26e08012a102` |
-| `codex-prompts/00-index/P0012.md` | 12243 | `33b8be694a07b3b8ea0bd113a1e6021ef41520849e7568087b740dafb029c696` |
-| `codex-prompts/00-index/P0013.md` | 12254 | `171f2d787981c789434c4d7ca9b3ca23ad2e6a262462c9c62145dc4475bb61c5` |
-| `codex-prompts/00-index/P0014.md` | 12328 | `2db252cff1cb97471dc89cd5d0be7871f229fdd9d04d917f49926f9af7c53eca` |
-| `codex-prompts/00-index/P0015.md` | 13246 | `1eff040da5a00a1fd0903bd9428ebdee426b9de7077c8c6f3e1c4e1752f436ab` |
-| `codex-prompts/00-index/P0016.md` | 14313 | `662d29142235403d0bc6f93e29c46028b457cf93e1cb869c99e43e351a03641c` |
-| `codex-prompts/00-index/P0017.md` | 13243 | `b6a713dcc39a17e111190d5de09c6f349c8d349d3741802d2843c79e21184d51` |
-| `codex-prompts/00-index/P0018.md` | 14061 | `988359e938810f866bd98542caaadc48424b77f43c1eca55729550d115f3e5e2` |
-| `codex-prompts/00-index/P0019.md` | 14383 | `42c88dc849b2adb896f6ccba1b8224247e60a9eebc5bd6d4c0e3e992a217e253` |
-| `codex-prompts/00-index/P0020.md` | 14406 | `92d66f6348283c26a613a4e287304562743fa7a7fdb8c82b667f4f8e754b8f4e` |
-| `codex-prompts/00-index/P0021.md` | 14280 | `83fe758b4cdad0496a80e2027a5b4b5c66ce9b7637643e08c080ef32d2c27fb1` |
-| `codex-prompts/00-index/P0022.md` | 14389 | `6c482e324aaa87982a50a002676614e2d96bbdcb42bf5445d58c346e1933b278` |
-| `codex-prompts/00-index/P0023.md` | 14152 | `a4bd5d63e9fbae5d1a489967a66725657267a77de6a00072dab8ebc4ead4856c` |
-| `codex-prompts/00-index/P0024.md` | 12325 | `6f27f51ef7c66bfb84b9b41752611e488a9c1431323b35c8c757b20fbf5d4b94` |
-| `codex-prompts/00-index/P0025.md` | 12325 | `1e85cee284b92c23440e65b2a072bf4f73a0ca9ceb3b7a91c7c3d90ae50b6409` |
-| `codex-prompts/00-index/P0026.md` | 12301 | `0fae06d5ce0f3016dfaa2db5d0a32b648824d70d9aedb8a85754e78043752d55` |
-| `codex-prompts/00-index/P0027.md` | 12563 | `1fc3019aade0a9a904c91103257639396b567b00a644d894a401a46afed59870` |
-| `codex-prompts/00-index/P0028.md` | 12175 | `2de6f5dd44cc9131422de65c088f6d3a51e624c41a813ce767f00366b2f8786e` |
-| `codex-prompts/00-index/P0029.md` | 12679 | `571a73ffd04126922e2e48aa7c512758d9df18158ff00cbc100d0566dad0be92` |
-| `codex-prompts/00-index/P0030.md` | 12707 | `6d26bb9c5e3c67b38c626a0d2ce6bcb5b41dfa9ba78462c3bf6abf469219be76` |
-| `codex-prompts/00-index/P0031.md` | 12448 | `5085fae1943abeab447fb1e2640c76d6d12cabf63b85cf3a211dcd70f2e4fb35` |
-| `codex-prompts/00-index/P0032.md` | 12623 | `8dfbbdd3a5fd041588c651e59414ac7877546e80243d558a3e62442a4f5a80a4` |
-| `codex-prompts/00-index/P0033.md` | 12324 | `f27e625b5793918876f7b70d8293c4846f4408e1d8710a57e65488ff2df56e72` |
-| `codex-prompts/00-index/P0034.md` | 12398 | `ea59fe1095e7e8bd58a084faadd7bea9e0fa366c36487ddc56bcbe80aa700d8a` |
-| `codex-prompts/00-index/P0035.md` | 12395 | `157e2023458c6cfbb79216fd415ef39d28fdd432916921317e30ffecd31abbd8` |
-| `codex-prompts/00-index/P0036.md` | 12371 | `b39b7b5b5ec8ab9b20f1d6a82aff56b6cd5ffa13f5975be65ef27412399863f0` |
-| `codex-prompts/00-index/P0037.md` | 12245 | `24355dab5391e5e58914f018a065d0e7e28e74fd17d19916a6bea6c0cb05c013` |
-| `codex-prompts/00-index/P0038.md` | 12777 | `4cf1c7402acf8faaeeae9e26bee97d963e4168f78ad5bc6799d7f9c22b05ed30` |
-| `codex-prompts/00-index/P0039.md` | 12827 | `63e92ca8c5c398dfb029d37fab1fa577ed33c6c60cbf586e9fe6f1773de10066` |
-| `codex-prompts/00-index/P0040.md` | 12729 | `d03b7aed0a1323588b1e2fd1d197f784dccb6dceab83fe51e39f4e857436a6c5` |
-| `codex-prompts/00-index/P0041.md` | 12732 | `c5ff89a3893c82ce7fcb1517e3eeb4eea1884590477da900095bbed9122c3b3e` |
-| `codex-prompts/00-index/P0042.md` | 12510 | `4ae346c36ed19ae248a9f4f33a611a1a20622b7175b131c83332c0c96632d5b2` |
-| `codex-prompts/00-index/P0043.md` | 8701 | `6a3f405b533e15c2eab9612a2164fc5c5382a990fc42ea23b8929fdeeffd9959` |
-| `codex-prompts/00-index/P0044.md` | 11825 | `865c84a7932aab8603137b3197d054b04fdc87fc5292dca2b776cabfd85d371d` |
-| `codex-prompts/00-index/P0045.md` | 7618 | `b878d2e896f813df867451314fde36e870e56dd4710e0fd5b3bcab7daa36437b` |
-| `codex-prompts/00-index/P0046.md` | 9237 | `42c8e07f85e126f5214430f563c215b66a635d3a3238cec58daa6207e9e25145` |
-| `codex-prompts/00-index/P0047.md` | 9060 | `c48d06fcdc9aceb892743dbb09044826c5717df86a380f9649cbfce4a9d10c8a` |
-| `codex-prompts/00-index/P0048.md` | 7535 | `618ef1ff948172ce1adee693713acde47a1c03eaaba1a053525011b58d2727f2` |
-| `codex-prompts/01-foundation/P0001.md` | 17811 | `2e95897b9acdf31240b3035f087798da1397197d45698a409171d2003e84709b` |
-| `codex-prompts/01-foundation/P0002.md` | 17718 | `a60e072f684cfbfe0e9b5d237208e29026a9692f0b399a20c199bea467b7e227` |
-| `codex-prompts/01-foundation/P0003.md` | 17811 | `3b6edcc2ddb444956afe9a5cb4c8421655547d76d6aaf6b21e72d0249814ebde` |
-| `codex-prompts/01-foundation/P0004.md` | 17966 | `0c5cba156e635243c62c099b611497c8aa369eff5d5b74c770d09ee27c04ef13` |
-| `codex-prompts/01-foundation/P0005.md` | 17687 | `792d77ecc1ddafad29f7d148aac1f18545fdf788675b1d1280683f23ae60ed97` |
-| `codex-prompts/01-foundation/P0006.md` | 12668 | `2b00974e129b5f0e0f7a3bc2a66d418d71dafa46a2018d4b010df173960e70ad` |
-| `codex-prompts/01-foundation/P0007.md` | 17947 | `6e9bf036ec0b6488dc4a4f07dd3a379dffd2b81c0bf3b6faaddc6566a39462a0` |
-| `codex-prompts/01-foundation/P0008.md` | 17749 | `8eb8b2ac82f5f34ab3418a320ffd5b195df56c472a95ef70e85e1e786eac1698` |
-| `codex-prompts/01-foundation/P0009.md` | 16144 | `04d3f2f173fd4e1cff5940999705002709832b29b192630f4e022a181430b31d` |
-| `codex-prompts/01-foundation/P0010.md` | 15936 | `e89a89de21130ea5c3047d20c87f9cd07f8bd6c06088453e1f2c4cafd72f4b66` |
-| `codex-prompts/01-foundation/P0011.md` | 15996 | `8646cb0a4dde26b8d613ecd339c9c2008981ec114e20228ac2539c4136b38f44` |
-| `codex-prompts/01-foundation/P0012.md` | 16080 | `7ecece998e82b63656956b913ad98f08188fb764e055d06aa23fc9ccb1183c26` |
-| `codex-prompts/01-foundation/P0013.md` | 16123 | `bd6f949f4cd4d9c4fa8698b37bcf320b9b0f514f968afb6819fb20dca7a74bc1` |
-| `codex-prompts/01-foundation/P0014.md` | 18292 | `9618c5c8dbdd6ed94d6273d011f6a4b49ae98674695a1298b37ef6621cf33778` |
-| `codex-prompts/01-foundation/P0015.md` | 16904 | `915c4831a3b25a5f1f4f5f4b6f0b11cb87d9165ed13d1d493b7e34b2fdc36ba7` |
-| `codex-prompts/01-foundation/P0016.md` | 17037 | `54d352a2fc296acaedf0b54c176da473377d21d8f0d71929d1ace8229d8d686e` |
-| `codex-prompts/01-foundation/P0017.md` | 17269 | `7bbd8f2b265195f02e681e24d0f31852a25345466e679d7da53a4acc1dfbbac4` |
-| `codex-prompts/01-foundation/P0018.md` | 17064 | `b0158543debea7b63dc95590584058a55e2fc030c8f8e5f36b48972ac84afd75` |
-| `codex-prompts/01-foundation/P0019.md` | 17183 | `2fa1be05ef399cfc2f4f27373e7d74479cc3cf1c0b063ec65353c070a9ddd961` |
-| `codex-prompts/01-foundation/P0020.md` | 18052 | `522f01151299684e5eb749380826bb2a5c7685c6d31fd9d5160af00dd6e068dc` |
-| `codex-prompts/01-foundation/P0021.md` | 18010 | `30da7ccd46a01d358f26e32dad5ee2a24dad46cb5af61ef6b6605fe98d341f2d` |
-| `codex-prompts/01-foundation/P0022.md` | 18048 | `76f61f6511a2bd1b6cb56d62a5e7a31681231b20da7bed7dacae60dee92f5b17` |
-| `codex-prompts/01-foundation/P0023.md` | 18177 | `39cca3feff3ccaf776960fcd3b8d6d49512d99d33d02ca685ba91ecb5f58b408` |
-| `codex-prompts/01-foundation/P0024.md` | 18125 | `6ba0802b38029cc7349182fb8cc8686eb59b02a8e67944cfcb97aeebdbf6d34d` |
-| `codex-prompts/01-foundation/P0025.md` | 17342 | `ffdd9532fac1a64cc0537c4309c4790c140f40f27a0f0e9784758a1cab198521` |
-| `codex-prompts/01-foundation/P0026.md` | 17082 | `29e151c2cae482b9a58f05bc4091f4e5d43b1663b2e087faa5217ad9cced0d76` |
-| `codex-prompts/01-foundation/P0027.md` | 18125 | `228b684d971a676de46bbc3ef093a1f09614bc5e9d8c8d2394fc012d0fd7e5ba` |
-| `codex-prompts/01-foundation/P0028.md` | 18541 | `eea06a9799b4a728dbb5fc8c5e9671828fc7087672dc4672fba39b429a9bb47c` |
-| `codex-prompts/01-foundation/P0029.md` | 16975 | `46db07aacc47c7937ddfdaf9bdc6413b702bddd9a418188c7501fd65ac9f3a2f` |
-| `codex-prompts/01-foundation/P0030.md` | 17261 | `c1dcaf56ccf8a32da093de15d513933bed30a9f2d56b491ad2ecb416df41d898` |
-| `codex-prompts/01-foundation/P0031.md` | 17002 | `1b96975b3fc4bf5c21922c237ec96ef634ff728340e5c07caa320e31372366dc` |
-| `codex-prompts/01-foundation/P0032.md` | 16975 | `0e8dcbe5d830d811af279cd638dd5c90148359a8a753cc8e57d2b42ea42e22cb` |
-| `codex-prompts/01-foundation/P0033.md` | 16842 | `2ff17bb8389f6a5a4429186dc45ad691415ec5fb9e17d2a3a5c85ec77f3ac276` |
-| `codex-prompts/01-foundation/P0034.md` | 17116 | `931eae0f20b9731fcf10522f992aabc89dcd31ca7bd1f45e1b718d76dc1a7e5b` |
-| `codex-prompts/01-foundation/P0035.md` | 18008 | `9ed70f86e30f3ddd5d3f31ba85b9eb4dfd44d68ba5d318dc07effa8fd54c4bbb` |
-| `codex-prompts/01-foundation/P0036.md` | 18015 | `8f4f04b8e598bbf77d1c0a67363855b4c3052c5ca7d647eeaa70cdc8664c278b` |
-| `codex-prompts/01-foundation/P0037.md` | 18853 | `b2caf3f527c20def1a4c89bb2f3a67aec8f8510b432188f3aaaa27cdb72244ca` |
-| `codex-prompts/01-foundation/P0038.md` | 18004 | `61a90a1ebb1f374970e9fc4c3e99c126ee6edd1af5a010b52aa30c3ce8b62072` |
-| `codex-prompts/01-foundation/P0039.md` | 18043 | `57c5fab9226f40d8f79f052beae2a272b7c9820139882170e1715ce06b822438` |
-| `codex-prompts/01-foundation/P0040.md` | 17932 | `a30d5d12a14ddbfcee2ccd12480d5cccf94b9ffef085cb2cc4ffaeeb7bdc603b` |
-| `codex-prompts/01-foundation/P0041.md` | 18285 | `870070eb8504d9ef0caa267347e32a0f63def86ddbf7c44718d7b4d5aee418ce` |
-| `codex-prompts/01-foundation/P0042.md` | 17968 | `b7794694ff76a8c9a8484e47d6fe9befc497ce987b9613fc7e2935a888b36dc9` |
-| `codex-prompts/01-foundation/P0043.md` | 15823 | `b0f8ecc90f1e753fd7698a1082da6025d8986ca3ed8fd2caa79d86a946895f00` |
-| `codex-prompts/01-foundation/P0044.md` | 16090 | `dfb5ebe37c4a0160a79ca6b95541984ed5d32c1d920c3bcbdd9449ec842234a2` |
-| `codex-prompts/01-foundation/P0045.md` | 16169 | `b1c47cb692cb9c53ceb554b3076c01e74c05d83d24d6d1587941b430ebfdd3c2` |
-| `codex-prompts/01-foundation/P0046.md` | 17922 | `97ccbdef458e261f75ea17a5ed2de2a84e6f4f06d975520af9688908eda95e02` |
-| `codex-prompts/01-foundation/P0047.md` | 17052 | `30c899a260b01d8ceb0a396cd1b0059344e3b49293d8b4ccc9a0d5905f2cb919` |
-| `codex-prompts/01-foundation/P0048.md` | 19255 | `e48827cbb6d70d2e346d9319edaacdc82b0f8362db8a4437fa0bcde3ed244c92` |
-| `codex-prompts/01-foundation/P0049.md` | 19166 | `c25e9f3a4b3e49d66ca295fd7015ec7a71f01c494b2d8f3c5e11640d79dd0892` |
-| `codex-prompts/01-foundation/P0050.md` | 19165 | `805f01f40e4b1864c0c0676ae7f13bd87631e791705f27f58c46b45e4082b78a` |
-| `codex-prompts/01-foundation/P0051.md` | 19643 | `fa08ed5e41fa0025934496209ebf6d6d2b88ad3aeaf019de2f71edddd4ee089c` |
-| `codex-prompts/01-foundation/P0052.md` | 19225 | `5d0963dc3639474dbd664d4b3567f7b26fd4cdc319e12a25c0cb62ff647eb66c` |
-| `codex-prompts/01-foundation/P0053.md` | 19708 | `80486b4334734f3bec9ae281635b2f7b52ccf6521cb6843efb070f55a4c37ff0` |
-| `codex-prompts/01-foundation/P0054.md` | 13303 | `9fbf4c8009b52522234780ad6734add1fe82fb0a28459fffa4be1e149083f69a` |
-| `codex-prompts/01-foundation/P0055.md` | 13577 | `aa74ebbeccf15bf8ea53556d9e6d520f5d2abe63920e0896417454cf7e236032` |
-| `codex-prompts/01-foundation/P0056.md` | 13614 | `a8223be6b83320793a6a658a4e6959885c2652265b77f2447b78c24360165903` |
-| `codex-prompts/01-foundation/P0057.md` | 13800 | `441667ad0ba3ff50a05ec2a45856de60046026af27ba1ced78572461676e94a8` |
-| `codex-prompts/01-foundation/P0058.md` | 13630 | `26e6a6cf982b89866f1c4c0d34eed485a94bb132dab140938f49da5b402c7971` |
-| `codex-prompts/01-foundation/P0059.md` | 13794 | `cf30f5343e31ebc12bd1ac4befd87a21d952a8e5eccd0f7413d812398a03bccc` |
-| `codex-prompts/01-foundation/P0060.md` | 13488 | `728efb9aafe30442bc6af21fdb4cef1c881ddc82fc1775bea506ca8adc11075d` |
-| `codex-prompts/01-foundation/P0061.md` | 14721 | `5ba7acf297b5a003658c3769467395beb6e37b67f7043419b2b59e66c7eeed7e` |
-| `codex-prompts/01-foundation/P0062.md` | 13709 | `78a5f721f948dbc65bf6b0467a346584f4d2a1446e4fe9a84d9cb43aebdee6f5` |
-| `codex-prompts/01-foundation/P0063.md` | 13227 | `afa48cda5cd71eed03b57aa526bbf9c158e1bd420bad041bf5337b1eca7fdc4f` |
-| `codex-prompts/01-foundation/P0064.md` | 14115 | `7b3906f4bee721ef91378d3ef28ea0723b8aadd2a32ec19a2bdded0ad9a4f677` |
-| `codex-prompts/01-foundation/P0065.md` | 13357 | `8bee143681ee8b056b52f93699017b646b42c0d4ed411b5a28282761f0d622c7` |
-| `codex-prompts/01-foundation/P0066.md` | 15279 | `5ea4950151d4d905ca18fa1d735fcf95bd046588da150fd7f5b19f904d0da94f` |
-| `codex-prompts/01-foundation/P0067.md` | 14819 | `1ad2cdb231c6da60e997ee73f371237c2570c5e08194acd6ff940d767fde66b3` |
-| `codex-prompts/01-foundation/P0068.md` | 13393 | `5566f9d56264ac53e21e45a899d8116996079d36196b45d662c4eae882137de8` |
-| `codex-prompts/01-foundation/P0069.md` | 13333 | `115ca04498effba0a2dd16f1598af92fa606d9a5aa11c7d23d84b55d565c8675` |
-| `codex-prompts/01-foundation/P0070.md` | 14098 | `321eb23aabda294d58820657cbc39a6eabce65aaba70a1fd8179d81bbb3b32ab` |
-| `codex-prompts/01-foundation/P0071.md` | 14707 | `117d37614d703f0d4bbeef15cffda32f13d0ce55e9ef93ea0e2eb19b4c7814a5` |
-| `codex-prompts/01-foundation/P0072.md` | 14707 | `86b3e5b869358b0f330b0acf67ee64e360dea9401d39078ecd8a146c145af09f` |
-| `codex-prompts/01-foundation/P0073.md` | 14013 | `30f722ce5c7ab38dd7eff9b23e5b7cf38412fc42b1ae5bbe57b705586aa31d97` |
-| `codex-prompts/01-foundation/P0074.md` | 14728 | `0405fe741256b0c850c2fef4477e0270379b437a65a72598631215f360055f4a` |
-| `codex-prompts/01-foundation/P0075.md` | 12674 | `b19b436c15b08ed57ee64d9df8066bb60dcfb28ea1bd04415a5b303f23bc6b46` |
-| `codex-prompts/01-foundation/P0076.md` | 12627 | `6c2cb5ea4cdf67c7f7fd773efe13ed1bac90e44215342db48433f9908be5f208` |
-| `codex-prompts/01-foundation/P0077.md` | 13609 | `e5ec547529560ef247c53eb2f5e2dd8dc1369fd751582b52e011f5628e1f64e4` |
-| `codex-prompts/01-foundation/P0078.md` | 17927 | `af2dee9d1a3de347d75eb0815960f62fc6d80830f043e822446a4135290a690d` |
-| `codex-prompts/01-foundation/P0079.md` | 16441 | `e38b402a76b79612a77de37dd679f189016803835a275909a889659085820830` |
-| `codex-prompts/01-foundation/P0080.md` | 16387 | `f55f9327bad1272630096726f8eefe23032cf68e0115181f0a1e6d75522fc214` |
-| `codex-prompts/01-foundation/P0081.md` | 16551 | `c46be12ea407024fd81141c91a7d2e27b5e0489eecd7b4ee1bbaa68570f8e194` |
-| `codex-prompts/01-foundation/P0082.md` | 16753 | `62d57842677fd50af800c507da6f452057b9e87a650b993e913c99dcb46c4bb9` |
-| `codex-prompts/01-foundation/P0083.md` | 16487 | `6e1b4495d542c7e3be64f29999e7120054a01028b945ebec7e40ca0ab39cfd21` |
-| `codex-prompts/01-foundation/P0084.md` | 18282 | `a371ce5a8f0173c65a6ab0b248b3fc0eba40ce751fc8dc1ba87ad680726422d2` |
-| `codex-prompts/01-foundation/P0085.md` | 16249 | `5b883e225dc48b4d982ce51cb1f2a623a64ef8d8e8ee0f9a3f09cb606b2fc95a` |
-| `codex-prompts/01-foundation/P0086.md` | 16041 | `ade662486392f03f3f62ee34b385b356000f8bba31ceb99766fc57e07efffde3` |
-| `codex-prompts/01-foundation/P0087.md` | 16101 | `0b6fedebe2913000d8466b61128a2d0ee1553a26ffd91d6f4ad21282338a94b1` |
-| `codex-prompts/01-foundation/P0088.md` | 16185 | `e5189a644880c136bfc9dfac2b3a2414da9be92f530206f6c0a8fc382d0bd7ac` |
-| `codex-prompts/01-foundation/P0089.md` | 16228 | `fe967c6a0543d61365c0131155860e3c20beff45d5d50c1590519bc800bd773f` |
-| `codex-prompts/01-foundation/P0090.md` | 15928 | `312fd270dc75aa42a1a780cf8bd7277620ffd0d0b12172028d6fb3be822e8cb2` |
-| `codex-prompts/01-foundation/P0091.md` | 16230 | `3d84d1c6f31663f88ae28dec3a9d27a0c8e1d94c07113cfa6f85115f727af87d` |
-| `codex-prompts/01-foundation/P0092.md` | 16274 | `9ffd8db159e1f806695e308c5a8f8e9efd90854c7661c1426c0cc45080582927` |
-| `codex-prompts/01-foundation/P0093.md` | 17748 | `3d46a1c67c3160580e0c9f5f5ff0854885d3e6108c9afda43136b7adf7c9e36e` |
-| `codex-prompts/01-foundation/P0094.md` | 17698 | `33893ffd82fe905268522f0971f7a48faa0cd07bf504af144e3b6d7ed7f63c6e` |
-| `codex-prompts/01-foundation/P0095.md` | 17731 | `c439f5efdf736a4374cff1673d1f547c5b3cdbf48fd52c754f53aa7664857662` |
-| `codex-prompts/01-foundation/P0096.md` | 18106 | `cd24d9eb73cb2609a8c04bb8934295709a8d56149825a2fd40624ad108f50c7e` |
-| `codex-prompts/01-foundation/P0097.md` | 17694 | `2d099c35cad4631fbb5d25f5b10d16c3d3fbf9701bd4bb01ef5d5b523e32a56d` |
-| `codex-prompts/01-foundation/P0098.md` | 17967 | `3d5951aa1e0f60ed54f309d2337a7a04a94dac183d7fb89c0963edb1bd2d3b37` |
-| `codex-prompts/02-domain-core/P0001.md` | 18135 | `35464502e16b0339b0d9773a4d600b35da6c72e3c120ac78f23607a4a28a5277` |
-| `codex-prompts/02-domain-core/P0002.md` | 18185 | `966bd0c96a3ae461d2362a065e794d18f362dd617d5644e93111c014352a28bf` |
-| `codex-prompts/02-domain-core/P0003.md` | 18086 | `70b242fb1126bef50d130c99794b370514437ea2086a563eaef31d84503819f6` |
-| `codex-prompts/02-domain-core/P0004.md` | 18252 | `f742f459514f441d7081f4dcd561f68727cfaf99da485b0875212a991fcce9e3` |
-| `codex-prompts/02-domain-core/P0005.md` | 17943 | `8f45bdf42a1fd9503c1d054a3f33ccd309d7cf8102357463bb8f61a0f0b83aa8` |
-| `codex-prompts/02-domain-core/P0006.md` | 17912 | `00d8b5cd8a38b54d72e7729166d1f7b0518db835eb6b739d589e819b9d36f920` |
-| `codex-prompts/02-domain-core/P0007.md` | 12722 | `1e68f7975865af052f13f7aaf0329c0acabb8d06e16382458790fbcc1742d363` |
-| `codex-prompts/02-domain-core/P0008.md` | 18251 | `cd099f63fd18f46f1488f761bd7a52ffefbe95ab024c352c67e6751257508e3c` |
-| `codex-prompts/02-domain-core/P0009.md` | 20271 | `c95d76af29e1589198d87d23545e19146c5701cbe94aef133b09677cd694c784` |
-| `codex-prompts/02-domain-core/P0010.md` | 16481 | `789e146c313d1060739c63fcbed297dbe5806aa87afb0b0d83c7bf04d1e3314d` |
-| `codex-prompts/02-domain-core/P0011.md` | 18353 | `3d6311d682777c3d7c6688f7882119d1be232eb74a213a4a5fd4727c54c4aea6` |
-| `codex-prompts/02-domain-core/P0012.md` | 16514 | `6ed333414aa7c60473202915b8d0e9735e2e026c1b124836645ce723f2cd81f5` |
-| `codex-prompts/02-domain-core/P0013.md` | 16223 | `391b806c6c62501c7450499b0b018bd9d5067695997613903b9fc8b8942a5c89` |
-| `codex-prompts/02-domain-core/P0014.md` | 16309 | `3f018bf3e2ecee3547f68abbbbc92852cb7660d1bbd5f7347c757ef7ff155e12` |
-| `codex-prompts/02-domain-core/P0015.md` | 16127 | `e757fd3cb486a8bfc5b6a6fc0e5924ed4d66deecf12283f69520d5bea2417732` |
-| `codex-prompts/02-domain-core/P0016.md` | 16116 | `b610069cc25105bc43e0c791bbd063597f5ddc65b9e1213f42931827d049d8de` |
-| `codex-prompts/02-domain-core/P0017.md` | 18563 | `4263d626a3a97e13f6674e7e62ae5dbb1e947e309302ec79d7472666fc3a5f5d` |
-| `codex-prompts/02-domain-core/P0018.md` | 18045 | `fe5a9a20548498a06548fd2c0b81bdf6ce285596394dae1f5d386013b304499c` |
-| `codex-prompts/02-domain-core/P0019.md` | 18383 | `1bd8d15bea0cffe160e625289c5d0230bf8c7c08cdcaaa09798a3d309fa9a585` |
-| `codex-prompts/02-domain-core/P0020.md` | 18689 | `591ff8cceb3e0ef2b588f884c2a6bf8ce9f5452a2e45db94e6921dbb1b16592c` |
-| `codex-prompts/02-domain-core/P0021.md` | 16936 | `92383190c1c7046c8c7efff59bef3861a170ba3fcbad595f8c70ba8ab864605b` |
-| `codex-prompts/02-domain-core/P0022.md` | 18393 | `5fa2a60297f0f9c14f769bdb9ede0343df72825f6f16d510a482e3da09d50b3b` |
-| `codex-prompts/02-domain-core/P0023.md` | 18145 | `ccb79e29a4844e93be142d79bd60042c0f3a965ef272ad7294b4cad928690ecc` |
-| `codex-prompts/02-domain-core/P0024.md` | 18588 | `fe172d1166570e20ce091c4b4367d396b3c638a55987f3724038efddd31f34a6` |
-| `codex-prompts/02-domain-core/P0025.md` | 18894 | `4a3cdd3c8dbd9d8bada2f182fe748a5951c261183283ebbb20eb86d797bfb668` |
-| `codex-prompts/02-domain-core/P0026.md` | 18117 | `fc678d50501b9ee299a4f6dc54c7d3c93f522cd604a1b4c676ffd00b3f07e36c` |
-| `codex-prompts/02-domain-core/P0027.md` | 18479 | `492714c37590ee416c94d017ccec2e6afdda487757546d00029134de25cb17d9` |
-| `codex-prompts/02-domain-core/P0028.md` | 19086 | `6c609f802a06bd0d18cd5f17c2ff5f3041dd76e779beb8e70e6b607a7bbf28bf` |
-| `codex-prompts/02-domain-core/P0029.md` | 17126 | `04538a97ef83eee8208682e3d8d64bec3da5c3230e4b2279ced28328b61df029` |
-| `codex-prompts/02-domain-core/P0030.md` | 16985 | `a4bb2c4f4bfefd0b3abb94a816a9fffe184981208c8ee9ef48d80820a1815f55` |
-| `codex-prompts/02-domain-core/P0031.md` | 16509 | `9c080c4a42e14ab8a344046a8be1f74416a29225e0ae8ce4ea77e8e01143dc5b` |
-| `codex-prompts/02-domain-core/P0032.md` | 16940 | `8f88ad307a33dac3f942c9d6a3bab2c789431fb796033be731ad148ca3be3894` |
-| `codex-prompts/02-domain-core/P0033.md` | 16853 | `1a2338835a4f2148b0b28d85c37a0d400e1585d31722032c5d7ad1df88cd4c3e` |
-| `codex-prompts/02-domain-core/P0034.md` | 18370 | `2e110a52c0434f7e29e59e3f06ce5ca90a0a923bcde48d3fb6e06fd1ae058990` |
-| `codex-prompts/02-domain-core/P0035.md` | 18117 | `5c7577ecaffb256ba5dbe534ff6272e47f5f514fa7edf64893b7c8daca937b58` |
-| `codex-prompts/02-domain-core/P0036.md` | 18385 | `6d432d5b36ca872d27a35c8524bb45d03fb4dbfcfb0f1705f49066f167ddaeed` |
-| `codex-prompts/02-domain-core/P0037.md` | 18369 | `a1a84f3856ab2e26d433cea854fae3fea1e9451b396daa1dd08d256bc7f0436f` |
-| `codex-prompts/02-domain-core/P0038.md` | 18027 | `d6d7b27b0fedf5663ea03956b0d2e5f8f872305801163983eee9e9f9fd0737c5` |
-| `codex-prompts/02-domain-core/P0039.md` | 18577 | `dc8d3ef2ec4f819e0e470af5c10bdba5b44f36e7946130174d0b3ced348dbd96` |
-| `codex-prompts/02-domain-core/P0040.md` | 18017 | `82d3d439ae20b02d64e26b1fe7c682f7d1596985f98e4c5f3d4ea156f62f4192` |
-| `codex-prompts/02-domain-core/P0041.md` | 18859 | `ea38a5de3c2298ecdc744ef1c8656074bb7b523410b2afdabc68b229f88e7274` |
-| `codex-prompts/02-domain-core/P0042.md` | 15927 | `90210648af6769bf9184d776d142848f5a18beb4905c2839ed6a6f868e6880b0` |
-| `codex-prompts/02-domain-core/P0043.md` | 16586 | `92d688f14580c4f32a15a74a6fe6314b8cac861965ac98a98fc0ade7a3153769` |
-| `codex-prompts/02-domain-core/P0044.md` | 19879 | `f2f79c44f34deac5a8a337e77885acb16493ca2897231c4d4d201c08ff1e3003` |
-| `codex-prompts/02-domain-core/P0045.md` | 18017 | `0dce8dd13be7572030dc12218412e862e7cfeebb4d19f292d58890f13287576a` |
-| `codex-prompts/02-domain-core/P0046.md` | 16369 | `2e59916aac9e0d9455df0e0469172c4aa02447bc8b28dbb0105ce548e071a020` |
-| `codex-prompts/02-domain-core/P0047.md` | 19685 | `1e9eb05a0209514bb96046b12fb08169f383cfc837a2264ebce25c65e2e350d9` |
-| `codex-prompts/02-domain-core/P0048.md` | 16296 | `5aa48b4c9969e4fc7cc783ad40cc1447e927e0f0abe8868766a5a9fbf9d7cd6c` |
-| `codex-prompts/02-domain-core/P0049.md` | 17693 | `a9a9093b3f2ddbe4ec41eeb928b05e4eed5df830c55263545e76749a6c5ba172` |
-| `codex-prompts/02-domain-core/P0050.md` | 17305 | `47f100224ba0d65c698ac69e59b700b54aac8fae5891c59fe3960c2c2a7316c9` |
-| `codex-prompts/02-domain-core/P0051.md` | 19261 | `fbb6dbe8b1dbba81c6539540569bc25a9c93b56125d8489bb5d920c919c85655` |
-| `codex-prompts/02-domain-core/P0052.md` | 19499 | `ae080e63d4699078a0e2afcc37dc5cdad82ea584cad7c2df114f629c06280455` |
-| `codex-prompts/02-domain-core/P0053.md` | 19208 | `d8431ccebdf5a46e94817a03b6807e5673ec28a0a719650a2c096ff54dd904c5` |
-| `codex-prompts/02-domain-core/P0054.md` | 19081 | `d0d64474b73dc45d0823741d1e920f1e68e60049e9c0465ccc1dc00274a9382e` |
-| `codex-prompts/02-domain-core/P0055.md` | 19649 | `2a106d362174554efe778d868a306e34176357a0d46396e9c1589f0ab6b2f16d` |
-| `codex-prompts/02-domain-core/P0056.md` | 19529 | `164b0447c054c9aaee93e63beda8d474d67adc7bc7f223a66b019f626b81ade6` |
-| `codex-prompts/02-domain-core/P0057.md` | 19230 | `83b88008ab92d97452881c083ccda3b0fb0c86ce4e9cca264bd8ed0b873e8dc3` |
-| `codex-prompts/02-domain-core/P0058.md` | 19683 | `0011ce8a5924ba0878285c5a20910df3d16ea2515026fdbedb6794996fcefabc` |
-| `codex-prompts/02-domain-core/P0059.md` | 13179 | `02c964d1787839ab7ceae893339820827c6d712880365329f26ab513e4c1169a` |
-| `codex-prompts/02-domain-core/P0060.md` | 13523 | `72b815dd47dd94b7c4269a93ae91da22cb19eab50b1e5cc18b93256a7311e7a3` |
-| `codex-prompts/02-domain-core/P0061.md` | 13605 | `2be2f04a29ed39c849dcfa9046042f92ed5091162496661ef7ae16d5b56960ef` |
-| `codex-prompts/02-domain-core/P0062.md` | 13620 | `a883eb650098aa204480eabbc58e27af2c5a1560be82056ea9b1c5479f006816` |
-| `codex-prompts/02-domain-core/P0063.md` | 13482 | `f56fb32d2865fb39083bea8a38a8059e6d423e6d0d372c32817ddf925d23dbd0` |
-| `codex-prompts/02-domain-core/P0064.md` | 13398 | `345423201984c03f4f7936995d5c22df153facc18c9166d844ee19c190c27b52` |
-| `codex-prompts/02-domain-core/P0065.md` | 14498 | `b2be9855bc95869f929c3aca62f041e1453ee84642f2c3b315e694eb7ba36cee` |
-| `codex-prompts/02-domain-core/P0066.md` | 14693 | `4546744139cfba9cdb5f04cb08850de03f8de75f336b9196c895cd1489e88bff` |
-| `codex-prompts/02-domain-core/P0067.md` | 15168 | `e8674054b39980d1e732d5a4d6d1a9cf656d56543272a899bb89536294c76928` |
-| `codex-prompts/02-domain-core/P0068.md` | 15179 | `8a186ebf0bc205540707420c3f624e9d07594c0f524e69c868d73e2c1df119b3` |
-| `codex-prompts/02-domain-core/P0069.md` | 15025 | `8931751ae3bafdccf09873643e967949946b4c99bfcf69070cf0b6cdb99b528e` |
-| `codex-prompts/02-domain-core/P0070.md` | 13499 | `ed67a3b08f384fec727a8c72d3e51100f6989bd3d2ca066441d26c5348a3622f` |
-| `codex-prompts/02-domain-core/P0071.md` | 14735 | `de64df77db7aa4ca9925cf00de8dd8396acfa87b9f0cab8876891bdcbaad143f` |
-| `codex-prompts/02-domain-core/P0072.md` | 14530 | `4103f85e14ea4a23523a7c8fab3f82d9c45e998e9b08515563a1d7875fcc3f73` |
-| `codex-prompts/02-domain-core/P0073.md` | 13417 | `139eec294ad58ff835dfab29d29a27568535ec328c347ce743ea8c8b1848a546` |
-| `codex-prompts/02-domain-core/P0074.md` | 14176 | `703e67118f66dd860f3b5c2ff7b6a9abb471a9854843aaf92338b6b56d21bc4b` |
-| `codex-prompts/02-domain-core/P0075.md` | 13275 | `dbcf2fdfd16cb55cf313111d03ce71c1aca051007d7a689a1bcce9e41cb08c41` |
-| `codex-prompts/02-domain-core/P0076.md` | 13453 | `6a352d72b98e026596a38c2577e3abd2430f7f41f6b078787e7e23f0006401bb` |
-| `codex-prompts/02-domain-core/P0077.md` | 13805 | `d43e5962643460e4a168c8df811047cf85f1ffe7570641aa9010933371c2f09d` |
-| `codex-prompts/02-domain-core/P0078.md` | 13999 | `fd59a175cd950e234313c6dfba48220d935d78f5488bccfdf659bd761b4453fe` |
-| `codex-prompts/02-domain-core/P0079.md` | 13890 | `1be230311f7bc4fe0d5fb41b22761101d9aaf25e25516dce45694c18fd14a502` |
-| `codex-prompts/02-domain-core/P0080.md` | 18192 | `881127227047c7880b1fe8a3514246a091817297128ce86f78e4f94363fd7f40` |
-| `codex-prompts/02-domain-core/P0081.md` | 16499 | `0bc84e10c20b9da6129ddd9dcb5014d824a7371791fa0576b4ff176f3df74a08` |
-| `codex-prompts/02-domain-core/P0082.md` | 18277 | `8396b1ef26d6bbcffbd8c28a62e4291d095c47716a107457f7c5b5f5b0b277b7` |
-| `codex-prompts/02-domain-core/P0083.md` | 16452 | `929e9d3d5414d7fba145c657e6ff484f5b069b247cc951869de9f83a20e8e53e` |
-| `codex-prompts/02-domain-core/P0084.md` | 16396 | `720d7ce13c1d66f929d053380d944f339d1efaeeb5b2babb2db90a44abf030be` |
-| `codex-prompts/02-domain-core/P0085.md` | 18343 | `d5bce7491e3c5a0e53118cd805676cc9e0313983adefd35691b3e39583c663b6` |
-| `codex-prompts/02-domain-core/P0086.md` | 18348 | `ad44c12de586ea860df5feab2a8cb3db17bdf13e5ef827e75d6bb9bdb2ec9fff` |
-| `codex-prompts/02-domain-core/P0087.md` | 18061 | `5f7ea3133baaa857a9484cbc87397633fd4c209a5b38232f6afc2fb29fb48cc1` |
-| `codex-prompts/02-domain-core/P0088.md` | 16750 | `adb924b4957d6fa85630c6304af7adce826ab1419a800ebbb8a51b30d28e4ca2` |
-| `codex-prompts/02-domain-core/P0089.md` | 16586 | `aa3059af9ebd3cc162901a7aaa2bf084ead26e0c51566da7862455b73c08ab09` |
-| `codex-prompts/02-domain-core/P0090.md` | 16654 | `96f6b4a1eed542f919e103eec76c4ef732aae23772ad8cd5e0b0cb4f6d93ca63` |
-| `codex-prompts/02-domain-core/P0091.md` | 16363 | `58c7a4bbbe7bde5307eb1a50d11b5a78509f5367d48ba60cd771c48bf1f478d1` |
-| `codex-prompts/02-domain-core/P0092.md` | 16414 | `6d8c5cdd5bb7cb6dd8e8dbcad239bf59df358d1de374fb94b82223b4a968248d` |
-| `codex-prompts/02-domain-core/P0093.md` | 16232 | `a1b3e2d91a3303b94f27d822a32387dadda73818832f8543c19d4bac0c20cc15` |
-| `codex-prompts/02-domain-core/P0094.md` | 16221 | `9ec22b6f5b9680508cd324d4aee075485963cf532d87f211cb878cb0ceed105e` |
-| `codex-prompts/02-domain-core/P0095.md` | 16032 | `66f1e4dcdbd651e3a748ce00d669984788cab9fce2815a72ad198d1a20430544` |
-| `codex-prompts/02-domain-core/P0096.md` | 16726 | `cb250f600a9c7810c88f94dbb3c64490332e1f76b72f835104c5d53b9cb06754` |
-| `codex-prompts/02-domain-core/P0097.md` | 16509 | `4dcf7b39e6c48539ce785eae0e81fc941cf4aacde0f2d5c3f6141d547e327333` |
-| `codex-prompts/02-domain-core/P0098.md` | 16436 | `c19889580b6083d92945ab4ade664dbe89a6556f844b5bc3b1e7677089c5a039` |
-| `codex-prompts/02-domain-core/P0099.md` | 17756 | `420c8a7dc6b6b31c38b37d615d6c84ea687a61cda74d4206661b09dd8a3d0d1a` |
-| `codex-prompts/02-domain-core/P0100.md` | 17907 | `1546156a0758f8ba484b913215442bc3ad355d7b36ed72098d0a78e1c55c2232` |
-| `codex-prompts/02-domain-core/P0101.md` | 17738 | `38237e8e50b4689778b2cdcc0a828e47c304dc0e9b734044c54ee75b843d9d14` |
-| `codex-prompts/02-domain-core/P0102.md` | 17654 | `39a47cf0600e74f1ecd4143465acdafa01dd624069674ba78a763deaf8fc6a16` |
-| `codex-prompts/02-domain-core/P0103.md` | 17816 | `f805914d5bbd642c1586542727244b339307bd990c6126fae7c8fa51ffd13907` |
-| `codex-prompts/02-domain-core/P0104.md` | 18085 | `0d78bc550fde3afa027d9bc889b04b4bde79978ff16dfdc478675dadecebcc74` |
-| `codex-prompts/02-domain-core/P0105.md` | 17890 | `7882f5ae7b594eb9d3ba84242241b70cb11e98e2e9d591d726682f4470dbd920` |
-| `codex-prompts/02-domain-core/P0106.md` | 18109 | `faba76a8b2384635cd1812ba05fdf5cce916fe2c89c7865e643f6c32abb7057b` |
-| `codex-prompts/03-runtime-orchestration/P0001.md` | 18206 | `6666b5388a6c9e5c514a4e73e93470b4fa5069ea80ed0889f1a50ea0d0b6cef5` |
-| `codex-prompts/03-runtime-orchestration/P0002.md` | 18099 | `7e5ffe62e47baae81f25a159387654312223afd1da7f3ee791ae5185d166c978` |
-| `codex-prompts/03-runtime-orchestration/P0003.md` | 12995 | `065b1bda692b356bcbcc237cca914d107ff0c15ca53457d14b1a0d0e7d5ed22b` |
-| `codex-prompts/03-runtime-orchestration/P0004.md` | 18265 | `1f619bc6fd7f1893bffb3ba6e9a040586b75245f48d0dea6b6be53e316419357` |
-| `codex-prompts/03-runtime-orchestration/P0005.md` | 18203 | `70500b647d30c3aad60ce0dbc82414c8551497175869e7070049dfdfc0bb5c55` |
-| `codex-prompts/03-runtime-orchestration/P0006.md` | 18018 | `80d1f20144504d4df75382b4542fd89ade12a8156effb5ddfa3090e240bcabd2` |
-| `codex-prompts/03-runtime-orchestration/P0007.md` | 18049 | `2ed42d2211327db0437b044ab4d97c669376fe72bc77a1a82fa4c05b3d89f8d1` |
-| `codex-prompts/03-runtime-orchestration/P0008.md` | 17987 | `2bdaaf4f32771f145636b87588850dde0574f3c724d2847546caf768ba200216` |
-| `codex-prompts/03-runtime-orchestration/P0009.md` | 18066 | `f76022d58c7808637295d78630b8901ce5dbc191b3a388f1c4b069a2386ce66a` |
-| `codex-prompts/03-runtime-orchestration/P0010.md` | 20613 | `b184720562df88e4fabc6c66e710e8558665efdc967ee956abf249c18b6c0185` |
-| `codex-prompts/03-runtime-orchestration/P0011.md` | 16834 | `298755eab9179ee1ab21e941273970d68736b05c4f155e8220359a7d10710421` |
-| `codex-prompts/03-runtime-orchestration/P0012.md` | 18956 | `4e3f67da9d3f5f69e2190f8ffb322822222e2dda5e2748a56585693e5e313790` |
-| `codex-prompts/03-runtime-orchestration/P0013.md` | 18370 | `f52a650a2a39695a20e3a97998d3bd87ce099b15d272550d6864e0bca7501812` |
-| `codex-prompts/03-runtime-orchestration/P0014.md` | 17520 | `86bbc5aa6712f20fc4e7f6506e0ad601f5c1abd92fdaa08d546ab7f7081adf5e` |
-| `codex-prompts/03-runtime-orchestration/P0015.md` | 17316 | `a20311bdb1a7178155e33195476aa5cd6a60f000749e5a1554d77dab66f79639` |
-| `codex-prompts/03-runtime-orchestration/P0016.md` | 18924 | `3f0679ab856941f40c5095c99aea4db1423433e123e713030b9ebe02cbd3f77e` |
-| `codex-prompts/03-runtime-orchestration/P0017.md` | 17493 | `707676e2268c3c3975fc2bb3c078ff9626a89ab7be661954495013b19bfa184b` |
-| `codex-prompts/03-runtime-orchestration/P0018.md` | 16955 | `ac28a74b375ff6a6c4d20ea09a26329466eeb765a8d60c6f3722acf2d003dd01` |
-| `codex-prompts/03-runtime-orchestration/P0019.md` | 17329 | `1c063147fd4cfbf738853a08ef68f29ace7d3991afa44fdd5422cb45343973e2` |
-| `codex-prompts/03-runtime-orchestration/P0020.md` | 18760 | `c425875c939865779ed583639894fd41351269fa199cef29233598c5b4d08115` |
-| `codex-prompts/03-runtime-orchestration/P0021.md` | 18360 | `7633dd3e78835792348b6353e496eb637d7b3c0dc476d90f0c2c9d6aeac10e4d` |
-| `codex-prompts/03-runtime-orchestration/P0022.md` | 17422 | `109225273ebc9db523583fc976a6707f08d556adffb4bdc32d3bdeb22bce0e12` |
-| `codex-prompts/03-runtime-orchestration/P0023.md` | 18345 | `4b57f7e7c2aa7ccb04fba48692fe6a9f164bd62594c47aa0926fd4799eeb230d` |
-| `codex-prompts/03-runtime-orchestration/P0024.md` | 18432 | `c0365d95fa0e2003294b263de462d4c3564e4df6dae5dade45c48cb90823ca96` |
-| `codex-prompts/03-runtime-orchestration/P0025.md` | 17442 | `b583099bb0b66402c684a8a4a122535e4260a144728f4aac875a05de392edcba` |
-| `codex-prompts/03-runtime-orchestration/P0026.md` | 18385 | `c62877d7aa9e88400aa11dc9d95a032d3a74ea2749dae154bc2c2a0913dfbae0` |
-| `codex-prompts/03-runtime-orchestration/P0027.md` | 19160 | `e77f8cf8fc649ca4742d7b9e7f6a0604f49582e9928911d620db4a9bbba891fe` |
-| `codex-prompts/03-runtime-orchestration/P0028.md` | 19699 | `4cb5d65598a6faaf63dbb1a80319d038ecb2c3f9267881331d2f2bdede26153c` |
-| `codex-prompts/03-runtime-orchestration/P0029.md` | 18777 | `04cfb1c503a718ab9029a461d2cd36dfb39932465b6411f9e938e271868d2178` |
-| `codex-prompts/03-runtime-orchestration/P0030.md` | 17432 | `464bee44d45e973ba64c5c42bbccd7e3148f7ea80cdbb5ca988f085365a09713` |
-| `codex-prompts/03-runtime-orchestration/P0031.md` | 18380 | `1541909b41be308045035109c4b8f8fd4d50feb140d42cff5f0edce15cfe3f10` |
-| `codex-prompts/03-runtime-orchestration/P0032.md` | 17106 | `321d1e8c40077380a43417021432c83e882de334527ff7b9f885f21f363f488a` |
-| `codex-prompts/03-runtime-orchestration/P0033.md` | 19066 | `20a01f5acfa28470b33068478c1185d71f16e936bc4354741fddc4ec99e732dc` |
-| `codex-prompts/03-runtime-orchestration/P0034.md` | 17267 | `6ce64f257931e8d828be51608433d15a9c6bc4de913d4d8bbcc575b8b4d71fbd` |
-| `codex-prompts/03-runtime-orchestration/P0035.md` | 18360 | `467f73a7c1d54700dcd970581cdd3506247dfd6a9ebdebae49736af2946b7011` |
-| `codex-prompts/03-runtime-orchestration/P0036.md` | 16900 | `3295fa63ff062a5e514faa023ae4af13b5f11ffd9871c2ddd83ebc33c734822d` |
-| `codex-prompts/03-runtime-orchestration/P0037.md` | 17277 | `c684148755dcae151b1c984bbb829aca3eabdf927747b314b3568ca07d7a4747` |
-| `codex-prompts/03-runtime-orchestration/P0038.md` | 17461 | `cb885e6bf96ea8f1f3309c9bad1d20fa1fed84c1c084d6f5d40a25da93b8e473` |
-| `codex-prompts/03-runtime-orchestration/P0039.md` | 19032 | `d76e55a736868750db40097dfae972dd88b8a243f0d08ffe8753f8a8d82d1b42` |
-| `codex-prompts/03-runtime-orchestration/P0040.md` | 18757 | `20b86c14895df068b6c6994d5e28fa91418d471414758ad843190b8667affe5f` |
-| `codex-prompts/03-runtime-orchestration/P0041.md` | 18769 | `4a28e0baa5acd222f230b1dd9b6a30cb52f5a957fa53e1b89b06199829d303f1` |
-| `codex-prompts/03-runtime-orchestration/P0042.md` | 18350 | `28e69edded8d9ad782e50985afd5bd8bf57fd0648c17899f6b26c59e31868734` |
-| `codex-prompts/03-runtime-orchestration/P0043.md` | 17598 | `4895c5d5f8854e27af1c85a133284fd05b8a4418a186f903f4262f59a467f02b` |
-| `codex-prompts/03-runtime-orchestration/P0044.md` | 18370 | `0d5e00350befdf5d7d74ca960a3cb2c3fca3123792b72a0c09e92006b13c76eb` |
-| `codex-prompts/03-runtime-orchestration/P0045.md` | 17434 | `112f8cbf69be512a60600cdcf5f088c3230955db571c03585bbbc6bdd1dfb313` |
-| `codex-prompts/03-runtime-orchestration/P0046.md` | 18400 | `55d109efc6ac3ff52af80e710d011fe5a11d3df6c6b93e49bb8686f6f7a14aa3` |
-| `codex-prompts/03-runtime-orchestration/P0047.md` | 18575 | `029105b50503621650af9e77d90e5850fcc5e41817058eba49d451cefb95f3b8` |
-| `codex-prompts/03-runtime-orchestration/P0048.md` | 16702 | `4487ee001fd800088639a5ad073e6d9ace5ae66a312c1a0391319b65e570cfd0` |
-| `codex-prompts/03-runtime-orchestration/P0049.md` | 16224 | `f1f30d0733a1683eea0c2d5b04b21540aa24e977d6462cc2c00ab96d89153869` |
-| `codex-prompts/03-runtime-orchestration/P0050.md` | 16558 | `57c6ba8df445e3135050889e2dcc1068012a259d8884130eba7f463411a83d5d` |
-| `codex-prompts/03-runtime-orchestration/P0051.md` | 16520 | `949fe782833a39649d361fdea71bbec6955d64cd972cf848e4cbb2ee14b82427` |
-| `codex-prompts/03-runtime-orchestration/P0052.md` | 18543 | `295fa691615413f3d2ee3feeabfb7232141846b6d2ecbe6aa9ef66b69bb8e301` |
-| `codex-prompts/03-runtime-orchestration/P0053.md` | 16544 | `3f374ef3dcf664c778ccbed207b94f1abda007bf1ece04a8808432902fac261f` |
-| `codex-prompts/03-runtime-orchestration/P0054.md` | 16582 | `9e6caecabd77f16f6afa9bf4d988b78d029d1c8669ade12662150eb07083078b` |
-| `codex-prompts/03-runtime-orchestration/P0055.md` | 16538 | `692cfcfdefc9da12b74a605ee1c35d69c088cd58969c4b6eb66189229565f5d0` |
-| `codex-prompts/03-runtime-orchestration/P0056.md` | 16674 | `a0fdaad54ad9b5e9e0de32435a57d88732cdecd1e2c733e12b358f0c78fabad6` |
-| `codex-prompts/03-runtime-orchestration/P0057.md` | 17445 | `8e106e119cbaad3beb9dc3cddcf3b1c417256aa79a2a2dbf1422022f2cec3296` |
-| `codex-prompts/03-runtime-orchestration/P0058.md` | 17435 | `7b00e55bf676310448b2cb2391ad409e8bd12ed7609297be3ef5e9d6c0d92173` |
-| `codex-prompts/03-runtime-orchestration/P0059.md` | 17837 | `d6a1548bbae147bec2fcbaaffdf4fc92ac1a5dbe60b367ad1394498e16ffd3cd` |
-| `codex-prompts/03-runtime-orchestration/P0060.md` | 17435 | `5984716f8327c7e29273846b7b26f7acde99f2042603dd9890e99f635222aec7` |
-| `codex-prompts/03-runtime-orchestration/P0061.md` | 19363 | `2f3a5e1657ce8e8f4e1fd6ebce91ba57b8a76cc44973d962416eab58e8a2b3e9` |
-| `codex-prompts/03-runtime-orchestration/P0062.md` | 19510 | `90f42de80b57a18adbc38565dc59e81c6c633dd5cf468f0cd205c33cb4f5cd38` |
-| `codex-prompts/03-runtime-orchestration/P0063.md` | 19422 | `7df37a2da6fa4e925d50a2cc4cd1c9fe190191ef7c9ff8cd42052ba3e4283832` |
-| `codex-prompts/03-runtime-orchestration/P0064.md` | 19363 | `26f4aa1bc478f4fc28572b314cefac642a3ab4f98c1eafa8a7081b8eea050670` |
-| `codex-prompts/03-runtime-orchestration/P0065.md` | 19393 | `9771bb099e58687bda87d24a20f98d2320ad07d8dc6052ba6947fa0573539591` |
-| `codex-prompts/03-runtime-orchestration/P0066.md` | 19333 | `2ff36a45ca2422910408b2b84d8781b76bfa11e9c3173b3f3be163b279bb8fda` |
-| `codex-prompts/03-runtime-orchestration/P0067.md` | 19476 | `72e24c008d25352a18c44c8cd2bba33abfbe5877ecf118e1d46ececb98bf1f78` |
-| `codex-prompts/03-runtime-orchestration/P0068.md` | 13809 | `e9a35e2ea5f3934b52277326bfdbb79c38162e6288e192ff91c3780535761edd` |
-| `codex-prompts/03-runtime-orchestration/P0069.md` | 14858 | `c7352d281e635eb779d423261f4e5dc5faf35a3c5cb2a54447674fbd1f51ffe9` |
-| `codex-prompts/03-runtime-orchestration/P0070.md` | 14316 | `c494aba41018c888290188a06ac79a5ff776d8e1e56ea8f7b704bf10a9fb5569` |
-| `codex-prompts/03-runtime-orchestration/P0071.md` | 14357 | `f39031479a612bdc1a34ea64a9ab5e87a877450309ea35169b34a4d3502325fd` |
-| `codex-prompts/03-runtime-orchestration/P0072.md` | 13603 | `c6028cb91039052d058bb5153205c33bcdce640508981a479551086055cb97f1` |
-| `codex-prompts/03-runtime-orchestration/P0073.md` | 13655 | `957518fc9b54a2e650f4d38de08e7ae0adbd11daa948d2872d34280e5184f5f0` |
-| `codex-prompts/03-runtime-orchestration/P0074.md` | 13726 | `1bdc4202df91f2c56f6644f7a5e1d39bc2d5349b47b62b79ce33ab3e1d3bb34f` |
-| `codex-prompts/03-runtime-orchestration/P0075.md` | 13609 | `0eab1b6cc52cf8bedb6ac35d4975a27f24e9f53d07e1339b08636b5f4babf17d` |
-| `codex-prompts/03-runtime-orchestration/P0076.md` | 13603 | `e2e86fe8c77df8794ec827bda7d12aa1718a2cbaa0454b2cefd39178d96d1a9b` |
-| `codex-prompts/03-runtime-orchestration/P0077.md` | 15202 | `5deca5adb6a2b8e9b77e13ac0f2a2d890a188db8b7efada7276fcd15373ab41a` |
-| `codex-prompts/03-runtime-orchestration/P0078.md` | 14851 | `7ed08a68d8ca70a48f7a0aed11c5b80dced309bf1b65ece4c3ca63b005e22d68` |
-| `codex-prompts/03-runtime-orchestration/P0079.md` | 13623 | `b80225c6d8d2bad99bb38614feae9f05ceab8793004ba46dbadd40d117200941` |
-| `codex-prompts/03-runtime-orchestration/P0080.md` | 14844 | `fd962f63ea5cfbd1941f2e507b3cfea8420341e406945aeaf9104d9f5850f440` |
-| `codex-prompts/03-runtime-orchestration/P0081.md` | 13609 | `1b32c3268fe0347deacfd670c44feece7fcd4e49a797be3e2360471d7178c484` |
-| `codex-prompts/03-runtime-orchestration/P0082.md` | 14330 | `129e62993fb8894da947d66619e75e99e0acbc9ced3d958e984d92025713ffec` |
-| `codex-prompts/03-runtime-orchestration/P0083.md` | 14644 | `5ac6ffcf99012b1a430d66a8d28a2b436ded5cec4c5c219229bffd2bbacb50c7` |
-| `codex-prompts/03-runtime-orchestration/P0084.md` | 15213 | `8c36e77aa60669464ed8ca9f94045f31d0fd445e8811e52676760ddda0539a58` |
-| `codex-prompts/03-runtime-orchestration/P0085.md` | 14865 | `dfc77210b25f8f58a6e1e77f3a0c9c6dc1ada7823a8b5554025e6a3bc1c395db` |
-| `codex-prompts/03-runtime-orchestration/P0086.md` | 14305 | `17bb4cf943a1fb73a63e6ee90fbed7d97756911838dc8c1c28f2d1d5c12b08fd` |
-| `codex-prompts/03-runtime-orchestration/P0087.md` | 13641 | `524d357d8a7a7d3071729a34440da011c72e50bd223b36836718117c8a21f3f5` |
-| `codex-prompts/03-runtime-orchestration/P0088.md` | 14655 | `4e044f8742fc626b91688ac71eb20d0aecadcb7387b2e11ba56ebccdc925192c` |
-| `codex-prompts/03-runtime-orchestration/P0089.md` | 13529 | `1b08d2cace63552ef56a57f9877dd47d8bc593cb746b3034b95c97e18ec11a0a` |
-| `codex-prompts/03-runtime-orchestration/P0090.md` | 14851 | `210905b28cafe2ba2206c446286a4e5c93ba341724bb21b054e6d27315b400ec` |
-| `codex-prompts/03-runtime-orchestration/P0091.md` | 13741 | `0be04826a53c4793666de9ae69ff0c6990c1d98ea99f1d02a55d529d7c2eceed` |
-| `codex-prompts/03-runtime-orchestration/P0092.md` | 17263 | `b84bcec93a0184636519e59e0f1712530c4ffc2a23bc7110e299e9c1019d092b` |
-| `codex-prompts/03-runtime-orchestration/P0093.md` | 16329 | `d62633f3569301cb5656f012f663bc66cfa133a26aa1dc4cbcb28fcfa1d127b5` |
-| `codex-prompts/03-runtime-orchestration/P0094.md` | 16663 | `06781f22d2671b111746f183ed47fd46e2f9e8bedfa1649eb6b38a10d6855138` |
-| `codex-prompts/03-runtime-orchestration/P0095.md` | 16649 | `f23d29d77a7a655134bf27142d07ca86c28b3e05a81322dfb8946eca47e4365c` |
-| `codex-prompts/03-runtime-orchestration/P0096.md` | 16687 | `0665b30cec12d646c34469d16924b302832c67514643c7413674c058e6c7db06` |
-| `codex-prompts/03-runtime-orchestration/P0097.md` | 16643 | `9d1f322339f9aece1cbb9baa47dff161c63180e93a34701374982a48761e2c11` |
-| `codex-prompts/03-runtime-orchestration/P0098.md` | 16939 | `5b5c298367c6f54725e19414d0c1f40e46992a840cb98623235495e7da7a3244` |
-| `codex-prompts/03-runtime-orchestration/P0099.md` | 16814 | `10c1e87b581de783b7401669dd8913e308e6178a6a2b30e617906ccad80a5fff` |
-| `codex-prompts/03-runtime-orchestration/P0100.md` | 16842 | `c0cc413d67cde66e077ef656acc96923d2888a87a35702e985ac95ce4898f763` |
-| `codex-prompts/03-runtime-orchestration/P0101.md` | 16625 | `ae3eea25c3c37ff16ec427c8397cb1e5d2df02e3ce06d67226061186e4280754` |
-| `codex-prompts/03-runtime-orchestration/P0102.md` | 18208 | `61b4fd592a39b93618e47024af10348a27fc8fb5cb3c885c85ecdd66ddb45b53` |
-| `codex-prompts/03-runtime-orchestration/P0103.md` | 18047 | `291eb4426f2650fda5275e1fde80f47e21388b5d7b83a353a7d537cecee4232f` |
-| `codex-prompts/03-runtime-orchestration/P0104.md` | 18047 | `5ab37308616fea72ea9095189b3e0470d05327d4d4faa17c8c0eeeb23fc80f20` |
-| `codex-prompts/03-runtime-orchestration/P0105.md` | 18229 | `817eab7a3d9fdd1cd12a2839b897fe17f7ee20ec40b469f9c697d07e6de892e2` |
-| `codex-prompts/03-runtime-orchestration/P0106.md` | 18064 | `651ac7f19a9ef5ac060bef22c03e0cf6f0016b1ed87c5b771c3c68c4ee95915e` |
-| `codex-prompts/03-runtime-orchestration/P0107.md` | 18030 | `6e3e328ff59aa97dcdf2b5ee5bf868724e7a31f106cdc2a6ed6e2d884cc4454f` |
-| `codex-prompts/03-runtime-orchestration/P0108.md` | 18077 | `fb025fa858f2e955fe15cb5a993d711b918e7fbc4294e95dc77bb5dfdcec7cb5` |
-| `codex-prompts/03-runtime-orchestration/P0109.md` | 16795 | `65bf4355be3acfe362b7f114a9824fcf41fa991dffc47daa3be90b3f4d26ac46` |
-| `codex-prompts/03-runtime-orchestration/P0110.md` | 16845 | `d256bb0dcdacb7b108763026b0d6f50d6d00723b920fd9246e5dd6aa997737a8` |
-| `codex-prompts/03-runtime-orchestration/P0111.md` | 16793 | `cf9b00e095637cdc1993baeb6c2d4921ba76570352729df52052d423ce483380` |
-| `codex-prompts/03-runtime-orchestration/P0112.md` | 16778 | `97cf95a7760e4475188e5fa2a696ecd5d0789eb9f957ef7656e4d30f342bd6d5` |
-| `codex-prompts/03-runtime-orchestration/P0113.md` | 16817 | `d9dcdbec15062ed48f174dc12b70415b22f7055d990f938e4326be72613ac50d` |
-| `codex-prompts/03-runtime-orchestration/P0114.md` | 16819 | `441201d8cf277c227b296993dc8156369456adefb7cfdf1d0d99e567b04fdd30` |
-| `codex-prompts/03-runtime-orchestration/P0115.md` | 16751 | `d8ee8b10ef9590c093b55408a8b01017fc53ca1dba4acaf6331fc55ba11f9256` |
-| `codex-prompts/04-ai-agent-system/P0001.md` | 18095 | `e0e1549d2b6507eec72a9ac78684024846ff7716759ca1efcc841820b74e50c5` |
-| `codex-prompts/04-ai-agent-system/P0002.md` | 17786 | `104bff6fa27f399fe9985ac4d572d1004d7be86624633f5b030e8f5653f7b225` |
-| `codex-prompts/04-ai-agent-system/P0003.md` | 18033 | `c4ec80d86372cc77d3491fac2e1f331d28368df9299eb00a51242f42beeb2c5a` |
-| `codex-prompts/04-ai-agent-system/P0004.md` | 18157 | `2ddca01c95be85020973aa9dea91ebf398e0124052dd798311159f7855701dda` |
-| `codex-prompts/04-ai-agent-system/P0005.md` | 18094 | `2b3cc26b63fddd6920e42084eed37a8511ea1b95ae63d1f171eba0f75565f3d3` |
-| `codex-prompts/04-ai-agent-system/P0006.md` | 17817 | `138bde42c23ffbef260bbedc701d9b2be16e486507e4ff737a17518be3c64374` |
-| `codex-prompts/04-ai-agent-system/P0007.md` | 12773 | `28b115c9517a48eef1546637a8326dfc1f63ec48cb323fa04d4eeac30301b482` |
-| `codex-prompts/04-ai-agent-system/P0008.md` | 17786 | `0cadb21739bf84aadbf3c6d47bac077021aabbfc992774900708eb8ba70a8dee` |
-| `codex-prompts/04-ai-agent-system/P0009.md` | 19942 | `81dc8f854a1cee43e6b8c12ec8be7b2cee875f0f5a2c7b55c25d0d6126faaf3f` |
-| `codex-prompts/04-ai-agent-system/P0010.md` | 16278 | `da59a787ccad21fa1a7dae17186b9317f74a549e534703a682cdb5dc980ac87d` |
-| `codex-prompts/04-ai-agent-system/P0011.md` | 16246 | `a00114d95b384e080049b9526881efe314682aff7a38dda64da2287374eb79f4` |
-| `codex-prompts/04-ai-agent-system/P0012.md` | 18080 | `e3a095a228a589e19ade8574eadadb2dfac160a165c7a3d37bc38cb4f72a408b` |
-| `codex-prompts/04-ai-agent-system/P0013.md` | 16258 | `9197c95141e4c5ed5d52225bffb3b1ff23f2629bec4e7634e4d17cd506a6b13c` |
-| `codex-prompts/04-ai-agent-system/P0014.md` | 17186 | `a81010279f5ac25f0d72c0f091ed420817346c143fb69299e20f2b6231457a3c` |
-| `codex-prompts/04-ai-agent-system/P0015.md` | 18711 | `1e91bc5eb14f1b7157eb5b20cfa6651d0c1685cc4eeef93263472dcfddc85e53` |
-| `codex-prompts/04-ai-agent-system/P0016.md` | 18965 | `60a2602978ac4956d8ec5f0a22df71c79e78339bcc1c343718834eb6140295ac` |
-| `codex-prompts/04-ai-agent-system/P0017.md` | 17360 | `9ad30e8e9693204a990eb10f81a2ee671222b2398da048956f81a2447c3a81b1` |
-| `codex-prompts/04-ai-agent-system/P0018.md` | 18506 | `194364d2d6d23bf33b0d05c59815d22e8a5124e4870907b5a01d45d9cf9e1ae5` |
-| `codex-prompts/04-ai-agent-system/P0019.md` | 18501 | `74e12d54ece8a3e65c1b30fd5a256619d1089643ed1a52082001166b5b21e18a` |
-| `codex-prompts/04-ai-agent-system/P0020.md` | 18150 | `48637508ba0c11426b73154f37a1dc9779fe9f8e3898f7685b9d3849a5679407` |
-| `codex-prompts/04-ai-agent-system/P0021.md` | 19030 | `ec9ac78c1957c44d74111cb5075dd4e10a7ec7defafe6fea672850f8da350a4a` |
-| `codex-prompts/04-ai-agent-system/P0022.md` | 19597 | `e5c01f65025bb51c3681ffec557f14fe63adbe074ac27d013d262161b260c3f2` |
-| `codex-prompts/04-ai-agent-system/P0023.md` | 17150 | `96fc195a9261a4103b8257e5b02e731b186c37fd78f3af030aab8a82e2993986` |
-| `codex-prompts/04-ai-agent-system/P0024.md` | 17159 | `169b3f740ae316bbb6b6c013b72429880d4355c24c70af8250f6b831cd5869f1` |
-| `codex-prompts/04-ai-agent-system/P0025.md` | 18085 | `ea682404b0dd729257438919e5116eaed91618ac2d93bf2555536992558d2e49` |
-| `codex-prompts/04-ai-agent-system/P0026.md` | 18100 | `294a687ff3454bb7a249d69490d321c964ec3a7820356c7baee08205fe2db588` |
-| `codex-prompts/04-ai-agent-system/P0027.md` | 17298 | `d187d555c8a041dec5ffa2c42f4faa3d807c7eb990f35cc2261eb76febf780ef` |
-| `codex-prompts/04-ai-agent-system/P0028.md` | 17023 | `e9ef658336459814bd65f6934467f3a73b8e8336eb1a82a3d856cfe5004297e6` |
-| `codex-prompts/04-ai-agent-system/P0029.md` | 17127 | `4e3087a4c7e0501cc2f8676be30a6ade94913bcc40182b495e04676883320f6e` |
-| `codex-prompts/04-ai-agent-system/P0030.md` | 17024 | `e4495396ef3244526449e9491ef9fc060085bf2042b147ebc209c923a121a05f` |
-| `codex-prompts/04-ai-agent-system/P0031.md` | 17303 | `d4024a9c107747962ceee9d2b1b956b9799e1bfe6f58860fbcc256986d149aea` |
-| `codex-prompts/04-ai-agent-system/P0032.md` | 18954 | `527695e3724ae923318052140369a1b0de8e65feb53e3a1dfde736ea406a28f3` |
-| `codex-prompts/04-ai-agent-system/P0033.md` | 18164 | `160b507e0c3aeaa1a278994c5f6c50ea04528445142c4a429de473364a6c9054` |
-| `codex-prompts/04-ai-agent-system/P0034.md` | 18158 | `0500c9801dc60c5f66ee0fcefdaeb3d2bd128588028dee269786c681929fc137` |
-| `codex-prompts/04-ai-agent-system/P0035.md` | 18296 | `85a39edf77868c91b615bf8f8f063e819290cc428b94f8cc17e06441eac97cdc` |
-| `codex-prompts/04-ai-agent-system/P0036.md` | 18057 | `c264f9d4822add925afdec95a5e9cccf1f5e96b25f5b6012a0008667c13cc851` |
-| `codex-prompts/04-ai-agent-system/P0037.md` | 18135 | `e6443a994a2178bbde8161b5eed65eb3b779d71bb3d09eed8a56ad06306d41cf` |
-| `codex-prompts/04-ai-agent-system/P0038.md` | 18099 | `ec7ac6e14b78a4ec445589300fb06948dd1e54202f029515749222af68eda6c9` |
-| `codex-prompts/04-ai-agent-system/P0039.md` | 18145 | `f4d008afe45d381abed31658f05d01cc0f5cb38210ca87d3bd93bace75e5537b` |
-| `codex-prompts/04-ai-agent-system/P0040.md` | 16304 | `4566e1da1b307538eb3ecf9bb815ea209b2eb83e02e7479101bda77b479f7375` |
-| `codex-prompts/04-ai-agent-system/P0041.md` | 16467 | `b0ca12c8f121920470c35e46c73e884179a6545983d0f6548ef5c85ca203d2a8` |
-| `codex-prompts/04-ai-agent-system/P0042.md` | 16265 | `004fd627557011cc6885b10a26c7d1edf4c2e5f80602bf1622c7e37c86aa5ae5` |
-| `codex-prompts/04-ai-agent-system/P0043.md` | 17327 | `7c982cd25db4396bb5086bf0f87d0ef14429249441eeb47a8be30fa377c2eb06` |
-| `codex-prompts/04-ai-agent-system/P0044.md` | 16079 | `0ecef45979aa6d6210f71fa17060fa795a81b935153ad5afdb4ae7aae4e4d97b` |
-| `codex-prompts/04-ai-agent-system/P0045.md` | 17550 | `5a4d222e82e9d13cd9597a64833bc5952d57f058d16f0ae180b845945803196a` |
-| `codex-prompts/04-ai-agent-system/P0046.md` | 18068 | `d8506af9bdbffb34a74b355f29d53fe52cb155c30850e67f30c11493486e5668` |
-| `codex-prompts/04-ai-agent-system/P0047.md` | 18100 | `dae06243e0e4e46e47ebd83c78915b1343bc8cdc2f8ceb1ff46dc1b82eefb193` |
-| `codex-prompts/04-ai-agent-system/P0048.md` | 17150 | `262a5cb4524d4dc8cf94756d8d9412fa7fdd7b53c9f79fc0e1ba66ba554b858a` |
-| `codex-prompts/04-ai-agent-system/P0049.md` | 19177 | `8ba46c548bafde60ca5181625aae21d691a20553c25803d86dea1678a5041ec1` |
-| `codex-prompts/04-ai-agent-system/P0050.md` | 19684 | `fd02664d3a0c3f2d2a30124bb52318f9fa10537372e81e9a7bb39b3412ae5dc2` |
-| `codex-prompts/04-ai-agent-system/P0051.md` | 19087 | `33c79730da06a73ce7bf938ba353fd431282339e92ea0827a3da1c51dad5a04e` |
-| `codex-prompts/04-ai-agent-system/P0052.md` | 19565 | `a18ecd9588cc8fbe8261a54d9a09f336c6dc601f61301982ea2b8ebeeaf83bcc` |
-| `codex-prompts/04-ai-agent-system/P0053.md` | 19147 | `4fb4fe97ec9a3c86706b03b056eee7ad5a8f39f7d4592818923f6d89f0ce50a0` |
-| `codex-prompts/04-ai-agent-system/P0054.md` | 13145 | `4b803fc54a40265e02f7277545f566808f308745bf3c0966f4568a87ca8f3af1` |
-| `codex-prompts/04-ai-agent-system/P0055.md` | 13095 | `a6d3fa909771237946988fd67afe2116ea89f9dd5c75d90f5aaa111883104daf` |
-| `codex-prompts/04-ai-agent-system/P0056.md` | 13498 | `f194a927f0b6777f9bb45526d338aa2d02f30fc0bf834b8990d74825b9e603b2` |
-| `codex-prompts/04-ai-agent-system/P0057.md` | 13489 | `cd5fe2921c0bc377b6df1412a3b961622de34429b544df5bef9ea00192efa37a` |
-| `codex-prompts/04-ai-agent-system/P0058.md` | 13411 | `d8cf88a0a26001867d6a14905d149a4527c073525288a0049a9b36f29705a3b9` |
-| `codex-prompts/04-ai-agent-system/P0059.md` | 14767 | `caba225a96cf7dc562d6f491319c710c602a8181549695e1f2341b27e21d40ef` |
-| `codex-prompts/04-ai-agent-system/P0060.md` | 13491 | `474e266e1cfc4fe6a728ca2971237fc9f6fa9e3980a2b0d1990a437ad91bda48` |
-| `codex-prompts/04-ai-agent-system/P0061.md` | 14676 | `31333070b8e0d2a0995977d046376be8189e1e90f258a9dc59e2cabe8f6b08b2` |
-| `codex-prompts/04-ai-agent-system/P0062.md` | 14669 | `9cf925cf910e6a156c0f7d10ddbfbc431a1f91c7c7840f30243a4bf795d5aa6a` |
-| `codex-prompts/04-ai-agent-system/P0063.md` | 13484 | `7f21d6b09b252e92364ecad5f289955d85769b5b8b9d14ec3a79c000003a200c` |
-| `codex-prompts/04-ai-agent-system/P0064.md` | 15217 | `de838e023124b0e2e136f3de71ec16942059d47f9287e7186bfa20077488176c` |
-| `codex-prompts/04-ai-agent-system/P0065.md` | 13596 | `dba0ff4cd85a925bbed724465695f9e3fcf7bcb22ffab7fdfb427441ee9a0ef9` |
-| `codex-prompts/04-ai-agent-system/P0066.md` | 14173 | `f39cd7d06092ef26fe53199e0c6427bbf9578339acdbfe3075da892d298665ca` |
-| `codex-prompts/04-ai-agent-system/P0067.md` | 14186 | `b30c1797f30a41290fbb974fc74f3174899b2d908dcaec67e2688f1a48100b2b` |
-| `codex-prompts/04-ai-agent-system/P0068.md` | 14655 | `e57f655cae6eef5ba3a0cdf5d84d524a63442b363e0a0794a30cd1ddf44be19c` |
-| `codex-prompts/04-ai-agent-system/P0069.md` | 13569 | `2b941705a52732499e736af73551b7457380af4dfda9d7bba036ef64792e7bf0` |
-| `codex-prompts/04-ai-agent-system/P0070.md` | 14249 | `7bab4429a49c5bea376608a88ee5a13f4f4b240a59d32db22b191961a65fb1a9` |
-| `codex-prompts/04-ai-agent-system/P0071.md` | 13495 | `de36dfad94f6fc93cb1b96cca84dbe58c74551a03bdcd1fcc7bb3442b81d7bd4` |
-| `codex-prompts/04-ai-agent-system/P0072.md` | 13330 | `68ce7b4bfcbe42504a23e3723684620825734fee02c233160285a6c35e3aec81` |
-| `codex-prompts/04-ai-agent-system/P0073.md` | 13509 | `6b70568bdd29116c6e77f06ccdfdca2ccb005b1fbfe242a7787a9f1ebf3e4216` |
-| `codex-prompts/04-ai-agent-system/P0074.md` | 13420 | `77a645b6fc9182b34dd35ead8d4f08a2f2e2098bffe75fbcd6304d4c293a2bc8` |
-| `codex-prompts/04-ai-agent-system/P0075.md` | 17987 | `986236744146fdd73accaa9502e1cea4047c21aea3e0709ca05a34e0f5f9ae71` |
-| `codex-prompts/04-ai-agent-system/P0076.md` | 17860 | `85ec5e1219c66a45392d1806373ecac7b1c17e86091249b444be51d2e74b3819` |
-| `codex-prompts/04-ai-agent-system/P0077.md` | 16536 | `834a5d0aa0cbdfb257269ee713e91a04a4e659067f3920e5c69a512c52631504` |
-| `codex-prompts/04-ai-agent-system/P0078.md` | 18447 | `9e97f1f50115300c3186773ad5e7e210593f246a2ee2dd2d6ce3356b5279c364` |
-| `codex-prompts/04-ai-agent-system/P0079.md` | 16577 | `4437ec643744dafc999dd9c0b44752b1046b926c7d99bc9c7ab186ee55b28eeb` |
-| `codex-prompts/04-ai-agent-system/P0080.md` | 16769 | `94b2d1db0a3c04a513afd9c0a50b696639687bb6875e341bbf3472af506b2d8a` |
-| `codex-prompts/04-ai-agent-system/P0081.md` | 16592 | `9cc6c15c9b0c7031cdd1a73259ac8401db27bfa92b77d9ee0b6a3cbbbabbc4c6` |
-| `codex-prompts/04-ai-agent-system/P0082.md` | 16351 | `baf572827e3afe3ef8654af789259037d2afd8a33661f9491a005c7603d59d35` |
-| `codex-prompts/04-ai-agent-system/P0083.md` | 16363 | `d69dce76efc0380776c4b1dad48bd02c5019fc3776c61676b759d1bc76c6239d` |
-| `codex-prompts/04-ai-agent-system/P0084.md` | 16383 | `eb1401fc4da3f6765e3270fa7d831f7042eb60ad9bb7f342708c61c09f0bf8b7` |
-| `codex-prompts/04-ai-agent-system/P0085.md` | 16409 | `638d1ab80f090f43718b317f353f6a3075df38abf82ba9ea2d525aa784515a93` |
-| `codex-prompts/04-ai-agent-system/P0086.md` | 16572 | `523310380dfc6312bfce80313d3a475d2607ea8c0ef14f3c5abd60fe3c871a73` |
-| `codex-prompts/04-ai-agent-system/P0087.md` | 16370 | `af10805e12dd7e51dff018e1eecb0cbd217a86e9658cb4922993c9d94e72176d` |
-| `codex-prompts/04-ai-agent-system/P0088.md` | 16069 | `2d745d5a57fb6ef74ac321c8b9af87df81bae98bf21ca76a1396394979ebfe5f` |
-| `codex-prompts/04-ai-agent-system/P0089.md` | 16184 | `2a88b6c5c8265bccaee908be9a86469bdc5bf0aa5971b5917661b11d261cca7e` |
-| `codex-prompts/04-ai-agent-system/P0090.md` | 16212 | `18e4d09eb19223c441da57dfb1127dea1e6339aded0aaf0c93adf7544c47ff7d` |
-| `codex-prompts/04-ai-agent-system/P0091.md` | 17779 | `403c87d3fade92d3e3b1637acc54df907b56de3ade74f6509651724cc1282560` |
-| `codex-prompts/04-ai-agent-system/P0092.md` | 18175 | `655ec5078c3f7f5f1eae964fe568a0020fa5b6a5cbc879de810ea187dfeaa45d` |
-| `codex-prompts/04-ai-agent-system/P0093.md` | 18021 | `5cdbb302ee0fb259cf68b7e58508af6d1971ee4991c6d7e0e0e7d4fa52ae2237` |
-| `codex-prompts/04-ai-agent-system/P0094.md` | 17739 | `64c61138dbad0085516f94cd4599559854067b74e63cc272928d6a45b23e6bcc` |
-| `codex-prompts/04-ai-agent-system/P0095.md` | 17799 | `712cbcb9e762114102535b3c26b680412f7a6a401c4af58fad86611b23c143f3` |
-| `codex-prompts/05-ruleset-coc7/P0001.md` | 18128 | `c1e5afa5bdc932caaa37cbafe385f4360127f66187084b1c39072c58790fb682` |
-| `codex-prompts/05-ruleset-coc7/P0002.md` | 17912 | `1bbc3ec595632d1ffa8fd33681c7a769ef350d686d47dc9ffab996041982633c` |
-| `codex-prompts/05-ruleset-coc7/P0003.md` | 17943 | `326d48932a47a2374835e5fefac9918a01082723ba937d5f28c1c19e8a1a57f2` |
-| `codex-prompts/05-ruleset-coc7/P0004.md` | 17881 | `4848c4ca4ee1b5b8d86b4d50042f1105b1cc8ee8da2705eb39453b30cd8973f9` |
-| `codex-prompts/05-ruleset-coc7/P0005.md` | 18159 | `5dd543cb0018a81c61a59bfc28ff16fb6fcd57bf11841bed14a0127f733ec11c` |
-| `codex-prompts/05-ruleset-coc7/P0006.md` | 12689 | `845acdcb15f0e6d71d04b0bd2130c17c6afaa8ed65f88ad1cde90b6b8d6207cb` |
-| `codex-prompts/05-ruleset-coc7/P0007.md` | 17634 | `2f195fedb11f60e0fe22ff2d742c2933dbeeacae3ee52ca44711c8041512810a` |
-| `codex-prompts/05-ruleset-coc7/P0008.md` | 18190 | `a11a91023bd405452308b20322cb3aad4c42bf2982b09b7b680cac7e0e2fe95b` |
-| `codex-prompts/05-ruleset-coc7/P0009.md` | 16407 | `407675e06e13948f748ba3a0fe90614fb8f21d7768ff9638e8a17c90ba767b3c` |
-| `codex-prompts/05-ruleset-coc7/P0010.md` | 16098 | `17836bd48b8173341c71b46ec6747f187e0fced4924f7436598400547c410a39` |
-| `codex-prompts/05-ruleset-coc7/P0011.md` | 17630 | `2d2ed337e780a0914630b1d28d82b66cf11a65a4d2ce59effcdc201acab7d854` |
-| `codex-prompts/05-ruleset-coc7/P0012.md` | 16116 | `4bd46eab09e5386ddd16f85a94a2dd456d7ea56d998bd7f210ecd8f8656ccdcb` |
-| `codex-prompts/05-ruleset-coc7/P0013.md` | 16074 | `972923eb2f74e449b22aadf4df1446182ac6fc7e830086fc373026264b123484` |
-| `codex-prompts/05-ruleset-coc7/P0014.md` | 18563 | `4ee3dac66b1800ae8e27f732710c370a1071502508ccce802d06decde5257c73` |
-| `codex-prompts/05-ruleset-coc7/P0015.md` | 18604 | `f111d103b7ba937d749e38027e74b7c52b63d0b6ddc3db0d61998645e21d0119` |
-| `codex-prompts/05-ruleset-coc7/P0016.md` | 18949 | `35ca29abba1b20b8b1b95c4dc5afd02d69a8618733b46f1ea247ddbec61a40a4` |
-| `codex-prompts/05-ruleset-coc7/P0017.md` | 18218 | `cf4861a3f1c0311361c7957091743fef52ac24070398b0189c37249542153886` |
-| `codex-prompts/05-ruleset-coc7/P0018.md` | 17208 | `8265c8277eab0b5e15109bd6513ee6e93b016e581e0709ceacff5d1b7392e339` |
-| `codex-prompts/05-ruleset-coc7/P0019.md` | 18147 | `20ea5a1f0941a5c89918a9d08b09ebfa1844cb9650a600cb963ceea72f2e4ac3` |
-| `codex-prompts/05-ruleset-coc7/P0020.md` | 19145 | `04e8bc6baf0977fe30478b1507d82d59a788cfd4481d95b482661238c4afb1c8` |
-| `codex-prompts/05-ruleset-coc7/P0021.md` | 17218 | `8589e2b235337c9e3a45de9503d6309aefbca2306dad55445942d89015d5f7a7` |
-| `codex-prompts/05-ruleset-coc7/P0022.md` | 18152 | `d059b901e40b3ff437c8080df57a076811231be8175e12a62671b79876d9aaa5` |
-| `codex-prompts/05-ruleset-coc7/P0023.md` | 17130 | `ad21ee7aaae9c96bedfee8da9fb3ae64453a83b65354d7c047ac9004aa804c48` |
-| `codex-prompts/05-ruleset-coc7/P0024.md` | 17177 | `fbbf5f8a8c9302012c6cfec05f3896fa671f4ba22edadd46b66c3c8e04da043a` |
-| `codex-prompts/05-ruleset-coc7/P0025.md` | 17271 | `bf705738e40dc2ec39ce1ecb23b2ddbd7c136e6e463ef0dd82489568f07e2c5e` |
-| `codex-prompts/05-ruleset-coc7/P0026.md` | 18147 | `3a920b97abee8518618fa37c0ef962ea642ee9e32fb84ce9de00464a2f6d0d4b` |
-| `codex-prompts/05-ruleset-coc7/P0027.md` | 18020 | `cbca98974d133526a97f704c9d44d9c201d5dad440d9ccf9beb6f9dc97a3de63` |
-| `codex-prompts/05-ruleset-coc7/P0028.md` | 18017 | `a7a49ad427c76c5c43914f0f56f78238a5695a0a72cc9fa0d0f1493dcea97fa7` |
-| `codex-prompts/05-ruleset-coc7/P0029.md` | 18152 | `df560fc9996e2c6a0f16e1f67f705004deff494b61761b3b07aab7b5bbabc1bb` |
-| `codex-prompts/05-ruleset-coc7/P0030.md` | 18003 | `0d7006134cbd7433008feddd6af9acf005666ced0c3da71bfede21040e447035` |
-| `codex-prompts/05-ruleset-coc7/P0031.md` | 17903 | `e99743742e81be96297e62cd599cc46dac679c01e837bf0e5dc4b52052a69577` |
-| `codex-prompts/05-ruleset-coc7/P0032.md` | 18790 | `dbc236d3dbe25c36b0e5016dd2c6d9e73d2087083980590ac463bf490440fefb` |
-| `codex-prompts/05-ruleset-coc7/P0033.md` | 18039 | `eb2b50d4e93e76af263c0525ea0f5692a65987880762fa0e85fcade16d16c195` |
-| `codex-prompts/05-ruleset-coc7/P0034.md` | 16422 | `c05718494105819eb4c5050093e98925cffd1eff67afc32f12bbd8f96dd2cc7d` |
-| `codex-prompts/05-ruleset-coc7/P0035.md` | 17262 | `7baaa086e5f8eeae187312387c52d1f4b0cb7bac2d5481f1c7f54a39ce0a4597` |
-| `codex-prompts/05-ruleset-coc7/P0036.md` | 16077 | `aac066ac5cf652f2fe42c0f27e30f68c048ac74bce5d149c963d81d3b32208e9` |
-| `codex-prompts/05-ruleset-coc7/P0037.md` | 16273 | `fd94825451e5832935a8af7e105fee1039cc12f02e22b8a650915a9b894470f0` |
-| `codex-prompts/05-ruleset-coc7/P0038.md` | 19079 | `40d200b3c1ae6d27241a706a3c0510733843a05d9bc94294a6d5620af684da6f` |
-| `codex-prompts/05-ruleset-coc7/P0039.md` | 16049 | `38d20d7dd1e9598efde4b357fb7e6f2a3dcdabee8b0189208761faa2c5c860c9` |
-| `codex-prompts/05-ruleset-coc7/P0040.md` | 17118 | `189421d088d8595d68848c2fa92af0023f1ea51770f8bc080d95014a9ebfa116` |
-| `codex-prompts/05-ruleset-coc7/P0041.md` | 17208 | `7089b9caf3385453280ed6ce223b49b65196a6d96e95e4acba767f4d442c96c4` |
-| `codex-prompts/05-ruleset-coc7/P0042.md` | 13538 | `4ed7cd4f7cf8e0829858fa5b33e4faae05a75d0f0a6862fe77919392809893d0` |
-| `codex-prompts/05-ruleset-coc7/P0043.md` | 13417 | `4e987df75d4b028a26f049554317c4977327958b0e51b9187197d97c62bd011a` |
-| `codex-prompts/05-ruleset-coc7/P0044.md` | 13529 | `ace1c856b2b5b89f7783b46c798bb5125df00d7bd6909ddb97ac39fe5bb79af1` |
-| `codex-prompts/05-ruleset-coc7/P0045.md` | 14750 | `1d15c4bd9c3d05662aa5a4ca005643d620f2ff4958a805a2b3795bc1b729e0a1` |
-| `codex-prompts/05-ruleset-coc7/P0046.md` | 14142 | `7a73b26cdd0f5034e53f63567cb4988af42f620f545dd1ec1e3fc8219e8ec58e` |
-| `codex-prompts/05-ruleset-coc7/P0047.md` | 14021 | `e205c50d6e3c03583d6d382b5c32f9de211170ef35e56f6b43e828f27a359028` |
-| `codex-prompts/05-ruleset-coc7/P0048.md` | 13381 | `32cb74b7de1e875d4107901a35874c731b0c0e3e3c3de1c34b400888163b91c8` |
-| `codex-prompts/05-ruleset-coc7/P0049.md` | 14680 | `fcb62d2ad8f63d999af0819fc8e152d829497f2346dd3a5ac15728ff25a0a3a3` |
-| `codex-prompts/05-ruleset-coc7/P0050.md` | 13240 | `ad39dd9a08e280acab50fb49d5c815d767b1e09a01da4d5d11495186e11dfdd0` |
-| `codex-prompts/05-ruleset-coc7/P0051.md` | 13451 | `ca04903b5d7e750fd6b0caeb010722ecf5a732e640f086176be4305b597f6aa8` |
-| `codex-prompts/05-ruleset-coc7/P0052.md` | 14743 | `64b43d3e2a87c01f401872d02b0c50e5715fb860b4782833d7b5a9cba1b16de4` |
-| `codex-prompts/05-ruleset-coc7/P0053.md` | 13395 | `eca271cb40d6dd7e8903869d93cd23c19dbd62d4b242c09d86a2e8eb4ac3c7fd` |
-| `codex-prompts/05-ruleset-coc7/P0054.md` | 14138 | `a0386b5e2a0507ce269aad22dfa65f71709cf5cdd3977fd8276ca5d476a72f0b` |
-| `codex-prompts/05-ruleset-coc7/P0055.md` | 13388 | `7c86204e4cce9c13fc0abb4ff53c1ada7e01df33c97e7d5d45a0eaaca3df721c` |
-| `codex-prompts/05-ruleset-coc7/P0056.md` | 13369 | `0324dc96f08826cd2472d2a9a596fa5134f09e7cda8d21cae916cb95ef634c9e` |
-| `codex-prompts/05-ruleset-coc7/P0057.md` | 16512 | `05bbaa2eed91705219d60f87cd4e55ed3c392820176625250d57e7488b7b73e9` |
-| `codex-prompts/05-ruleset-coc7/P0058.md` | 16203 | `b45eef4ec5ed5f463740f46820095e959a15a74c1a476a71311d02bc5c2db3d5` |
-| `codex-prompts/05-ruleset-coc7/P0059.md` | 16221 | `a35f7ad1214679cb7c29cd4814f59735551a6e7eb8f3ad91fef30f244ab7bd24` |
-| `codex-prompts/05-ruleset-coc7/P0060.md` | 16179 | `b9836e5f6c5a29f5daaff67d8e9d1df2df9fc900a54402fc0c7d3c9aa6646a5c` |
-| `codex-prompts/05-ruleset-coc7/P0061.md` | 16527 | `1699dd9663ab8f9906e7500218cca9db3f692987484e3fa80cc4b06b4a6e1604` |
-| `codex-prompts/05-ruleset-coc7/P0062.md` | 15981 | `f54c304cf7d0fa1c32741db4fa61796fc1321bd141ca923162e2656b722c67dc` |
-| `codex-prompts/05-ruleset-coc7/P0063.md` | 16182 | `d5a00838a33063d8cb06ef967ec1827eee978551eb6e2076c5766f184ea0468d` |
-| `codex-prompts/05-ruleset-coc7/P0064.md` | 16378 | `b6780d003548a756cc1b112142d7f6ebbf6691310f909557b842b2bb5a923fd3` |
-| `codex-prompts/05-ruleset-coc7/P0065.md` | 16154 | `fa38f0a10eb9c04692a9c6147a41e7a5848756d663ee6cab774bd28751de54fa` |
-| `codex-prompts/06-data-eventing/P0001.md` | 17686 | `81e89a291975030d9a60a17324548f9556ea47e3f887c9173bc167ec11599c36` |
-| `codex-prompts/06-data-eventing/P0002.md` | 17995 | `a617c7cef5f274d3c93e16519dd9f2a7acd75fff863021faf628469a36bae676` |
-| `codex-prompts/06-data-eventing/P0003.md` | 17850 | `8b840737d0939050b50eb6a147e5944ebc3680c2d88a522c9120142045e1d5ee` |
-| `codex-prompts/06-data-eventing/P0004.md` | 17902 | `1f0e27867221f83854d2df479317b89ac723d6e78be5c86c21513a66759eb1f6` |
-| `codex-prompts/06-data-eventing/P0005.md` | 18147 | `b9f49778f67c03080d1e349833839b4c942c8522b97be2066839bba8e1aade84` |
-| `codex-prompts/06-data-eventing/P0006.md` | 18213 | `db7a51295b89aee21c8a417e2bd148d65e270ee7cb4efb6be074f9da0b465475` |
-| `codex-prompts/06-data-eventing/P0007.md` | 18115 | `c7d934694b468bf1eaea3ca3e6447806a13fabc4ee9ce63ec33fd36c8bb9014d` |
-| `codex-prompts/06-data-eventing/P0008.md` | 12708 | `22df4e7015c6fdd437df9a981650ea718925782569c67a0e9071041a0a6d13bd` |
-| `codex-prompts/06-data-eventing/P0009.md` | 17872 | `d265f6ecf942a47e72d9f7940f31c97f4927f50e2c43cb7c9ca4a486fd46b82f` |
-| `codex-prompts/06-data-eventing/P0010.md` | 20182 | `7417d6eef3277a3220db3ba4f6924d4f5ba68729a55d91352ce3e51ec429ad0c` |
-| `codex-prompts/06-data-eventing/P0011.md` | 19938 | `011e739494056313b62befa2c391e8697889e6b44acf835b1855ca7c3d05c65f` |
-| `codex-prompts/06-data-eventing/P0012.md` | 20010 | `ad4d96a81d1e1ad4c333932a85c3e1fe14185e26682adcb649bc2217f2235884` |
-| `codex-prompts/06-data-eventing/P0013.md` | 19716 | `144b19876d4019f6bd807a2e61c228bc045acd5511a2e2612bf3602ea85a36d1` |
-| `codex-prompts/06-data-eventing/P0014.md` | 16132 | `d0acb9304289e958fe216a6f403559900c9e90ab67e4791366739f97534383a9` |
-| `codex-prompts/06-data-eventing/P0015.md` | 16175 | `3cef8329d5f1ce6a8fb59599576a8341835ac8eb2e4474c9dec3738a26b9fdb7` |
-| `codex-prompts/06-data-eventing/P0016.md` | 16363 | `9c670b8125f973743b17e5d82f05864930642a820f088bdd495797d0ec5b091a` |
-| `codex-prompts/06-data-eventing/P0017.md` | 18136 | `7da342cbf9ed7b4cf0de825c26c32af2fdd5bb654d265313c11b8655d3f94336` |
-| `codex-prompts/06-data-eventing/P0018.md` | 16106 | `f78193505c17d28ae79bf5e342f7d8605b7d08fee33f94362ffbf4af70502c73` |
-| `codex-prompts/06-data-eventing/P0019.md` | 16610 | `2d8f3128de5aa51e7eea1a535fddb7af45eca174fe02c316f9d1857377d9fe85` |
-| `codex-prompts/06-data-eventing/P0020.md` | 18407 | `6679ea8ce538def94d3c6241238e9f40d97e2219cd4ebcd9fc034c1c120ce5c2` |
-| `codex-prompts/06-data-eventing/P0021.md` | 18489 | `a45f65113b26a82cf0a16d71beb4203360aaeb8a5863176ab87699236c034841` |
-| `codex-prompts/06-data-eventing/P0022.md` | 17088 | `00f784652adab92a9918e2c7830a30e1f17fa0c8a3808364f2fc2eafe1e9253c` |
-| `codex-prompts/06-data-eventing/P0023.md` | 19282 | `69e84e0c29fb2d279d71f089d63de4512ac4c5b7794427de66c431fb951ddb7a` |
-| `codex-prompts/06-data-eventing/P0024.md` | 18392 | `670bdcb5ea3f75ccd0ab0dcb9320ee2241cacdc782550ee2d910a8b07236adac` |
-| `codex-prompts/06-data-eventing/P0025.md` | 18550 | `0c97b0216e6de51b79476b2ad722bd365d965ac006c68b85b069a09941c05240` |
-| `codex-prompts/06-data-eventing/P0026.md` | 18484 | `a3eef920489e271774d55bea9d4e5571e3225407d2cdb7f4c26a234aa2b819d7` |
-| `codex-prompts/06-data-eventing/P0027.md` | 17122 | `a3dc14a91ba93ade141e251929ec1b1ea8b55ae697336dc78ce1cf290917367e` |
-| `codex-prompts/06-data-eventing/P0028.md` | 18238 | `6265a888af5dab68351ce9c8be97b725987e8e868da073b6512334b2a2bf8816` |
-| `codex-prompts/06-data-eventing/P0029.md` | 17904 | `bac67a63806ce5885d28f70bd1fb727ba2f21ef02bf843aa6282b435c7ebc2cf` |
-| `codex-prompts/06-data-eventing/P0030.md` | 18238 | `8b5f08c4c9edba7a9166d5116611ad1b8d7a6202f053d8b30830dadc21673be7` |
-| `codex-prompts/06-data-eventing/P0031.md` | 19734 | `fb08d3d1d8c0b1f293fec4aefff53be5c06d5664bf402d26b3e3cfb6d99911bb` |
-| `codex-prompts/06-data-eventing/P0032.md` | 18656 | `9a03e07d0e31d4d326ed1a8ca3ef35b3d8e58276a238387c34e255636ee552eb` |
-| `codex-prompts/06-data-eventing/P0033.md` | 18474 | `baff4b4ba49d4cbbf300405fc8af51fb4e3bbdc31bcb49745573fc6aeb2dbaa7` |
-| `codex-prompts/06-data-eventing/P0034.md` | 18925 | `1cf472363960b651f57a010398314e0df087e9e8e0425c52018f193b83623226` |
-| `codex-prompts/06-data-eventing/P0035.md` | 18547 | `248c04258d9340483d6521d500ffc5a7b25d25e366e145fb37826c4002a9b0d5` |
-| `codex-prompts/06-data-eventing/P0036.md` | 17952 | `66efc277a05b583ceee4807faec28e59572ff0651dfcae5854985cd10eacaef0` |
-| `codex-prompts/06-data-eventing/P0037.md` | 18866 | `3387b319ed877593bb89cad72f468f1d5b554f51184edef836bf3c4ebb4d7586` |
-| `codex-prompts/06-data-eventing/P0038.md` | 18893 | `b44c19cdda7b31c6ea5bc71d30870769f62ddcd12dccc3be99a315afde6c4da3` |
-| `codex-prompts/06-data-eventing/P0039.md` | 18481 | `9e84fe225d0edfdd2fe90ee239303ee362d584556cd2f2f714c90d6345f3d751` |
-| `codex-prompts/06-data-eventing/P0040.md` | 18386 | `ea1a55b5d241cdcd425b0da79e056d51fc2438c13b2df18018758f25f1123f45` |
-| `codex-prompts/06-data-eventing/P0041.md` | 18119 | `c31033734cafac5999c2acaaa532d20956b7a9e2956ed32c27d8a1e24f31364f` |
-| `codex-prompts/06-data-eventing/P0042.md` | 16881 | `77eef567898a0ba2cc27827f54045bd8554721c887cd640be083f3c632d401d0` |
-| `codex-prompts/06-data-eventing/P0043.md` | 17014 | `70494f02ff16fe48c5b939550c926925667b7768b827b66f10fc33a3c6de8059` |
-| `codex-prompts/06-data-eventing/P0044.md` | 16679 | `f687b373348879274e6b4f993e138489645a1815888141847608bee028e82e71` |
-| `codex-prompts/06-data-eventing/P0045.md` | 19641 | `34b111bddfc10122e5bb6415c8bf206dce304c2bfb5ecda3206c3031c8854358` |
-| `codex-prompts/06-data-eventing/P0046.md` | 16347 | `964fee6fc549d7c80300c21f2de7aa749c070b73417b63c3ece306b29d3829a9` |
-| `codex-prompts/06-data-eventing/P0047.md` | 16537 | `00b3eacbd822706891e550f331d1811e8d4e1422cc4f8a41a27e62ef16d3abd4` |
-| `codex-prompts/06-data-eventing/P0048.md` | 15926 | `5459ba729e6dccb05cfd2af9970a36a8ec5579318aa1c0bfdd21b4dd88eef06f` |
-| `codex-prompts/06-data-eventing/P0049.md` | 16095 | `474b9808fae51e35ae481251959f3621775c7acda1bda6e760da1d17af8239ca` |
-| `codex-prompts/06-data-eventing/P0050.md` | 18342 | `50dc4c9c3154f5528d79b85e0f895a89608f2926ebf33ed15079498e192fbfbc` |
-| `codex-prompts/06-data-eventing/P0051.md` | 18130 | `c062572df6163e7a5f3a3ce3acc1d77810d29bf4e241ed8c00e4bd930b72ca7f` |
-| `codex-prompts/06-data-eventing/P0052.md` | 19729 | `7f0a7c1aa53e2e1ef6584bc089b14dee1c304f9dcfe4cfc55bec4951b1cdce4b` |
-| `codex-prompts/06-data-eventing/P0053.md` | 19640 | `da946839350a1ff025a2b5c96208fe2536d5547296e8b3c43e91170685a3e4cb` |
-| `codex-prompts/06-data-eventing/P0054.md` | 16326 | `b2a5816bad34e333376a6912b2ccc4df99f6cefbca619530c20f3e30e83e8557` |
-| `codex-prompts/06-data-eventing/P0055.md` | 18241 | `b5faf178d224392bac0c6bb2095230e6a7d2d19c7c20c7f961c338887806ab93` |
-| `codex-prompts/06-data-eventing/P0056.md` | 17201 | `5fc9f53bae8c9233d8de3d2e3a0b371b065ce54b8650277b4aa4fb6ca4c5c362` |
-| `codex-prompts/06-data-eventing/P0057.md` | 18917 | `d5b13eff7666b2ed048cd2295bdb0fd91d994fda1f362bf40d7df9c11926d4bf` |
-| `codex-prompts/06-data-eventing/P0058.md` | 17495 | `bc8beec8d7cf8ae14323ca6b54d8da31a0695b58ae929bab3b053eed89deb32d` |
-| `codex-prompts/06-data-eventing/P0059.md` | 18120 | `299c03a17631b96a633684f162b8484747d0b625ecd77821bc13466c57e4035a` |
-| `codex-prompts/06-data-eventing/P0060.md` | 17088 | `ed7a28af19beb809adf28e52fe688d7a6608651294dd422fdcae4e75fb66bd46` |
-| `codex-prompts/06-data-eventing/P0061.md` | 19111 | `026c1d9f64d09608e8eefe7bed90d6ba7257dfd810f51acca15c4cf379d7aac7` |
-| `codex-prompts/06-data-eventing/P0062.md` | 19294 | `299ce4e142ec6031233da24b4cc1567839eac41c83234589953db53e65918ab0` |
-| `codex-prompts/06-data-eventing/P0063.md` | 19441 | `c03c0b3da95f7d5d9226f57a10aa3515857e2ede650becf791a2077f64bbca3d` |
-| `codex-prompts/06-data-eventing/P0064.md` | 13149 | `cf4b44b77d9f4840de1f49b9e99d7d45065e5dc66b824d370d913b50d8da6fc6` |
-| `codex-prompts/06-data-eventing/P0065.md` | 13354 | `a8e8fe5c924b311fd34d282dd7356410990b7c9e590759a7f232d7c3ffe02622` |
-| `codex-prompts/06-data-eventing/P0066.md` | 13305 | `1daca4839e059e1dcc5d0fefce0c7b37ac10a223363b50b24b7e66999aa4a4ee` |
-| `codex-prompts/06-data-eventing/P0067.md` | 13300 | `938015f22059c702b58a5f36d5fb9c14628023f5b6183218ffdaf9cdbf3015d2` |
-| `codex-prompts/06-data-eventing/P0068.md` | 13482 | `a07bb322a99419a60096c00d7df44a46f86569dab8ce537296edb802e00f46ff` |
-| `codex-prompts/06-data-eventing/P0069.md` | 13407 | `bd2324111bce639e98ee87cf3a3416e57ec50c91f7bfd4442472b938167bba8f` |
-| `codex-prompts/06-data-eventing/P0070.md` | 13396 | `a79faba8568faf23dc8168fa93da0ca8272263b19ad3213f2a9c315778ccdee6` |
-| `codex-prompts/06-data-eventing/P0071.md` | 14668 | `268dc6101a1f62d0d9f1d1c81a10fcd44b8f5e0d565520dee39e5dc4fc686081` |
-| `codex-prompts/06-data-eventing/P0072.md` | 14496 | `533bc037bd3677d15f26edbd303c8218f5689610fe8a6b332bbefe8bcd5c619d` |
-| `codex-prompts/06-data-eventing/P0073.md` | 14448 | `dc305b702d4f83b32ba23ca741098a8e0311e8998567f308df7350fc42d10259` |
-| `codex-prompts/06-data-eventing/P0074.md` | 14394 | `51bfc3f443c7ad9e2d27d2bad37ecde11688bcb3946b9164d136b5deaf8fb0c2` |
-| `codex-prompts/06-data-eventing/P0075.md` | 13279 | `d735405bc7fabc275e8c0f83fd29de44d8040c77c8242df5f297e1e1d6e7fef1` |
-| `codex-prompts/06-data-eventing/P0076.md` | 13829 | `fefb97904bec17f51e60fa2cd81e53b08e94ba900efe17dfa28ae4006afdb47e` |
-| `codex-prompts/06-data-eventing/P0077.md` | 14102 | `d3feadfcf964a049cd6334816dc2b3a542734c91f7da83203508fe50bffc4a51` |
-| `codex-prompts/06-data-eventing/P0078.md` | 15113 | `7316ca263e151f1470eeb6906bd99dd964b11eb2ee82cc8a8293cf857f5c40db` |
-| `codex-prompts/06-data-eventing/P0079.md` | 14745 | `1cb0c1270326f6f8a6a73b5d88fb9ed71acd75b4bcc2fe27212b86564910dafc` |
-| `codex-prompts/06-data-eventing/P0080.md` | 13417 | `a5d793483aefc2d9ac3a2134bea1e54b060ecd3b3bbb35a0094ac94e65654e39` |
-| `codex-prompts/06-data-eventing/P0081.md` | 13584 | `e78be7f4b0dab498de8124ee29c55a7186427a5f86f4a223098fb20ca9327bcf` |
-| `codex-prompts/06-data-eventing/P0082.md` | 13607 | `5bde11fe6b83d3e8becf3e86936851a2b484cb829e6640b2c18976b1fb3c8867` |
-| `codex-prompts/06-data-eventing/P0083.md` | 13426 | `3a394d77267296b568084596264bcee632423afd194892ba0728fefc1521509f` |
-| `codex-prompts/06-data-eventing/P0084.md` | 13082 | `14f661296ca42d5f83c60460ec660032c3f4b72978f4ab0e0fd5d2bed526fca5` |
-| `codex-prompts/06-data-eventing/P0085.md` | 13904 | `ba4eef4e9d4779c6249a8e58a5a55977be9c3a509a839d7eb87f0af5cc6efaa9` |
-| `codex-prompts/06-data-eventing/P0086.md` | 18179 | `30943d62efe2b1f0da37abab341eb2749947ab1738a5e8d5d16a7b5aefe5b7db` |
-| `codex-prompts/06-data-eventing/P0087.md` | 16578 | `863cce96666d6d62d7b7d38dc7e1e2a300e84e638749a33b260da0111c026015` |
-| `codex-prompts/06-data-eventing/P0088.md` | 17978 | `0e4db84e89128d088f8e9ad8e4a2ce8378c3be9ebd753f88ec72a4eedc6f5b61` |
-| `codex-prompts/06-data-eventing/P0089.md` | 16209 | `985dd0d610e5762569694c4f786b720f98806623862631cca66db7377d213571` |
-| `codex-prompts/06-data-eventing/P0090.md` | 16386 | `458820fe0f4c21958b063495c126cc0c2026e668e0cfc7e57b3e644ae6e96072` |
-| `codex-prompts/06-data-eventing/P0091.md` | 16237 | `29e67d0e0f31ba9803ee868a870d736c42d0f1aada2d832b04448346e14c0d43` |
-| `codex-prompts/06-data-eventing/P0092.md` | 16280 | `b1ad19e760e98a548ac21416356daa4dc94a7164cda9fb0140430328055c34bc` |
-| `codex-prompts/06-data-eventing/P0093.md` | 16211 | `c812f7973b07fd14a1003beeeb4ab117d3724686f6705acf03ca14bc2c1d5e9e` |
-| `codex-prompts/06-data-eventing/P0094.md` | 16503 | `ccbebe60921786241c6cd6ef489ba7f97c98a0200b6597ac4edd6b78a1155b4e` |
-| `codex-prompts/06-data-eventing/P0095.md` | 16750 | `7bf53b22255f57766c96165dc108c3ed72ca59100dcd838ae43aa5c75611e99e` |
-| `codex-prompts/06-data-eventing/P0096.md` | 16487 | `fe5d5c0beaa535ece2a3cd743661231ec480490cedcd2215886f759dbe4d50f0` |
-| `codex-prompts/06-data-eventing/P0097.md` | 16677 | `ee7a4a3c906bfe52d5aaad5cb735adb3d0f80f9b64156187d0aae3dbc40a6d99` |
-| `codex-prompts/06-data-eventing/P0098.md` | 16031 | `ec7eff6c781a19d991d7256f5332e96de6a9e02a81c8041ed953e15cd5184ffd` |
-| `codex-prompts/06-data-eventing/P0099.md` | 16200 | `fb1fbc76cfd5bfdaa097cb8ac753ef92c6cfcd94e5fd4645ec5815a583513da0` |
-| `codex-prompts/06-data-eventing/P0100.md` | 16466 | `2f2e7e521cfdbc9604e94f9b3a004d69db2280cd485a8a89fb85a85fc50ff03e` |
-| `codex-prompts/06-data-eventing/P0101.md` | 17710 | `4618768475a78641df3b9a3d1edbe527db1a9d93adea2d36e68230f30b8960a5` |
-| `codex-prompts/06-data-eventing/P0102.md` | 17889 | `b8985c915e86722befa67edb443087124063d98d73308e87178428c15cb5fdec` |
-| `codex-prompts/06-data-eventing/P0103.md` | 17897 | `1ca2381376322636ba4493f84e08c7c41a945c1c91c6d1f9315f042992958fce` |
-| `codex-prompts/06-data-eventing/P0104.md` | 16517 | `52590099002d0aad940f560f203145b6143f60462c7b809b1eb81f037a2bc0af` |
-| `codex-prompts/06-data-eventing/P0105.md` | 16539 | `4dad74ad4c63062bd13f1d1a1f3cda78f1a87d9a2153d23cc17875286c1502c0` |
-| `codex-prompts/06-data-eventing/P0106.md` | 16703 | `409a71c091849e1722f31ff1332305710f3a239278135aae4f2efceefb36175e` |
-| `codex-prompts/06-data-eventing/P0107.md` | 17754 | `2946ed02504d522b71aa03d24428095bc67ba71d5049f163d99d957c08f8715a` |
-| `codex-prompts/07-api-realtime-contracts/P0001.md` | 18003 | `dece866d9c9f3975624ec6b6e4df4d536d887d607b60cf11a0ecd3cbfcad369b` |
-| `codex-prompts/07-api-realtime-contracts/P0002.md` | 18313 | `715e13075a74263d7652fb35ea876ad8d8f5dcaf0e51241ad2eb88d766ee7d03` |
-| `codex-prompts/07-api-realtime-contracts/P0003.md` | 18252 | `f3f05590e07ccc6627ef328537f99c20778ece57e38982a8a97316df13ec356f` |
-| `codex-prompts/07-api-realtime-contracts/P0004.md` | 17956 | `921d3d71a69e902b8ae8d4000ee7c86fb3a73ac2bc0cbf783287d73afdbeac01` |
-| `codex-prompts/07-api-realtime-contracts/P0005.md` | 12962 | `650f69da003246e9d46a716e5461e4607a080bcb3bd97c20817e9bbd83a7a664` |
-| `codex-prompts/07-api-realtime-contracts/P0006.md` | 17880 | `e20cde9d495d8ae8237e83146c83c57507fbb7ef70fd4d35ad53dc2b23cba4bd` |
-| `codex-prompts/07-api-realtime-contracts/P0007.md` | 18450 | `b8fe5480abba9f182faab28e425f4c4fe8c26d39055d366ee283d31232f9ebc7` |
-| `codex-prompts/07-api-realtime-contracts/P0008.md` | 18121 | `8e3f94c30936bb7e0d7b511718db49b12bcb956453d0ba1eb659499831674abc` |
-| `codex-prompts/07-api-realtime-contracts/P0009.md` | 16695 | `31b119b2eba275eabdb795a058f123765e417cedd9906d30f025812d26384dbc` |
-| `codex-prompts/07-api-realtime-contracts/P0010.md` | 16612 | `37c063555340b253e08b2286fd2c19b5c5096b62f3cb7bf778e7ec1b46f4464c` |
-| `codex-prompts/07-api-realtime-contracts/P0011.md` | 18261 | `40601287a6c8648b8e23ea4047610794b22539d34649bb4e8d67f16a89c9aebb` |
-| `codex-prompts/07-api-realtime-contracts/P0012.md` | 19647 | `6f1f9d35cb4262ad72cff8fb7f1a741087d136709f64addfe8d2258eec4a4c6b` |
-| `codex-prompts/07-api-realtime-contracts/P0013.md` | 19314 | `0229119d377bf8298924befd0a49db18b17f28ba3409ca00e007cec7c3b4a2d0` |
-| `codex-prompts/07-api-realtime-contracts/P0014.md` | 17099 | `4006b521ffb80c4d7f9215b00384994f9de5d0280b1d3bb9068af20c42017f96` |
-| `codex-prompts/07-api-realtime-contracts/P0015.md` | 19319 | `62397b306172a35511191180aebce2163228c034c305435be7dab65971f00508` |
-| `codex-prompts/07-api-realtime-contracts/P0016.md` | 18884 | `53e96070a9b2b973d6254be417329907883134d0dd829ce8a5528aec1a5c18d5` |
-| `codex-prompts/07-api-realtime-contracts/P0017.md` | 18922 | `f1e13bdc284e58fa6d60ae3e46866fd8cfc80371f9a96810673d622a4c20fe6f` |
-| `codex-prompts/07-api-realtime-contracts/P0018.md` | 18325 | `dc483eb64c4c9fa799f9a888c15b0f73915b04b8350b38cff0f4e30e4c54e5be` |
-| `codex-prompts/07-api-realtime-contracts/P0019.md` | 18732 | `3bcc005a8463205acbacef4817907e9b19aff2ac805a9870a3e0dfde4b517822` |
-| `codex-prompts/07-api-realtime-contracts/P0020.md` | 18662 | `c16ec661972ae44faefb0d234789ab00f54c29fb9e88866d8e59866c250e4f54` |
-| `codex-prompts/07-api-realtime-contracts/P0021.md` | 18445 | `f3d3267382408bb35dba5ba05c794d454cf7c73af8885e1ed51cc67b003db8eb` |
-| `codex-prompts/07-api-realtime-contracts/P0022.md` | 18381 | `4831dbc4a80940324a914ced0ad488f132557b19ac67f7da43588c37043506e1` |
-| `codex-prompts/07-api-realtime-contracts/P0023.md` | 19042 | `3bce2d33a246fe68885a7def1145ed3cb11e8f3a531b0b2af9e7f3d3d62e2a4f` |
-| `codex-prompts/07-api-realtime-contracts/P0024.md` | 18140 | `95d5c3654a89c8576f6f0fd92a7b934aa68b75d621192965e40d8a5fb4af2d36` |
-| `codex-prompts/07-api-realtime-contracts/P0025.md` | 16405 | `2ba9e4a59fc77281f9be237413750411908e532e95104c794dfd61ce0e8d70d0` |
-| `codex-prompts/07-api-realtime-contracts/P0026.md` | 17448 | `48be061b40c69e4a38b33df2b6fa1d5303ad1307bc9f72932d99ffcd6d0ce7d9` |
-| `codex-prompts/07-api-realtime-contracts/P0027.md` | 16501 | `8bfac09aff81e5d8cddf153fb000cb026677f20398d2d0752d6b6570c7450522` |
-| `codex-prompts/07-api-realtime-contracts/P0028.md` | 16686 | `722c7d211f72963674097fe2515fc26621ec2604a4da32578897bee4a0930b06` |
-| `codex-prompts/07-api-realtime-contracts/P0029.md` | 16510 | `ea2ebe363f7f06bf01474df123a1991e1215ae2719373d37f3959a8154bbda2f` |
-| `codex-prompts/07-api-realtime-contracts/P0030.md` | 17456 | `684d5d4bb21cf04886356601adf24b1271eef785ffdec0857674b2aa64b577c2` |
-| `codex-prompts/07-api-realtime-contracts/P0031.md` | 13597 | `e55eff0059f8b9de2686c4957b05deef31b61fed3e98346b3edf25b274fb364f` |
-| `codex-prompts/07-api-realtime-contracts/P0032.md` | 13491 | `b69d3b6e26d1e1435313136282af7ea013b8db694dde346c7a1ec79c5cfc6e2e` |
-| `codex-prompts/07-api-realtime-contracts/P0033.md` | 13480 | `d22d4b7a310a6f03b30cff5c9e5b89f88f13a8ba7335d7b78aa2d9917a02ca8a` |
-| `codex-prompts/07-api-realtime-contracts/P0034.md` | 14250 | `c8b586067d5a3ef72e0a408fef79dc070623a165235bda928c4700b3dd441a3b` |
-| `codex-prompts/07-api-realtime-contracts/P0035.md` | 14275 | `8a73cc3d080fef89115adc8c50a6b9b807272fb40d129766454108207215f8c5` |
-| `codex-prompts/07-api-realtime-contracts/P0036.md` | 13980 | `700799d83796431d80ad268cd505afe584e0f879d07c99d881423e5a932021ee` |
-| `codex-prompts/07-api-realtime-contracts/P0037.md` | 13633 | `88e29f9df1936f17a02ec6a05bb15474688d43ecce3b40500c68ddacd1454f34` |
-| `codex-prompts/07-api-realtime-contracts/P0038.md` | 14790 | `e468ba020105b4337abfa3a513e87bc681d3bca220dfda379602e40a2d5f0f24` |
-| `codex-prompts/07-api-realtime-contracts/P0039.md` | 13925 | `c3850d6f0b23e7a40a210a052d2701d9ff591b0f0fc11c44c7b6d4ff9c52f7e6` |
-| `codex-prompts/07-api-realtime-contracts/P0040.md` | 14090 | `ef2a46b0df0e82abc13a7614ab86e909af7a6fc10f656775250bfd44b27a6446` |
-| `codex-prompts/07-api-realtime-contracts/P0041.md` | 16485 | `fc6217d8f27dd9bc4024229f88b75a222e1cadd36fd1e213b1aa455f354b88b8` |
-| `codex-prompts/07-api-realtime-contracts/P0042.md` | 16800 | `4a3b58a5595b7878fd591f5cab9d666a65deda6c0a32be418a99bcf582b37c81` |
-| `codex-prompts/07-api-realtime-contracts/P0043.md` | 16650 | `da818460dfa2d8f66cc6105a771a29df7cdc757e2a3aed80e9c2cbf2d3609c06` |
-| `codex-prompts/07-api-realtime-contracts/P0044.md` | 16826 | `6c253459f3fc2fc4a806323a705d106c7a221601bc4c668c4def835ebc37bcbc` |
-| `codex-prompts/07-api-realtime-contracts/P0045.md` | 16545 | `de246849b06cd8efceaf35fa8deb1ef71541252b209f69ce72c6de18101bbbe9` |
-| `codex-prompts/07-api-realtime-contracts/P0046.md` | 16350 | `060bddf928461e19aeeaf6a7295771bdae9c6c0baff54d12ded57c9fa620e7cc` |
-| `codex-prompts/07-api-realtime-contracts/P0047.md` | 16606 | `9bfa7fdfc4605c564b37633b93ff5729ce978a49ab3088bf760961328c2b9611` |
-| `codex-prompts/07-api-realtime-contracts/P0048.md` | 16717 | `0b70bf9d81bf10d0314e37d881008c5d8108c6989f0ee2afb17de8cc45bbcbc7` |
-| `codex-prompts/08-platform-infrastructure/P0001.md` | 18201 | `8ac70cbc51c4fa44159be0ac4fa7b1ba093b710e0debe304e2c21fdb53dbd1b8` |
-| `codex-prompts/08-platform-infrastructure/P0002.md` | 18073 | `d4e731e5f69df625b6bdd2687833267a3049292265c1070ae71330bcfa7003d2` |
-| `codex-prompts/08-platform-infrastructure/P0003.md` | 18296 | `b8420425f67aecc8c31b12c0e04e2b28b1f920f419c89704438206800646f946` |
-| `codex-prompts/08-platform-infrastructure/P0004.md` | 18073 | `893bcd70d7e2ce61f05c52352d9300ea7783412eec7167e4f53cbe6dda7ae5b8` |
-| `codex-prompts/08-platform-infrastructure/P0005.md` | 18042 | `50235732162d04b5b123fa834b3ae998eac779b90b2577fe78021699dbda8f65` |
-| `codex-prompts/08-platform-infrastructure/P0006.md` | 18201 | `b13926dfbf1cf8664d41d655e92acbb68465d5a152c1c753adbcf124a19a74e1` |
-| `codex-prompts/08-platform-infrastructure/P0007.md` | 13164 | `1d570ea5f0d56bc29b80a5d3100b9a3fcc1c03f5d8827a3ad5e8caeda07f4cb9` |
-| `codex-prompts/08-platform-infrastructure/P0008.md` | 16611 | `93bef8b9b33d4b03903bf97a7e229720654a450ed969c1006e6e7955d60d72fa` |
-| `codex-prompts/08-platform-infrastructure/P0009.md` | 18421 | `914dac5936f187741bb0bbfa4a900051cbdbf62f9e54600b47e2df849b993a0f` |
-| `codex-prompts/08-platform-infrastructure/P0010.md` | 16754 | `9b73c255d0c7ecfcd80a046c307a571cdf722429fee19c42abd1c2e0fb08d914` |
-| `codex-prompts/08-platform-infrastructure/P0011.md` | 17282 | `ed25b6fbbad45a8b6661bb1dce0be4770d5f842b88e76a5a62892d93abc0d89e` |
-| `codex-prompts/08-platform-infrastructure/P0012.md` | 18995 | `29f9c3e2c8a80b0f3920a453d027ab3233ab8a5b6d4bd8853c2bdd2bb00841ab` |
-| `codex-prompts/08-platform-infrastructure/P0013.md` | 18647 | `6c3b38c15c3833576f5b0aa851a429b5d3ecd018dbefdf1f7c1185aac9b95381` |
-| `codex-prompts/08-platform-infrastructure/P0014.md` | 18601 | `5d5deedfe167ff17789b374ea64469a29ff929a043661dfb76397977b4b7be1a` |
-| `codex-prompts/08-platform-infrastructure/P0015.md` | 19427 | `b3c0e2bc9381401a68a7ee655d99337c05d82cdc9ad88b41ce7cbfcff2cd8ee2` |
-| `codex-prompts/08-platform-infrastructure/P0016.md` | 18687 | `e014fae1ceff62c6f4612f0456954c77b89aa7306e5b06a6c107796daed75ccb` |
-| `codex-prompts/08-platform-infrastructure/P0017.md` | 17423 | `891d34d51322a21bc7bc35948b9a8b97fa2b886bfe9dfe553b2ae4165df3f6ad` |
-| `codex-prompts/08-platform-infrastructure/P0018.md` | 18691 | `be466ea0923be4efbbe870c65c0f1c94da12096801ed0f66323069a5e096d86f` |
-| `codex-prompts/08-platform-infrastructure/P0019.md` | 17731 | `61808ec12312a423e6ef787f2f33076cc2a83844a46abd160db0f7a4c12938b4` |
-| `codex-prompts/08-platform-infrastructure/P0020.md` | 17852 | `e9f931cc710c5caae0f2d2340157e54a479c7b017577458589ee49678d40c540` |
-| `codex-prompts/08-platform-infrastructure/P0021.md` | 17225 | `46e357c0f5addcafb722221a82d4e2c331892bb88e95819bdaffb2b0582f2e10` |
-| `codex-prompts/08-platform-infrastructure/P0022.md` | 17840 | `45f3f932ce0134af60b469adde3a4a025f266c24d8e6b181503bf6b7d052eae8` |
-| `codex-prompts/08-platform-infrastructure/P0023.md` | 18742 | `67381b3f610bd7505adff195c902c5b54ec04063dc6a6d6a7100ab89265ce9ff` |
-| `codex-prompts/08-platform-infrastructure/P0024.md` | 18636 | `7ced1b19f2e20b2e69781cac3fb1c970cdcbef65ebbae77ed42fda1116829128` |
-| `codex-prompts/08-platform-infrastructure/P0025.md` | 18633 | `d3608da01d8835aad2cee76bce6e9351a2bb80dc72d3688b1b217c0d840b3a05` |
-| `codex-prompts/08-platform-infrastructure/P0026.md` | 18639 | `90057758b14442a4799c9895ae1b3826a5c9f71e41a194e1b13083c73b7ac816` |
-| `codex-prompts/08-platform-infrastructure/P0027.md` | 18679 | `37564cc0f713e346edf943cfdc7f1e041f65883ac5c9649415353cfca4035f3e` |
-| `codex-prompts/08-platform-infrastructure/P0028.md` | 17679 | `d98823edf5e420b995548a69c01337322c79854447e78e9673cc773c7c816a5c` |
-| `codex-prompts/08-platform-infrastructure/P0029.md` | 16716 | `33d05242dfa4e394ab61616c4f7e01da6fbf22d3a3a2ff105fb51999eef588df` |
-| `codex-prompts/08-platform-infrastructure/P0030.md` | 16533 | `bc7086509d50c505dfb66697c41a5b33070311e2af63f0a5c117d1ee755efabb` |
-| `codex-prompts/08-platform-infrastructure/P0031.md` | 16676 | `6d2d270e92f0b914e5250b9b277d6af92322f7b77f7c674791456eddbe917e18` |
-| `codex-prompts/08-platform-infrastructure/P0032.md` | 16806 | `714487805927cb0472773d33cce5d4f6b64e2db8bcc189c0d7ca32f68acfcb2d` |
-| `codex-prompts/08-platform-infrastructure/P0033.md` | 16400 | `5e0570c85c9b7ccb4b1c688dd6ab2d94eab15635f032c9dadf89fe8c31be8e24` |
-| `codex-prompts/08-platform-infrastructure/P0034.md` | 17563 | `3791a2913b234984dc6bf0dfe7c4f06877e93fc0836a3d4916bdeff62f75881b` |
-| `codex-prompts/08-platform-infrastructure/P0035.md` | 17552 | `ea910ddf167311533782df5cf215eaf349b8e74576b0ef15583e436231f6ecc8` |
-| `codex-prompts/08-platform-infrastructure/P0036.md` | 17662 | `6c0a042a08e2a220a8747f8e14bc19eb04925f130f2ad2194e9245b8c8666177` |
-| `codex-prompts/08-platform-infrastructure/P0037.md` | 19348 | `ed0238f43f21171b67ac1d8ace3467fe42289a150fbad33cf3965091323dbd0c` |
-| `codex-prompts/08-platform-infrastructure/P0038.md` | 19378 | `76d5dff84f38ab93daf98b07e37192fd2af817af69c53ea545f2c8dbf02aed8c` |
-| `codex-prompts/08-platform-infrastructure/P0039.md` | 19349 | `974830e1a91668ede4f544b7bf20e75e5d21d1641279e87579abecd6e39353f2` |
-| `codex-prompts/08-platform-infrastructure/P0040.md` | 19258 | `aa6a4cc3a1945fece74819efe08c17a823c959f5223bedb97d623ddb4a9e67a4` |
-| `codex-prompts/08-platform-infrastructure/P0041.md` | 19318 | `31f223b612fb7570cae1b3e3efd904095fe2a6cc8e629743a7b9a934c98a50fe` |
-| `codex-prompts/08-platform-infrastructure/P0042.md` | 19648 | `3cb5b29ef62681be2ca78f10114e7d6a1f61576353d167b2dcb1fdb7f5989deb` |
-| `codex-prompts/08-platform-infrastructure/P0043.md` | 19701 | `886186861f4b13001cd65994dd61f7a9bf333892b0c5128d0495bc52a0e529a2` |
-| `codex-prompts/08-platform-infrastructure/P0044.md` | 14115 | `a03a92a172f1c54ef787833fc67d94bf6bee4d41529110d3fee2e1fe1e25f28b` |
-| `codex-prompts/08-platform-infrastructure/P0045.md` | 14113 | `7fd0563c4772029be1fc8a8abda509c4af0564dca7626c056ebf89e3d11f46c6` |
-| `codex-prompts/08-platform-infrastructure/P0046.md` | 14576 | `75f301e4d61a95022ccf5efd6fcb6db7ca83e8d4db44a30b12fe1a5045f1b101` |
-| `codex-prompts/08-platform-infrastructure/P0047.md` | 13729 | `28a576e090473ceb930626216975557c66e72272583282cbdca7e2c97d305cde` |
-| `codex-prompts/08-platform-infrastructure/P0048.md` | 15052 | `55c4b3bda9fd40a75c3b7a2a41ee9f0f4560f74c176610a91c6f4afef650c2a5` |
-| `codex-prompts/08-platform-infrastructure/P0049.md` | 15132 | `2515848427b24639baa2ae3a33928f46b2aa6b5e8901d893e9dce32adc4ca2cc` |
-| `codex-prompts/08-platform-infrastructure/P0050.md` | 13979 | `21bdb304af05fbf88e5c56694673410931dbff2f879d16a4ce2e80dd8fa9127d` |
-| `codex-prompts/08-platform-infrastructure/P0051.md` | 14173 | `5bc81047356b82efddee0cc334d5c7aef93207422405e884097fe95b47cbe719` |
-| `codex-prompts/08-platform-infrastructure/P0052.md` | 15060 | `df50f6baea2321d39b60ecc0581cf20e76bdca7c532fbff422fcc939e869ee66` |
-| `codex-prompts/08-platform-infrastructure/P0053.md` | 14072 | `df4efc256ebaf688ecfd76da0ed63c10bf4a63a21333165b5eeda18760bf6c25` |
-| `codex-prompts/08-platform-infrastructure/P0054.md` | 14586 | `1cf1090588799757980c9e6334251da7b5add1b92aa28425c68d6d62216037e4` |
-| `codex-prompts/08-platform-infrastructure/P0055.md` | 13851 | `13ae49e11c43bab6b847bd05e348fba23ac46b57c661267f906d71ef8b16933d` |
-| `codex-prompts/08-platform-infrastructure/P0056.md` | 13749 | `f91ee7130c8fd4e73949ad3fcc457dd46f646e40075e3d4a7c43c5726015637f` |
-| `codex-prompts/08-platform-infrastructure/P0057.md` | 16894 | `90092a5cf2d4b769e116806310195fd623a3605c66ac7350007bdba7717ae3b9` |
-| `codex-prompts/08-platform-infrastructure/P0058.md` | 16540 | `896d50c91daca3fd0f3b3092bb1c5786f5ec4ac5d1afc29f73103b773b3d76b2` |
-| `codex-prompts/08-platform-infrastructure/P0059.md` | 16816 | `dea34128d1c636e4c4b3331168516188730bfefc740c778130adcf1b66120470` |
-| `codex-prompts/08-platform-infrastructure/P0060.md` | 16751 | `5a99707f6e138007d32075ca0f48fe2c36ea9e76855614b098c759a585041d29` |
-| `codex-prompts/08-platform-infrastructure/P0061.md` | 16856 | `1db0be530ccedaf9d95fb7c84a7c55ba118b6c4052527c10f397a86e6439e1cb` |
-| `codex-prompts/08-platform-infrastructure/P0062.md` | 16946 | `6e885630c46398ed5b01af23572ac4e10f65acf61bd78fd663c1bb896d8c9c38` |
-| `codex-prompts/08-platform-infrastructure/P0063.md` | 16673 | `72587757d76a5b0c6cf0f02ead40a3623803c31fb8410307e0bddec14667784a` |
-| `codex-prompts/08-platform-infrastructure/P0064.md` | 18297 | `449d85801997e3572b20e0f53ae5f3a053e81203d8d032c28f9fb253d08547f2` |
-| `codex-prompts/08-platform-infrastructure/P0065.md` | 18110 | `6f34472194d0f221b3b0ea730f3ff612957ef4c95bf358b71cf4b13d94345c1e` |
-| `codex-prompts/08-platform-infrastructure/P0066.md` | 18093 | `3fc4ea23e8829b2d270cade3c826c206be0e4d340c73da4087b54d0a68ca7161` |
-| `codex-prompts/08-platform-infrastructure/P0067.md` | 18073 | `01c82cc146fe11a8ca7746539432782ce73a44f6f66307c70ae8ff39a35b602f` |
-| `codex-prompts/08-platform-infrastructure/P0068.md` | 18094 | `649564701c49d961d5eb44d24d45cf9d191821ab8b1ecbd4a1a0baf4418808c9` |
-| `codex-prompts/08-platform-infrastructure/P0069.md` | 18042 | `df3f2940d9fa54a4485826aec51591812b53e77b705aeab45903eddaf86c7bfc` |
-| `codex-prompts/08-platform-infrastructure/P0070.md` | 18263 | `818d5cac424fba9fdb554b0bb9ed0987351fa61f9181c68318098685e5336673` |
-| `codex-prompts/08-platform-infrastructure/P0071.md` | 18216 | `049893b6eef8a97a2badc2c2ca704a06ae483444c45f32a12a9cd980ff5edadf` |
-| `codex-prompts/08-platform-infrastructure/P0072.md` | 16941 | `f1ce2fa5a94a47a9038e5a6a30c4cbb76d1a00793b1ffa5f7c2f54b54b4f05ea` |
-| `codex-prompts/08-platform-infrastructure/P0073.md` | 16826 | `60729f81eac66d9df47990c5f118c185c62d2116f09df4ca18d22dbe3ca34764` |
-| `codex-prompts/08-platform-infrastructure/P0074.md` | 18097 | `8125a384f0f986ab941ae46b95427568f51fc52e7689319eca682bf48a2da6ce` |
-| `codex-prompts/08-platform-infrastructure/P0075.md` | 18119 | `ad6c666ccd84b19dadc53efcd551b255baaf54639dc326c3b27a19bcc5442a6c` |
-| `codex-prompts/08-platform-infrastructure/P0076.md` | 16997 | `32fdff1bdc0daa233ea9874d3823298642f1b2e031c9532a36426f511d78e685` |
-| `codex-prompts/08-platform-infrastructure/P0077.md` | 18520 | `65512a11a3c9f35a360cf843820a7ab49c1c82e2c27877e54c41162e6d50ad7c` |
-| `codex-prompts/09-security-governance/P0001.md` | 12918 | `4b6b51ffcd3815dad16d8b9be089a1b6074894c3ae2379cf5a4f715ea8b0607e` |
-| `codex-prompts/09-security-governance/P0002.md` | 12861 | `75d18dcef7a96b57feedbd2f720ffca2b5dce5ee3cee576ddd1ba4d25256746d` |
-| `codex-prompts/09-security-governance/P0003.md` | 18308 | `8d93201add2f983e67c2aff83775120ac06373f8ceceaae81764950a18f5e9f1` |
-| `codex-prompts/09-security-governance/P0004.md` | 12844 | `e8c7e3aca1d2c3bb1189c53e22a59f63f9c8052d41a80e492406ed58064bb734` |
-| `codex-prompts/09-security-governance/P0005.md` | 18236 | `63ebb4567abd4dfa63ba4f2ef010b9e9dca0e5a08929c4e22526247facd6541a` |
-| `codex-prompts/09-security-governance/P0006.md` | 12947 | `0e38c6893143e9f3a90a7f29c93a2b35562832b5a8ddf22d9b02bd6e74ac06f3` |
-| `codex-prompts/09-security-governance/P0007.md` | 18092 | `0e25f29aa65e522ddd5a3cb36fa970abcd694cd02025c7418a9fa23e3d181609` |
-| `codex-prompts/09-security-governance/P0008.md` | 18599 | `1749666c485b526add4143fa754d46695a24420909118ad40d047e1f90dcd100` |
-| `codex-prompts/09-security-governance/P0009.md` | 20036 | `0970e707fbc2e34a8d9a7ab8511a8c074d6618e8e54531d0f3a8ce969756b1a1` |
-| `codex-prompts/09-security-governance/P0010.md` | 17893 | `4c1f53aff9a82d03d004925a7468c44f3bc6b55ee46dde8e0f780eba1895c73a` |
-| `codex-prompts/09-security-governance/P0011.md` | 17867 | `2aa47dabe42f4e5421a11be5d7e9a5c54eaf0f1e0623bdff0df1241f8fc9658c` |
-| `codex-prompts/09-security-governance/P0012.md` | 16502 | `6d2b2b4cf096462f1e16d89be1e507c05647c33a2703fbe3b9488498ee550c60` |
-| `codex-prompts/09-security-governance/P0013.md` | 17511 | `1127ef110168275560e6abd63fbd2974ad1c4947252dd66ba2284a6b80f2a32e` |
-| `codex-prompts/09-security-governance/P0014.md` | 18357 | `bcd0fea022a1ef0ade3340733850e29fb226da3a039083cd8f54bee1b209478a` |
-| `codex-prompts/09-security-governance/P0015.md` | 19652 | `cbb72e633974c6ed23857372cfca8cbe0fea110adab4145374ddc91ed9f3adea` |
-| `codex-prompts/09-security-governance/P0016.md` | 18863 | `a657fc2d856fdf59c0a1378a3b0c929fad3456360500cb8f2174ce34b8a864b0` |
-| `codex-prompts/09-security-governance/P0017.md` | 18448 | `59752dd65bcd52e62be5e945942db989342a37e20d5e9ef9c25e48ce8a6568ad` |
-| `codex-prompts/09-security-governance/P0018.md` | 18461 | `9c6d08c6fbf5eb77da9ed5bfe03af32a9a3117becd4da18c828689c7a7956193` |
-| `codex-prompts/09-security-governance/P0019.md` | 18442 | `431d9f446166535f4ddbb9fb30ccb3c946a9c785a1632fe6a760d7faa7eae174` |
-| `codex-prompts/09-security-governance/P0020.md` | 18316 | `587d7b86dc33477df52167ff5a654a11fe466763a097d803892ad3ca160be6e4` |
-| `codex-prompts/09-security-governance/P0021.md` | 18302 | `a9a52031762e566fb0447a5fbf0e9002ab0e41cfe5fd6e2e15326ac98baa467f` |
-| `codex-prompts/09-security-governance/P0022.md` | 18359 | `68358e90bdcd1c7cd5d4d3a9309f00504a9229a936dafb26b47370d23f633b0a` |
-| `codex-prompts/09-security-governance/P0023.md` | 18855 | `cc57669601cf9c3bd4859b5f1a5256558c00075542b3cd0429def5727c6a4e05` |
-| `codex-prompts/09-security-governance/P0024.md` | 19360 | `9486caa02590bb81f679d9bc38b2d79bd437088b5396972bee0ccd44b783402d` |
-| `codex-prompts/09-security-governance/P0025.md` | 17179 | `bcbddbc41fe592dd3bff2a6c690d508ab77b716149ab533823e4f0b074406f02` |
-| `codex-prompts/09-security-governance/P0026.md` | 17120 | `be90ed52164ab1063fc40776886c454418c6e42bc84c996009f99867c4a5fa76` |
-| `codex-prompts/09-security-governance/P0027.md` | 19106 | `a536e3ed643f598e4c203ce1c98f36470b3361812d8aba9c8ee837e8b2ba6f23` |
-| `codex-prompts/09-security-governance/P0028.md` | 16377 | `91033435899094fbc36ae84603989aadda86a8986e2ab023261c409cfa81cbda` |
-| `codex-prompts/09-security-governance/P0029.md` | 16713 | `5c6a03f8bbf8b26b9f81a0947bc4b8b4dc035950c668e0efa40ebffaed97e7b4` |
-| `codex-prompts/09-security-governance/P0030.md` | 16214 | `82ed65bb169d30aa2202df7f62f22f6a54ccfcc22607909d4fe223e1e4ea322c` |
-| `codex-prompts/09-security-governance/P0031.md` | 16550 | `d6ef456774e61459ad7ae4b69509bac0da2d7c9392d7efb5f249af335f5d74b8` |
-| `codex-prompts/09-security-governance/P0032.md` | 17371 | `3dff3d3098bf740556bb0aa451fe5ee7b5c46f84e565a0e27ee299e139660839` |
-| `codex-prompts/09-security-governance/P0033.md` | 17511 | `d195ba7df4cc154908759c00fd9d270d3a753a9f91e1638e0dfa130c06d1abb1` |
-| `codex-prompts/09-security-governance/P0034.md` | 13460 | `e9e251e2aee785e38e57542463e5690d5ec2af7e80076b76c7b8bec4ff14d8f6` |
-| `codex-prompts/09-security-governance/P0035.md` | 13583 | `2e5c2d32801b53a2028df8e8947accc3d1e0638db4b21fb49a30abe7407367ef` |
-| `codex-prompts/09-security-governance/P0036.md` | 14910 | `8848abc1621d8d7d80df1ac16242f71307fd0a8c506841f910ba312ed1b6c094` |
-| `codex-prompts/09-security-governance/P0037.md` | 14812 | `752b2ea4ffd22854c21d45ce5d6a7451bf6e97deddea131b73e6380b4a37591c` |
-| `codex-prompts/09-security-governance/P0038.md` | 13773 | `62deb9f2db1842129f1a27af6c4d319bcecc6c667d4237a7a8349781604e64b6` |
-| `codex-prompts/09-security-governance/P0039.md` | 13558 | `b5af0f4c3f3209b0c26f36c19608b4aa184c3a18eabf35b68d03ae05c409287e` |
-| `codex-prompts/09-security-governance/P0040.md` | 13522 | `4735da63d1403fb4b68dc7a7902f51ba405612a0387d2fb0a3778b93e093c640` |
-| `codex-prompts/09-security-governance/P0041.md` | 14658 | `8e82931fe1a7b34c40ebdc1872ee581d6adb341b10aa5fa4280f50f53bb28302` |
-| `codex-prompts/09-security-governance/P0042.md` | 13617 | `901ecef47bc95fe38efb43abeed83e530e315aa4187edf61f8ade90d8f427a57` |
-| `codex-prompts/09-security-governance/P0043.md` | 14263 | `52fc037cfaafcb1b7519088bb00d1741f5799203fcce136fdcf2bc1e1f9e8a08` |
-| `codex-prompts/09-security-governance/P0044.md` | 13576 | `4d598c22c4dbc829f735b54e2d2d32e21c5fd458eae1135eb4eaf0e212d565da` |
-| `codex-prompts/09-security-governance/P0045.md` | 13600 | `a4c59c68f7ce76fc4db17e85da8de87bf6ed0190c9ee1534605dca4353aa8062` |
-| `codex-prompts/09-security-governance/P0046.md` | 16762 | `834723bc458dde594b45d1d5da52cf74258718409e227c00ce9f1d686e3fcfe8` |
-| `codex-prompts/09-security-governance/P0047.md` | 16482 | `854c248c996c501acbca7d6700b8b5f89f22d60ded20999913cc7b557341db5c` |
-| `codex-prompts/09-security-governance/P0048.md` | 16319 | `e159613f925656f43cf03d97591b7ada300fc9616aee87e051b4756711bfbc1c` |
-| `codex-prompts/09-security-governance/P0049.md` | 16853 | `7cd1319253ceca5db909c1fb110b28b58079d09320adc8297a24dbd99a1ff69a` |
-| `codex-prompts/09-security-governance/P0050.md` | 16607 | `f1f3af9ddf2428a14f5fdbdd67286778b00d7db2632fabea2758303b0476e645` |
-| `codex-prompts/09-security-governance/P0051.md` | 16655 | `96d5e8a36884f317652d7d180a7cb7d4ce28e9f164d8ad8bd515fcfda53bc65a` |
-| `codex-prompts/09-security-governance/P0052.md` | 16526 | `ca25a5e925708863bcfdc6be86deab4ebff8ed531af9732037c6b86b478eb185` |
-| `codex-prompts/09-security-governance/P0053.md` | 16500 | `3a64f3b7605cf32988a1dc2012344465bdedaddda03539b8ee33698cc6126a53` |
-| `codex-prompts/09-security-governance/P0054.md` | 13222 | `db7077b6ea010fd63b2354cc0226b19a96ed2af9f5475be85155f672b9c0b42d` |
-| `codex-prompts/10-testing-quality/P0001.md` | 17882 | `4a83358eb04a703e5cc32b85c13cc080d744df416fd12120756c62296b002616` |
-| `codex-prompts/10-testing-quality/P0002.md` | 12844 | `919240495acf8a80ac5534ed2f604a653d1ff122334c6bb4b159eafe28d98646` |
-| `codex-prompts/10-testing-quality/P0003.md` | 18151 | `ae3362918028d2ee9e41379a29ae5de664c768604ee1f39d92fee47efa7ef30f` |
-| `codex-prompts/10-testing-quality/P0004.md` | 12808 | `0fc5098d752210190f9dcbb4eda4c619e366655b014de95878db77d3b7fd55e2` |
-| `codex-prompts/10-testing-quality/P0005.md` | 18211 | `4532076081bd30d5854ca427fd2773df6b2bce1b1efd7af1fd4f69c78eb008cb` |
-| `codex-prompts/10-testing-quality/P0006.md` | 17780 | `a4a8c549341d3c80b9410ee85a91e483bd6a08ff117f4132dff36df2f7d47a58` |
-| `codex-prompts/10-testing-quality/P0007.md` | 17980 | `e76f751627c2c2555024b88ee6c2fbd8a9bd2b93dc123d989d227a0be966edbb` |
-| `codex-prompts/10-testing-quality/P0008.md` | 18211 | `140c2969d69dad5d04a6b498a1a2750cf93f3668424889202f885e9694e7aae9` |
-| `codex-prompts/10-testing-quality/P0009.md` | 17781 | `17aa7466bcf363a7c08191798ae9b6084818816c6ada6d5f7c69cf1ad18ccd1c` |
-| `codex-prompts/10-testing-quality/P0010.md` | 18420 | `26ae64ffb0ff7622d20b0b5f827f60520186a659844b2174f01eef9a77a99042` |
-| `codex-prompts/10-testing-quality/P0011.md` | 16196 | `82c4365605487df57b00b2f9e8aa85453d64c2dc7c3ee0e0b128cb1a3537911c` |
-| `codex-prompts/10-testing-quality/P0012.md` | 17739 | `974e9e74ce6d0a6e4f927596ca65ce503528d5d015de86853abd02d2a7f8deaf` |
-| `codex-prompts/10-testing-quality/P0013.md` | 18939 | `f68599150005059b3b5ec47ab554ae1bfa6f3e033828a38178080aa9c9e95876` |
-| `codex-prompts/10-testing-quality/P0014.md` | 18665 | `b9ed48e3c6a064d6f7f5d46a619a779f1fadd293ef6fa0b83adf51979c6e3971` |
-| `codex-prompts/10-testing-quality/P0015.md` | 17209 | `237c41648319d00471ed725b74d0fe65edf14ff8014b29848166c4cada85ed08` |
-| `codex-prompts/10-testing-quality/P0016.md` | 18434 | `d12566775211111596eb9ffcd4d92bba453db33649b4df51a057281270bbff81` |
-| `codex-prompts/10-testing-quality/P0017.md` | 16963 | `e5eb0a00ce25259be8939636d61a9f97f41c4069d3f1eac86e0c684e494249b6` |
-| `codex-prompts/10-testing-quality/P0018.md` | 19115 | `adddda2083bad418a35783614a1431b6b3b1c9afe1de89be67da0b589aafe7ce` |
-| `codex-prompts/10-testing-quality/P0019.md` | 18652 | `9c1a668b6c88d4efb7dee25b0602b9e0db1d82cd2e1aa2849af1487013ce7af0` |
-| `codex-prompts/10-testing-quality/P0020.md` | 18883 | `d5e2a2710a1e8a4f0fff408bc462b9781c87f90dec4cac7177b6a8220864e1a1` |
-| `codex-prompts/10-testing-quality/P0021.md` | 18449 | `3ca5ad01f1d7a22b870184764608ddaa1983f95f91bb600af52782f5829176c1` |
-| `codex-prompts/10-testing-quality/P0022.md` | 18100 | `6651c3d5c81be7c636641723aa71058e39e9c745b71a8bea45b5460e540ed14f` |
-| `codex-prompts/10-testing-quality/P0023.md` | 18196 | `95d126413a6e35ff1c1759b837c09b9948cfba0e2a08130c2e33782e13d2fd12` |
-| `codex-prompts/10-testing-quality/P0024.md` | 18580 | `d2401cab93d4f21ea7074cc32a954a4f2c582dadbadeeab97cac8645ace4a0d7` |
-| `codex-prompts/10-testing-quality/P0025.md` | 18156 | `75bb85469bfd98ae9dfbf202c034790e4dcb4135be190621759d80386d84fdb9` |
-| `codex-prompts/10-testing-quality/P0026.md` | 16908 | `293848c848b7cc91987d030df3781322366bc7508be0ddad7446974704bd2f92` |
-| `codex-prompts/10-testing-quality/P0027.md` | 17276 | `73d483761d189fe77b18464deb367e7497a524875ca473a5ad6daf3b6de2f233` |
-| `codex-prompts/10-testing-quality/P0028.md` | 18067 | `d1e4aa31178505fb190f897db4db3f5f51ffe9b5e0fc8c57104ce7e6e870f305` |
-| `codex-prompts/10-testing-quality/P0029.md` | 18718 | `7f44a889abc44d7a6889d94aa347ceeba8e7db7ed06492a3ac9340a203aee5e5` |
-| `codex-prompts/10-testing-quality/P0030.md` | 16388 | `1fd9c1f4cad489132ac001552fc264f94b5cf40e02f324a482ecfe454459b1b1` |
-| `codex-prompts/10-testing-quality/P0031.md` | 16053 | `e0f265edb082f5e885fc319c7399ef6e3999b10a0488d54489663602cfa14d15` |
-| `codex-prompts/10-testing-quality/P0032.md` | 16443 | `497e51f42c13747e834852a97707ce62e8f57e12fb0d3346cf6c1eea55be366f` |
-| `codex-prompts/10-testing-quality/P0033.md` | 16152 | `bf5aa185a2d64894cca8364e329fddd6afb53aaade3c07e85fe64b579e83453b` |
-| `codex-prompts/10-testing-quality/P0034.md` | 16513 | `bd75cf32b5739bb1fbb8a5f5bd0e70aca063d1b9e585d3fe396dcc9354c4ebc2` |
-| `codex-prompts/10-testing-quality/P0035.md` | 19379 | `dbde76fceb7f124c0e48faec883dadafa537d1f59af71430164e5187ba183b8c` |
-| `codex-prompts/10-testing-quality/P0036.md` | 18825 | `1b1b394113a7ae6954346310e0adfba255fa0a349f080cefcd069fa4d58df410` |
-| `codex-prompts/10-testing-quality/P0037.md` | 17740 | `f12d11097d1f6402122dad75534c2fba442c86e152ae6771defb4fee63db8e66` |
-| `codex-prompts/10-testing-quality/P0038.md` | 17209 | `43af5c450454e09194b8b209887f4f7c5d53359f21f9763190532cbb15586dfd` |
-| `codex-prompts/10-testing-quality/P0039.md` | 18985 | `bb2ed5a9e21d678e740c6b9fb7c367269dd3d5644b7e09127d8630d08bc72397` |
-| `codex-prompts/10-testing-quality/P0040.md` | 19360 | `3da4504c09f52ffcc9e04d795e732d5fedad4f48dcd92da7acbd2c944bb2e1ce` |
-| `codex-prompts/10-testing-quality/P0041.md` | 17864 | `e42e5b1fa080124fbb44c165a397a98ba74002239980c8adf8781cf748a5b90b` |
-| `codex-prompts/10-testing-quality/P0042.md` | 16372 | `a178baf68555bd6efd550325ec2c76fa620be572a1f8f2bd19b0b3e4e2e3c817` |
-| `codex-prompts/10-testing-quality/P0043.md` | 16513 | `8a248be1069582db4423447717a3ddb1b9a0a0d02c229377d6a7078137f217c9` |
-| `codex-prompts/10-testing-quality/P0044.md` | 19472 | `7cf8011d0b3f9b71c1b2e46a6e3388ad80c82927cc0b3adae96ed9cc3773ad1e` |
-| `codex-prompts/10-testing-quality/P0045.md` | 19134 | `ef6ffc353d4b2c909e10b1b2336e1845ee06070b93e8b0efcf5254e180231b96` |
-| `codex-prompts/10-testing-quality/P0046.md` | 13776 | `18e22a1b783e07b0e30a7cefeb8e12b9d3528f3715445084727b7b9f8fc66340` |
-| `codex-prompts/10-testing-quality/P0047.md` | 15143 | `39a2b498d421bbec7941c53d260351d5d58782fcd7d5e54b3857f294d8324f35` |
-| `codex-prompts/10-testing-quality/P0048.md` | 13441 | `9005eee2a7c38659d5ec17231b3dfbb51f8f74983a73f83589e219f8ba2e16a8` |
-| `codex-prompts/10-testing-quality/P0049.md` | 13438 | `77986ebeea673252dfc42d15acb03341c6a5307c163bbf9b968b434840103663` |
-| `codex-prompts/10-testing-quality/P0050.md` | 13371 | `94e0c715dfc642ef319893ce6eaa0b62445b808aaabc20e266da92fa731da676` |
-| `codex-prompts/10-testing-quality/P0051.md` | 13373 | `ff1afbf1fdf8b5af599f62ce434bdec50569571bd85f54b59e96b270e90391a0` |
-| `codex-prompts/10-testing-quality/P0052.md` | 14499 | `c5f00dbfbbb43d34b5c350f228f5687cc2046dfb02fbd50109c0c3a784b63037` |
-| `codex-prompts/10-testing-quality/P0053.md` | 13807 | `1f1bfe43dd372968cbd1874194b19bce601b4d6a5256690120308b3ccc09ad0e` |
-| `codex-prompts/10-testing-quality/P0054.md` | 13490 | `63cb2f62fd706acaf17bb7dbabc8efdaf2019c65f5eeec46508f476f4b42978a` |
-| `codex-prompts/10-testing-quality/P0055.md` | 13924 | `4a5e6edcc8960162eb861f4954585d7f5c4983e3ee381979a744e01dd4a17bd9` |
-| `codex-prompts/10-testing-quality/P0056.md` | 13709 | `e8cc9a81e3b4f920aea91c61448a55016a5b2e3910f1585d992347754be2a7f5` |
-| `codex-prompts/10-testing-quality/P0057.md` | 14733 | `9f9877400c044dcf9c6363db47a5c018fcef6df1bc77de2e2f73eff52e04bedc` |
-| `codex-prompts/10-testing-quality/P0058.md` | 13525 | `a3bb1a1ffc5dacd7e00d67cebe8ef3004f10193afb7723da5cfb9c232b26af35` |
-| `codex-prompts/10-testing-quality/P0059.md` | 13514 | `4ee798d7682d364e5293a1ddf0233580307dd2d828cfa0efbbe8b012c0cd7523` |
-| `codex-prompts/10-testing-quality/P0060.md` | 13524 | `79002aff8c0364a992f1d8cc51c6c9938fd152b012d8fc29fad060e584908768` |
-| `codex-prompts/10-testing-quality/P0061.md` | 16415 | `e6bb3d53432ebad7ca6880f41bc84738ee25b077c05e30fc342dcb937e53cc51` |
-| `codex-prompts/10-testing-quality/P0062.md` | 19981 | `3ae43316409c85b27636d7b953e010ca041b497801e139e9e081b4a5b7b1a87b` |
-| `codex-prompts/10-testing-quality/P0063.md` | 20675 | `e6c078449ca8b5f2fa139dfdddcff4c9daabe205be3bef53cffe7a3b982e2e6a` |
-| `codex-prompts/10-testing-quality/P0064.md` | 16494 | `823566562aed3ad301bf8fb90e9ce562c2dab28049c2835fb56e44d63a6d2306` |
-| `codex-prompts/10-testing-quality/P0065.md` | 16336 | `04159357893d6a5636f580d5eb91663fe690876acac034c9317ff2fd63affd25` |
-| `codex-prompts/10-testing-quality/P0066.md` | 16397 | `3180eeb7641e196f0367fff2ff50651211d5239c8984814126af98c8f6417612` |
-| `codex-prompts/10-testing-quality/P0067.md` | 16493 | `09c0181f7005b7301d86a70e83c4c9689f07ea4c2b3c423d2503c6c550596943` |
-| `codex-prompts/10-testing-quality/P0068.md` | 16158 | `61ba35089519b0ce00e02b174016fdd5171b8ff0eb5e1643cdbda411475c524f` |
-| `codex-prompts/10-testing-quality/P0069.md` | 16583 | `f2232959619d8a383901cb15127b3a35325366ab290140a2ab4608416bf64de5` |
-| `codex-prompts/10-testing-quality/P0070.md` | 16653 | `1644bc79f81e47321a65742c76d2c04df58fb4bc1ab1f53311409cefc70a1693` |
-| `codex-prompts/10-testing-quality/P0071.md` | 16257 | `3794a4b7d019eb406d24de15846b5f9db7c969aa0232abca9377d3052ddc9670` |
-| `codex-prompts/10-testing-quality/P0072.md` | 16477 | `b6555e537d0f15472a446c378e294e2c4ba0431308d9d494a8e912b9bb23aea7` |
-| `codex-prompts/10-testing-quality/P0073.md` | 17797 | `5d493d029dee016539f461bea41b648608a5e1503c72172a0b157645ef4f1d33` |
-| `codex-prompts/10-testing-quality/P0074.md` | 18095 | `e3114448cd55ed77937618e4ffe480298fbebd824bdb8cbaed1a57127f3e2dfd` |
-| `codex-prompts/10-testing-quality/P0075.md` | 16520 | `8758264655209501e580ea19c95275d03bc88837f54b2aa40ebf900197336356` |
-| `codex-prompts/10-testing-quality/P0076.md` | 18200 | `9f2fef8ec77115033cda4db55034c7275cc48768357ffbb4e246a161441cf017` |
-| `codex-prompts/10-testing-quality/P0077.md` | 16559 | `63a3ccb624ebc29c5b96f00f00a9d83b05cf9011347f179c0a1411661d7fdddf` |
-| `codex-prompts/10-testing-quality/P0078.md` | 17241 | `7774d6be93e331dd4a8c0fe527974a688e3468bddd5b8e8ebe5da2fc07c2b785` |
-| `codex-prompts/11-ops-migration/P0001.md` | 18017 | `3b7970327b47fda434717a75fef62f452f17c57f9a2072b79b1b5469a841683a` |
-| `codex-prompts/11-ops-migration/P0002.md` | 18113 | `cfb91b208998825fede3994cbfbd4da7dd5094cfd38e930eadd836cbb2786ea0` |
-| `codex-prompts/11-ops-migration/P0003.md` | 18115 | `0213c9eef2f696fc5e5e4855efa35aef63824e34cd963f8ba00f4d08ab939e9d` |
-| `codex-prompts/11-ops-migration/P0004.md` | 18115 | `7da0a1a740d344dad83dfbe1bef06ebe524ebd3bf4d566d69e789918f77ca3b3` |
-| `codex-prompts/11-ops-migration/P0005.md` | 12758 | `e5d5f9c9c3f11d384df5f8214b3f0b8697bc94a836de607a52df4ce88c5984f4` |
-| `codex-prompts/11-ops-migration/P0006.md` | 17858 | `6c4316847789ece2dcc591c43b89aefac70703672b79a7afc331e432814ab77d` |
-| `codex-prompts/11-ops-migration/P0007.md` | 16327 | `fb39312ee20e2d532125c0d4dfdb3d14662092e3464c29b685dacbe3cff2f16c` |
-| `codex-prompts/11-ops-migration/P0008.md` | 17434 | `67a8b0af1551eb29aaa0e67cbefaad7e476a5a9e29b72a7a1eb94b21cb59d037` |
-| `codex-prompts/11-ops-migration/P0009.md` | 18340 | `33b9aed69ac6b2927472b0a64b1f739ba874a1552a914547912df48c66b4672f` |
-| `codex-prompts/11-ops-migration/P0010.md` | 17150 | `868389f7c5938364c53b5a2cc175b24d6b5ec9e73850ea5f17ce2c8eba77de07` |
-| `codex-prompts/11-ops-migration/P0011.md` | 18336 | `7b53584dd2b93855a58e8726bedae500069c8c6c7c54e3dec85f12276387787b` |
-| `codex-prompts/11-ops-migration/P0012.md` | 18951 | `16e762eab4d54e02540663ca418f1ffb954fc15a8214bbfa810b337606f1832c` |
-| `codex-prompts/11-ops-migration/P0013.md` | 18291 | `653631e666b79348ef56426d77fd85875a517ccc993dc519f4bc6763303b7519` |
-| `codex-prompts/11-ops-migration/P0014.md` | 18235 | `e362eb32eacfe51c2ddd76916ac087ba18e5be512b47ee8ee4bb35e0a121f330` |
-| `codex-prompts/11-ops-migration/P0015.md` | 18327 | `79a4f32c9b34269626bd2a5d6dd7f640a87805dcd3edab253a94f5b2ccc82878` |
-| `codex-prompts/11-ops-migration/P0016.md` | 18224 | `19df91911bf35b49fcd6fde5525a027ae6e8d819c5a1059158c662f350f2adfe` |
-| `codex-prompts/11-ops-migration/P0017.md` | 17085 | `ebc61bcc4c83d971f3ed6768f6309ce4aee132bc41a9267978a158a6c1b8ca68` |
-| `codex-prompts/11-ops-migration/P0018.md` | 17700 | `22c42df82cefd93c4e2183cddd70eb5d55d00655bee5502b4408d88bf48fb98d` |
-| `codex-prompts/11-ops-migration/P0019.md` | 18015 | `bfaa8a072ae4ab1a854cdcb4bbc40af37a4632ead81dcdb64dbfab7f8035d822` |
-| `codex-prompts/11-ops-migration/P0020.md` | 16383 | `51661d729756430ed08738299b6ababa1fd5dd60ea7df0728dfe6d6117dfd676` |
-| `codex-prompts/11-ops-migration/P0021.md` | 16662 | `6442fa412a677e011dcebf2cbca0987e315cd98a4d02f97a96315e9f9207a5ff` |
-| `codex-prompts/11-ops-migration/P0022.md` | 16439 | `4a26907e348ef5a324daec26170457a56a8c1086754e8fb4ac0298100d4448a9` |
-| `codex-prompts/11-ops-migration/P0023.md` | 16001 | `8c767e69f45d05f5a3199353a013c2264a140a9915af634496beffc055739352` |
-| `codex-prompts/11-ops-migration/P0024.md` | 16233 | `f37b1eb5b8625ad2a2b9f5a49ce1f43a0cc814835066887ccfa85150f9e7174a` |
-| `codex-prompts/11-ops-migration/P0025.md` | 18212 | `cc265748d4ef7249d2ce190b72ba413212c790d0576d92361af5e4f2c14200e6` |
-| `codex-prompts/11-ops-migration/P0026.md` | 17427 | `7feb1892bf5944e23fabb6c934fd8ca135fb422abf7c076c76423ff2947014aa` |
-| `codex-prompts/11-ops-migration/P0027.md` | 19209 | `22c8e111013a2067fd586d8d2ea19cf44e81c232e6d0c91099b39dc29039fcce` |
-| `codex-prompts/11-ops-migration/P0028.md` | 13907 | `838632e2b48b25f1f3d8d6849b04de7253bafc79e12e9af9318962f615d52dd5` |
-| `codex-prompts/11-ops-migration/P0029.md` | 13928 | `e6773992a0b1d54d1daa75b57ed654e56e692cec4325d2016c66afe4f1770a08` |
-| `codex-prompts/11-ops-migration/P0030.md` | 13856 | `c2cac54c47cdaf80abe5997296e5a0f418c483b778ae40a2e1c9d43eed930f66` |
-| `codex-prompts/11-ops-migration/P0031.md` | 13662 | `9f5c44a1ca15b2002edef91f969de710946e6e1020d85366fb3a40ac212914ea` |
-| `codex-prompts/11-ops-migration/P0032.md` | 15067 | `87ceb8f18a58d11325dce0fec05f7a2f3eb0cb7124b5402196c329ecf60c7cbd` |
-| `codex-prompts/11-ops-migration/P0033.md` | 14448 | `1eac9d59674daacb9bd6a8a383409acbe452929c2f278db7de7f26bacf1d7792` |
-| `codex-prompts/11-ops-migration/P0034.md` | 13922 | `8f6ad6a413028f9de8757488bb706193473dfcc3fddd73875947ad6bf197944e` |
-| `codex-prompts/11-ops-migration/P0035.md` | 13606 | `cf4106685e89102fad13a1eb07373cb6f371fa0bbe501ce7edfbecb5654b8f44` |
-| `codex-prompts/11-ops-migration/P0036.md` | 16467 | `77d0edb6c2396344eb145e3155ae17b89ee79ae0709a2cdb9affe9a83a97c68f` |
-| `codex-prompts/11-ops-migration/P0037.md` | 16523 | `02623fc654ef1b3b9e8c9acef7806a52828c01fb0d83677ac1f086581c37ec4c` |
-| `codex-prompts/11-ops-migration/P0038.md` | 16802 | `420100403894bd220f51c3e38e1bde58420244078488dc33086e317ce50bf9e0` |
-| `codex-prompts/11-ops-migration/P0039.md` | 16579 | `d7cc8ff4f487312b73eb4eaf7321b0ad1e9fed48efbef5de5e34db1d6aa511a9` |
-| `codex-prompts/11-ops-migration/P0040.md` | 16141 | `556cf4f63e1b858c0c74b4294914e18290de88322a510f12146d2adc7938683a` |
-| `codex-prompts/11-ops-migration/P0041.md` | 16373 | `a46313facf93feddb0a01d18adab9266d49081e861a63db822d36dbfa36cbf45` |
-| `codex-prompts/11-ops-migration/P0042.md` | 17862 | `6519a497a81f164922f4af8d14a23d84c4735341c0524cc58f0500a5f46c8c5e` |
-| `codex-prompts/11-ops-migration/P0043.md` | 18037 | `ffa60e4bf59868a9a74b44154f096d7572648def7a8dcfc626d80b5568744825` |
-| `codex-prompts/12-extension-sdk/P0001.md` | 17832 | `a4d95b524784d0c1536726f004f5990be4ae7614d0f2766cf1426823b17c95df` |
-| `codex-prompts/12-extension-sdk/P0002.md` | 12963 | `6d5513e1425fae1b45bc664a62707f1ba596d699698a41834062c11d9a5976f0` |
-| `codex-prompts/12-extension-sdk/P0003.md` | 17709 | `1998f10f58c2b2bd0e6bf9e8b9c2b744fcddfc38fb8a24f1c788fca4299c8d5f` |
-| `codex-prompts/12-extension-sdk/P0004.md` | 12762 | `8f951d2790ece9e7e3db948bf6288eef8a314756afebe77d89c53f75a46847eb` |
-| `codex-prompts/12-extension-sdk/P0005.md` | 17894 | `076632bf6374459f2b44eed4bcf45220a0dec4829cd5b96072ed2a38cd7c44e3` |
-| `codex-prompts/12-extension-sdk/P0006.md` | 17925 | `2e6ca3e5347e9722cb4ca2cb812feb2a94b67496d57f476cf38b5c3a138cfdb9` |
-| `codex-prompts/12-extension-sdk/P0007.md` | 19653 | `9bc5660ae43e914667032f68087c157db4c86c4d15a14820d4dc853c70a44c12` |
-| `codex-prompts/12-extension-sdk/P0008.md` | 18005 | `cd269a306e23cdbc73929482df9263834646565c74f3fdd5a446a1765a2c196a` |
-| `codex-prompts/12-extension-sdk/P0009.md` | 17136 | `3467062f4b6b1d53631d282d10cc07447769345454de60587bfd7ed5c2059e29` |
-| `codex-prompts/12-extension-sdk/P0010.md` | 18086 | `a0a60a43ad6e43e9c00535f95cdb69882403f964025a5c75747b01c6d6eb8645` |
-| `codex-prompts/12-extension-sdk/P0011.md` | 17087 | `8cb05d04c526a04dd3767a79f5679d8c53e5b793d7d494a505bf1a097ea8aa22` |
-| `codex-prompts/12-extension-sdk/P0012.md` | 18826 | `ce9f6a2c3d80820dffb6e54ab0291027f489e4baf56579783e55302526c56465` |
-| `codex-prompts/12-extension-sdk/P0013.md` | 18089 | `2531f61450fd1396fe91e965c91b12fa17480149d6efa9ae5be64164be5b1fdc` |
-| `codex-prompts/12-extension-sdk/P0014.md` | 18195 | `d594d18a61470ebadc765fd76aa10314497c7676fa36576513a155c019a5128a` |
-| `codex-prompts/12-extension-sdk/P0015.md` | 18080 | `46a356d8f8dfe61b93904a9e53dc67df389875c8bd47b4e795dcfb7a2db76cf7` |
-| `codex-prompts/12-extension-sdk/P0016.md` | 17030 | `348348aa7ba94b7e700fb1ad712632e1d6b637f5548f7b8f2f7c2d651e3e8266` |
-| `codex-prompts/12-extension-sdk/P0017.md` | 16212 | `ebe444ec321e47762eec886611e965dd9c2bbdbfe90d5dbe18533d179456e850` |
-| `codex-prompts/12-extension-sdk/P0018.md` | 17327 | `58d97b59408f88e19e2c72bf3452ceaabe0e739506499ad29513e5de56190777` |
-| `codex-prompts/12-extension-sdk/P0019.md` | 16153 | `cb867af2b4da4048f64a7391ea783ca6f6e3a835bbe1e2fbe84ada946121f69b` |
-| `codex-prompts/12-extension-sdk/P0020.md` | 17136 | `7121bfb727b333c6a09954c8c2480764b58d7e29e48d0211f8aca5e4ee2085c8` |
-| `codex-prompts/12-extension-sdk/P0021.md` | 13175 | `0d42e9a13495ca2ebf6944b7cb30d3aebb1fcf4be1f9eed5806cc23c9ae25a38` |
-| `codex-prompts/12-extension-sdk/P0022.md` | 13311 | `3361e6c41bf1e8dfdbb55878bdab7a5ecb39975a83ef85bca347b31c9ad1b8cd` |
-| `codex-prompts/12-extension-sdk/P0023.md` | 14085 | `0d78492b264a967441f19f05cfa0ab56888128c29e0c606dc2dd56d6a0c08fc7` |
-| `codex-prompts/12-extension-sdk/P0024.md` | 13530 | `7da4b190a3dc52208d2483f942dd914dffdbb6604fdcc5a0f46ed2f118c5f268` |
-| `codex-prompts/12-extension-sdk/P0025.md` | 13439 | `d7d5074601487c68e6d5cbbcea080fc1cfa8e2398d3a382c9c3468879c402276` |
-| `codex-prompts/12-extension-sdk/P0026.md` | 14703 | `a808499b21304bc71ca8a0a9616d903bfdc9bbef4ce356025c549f217778c7b3` |
-| `codex-prompts/12-extension-sdk/P0027.md` | 13466 | `76ec50aa16e6eb48826977736a657e5d0af2878b6d81a603752734fc6c58efb2` |
-| `codex-prompts/12-extension-sdk/P0028.md` | 16425 | `f336e2d0863dcaa6a9ea58ed96c78c1d9d4e41b3f5d278c923b628fe3dee60ea` |
-| `codex-prompts/12-extension-sdk/P0029.md` | 16494 | `1683fbdb9482ca59163d63e159a474b9635e6c5549e7585765829115aac21767` |
-| `codex-prompts/12-extension-sdk/P0030.md` | 16317 | `8d528d4e51366c520df8c45c5c864feef02da13d2cad981181b8cc2200e6ae57` |
-| `codex-prompts/12-extension-sdk/P0031.md` | 16056 | `3cee402bd1b07de0878fb7270f9ae0208ef19bfbd2b7556d980e8cdcb430e34f` |
-| `codex-prompts/12-extension-sdk/P0032.md` | 16258 | `0cb7a124b1b1d641301ca2870c3187d7a317e01b59dab12fbdc16c32287cec4c` |
-| `codex-prompts/90-traceability/P0001.md` | 12646 | `2cadc5f4b77eeb337814d21efa0d8c43a9eca52638a59a83471ced5f40fda9b4` |
-| `codex-prompts/90-traceability/P0002.md` | 7901 | `15a8bc47c3ce6508bb51b387fd9a1df414c9d755c87ffb2c0cd7ad18862f8192` |
-| `codex-prompts/90-traceability/P0003.md` | 15304 | `c166e0f40ecdd211f0294ee773dde8f6df6e56c677e91152172bb91cd5400e79` |
-| `codex-prompts/90-traceability/P0004.md` | 7821 | `57016043d37a11fe7015945c0ea83a5bf57b1aa980c5d5827d0318d72090f7b8` |
-| `codex-prompts/90-traceability/P0005.md` | 14319 | `aa7f9067368882bfb9ac11d26ca1e52bfabe3b420d2acd1639047f7b925b95bf` |
-| `codex-prompts/90-traceability/P0006.md` | 14150 | `3e3898b619c8e129a447e5b686e1f350171e221747251a0510f9ea5e4a8bfa00` |
-| `codex-prompts/90-traceability/P0007.md` | 14564 | `61b9821aee07a9570d259b06ab9ee8e47da8cc7b3e4b1adbd606ffe589af1836` |
-| `codex-prompts/90-traceability/P0008.md` | 13936 | `dd9e2451043d88c974839ede1c9cb5c27a265d6675c9acdc2ab67dd0c12d8d8b` |
-| `codex-prompts/90-traceability/P0009.md` | 14038 | `f43df3e7b0583907e0b1dd4acd86236dabddcfd63c6d48d4cc8c3f1d2e821498` |
-| `codex-prompts/90-traceability/P0010.md` | 12562 | `15646503ea74d6df73e5c1bd582bb2d9020e1bd5cf39530a80da4f62442bf2d4` |
-| `codex-prompts/90-traceability/P0011.md` | 12459 | `59889fa66dedab06739244a8119db5266a889d737dd424fa5fbffb2ca0a57247` |
-| `codex-prompts/90-traceability/P0012.md` | 12238 | `9fdd7ca2013525f7e34d6cc3993ff9e4e61ae9c0bfc3415beb791238afc80267` |
-| `codex-prompts/90-traceability/P0013.md` | 12530 | `3cdd926ac41266851109d358d29fd81381325115a409de74cc05bbbbfc19d14d` |
-| `codex-prompts/90-traceability/P0014.md` | 12409 | `63ae369c2bcc547c2e628fd3f2b361d4f766c0b183d843317e1ce11d7d114042` |
-| `codex-prompts/90-traceability/P0015.md` | 13866 | `2eb27dfe37e2fc0b67672e1899a5bbacfb690e3069343a4295e5a38d0cf28517` |
-| `codex-prompts/90-traceability/P0016.md` | 14227 | `3065529fa5b41385d4295261cd3f029f553f46fdb24448432b9aa218bf8dec9f` |
-| `codex-prompts/90-traceability/P0017.md` | 14636 | `fcb2b568f677f71ae07f62dc74a903cd27e91a2c99120dae02fa5513afbd2ef3` |
-| `codex-prompts/90-traceability/P0018.md` | 15008 | `5c8976a0117fc1f140d28ecf7f52d8e9290e5e1f2a020b686e88e30cf22f3819` |
-| `codex-prompts/90-traceability/P0019.md` | 13407 | `1e71a9e60ac772c617bfcbd37afc596eeff59209dff69cb434a3daaf0c7b5b32` |
-| `codex-prompts/90-traceability/P0020.md` | 13428 | `137f4015e1a143e826269f8b00877153a588833730605e6f1387d70a0e46bd08` |
-| `codex-prompts/90-traceability/P0021.md` | 13379 | `189949b55570d4b08ba0cc5256fe513720590b5832885c9cb082604aadced0fd` |
-| `codex-prompts/90-traceability/P0022.md` | 13581 | `706b89a2f2ab6d93d20ac9bc23efea4aad8b2ce55ab64855dcd21d5f0a6fb7f5` |
-| `codex-prompts/90-traceability/P0023.md` | 13461 | `8cf5c0645c4058c560b3cc014e5910e06f7d30ed0ff858f2c81a234569bb833b` |
-| `codex-prompts/90-traceability/P0024.md` | 13653 | `090ad7003d72b2900406a6fad2db2caf87ad970cdf0677136161de3723b8dcf2` |
-| `codex-prompts/90-traceability/P0025.md` | 13334 | `bdf2b738a8231eb5805cd62c4e733fdfeaf2500078898a1492f3f18b38b08631` |
-| `codex-prompts/90-traceability/P0026.md` | 13480 | `a0ed4211901f7831b307050296d8c5657a86d34bc6091bca1e6d9bb0eff4fd7c` |
-| `codex-prompts/90-traceability/P0027.md` | 13356 | `56c8d6f90e749410e5c9c0342ee2f133944982ef20a30e5ee3e392bfe5b5853b` |
-| `codex-prompts/90-traceability/P0028.md` | 13428 | `0ffc112ae634bcf841e9781a80ee5094ae77cf75fae0fe214f236272545071d4` |
-| `codex-prompts/90-traceability/P0029.md` | 13407 | `67cfd1c356d3bce3580f616aa352080069e379224febb7a74f6429f153e23941` |
-| `codex-prompts/90-traceability/P0030.md` | 13446 | `f6c3e52e35451d5b13b6a3835ceb6a2691202036f28d290f38433610b2ea8258` |
-| `codex-prompts/90-traceability/P0031.md` | 13382 | `3d8f22e2fbad6f32e9e7ad590cb97bec5c3e01895e2a6e5638ee427abf3115fc` |
-| `codex-prompts/90-traceability/P0032.md` | 14634 | `212ca8f2c30839962737d13d85207dfe629e470ee88efad2dee0fd4fe441a327` |
-| `codex-prompts/90-traceability/P0033.md` | 13368 | `e9e3977572106065b1e22c6d8512ca1347441e01b1820011dc34847bcc04826e` |
-| `codex-prompts/90-traceability/P0034.md` | 14053 | `68ae59ceb1d4376e0d1eb0ecf1056b4ad44d1de8eeb8ed2c5e1921f687b7406f` |
-| `codex-prompts/90-traceability/P0035.md` | 13379 | `a49d5152973128cc14ccd30eda8e2557c90245e7d7cd34a828a65548eab516ad` |
-| `codex-prompts/90-traceability/P0036.md` | 14457 | `840eb903aec464d8f2780ee6fc28b942edebf12266777853b11cbe4f8535fa91` |
-| `codex-prompts/90-traceability/P0037.md` | 13367 | `4da765b939dd5058205438f04f056c3b0a16b9aa5c73d1ad93351777db312ef5` |
-| `codex-prompts/90-traceability/P0038.md` | 14225 | `4e789083c798d69d10c55d1a574272eb265e8432c2b0e52f2b8af7642fd63280` |
-| `codex-prompts/90-traceability/P0039.md` | 14606 | `e291717caa8a60567a90c4d60f28b47a3f605fb56b64d93fcd914e84de3a84ae` |
-| `codex-prompts/90-traceability/P0040.md` | 13505 | `29a221e3533a451cb9fe9708eee23640b5be052088adc92d61284f00273f593e` |
-| `codex-prompts/90-traceability/P0041.md` | 13389 | `9bb48090925643f814af2eebcc475df81ab07546190e35db6f12b83ceb789a59` |
-| `codex-prompts/90-traceability/P0042.md` | 14964 | `e62f2a80cab08cd370dab77975e1ef232e71e0899b02b673a1cbf58fe0c98718` |
-| `codex-prompts/90-traceability/P0043.md` | 14433 | `705f1cdd0fcdca77224fb0e4ef180551fde657b2a12581a7b7b9cf9f6180b823` |
-| `codex-prompts/90-traceability/P0044.md` | 12473 | `811e1cb0b82d1a55801d965cd6727c117dcdc91045e61014860c409594942997` |
-| `codex-prompts/90-traceability/P0045.md` | 12869 | `a781d5459700eed8c9b34176d3b3ab9b39b8f5085a07273b46fdb6cc987c3526` |
-| `codex-prompts/90-traceability/P0046.md` | 13332 | `a61bc452eddc7f505d35773d38b8dc6d47bd2174094d9f8451f48991bf4af0bc` |
-| `codex-prompts/90-traceability/P0047.md` | 12252 | `236477147e6e9673d82b62c4761667499a9bc95cf1dfd90e6f216f83655cd3a6` |
-| `codex-prompts/90-traceability/P0048.md` | 14197 | `c5ac6a22f1358f9708e6066d6179bfbec657ba4ad8b443058ba9723c7751e5b4` |
-| `codex-prompts/90-traceability/P0049.md` | 14022 | `5044cc1017519a6b840be76c64800ff5f3b2201b2243a3b80b888753659c4408` |
-| `codex-prompts/90-traceability/P0050.md` | 13975 | `bd26a4b9db8ec8731fd7e24c5acea623b0123774ccb5d36e663488029570029e` |
-| `codex-prompts/90-traceability/P0051.md` | 14296 | `786ee9b6d93d51fb8411abe12d54c1e50e083d48e7025307eba5f5c018b4659f` |
-| `codex-prompts/90-traceability/P0052.md` | 13206 | `66ac85203d07d6e8a8c96622ae37b5dff7137ac6acaebf2d892dca355aade1e3` |
-| `codex-prompts/90-traceability/P0053.md` | 13399 | `50783161335d74f996fec4132544e4209012814d9d89ed29ff91384efc5e4a7f` |
-| `codex-prompts/90-traceability/P0054.md` | 13406 | `556790065b918517168fa11fc331f93a11088a78b473c40ce56f2ce79e2f2e28` |
-| `codex-prompts/90-traceability/P0055.md` | 13346 | `f09cc5e21b1a3693fed9f54cc1d4637c860b5bb743a23203ff513a19e01857ae` |
-| `codex-prompts/90-traceability/P0056.md` | 13425 | `65283e486d3e9f92480284f8d8184809d021759ddbb0bd05cb8e8ea322610a57` |
-| `codex-prompts/90-traceability/P0057.md` | 13324 | `36910062f4f690d9c7f43552afe0ab33db05507a168098aebd13ccfaf16fb8c9` |
-| `codex-prompts/90-traceability/P0058.md` | 13298 | `72defff5ad3aa27449eda43426ab4fa156495d82a86414ca464ff531ed7988cc` |
-| `codex-prompts/90-traceability/P0059.md` | 13441 | `5f237efc0d2bd7e3856fbd963399dbd89a0bc07e56e7873870e1c72adff82855` |
-| `codex-prompts/90-traceability/P0060.md` | 13312 | `1e39070c7edf30eaca04e1c6cb1417b778075e1dd3ac791e9bc57358c85004db` |
-| `codex-prompts/90-traceability/P0061.md` | 13076 | `1222cb2bfabc0e4f150a5664f008cae0d8dc130b5841fed9554d2e4e6569633f` |
-| `codex-prompts/90-traceability/P0062.md` | 14215 | `abdaa7a38f4daa89c455fef4e184a9e2ddba1b9dfd13c79bf66f758d8c90b160` |
-| `codex-prompts/90-traceability/P0063.md` | 14793 | `e29aac4f3ea1da3559b28c3de093e202897333b037ef651495d4dc25ea3677d5` |
-| `codex-prompts/90-traceability/P0064.md` | 13494 | `c1a68f09054e9a45b7dde6e6ebfb3afbc892e7e176422a2a948c7bdeb7408b18` |
-| `codex-prompts/90-traceability/P0065.md` | 13536 | `3500666a21eb41564d05d0ac829bc0d6c37f4b4d3ef23c23ba8de6c3459f4924` |
-| `codex-prompts/90-traceability/P0066.md` | 13401 | `e172ec6a78e1987e0e0a0f04f47aa1311fe300befb3e39928d1106b6b440469d` |
-| `codex-prompts/90-traceability/P0067.md` | 14473 | `e600627cf3759360be71c58a043328d1582f73fc3416d4469a3b60fffaa05ad8` |
-| `codex-prompts/90-traceability/P0068.md` | 14772 | `ea12d5c677b2f136f6d744a24b62e2713752bc7324fa4f18bf9849b2481b1168` |
-| `codex-prompts/90-traceability/P0069.md` | 13608 | `d440cff829753df5994ea090cb618ee2bc6d4b998e56e4c45576bb579c9ee2f4` |
-| `codex-prompts/90-traceability/P0070.md` | 13612 | `64a9440a714d784a9bbfff15d9d6edfa2bb4167d506256030a4236d185455365` |
-| `codex-prompts/90-traceability/P0071.md` | 13284 | `ee961f6fb793bee1036a60d6c408bf0c0b3087f121c4d2529a28b411db33fe56` |
-| `codex-prompts/90-traceability/P0072.md` | 13490 | `42140c08ad93fb41ce6207f28aedaefb66eae7e182d95eed3e108073a2a567b6` |
-| `codex-prompts/90-traceability/P0073.md` | 13485 | `d2aef0885747129d0a701e2750bb583cb6de08cb1eaef5b26a9d45235946312b` |
-| `codex-prompts/90-traceability/P0074.md` | 14870 | `6c0f6701a85b2184655284d240ad516a4b11e31811dfaa19309eb5cd772aadd8` |
-| `codex-prompts/90-traceability/P0075.md` | 13260 | `4a9591735c0e8424c7b0a34ff125d8315c797d6e0e0b87ffccc3fba4dc87abc7` |
-| `codex-prompts/90-traceability/P0076.md` | 13523 | `0dd18d0f707b9b03e5be46a024637ef69b75c448fda66e049be31acf8545dab9` |
-| `codex-prompts/90-traceability/P0077.md` | 13353 | `e088b70d10f63dd7642e250b68001afd78dec653fdc5282cdbe55aab4afcd82e` |
-| `codex-prompts/90-traceability/P0078.md` | 13409 | `783e167fd62c7cf3e87f88a89703c86e7b225bc3674dc4aa50f2ff670124013c` |
-| `codex-prompts/90-traceability/P0079.md` | 13438 | `0e316fe2d0fe34f985d6d547b060157897b836ffbd26bcebed3c59a4f8017db9` |
-| `codex-prompts/90-traceability/P0080.md` | 13410 | `663c7c15cf3abd92019db6f86d95db22512f0d7306630a61843f0067c0c3e7a2` |
-| `codex-prompts/90-traceability/P0081.md` | 12488 | `d6674dc775c0abd97d69dd08d75a7394d522a536a3ac5748c96510484a0ff6de` |
-| `codex-prompts/90-traceability/P0082.md` | 12693 | `77ea62141d4de3b5ca42a2021862a3dfb64fd87fdda00603e0718af1ac151809` |
-| `codex-prompts/90-traceability/P0083.md` | 12515 | `536063df6ef4726a2ec5b55e9bda787879ea9079061429aa96dc64e3f528ce23` |
-| `codex-prompts/90-traceability/P0084.md` | 13505 | `d602d39ab5f2f9132ed1b3832f2d8a527407af0e50aff4411d223729d54bde79` |
-| `codex-prompts/90-traceability/P0085.md` | 14357 | `bcaa84f90f70bfa06f3cfe97cb22d68cdc1893ff717e2abac0b98e7fe2d64984` |
-| `codex-prompts/90-traceability/P0086.md` | 12214 | `70e33d47d8d6a9aae48d6870d197da6ab8ed88c0b074d616f00158d89f80000d` |
-| `codex-prompts/90-traceability/P0087.md` | 12394 | `d6949be5e04ae327bba21bec10960516088a7d1e178be3edaf712fc6fad33ad5` |
-| `codex-prompts/90-traceability/P0088.md` | 12216 | `4eb7c4a061b76a25ec039c6452a69e366cbf052d7aee25645ae4386996426410` |
-| `codex-prompts/90-traceability/P0089.md` | 12437 | `f4d7de624d2c7b5c84caa5946ae9bb07d8eecb0221da5dd236df5e27e31cd370` |
-| `codex-prompts/90-traceability/P0090.md` | 12529 | `4653d6b5f1696a861484883a8340d7657c861a2425693728a7ebe1accf92d646` |
-| `codex-prompts/90-traceability/P0091.md` | 12296 | `598caef3a50577e5862a7f463a778974db6ad77a7d1ea165bd3980b136f32769` |
-| `codex-prompts/90-traceability/P0092.md` | 12479 | `e7740ca39e5e6b440a1e772e3fe47c57de23a908c90263bfd332f8fa36c66235` |
-| `codex-prompts/90-traceability/P0093.md` | 13977 | `fcef9259504e9ba1f792a4476a8aeb5fc176ae8ea096c7970afa73eed3fd8a1b` |
-| `codex-prompts/90-traceability/P0094.md` | 12543 | `89b1047393d9cd69191cf37b0df67d55bc95d76f85be855d25681bf63a8aecc8` |
-| `codex-prompts/90-traceability/P0095.md` | 13402 | `a3d01c6534763b87f00687bcf0edb34c2ebb6c60540bb24d044a38d1d10be69a` |
-| `codex-prompts/90-traceability/P0096.md` | 12939 | `c089fbf7ef8f1d3a9b8edfc874bc8cdc1033cd5787c90c84a324c0c7360e4ad4` |
-| `codex-prompts/90-traceability/P0097.md` | 12322 | `015dfd40e341d79fe982866ebc67834712fea63ad289fd833c662037ec6cede2` |
-| `codex-prompts/90-traceability/P0098.md` | 14066 | `0002eed5be001ef80f9b9f40a76c9a61a2fdf2264a6b74ed66eb10629271484e` |
-| `codex-prompts/90-traceability/P0099.md` | 14025 | `bb805067f2636e73dc30414ac83e9fb486a8b72985b7c7762f755ca7c967730e` |
-| `codex-prompts/90-traceability/P0100.md` | 14219 | `0dd38015adb4da8bcb94d6692a0456d678fb234da9929353dd1c949b0042de70` |
-| `codex-prompts/90-traceability/P0101.md` | 12284 | `76db11b6b6221bbb2db8d834f6255b1198535fb4459ec758ede169a1d9e0d478` |
-| `codex-prompts/90-traceability/P0102.md` | 12482 | `3edc0475b74126dae81a6a116a10ecb16f1967fce4935762bd8ede4dee70ac0e` |
-| `codex-prompts/90-traceability/P0103.md` | 12252 | `692db705c2aea71c72817393a080f168beb94631181ed681660c332e8a5a8a24` |
-| `codex-prompts/90-traceability/P0104.md` | 12527 | `bdc063591cd81257497f64fc13252aec94a151d747454d40cb1a18922b81f9e6` |
-| `codex-prompts/90-traceability/P0105.md` | 13743 | `5294e8999435eec9a630cfae0dfce982d6383cf7bd75111f50401fb4be0ca53b` |
-| `codex-prompts/90-traceability/P0106.md` | 15940 | `a15833cf2376a9d0aff0b29f84a5a838d66b6d12dad87d34c807606b331c139c` |
-| `codex-prompts/90-traceability/P0107.md` | 15302 | `be2191cda37af9af1f3d5c93ef1edbf798b6c8942605b791276eeab8ef0d9afa` |
-| `codex-prompts/90-traceability/P0108.md` | 12788 | `1d0c0e61bb02039e246b24df41aab77d325930c798bb9fa80da946091963f8a0` |
-| `codex-prompts/90-traceability/P0109.md` | 12916 | `6374a29363ff33d48852a61225f494dee0477d76be7d6e9f918e202a78fcf38a` |
-| `codex-prompts/90-traceability/P0110.md` | 12916 | `bca2961f578ff32f74cfb1cd4d65de357daaaace1ed219a1f759f19d19e571fb` |
-| `codex-prompts/99-appendix/P0001.md` | 12308 | `bec3c74db9a6c2976cbe5bdb641b17caa9a499219200ec7b44dc36bd2d036f99` |
-| `codex-prompts/99-appendix/P0002.md` | 12602 | `95041804b7a0f0a45f252e8e3211f9aa726cdf39e44f3c120ad23d68c906b2bd` |
-| `codex-prompts/99-appendix/P0003.md` | 13109 | `895e09a60f67118dd86463649f5f9da33d02663811cebeb4011be580c0d75645` |
-| `codex-prompts/99-appendix/P0004.md` | 14063 | `04a3dcaf975c40bceb756bf62b580723f764430e50a2c222e0f977986e03d006` |
-| `codex-prompts/99-appendix/P0005.md` | 14046 | `4adc28d6f0bf1112701b580aee931a3b70309011a194dc3cef9203c657621d1e` |
-| `codex-prompts/99-appendix/P0006.md` | 14269 | `92df43df35ea7e64ccbc1e26dbf2139148cf6b828b4316075abc9c30bc58ae42` |
-| `codex-prompts/99-appendix/P0007.md` | 14444 | `2320fbb9375f038ae888a8359692e3b34526c97c97d00f43d63a6e8ce4e6a453` |
-| `codex-prompts/99-appendix/P0008.md` | 14326 | `5ad919514919a4809c956592c53eb35bd6f8c4be8f3ae620b40b4eb4100e6cc0` |
-| `codex-prompts/99-appendix/P0009.md` | 14433 | `7965a86bdd355f88ab07e698f311a9532abb3087e452623efa6a1fe9468e200e` |
-| `codex-prompts/99-appendix/P0010.md` | 14048 | `be45d7ede3f7e4c41ec5240d531cab14aea4bce62a719a5aed1dba615428066f` |
-| `codex-prompts/99-appendix/P0011.md` | 12314 | `9d312d8fc65e8293cd016f9e771594e6f8e630c2c0f08b5cc6c4af0f00815518` |
-| `codex-prompts/99-appendix/P0012.md` | 12491 | `ea849ec92779fd2d319687a89970f890abe34dc18e03fe32a2cebbfd489921f3` |
-| `codex-prompts/99-appendix/P0013.md` | 14399 | `406af79701c77aeb4bc978da957a04477559961a8f4f4178ffbc9ce907a3e4af` |
-| `codex-prompts/99-appendix/P0014.md` | 12561 | `ea1a4c6ac9e74e3e0faf04f6d94c1f732bf1979aeba0c689ce9c90b6f2337d45` |
-| `codex-prompts/99-appendix/P0015.md` | 12465 | `a5d272c2d2c268aff381db108269a1543827e3c37dbbe756af4a6e53da16c76f` |
-| `codex-prompts/99-appendix/P0016.md` | 13038 | `9cb708975ba0482290d7a77ed69c87f26ba418cf7d4686741852ba6c4151c5c0` |
-| `codex-prompts/99-appendix/P0017.md` | 12357 | `c6703937aa1aea263012e69c4083daa00ae87908ab2344f66577a1e5758882b5` |
-| `codex-prompts/99-appendix/P0018.md` | 12378 | `823b5e53096dc669f2df6687a62402680cf7305eb1f20b3f1e99fd170dd0e7ec` |
-| `codex-prompts/99-appendix/P0019.md` | 13220 | `11525d9055fe650c84cb2430713d0446909474f46090f1502d52fbc7017df305` |
-| `codex-prompts/99-appendix/P0020.md` | 12384 | `a229b188a33cc39b1767dcf3934af316ffa64225bf5e464e5118d1f3cdffa38f` |
-| `codex-prompts/99-appendix/P0021.md` | 12561 | `68c83ce899c13bde25ba03cf630c5249ae17fd4ab01adb125c659f6ec04bf8ec` |
-| `codex-prompts/99-appendix/P0022.md` | 12535 | `729d94a371a87a7026bb5e713aa63ce5295ba6a01bf9873cb13aee2988cabb04` |
-| `codex-prompts/99-appendix/P0023.md` | 12427 | `2fc0ee5741107ee566f655ac3f128dddc4572688f9f4e36af3a8697c8bb64381` |
-| `codex-prompts/99-appendix/P0024.md` | 13282 | `33a8b77cbbcd179e8385ce7c1c9354fbdc9d6e35250b4730318246e595708c7e` |
-| `codex-prompts/99-appendix/P0025.md` | 12725 | `d08f7d17c93d7f90188dfe186cd7dd6efdf83097607068752b778f87c70d7ec6` |
-| `codex-prompts/99-appendix/P0026.md` | 12860 | `4248043d3f2df9c53eb66627912067e6c10a61168b2689c0fdb8562222f3297c` |
-| `codex-prompts/99-appendix/P0027.md` | 12573 | `c4dc82ea5fa2c12f4a7e060e7a8a59c71c24b9237726c906599f7b215fd02fe0` |
-| `codex-prompts/99-appendix/P0028.md` | 12894 | `15d4d4476e99ba645088cbd9fcc9896066734e8fcb6542773fa8fe54173523d4` |
-| `codex-prompts/99-appendix/P0029.md` | 23769 | `cf3b3a852fd09699e1f46aa38b074df8e7206acfac3a3a4a68a757a5db9b9c76` |
-| `codex-prompts/99-appendix/P0030.md` | 12893 | `ab099bb4fe9cd403f06685599661e4ff55fc5bc57d6f803ddf1a4aed7a140d87` |
-| `codex-prompts/99-appendix/P0031.md` | 12675 | `3b6a1305e6a2a60cc824087601a08be0e133687b11afa568bdec6054da3d58c1` |
-| `codex-prompts/99-appendix/P0032.md` | 10812 | `053b7adbfd5a52022519e91e8026f28eb5424edbc17da498d64213e793e365e6` |
-| `codex-prompts/99-appendix/P0033.md` | 12776 | `81f73e190fad8a8e2b6495f03ba582cecb3450401734e57f1edf4c4c4f34031c` |
-| `docs/codex/00-index/AGENTS.md` | 4164 | `7a4b058f57d75097de15c3902560a3b4fbdf70a639bd0ca5ddbe2529d8ad0170` |
-| `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` |
-| `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` |
-| `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md` | 1290 | `04799a9d4fb559c9936815c49a495ba330e8340652c8a75f25ab0bf3d030dc0c` |
-| `docs/codex/00-index/readme.md` | 1985 | `6a397c5a90c8ee01a499998f106a038e16116d82f9b1c6a1fb2494cab75d3ae9` |
-| `docs/codex/00-index/codex-batch-plan.md` | 5578 | `34ae638a0a836bb2d703739c823b19d9d46233a968fc2ad5e8d6ab2bbed48efa` |
-| `docs/codex/00-index/codex-execution-map.md` | 5850 | `abf3c430a1a10552cb92210fc522036153bb88df7e30756a57a9c649382a8c5e` |
-| `docs/codex/00-index/codex-module-code-prompt.md` | 3954 | `b3b301598396c28694f68447fe24d9e9639373f32f3e17b3f55341822b371390` |
-| `docs/codex/00-index/codex-module-review-prompt.md` | 1939 | `7153d5a1cf371dd2efc0eb6a8d58996c23b9aa62ad69dd3f4cee7bb08629f49b` |
-| `docs/codex/00-index/codex-module-test-prompt.md` | 2241 | `7130a1fae6bd3082939c3185a2970fb3dc68ece3ca2f5209d9db33ecb29a27e7` |
-| `docs/codex/00-index/codex-persistent-context.md` | 6582 | `1622412608cf4ca1001192dd497e990754f97d1d43950cd04c99d282e7e4a16f` |
-| `docs/codex/00-index/codex-prompt-boundary.md` | 4964 | `0a91a567aa1357b389bec2adce5eee874421fad9c44efc9467399680df807f64` |
-| `docs/codex/00-index/per-file-prompt-manifest.md` | 12177 | `af18c6bbc66a46a7abb970398858679ad0b8d3aa223afc92416ed13d39269c32` |
-| `docs/codex/00-index/source-to-codex-prompt-map.md` | 687875 | `49f2669ec8ead0b005f12f4a03127c21f80bc8cc4a47e5a2d7eb09ca2f5db87d` |
-| `docs/codex/01-foundation/AGENTS.md` | 4221 | `9f718537f998bce4cfec4462e4334536ca1fa8b2cc0c585267265f941e278e0f` |
-| `docs/codex/01-foundation/README.md` | 1823 | `2b27d7eb645883d270ef6f06f4acf4af9ff8472aaa41ea809dd01cea00ca9eb4` |
-| `docs/codex/01-foundation/codex-module-code-prompt.md` | 4014 | `76d7b1306a18761d04367bb34f3c99cf8423266a81060eb40094a09491a35a90` |
-| `docs/codex/01-foundation/codex-module-review-prompt.md` | 1964 | `0c467b8297a620182a8cddb0136e670da3fa132662ad91ee22fecf1adcef47ff` |
-| `docs/codex/01-foundation/codex-module-test-prompt.md` | 2267 | `dffabe3917aad455432a7737b9388074258c0437b387cc260c4c23460de7b584` |
-| `docs/codex/01-foundation/per-file-prompt-manifest.md` | 31651 | `dcfc5c14fb75a0a981be2901844ed0a43fd94894c5c970216406d6244d15ba5a` |
-| `docs/codex/02-domain-core/AGENTS.md` | 4221 | `b405de01a1f1e4410bf0a827e6ad411952452081dd607d5eda5b2caf9a4b5c52` |
-| `docs/codex/02-domain-core/README.md` | 1822 | `ce665807a87d7325236be9ab0b5de0a2af4d286919138bd1440bd020496bc9d3` |
-| `docs/codex/02-domain-core/codex-module-code-prompt.md` | 4013 | `d8042eef79aa33946da8f77908cbfea475decb3c83f8eb08b546405f69af6578` |
-| `docs/codex/02-domain-core/codex-module-review-prompt.md` | 1967 | `1f396759cb3a810ef2418786ef1b4a7a14e6c26ee59b6482bb9f38b4066a1135` |
-| `docs/codex/02-domain-core/codex-module-test-prompt.md` | 2267 | `a7d56a64fe081958bc272269e1e455e847f7775d37280fb6e55e0db0b04fb7e8` |
-| `docs/codex/02-domain-core/per-file-prompt-manifest.md` | 35528 | `5719dfac02aa88ddf48efb3d45e65d7f2ddbb683e04ecc05d1c355c504a58c20` |
-| `docs/codex/03-runtime-orchestration/AGENTS.md` | 4266 | `b7f436f4398de517acd91706361f018b251b857e38aaa8d1a1539699328c430f` |
-| `docs/codex/03-runtime-orchestration/README.md` | 1877 | `219160d5b843b9d038c914051de23f38046e9567337dc6e84aca19eafa074759` |
-| `docs/codex/03-runtime-orchestration/codex-module-code-prompt.md` | 4078 | `69fb8addf11d8c37994dca4f89fa60b936a192c0c872fd0f948ae52ee498293c` |
-| `docs/codex/03-runtime-orchestration/codex-module-review-prompt.md` | 1997 | `071dec9ca7665cb84a3e05d4bc85ae38e7d6063760404843ee2d081145062311` |
-| `docs/codex/03-runtime-orchestration/codex-module-test-prompt.md` | 2299 | `48bd65f3410181d5424b21501ee053b72c5ba8c2e16c975bacd0727733c73577` |
-| `docs/codex/03-runtime-orchestration/per-file-prompt-manifest.md` | 43111 | `49256846bb560d75e272f2505babfd5febe4b0dfea2fd272c7b5a66625524cf5` |
-| `docs/codex/04-ai-agent-system/AGENTS.md` | 4235 | `612617199d8d372a510fa38f307a74f22db17f4bfb8fb49fa2f57d85e7620f8f` |
-| `docs/codex/04-ai-agent-system/README.md` | 1837 | `31b6eb6ed2b5eec4525ca5404de98aa683e889af44cccb01335c1e41ce2d52c6` |
-| `docs/codex/04-ai-agent-system/codex-module-code-prompt.md` | 4033 | `fb798388d310b1556181e898f33ed34d35834f50f53aebde9bdb4974fbe2d7ff` |
-| `docs/codex/04-ai-agent-system/codex-module-review-prompt.md` | 1979 | `6a5d3b457f3cb6b813332cd41a34c4f4d5e4bfaa7a77dcb21dbe95eebaf2ff15` |
-| `docs/codex/04-ai-agent-system/codex-module-test-prompt.md` | 2287 | `571bf5909d29c8b57477af04bc6d058a92b2c0a1b3fe6af60d9d77cbe86ef16f` |
-| `docs/codex/04-ai-agent-system/per-file-prompt-manifest.md` | 33295 | `74f92a94582154101c6ea1bbe790affdba4b534f601a2cbe24bbe2300f096bdc` |
-| `docs/codex/05-ruleset-coc7/AGENTS.md` | 4213 | `513b49046a32e3783e573267eb7f620c4adcc7219d6ef7317948fe08858792f4` |
-| `docs/codex/05-ruleset-coc7/README.md` | 1814 | `d0c095541dc0ef10e3df5639670a05f653eb4cd44e09b723ac14aaf41b6bd95c` |
-| `docs/codex/05-ruleset-coc7/codex-module-code-prompt.md` | 4007 | `4f663fa65bb8fe0b1e7b5a5e13d74d4b91e4116cfc4200d164919d3dbde8a8d0` |
-| `docs/codex/05-ruleset-coc7/codex-module-review-prompt.md` | 1970 | `c5b73fc888df056cd0e3de39ebd5683de030aeb2a9e6fc85498c34ab7c1a502e` |
-| `docs/codex/05-ruleset-coc7/codex-module-test-prompt.md` | 2273 | `b41630f03cce85a5c712a3756506b5610faa1be6f9031a1af0f911a65ae294bd` |
-| `docs/codex/05-ruleset-coc7/per-file-prompt-manifest.md` | 22271 | `2872a3fef0eb120d5176d147ff8090a00ab8e7828b10b5401fb84e7f6e43d3ca` |
-| `docs/codex/06-data-eventing/AGENTS.md` | 4202 | `3d8f664ca913118d60655b25ab87b41451d0344c2b3c19e12ce5a2a3f2fbe140` |
-| `docs/codex/06-data-eventing/README.md` | 1805 | `32b9fa2b16910e29e222977eb3b48ba1c0b34d61f8bd7497925ae92e4999227e` |
-| `docs/codex/06-data-eventing/codex-module-code-prompt.md` | 3998 | `e272d3ebd67efb476d58756599ffe058ad58b5b3695b3c3cb30de7e7a41c6f4e` |
-| `docs/codex/06-data-eventing/codex-module-review-prompt.md` | 1973 | `9212e4a878cee5005d400b04292882b6b9fa5fbcd593767472012ece5e166d64` |
-| `docs/codex/06-data-eventing/codex-module-test-prompt.md` | 2279 | `c45af3472fab3056f85839f865a3da1445dfb38226cd0924cda247919332c5bd` |
-| `docs/codex/06-data-eventing/per-file-prompt-manifest.md` | 36689 | `56488c8b54e1f1d1233cf4ca71b5c82ee757858d2eb91d2052c2a19392e659d9` |
-| `docs/codex/07-api-realtime-contracts/AGENTS.md` | 4254 | `434335a0b69e2996af9636762d50dae140adfa5a174d42a8194ec93437060e14` |
-| `docs/codex/07-api-realtime-contracts/README.md` | 1855 | `4d47098cfa1277a1ad58b31ac7f67e832f4d70cd0cd8c0e911955214d348ca2c` |
-| `docs/codex/07-api-realtime-contracts/codex-module-code-prompt.md` | 4058 | `af93fa7b4b3e0dddf438b92a900781e30957bea1d1028e1962b255dcbadf02f0` |
-| `docs/codex/07-api-realtime-contracts/codex-module-review-prompt.md` | 2000 | `0698b31d60e4ae2e1d83e955cdfa62783091c332715b2bb17a594441dd8c5ea7` |
-| `docs/codex/07-api-realtime-contracts/codex-module-test-prompt.md` | 2295 | `f9d7c61942eafba129208a641f15122b52580387b94c1646eec2fc95d55f735b` |
-| `docs/codex/07-api-realtime-contracts/per-file-prompt-manifest.md` | 18868 | `3214a60e725804d3b2c511fce602bdca94145080e89d2493e39d3b317527a9a8` |
-| `docs/codex/08-platform-infrastructure/AGENTS.md` | 4234 | `3bc951cd6280bfce13ea1a179ace21d1154fe3846ce77becafe008157fe5c0a9` |
-| `docs/codex/08-platform-infrastructure/README.md` | 1846 | `29e12702fad088896851f8348253f584a6dfb3ccbedc14d5201d4842639b04c2` |
-| `docs/codex/08-platform-infrastructure/codex-module-code-prompt.md` | 4050 | `574ba931f26f9335cf7aa536ac22aeadf7a5ee79d87d97a9af1d1ae21dcee78b` |
-| `docs/codex/08-platform-infrastructure/codex-module-review-prompt.md` | 2003 | `5346236f4faedbf7551c299fb3b4525e7617b653ebb1335f6625855d7aa0e46d` |
-| `docs/codex/08-platform-infrastructure/codex-module-test-prompt.md` | 2309 | `9cc425a64a5f6247b9bf13233e765a2b01c8da5372557ae8981b5464dc7d7cff` |
-| `docs/codex/08-platform-infrastructure/per-file-prompt-manifest.md` | 30031 | `b313849af03c8d1527ea5ffa013949668c0c9325503eb7cc703b1e36d59eed3e` |
-| `docs/codex/09-security-governance/AGENTS.md` | 4243 | `3704f0ad163948b1a2361e9d8b7be047b2fe8194c17062ab12a0692569e89f13` |
-| `docs/codex/09-security-governance/README.md` | 1851 | `e3e39565cb798eb99ae35a97b8f18eecf6dbb176849345b09a89625241b614f5` |
-| `docs/codex/09-security-governance/codex-module-code-prompt.md` | 4051 | `6c00d0a799ea8be30ee6ab2ab4cc0134a36f12e06a8f063c7905aa989f650c8a` |
-| `docs/codex/09-security-governance/codex-module-review-prompt.md` | 1991 | `7e24060872d69beeba08649d1483b1ec975a710e75fe785caab82f36875bd40a` |
-| `docs/codex/09-security-governance/codex-module-test-prompt.md` | 2315 | `b8b42f528c8198912cf7fb0a85c9e1ed99d5efc95eaf225aec76f11632c8868e` |
-| `docs/codex/09-security-governance/per-file-prompt-manifest.md` | 20591 | `6401bd636cbbd4680b9f40372151cad6365d48fe4d4d0a5ff6129881847d2aad` |
-| `docs/codex/10-testing-quality/AGENTS.md` | 4213 | `5697e719417466ddedf7e9da6264137ddcf128256a2f037747b5a60d3df92513` |
-| `docs/codex/10-testing-quality/README.md` | 1817 | `cbfc7fcf22507dc26293457cc27add5298ec8980c018dbd0921dc29783058c10` |
-| `docs/codex/10-testing-quality/codex-module-code-prompt.md` | 4013 | `4071e4ca5ba3587eec893d1dd32d39111cd311dec3236ebc997fe0fda80f5199` |
-| `docs/codex/10-testing-quality/codex-module-review-prompt.md` | 1979 | `0c8d5e375f28bb6bac4c4d313f1c0b39b8d29ada4e13aead2a9d27e7889852fc` |
-| `docs/codex/10-testing-quality/codex-module-test-prompt.md` | 2275 | `6fe8305994fa9ede63b48490e83421e9efdae9da95d97b000c67bc1c4e5f192e` |
-| `docs/codex/10-testing-quality/per-file-prompt-manifest.md` | 27618 | `1daef698b8ba20c53da5ea540ec7b82803a737e5dd810e987e098c03f06a7149` |
-| `docs/codex/11-ops-migration/AGENTS.md` | 4214 | `560736f7104c61609b74afd933215f413e3d07ac689f1e2689892564c9a4ffdb` |
-| `docs/codex/11-ops-migration/README.md` | 1816 | `b1e57d70a0108edf078fe94f9f599667beb7c46ce45f5ae1b2345fa049e693db` |
-| `docs/codex/11-ops-migration/codex-module-code-prompt.md` | 4010 | `c47aacb1b65f59f040a08fb9ad75af6cad37d743f6cbb017fccf1a085257a91e` |
-| `docs/codex/11-ops-migration/codex-module-review-prompt.md` | 1973 | `9ad43d188d12775bfa1b1d7124d368d7c3ae017dc5dd5ebff9525cff858b25c6` |
-| `docs/codex/11-ops-migration/codex-module-test-prompt.md` | 2259 | `7d8558c543f4930c7789e2739a332b29cbb7857401a6367d1ab6a1b4dc38e278` |
-| `docs/codex/11-ops-migration/per-file-prompt-manifest.md` | 15292 | `8766764344a14f0df01694f4f5d560bd224195f154f41293f0513d8c29506d72` |
-| `docs/codex/12-extension-sdk/AGENTS.md` | 4231 | `4813a51d732b12e1c8417fa9edfc195729c966fe1854d45dca669dba84effb3c` |
-| `docs/codex/12-extension-sdk/README.md` | 1833 | `1a0a6f50b4f3e9e0363eb22fb0c5c52549253d28d46446fb9afcfe1fca825a32` |
-| `docs/codex/12-extension-sdk/codex-module-code-prompt.md` | 4027 | `667329ddcafab6eade9b13d3fe825c8d0d781a9a0eafd5132985744c643ce357` |
-| `docs/codex/12-extension-sdk/codex-module-review-prompt.md` | 1973 | `096443e1aafe06e2a9a3f68343959fa0635020d15436521e1cac3dccafeaccd5` |
-| `docs/codex/12-extension-sdk/codex-module-test-prompt.md` | 2279 | `888c7fdb13515fc52a46ada9705bd9d2b64b851290d9d18ebfc79ea782a47eea` |
-| `docs/codex/12-extension-sdk/per-file-prompt-manifest.md` | 11695 | `d4900d2668227b0947ce324899533ce0d8e775c439d80520ec335f0b45a5bf33` |
-| `docs/codex/90-traceability/AGENTS.md` | 4223 | `1f848368ac5c498ee077fdbe2771ca1a34d4d46d380a73b3e24d4a6b3dd2b390` |
-| `docs/codex/90-traceability/README.md` | 1825 | `fc34fa6c777d9a06e38119350feef632e8f4d001f8014bcfaba4f8b173c9528b` |
-| `docs/codex/90-traceability/codex-module-code-prompt.md` | 4017 | `1db35ba712a1b0f2ea098d80c5e3e33313649a7186d123a9bd234a64ed9424ad` |
-| `docs/codex/90-traceability/codex-module-review-prompt.md` | 1967 | `2dcd0d178503d3cf6f55a8b03a53a99770ac7535c7ade681d6831f6199819ab6` |
-| `docs/codex/90-traceability/codex-module-test-prompt.md` | 2276 | `27902b25d83c12ef82c4ec9034730a0fad688709b973c090661f02844379ee4f` |
-| `docs/codex/90-traceability/output-path-ownership-matrix.md` | 82501 | `b969d42792e47a9db467df268fa3cf677510ad7d1b1d67212c255332391bbfcb` |
-| `docs/codex/90-traceability/per-file-prompt-index.md` | 395587 | `d48df9e71b9367e4f2d29500540aeb41ce9b4dbe97ee9d0982f703c6c7fe3147` |
-| `docs/codex/90-traceability/per-file-prompt-manifest.md` | 682747 | `a9fb8f2225ee9c048167cea7e6ff4392163e6698d1587959e6f8cb081315bbfe` |
-| `docs/codex/90-traceability/previous-disposition-matrix-codex.md` | 305666 | `51bc2883bde245de3682b79b53dc52a942268630e12efd34c5cd50b5c0653c43` |
-| `docs/codex/90-traceability/prompt-generation-matrix.md` | 110157 | `357e53a3174aee988c8a3abbb4e721b31f5b0d41718c804751ea45a9f9f186fe` |
-| `docs/codex/90-traceability/read-every-file-audit-codex.md` | 310946 | `b2fb37865e856ceeb8be66ee9db38ba69e6fa0ce39eb523fcb54db963c6fe923` |
-| `docs/codex/99-appendix/AGENTS.md` | 4196 | `3006bca1059d2d7a2e16d0cd5daeaf4a138a599c509aab84fe57924f588856df` |
-| `docs/codex/99-appendix/README.md` | 1463 | `bb14885817a696a9cc71ed507ce3f6f5e1e44a188d38f305f663f5df8e96bba8` |
-| `docs/codex/99-appendix/codex-module-code-prompt.md` | 3982 | `5f2c5302152eb4a366dfc43d7272e7652eaa5809a2c7d70a069df17c56d69876` |
-| `docs/codex/99-appendix/codex-module-review-prompt.md` | 1954 | `1fc63a14da355b06d437575d666d1ea30c7588f9a6ca79ea10ccd5956f8633bd` |
-| `docs/codex/99-appendix/codex-module-test-prompt.md` | 2259 | `561e18c9afa93f4d0721a676eba79093c164867403fbbecfb196c18859aea185` |
-| `docs/codex/99-appendix/codex-official-reference-notes.md` | 2399 | `53ff703482a2489f7dd4615852121119c6eb3ab05b90ffe6dc417c9ee3f1073e` |
-| `docs/codex/99-appendix/codex-prompt-template.md` | 2664 | `c93d11aef6aee1a28cba698ce07bf68b75498164763deee7ff2d187aaed76c11` |
-| `docs/codex/99-appendix/codex-test-command-catalog.md` | 2389 | `b063a5ba6bf41a33055a8344607bc66f6be52be348ad12d48221d37e131ec60a` |
-| `docs/codex/99-appendix/per-file-prompt-manifest.md` | 9377 | `c4b8fdc15f05891fc696a62cc347858da8e1548d48e538db259afc9971d60584` |
-| `docs/codex/99-appendix/previous-cleanup-policy-codex.md` | 1944 | `1f7111c51d1b5ad181091b736cfd3bda0932acade377b000cb37439e2af8a241` |
-| `docs/codex/99-appendix/unresolved-codex-questions.md` | 2127 | `c65f2b0cfd55dca2c08f2d08d0c2b7dbb6b096687abec1b581720eeb8749df38` |
-| `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md` | 39870 | `adf32ae3c77c062bb4fa55031376588a1664e41e74b5b2ba6f3100df4f3189f0` |
-| `fixtures/README.md` | 2970 | `ec04885ec68f6f373a3e3993e465d8237818fffe4fce30a22f51e72b95077bed` |
-| `fixtures/actions/golden_salt_bell_action_sequence.v1.json.md` | 1968 | `0e692ab7ad42fe7c8c954033bd4e00c40ac7cf7dc8705bad926a25459a576e0b` |
-| `fixtures/agent/agent_tool_gate_cases.v1.json.md` | 1514 | `4863ddb05734fd56b645172ec76f06ff66f6072c5eee41962ed472b329b64af9` |
-| `fixtures/agent/ai_decision_record_cases.v1.json.md` | 1037 | `75eff7f2e8ae580957cae43fff6aed8c67cc0467a912665d50b60cfd9fc7a569` |
-| `fixtures/api/api_ws_nats_contract_cases.v1.json.md` | 1146 | `a6dd10885b8c2c98ab1300aacc66720430518c9ae1276b584e851e3ffde26dba` |
-| `fixtures/authority/authority_contract_cases.v1.json.md` | 2180 | `d2514fd7807ca29767b35a5a3c21ff358a66eb7e36dd8ec4886aa627da2b8565` |
-| `fixtures/authority/fork_lineage_cases.v1.json.md` | 928 | `c512a03fd1a81575ccac8117a64d4237cb9f2bc87520abeb7d2b43d3c5fbc2f1` |
-| `fixtures/change-control/change_control_cases.v1.json.md` | 741 | `5327b0eeb3ffffb84318221899092032e30715b7e3228985f65c441d6db3444d` |
-| `fixtures/ci/v1_acceptance_evidence_schema.v1.json.md` | 480 | `56c78d910ae08545e9d1e233ed311ceb923dfb1364963a051eedb18bedfc0917` |
-| `fixtures/event_store/golden_event_stream_expected.v1.json.md` | 1541 | `7d1d4e081719d97ced71b85ed0840ca37bf72485766eaba40ea4006ab4536fec` |
-| `fixtures/export/export_snapshots_expected.v1.json.md` | 813 | `749f404a1931134d854527f7db04c734f4de46692046e208d9de6bae53884136` |
-| `fixtures/ops/backup_restore_projection_rebuild.v1.json.md` | 932 | `2be84b859c525a7b002c668914793a9aad65500c448f7d9f471e784083dde8f9` |
-| `fixtures/provider/model_certification_matrix.v1.json.md` | 1647 | `84bd01e6fd8e72961487be803c9200d5a2fd1ecc3003ab6613275fb132d2db9c` |
-| `fixtures/rag/rag_snapshot_cases.v1.json.md` | 1175 | `8b98c9269c17f0de6f4fab772e0d8f23ab6817abd5321ef8674c8e3c0a819756` |
-| `fixtures/rules/coc7_character_creation_review.v1.json.md` | 948 | `1b2bf8b4ccc40dd0a8cd1b9cbf9cffd3d12acd709d54de49406319126eb5447d` |
-| `fixtures/rules/coc7_dice_matrix.v1.json.md` | 1242 | `34f8f0a9246dc185c5dc92c4e2209b22a3c4f0de01732a2aadbedf67423ca1a1` |
-| `fixtures/rules/coc7_san_combat_chase_flow.v1.json.md` | 1317 | `40b20137be35afb5a9824c19ea4c3711e6d3c0a699577616116b0efc6b6460f5` |
-| `fixtures/scenarios/golden_salt_bell.scenario.yaml.md` | 2060 | `c43cda6d652d33d39566254f8ca861792bd061a8533d8c66e283e407fe86e890` |
-| `fixtures/scenarios/tutorial_mist_archive.scenario.yaml.md` | 2430 | `a7972c359b58a5b08716db02193725e234ace5999764a47642ef3cbb8fbf54e4` |
-| `fixtures/security/permission_matrix.v1.json.md` | 922 | `975962b7e84d00d8c06de8d7c30ee4778660866c546fc669555c7eeb7af9bebe` |
-| `fixtures/stages/S00_stage_acceptance_fixture.v1.json.md` | 757 | `195c5bad004c94492e8effdf16eddc1b760810e959e257624bffa5e53da8a008` |
-| `fixtures/stages/S01_stage_acceptance_fixture.v1.json.md` | 775 | `44789d424fd90c4fb1508830ead0ec51d89620298f2e140d3dd43538e1b9236c` |
-| `fixtures/stages/S02_stage_acceptance_fixture.v1.json.md` | 829 | `3bca71e99ce672b4792b9f486e44bf1f958cf7d5e2f28c41927d7ac178bfc466` |
-| `fixtures/stages/S03_stage_acceptance_fixture.v1.json.md` | 781 | `5c25fbb217ddfdfcf9bb4365e7b835b0306f578a17e8c75a57cda9cb29d48097` |
-| `fixtures/stages/S04_stage_acceptance_fixture.v1.json.md` | 787 | `c50a7d0788599a70669fbba06527dcc84b65fcc1bd7fb4e692c0ebc2ed5602a9` |
-| `fixtures/stages/S05_stage_acceptance_fixture.v1.json.md` | 745 | `64b3ae26088db9bc855eb07ee24868d151d476256a324cc63b13c86ed115e313` |
-| `fixtures/stages/S06_stage_acceptance_fixture.v1.json.md` | 865 | `ca5f46ddd5a2bef61e47770438c933719c35d5b41086937a1b5e5563b72f547f` |
-| `fixtures/stages/S07_stage_acceptance_fixture.v1.json.md` | 829 | `d074d7e558249c190982f2753eeef8578f3a5eb69098f74963ef37214df21bf8` |
-| `fixtures/stages/S08_stage_acceptance_fixture.v1.json.md` | 763 | `fb2a00e483eb87d1f76a379cdd5f5dbccf00e80721c9b538f111e51616816191` |
-| `fixtures/stages/S09_stage_acceptance_fixture.v1.json.md` | 835 | `71beb9ff1c4415bf52c541e36e715f09760219f9aa2be09fc2a2e83945792edc` |
-| `fixtures/stages/S10_stage_acceptance_fixture.v1.json.md` | 763 | `1ea5d203b33550b9a0cdd7e711adad60998041e3e483824cf2c35e94bb8b559a` |
-| `fixtures/stages/S11_stage_acceptance_fixture.v1.json.md` | 781 | `9e990c2e402114a048e0f95ebac410d20a57297b775497556e274e4f9df600e3` |
-| `fixtures/stages/S12_stage_acceptance_fixture.v1.json.md` | 781 | `8acd3eafa9209ef390ed5ccc05f3ca1bdecf8b766123e354938ee73974282989` |
-| `fixtures/stages/S13_stage_acceptance_fixture.v1.json.md` | 751 | `12a85ddf19fa994f140a15a30d08a9faa87c1963ddf118e2cdaeeec96d63146c` |
-| `fixtures/stages/detailed/S00_governance_onboarding.current.json.md` | 1877 | `82e0dfc955facf9679ddb3b0aadfb599922093aadce05591525456c73aa02abb` |
-| `fixtures/stages/detailed/S01_foundation_shared_kernel.current.json.md` | 1599 | `fb7f77d80cae141aa1bdedff3d53848ecc43e238430ad6842ec2e16469f9c705` |
-| `fixtures/stages/detailed/S02_authority_event_expected_records.current.json.md` | 2638 | `8c304b188fb2c05af3f55bec01a812aba7b0fd850daefcb52668bfde438e65da` |
-| `fixtures/stages/detailed/S03_event_store_projection_hash.current.json.md` | 2090 | `57eadda11ff974c9c3df6a4f8c0623c7ad55a3dc2424b99dd8214f303f1cd3f6` |
-| `fixtures/stages/detailed/S04_visibility_policy_errors.current.json.md` | 2086 | `5242901f6ad2d4ba044c58dc6d85473ebad9396ff3108787c62a0ef139e875d4` |
-| `fixtures/stages/detailed/S05_coc7_roll_san_combat_chase_expected.current.json.md` | 2330 | `0a3aaa55b6d15205dd317395af7a3a78a179f0371d88c1d5a5fabf9a5c36a2a7` |
-| `fixtures/stages/detailed/S06_decision_pipeline_commit_expected.current.json.md` | 1935 | `f6caedb7119a8444a7da59cbb8c7eaf3187e2830de5cc95a49f7f838e4d3419b` |
-| `fixtures/stages/detailed/S07_provider_rag_model_cert_expected.current.json.md` | 2375 | `5148eee25a9c710754d1f3ed0f2cf107cb3da661c5a990b74ed3822a232e8da4` |
-| `fixtures/stages/detailed/S08_api_ws_nats_expected.current.json.md` | 2263 | `00ea32663d62f31bdd4019342f834d8a466abe10be941c143df8f4de6c8b95b2` |
-| `fixtures/stages/detailed/S09_platform_infrastructure_deployment_expected.current.json.md` | 2277 | `67baa9ba84e159f893512cac57c9096a7fe617a19b9fdd8e9c024ee04f5c6801` |
-| `fixtures/stages/detailed/S10_ops_migration_runbooks_expected.current.json.md` | 2251 | `9340a02bd2a7bd0b5adca1c8bbb3bd19c84bbb8d8fa46b651d81ad0d535d8817` |
-| `fixtures/stages/detailed/S11_golden_visibility_export_diff_expected.current.json.md` | 2080 | `c880094d9772770647ab652e77e67f6ce02d9eda5ed2cb98bc37608692246b00` |
-| `fixtures/stages/detailed/S12_extension_sdk_ui_boundary_expected.current.json.md` | 2063 | `6aa44947af2ff7107105e4621e75e7529214b8ead512fb344335eb604ead119a` |
-| `fixtures/stages/detailed/S13_v1_release_evidence_expected.current.json.md` | 2067 | `1c7a3cd68879d9b2d332f9cb769d0a55200e57d120563c086a795d71b489eaf8` |
-| `fixtures/visibility/visibility_redaction_matrix.v1.json.md` | 1285 | `1c8b22679ccfb48d632e81e53d5cde3c9184a569053705e8faa0927fc8db4492` |
-| `inventory/ALL_PROVIDED_FILE_SCREENING.md` | 354653 | `69da4da30f16a7b44a7815c9ade526acba8a881dd3caf2492d1ff126a86b93ec` |
-| `inventory/CODEX_PROMPT_INVENTORY.md` | 722572 | `22789169a7f7923fca87185d91cd11e85c54feb0dd031fdd6881237b73c2be23` |
-| `inventory/EXECUTION_BATCH_MAPPING.md` | 4345 | `1469c7fd7e956d51f270e9533b51b146789ad8549b8c71cf8fc72ff5f1e5c6d5` |
-| `inventory/INPUT_FILE_INVENTORY.md` | 170083 | `7feb1a8713ddd4ffc37e54cb691c71ce3909b68948570d3de7a973b06d13e0e6` |
-| `inventory/ORIGINAL_PATH_PROVENANCE_MAP.md` | 95151 | `a42180c27efa6514b92aae70219cb8c16b10e1c8ff65854c171e2532296a1997` |
-| `inventory/ORIGINAL_V6_EXACT_ZIP_COVERAGE.md` | 199089 | `da643dca9372ef0f218e7e65e57c32479c96fb66d38c2124889f4be3fe87a33f` |
-| `inventory/PATH_REWRITE_MAP.md` | 570205 | `a041219d19b51f0d9b762a070cbb90c36cedce6575ffcd1b1222d43c2725cdf6` |
-| `inventory/SOURCE_SELECTION_DECISION_LOG.md` | 23900 | `1b2bd4b350dcff22cf45e48006abe70a327d3a1c956b0f371c3879538d9b3cbd` |
-| `inventory/V221_FULL_FILE_CLEANUP_AUDIT.md` | 281988 | `9037fe3ab84ae9c1c10f5d18faa1525bdb40a6fc4d4942a074d0d8dd5c6be633` |
-| `inventory/V221_FULL_PACKAGE_MARKDOWN_CLOSURE_MATRIX.md` | 512 | `d8e7b5398997b82b41f129a9773d75af1c4152b26bce5492762ea1599a698d40` |
-| `manifests/CURRENT_PACKAGE_MANIFEST.md` | SELF-REFERENTIAL | `SELF-REFERENTIAL` |
-| `manifests/README.md` | 502 | `a5718df554df9485fed523dffa2cd2db82f20e1d1d6c736145927fd13f4259f8` |
-| `manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md` | SELF-REFERENTIAL | `SELF-REFERENTIAL` |
-| `manifests/V221_BUILD_SUMMARY.json.md` | 460 | `1c563f473ecaeb679a61d507f33845465e8743ffb6a65de6d783cffc718aa9f9` |
-| `manifests/V221_STRICT_VALIDATION_REPORT.md` | 930 | `ea6226f111d94ebf313d88993f181728fd098f9a3b4212ce6b0ac7bb2c01c716` |
-| `prompts/persistent/00_REPO_AGENTS.md` | 2824 | `e321d9d6f1211a236282f7991b6bb3d3fc88a15def9b07db3bf421e3f17380a1` |
-| `prompts/persistent/01_CODEX_EXECUTION_PROTOCOL.md` | 540 | `b0a5a3484d52944f2b9208191305775bbafc299c63556953a1a8ba029ad64866` |
-| `prompts/persistent/02_DESIGN_CONSTRAINTS.md` | 401 | `a360fa75aac62940b75592f2630db6765f8fbc48d9c6aa6aa5210e09e2ff9a82` |
-| `prompts/persistent/03_STAGE_START_TEMPLATE.md` | 663 | `b1421577f455103778744bbcd090a2fd16d3df618089d018063e8657752b7899` |
-| `prompts/persistent/04_STAGE_ACCEPTANCE_TEMPLATE.md` | 651 | `23c5197b398ec19cb5d7ed1eda18231357b01a3a8ed2a8121d6d6abe8ae6afe0` |
-| `prompts/persistent/05_REVIEWER_PROMPT.md` | 381 | `4a0feec836d1c2dfe90f05038b50a68999498af067c5e078f5a00ab624592dc9` |
-| `prompts/persistent/06_REPAIR_PROMPT.md` | 362 | `ec76858f0edc3dcf962d53ce89b78a031df08c6ffb8dd60fbbef64b11b6136f8` |
-| `prompts/persistent/07_TEST_AGENT_PROMPT.md` | 362 | `d2f5245ac8c23138bae47874dcab506459fec12556bd61b63c5310596787f45b` |
-| `prompts/persistent/08_SCHEMA_MIGRATION_PROMPT.md` | 321 | `92d29f75aab37c39ca446c50b0cff6367a8a3a48fdcfa793cf574b014d6dceac` |
-| `prompts/persistent/09_SECURITY_PRIVACY_REVIEW_PROMPT.md` | 373 | `9a465c5cc802459e3831801a8657314d80e4d0d5545cc90064e76290d1662a43` |
-| `prompts/persistent/10_AGENT_GOVERNANCE_REVIEW_PROMPT.md` | 374 | `5457148af42b0a48fbae5e46c0e055090258e66ec21d559a56aff8fa214826d0` |
-| `prompts/persistent/11_RELEASE_MANAGER_PROMPT.md` | 455 | `29a3bed0d10cbd89eeb17470c76aa481063b1bc240c9dcb77598c381ec20368a` |
-| `prompts/persistent/12_CI_FAILURE_TRIAGE_PROMPT.md` | 363 | `9a70164751f6793a0f6a16219eaecbebbc0bc632b2d377967341554ae261fe01` |
-| `prompts/persistent/13_CHANGE_CONTROL_GATE_PROMPT.md` | 366 | `10fd38595691fc9f19da72e304bc8576b297440abbd2613c2ebdb7efca77901d` |
-| `prompts/persistent/14_CODEX_OUTPUT_REPORT_TEMPLATE.md` | 297 | `8c13d0d1faa8b8fb9c6caed03a8e9af0177f96a24f5e8c545b1341a638fe44ea` |
-| `prompts/persistent/15_CURRENT_NORMALIZATION_PROMPT.md` | 688 | `e4f62b47e9ee06bdb4cf6e8396831fb588cfe905683ebe6b902093973607632b` |
-| `source-archive/provenance/S0001.md` | 855 | `5251b7b2c9d30df5814d8be973dd97994e922e5aba2c8e98d33dce5a5804d6e8` |
-| `source-archive/provenance/S0002.md` | 2000 | `3a4318e4fb1eba9a268b04f81a7e3481fca21b3f591b74728adb9a8c9d30ea88` |
-| `source-archive/provenance/S0003.md` | 939 | `b77a73e6df962fc35f4582f78ddeae01cae7e17c4b9840df1dba47508bc84280` |
-| `source-archive/provenance/S0004.md` | 936 | `f399321c72e3f572c2c2516f4aa08d372cb79d64beae7e9b1ff5871a37a9aa4c` |
-| `source-archive/provenance/S0005.md` | 1051 | `33c87a7fb88c5af5e86c5b9a70799957e4195429281ea213d3022fbed66810be` |
-| `source-archive/provenance/S0006.md` | 982 | `efd33706734585947d301c4430adf3d0c75358ded56cd7945c6c4b0d7698df69` |
-| `source-archive/provenance/S0007.md` | 982 | `efd33706734585947d301c4430adf3d0c75358ded56cd7945c6c4b0d7698df69` |
-| `source-archive/quarantined/S0001.md` | 1427 | `a1306e16fab870bc341c4710b90d845639e01b9e94630db8fe78460df4218893` |
-| `source-archive/quarantined/S0002.md` | 99039 | `94b23a269a6c238dbf7ff2e1d68d38898086943dcc5bd99f97dd8662cf52de68` |
-| `source-archive/quarantined/S0003.md` | 3557 | `79455627036d55004d7121c9bf13f6b685812704a7ac34ff9e65530665d6af59` |
-| `source-archive/quarantined/S0004.md` | 1846 | `47274cc8e54f3141204b0c65bd0ff96e9b8d49f1ef5c8ee3ba48fb2dc5a3dc6b` |
-| `source-archive/quarantined/S0005.md` | 1776 | `6210852c5aead75ce8508690e8a2b73c82feb4a75baacb73aa70f41d2c518742` |
-| `source-archive/quarantined/S0006.md` | 1922 | `95e24caba5b37ca52121e30a7d48ea34f81b6273d84d8f70b352cec46cdee2b8` |
-| `source-archive/quarantined/S0007.md` | 3051 | `6bc96f0b58b626135083aea66a603c93e2fef926c067c0936f6448c690466cf6` |
-| `source-archive/quarantined/S0008.md` | 2209 | `fb366884c778ef33f239e0fefa3cc1b6dddc3be30599b8e0bfca7776c5f3e49d` |
-| `source-archive/quarantined/S0009.md` | 2465 | `53e9aa68ccf915718262bb57c9c62239a62bdb2a87313e866619bd15b23a1139` |
-| `source-archive/quarantined/S0010.md` | 3031 | `df390abb10c14e34042918d8be84bfc07ea6d8f4c9894f6497b88dfb58a2bbb2` |
-| `source-archive/quarantined/S0011.md` | 2398 | `f819fcc8530a35a88fb14ed7bd67138ee2afe7c39ae7085ebcaa0f3634b7d877` |
-| `source-archive/quarantined/S0012.md` | 2049 | `d1483176bd2261ab9801a875f059e1a19446abc0f34e68a0b6ce5121b1b7d8e7` |
-| `source-archive/quarantined/S0013.md` | 2568 | `1fd9a8795a6ca3e7361c71c4b29998c34cddbc8597282a617cc00062b74c8222` |
-| `source-archive/quarantined/S0014.md` | 2388 | `0d8e22d6b75fd1f0a6f443087bf0a3caa9dedb98a54242ced591adb89c8d5375` |
-| `source-archive/quarantined/S0015.md` | 3274 | `d00cf089eda9cdffa87a47ac08afe039f00ebb91698349e684a80090b8f81f33` |
-| `source-archive/quarantined/S0016.md` | 2183 | `47537f1c705792bead46137fcc304831d447037686ef0b509de65505b3c09ccc` |
-| `source-archive/quarantined/S0017.md` | 2485 | `9f22b14335cffb430526cb7599424fe7283f4906e1165e3618a6f83d42e0fa6c` |
-| `source-archive/quarantined/S0018.md` | 2529 | `20932fd7d902abf4a2992db58a91d4542df3350509bdcc800f556a17aa0b1cb2` |
-| `source-archive/quarantined/S0019.md` | 2375 | `1ece940be31f27996ff10ef5b7db33790a06d3520d4f6ef09d98bebf095a0e6b` |
-| `source-archive/quarantined/S0020.md` | 3749 | `82b828eb9202ec82c57be6e0c9a7c2ec5ff65c3b4551f8a83d033608014abd64` |
-| `source-archive/quarantined/S0021.md` | 2561 | `30d6da0638eac5903bb15847ec5f49c877f911c42057a6a1f113a336b51e9c9e` |
-| `source-archive/quarantined/S0022.md` | 2024 | `a32a9b68668ea999672661a3d1d90aec88109f45c283120f0583453b030b6f73` |
-| `source-archive/quarantined/S0023.md` | 3598 | `939767c88649ab942b77400ba10fcd484eafecf446ad6c7f5475bcaf331f1a8c` |
-| `source-archive/quarantined/S0024.md` | 2217 | `155b26151007d90199718895d3cd3fe8f867248e53df83f51816c3e7cba3081c` |
-| `source-archive/quarantined/S0025.md` | 2525 | `cfcdcfe8c91a064b4f870bf93512db17fe5968f287373e5243efac7c445da282` |
-| `source-archive/reviews/S0001.md` | 8000 | `523783a4b399e9754b4d2f111fa40054d434d9991b4c71be3fa0542b42880457` |
-| `source-archive/reviews/S0002.md` | 12212 | `86067535f4330395a75dfa9c825488c86f3827440b9e67ba8b1fbda5ec0c5e9f` |
-| `source-archive/root/S0001.md` | 858 | `7c1591f57022aeb7903774364c8d56d461e6e0498f348b56e172e7402b72c1d2` |
-| `source-archive/superseded/S0001.md` | 1396 | `10d5267f8b72499dea8542ec49470aeb8e516849e8ee0ee509ca87014e405429` |
-| `source-archive/superseded/S0002.md` | 2690 | `96e7abcfcc69fce1d53316b1101285d0a91e47a3532b120aa7bcf151e8534178` |
-| `source-archive/superseded/S0003.md` | 2690 | `96e7abcfcc69fce1d53316b1101285d0a91e47a3532b120aa7bcf151e8534178` |
-| `source-archive/superseded/S0004.md` | 4275 | `d07ad586080d0ff3980655cc4e0699524f1562431fa256e2396c2d9e510ab7c3` |
-| `source-archive/superseded/S0005.md` | 1205 | `514594fd75e2f0040d3b357ec9564fdaa79ca53329fb732230820b1ad14e7640` |
-| `source-archive/superseded/S0006.md` | 4275 | `d07ad586080d0ff3980655cc4e0699524f1562431fa256e2396c2d9e510ab7c3` |
-| `source-archive/superseded/S0007.md` | 346 | `7c5b6cc9bc29ccad66b5bdaf2a776be27b90fe5785b7e673a2e6f16ee89d61dc` |
-| `source-archive/superseded/S0008.md` | 9996 | `afdebe964121611b7db28eb285a24b0338b0182d82aea9431c4fe2f54db52686` |
-| `source-archive/superseded/S0009.md` | 8006 | `bc4669b84329e492e5cbe49594ae934298f4f329e06b791a7db2ea896d6725cf` |
-| `source-archive/superseded/S0010.md` | 7380 | `f5d7669af76810eda70964fbc6553d2855d41dea2d880f5dddccc188efee86f6` |
-| `source-archive/superseded/S0011.md` | 12214 | `a22b1bfc5722d6fd306b24bca5db0b71f495e1b3c9c1f25dd7ba6f7441cc3546` |
-| `source-archive/superseded/S0012.md` | 736 | `d0f03cacd8cae56ed739c582335252d6ba58e57baa0d0c789a1f12201a7169d2` |
-| `source-archive/superseded/S0013.md` | 17992 | `768f33fe1d14903a2d210a02d44a3c2a23f6497ee6906dd171d57139ab9a01c7` |
-| `source-archive/superseded/S0014.md` | 17870 | `ccea9c4775792b71331966a63ae9275cbd9d7b9ff11b3c4928baab76b04bf528` |
-| `source-archive/superseded/S0015.md` | 337 | `05920d9e8d7af4fbee4b50af62e691beaee91389e0a75d4251e1c9c0b15171a0` |
-| `source-archive/superseded/S0016.md` | 185892 | `47e347d9d6af59c6ba65f0db21a1741bcfaf60ccbd4d8ab820e15103256a6fed` |
-| `source-archive/superseded/S0017.md` | 1507 | `ed7b1ee993db37b434cb7105fb835d9f5b4db8965992eb1fe92a8d2c7cc1f2f3` |
-| `source-archive/v6-legacy/S0001.md` | 361680 | `4bd09f69376cf77b812be929d21d92c4b14a0399c5e8e74a8d883d437bead31c` |
-| `source-archive/v6-legacy/S0002.md` | 7986 | `0c7db77e0d090f438a2546ddc6f5e0daeb921d86085fbf1c9d96226465061e83` |
-| `source-archive/v6-legacy/S0003.md` | 11617 | `c1d6dea73a7148067e5d0075809b318a9fab54449dde2cc25eb333189f3349a6` |
-| `source-archive/v6-legacy/S0004.md` | 11615 | `2be9e6e5b271139f4f55bab74ca05bb8a9973dba9094527edbce81caec531999` |
-| `source-archive/v6-legacy/S0005.md` | 11139 | `1c69e2abf3cb2e9657f6c370422d08c778b90c889025183d490a803d6ff78e58` |
-| `source-archive/v6-legacy/S0006.md` | 11150 | `e2645ed0cb21d7feac60462ea396ae3212dd33e96e80141203c60d35a9c635d0` |
-| `source-archive/v6-legacy/S0007.md` | 11224 | `acdadb11077ac0ebc171d3ce88e08ab5bca67b4dcc36ca7ceca13724ad1b7791` |
-| `source-archive/v6-legacy/S0008.md` | 11221 | `5bdec20c306bc54788fcb7488d373e4c764ab954aa2a6f69c568aa6fa555e823` |
-| `source-archive/v6-legacy/S0009.md` | 11221 | `0436a0f9649ce2db80f45e6eaebf596da0f3672248fa5c42bd52302c55f74159` |
-| `source-archive/v6-legacy/S0010.md` | 11197 | `f7dff6523948c55d7f7d75af76245a28214472ecfaa453a324e0a075c016acc9` |
-| `source-archive/v6-legacy/S0011.md` | 11412 | `2d666f14ddda2a15d1404b702020ce7019c8f9ac9f4eeae915ee6e8866cb9a22` |
-| `source-archive/v6-legacy/S0012.md` | 11071 | `1dc8c01514f165ff6364663008620f9538baee67e58b1a5bb58e13a8361f8abf` |
-| `source-archive/v6-legacy/S0013.md` | 11539 | `b9a4aec8f6bf229d090ab5b20cddaa5483f16450a1649b9258d270dcce7dabb7` |
-| `source-archive/v6-legacy/S0014.md` | 11562 | `fa9d707a33c41d558508f2bfafc5670c1c23589026a4b07cd260562720114104` |
-| `source-archive/v6-legacy/S0015.md` | 11351 | `d2ea5a5113b2f0260cccf362d8f537db65fd5c8bf34461472a800eae4d2b1bf0` |
-| `source-archive/v6-legacy/S0016.md` | 11519 | `51bd0d73fe6c6853e9d0ca5bda62d4cc17173a5257f698c7d69d6125c06a2d92` |
-| `source-archive/v6-legacy/S0017.md` | 11220 | `ecffd13e535bd04c1de60f32127496b75ca0cb16066f5b44c5f9a41b6bd75f5f` |
-| `source-archive/v6-legacy/S0018.md` | 11294 | `54d3f28eaa63b82fd8926ff0033035661ea6fc0d7bcb60fc83b3fb02cb7f3713` |
-| `source-archive/v6-legacy/S0019.md` | 11291 | `59fa9976ce8b00bc0e2c5a612c11cf39814b4d5ca7f88dcd9c72357e811525ff` |
-| `source-archive/v6-legacy/S0020.md` | 11267 | `0a0f9f9bf0a79f074d9a04f892b03f44451249f4f7ee330fb6570f06cdb02491` |
-| `source-archive/v6-legacy/S0021.md` | 11141 | `730f84b8e6e113ca3f05d9cb1f77b694d031192756c66bc3248331c514cd8291` |
-| `source-archive/v6-legacy/S0022.md` | 11632 | `055e6c9f9968064385ed6eff81646714103932f82028e69cfe7e0424819d814e` |
-| `source-archive/v6-legacy/S0023.md` | 11693 | `e18607d7fd9d92ccf7c64031bef963cb602ff924aac7bb637e50a5c70d267b62` |
-| `source-archive/v6-legacy/S0024.md` | 11595 | `230237c826cee21a12fa51fbfeeaa6471a28b528ce858c5a316e7aae6fa7abe5` |
-| `source-archive/v6-legacy/S0025.md` | 11628 | `da1c9b7a38d7faefcc029581772fd99ecff0bc4c451181e89630ddb199cb0fb3` |
-| `source-archive/v6-legacy/S0026.md` | 11365 | `04046331ab306b36647b08f5e4d3c44f645f0089c1fc56606a7a1fc5d5428934` |
-| `source-archive/v6-legacy/S0027.md` | 6498 | `4e3146a12441ee3967877ddb602c722bdeae0294dadfb723e8d9580cd91c0004` |
-| `source-archive/v6-legacy/S0028.md` | 8111 | `f211c18a972a1b7316cae5daa37341a668a6f93b8c4903c4c7cce55964224328` |
-| `source-archive/v6-legacy/S0029.md` | 15035 | `07c3b8ca1e7cc4478f872c4f159d63dd63087bde0e9f63bf321bd638dc5df8b2` |
-| `source-archive/v6-legacy/S0030.md` | 14827 | `d4080528952f8fb37f24ce62dc26b4a21d45b8fe1557cf2dd0c0ead4f8bd5be9` |
-| `source-archive/v6-legacy/S0031.md` | 14887 | `457b207cd5aa82624e1329202f455747b4560ce49e91e2dacd475a290602ec02` |
-| `source-archive/v6-legacy/S0032.md` | 14971 | `734f38e09eaa7726dd1ee2dde3eca88228a406fe9d6e3e59dcb3802c29d17977` |
-| `source-archive/v6-legacy/S0033.md` | 15014 | `d1e729df0dd64f0761134f0c2accd1f4b3b5e38b088f00733a2d120059a4d394` |
-| `source-archive/v6-legacy/S0034.md` | 14714 | `adb4ca6716313808b4312a8d4ea4af97f28dbec30c8a9eacb163f6dd63aa20f9` |
-| `source-archive/v6-legacy/S0035.md` | 14981 | `cf360cdd66b98de8ddee24e356c74b3e16eb3fd682f6f8222e0c190858dbb8e0` |
-| `source-archive/v6-legacy/S0036.md` | 15060 | `dbee7d5e2997624882dbd0883fecfe0855d9f2625f31910130ea6465193e28ed` |
-| `source-archive/v6-legacy/S0037.md` | 16813 | `8b57c1db4919a7bb6f6828f4f1b3b75bf6b2d74ecb68a807a50df484546384cb` |
-| `source-archive/v6-legacy/S0038.md` | 16818 | `874ef8b7b01f96d0e1be4e00cdcea1e7e5728d8b70933a28d1b1279a436215e4` |
-| `source-archive/v6-legacy/S0039.md` | 15302 | `cea92150101aa912a5aeb0ff5f4f3135f24a0d66977cec8041a752c5572ff3ef` |
-| `source-archive/v6-legacy/S0040.md` | 15248 | `1c1620e2810467f8bcd68c7075bff1cbceff06bf9918a21a4219cc615ef0a20b` |
-| `source-archive/v6-legacy/S0041.md` | 15432 | `e1478336c6acc37e9326d90397f7aaa238ebd4a6cfca3ae47a100f53e84a055c` |
-| `source-archive/v6-legacy/S0042.md` | 15614 | `314c0721243e19b7bfe66d025b956b144342ee75e5aeae195ba337c443cbe026` |
-| `source-archive/v6-legacy/S0043.md` | 15348 | `3ffa274e70d537abab4cea07912f8d64938b9ff23273c478342f0ad461c6e26d` |
-| `source-archive/v6-legacy/S0044.md` | 17143 | `e661a7c35ff09a64be04fb6727320fd52c7b845cc02259e3035ade37e9a93273` |
-| `source-archive/v6-legacy/S0045.md` | 15140 | `9bd2f2ffdbd912e87c5ef36b00d36ca1bea149d60323adcf37d8f5b4ba27453b` |
-| `source-archive/v6-legacy/S0046.md` | 14932 | `4e4a07cf6589674a8a4b2df40a5867c0a2dcb219a1fe3608f2cdb677396dc378` |
-| `source-archive/v6-legacy/S0047.md` | 14992 | `bd24e4a8a9135edeb58263dd32ce8fb43c02f4dad428b932fc85dd4f387826ae` |
-| `source-archive/v6-legacy/S0048.md` | 15076 | `72dc53b5a04cd3e3c99b79b845c1c21680a06bd91de0bab858cae7692a8fe068` |
-| `source-archive/v6-legacy/S0049.md` | 15119 | `028f1e6ca1c11821bb3d63602ecc3c6f9abd1525cd0e0ffbbdb32075f5284b9b` |
-| `source-archive/v6-legacy/S0050.md` | 14819 | `cc09ad006bcf9312443f6769fe5e92d2597feedb844121336acf2c473551fba0` |
-| `source-archive/v6-legacy/S0051.md` | 15121 | `25a8bb850e46428dbac075d89bb2f125d8aa76908be096a3cbc5ccf6af11b973` |
-| `source-archive/v6-legacy/S0052.md` | 15165 | `79b7f8f590f2e3f345b490b839b160bd0012d622be9c727ca1cadda30f9a6d3c` |
-| `source-archive/v6-legacy/S0053.md` | 16598 | `678db53fd05c88967e5720c209a1ed52aa33785c17489c05d99b33b17c455823` |
-| `source-archive/v6-legacy/S0054.md` | 16548 | `6d8c3acc149d18a32e2cbdf18433a554e819661c0781ff101cd633fcdf0bec55` |
-| `source-archive/v6-legacy/S0055.md` | 16581 | `a0b56ac362b0e4c3ba65e46c8be5f0d59f93aa1b956974ebf54139322467734d` |
-| `source-archive/v6-legacy/S0056.md` | 16956 | `fdaa834752161f66049ddba01cea743bc7ac625e3d4fe7402969d210ddf985d7` |
-| `source-archive/v6-legacy/S0057.md` | 16544 | `0b37ce9e3963d74f65f3ca1b0910c1d3dd4519f50025bceaeba64cb56f73b3d9` |
-| `source-archive/v6-legacy/S0058.md` | 16817 | `636af373c72cf067d90e166341fdaf94dbc8e68d2224d1aba0d009aa311ca4a6` |
-| `source-archive/v6-legacy/S0059.md` | 15371 | `2c41edec7012b8bcb781235459797c24ec7b12b831de07e25cd4373e55d0351d` |
-| `source-archive/v6-legacy/S0060.md` | 17243 | `842722acee89c5d22ca00a648cdca552172e394c7d0baea45fa469e03701110d` |
-| `source-archive/v6-legacy/S0061.md` | 15404 | `3c596bbb15887e7c46c2e85833f56685fd7c6cb846568102bf7299906a88da45` |
-| `source-archive/v6-legacy/S0062.md` | 15113 | `3fb93a9685c207e9b8c231215b8a2d4051a14270502b814acb760a863e0c0121` |
-| `source-archive/v6-legacy/S0063.md` | 15199 | `9d350509a07194bf0f2eef2ec019082cb69fcc3561317764e8c35069b20d0b08` |
-| `source-archive/v6-legacy/S0064.md` | 15017 | `1ad4b85fd0dfb5413e870aa36ca1bbafda74fa9ccf6024f4cb25692f8f296e74` |
-| `source-archive/v6-legacy/S0065.md` | 15006 | `770a8d4eddbcd3abf9617be07ca08a8754c8b2a9ade2895521ec77c367b4fa95` |
-| `source-archive/v6-legacy/S0066.md` | 14817 | `4bdb732c7da0ca763b9ea805a9213056d1eee9fda89235e34e39b6ce6aba01f9` |
-| `source-archive/v6-legacy/S0067.md` | 15476 | `0677c8195f042b8be2208a43b6a5f58d40026a760a18392430b492080e300ad2` |
-| `source-archive/v6-legacy/S0068.md` | 16907 | `07c4afb38fd7ce94b170aec41624304f5bdd2e45df3f8c53dff51ba97c4cfa35` |
-| `source-archive/v6-legacy/S0069.md` | 15186 | `12c5f5cd6410833f1a85eccecbebb1c00c21ed0f0cdd51a5725c341593a27294` |
-| `source-archive/v6-legacy/S0070.md` | 17082 | `3bb4b03ff04b7df30ee99ce67a4b2049cf1f5b702b75862630bef74c5b93fef7` |
-| `source-archive/v6-legacy/S0071.md` | 15359 | `730823408c3f751d31e8e55388fc57326837e796a310b38f921dc0f1db64fb6a` |
-| `source-archive/v6-legacy/S0072.md` | 17137 | `1b17cc8e6cfccbf6d79a805f221affef1992af09fde66e0a841e5f4c3fb7f305` |
-| `source-archive/v6-legacy/S0073.md` | 15312 | `39d2b3dfa3560465bb788fb263a7e0a9a82120b2cc8b60d9960f72bc48cb7e63` |
-| `source-archive/v6-legacy/S0074.md` | 15256 | `77b6156d23588a349bbea9e53776f6e0e2e125916c305f1ece98b15205e0ebf0` |
-| `source-archive/v6-legacy/S0075.md` | 17203 | `6eeb6e313e7bdbf6380b86d93749fc4dd254ede6c8f1562b36dee7913e18efdd` |
-| `source-archive/v6-legacy/S0076.md` | 17208 | `ded1de0876859a8d812ac41e3b7601c9afd9bc75ff4fac16e09a81409c9da8bb` |
-| `source-archive/v6-legacy/S0077.md` | 16921 | `232d0fd8ebbde5b884875c142ac8298bf2b653f1c42bea7a96a3ec2c833ef1c2` |
-| `source-archive/v6-legacy/S0078.md` | 15610 | `5221b173e0f9a74ebd9a6715c9d743060f7f36dcdbdee1d111fd2d5405858640` |
-| `source-archive/v6-legacy/S0079.md` | 15476 | `db7d694d1e81b3816f4953bd3ef38ba89052c14a4a07edae58f984efabc2000b` |
-| `source-archive/v6-legacy/S0080.md` | 15544 | `fa0fdd5c8907835de7c72e686747bfd80ee98a045a650c05889186da6258aabe` |
-| `source-archive/v6-legacy/S0081.md` | 15253 | `64304eaa53b62aa40b6d6678dbf9e6a591a2413d8aa644813118a2d7eee732c0` |
-| `source-archive/v6-legacy/S0082.md` | 15304 | `38ba240f3dfca02ebb13f1dd6b9fc10f99faf6cab2ce987359c8aa1cb8399c92` |
-| `source-archive/v6-legacy/S0083.md` | 15122 | `d6b22ee55ec34375334ab0b6252bf20660b8c969aae3bc60dda10143ee40a400` |
-| `source-archive/v6-legacy/S0084.md` | 15111 | `163bc62c04fcd47f58a21a0d43b8994acecd45b00c709cc3b292eb4d7dc545c2` |
-| `source-archive/v6-legacy/S0085.md` | 14922 | `e20c7a03d9c429b32a47053e4580c20e6687d55ff1c69f8b1146a1305c04eb08` |
-| `source-archive/v6-legacy/S0086.md` | 15616 | `a6a96947e90fa721bda8efc3c348bb994a4e51186cb1f205e906800a5326e8ec` |
-| `source-archive/v6-legacy/S0087.md` | 15399 | `054cb9d5929b04f8a833b0d3e042063b028da4548e0f7a3241ceede45576c25d` |
-| `source-archive/v6-legacy/S0088.md` | 15326 | `ff54799d06f1fc968e92ce5e5246b6400b739d48ec71df25161e5ab09fc94ccc` |
-| `source-archive/v6-legacy/S0089.md` | 16605 | `7f98a70f11f762fa2cfce5d92811ba6f22b494a46def34ee160faeb297a913b5` |
-| `source-archive/v6-legacy/S0090.md` | 16756 | `d4d051ac7daf2640f0704b74f21591a7c7172113582b5f6f3d9e513a0c8cbe21` |
-| `source-archive/v6-legacy/S0091.md` | 16587 | `ab0b9535f036d627454618ad7074d41f30fd380abd000bd8c413d6cda5261401` |
-| `source-archive/v6-legacy/S0092.md` | 16503 | `eeab29f7654c5c5e48fd389c5fe7dd7a78f2a1c8b7aa8d2768ad6e2910f89deb` |
-| `source-archive/v6-legacy/S0093.md` | 16665 | `0f0a888ef2e8aa4695f5645b98dd3120f00a20f7601d0413655bf4f93490ac64` |
-| `source-archive/v6-legacy/S0094.md` | 16934 | `b76426848c33f1c4db65d590af113beb961038e21a0048820a017fc8dc913c65` |
-| `source-archive/v6-legacy/S0095.md` | 16739 | `77ee52a018d2c7f598549c529973442dcee0914a34bcf711f4b6a75a82eb05f4` |
-| `source-archive/v6-legacy/S0096.md` | 16958 | `dd5bb10684c8b5240acf644833128355beb13f8ffe9d5015437b4243a12f2080` |
-| `source-archive/v6-legacy/S0097.md` | 15104 | `2adea750e0e8a9aad0d36a7e315dda3863b3fe5854d47e85f70bab6bc8d0d27e` |
-| `source-archive/v6-legacy/S0098.md` | 16143 | `5e5639e0da74f3d4588fa4d734893c49b5bcc504912d3de8aef44d7af4ba915e` |
-| `source-archive/v6-legacy/S0099.md` | 15209 | `fa1570ad85692878a562ccb45e4d0a7a718e655f40c6529e4c689d66463eb9d3` |
-| `source-archive/v6-legacy/S0100.md` | 15543 | `767755eeb2d871c195683a9710f91479f4e6dbc6aa40070651624c1a322fcd8c` |
-| `source-archive/v6-legacy/S0101.md` | 15529 | `1e2db3e8488b860ffe752c2e768bcecf4ad5f59aea8c6323fd5ce8ff4bb32888` |
-| `source-archive/v6-legacy/S0102.md` | 15567 | `66d2ade47abc8a4b933a5d72e564b4102420b0ff0af5ccbc6f26860531fe586a` |
-| `source-archive/v6-legacy/S0103.md` | 15523 | `61db7399d7f144b148f2a78f9fd2c56b92060537118e74a2b9231d9debda3020` |
-| `source-archive/v6-legacy/S0104.md` | 15819 | `2eeec8cd76b824712ec9b9fdd408593013e90c5224dbdd7ef37a74dfc95d974e` |
-| `source-archive/v6-legacy/S0105.md` | 15694 | `479199dda414be0060e930f48c217da2606eba01c721ed4981346e79ab8aff04` |
-| `source-archive/v6-legacy/S0106.md` | 15722 | `70d10548529eb982c7a5f934b4237186a977e5cfbaa11a6bd40db43c391ec1ef` |
-| `source-archive/v6-legacy/S0107.md` | 15505 | `78b9ae2fe1fc1f4e67a227cf6199d61bbf4383fd909fdb49500ded8c73071d30` |
-| `source-archive/v6-legacy/S0108.md` | 17047 | `b51e9a2af0ed9a7246a6ee7680356be88125e5218328b3bb25cc0efd18110dcf` |
-| `source-archive/v6-legacy/S0109.md` | 16886 | `b52afd7f1cd382a6178155f13065629674d4316c8e3801fc31dd131efa30a418` |
-| `source-archive/v6-legacy/S0110.md` | 16886 | `67e8aa820d350b260ccb00330d003660d3343a0bab133aefab07f5ac82e48f5c` |
-| `source-archive/v6-legacy/S0111.md` | 17068 | `65a6cd468fb37d62ed6d236db0b5e27e880c52ebd74834461b49e00a3cae4038` |
-| `source-archive/v6-legacy/S0112.md` | 16903 | `106d840b003f6e656f30ebc29f89442eb57ce2817bda0fa1c643c8f3921c4bc6` |
-| `source-archive/v6-legacy/S0113.md` | 16869 | `0201cea8f87a4763ad57d847f906062927372846b45b6042b40ddfe74a3dc06e` |
-| `source-archive/v6-legacy/S0114.md` | 16916 | `4f1a134f2d30956dcab3718221aee22f9a47651aef34aa1c5279e2653383ef53` |
-| `source-archive/v6-legacy/S0115.md` | 15645 | `96167f088ec1143e8fa16bec71454737c35b393869862d28fc11647b3555fd24` |
-| `source-archive/v6-legacy/S0116.md` | 15695 | `1080ecf39e1707ffa0970214398073d53b901cc307734bbdb0fb83a6450d1477` |
-| `source-archive/v6-legacy/S0117.md` | 15643 | `164f9566b368ac45db8a3322d1515279db6a871a197a702763116eae0537dfe3` |
-| `source-archive/v6-legacy/S0118.md` | 15628 | `8a408baf81bab71e5634d9f3c2bdff9ff7233eec47019e6adfb3271d8c890981` |
-| `source-archive/v6-legacy/S0119.md` | 15667 | `25ead1643fbec92bf0de2ef8bf9bc14d07c3879cc407ccfe45f3b88a80c63ee7` |
-| `source-archive/v6-legacy/S0120.md` | 15669 | `b85714e92b8db6940087bb268001da448cfaa4b93556a95c75bce94780310857` |
-| `source-archive/v6-legacy/S0121.md` | 15601 | `45c35468fb1a6ccc2406f3843b86a0bbedd9ed3f77a347afa7955c169c9f3e94` |
-| `source-archive/v6-legacy/S0122.md` | 15132 | `cdbe04fcd160e67fab55eca05ad675face551c6f84f995bbea15f37b9049add5` |
-| `source-archive/v6-legacy/S0123.md` | 16966 | `4ea9ca3120e20baa4d7b46ad29754fa37c6f7561e87ed2032ca4476ff0e04648` |
-| `source-archive/v6-legacy/S0124.md` | 15144 | `4c07afd7b5d5436c32cb0c08497d5103d8614db753344f2c19e1257931a27736` |
-| `source-archive/v6-legacy/S0125.md` | 15151 | `8f5bf8980ec544903a5b66f5b36ee204aef899bfa9ae6af53f10fa85c6652d1e` |
-| `source-archive/v6-legacy/S0126.md` | 16213 | `a251a8e8bdcfc1430a252f8cd8cbcbe325c3475f9f7722432bcaae0c3e79f1df` |
-| `source-archive/v6-legacy/S0127.md` | 14965 | `58474440ca64fe6b07b3770b7a6db067cd54fa09d9cd18c15c9ef0df724b199b` |
-| `source-archive/v6-legacy/S0128.md` | 16436 | `615151b78425c923972fab57d7046af225e6029baa894131c5ddce9975be44e2` |
-| `source-archive/v6-legacy/S0129.md` | 16986 | `fa317e68534a5046d0dc4f1d8bd36b0584976ac6b4218c1b69f455446441429d` |
-| `source-archive/v6-legacy/S0130.md` | 16873 | `9ba7890ee19cd7f35532d1021a9290ae7824b98f7b64598df223273ed78edf8e` |
-| `source-archive/v6-legacy/S0131.md` | 16746 | `8d287379caa337041ba8c72f68c596d3e53b3dac5b4cb747400b09f91c2e83c9` |
-| `source-archive/v6-legacy/S0132.md` | 15392 | `2316d4aae745dfdc28b18558fe9595b65a8be1dc130501013ce1288f62157b90` |
-| `source-archive/v6-legacy/S0133.md` | 17303 | `961506b84d03c749f434d7c9062960f87349936f867f0b12fa77aa6e2269c313` |
-| `source-archive/v6-legacy/S0134.md` | 15433 | `97cb77070abdb53223de7982fe01346e2bb618e90e653b259e7461e3c9377c6d` |
-| `source-archive/v6-legacy/S0135.md` | 15625 | `a21b4a2193c37ef452fa3ed39ca7761985f948c152f14ea63e27cedac815ddf5` |
-| `source-archive/v6-legacy/S0136.md` | 15448 | `a436cf4fd215a0bfec27f4b7442f0cffcc4d2a5c7ec752b375f93b3e2d5b4562` |
-| `source-archive/v6-legacy/S0137.md` | 15237 | `b8d7aeda17d82e825dd382f5415124664915ea522f2a27c6967c0cb6f20af929` |
-| `source-archive/v6-legacy/S0138.md` | 15249 | `3b837a153a5cc72ccad9a3750203ae5c32d85d3a6454c3a4f5c6292406050d53` |
-| `source-archive/v6-legacy/S0139.md` | 15269 | `6d1e98c2399b56da429a0f9faade21270ab516f8ae798a9c928976630e0968c2` |
-| `source-archive/v6-legacy/S0140.md` | 15295 | `494e9ebdcedf9535f851558b377a320cf4e951c4c58b7a5068a52a2933051de1` |
-| `source-archive/v6-legacy/S0141.md` | 15458 | `cbdd7d060395e6e800bbb2052945462bf442f2c85472015e70618f929587ab41` |
-| `source-archive/v6-legacy/S0142.md` | 15256 | `e89c4d2ce5114a2c1877a65848f88df02a6e2bda76b6101f0ebb875335c660b2` |
-| `source-archive/v6-legacy/S0143.md` | 14955 | `27ef2f734d5a80c87fa332d1461244e21cb4ecd5191069dd772dc449b7d23e5f` |
-| `source-archive/v6-legacy/S0144.md` | 15070 | `0106003701e501d4e6c0f6c0f215fd3c0ea8bea0b0130135886a94ebe34cb70c` |
-| `source-archive/v6-legacy/S0145.md` | 15098 | `41a76b38681469f75ac530fd7f69ce3cd5a80a840314994c2086989b0e89398d` |
-| `source-archive/v6-legacy/S0146.md` | 16624 | `5ed6bc14950b857bea007140537465df75491ce14c8e0249242257d4b9bb05f2` |
-| `source-archive/v6-legacy/S0147.md` | 17020 | `139fcda54085d132adfc7f7f01e6cab533092ba90d598577f529e403caaf1b39` |
-| `source-archive/v6-legacy/S0148.md` | 16866 | `280c844adf78f195f67b2d72233824d73098f809cf605f3e952e7484c4c01a1b` |
-| `source-archive/v6-legacy/S0149.md` | 16584 | `d3772c7a79ce691899898aa6466c0bad55a737b47e20f64ead9ff076db35664f` |
-| `source-archive/v6-legacy/S0150.md` | 16644 | `bf41e4152106cdf46a007f3a75d66b013938e3433a3368524e627b0b85ddf69b` |
-| `source-archive/v6-legacy/S0151.md` | 15296 | `daef3f237d0dbce5c7c2c5f4848cdce49c990d254b679c9afedacdaabff83be7` |
-| `source-archive/v6-legacy/S0152.md` | 14987 | `3fb90e5b88e2932613e5e9da6cb3e2f611062176af090702daa996880a000b1e` |
-| `source-archive/v6-legacy/S0153.md` | 16519 | `0213cf33767a5581d7436d10aab916097fd77b986c29ddff6cf0fc8dc7bf5931` |
-| `source-archive/v6-legacy/S0154.md` | 15005 | `58a538c6d46408692bd872ebb854d01ccc9dfab66d6e85a8e05f9668fe7fedc5` |
-| `source-archive/v6-legacy/S0155.md` | 14963 | `3bad4d9f176f97e228bde80d39e7ed068406f487fc2c33eef0738cf4b201fd0d` |
-| `source-archive/v6-legacy/S0156.md` | 15311 | `fa19f52fa38b588da7f67b70ff246e23fcb43da4f47c05295f89ed7c12bcf7ae` |
-| `source-archive/v6-legacy/S0157.md` | 16151 | `9d6e3bee91227ab4beaa2d325d43e37edfb3fcef9243e6579702cc02d0d7010f` |
-| `source-archive/v6-legacy/S0158.md` | 14966 | `bc4ebc16a2b46ece0431b7aa247adeafb31256ec7bf4a347ab8c8977bceac3d9` |
-| `source-archive/v6-legacy/S0159.md` | 15162 | `a86eba483a08bcf4309cd4358cf48fc80bff53ee8f95be0717407fef3a4ea4ae` |
-| `source-archive/v6-legacy/S0160.md` | 14938 | `e55148e29cbbf6163683277eff1aad8b090fdd2027e82df09439782f739e9964` |
-| `source-archive/v6-legacy/S0161.md` | 15401 | `d786ec3a640b9fa6ec35742f1b0de00936613a3ee9f6ae41b48238b5a962fe6d` |
-| `source-archive/v6-legacy/S0162.md` | 15092 | `0e13c7d713863345a7a44813523ce3b9533ae6d09ded4d45c7bb265bf3e7d234` |
-| `source-archive/v6-legacy/S0163.md` | 15110 | `ff69363eb0746b5de90e25283019d86ae749b2966ef4e01497775006c50b9ded` |
-| `source-archive/v6-legacy/S0164.md` | 15068 | `6f2334314bd96e3aea9b4bd915d87237e2ecbbdf7affe862982f4c8fc2536169` |
-| `source-archive/v6-legacy/S0165.md` | 15416 | `ec783d4ba480307224478d90402ec4394f0433d2c1469a1cdedfbc7b55159a10` |
-| `source-archive/v6-legacy/S0166.md` | 14870 | `de9ea4caa03557edcceb67c24b0f7e7c2c88e287e55d722273c1fbc96d48e3fc` |
-| `source-archive/v6-legacy/S0167.md` | 15071 | `919dc7d79ecf4bcb6f073b393eb3251f537eafe1d80e4db58e521e712db2c48f` |
-| `source-archive/v6-legacy/S0168.md` | 15267 | `aae2c6ff92152e73bdcf324d4a616b598c83e16e893ca3337b89b68695fb89fd` |
-| `source-archive/v6-legacy/S0169.md` | 15043 | `063b46d60012e8c9d9d6001f8c25aee15fa69772fdf98cb33766f75d19b4d12c` |
-| `source-archive/v6-legacy/S0170.md` | 15020 | `fed02d3c32139772b9134afd35435c5fb421af54e962d9ce15beda9ebe701d35` |
-| `source-archive/v6-legacy/S0171.md` | 15063 | `5bb16660e3b09bc3e448f8e023c565d6e9f4416e7a5c831cea90eff0a773413e` |
-| `source-archive/v6-legacy/S0172.md` | 15251 | `e2920e2eed9107959463b1d85d68650cb05709dd16d3c3c387a9b06970411d95` |
-| `source-archive/v6-legacy/S0173.md` | 14994 | `c815e4101c9b2bd809d2ecbbb3f19f53629bb6be796b88bb22e2a9a504251f40` |
-| `source-archive/v6-legacy/S0174.md` | 15498 | `c29992ca60ba3a9966cb6410b7b2cb05755dc9537a2cb2f28db6d9bf86acea21` |
-| `source-archive/v6-legacy/S0175.md` | 17295 | `ceba8d552316529781cd2384ffcbec6651e665f981fb7a411f451b0c0d17c67f` |
-| `source-archive/v6-legacy/S0176.md` | 15235 | `20883f6716835a816758afe1863f7e3a18e750e27568fa8d35b6200a89942a0d` |
-| `source-archive/v6-legacy/S0177.md` | 15425 | `26d2317cecfbb662bbd4988114426cd6b46e9ff7b9b77d33454d7c272130b4a7` |
-| `source-archive/v6-legacy/S0178.md` | 14814 | `be20d6b73bdb2fad80d5de20ea379fa252dec6a9fdc75eecb2dc595988af8e99` |
-| `source-archive/v6-legacy/S0179.md` | 14983 | `eeb60c0561be66058e62f4edc72b70ff760dc04ed4a93660f08a5ca7593405d3` |
-| `source-archive/v6-legacy/S0180.md` | 17018 | `d59d24d16154e0309c7d05854b9d22fa9546f749bddabde515a0a79f346d15ad` |
-| `source-archive/v6-legacy/S0181.md` | 17067 | `afde65c896f6050d139c24ae1c57cf6e05309eec4c67cdd3d60446dc2aaad2cb` |
-| `source-archive/v6-legacy/S0182.md` | 15466 | `f26e567e6a2967f231a7d8f4d52ea4ce918d6663771bc61652d699e51210fd16` |
-| `source-archive/v6-legacy/S0183.md` | 16866 | `9ead1500efaeea9c4112bde40ec27944dcd0b13680c18d174dd03bb4e69d0f71` |
-| `source-archive/v6-legacy/S0184.md` | 15097 | `7baff73d7aeccfc7af1c574e3438575d4d6d61e20e769cc6b3a0033853886f5d` |
-| `source-archive/v6-legacy/S0185.md` | 15274 | `ec3317978454f19849718e9bff30b16f450c0f2a2b6d32c51fac2eadb1f0aad9` |
-| `source-archive/v6-legacy/S0186.md` | 15125 | `d8f6b2141ef3a8fdf8f98b4960ded3ad56740c580d85ca491c89b0277d4618b5` |
-| `source-archive/v6-legacy/S0187.md` | 15168 | `eb121a02600deaae6171e230fdbc71343b77f449f1b311a2b51a1f01bb9c33cf` |
-| `source-archive/v6-legacy/S0188.md` | 15099 | `a5434152eb32fc06789a092200cc76750e7ae0a395b3e55139ca58282dd0d13d` |
-| `source-archive/v6-legacy/S0189.md` | 15391 | `909eb0498c1096c3b50599bf541554374edeed3882fb62ec48831d55adf0d3dc` |
-| `source-archive/v6-legacy/S0190.md` | 15638 | `be3a0c6a69c624ce2aec763eba054be4fa4ff5417d54564705b43f4f3377a445` |
-| `source-archive/v6-legacy/S0191.md` | 15375 | `ff9ddd5a8534f288cf70306c0101552ab2cf50dc72b6ff6a870e1e392a00079b` |
-| `source-archive/v6-legacy/S0192.md` | 15565 | `7f48d0a661b1b4820a22ab3e79706897c3d6404cd7e282e937436c85a3fea2b2` |
-| `source-archive/v6-legacy/S0193.md` | 14919 | `51ce684b4b2b77442b663df36685cdb121a28558e90ef0089925cf4b15575c85` |
-| `source-archive/v6-legacy/S0194.md` | 15088 | `4bb533b4e70cde8e9ebaba9335bb5250bfc58a8ee376fed4c1b008423eba677e` |
-| `source-archive/v6-legacy/S0195.md` | 15354 | `29efa048b28d692d9240b9dab6c021d90d3468290aa8122b2de856ebb00f986f` |
-| `source-archive/v6-legacy/S0196.md` | 16557 | `63c164f96b2b2b4acb086c4f5a7cd26d884a0122db0423e106cdafa4d02ffd72` |
-| `source-archive/v6-legacy/S0197.md` | 16736 | `7f76b8df3b42520f641eca6d501a2538517a807e674e0a14f9477428af8834a7` |
-| `source-archive/v6-legacy/S0198.md` | 16744 | `082e1bced3030673e4d170abc59172d82263bae7397c791860247220e24a1b98` |
-| `source-archive/v6-legacy/S0199.md` | 15375 | `bdfdcb5386a3f574efe90b7f9951fe0b5308b7da039b2364821ec31246826993` |
-| `source-archive/v6-legacy/S0200.md` | 15397 | `61cb112d9d26992d226293529b50f631beabcfd1431e27a7c9667aa73344e077` |
-| `source-archive/v6-legacy/S0201.md` | 15561 | `f6a8899f3720f942d17a674440acd8e1bc59723f8c62ef4f0f76723552f07f41` |
-| `source-archive/v6-legacy/S0202.md` | 16642 | `92a40d78ed24c0ffa56b3ac84da26ea0fa52f7f02c53530ab763cc7a478d16f2` |
-| `source-archive/v6-legacy/S0203.md` | 16327 | `3c9cca2a6c60153ab84b656a8b4966a41c4457f008b15b72c0d53d9e175e05fb` |
-| `source-archive/v6-legacy/S0204.md` | 15364 | `7af06560d38dee3a3081790c8b28b8c61663df88ce00d617e801157f685e83e5` |
-| `source-archive/v6-legacy/S0205.md` | 15679 | `e16c831fa4ab8d868024efd3e77c65896edb9d1dd52e7c0b2cf1674ded84e2c6` |
-| `source-archive/v6-legacy/S0206.md` | 15529 | `0117b1e8d9b053b19c64cf84b17d4464947ae7a9e3bbc91efea0e0508ead9492` |
-| `source-archive/v6-legacy/S0207.md` | 15705 | `bf5c5ddc0353225dd36b34cf01acdb5a7657517c3bc010c24f4ed414e6dda4d3` |
-| `source-archive/v6-legacy/S0208.md` | 15424 | `8bb8e9037aabd7d78d2b1f6e3ff7c56df4fa79e42343dbecc5948944271ffab5` |
-| `source-archive/v6-legacy/S0209.md` | 15229 | `a934d82b8e4b96fc22aa1fbc29350ef4b4170673cf321a249fce3c1fb999b972` |
-| `source-archive/v6-legacy/S0210.md` | 15485 | `24bb72847d30305f5f809fb2fac69482790a47bfccda29fae8f180a881c4d106` |
-| `source-archive/v6-legacy/S0211.md` | 15596 | `7746fad97d95663272f6ba1036c9174c92caaadfac87ad69496db128fe64666f` |
-| `source-archive/v6-legacy/S0212.md` | 15278 | `2e246e1301fe67a78e240ca0ed50048f88685ef1fa7510272a2a7315c6f25210` |
-| `source-archive/v6-legacy/S0213.md` | 15772 | `908bf5652978b3c0e162f50d2f56e059d939ba3dde4cec587def856e4534a0c0` |
-| `source-archive/v6-legacy/S0214.md` | 15418 | `b02c6ea5c86b82a757cc0b289862678ca032ec9e7794df01c4869b555f5ae2f3` |
-| `source-archive/v6-legacy/S0215.md` | 15694 | `04abf7fa8b36b293b5d3efa4385dde81566e214edcaef061c18fbba1f7278295` |
-| `source-archive/v6-legacy/S0216.md` | 15629 | `c2b3469f3f3d48875afb04ffff838d716a66d8d899d22b2aea7bd20d8c6c4932` |
-| `source-archive/v6-legacy/S0217.md` | 15734 | `3628bc7358bb79f14c522c1a9132bb71dc6b57e5b8049f86f859089c82f3cfaf` |
-| `source-archive/v6-legacy/S0218.md` | 15824 | `362e77a04fd34d47059d6bc15017761848a1f72a719553770d91e6c2a11d3954` |
-| `source-archive/v6-legacy/S0219.md` | 15551 | `e35697716e36bdafcd00e4654a68d8f4cab37c0e2867a0030e315bba5cd74437` |
-| `source-archive/v6-legacy/S0220.md` | 17134 | `9608d558cf48553bfb81bc6a839810e7be3d5a1c205945d72e1fbbac162afbff` |
-| `source-archive/v6-legacy/S0221.md` | 16947 | `70142473c07c43a05140f1e14b8dd502eb9717c5f84153e8f6175f771b1db8be` |
-| `source-archive/v6-legacy/S0222.md` | 16930 | `aa6e9f2cb8e46c6b2c9891dea9e8cb5fb579fcfb84c098b7096471d53e9605ca` |
-| `source-archive/v6-legacy/S0223.md` | 16910 | `f990099f5eac01c85171d42d844803ef39a812d95bf3ee3b5707123808dc6f26` |
-| `source-archive/v6-legacy/S0224.md` | 16931 | `8440c3070a84f4f55064a997c3d41b41580647b6dc1b48eeb88f60c8bb91a4b0` |
-| `source-archive/v6-legacy/S0225.md` | 16879 | `397c5ea8d1dc441d8059d77678ccbb9a6bf869e079940b097ae14e71590f3992` |
-| `source-archive/v6-legacy/S0226.md` | 17100 | `4db5dce9725e368e620b5aa9985e10c049b710b4dcd84fe41d26173678e8736c` |
-| `source-archive/v6-legacy/S0227.md` | 17064 | `3eae35aafe50890280c11623ceeae58eaeacff9e2d89d9ab18dfcb59a9e0902f` |
-| `source-archive/v6-legacy/S0228.md` | 15789 | `7a0c55db81d23b30cab1b862a78f201df4fcbf2c516d978a235ccc978241bfe5` |
-| `source-archive/v6-legacy/S0229.md` | 15674 | `d22e2d46e020cb4e4a1b6f3939ce6c514644bc4a099c472ed1049946ecef89a2` |
-| `source-archive/v6-legacy/S0230.md` | 16945 | `a2da1d2033f3733b26a2e87a183c0ac72b3e9212eeaeda298cb026ae5c583f06` |
-| `source-archive/v6-legacy/S0231.md` | 16967 | `51d167739233a54494d2fe0a73503bc014482ef46d3842e6d182b28f17f9f2eb` |
-| `source-archive/v6-legacy/S0232.md` | 15845 | `5bc7e6bf2af1f9d8233fcdf668209f4fbc7e021567d309a9eddf4a9ce3e64386` |
-| `source-archive/v6-legacy/S0233.md` | 17368 | `e521970b41647c2366e7400411c89c81e5e41af0fcbf896edbe2c56851311a46` |
-| `source-archive/v6-legacy/S0234.md` | 15096 | `06efe10697a13d282161683f0d000b7983ccc9ba04e3ff86e63e0d0480531943` |
-| `source-archive/v6-legacy/S0235.md` | 15644 | `a6fca6043c2b0ae9debe865b62d6b62552921824fdbcb628a3041faba14a3db0` |
-| `source-archive/v6-legacy/S0236.md` | 15364 | `cdb7ef4d2017936c8758b44b5942ffdf60a707d35190e3f49c6d2815df5a1772` |
-| `source-archive/v6-legacy/S0237.md` | 15201 | `dfcade4c1789364a788ecd1d6deb66b59e0418edf9ea886c8a7f5555171f13bb` |
-| `source-archive/v6-legacy/S0238.md` | 15735 | `bac2ca6605fb8416a0543c4d325bc9cf4f767db43715fc6e46fd9b9a9bd50c8b` |
-| `source-archive/v6-legacy/S0239.md` | 15489 | `0ac77500336bc798a9d7c3892549d8a3374ac0674026fea91eb2ebac06636159` |
-| `source-archive/v6-legacy/S0240.md` | 15537 | `33c9b9f03fa844df39221273f530720c50fb27a420e03f3bd9a6a5dc8b317d8c` |
-| `source-archive/v6-legacy/S0241.md` | 15408 | `07eacef256a50c464e8c9d0db4f8237a4d162b0768e305f8cf2f4f1b556095f0` |
-| `source-archive/v6-legacy/S0242.md` | 15382 | `ea0ee7992d883eba7f89c416e8e75463fb158e64a5386d5995c81b689b5ae4db` |
-| `source-archive/v6-legacy/S0243.md` | 12104 | `492957632291f59dcb99809c5214bcb77002673e2eaba81e087b5a672aa89875` |
-| `source-archive/v6-legacy/S0244.md` | 16667 | `fb91ba371ceb8efaeb6130d5524310f50cb830a33d221f9d6c6413e37f622e2b` |
-| `source-archive/v6-legacy/S0245.md` | 15082 | `9decffc0dd976d421b3a017c11a1989ac56fe94abaab3555033780f1be0223ae` |
-| `source-archive/v6-legacy/S0246.md` | 16625 | `2076449d2065a986a9b33a547eb5abb1840d9190a77857927e062ce426e92cb2` |
-| `source-archive/v6-legacy/S0247.md` | 16953 | `0a2c0ee1aa46047ac5f22103e794ea4c87ea0f61bd6e8f82d4f821b0224a1474` |
-| `source-archive/v6-legacy/S0248.md` | 14939 | `bb0965190e9889301a8b1a382c342d8492f23e3e5bf4d3999dc02cb87e3d22c5` |
-| `source-archive/v6-legacy/S0249.md` | 15038 | `4fd59a8dada707583a0918bc951a1e72ef99e17b09858f93714b766e31fe50cf` |
-| `source-archive/v6-legacy/S0250.md` | 15399 | `bfea843e26d797f0166e121d5caf66dbe8ccba48ef5e93272b3343dd6841e73f` |
-| `source-archive/v6-legacy/S0251.md` | 16750 | `f150f83a8aa3dd7f133f4d3aae79c46bbf7d61d142a514b2d528db0786a44837` |
-| `source-archive/v6-legacy/S0252.md` | 15258 | `f2f2dbd572334e78e46b270d6deddacf0d5c500046b60cb5a263c458d67ea4fa` |
-| `source-archive/v6-legacy/S0253.md` | 15399 | `2724f526f2268b25902aa2b66fb71d92b6f03e48a7d0beeef25715ef5bb3e551` |
-| `source-archive/v6-legacy/S0254.md` | 15301 | `39dd02cf8cfd8d1eb6d97c18922992601c840834495903e4325ad739d461dad1` |
-| `source-archive/v6-legacy/S0255.md` | 19531 | `a59aad242b2d0bc830758d9bf74438d3794e17b976b94276d376e9de04fc4562` |
-| `source-archive/v6-legacy/S0256.md` | 15380 | `2dd34e29581390da248a93401df9dfffdb8d113881f179fcb1602d150cc19a52` |
-| `source-archive/v6-legacy/S0257.md` | 15222 | `f9b4354ff44ddc5f9a73dfce146efe09adf4b8ce398932dd6d44153c62c8c3b1` |
-| `source-archive/v6-legacy/S0258.md` | 15283 | `824abd2d6fa10e754af5c6be369eed7ad9b419a425e9a2247ea5c82157b2caa9` |
-| `source-archive/v6-legacy/S0259.md` | 15379 | `672ed5bc63546acf1b31b8c3edb702f3848bf6da8a4069d1aa3cdd0c92bfb4c2` |
-| `source-archive/v6-legacy/S0260.md` | 15044 | `7a8af6d83f2c7ed7c5ff30cbdc85ece2bd70ae8ffa3302418999507c191b8fab` |
-| `source-archive/v6-legacy/S0261.md` | 15469 | `39391908b28a09a659d152f9abff51179cab5dd3f44016d38e18f90fd0871bad` |
-| `source-archive/v6-legacy/S0262.md` | 15539 | `5b795ce3b57ac017144a5c1003c642a9538ed81de0b29f31ec1308fa2824ecfc` |
-| `source-archive/v6-legacy/S0263.md` | 15143 | `cf983733500d7c19ceeb44fa7f9f554bb9294883e02817823442f5c26ac2ff15` |
-| `source-archive/v6-legacy/S0264.md` | 15363 | `8b3b68e58ddffe05c95e92c9796367f36aa99f659c24a99468b110c8c262d61a` |
-| `source-archive/v6-legacy/S0265.md` | 16642 | `385a1a7236ef6828abb4d0d35549decfd1162a762c91ebbdf8076655852e49ce` |
-| `source-archive/v6-legacy/S0266.md` | 16940 | `582d996838e515336110ea40a5d65a5bc4b5d1dd6be4fa2bc7a491cefb8c2a16` |
-| `source-archive/v6-legacy/S0267.md` | 15406 | `ba5ee8ce389e1ee6971c24c116eaa03bbcb8147d13593c05ac68b446bc9e2545` |
-| `source-archive/v6-legacy/S0268.md` | 17056 | `a872fd503d12fd4570d4d1ff9383e3c9b8ffa9fabdb7b0bc7b3f352a085830e4` |
-| `source-archive/v6-legacy/S0269.md` | 15415 | `33697fdb7f2aba3491db8d7ac4f60b9b15ce5b77b02d817ebf6c056a680350fc` |
-| `source-archive/v6-legacy/S0270.md` | 16127 | `42b76d342c124588a2d364c73acfc3a7abc111f78763432a84e958f4f1819b9a` |
-| `source-archive/v6-legacy/S0271.md` | 15215 | `df8ea13d807e09774ddfa2b8725d86fee6196ff9209c5777b29610a7b2836d6f` |
-| `source-archive/v6-legacy/S0272.md` | 15271 | `21ea592dea990ffb6bcca63d631eaf585566a095abf874bf02fa35a25624add4` |
-| `source-archive/v6-legacy/S0273.md` | 15550 | `487fad6545737132fb9dce5dfe196758844069944bc05adf0256cd6f2fd3361e` |
-| `source-archive/v6-legacy/S0274.md` | 15327 | `e102c5bfa99b71f6141ee2d88e6daa91695fb372fd50b7029bbbf7e600923cfb` |
-| `source-archive/v6-legacy/S0275.md` | 14889 | `eb1a1698576c862ff70fea033f370f79477b952077903a46d1c89536b111a1d5` |
-| `source-archive/v6-legacy/S0276.md` | 15121 | `4dfafc81658fe0a5b9bd4739ef726a71851b34e48dfce539c5fb9613bffaf58b` |
-| `source-archive/v6-legacy/S0277.md` | 17100 | `0366a33a6b8781134010954ddf440a5e3ffa5d8befc70784a1554fb297dbcd30` |
-| `source-archive/v6-legacy/S0278.md` | 15355 | `58c7a9985ee1f5dc250da76cc154f6ca7924b9a88492852ff7149d2e464fe10b` |
-| `source-archive/v6-legacy/S0279.md` | 15411 | `ad6696b7f5c59b38ef6aa6ffedd5765a190a5cc60ebf539196c359b2812a6b44` |
-| `source-archive/v6-legacy/S0280.md` | 15690 | `21fd59b8c9914558b5c84c61f5f69fa74e9202564506d1696ea94cb6e8ef1dda` |
-| `source-archive/v6-legacy/S0281.md` | 15467 | `dda2269f407852da163e1661d7cc93b2626ddbe727e507f8fed12eeba0e71760` |
-| `source-archive/v6-legacy/S0282.md` | 15029 | `63746808572d2d0588a8a3cd403a7d0d4553d9a91e7aaf19274a118e85139635` |
-| `source-archive/v6-legacy/S0283.md` | 15261 | `d2fd45bfc6791fbad444a4936a1962c7a73e77bc3ce4a84b8bcbd5adce0b0648` |
-| `source-archive/v6-legacy/S0284.md` | 16709 | `4ae2c722cf6709a96368c062f0f277cb8ff88c9e7873efe59fa680500bd0d4b1` |
-| `source-archive/v6-legacy/S0285.md` | 16895 | `d18916d509350b1cfa6941d0d4585efdbba37e3947b5cffdbbd8efc9585ac018` |
-| `source-archive/v6-legacy/S0286.md` | 15100 | `6f72ec0687d627c55f8d30e82c2b490fd29187ae42a676b12d7ea4be75a26f96` |
-| `source-archive/v6-legacy/S0287.md` | 16215 | `79c739a09ee5976d47ad065caa661f35947b657bb5fbf01e55587da1d4cfdb3c` |
-| `source-archive/v6-legacy/S0288.md` | 15041 | `807da5fef5f6acae269336d751fe243fc55f730e20ae5ad920ddf9a81012d33c` |
-| `source-archive/v6-legacy/S0289.md` | 15313 | `f11a48752c09aa372372e6999ec697319927a4b54f454ad34bb1023a3cc5d402` |
-| `source-archive/v6-legacy/S0290.md` | 15382 | `8b8c91b1da0f79f5031906c98f0076ae5ad4b4d9d6eed1848ee073ce9083ec58` |
-| `source-archive/v6-legacy/S0291.md` | 15205 | `ef459834e1a1c5fbc1d2a470c115c1e3c28b650ccaf4e77e076456a44980e557` |
-| `source-archive/v6-legacy/S0292.md` | 14944 | `0c958b0f8efdeff024985062d894df057a09c79378b2088a3f5466c73371bd58` |
-| `source-archive/v6-legacy/S0293.md` | 15146 | `92015c969f425f50f5cf0de85954b4f57c1bc42f1c4b28a1e758a4f234da8f8a` |
-| `source-archive/v6-legacy/S0294.md` | 14199 | `38c9177b2c476d6f5b1fbccc72f28983191133594d123920cd4f4a0ae4cae957` |
-| `source-archive/v6-legacy/S0295.md` | 14815 | `4862ca4c46b23eea6eae6b14ad320a09b6923f111e2f78ef02c5e51c9949dfbb` |
-| `source-archive/v6-legacy/S0296.md` | 12755 | `840a0bc396d114dcc2de0f521839b8c9aade947b44bf2385f7e4a9d29b5277bc` |
-| `source-archive/v6-legacy/S0297.md` | 12857 | `4db6243b844fb8e5cc99dd574b553b24f18a70fa1a45a998e533a7eb267afeb6` |
-| `source-archive/v6-legacy/S0298.md` | 11451 | `e2bdca2b18b49609a11110baf9186bed97faeb1a1dd52f94a79b7d3318d9d8aa` |
-| `source-archive/v6-legacy/S0299.md` | 11304 | `9c987561fc304b4cdfa1b075eb0299222323b430d87675be556ec6e8cebed1ba` |
-| `source-archive/v6-legacy/S0300.md` | 11127 | `c4458c472676e543f8738b8790be8339f4b231938ed6b96b3b0dfec432118a3e` |
-| `source-archive/v6-legacy/S0301.md` | 11419 | `0f7a0ad75704f142048dfa49165a972dbf27a3fe2cca2b1e7db498df2ac17f4c` |
-| `source-archive/v6-legacy/S0302.md` | 11298 | `c89a147d7f834456a48061781437bb2e6e8f3f42b9f80e22cc3f5ac82670ea28` |
-| `source-archive/v6-legacy/S0303.md` | 12750 | `6eecac6eba991aee77467e4bc3f6699b3ca4b77d8c9b704c95e423579c1e627d` |
-| `source-archive/v6-legacy/S0304.md` | 11318 | `f97c13089981ccdfeeea5b096cc004252a4c16add2a91f7799c61e03dbe74470` |
-| `source-archive/v6-legacy/S0305.md` | 11141 | `57345635a65918b4e2ee99c3b8adb1dfcd37b30051fd2cdcb5f0a8e1a3e8c5e7` |
-| `source-archive/v6-legacy/S0306.md` | 13108 | `713c8f88cad97964f4ce09456fa75c9dbed7310d674e1467a4a5b1e3d876697c` |
-| `source-archive/v6-legacy/S0307.md` | 11377 | `c12e6b8507fccc156b009bed6e46d9982b62d43f4112db5adcee93968de0d6cb` |
-| `source-archive/v6-legacy/S0308.md` | 11363 | `0632398fc7d4f026a48378ae88fba420febd34cec4759fee2e34395c218a07ff` |
-| `source-archive/v6-legacy/S0309.md` | 11103 | `fae0fd7841c81153da4460964f92cf522812b5318eb8eb5e66d69a14d60c6b6a` |
-| `source-archive/v6-legacy/S0310.md` | 11283 | `8f5f2d1159b8d223495e599c3025b09688429e89ff0da17abfee2d5e9e1dadbc` |
-| `source-archive/v6-legacy/S0311.md` | 11105 | `03c1ad70da9672418d7ca51269ad72ada915e81c354bdbac21d4bc19694429ad` |
-| `source-archive/v6-legacy/S0312.md` | 11285 | `28736b383543a42b4a0c3f8105eaa87b3f872d447ad8243197c0111333ca3d2a` |
-| `source-archive/v6-legacy/S0313.md` | 11374 | `bf4540d3f126d255b51f7fc5b68b832bfc4c050acdff55787bfe126fb0defb23` |
-| `source-archive/v6-legacy/S0314.md` | 11185 | `5ed14079bb14727de12f9f63e51925c83699b2f78f95d1ded12483b84ca8332f` |
-| `source-archive/v6-legacy/S0315.md` | 11368 | `d6a2266a8b3cd2efeb5dc8095d9f4d49b249702bbcd58db3c87359a2b5a6911b` |
-| `source-archive/v6-legacy/S0316.md` | 12861 | `00213c1aebec05d981aba98f1e9fa7e88bb66b1d2410385828ce96fe7ec03895` |
-| `source-archive/v6-legacy/S0317.md` | 11388 | `dd94b590d3b3d8e20830d8d44f4c27ce4c4170328ad848494bff579857d76d37` |
-| `source-archive/v6-legacy/S0318.md` | 12250 | `f9de99f7a0fd4495bf32778150d8d6785d54ffc719fe37add6a5d1b288552ef0` |
-| `source-archive/v6-legacy/S0319.md` | 11828 | `d3b3ce7de85f04dd168c1e8e414499c4efbc97f3c6145ab0505c3c380c964540` |
-| `source-archive/v6-legacy/S0320.md` | 11211 | `4be3bc5a00c848f1b1fff1288649d71cf1a2ac17d8148e4489e203c86efbdea8` |
-| `source-archive/v6-legacy/S0321.md` | 12914 | `8eda5cd45c02e3cd84b4d63202371cf07b9621c7495385892cc35a00c3a9df55` |
-| `source-archive/v6-legacy/S0322.md` | 12873 | `81016786424f9d1b686ea2f73f90e50fbbffd1e1628e7b34d1d0e4dbdaac824b` |
-| `source-archive/v6-legacy/S0323.md` | 13067 | `85b45852bc4a702257225c87e0cabb2bca4098534a71ef17176d16042a9a70fb` |
-| `source-archive/v6-legacy/S0324.md` | 11173 | `beea0ba96cf98ac90d7a20d04b1c4483b90df3d599d10d889f213ce26291f2a6` |
-| `source-archive/v6-legacy/S0325.md` | 11371 | `f4a9110fd0788bfe6efacfd326ba98e590608616ace46a056f29db06c8cd421c` |
-| `source-archive/v6-legacy/S0326.md` | 11141 | `bd06a8b07c412984a87a4a0cf00a92453fb53364f4211c3b5c5eedb1ad50d2c5` |
-| `source-archive/v6-legacy/S0327.md` | 11416 | `6f331843da36142834ad2ca546e541a61444807c6d111e3e2e6cd2ff2b3e7e6c` |
-| `source-archive/v6-legacy/S0328.md` | 14197 | `c580154a8ef7ad7ee9bc439f18d75d3c9cb9612b7d49277374aa3794ddb87042` |
-| `source-archive/v6-legacy/S0329.md` | 11201 | `60419eca2e1f6664713cdd67c567fa421b624c7e8d41c6754dd4dbde11b308f4` |
-| `source-archive/v6-legacy/S0330.md` | 11452 | `6f81f13c31779db232e95a2fbabd51527240ea9169d11e566dc3199c2fca3199` |
-| `source-archive/v6-legacy/S0331.md` | 12002 | `53c9f6865ae5caf3944a045dea7fcd70b96039bf10701bebcefc73814451db05` |
-| `source-archive/v6-legacy/S0332.md` | 11207 | `a93d2cee7c7e38f4e875b3f30bf7eb912da7cb328d5e734d3c74dc98625db5cf` |
-| `source-archive/v6-legacy/S0333.md` | 11384 | `b3b548097985e68eb25d0509c92f97b46712e55853dc28429cef171274d89067` |
-| `source-archive/v6-legacy/S0334.md` | 13257 | `f7183a9185131f1067ac89f3a1c69f63ee684ce5fba10ddc1ecb246f2e388a0b` |
-| `source-archive/v6-legacy/S0335.md` | 11370 | `48524977ce2f5a8a972be18423cd88e6b7dde4a7e59302310b9ca0ea3ec76a9d` |
-| `source-archive/v6-legacy/S0336.md` | 11358 | `17d827d76b170c969b82e39c9c174f7d2937a5e7f7f2161fe0e3c16824eec3f9` |
-| `source-archive/v6-legacy/S0337.md` | 11890 | `38d55c3bad130df109817a0a48bac5f256f53534328284219748c3e3c0b0ee2b` |
-| `source-archive/v6-legacy/S0338.md` | 11250 | `a5cc2b0433ed50ac892b4df7231b25aecb4e40060a254e3e73d3d6c2a7b9b313` |
-| `source-archive/v6-legacy/S0339.md` | 11271 | `d03fabe7e6dae9a9887ed82880f630fb8ffca54adec826eae8e87e1e4c8c2816` |
-| `source-archive/v6-legacy/S0340.md` | 12113 | `09cbc8258e79205362c01d25c2459634b5d84e14beb473ea6d20d9403b89bb5d` |
-| `source-archive/v6-legacy/S0341.md` | 11277 | `317fa691f34e9a1655273b79007aec39b05379f8312ed406b13f5ab94225af5a` |
-| `source-archive/v6-legacy/S0342.md` | 11454 | `92fc1778f4b79c9d65c3b31419b57eed98d2db744b8c696c0a59506c5276439c` |
-| `source-archive/v6-legacy/S0343.md` | 11428 | `9acc625085ddc77727bc2c0e9653c78789acddc08a98e2a95c676d1ef953efe6` |
-| `source-archive/v6-legacy/S0344.md` | 11320 | `dcaeb65c94c13ba53af6fbc68fa7b1aceda4d005f94371a0d4d6851821c48ac4` |
-| `source-archive/v6-legacy/S0345.md` | 12175 | `0190b9c0cf5f46e1246752ea17385a32b984a8cd28c44b96e6bd7bc0edea3307` |
-| `source-archive/v6-legacy/S0346.md` | 21925 | `69bedd435797c96ad563a6909b5dbe5bf9ae8852bc3bd1576f564355ebc2aecf` |
-| `source-archive/v6-legacy/S0347.md` | 9694 | `7bc5893ff2f05974c1a476fb0ee8b94abb29d05a927a0fbe0f9d6027e5f69cce` |
-| `source-archive/v6-legacy/S0348.md` | 861 | `69154955b1a6e4ebcac90dc34ea2d85e86b802fc5715d7074e32ea2710deeb14` |
-| `source-archive/v6-paths/S0001.md` | 362113 | `39e26e1f7f880f4880d774682bde65e948f230d9ece2b1b2d515737f421acaef` |
-| `source-archive/v6-paths/S0002.md` | 8470 | `ab2dec2c6d623af0cfde4b866e6213d6af1a8476c4af0b250d7e97874a2ccdcf` |
-| `source-archive/v6-paths/S0003.md` | 12133 | `0189cbbf0b162914b61d5fa0c20998627a87302976cb7a035dcb2eb16f3261d0` |
-| `source-archive/v6-paths/S0004.md` | 12269 | `9111a8eadf55c1d39747fbfdb66df28141974f29fd4c927e6f2e3d85757e0673` |
-| `source-archive/v6-paths/S0005.md` | 11738 | `b5720b3abdfbe5045902646004b8eba57d98426f89c4cbcf1a3525d7ee56e7a3` |
-| `source-archive/v6-paths/S0006.md` | 11751 | `383bb0bbebb26bd213f4109f72768032974b7af72ad233d1abac46189ed14447` |
-| `source-archive/v6-paths/S0007.md` | 11828 | `55a3d951a4bac47b66632149610a3a7691d014949f81367d24dc4ae1c6dbff50` |
-| `source-archive/v6-paths/S0008.md` | 11826 | `b5be00a6b87dac7138cc12649c34aa533f3ade49b922eefb73123fae9090d51c` |
-| `source-archive/v6-paths/S0009.md` | 11824 | `58a9a81243dc5287835ad47d046478018818366de86696b4b129f9ee9013795f` |
-| `source-archive/v6-paths/S0010.md` | 11801 | `0ccefc981f58e295d1587d675c86205e635fad36b121cc28b7440d20a7c6fa90` |
-| `source-archive/v6-paths/S0011.md` | 12056 | `4473755414e0d4f781dbe4ee22140b067526e5cf19b4d02c303a266c506f7022` |
-| `source-archive/v6-paths/S0012.md` | 11668 | `75744e738c2af041b173ba256730a661ab0541ee45f4f53851747f47de4b3184` |
-| `source-archive/v6-paths/S0013.md` | 12151 | `c0eeca871ba25430f70dac2169a15d0115f09f32b997e4af2bea8a2d6f3ca86c` |
-| `source-archive/v6-paths/S0014.md` | 12207 | `a62352d4d6238a37ef4c8012f615e3dc82d0233d9228730d270669aa27a0ff5a` |
-| `source-archive/v6-paths/S0015.md` | 11963 | `5a0f379dd8f761862119b72e454bed0814358d6e9b662be34ec172ecbe78f501` |
-| `source-archive/v6-paths/S0016.md` | 12132 | `8dd55f271d744b6fca636b551a3c5d0f516d958574365afc44da1b6231f1c7fb` |
-| `source-archive/v6-paths/S0017.md` | 11833 | `074401784ebb3f31181c8ce157957653888a8957bc112074f2d388adb00122aa` |
-| `source-archive/v6-paths/S0018.md` | 11907 | `066a61868a9dba426544fc31ec56f97976bd6cf03eb757d1f63a35e6f2e2dba1` |
-| `source-archive/v6-paths/S0019.md` | 11904 | `b0b532599eb5a44f4f9cae77de36cc0278f105dc26d02dde2ac198a7751169a4` |
-| `source-archive/v6-paths/S0020.md` | 11880 | `33bcd2b575acb4c91f5ea160b47976af662d0cacc9bd1fc4d9fc2d076ee57099` |
-| `source-archive/v6-paths/S0021.md` | 11754 | `033fd9dffdb553aa6428cf6e084b739fef8d52dcf6a63487987ee3e8dfb1caa5` |
-| `source-archive/v6-paths/S0022.md` | 12286 | `136e95591cf6bf27dd6eeb235102860137ac3e34c38c77e621bf120f99231ff3` |
-| `source-archive/v6-paths/S0023.md` | 12346 | `77aee3ffd8746aa12a97f28819024c608d5d8b82f8389383dbb75f050f8919ed` |
-| `source-archive/v6-paths/S0024.md` | 12249 | `ec11b9f192786bb9fe17756fe7ee1629b9b26fd17d775856f58873e2f4ad589b` |
-| `source-archive/v6-paths/S0025.md` | 12241 | `d99c5081faec88086ceb26ed1dbdfe009b02407d52c24501621e3cc7a30de192` |
-| `source-archive/v6-paths/S0026.md` | 11982 | `b2f7bb93ef3e9fdabbd0c27860c72b4a233f3d7d8783942dd262182a45b7e85a` |
-| `source-archive/v6-paths/S0027.md` | 6936 | `2eee4296c253c2f805f3540f5fef841749235054904f21ad6bb04820a064dd2f` |
-| `source-archive/v6-paths/S0028.md` | 8554 | `c95c53c29daefa6b360aa2218011be500fba390fdd4e93984b54568f4322b8d1` |
-| `source-archive/v6-paths/S0029.md` | 15650 | `c31e0cec52a4e2aab15690e5832dc4b7d8eedc0a505455518b7de922cc647855` |
-| `source-archive/v6-paths/S0030.md` | 15439 | `84960ec80d56b8548739f30e9f35f622a927d425d6d154d053344f75f74d3245` |
-| `source-archive/v6-paths/S0031.md` | 15502 | `70f76a65b746c241484c19fde8842e7a251845ad1f254857cd269aaab9272187` |
-| `source-archive/v6-paths/S0032.md` | 15588 | `fb98e10e4075364de6be0dd635cf1311dbbae8a57de0f4fb4a3d885a29a81b57` |
-| `source-archive/v6-paths/S0033.md` | 15625 | `0ef7c3e8f757032f215aeb1dffb0be51b35e3fa068c4309e9762b4db497f92f1` |
-| `source-archive/v6-paths/S0034.md` | 15320 | `8141afafe4c4e68205f89a636bd6f9a475ddfb97029005fa63a98a650dfee5a1` |
-| `source-archive/v6-paths/S0035.md` | 15598 | `fab201d0d64377899d7f8000889c51ecc09f4f63bebe3cd219be6909f3a8e995` |
-| `source-archive/v6-paths/S0036.md` | 15673 | `334b5d6d404f9a607e572b9a90f651e15d3b6bfc5344077dca814cbf417817d6` |
-| `source-archive/v6-paths/S0037.md` | 17431 | `1110ff7cca20915d2f9d222416165a79d53f20ef295c8f52c318fc9633ab4926` |
-| `source-archive/v6-paths/S0038.md` | 17436 | `81a2c83440a96519cf5b6a13763a0a0ce20ee6f00d8bea0645534306bfdce9e5` |
-| `source-archive/v6-paths/S0039.md` | 15960 | `efd36efaee4702f990cbd19f4a867a2b5b3421477a5af1018597e3b4108b08a4` |
-| `source-archive/v6-paths/S0040.md` | 15906 | `50d453eafce6ca8624374fa86a753449b3ea60648e8d1250cd2b8cf7aab349a2` |
-| `source-archive/v6-paths/S0041.md` | 16069 | `6d0c760163790578698a16bc160dc3255102df162a831990247cb0c384d9bcd1` |
-| `source-archive/v6-paths/S0042.md` | 16273 | `cd914d5495ec8d095d547c4a48e99aa1a445bacf2c761e20ee554057e4601cc3` |
-| `source-archive/v6-paths/S0043.md` | 16007 | `a3895b2f05d125eeacd3129ef6617895a384ac1d16a98ac3d8a79c72d5d0a803` |
-| `source-archive/v6-paths/S0044.md` | 17802 | `10c7f92459c6265c04202fc01a2c821dc827812b247ef9bbb59689558b4b1845` |
-| `source-archive/v6-paths/S0045.md` | 15758 | `8518ef4e9c85f8ec68ceea95f3bf28af8744cfe0d82770c8e94968526e3025f7` |
-| `source-archive/v6-paths/S0046.md` | 15550 | `3483e35d3b2c9512ec76ca13a352c17c6eff696d16b5608bdda3eb47abfab268` |
-| `source-archive/v6-paths/S0047.md` | 15610 | `eadd486ddf3dc7d1d58bf5865d5f75d87417c1c352fa6e0b40e936b7f0f57c2c` |
-| `source-archive/v6-paths/S0048.md` | 15693 | `3a35cd1331ed4d35e5ef40ac2ddc5442306fe4f333ec70fda61122355ffc57ee` |
-| `source-archive/v6-paths/S0049.md` | 15737 | `2b680cdd375ec78566f699e12dd3f8cb6f824d3064041acfefc590d9b04fae56` |
-| `source-archive/v6-paths/S0050.md` | 15437 | `7324e72a9d4b2926784c5170adf0dacad3b0c26e327d10a8ccccc7a9a7e1947b` |
-| `source-archive/v6-paths/S0051.md` | 15739 | `a2297db1da808024296a5f6659e94ee63cf65981ed618b1289865d65a137b2b9` |
-| `source-archive/v6-paths/S0052.md` | 15783 | `e79c70728cdb8f67821c827bd9685949a74a89ccbef4cf22fc9d82574d7f3f32` |
-| `source-archive/v6-paths/S0053.md` | 17257 | `05ef54b3f3bea14cd32ef847ea9cea36065065833937d08599fc12893ed58417` |
-| `source-archive/v6-paths/S0054.md` | 17207 | `897c193f0b754a51d2f271c22f19590b53ddcb35c2eb1da1e6c74ca46010a889` |
-| `source-archive/v6-paths/S0055.md` | 17240 | `4cc6c49ce1bfc4b48ec18932feec8eff151bd9b9a52e3a3f6446abe32e58badb` |
-| `source-archive/v6-paths/S0056.md` | 17615 | `f3cc1e402b83008110e48810ba5b187df87b6383180c3e0bb820c8b239aa3642` |
-| `source-archive/v6-paths/S0057.md` | 17203 | `75b0def634ab5430af3ab6ab896e2c6bd5ee604da51d7a050bde581717822ab7` |
-| `source-archive/v6-paths/S0058.md` | 17476 | `06924e6a565129078f86637767568cea3f703f1e03cac7d8d85cd6fa2c7a35a6` |
-| `source-archive/v6-paths/S0059.md` | 15989 | `72c9111fa6a39fb1253583e4336565bddae589cd47d9b4ad5237b81f18ce7884` |
-| `source-archive/v6-paths/S0060.md` | 17862 | `9897005927ca907b0d5783fb490d81f55af0dbf9c8706378dff9ea5970c3f87f` |
-| `source-archive/v6-paths/S0061.md` | 16022 | `c4c7b4d5fe370a51f0ad7a7849d6f4c62b740cc80b7b09a93823df3676001b07` |
-| `source-archive/v6-paths/S0062.md` | 15732 | `5928613978880f7fe459acc9e16e7ab9739a4d075e148a4670beb3408d06d4ea` |
-| `source-archive/v6-paths/S0063.md` | 15817 | `003f5fefaef242754203a46e52a2dde66e75bbdfe23f686b0009c862f176b737` |
-| `source-archive/v6-paths/S0064.md` | 15636 | `e589dd2e06110f830e8f55c194ebad8ce23cca0befb8c942a1a00abbe0c5e0bd` |
-| `source-archive/v6-paths/S0065.md` | 15624 | `ca709c3672300b3ac43038f48781fe17d74d6eef6991b267e7d4830a7a19fba8` |
-| `source-archive/v6-paths/S0066.md` | 15426 | `fc6e088606abad831449f8c1deb240e6d2e87b4d2fa484c65e2316d38eb0d2f3` |
-| `source-archive/v6-paths/S0067.md` | 16095 | `da50d50e35a06111566f09cc091a4eeaa37bf3c78fb350d490de43cf18c83287` |
-| `source-archive/v6-paths/S0068.md` | 17526 | `1ac904c3b4a8695e32c48c13e598bdb34a6aa1f1619e834a51088f54454d5f7a` |
-| `source-archive/v6-paths/S0069.md` | 15805 | `44623cf450c314fff4d22f4d242f3c393648ef35a5116b765891068c5c2d5e5d` |
-| `source-archive/v6-paths/S0070.md` | 17701 | `478234d873733f1e1093051c5967f89cc1d7104a1525322a2c1de283d7fe33f3` |
-| `source-archive/v6-paths/S0071.md` | 16019 | `af03ffd6ac93552ae05bf8ba18ea7f103fde6119628498f556f0c0f2df02f18b` |
-| `source-archive/v6-paths/S0072.md` | 17797 | `e85c69ee075f42de3ce1139058c681d8eb23e5c5822d667749fe770fa1555d81` |
-| `source-archive/v6-paths/S0073.md` | 15971 | `cb68ca5f94b82d98df4782d84b6450fb66456730a31364c58f957401a5ade509` |
-| `source-archive/v6-paths/S0074.md` | 15915 | `a605590052f0b7e5a484b0eeffe6cf650e08766d79a5e9bab68fd911e9b59fef` |
-| `source-archive/v6-paths/S0075.md` | 17863 | `9767579437e54973d03de3b68fab194958639c890ce6c148fde4bbefaa0eb706` |
-| `source-archive/v6-paths/S0076.md` | 17868 | `e68f98045a9b6008fcf2f5138b2e7f3df8f095b139da698cede1422a20936e82` |
-| `source-archive/v6-paths/S0077.md` | 17580 | `8d777290d86aa2b9107879dc8a7bcd8df2fa348852c9005ba87a584d836ce1e7` |
-| `source-archive/v6-paths/S0078.md` | 16270 | `cca5acec7f89d1db5c718c19d06a71887be908f27400b8f0672eab49c12da366` |
-| `source-archive/v6-paths/S0079.md` | 16095 | `132769b5e166224b2b95f0d5ddc1c434be4de23a659e2974e10ac8f577fda635` |
-| `source-archive/v6-paths/S0080.md` | 16163 | `4ac00fe0ee590dcdab0cf71fa39ea6835e58fe3cdebdb3dde326e3944b8d5b1a` |
-| `source-archive/v6-paths/S0081.md` | 15871 | `ea6b4e87bfc484cfea1ce02dd25084c2103d7347c7747d09b837c48c07ffc7e4` |
-| `source-archive/v6-paths/S0082.md` | 15923 | `5998c86ace1e3411df84c5949992f39020bb07dade3760bf4f301a38b7844184` |
-| `source-archive/v6-paths/S0083.md` | 15741 | `6d9de80712e622f93977ef08e356e3a6b0789f8458285793befa1bed83abbe94` |
-| `source-archive/v6-paths/S0084.md` | 15730 | `a7086c6d276fcb0fe4c10b14f26b48e4f40082a87ff67c6c410197e045722ec8` |
-| `source-archive/v6-paths/S0085.md` | 15541 | `53cd38aa11f75b26e491d84955260a677ccce0a52da4e49b7bb48a1a7ebdbfe3` |
-| `source-archive/v6-paths/S0086.md` | 16235 | `2ef24f52d29208e1b5372407259f0533b9ffa90717d66901775e0b9f2a6a68c7` |
-| `source-archive/v6-paths/S0087.md` | 16018 | `8a877024cff08d781577d529c1584586a3412a63b6d86b1a8c47658cd4336ed5` |
-| `source-archive/v6-paths/S0088.md` | 15945 | `fa76a41f4d5fe0b2a978be8224093c6e1ac8b730e4159af6dc78b29dcd577c36` |
-| `source-archive/v6-paths/S0089.md` | 17265 | `d513aa1565014ebfdedb4eba9d01582c066d06b57fd9f91cde0f19126befb7f0` |
-| `source-archive/v6-paths/S0090.md` | 17416 | `805b0249700d644d316e66a0d7dbb952c7fea84c57d0192fc6859797bb771621` |
-| `source-archive/v6-paths/S0091.md` | 17247 | `f7434e3493ba3899f7a660aa9a5939ece724b675532fee8a85a290623b6d674b` |
-| `source-archive/v6-paths/S0092.md` | 17163 | `cf7e75d8ce7cb8cf58a873099cc878b399a15cc0419ea59ac177c9098753309d` |
-| `source-archive/v6-paths/S0093.md` | 17325 | `80f95eb523dc40fb0bc27920a3bb4027edd849c50f925f78d36010d2d3af85fe` |
-| `source-archive/v6-paths/S0094.md` | 17594 | `118dc2c201028ed1cfdbe330df39c805aa324efd5885c407b251b9067ea95242` |
-| `source-archive/v6-paths/S0095.md` | 17399 | `86cc315bb2ab98a3233cf2c536be9b0eada5ad181244db1d5ebcfe0a361225f1` |
-| `source-archive/v6-paths/S0096.md` | 17618 | `dfef14ca6ab5c77ce8e2b222d92032e5f6fa8e8da970e342bd14367412b42438` |
-| `source-archive/v6-paths/S0097.md` | 15733 | `f2a4ecc823c78cb505539b36ec3e0e301e128fbe7abc17912628822078caf0b8` |
-| `source-archive/v6-paths/S0098.md` | 16772 | `f130dcf9c10c1af5344f126f02a8ef3970b7d7de6e6afb9e33b331b716cdf156` |
-| `source-archive/v6-paths/S0099.md` | 15838 | `4c7f52bef143900d227d26a85e54777783b70873ea914fb32de89fed945ca932` |
-| `source-archive/v6-paths/S0100.md` | 16172 | `d96b7f8ced03795d1b61d754d45a961330f660e774654834c87a33fe39a8ac10` |
-| `source-archive/v6-paths/S0101.md` | 16158 | `17bdb189f1f4edcbc4836a6fda8d53c6213206c85ab2fc902a4088cd18611e01` |
-| `source-archive/v6-paths/S0102.md` | 16196 | `668dae97fdd95da1fb0968eca68b9dd12d91cb6c384939ee262f4258bd9d72ef` |
-| `source-archive/v6-paths/S0103.md` | 16152 | `b12ea346e214f3658818de64bac4c090e5d69a90e656fa67faf149c6bd7cfb0f` |
-| `source-archive/v6-paths/S0104.md` | 16448 | `50f4f3e8e7a984e43633a7d774588f798ab239219fca962f05865a615089d917` |
-| `source-archive/v6-paths/S0105.md` | 16323 | `c62510d00ec7db1a94cbb37799cefdb8498df45d313d412014e2c913ca4f1251` |
-| `source-archive/v6-paths/S0106.md` | 16351 | `eabeea2c725c1472986024bcd062d42351ef15da61f8d673dbfeb774640dd4ef` |
-| `source-archive/v6-paths/S0107.md` | 16134 | `9452fc93eef5a245c5eec6e7d84327cac1809be5d0c656fa4687e0f74dd221db` |
-| `source-archive/v6-paths/S0108.md` | 17717 | `173a42d1b97c2529d85bec28c872cd3e2ffc91d2d7a30add08d47cde0c42f99e` |
-| `source-archive/v6-paths/S0109.md` | 17556 | `7a99db0699e2bd847b84ba2d2c1ef9d137307a5e536286e0d6e6046fe71db6a4` |
-| `source-archive/v6-paths/S0110.md` | 17556 | `824073f329e5cd74affd4383f7cfa8229cfb2e2b51a01578c736c04f6e9f5309` |
-| `source-archive/v6-paths/S0111.md` | 17738 | `965682387ab52dfdeb747b85227740d27f4d00e2b2ae0ee047cb2cfe45ade3d1` |
-| `source-archive/v6-paths/S0112.md` | 17573 | `978b6cc71f0769aa6413d5590ddb88d05705100f2c5da606333e7d18b252c3f3` |
-| `source-archive/v6-paths/S0113.md` | 17539 | `47fed59155d104f9d96fa5a46eaf657aa213cf932ea6df413d891c0a87c5a767` |
-| `source-archive/v6-paths/S0114.md` | 17586 | `6e6e5969186a44abca594e944458cded65b95952537357294542bbf379b724ac` |
-| `source-archive/v6-paths/S0115.md` | 16315 | `e58bbb75bdd2ccc843442a5c55430657004220e733858bd79e7babc1da49b799` |
-| `source-archive/v6-paths/S0116.md` | 16365 | `a8afdb7f89e7f7080d8c8f5bdc6428ee67d9b938b1eca2698ec8d3ce41310cff` |
-| `source-archive/v6-paths/S0117.md` | 16313 | `4b70af4466be1e7ba46cc6d4045b76d723d826d95b66b7811294f802978d02fe` |
-| `source-archive/v6-paths/S0118.md` | 16298 | `e2ef568d7fccaf61d4f69ccae36a07c3e3cdc30c67416d580baf055862226b2e` |
-| `source-archive/v6-paths/S0119.md` | 16337 | `a4bd59a0c38da5ebea54720409731139b330bf9b4bd06f86cb2578f010b31483` |
-| `source-archive/v6-paths/S0120.md` | 16339 | `c6d2f6dffa7587a331abecdb268bc48f676fdc2fa8638312a6f9b3a5e093cff4` |
-| `source-archive/v6-paths/S0121.md` | 16271 | `2f0f2f65bf426713b4969e0773ad0d444bf549028cacd36950c9dd2069eba778` |
-| `source-archive/v6-paths/S0122.md` | 15755 | `21dfb9feed7a40224f573d4ffd7acc8feae3600ef666534df5b6f105ea2e89c8` |
-| `source-archive/v6-paths/S0123.md` | 17589 | `efb5ed962a8c511755916fd5bb488834eda84c0dc669a09bf443fed9957a0b41` |
-| `source-archive/v6-paths/S0124.md` | 15766 | `3460531fded6498981013aa116867ad623cf72944390c6380e5b1fd099a0a599` |
-| `source-archive/v6-paths/S0125.md` | 15774 | `446c06222276bc85bd9d1858b9989dbfe5f58c7b13cde055666838ee1a0d8ea3` |
-| `source-archive/v6-paths/S0126.md` | 16834 | `afdb760aeb650cdaca5fda158fb4574adbe097403510761f2dec941215ea5cc2` |
-| `source-archive/v6-paths/S0127.md` | 15588 | `8d3385a07bb51635564b5b9d42e0f38011dce23ede9a9397ff0b562be081516f` |
-| `source-archive/v6-paths/S0128.md` | 17059 | `e0eeac1c54e03bb4b33bf5ad15006f422cbc1ba7c86622003db673a2ee647382` |
-| `source-archive/v6-paths/S0129.md` | 17609 | `4bcd5285d3f9d49fab38a221f2cf2cb9eeecca9049d6ee6c85ad43e34f63b154` |
-| `source-archive/v6-paths/S0130.md` | 17496 | `e045bcfde59641c1ed9039c59adeb0df795953fe763477e6bafc5efe9d3ffb04` |
-| `source-archive/v6-paths/S0131.md` | 17369 | `01fa19bcaa7623c6718aa933a2daabbafc4c29a0ceaddb248405a92bfdd763a0` |
-| `source-archive/v6-paths/S0132.md` | 16056 | `bf4c066f86bd93f87169e5724999b9457d582dececf2fec5ffa54773857d4504` |
-| `source-archive/v6-paths/S0133.md` | 17967 | `521d7734467926c0e8cd08dfce1fc93ff56b4cf68efefc1f96385d292289c8d4` |
-| `source-archive/v6-paths/S0134.md` | 16097 | `65fcc39479aaff1cd4cb9a8db05900b927492bd5f6ef720d31135a20052a6f2d` |
-| `source-archive/v6-paths/S0135.md` | 16289 | `0240be9c024020f3bdd2e4196f7f28467cbeaf409ef51b4969fad86125274a84` |
-| `source-archive/v6-paths/S0136.md` | 16111 | `3b760de23baaf9b06b5ce5f07735a07735974c9f1297b87841bf0e6ff9a3e897` |
-| `source-archive/v6-paths/S0137.md` | 15860 | `e9cd99776bbeefc7294e0728401d165956a77c2bdc2b084b24099084b841a638` |
-| `source-archive/v6-paths/S0138.md` | 15872 | `f16bcabc8f63e637b5525ba828dc871068593479b3f362462dd16650d4745163` |
-| `source-archive/v6-paths/S0139.md` | 15892 | `eb8cb4c4672e275fd1d442029ee9bd6828cf72af5d2e60feff2cef6f49f9267e` |
-| `source-archive/v6-paths/S0140.md` | 15918 | `77c577f5a5844563b7d5933dc83a86b92b2f9ba5e9653af616e3161ac2f5d1fa` |
-| `source-archive/v6-paths/S0141.md` | 16081 | `60b46ef3f464428478c6824d6db4d284ba98802c24f5241676ce5dde5a8d4313` |
-| `source-archive/v6-paths/S0142.md` | 15879 | `ff08f036602a386f23e419ad3d11bf116f852fee926d3e6d8fcf456f014fcafb` |
-| `source-archive/v6-paths/S0143.md` | 15578 | `724999b2345433715e89ed6abc27eb6cc333028b6dbd9734847d4f85fd871c3d` |
-| `source-archive/v6-paths/S0144.md` | 15693 | `1f88c6cd22508c5487c6f655c0776e36a80e5dcad1e3be45422ccbaf621d296c` |
-| `source-archive/v6-paths/S0145.md` | 15721 | `3833c8e75a8308d979f6e8bead8a6b38baf365d1e0e69f9616de6e12be0b3050` |
-| `source-archive/v6-paths/S0146.md` | 17288 | `4e199dff751cce33a5868e6293c27e773c5a2febeede932073adfead6369adf1` |
-| `source-archive/v6-paths/S0147.md` | 17684 | `b8e691842b26b469aa66804ef444d817ce8f2a9c3982ee90c2ed022520a82fd3` |
-| `source-archive/v6-paths/S0148.md` | 17530 | `d575d1e628155b4be46aced3d689e488858fd1d68eeef3223450f33929a41609` |
-| `source-archive/v6-paths/S0149.md` | 17248 | `60b7c424863d0a1cb29c3456206c57731d7c316085bf49269019b1b47b2e6318` |
-| `source-archive/v6-paths/S0150.md` | 17308 | `426affd496ba79011e7dbd2c3161e60b1b2555b0811e01fa66fb432fa8d57b1a` |
-| `source-archive/v6-paths/S0151.md` | 15916 | `b07a22e491e1fbeae5218b14f059434138b6b2fc6d44911e98e2679be5cadcb6` |
-| `source-archive/v6-paths/S0152.md` | 15607 | `e62da3b3f18c3cc258f80a94f520fdabc64e3e35ab9d03e6ee40e27554bff1b7` |
-| `source-archive/v6-paths/S0153.md` | 17139 | `df32ee309625f58499fae09a6400b4ea3b4e0da768bf3c58ed761d236ba8d228` |
-| `source-archive/v6-paths/S0154.md` | 15625 | `53890ed9acaeb2ee52b2889ec06e8af5fa61b3d16a1f1dff8a6a4a45ee8d1341` |
-| `source-archive/v6-paths/S0155.md` | 15583 | `cf09dc42aecb55f42ca5d428342b63a8ad9bd92ce09f5c87947e6b1a46339d7e` |
-| `source-archive/v6-paths/S0156.md` | 15930 | `f6380ede309b332b6aa7488839880a878efa00a143bc3392eb8372b95c3e5241` |
-| `source-archive/v6-paths/S0157.md` | 16763 | `0e9661233c044a5589cc4aca3af08ee7b48f2c9a803e5057a82d863afbc9931c` |
-| `source-archive/v6-paths/S0158.md` | 15582 | `765e18c69226e8f5ca7254a11b0b9cfe0b44089f9afedd604fa0d26f285f665f` |
-| `source-archive/v6-paths/S0159.md` | 15782 | `8672d79ac6fc67f84c532522912c890be73789e2896fa044f44089a166923966` |
-| `source-archive/v6-paths/S0160.md` | 15558 | `b176ee71d49f4781b0886b1ae8f525d62bcb031851f8aca1071c1839287b910d` |
-| `source-archive/v6-paths/S0161.md` | 16021 | `d998a4ba682a63b9b21d662d1e8217b7a42edfeb8d3e1ac05ec54a67dae66ded` |
-| `source-archive/v6-paths/S0162.md` | 15712 | `6bb3c10a7e2f58539cfb02d840a72ccbb8937d9c13dfde003ea86c2fab0ebed7` |
-| `source-archive/v6-paths/S0163.md` | 15729 | `7e17f05487c6d97d330e1143b8c8dfd8d2967ce17081a3df691ebc64fab5d074` |
-| `source-archive/v6-paths/S0164.md` | 15688 | `ce276b4aa6f562339015493de91dddba28a7ca611745049dafce1c82675484ff` |
-| `source-archive/v6-paths/S0165.md` | 16036 | `6e24d762621e8290d7d85d1bd392e483d08f52783ee3957975628c6e76f387aa` |
-| `source-archive/v6-paths/S0166.md` | 15489 | `af84883beb1f4e624b8adb740c312a7a221d15a9f0e9a6be127a621eea68284b` |
-| `source-archive/v6-paths/S0167.md` | 15691 | `6bd18311b3934ffd186566a72307acfabc6351516afa8aa69abe7ed7dc196695` |
-| `source-archive/v6-paths/S0168.md` | 15886 | `6a0c9ebbe7a837bd0eabccfcad8a73ff7b0c90523ce95444c7aa746261227d00` |
-| `source-archive/v6-paths/S0169.md` | 15663 | `991494da127fe6e36d941f70d91f58ba45d94c3975aa727cbd43b499b0048c23` |
-| `source-archive/v6-paths/S0170.md` | 15640 | `9829273c63eebe8acbac365ea346fc3a6c5c7f09f06fe2c268ce9208fb010acf` |
-| `source-archive/v6-paths/S0171.md` | 15684 | `addda74e9ac342ec5661f28f42cf30b15b23d6eec3dc0b73ae7390dbe800dcfd` |
-| `source-archive/v6-paths/S0172.md` | 15871 | `039fa7d70fe19364827a2608d59285ddc1f2e0d7a3daf9830bdc2046199535e5` |
-| `source-archive/v6-paths/S0173.md` | 15615 | `098cc4c9b6234ca09e84bee5d9b0e860f6938c4443a70b117ffa08ead002a357` |
-| `source-archive/v6-paths/S0174.md` | 16119 | `f7717de89e62fb72882d69d026a8573a7d98712a4d88bb538208556d0db703fe` |
-| `source-archive/v6-paths/S0175.md` | 17916 | `6a6331575ef2f99e3683dedd466bd34d620005573cc3c4468609be5e1bcafba2` |
-| `source-archive/v6-paths/S0176.md` | 15855 | `99b223ee0a4b54186f0388e30a48494dc50f42479b962f64523ca325a7c5b843` |
-| `source-archive/v6-paths/S0177.md` | 16046 | `990b3cf8f77ea0fb9c8bf7e294a28e0a805e5de9e8d06f26061ca8aef3ac9b03` |
-| `source-archive/v6-paths/S0178.md` | 15429 | `c31ff3bd312e023988b934a5c4844b4ab4ae68c749b14735ae5526c90a41f029` |
-| `source-archive/v6-paths/S0179.md` | 15604 | `dee52515442ecdd6be7a76c219267ede9beeef6695f875e89ecf518b3ff29dd0` |
-| `source-archive/v6-paths/S0180.md` | 17639 | `8f5077c5d3434aebd51c6a36d6ddb0a891a568505e892ff9e8ae633ef1fb1b60` |
-| `source-archive/v6-paths/S0181.md` | 17688 | `9a2a600f7f831bf9000c91ffbe872e564117912e7ab42905805c5844d89c5ddc` |
-| `source-archive/v6-paths/S0182.md` | 16087 | `32d79eb3a065f1c467807ba88e7771bb4c0ff1063de4e263a19839c1d7108e2c` |
-| `source-archive/v6-paths/S0183.md` | 17487 | `85bba37add037fc98588c801f57a27e2ef44bcd85a09989112f5c087f62b61ac` |
-| `source-archive/v6-paths/S0184.md` | 15718 | `bd2c42b4b351d4873a695d36e17c5f4aab99ee1984eba309e1887cc9e5ddb04a` |
-| `source-archive/v6-paths/S0185.md` | 15895 | `a6be2584bb029acc305f87e7e6082320b3d62773f3a137ba2d630d2e87d05b17` |
-| `source-archive/v6-paths/S0186.md` | 15746 | `9a1b94ca78483252b7594735e043ba42916edc0722629d069a9d1672ec64e2b9` |
-| `source-archive/v6-paths/S0187.md` | 15789 | `12c3562a4c4e4c2e440f2565c3a19e2fb0818d90d6c79552c13344404fb27bcc` |
-| `source-archive/v6-paths/S0188.md` | 15720 | `3e28d91e461ad348d5a221856fb222d31f7abd7e3ae11bbf4ab78a4ebf37a314` |
-| `source-archive/v6-paths/S0189.md` | 16012 | `70d97df10a0c2e4ca62f3a663c04464827a99c81f351aa92ce90509cdf9d6a06` |
-| `source-archive/v6-paths/S0190.md` | 16259 | `28504c8a3085873cd9589228dd02543f1d92cea7cb42662c847b152061c17a30` |
-| `source-archive/v6-paths/S0191.md` | 15996 | `8bf4ffbd526ebbb5399f738de7b63ca81fc8aaab0d1325ccf0179fb968dc7081` |
-| `source-archive/v6-paths/S0192.md` | 16186 | `fbfd14d256efe4ff90da6245127b68ec14e0ca4fb7939f6890114032e41bce44` |
-| `source-archive/v6-paths/S0193.md` | 15540 | `f085934df748f09716c07adbc06ec1b12c3492ef89aeb892113499b306264515` |
-| `source-archive/v6-paths/S0194.md` | 15709 | `f891fb6b20af8fcf8361dde23649591231cde77a8bc296ca770ac81b98c3dc5e` |
-| `source-archive/v6-paths/S0195.md` | 15975 | `4f229b1bad4fc25db1b58a389949b59f6d4c9f35b0c7f0ae16f0f1db91011e86` |
-| `source-archive/v6-paths/S0196.md` | 17219 | `27544f2bfb1dd368c65d520ba504e32603f04ed6f63d8bb613d0b808b3e57097` |
-| `source-archive/v6-paths/S0197.md` | 17398 | `d6d21e24b08c585377ddcd5ad36da7d01f076585595d873de1f6fde967b9d4b9` |
-| `source-archive/v6-paths/S0198.md` | 17406 | `ea0f3d0b1bdf611ecaac4a85a66ec103cc44121e590a2efcf723c910f00a58e4` |
-| `source-archive/v6-paths/S0199.md` | 16037 | `c714c3f7a7ad724c995fe4448d5e827dd0a72f0e7160e6769999405662bf402b` |
-| `source-archive/v6-paths/S0200.md` | 16059 | `62750d89ebe8ca084b48a38b653c03d9606d2ca15a5d1aa40495cb57b5428155` |
-| `source-archive/v6-paths/S0201.md` | 16223 | `c2fdde9de3e339e9e2732f73adec32d27d54b0f2713515e3d0fa83b8dc18499a` |
-| `source-archive/v6-paths/S0202.md` | 17262 | `557e4a44a228dedded22a331888dc947eef2c63d6bc32cbce7d80396a67911df` |
-| `source-archive/v6-paths/S0203.md` | 16957 | `aabde2202d4700e94efb0b1c1b22e82c8c5c49f5728f5cd82eacfc8b13081229` |
-| `source-archive/v6-paths/S0204.md` | 15994 | `59e35e6ab0ce4984a6216656b162dcdb29c88b5e72c6f448ee94d7b85813bac6` |
-| `source-archive/v6-paths/S0205.md` | 16309 | `7c5285c5a8297d05088fdb3df9e966f4440feb48785d4c0c7eff765b8fdd3f74` |
-| `source-archive/v6-paths/S0206.md` | 16159 | `ea15eefb8898d0141e39891bf47bd8fe1aec888539f3ecb90f4a10eed8f13545` |
-| `source-archive/v6-paths/S0207.md` | 16335 | `c6eadea8cc81141442d37fbcc1d848b7e791846b34116a9e5de96d8dd006d988` |
-| `source-archive/v6-paths/S0208.md` | 16054 | `8924ec818379de6f7261be8aed6de6957cedd93a072547c59775b9a29c4cf550` |
-| `source-archive/v6-paths/S0209.md` | 15859 | `03b548bcca4ca5e544c764afc78554cab91f24c2eb0867db394f71131b639569` |
-| `source-archive/v6-paths/S0210.md` | 16115 | `d434449dcff446687daf32f0dcb5862d704c0e58da2eec32493bca0d5c32c8f9` |
-| `source-archive/v6-paths/S0211.md` | 16226 | `dba9e29d0596991871dd07f731023adfefb4c8f47981e9cf26f3cd2acc9bfaf9` |
-| `source-archive/v6-paths/S0212.md` | 15909 | `af20d84926d97566f145a053211c82d81355c6721c7ba2a0960e1cb5b3882c34` |
-| `source-archive/v6-paths/S0213.md` | 16402 | `4f86a6fe66667464eb30c2d1ab5be7ad823bd254c092e6f6e13c2a2cbcbf0f89` |
-| `source-archive/v6-paths/S0214.md` | 16048 | `ee273d16fe1d1b3f37be54aa8649a72f1dd04f26177c16f1dfb5c38cd362d02e` |
-| `source-archive/v6-paths/S0215.md` | 16324 | `10d9bddbf66f14badcd3efab4bc008c13e7cb7d45c6c4cbe8017c90e102f982a` |
-| `source-archive/v6-paths/S0216.md` | 16259 | `a1f88cf36361515ce84087e9ea65911a86fd87336d90b01ce0f9abfb29965d8d` |
-| `source-archive/v6-paths/S0217.md` | 16364 | `b65b96266ea0ecda2ab9d655018133abf4a97109b4a93fc8fd1488cedefb684a` |
-| `source-archive/v6-paths/S0218.md` | 16454 | `9a85c1a7b3990f236f73646f393fc949748c77db014307739e5f4af7322a1791` |
-| `source-archive/v6-paths/S0219.md` | 16181 | `91ccb7d90b03f7c7694e6dc7f322f7d2ef2618bd4cba32903ad50615d85d9108` |
-| `source-archive/v6-paths/S0220.md` | 17806 | `f5aa98f2335859ce32f50140478591ec376c6d87e291f39da8dffd5c4cc867db` |
-| `source-archive/v6-paths/S0221.md` | 17619 | `770bd12d88784860ad3ff6e5552a78d02e2618bf69b6337920814758fe35cc70` |
-| `source-archive/v6-paths/S0222.md` | 17602 | `318273d32c07816a763da7de468309572628533f952a76a1fe3880b22d349c09` |
-| `source-archive/v6-paths/S0223.md` | 17582 | `ed109807ca7b93508e1d9f90233bbfde93485bd1ed2142702e6c3569032b80b3` |
-| `source-archive/v6-paths/S0224.md` | 17603 | `83937669f954d26f0c4429b5210266c552a98c98bf025bde69a9d7c1c51c874c` |
-| `source-archive/v6-paths/S0225.md` | 17551 | `1d316fa6703cdb868326e49a08d069659b7c16d5ba4ce065225cf8d80fc8229a` |
-| `source-archive/v6-paths/S0226.md` | 17772 | `e52b1b21e1af2fefad53f264647def04739eaed094c97defb90b0c710047aa1d` |
-| `source-archive/v6-paths/S0227.md` | 17736 | `88b309d19e04e620da6697b7fa65b63b9b2218c0564359f326e8a9f7c7e59763` |
-| `source-archive/v6-paths/S0228.md` | 16461 | `4af832293c6f0e2493505ffb83eaab7fa0bd41529bfccd45a6abc155718fcfb5` |
-| `source-archive/v6-paths/S0229.md` | 16346 | `fbbf0cc4c3fd7c36406df37e41b6932febf713ad5f31a0c51d665e9b7b587962` |
-| `source-archive/v6-paths/S0230.md` | 17617 | `25eeaff24c94bd44cec9958e4a54fec0e6612f6bba890933d851533f7a04b4c8` |
-| `source-archive/v6-paths/S0231.md` | 17639 | `da38691d531843d74b22d0b78302e64a8f09dda5ef25d8b525a24254f7e53e6f` |
-| `source-archive/v6-paths/S0232.md` | 16517 | `eff15f1e5ef6d14b01ec5f41d46d25d7d91d00b25db3d3564b5c4a0e7b103ca8` |
-| `source-archive/v6-paths/S0233.md` | 18040 | `97b35b6c9be820bcb7fa8253511b2ca8066ec2be7f1a9feef7926de389164097` |
-| `source-archive/v6-paths/S0234.md` | 15723 | `beaf94c396a4738f77a0341b7f421b33e27b6f170e43b63b3e6529b45ce8bfb4` |
-| `source-archive/v6-paths/S0235.md` | 16271 | `f16fd7986aa2b8b841a0eb60900d3afcaaf96454e8c193497c379a9e2102657a` |
-| `source-archive/v6-paths/S0236.md` | 15991 | `06b1f71cc9823a47b48a1fd8fd522d621c5e15deac3c90729115f020192ad118` |
-| `source-archive/v6-paths/S0237.md` | 15828 | `4773da2267a9661a2eb22002e97abe6be7173fa9505b0cd074b7f5d89182105c` |
-| `source-archive/v6-paths/S0238.md` | 16362 | `790ab8cefa9a1b0dd819ec1adec164400da81e3929a2c1733c74cc94dc6b70e4` |
-| `source-archive/v6-paths/S0239.md` | 16116 | `f313b1593317edf31070f85bb24482d10d77abc4a7ec880dacc9efc584ead372` |
-| `source-archive/v6-paths/S0240.md` | 16164 | `b85223f23efcd1dded3e9e9e257dd1dff03654cab8d9912ba43e5fb48b9e5195` |
-| `source-archive/v6-paths/S0241.md` | 16035 | `e962647d35cac530684053534da88528af1b76189552bc4962bc43cb645d2ade` |
-| `source-archive/v6-paths/S0242.md` | 16009 | `3e021e7d6101f015d73a8b2a9c06d0eb038aad23a97a545949d4d44a37659f68` |
-| `source-archive/v6-paths/S0243.md` | 12712 | `01404e5f885b64476e230f2ec4b4a748ee45bf640eff86620fd70c008a3d6c74` |
-| `source-archive/v6-paths/S0244.md` | 17290 | `d9595cb2f3fdf747015895d1b4bfde2cf274edfd621ea894c3db39dee73be08d` |
-| `source-archive/v6-paths/S0245.md` | 15705 | `ff148332728969e5c042be51328bb1462bb14db68bb9629e646b71c0b1ebf188` |
-| `source-archive/v6-paths/S0246.md` | 17248 | `3fc18c4733406906b3d4abff0254bf238b42268ae8cc666788be214bbada7af9` |
-| `source-archive/v6-paths/S0247.md` | 17575 | `8ed324a7ea39c5bda87838ac01c5ffad1d2aac248d3396dbd04b8045564d956a` |
-| `source-archive/v6-paths/S0248.md` | 15560 | `c8efde2ea19d03ad3fc9af6ab1d4ee39c22dfb27c9160d0dc2dc6727ce5e9c53` |
-| `source-archive/v6-paths/S0249.md` | 15661 | `07b42328d64ce60f671c9abaaf6dd89c6880cb715bcb7cc0f4da50dec6a03a95` |
-| `source-archive/v6-paths/S0250.md` | 16022 | `f50d70283c89967f57beab1b4c1b8c4546a86903c6326fd120517e032f5140a0` |
-| `source-archive/v6-paths/S0251.md` | 17373 | `da53672dfa55dc39c5b7a0f396fc79df842ce061ab97b460755adebcd70cad03` |
-| `source-archive/v6-paths/S0252.md` | 15881 | `cc730f4ceaef3c05eab6b0f324dbbde4ca4fe81db6eea1d75fedd1f1e707d3be` |
-| `source-archive/v6-paths/S0253.md` | 16022 | `93a7fde2538dbd8c2d785772ba392be635fe827beed625578042f4406e9f5927` |
-| `source-archive/v6-paths/S0254.md` | 15924 | `b5ae9f3e033745fa79bd6b022679ff2302f46906a50f96f616ee1cda0f0c3f82` |
-| `source-archive/v6-paths/S0255.md` | 20195 | `ae4c4489706ce51766ffff0b4d3ea8bcf9bbd3986d8787204ed1e38f8631ddec` |
-| `source-archive/v6-paths/S0256.md` | 16003 | `c9c7e2eae4932a8dc31a8bab6cc33e16bf142b6a59c71eff26f286226f0c53bb` |
-| `source-archive/v6-paths/S0257.md` | 15845 | `9a74bcd77e9306bb22aefdd614caf123e24eb33c17907618dcc73ea81f4f119b` |
-| `source-archive/v6-paths/S0258.md` | 15906 | `eda5226c0f8954dc4fbfd3078884cc010d1715e4b1b2676b5d015c025415f8c7` |
-| `source-archive/v6-paths/S0259.md` | 16002 | `26b469a8f0750c30be91fd6a6c5606e6264b603a44db962ab7d785e4cf76bebe` |
-| `source-archive/v6-paths/S0260.md` | 15667 | `cfe8fd3d4f5bdd1dd693b364caf4d1e512bf22aa2be8f72ee6fe1bb9097a4651` |
-| `source-archive/v6-paths/S0261.md` | 16092 | `b12abe62619faf29e5ab17bfe8934b50fe46d71e15170c829f531ecb0e1e3983` |
-| `source-archive/v6-paths/S0262.md` | 16162 | `d9f0a6104c842610b782412c13591a68fe2a02da47e6befadb180011138047e7` |
-| `source-archive/v6-paths/S0263.md` | 15766 | `4fbb812ab57cc79cf8dd71e1f451c44a845e6a1a8b8a47269b41deafc957c2a2` |
-| `source-archive/v6-paths/S0264.md` | 15986 | `ffb151f2d7e322ddbf6d9d15b45eb4b9aa096df731c503542b4874eb8c86e3f0` |
-| `source-archive/v6-paths/S0265.md` | 17306 | `e9e28c2a43e753531d6fcc74e4304fa39ad2021b2f62f4e26afcfce0b37cc92f` |
-| `source-archive/v6-paths/S0266.md` | 17604 | `898f837c4f12f60448d939664aa7af84ba5efbc656a271765882492489bfb694` |
-| `source-archive/v6-paths/S0267.md` | 16028 | `224c70ce6d8ee3d95dd0bf914abccfdcc14d9eb3e633848fac48946ec3ce8ef0` |
-| `source-archive/v6-paths/S0268.md` | 17720 | `e7487ff0d7633b450f421c2cda883f95859a62c84cc758322e2f501b941a11a2` |
-| `source-archive/v6-paths/S0269.md` | 16079 | `1b19a85e81d0e7126c5ecb445865f6205a2f82cacdf48fa08a53d3508470ce7a` |
-| `source-archive/v6-paths/S0270.md` | 16750 | `0e555ebc7234a7c0b2c3d7bcc63866915d5d4e5803a92ca69d31d1c353a837fc` |
-| `source-archive/v6-paths/S0271.md` | 15836 | `2aa659a533c783afe183fd6d2877e6f9cc59660eb778690935ccdbf2b3241ce0` |
-| `source-archive/v6-paths/S0272.md` | 15891 | `4b33bd3e464980684bb61d04deea973ae9a4d96fc1f8c076cc5b716410a2ebb3` |
-| `source-archive/v6-paths/S0273.md` | 16171 | `dad4940f563f0675c48dd5fb0c90d709c1264daabb5c181cba57c82942ed3238` |
-| `source-archive/v6-paths/S0274.md` | 15948 | `665548d6a834a6f26fc28d5ab9dd8ecd3cf24d3917a71cf1e389f599a27c9f75` |
-| `source-archive/v6-paths/S0275.md` | 15504 | `b4860cb5c93d22a14d3a2869362c071393f079f00eaa836ceea67a863e10ed1d` |
-| `source-archive/v6-paths/S0276.md` | 15742 | `1b04ac6f9328a4c0e22d0e65f2dd377a754d2d83f50542b858d82a6ecaac0a50` |
-| `source-archive/v6-paths/S0277.md` | 17721 | `81bb53f012aa1a588e26077526038fce8ff6be5b1c7b12cb961638bf38b50a8b` |
-| `source-archive/v6-paths/S0278.md` | 15976 | `ea4939f2e117c688ca54bb1823186b50b62d440fe6f8f55c6dd21896188207c0` |
-| `source-archive/v6-paths/S0279.md` | 16032 | `97a275b6789e9f1b1c47b902ae9e267de3f06387c22c0ef0389b98e1a13f8b9d` |
-| `source-archive/v6-paths/S0280.md` | 16311 | `22ca14a01f94d4636d8b2de08a2422aa3b2f398114624806f8c753cbd3946144` |
-| `source-archive/v6-paths/S0281.md` | 16088 | `9e49a33467c6649108d1e35f6cbff3fa69922f40e8a239b401900641413b7830` |
-| `source-archive/v6-paths/S0282.md` | 15650 | `f768be54df9bd36f80dd33d5dd149aa01a9118897e6c662ad3bb61d6f9ec980b` |
-| `source-archive/v6-paths/S0283.md` | 15882 | `a4ae8b0ba5a1070184c456de5bf48e18adab17702b5b672d6fa23b49927dab26` |
-| `source-archive/v6-paths/S0284.md` | 17371 | `b396aeb935a9c0be8a6ee67b22eb424e84c76b8fe714e052a565056120384f05` |
-| `source-archive/v6-paths/S0285.md` | 17557 | `6c9dc1d283f9bb920f7061049266abc3e35757838109afe316f8b9023779d851` |
-| `source-archive/v6-paths/S0286.md` | 15719 | `6a428551b7a0984a4f69d3fcaa0cba37379a3fa9223575bb0fbe021fb901c281` |
-| `source-archive/v6-paths/S0287.md` | 16830 | `1b23f132662ea10932a519c300cdf4bb70f3d761f7b48a8a399622347fab3336` |
-| `source-archive/v6-paths/S0288.md` | 15662 | `f7e503a353bf3c0468d3e3534398c88ddbddf031340d64e2d4079354a83fe899` |
-| `source-archive/v6-paths/S0289.md` | 15934 | `d85c50ffde6f20eaa64dbdc136eb1556d1840a7f5a9adb382e17ba739727a96f` |
-| `source-archive/v6-paths/S0290.md` | 16003 | `d4388aa5c199a3ea40187eeabd063d35c5acf417e3cccb2a188ab5024ffb87cc` |
-| `source-archive/v6-paths/S0291.md` | 15826 | `35e4c606f9d68bfd14371a79230b875a68aaec2bacc658a46192f524f1372951` |
-| `source-archive/v6-paths/S0292.md` | 15565 | `55d94d7410b22e4cd092b1e178874eed9e5f9d524d5ab91a5896334f468146eb` |
-| `source-archive/v6-paths/S0293.md` | 15766 | `292acb82dab856867beb4dda37b47ef0a0f9a069fc0d6145a72f0710671778c2` |
-| `source-archive/v6-paths/S0294.md` | 14698 | `b2c7450ebccc7c4b2505a631561a2df836310e8f653d88b324a0ccf042ddfbca` |
-| `source-archive/v6-paths/S0295.md` | 15311 | `a7cba7f31a4948fc3933f0b288355c4bfba782f277d67d443771b61af037984a` |
-| `source-archive/v6-paths/S0296.md` | 13416 | `d47be5734320202e0adac00309b6bf67edbd8088a52a50adcd9780b3df3f7283` |
-| `source-archive/v6-paths/S0297.md` | 13518 | `f123da022bdd91962e7edf2ea4315cd57bd5f820ba213a60e073d676f96af017` |
-| `source-archive/v6-paths/S0298.md` | 12071 | `cfdb2cf3fc30ca680e5373d303b11e71f05cbf1921bc32ba51f43e6f65b356fd` |
-| `source-archive/v6-paths/S0299.md` | 11921 | `5f79429aa872a838a82e7a810001e5e067f4f1029185276c050bc4bcdab25b2b` |
-| `source-archive/v6-paths/S0300.md` | 11732 | `d2d9855cf4bcb6ba0fa514fc26e5e187274e11588e8796c4482e6269d2876dc7` |
-| `source-archive/v6-paths/S0301.md` | 12039 | `1383d47509e7717cfd461bdf2d8a79f15a362bb107ae590e1c6cc88f7b4b1d0b` |
-| `source-archive/v6-paths/S0302.md` | 11913 | `9cbddf9c8408f0a85fe0365aca4f89444913efc80dd65238d1189221e7d6cf1a` |
-| `source-archive/v6-paths/S0303.md` | 13386 | `56f545121c28a2b84306a71a3d7dba797f34109da3cdd73ab663b185b2ae7d5f` |
-| `source-archive/v6-paths/S0304.md` | 11938 | `4f779dddbe7fdc382c2d237185c27a89af365aac124af58ca07c62f84984b67e` |
-| `source-archive/v6-paths/S0305.md` | 11753 | `25f857f3e8f4617f0ceaf8a831ae43e215332836050d3502bd02b26caf82f0e8` |
-| `source-archive/v6-paths/S0306.md` | 13769 | `61f0c78432943fc3df626277f1be3e0bb74faff837048a918bb4a5cf4de3774f` |
-| `source-archive/v6-paths/S0307.md` | 11997 | `3c5f54773f714c8a292a7c51ba74eaef42304b14b588e93990d29dd4e21b741d` |
-| `source-archive/v6-paths/S0308.md` | 12024 | `25d50c6bf64ce3b760aadc3a9667f17577e3f4b54879dfaef3f4e16e15c67535` |
-| `source-archive/v6-paths/S0309.md` | 11711 | `3b6561343f249a572950343d9940e8eca2b5c7cd5d0eb3a098348a8fbc906420` |
-| `source-archive/v6-paths/S0310.md` | 11879 | `a1f1a2a2ba3b40f22407e3eb2dd192fa32aa4ed746fe8d6cb3786e4b1f7ee30c` |
-| `source-archive/v6-paths/S0311.md` | 11683 | `407e8e3e188e852b01fcc71383053a97149c114d7ece028d065e0621b7e544b9` |
-| `source-archive/v6-paths/S0312.md` | 11902 | `d03014ae84a11d0d8453b1b36d0725c92f0b881a9544e5e306023e4816a05511` |
-| `source-archive/v6-paths/S0313.md` | 11994 | `26bef4aa811c6d5af1158e82a75a96816b29957f2899752f1b99eafe49ab992b` |
-| `source-archive/v6-paths/S0314.md` | 11805 | `49efcb2a55214d03ffc5a1694ee2ea7bf78a123d251605a89f4efd8fbcadc17f` |
-| `source-archive/v6-paths/S0315.md` | 11988 | `9f4e18ce12a52436d724b3ae0215738e110f8c15152eff8f869ffa08c4b94648` |
-| `source-archive/v6-paths/S0316.md` | 13497 | `ef1a9fb3df97b8034f4e976b833f295383ef4a446567b1e7d5ec05b19ad55ad4` |
-| `source-archive/v6-paths/S0317.md` | 12007 | `c748ce0dbed62df8dc280bc36793089444820befa6050f057cbcf85e306def2b` |
-| `source-archive/v6-paths/S0318.md` | 12911 | `3d5da5bbec14b8c62678e99cfbf71dda4f0d494ad98b0470422a6185a3b48ef5` |
-| `source-archive/v6-paths/S0319.md` | 12448 | `642c12c6345b49de05c42ea2200ec154db68e693a6881e4de81fbf009322cc88` |
-| `source-archive/v6-paths/S0320.md` | 11830 | `0f02a16831333dcc5b52372caa0d7711b1f502e23d445695de8eb49c797ca8cc` |
-| `source-archive/v6-paths/S0321.md` | 13574 | `da1f7e12f7bd10639ab40cc693cd01b144c9e6dc219ed72c7242d3a752e2395d` |
-| `source-archive/v6-paths/S0322.md` | 13533 | `304658bf08bdaf0f69fbc35a42c596f5e74e067c6862a24d6c435939f5ea630f` |
-| `source-archive/v6-paths/S0323.md` | 13727 | `d76fd930de173e0b65541abdc125db7e18800a6f1217130c6667fda1e7b61b06` |
-| `source-archive/v6-paths/S0324.md` | 11793 | `a6900f7e19236c9b4e815ae2a49b0749a788b105ebde81d66faa53bbf326c25f` |
-| `source-archive/v6-paths/S0325.md` | 11991 | `f7f12d7fc0c182cf0cf91544b5ee3fc186e080ee337110ff60385835da57a6c9` |
-| `source-archive/v6-paths/S0326.md` | 11754 | `f0c166b3f6523610481b2cfec255b9a7b1e3775cad2f513e9636b551f5d7776f` |
-| `source-archive/v6-paths/S0327.md` | 12027 | `fe5c0f99a143116eba379baf5f80137902c254f41431b2e09b57a26ac58ea3c7` |
-| `source-archive/v6-paths/S0328.md` | 14689 | `b0539c895202b759e61758d22a44e9c837445a18b652e461e6020d9820eb98bf` |
-| `source-archive/v6-paths/S0329.md` | 11812 | `8ca8e21533a158020d06df7dfaa32ec6c62bec60b57ceecb465a90ceafd57545` |
-| `source-archive/v6-paths/S0330.md` | 12065 | `acdce71b8051bb5c41d09b8e91b2ff53da2f0e0b71eaf60d770e589f9dc8189c` |
-| `source-archive/v6-paths/S0331.md` | 12618 | `0444ad9e17c326d391f2957f67de9f1ca45f7da2f32763da8b288a25d48bbc9c` |
-| `source-archive/v6-paths/S0332.md` | 11809 | `4170a5f0b0db240cdf3cc91d58bb66e7aaf92658b179175e3801c83ae946e72c` |
-| `source-archive/v6-paths/S0333.md` | 12000 | `36d5853c91946170df8697ea28f41b3381bcabf60828956689ab98f7eef8b3f7` |
-| `source-archive/v6-paths/S0334.md` | 13913 | `570cf5ff1ba8ce745397f484a52c68521de0c30d9fdef8eced4803a76c6e1d32` |
-| `source-archive/v6-paths/S0335.md` | 12022 | `a3c4d1621f3436a0280d78cd43a9b80e6737ee16a5cefd0c5ec75e1763e151d0` |
-| `source-archive/v6-paths/S0336.md` | 11974 | `0adfa76734ee413644e4d849d410aa47f8c44e37052c6ba1e3d4c9abe6015935` |
-| `source-archive/v6-paths/S0337.md` | 12547 | `7b8d76e026caf746cd6d99e0b863e5323e2e74e03b915ee263fc827bdfb06576` |
-| `source-archive/v6-paths/S0338.md` | 11864 | `cc8069f8393fde4bebc9507b50bf1b05bf50e55b14d67b36da25fc0188f9e949` |
-| `source-archive/v6-paths/S0339.md` | 11887 | `113cc7097fa0db5198a64bd74ca79bef60210676c92c331eb880dc9fd3da03ec` |
-| `source-archive/v6-paths/S0340.md` | 12729 | `49ba9b44955305417fceab1ae3b440b567f7efc028fd00ad7838aa7adb5ca71f` |
-| `source-archive/v6-paths/S0341.md` | 11893 | `90f82f37405aa234f24dc913ba19df013a0dab618b81cc83c301b11a754ad89a` |
-| `source-archive/v6-paths/S0342.md` | 12069 | `aaeff81e3cd2448a7ce0d5748d7a8d85736b2f70344e0e605460950ad53c2b51` |
-| `source-archive/v6-paths/S0343.md` | 12044 | `051f2000ae6a18d9881b49a2180703f0febddee4535399a9fa50b8341d83f565` |
-| `source-archive/v6-paths/S0344.md` | 11936 | `f25a5d72466fb74f4c54113f54a718be6670c36020b8d92a212a3d2229878ea6` |
-| `source-archive/v6-paths/S0345.md` | 12790 | `49ec49867c0ac2c70c10004a59fbbacfa799da1b73696081c5482b0438127586` |
-| `source-archive/v6-paths/S0346.md` | 22412 | `4556c36f0ed26744ae14f4b90c3e6fdb1e37259ee3244f5265aca23d478af533` |
-| `source-archive/v6-paths/S0347.md` | 10181 | `ef594a8ee4c6b52f92691aaf9a8b35c69bf558f258c263f8cc277075402777a7` |
-| `source-archive/v6-paths/S0348.md` | 1286 | `5d4287290259baa12a93d9b6ee75cd7701f005596785d4af2123d3aa1d4f9449` |
-| `source-archive/v6-root/S0001.md` | 6490 | `253c787feaffe870eec72522d056b29d83d45c5fd83407bfc6fa7c0965039b8e` |
-| `source-archive/v6-root/S0002.md` | 1969 | `bbb40cba7670490be6b4d90d789e60f6b9d39640762022e997c4af3e864cb57f` |
-| `source-archive/v6-root/S0003.md` | 2728 | `b419db60a9b67718eb96d389c716a769633781110211d857336b5fecdc0c18a1` |
-| `source-archive/v6-root/S0004.md` | 170942 | `272b2cf9402efb94046be8e4bcb4c3d97ec5032b927f78809def01939b2d5b73` |
-| `source-archive/v6-root/S0005.md` | 2513 | `48f6f4156387581935d85d6cebe41fa3e41ed00d6532f0e29abe412d66d05843` |
-| `source-archive/v6-root/S0006.md` | 3899 | `350df7f3f40664806b53850ccc285a8cf34310d38358c925010a26bdf9329d32` |
-| `source-archive/v6-root/S0007.md` | 1765 | `da1c6300a0ade346a151b3444cae3849f380f4063e1cc7acefbed94c061aba49` |
-| `source-archive/v6-root/S0008.md` | 3152 | `efe182606f560b623d64b5a97aaff7f2255991b344ac8c0b76c481230315c55e` |
-| `stages/s00-governance-onboarding/ACCEPTANCE_PROMPT.md` | 2028 | `6ec89d6ece3a92a8f5c603b866220e2cea17599ed7fac9fd93476aff698bb7f4` |
-| `stages/s00-governance-onboarding/README.md` | 2820 | `3485b0d09e6dc7e5c8806b46d4a1eb427f752280d0eb7387882028fa615073dc` |
-| `stages/s00-governance-onboarding/REPAIR_PROMPT.md` | 1617 | `98ef79fd3cceb6e3b7f0153469393022866de227159a32fd110f255ac645aa53` |
-| `stages/s00-governance-onboarding/START_PROMPT.md` | 2568 | `85b6639edb5b99a91d80838c92ba7aafe9c8609fe6cce3ca91ed3c0d8dd3ce78` |
-| `stages/s00-governance-onboarding/TEST_DATA.md` | 2180 | `4e5583c365fd176342fba6ff6c48e741cbbf88d3bd8aaf329999aacbe712e23b` |
-| `stages/s00-governance-onboarding/TEST_PLAN.md` | 1859 | `6a7591eab8953aab83e3120e562062833a18f4d32d6d1d397b419ded22c67797` |
-| `stages/s01-foundation-shared-kernel/ACCEPTANCE_PROMPT.md` | 2109 | `26c40972ce6252cd29d7a97231fb4702eafa6956e3cc061c886878dd9bb40f40` |
-| `stages/s01-foundation-shared-kernel/README.md` | 2683 | `a9f7cf5fcd164f69b189e6d43f4a193c4d79eff989f305b56c6ce2a5f4442977` |
-| `stages/s01-foundation-shared-kernel/REPAIR_PROMPT.md` | 1627 | `6533d89851dfc9dd2c698e419d5b979c88c946010e06a36d5402e3115d36c4af` |
-| `stages/s01-foundation-shared-kernel/START_PROMPT.md` | 2326 | `3b94057e2b01f0a7f35cdfd5f66aaa1bfd4501974b8e3718431762b7981ca7c8` |
-| `stages/s01-foundation-shared-kernel/TEST_DATA.md` | 2193 | `b402ca2bc55fcb8fcaecc9eddf848bb14d32851cba201033c264f3d80d9837e7` |
-| `stages/s01-foundation-shared-kernel/TEST_PLAN.md` | 1869 | `ccee0051d1e3e691e9d95aab2d123d1c1cbe9a591b05f0b74b7f2c90431010d2` |
-| `stages/s02-domain-core-authority-event-model/ACCEPTANCE_PROMPT.md` | 2096 | `7a8f2aaf15fffde21cc58ed1814d05d3069cb5ef79b122242c0768a1ac9dc329` |
-| `stages/s02-domain-core-authority-event-model/README.md` | 2782 | `7cdcf148aeb13a7565183ec284f6868756774fbb08d9f1ab9776220c17878e5a` |
-| `stages/s02-domain-core-authority-event-model/REPAIR_PROMPT.md` | 1671 | `e395c1237184a772553a982e4fc91c72f557fca436be3e9ee6a83ba2d99bfc4d` |
-| `stages/s02-domain-core-authority-event-model/START_PROMPT.md` | 2427 | `e5e3d7a3d9b7b6b1bd35b018627e436433350f31f56b244013fafd46f1491352` |
-| `stages/s02-domain-core-authority-event-model/TEST_DATA.md` | 2285 | `bb748d7a8399d9b394d00ebed97d976b22fa5416ede25fba2d712c8abe6fc7d5` |
-| `stages/s02-domain-core-authority-event-model/TEST_PLAN.md` | 2010 | `0d4dc4659ee7f6226ef969aaaafd89c26ee0210d4fd3f4ca2ac6e573e0b10953` |
-| `stages/s03-data-eventing-persistence/ACCEPTANCE_PROMPT.md` | 2143 | `83909d73ae48f9bd8b29e1bbd611eb852c8ffae7fd46f4238ab28cf297eddd66` |
-| `stages/s03-data-eventing-persistence/README.md` | 2824 | `5300214ab9ad838ca935696fe6788192c85eaa9f83e16068793197f9577010f0` |
-| `stages/s03-data-eventing-persistence/REPAIR_PROMPT.md` | 1703 | `0fc2156f48b020133342e1a515bcd725f38e5703579efbea3e2a45d39e555943` |
-| `stages/s03-data-eventing-persistence/START_PROMPT.md` | 2464 | `4df8cd7bb030f3b481f0a5fc87cf49a73feabb7e0124c72d2c45abee012f7c1c` |
-| `stages/s03-data-eventing-persistence/TEST_DATA.md` | 2311 | `44fe10139a865134d58522e155a28243d0bf143c4aee437c0194d144ae1aa0d7` |
-| `stages/s03-data-eventing-persistence/TEST_PLAN.md` | 2027 | `ffc662b4b8c445228c5b8dc14cdf29752eb8ab0a38ac718b505b05879e4ba327` |
-| `stages/s04-security-governance-policy/ACCEPTANCE_PROMPT.md` | 2067 | `664ce47037a2c2bcdff227d3601d276178ee4e472d55af3f43d1cab485e7f5c9` |
-| `stages/s04-security-governance-policy/README.md` | 2702 | `c81579b626a9fb0b2d6011eb107c6bc0708fedcf84e766b4703967c9d441454e` |
-| `stages/s04-security-governance-policy/REPAIR_PROMPT.md` | 1687 | `30c9f3cd5e02f03f204ad6ef21e8ad867d79fcd53fdba51e43fec08fa244e583` |
-| `stages/s04-security-governance-policy/START_PROMPT.md` | 2412 | `ac5bef34297613f1dcc6ea5f182dabd324bd5b6795bb3f75371370c7aef33f2a` |
-| `stages/s04-security-governance-policy/TEST_DATA.md` | 2308 | `d687b737cf73591d05166d2df576ee0d7d1d571dfc89b2b34b2a574ad96af984` |
-| `stages/s04-security-governance-policy/TEST_PLAN.md` | 1983 | `fc0ef79ee45c88be276088b2b209b14a62235aa595c2e3c322a054cd0ac4e9c2` |
-| `stages/s05-ruleset-coc7-engine/ACCEPTANCE_PROMPT.md` | 2050 | `0813c4996ddb94b876b63b8e2beb8f8cc0be76d099274ddd0bd749bcb4b54df3` |
-| `stages/s05-ruleset-coc7-engine/README.md` | 2688 | `cf925e83fc51f09409e2e2836e368727d4c637305f16e4c9a586f8f6091f9952` |
-| `stages/s05-ruleset-coc7-engine/REPAIR_PROMPT.md` | 1705 | `2fc891ebdfb256b622e6356b5cf8427903a59ed32318f325441ed833e8b5987e` |
-| `stages/s05-ruleset-coc7-engine/START_PROMPT.md` | 2429 | `d154398b3f978b57d359e12e7f1fb8a6140a009f29bc0e66cb7cbc8f9b646447` |
-| `stages/s05-ruleset-coc7-engine/TEST_DATA.md` | 2325 | `a1c697c362c25af50a46c461cfc9e0078e24b3800510e132845bbd65cd7cd56f` |
-| `stages/s05-ruleset-coc7-engine/TEST_PLAN.md` | 1991 | `ad75ba36a1d35be1ecd0960678182112dac3172c2d9b108c9654e92445ec634a` |
-| `stages/s06-runtime-orchestration-decision-pipeline/ACCEPTANCE_PROMPT.md` | 2168 | `d3f471b4aa70f98530139866ce0a255541ba8bd1146f7b9b477c89c7c9d9aca3` |
-| `stages/s06-runtime-orchestration-decision-pipeline/README.md` | 2873 | `e97ecb2bb0996be668910ca5216aae7b94655829a4fd758516abfb237364c372` |
-| `stages/s06-runtime-orchestration-decision-pipeline/REPAIR_PROMPT.md` | 1725 | `4b300911fab6b3ca8c0cee9067b08037e326e3cdaed71571fe661ba27a090097` |
-| `stages/s06-runtime-orchestration-decision-pipeline/START_PROMPT.md` | 2541 | `23247895247004cf164ca806101c8488133954368cfeb2f21574e6f8f807c359` |
-| `stages/s06-runtime-orchestration-decision-pipeline/TEST_DATA.md` | 2343 | `db2c6f689bac1b0fc35d19ac28c000a8cb08f80c6dbecd505abdbbfd82e1db17` |
-| `stages/s06-runtime-orchestration-decision-pipeline/TEST_PLAN.md` | 2054 | `d51720363b420f91105e5ac7c3f96514f5d7578c141697f6966a0a8e0ce7976f` |
-| `stages/s07-agent-runtime-provider-memory-rag/ACCEPTANCE_PROMPT.md` | 2170 | `151050124a07c6f505a503d1f94475e493b1d5f4551e802813c758526d092ffa` |
-| `stages/s07-agent-runtime-provider-memory-rag/README.md` | 2942 | `89ac051b792ce5ed6c6fa8bba5087a46f06701f435dbc14a9b5044389a9f2440` |
-| `stages/s07-agent-runtime-provider-memory-rag/REPAIR_PROMPT.md` | 1731 | `48194b51a9706d2c64668266fe11a513b6c8c648b613b3a3a5bec5a2b91d89af` |
-| `stages/s07-agent-runtime-provider-memory-rag/START_PROMPT.md` | 2532 | `cf6056f766e6887900d659165d5e15804f30368992c8ad3491176a1d84aacd2f` |
-| `stages/s07-agent-runtime-provider-memory-rag/TEST_DATA.md` | 2354 | `e499f9d88a3a692045890f8f978a6f7a1424ec8c1779819a477e7737b898ccb9` |
-| `stages/s07-agent-runtime-provider-memory-rag/TEST_PLAN.md` | 2101 | `b2cfa81be41145d7943e33f294a2e4781f071108688d15aa1ee0dae232b70699` |
-| `stages/s08-api-realtime-contracts/ACCEPTANCE_PROMPT.md` | 2076 | `7c6fefd531ad1ad4f66a901354b6a4f6a8eb62337a2c61cce0076d76bacfd828` |
-| `stages/s08-api-realtime-contracts/README.md` | 2712 | `b100a747c45b12883142fcecfc640bb8e9cfcb298ab802c6d701797cbc68f559` |
-| `stages/s08-api-realtime-contracts/REPAIR_PROMPT.md` | 1703 | `f38cd44d7c2cc4c8ab0c4b2105a69be6f70f36ab2b782741640865d7c7b71d8c` |
-| `stages/s08-api-realtime-contracts/START_PROMPT.md` | 2430 | `7d984872ee0c0c825a6b75efa72e80d9ba04be89280eb692767a5fab81111f13` |
-| `stages/s08-api-realtime-contracts/TEST_DATA.md` | 2306 | `4087ca9601ae438358a70a2b84f519cf78d14c0f1e6f692ef5b9de107f63103c` |
-| `stages/s08-api-realtime-contracts/TEST_PLAN.md` | 2006 | `4566b66d0268934694fe47f4b8e67dcf6f33bd34139de735c28a8e93b3992a04` |
-| `stages/s09-platform-infrastructure-deployment/ACCEPTANCE_PROMPT.md` | 2234 | `18d711f37d95b5ea0890cb232f47a5a21b4060070fdb3e69b4cf3b32627f4772` |
-| `stages/s09-platform-infrastructure-deployment/README.md` | 2837 | `0ab27094ef8c16169897540c8c926dfa8021ebb3b1278b37dc43aa792f621913` |
-| `stages/s09-platform-infrastructure-deployment/REPAIR_PROMPT.md` | 1725 | `65e23713bb19a7da743bcaa5d6a6595da981480061a844113a3094269f7cc252` |
-| `stages/s09-platform-infrastructure-deployment/START_PROMPT.md` | 2494 | `1a9778ec53b0ce529f1458c9d0f73b52ca31087fc88eda593d4648578e2f3317` |
-| `stages/s09-platform-infrastructure-deployment/TEST_DATA.md` | 2320 | `d95d08ee9b2c2fe3ee469ada484af4afafa9bdbfea8ed80223de46d62612ee56` |
-| `stages/s09-platform-infrastructure-deployment/TEST_PLAN.md` | 1933 | `d9e1bfa51dde7aa2fc803af5adb0c34531552c1ab8a4abdd277444ae7694f7ac` |
-| `stages/s10-ops-migration-runbooks/ACCEPTANCE_PROMPT.md` | 2050 | `39c507269c9cad7e30465be93dbdf283ffba8651814eb028a498720eb7ad6342` |
-| `stages/s10-ops-migration-runbooks/README.md` | 2479 | `148998d2cb0452946f3cb9bb8deb47d4d8b07e1fe67a35138d03763d39d68cc4` |
-| `stages/s10-ops-migration-runbooks/REPAIR_PROMPT.md` | 1693 | `04a30b4eb4ced0486f01139e848946dc5bff9ddf53fce20923b92ae9320fe93c` |
-| `stages/s10-ops-migration-runbooks/START_PROMPT.md` | 2347 | `e21940e5af3db19716ebf45c67a75c0c4738132951adc355702ab1daa18f0c5a` |
-| `stages/s10-ops-migration-runbooks/TEST_DATA.md` | 2271 | `00789928f5a0687214ebba48a5a8d13130812de1b9c652b003c53f7fffd12ae9` |
-| `stages/s10-ops-migration-runbooks/TEST_PLAN.md` | 1892 | `7148660c49458cd54fd4fbe9e02e8b05796b7c1522e681c6101e32b53cc8f6ab` |
-| `stages/s11-testing-quality-golden-ci/ACCEPTANCE_PROMPT.md` | 2157 | `a75734088aa44060796556b6fb104dd553a01167bd2fc30bec575a92e7f883ba` |
-| `stages/s11-testing-quality-golden-ci/README.md` | 2886 | `fbb8ae2e72b3f4ebf456c739a7892c91528662f61d3d8e3e035166821bd1c412` |
-| `stages/s11-testing-quality-golden-ci/REPAIR_PROMPT.md` | 1725 | `2dfca67c65e5520c2b20881608430c13e5d2f13ead5e51212e9ab3fbb4c7453d` |
-| `stages/s11-testing-quality-golden-ci/START_PROMPT.md` | 2494 | `ecbcc301cb90b6a77247332ac414cd46f15588e932ba490bea181e432ae7ae1d` |
-| `stages/s11-testing-quality-golden-ci/TEST_DATA.md` | 2398 | `0c993a07d45284b1c18c7c3aba28b2082c0cd6217c4c871e671a3a9516f661b0` |
-| `stages/s11-testing-quality-golden-ci/TEST_PLAN.md` | 2089 | `f01deab00706236c9249b85a9ea7e57d1df85fc41a62bb382dd910d557e8c008` |
-| `stages/s12-extension-sdk-ui-boundary/ACCEPTANCE_PROMPT.md` | 2009 | `dbaf61eac1854ec100a1a431907b109629c0cfaff9deb4c7891a00353754914f` |
-| `stages/s12-extension-sdk-ui-boundary/README.md` | 2609 | `7b307bf24af280d8d779327975fe14e8d0febf7c5593eb11e8956eb36889a0fb` |
-| `stages/s12-extension-sdk-ui-boundary/REPAIR_PROMPT.md` | 1615 | `997f3f584fe60a5adf5d24341647e0288974831a064becaada6a2e23ea376ed4` |
-| `stages/s12-extension-sdk-ui-boundary/START_PROMPT.md` | 2318 | `b562d38e80bc8399d11e222c2896070fbf551a6fbb51cec6a0fb86ec955c136d` |
-| `stages/s12-extension-sdk-ui-boundary/TEST_DATA.md` | 2194 | `ba37ca52884bd089aead8870021b1da76e9370d6984e03a58761899542358071` |
-| `stages/s12-extension-sdk-ui-boundary/TEST_PLAN.md` | 1917 | `0a35de96bedab6f53ed930002a50d772ac01a74ca5bb21d2770804435e3fdff6` |
-| `stages/s13-v1-release-hardening/ACCEPTANCE_PROMPT.md` | 1979 | `1469e251598db51fb0148d210a3c45ba7efaf0089a541c734a75ec1d1c542693` |
-| `stages/s13-v1-release-hardening/README.md` | 2626 | `5dd800acebae7a09aefe67896a38006f2f27c71c288bdc577b02aa02c2e8c957` |
-| `stages/s13-v1-release-hardening/REPAIR_PROMPT.md` | 1615 | `14f7306f9489c5ee66b5ba138767ade300bb515a1527c7637de379ecda52d362` |
-| `stages/s13-v1-release-hardening/START_PROMPT.md` | 2392 | `e38bd40f51b31decba539ec0e5ec9ec84b4a50b1f5ad226859b0dc6211c12be1` |
-| `stages/s13-v1-release-hardening/TEST_DATA.md` | 2226 | `cdb18c58b384ba7b63789ae79253c121c192d4ba63aa12b8a480055550c06483` |
-| `stages/s13-v1-release-hardening/TEST_PLAN.md` | 2017 | `f64cb934034402f4f33d13bac54564dcee884cf22b4230c15c922ddeec234d36` |
-| `test-data/agent_tool_call_cases.md` | 1030 | `2dcc14e12dae1c66347402448d14757cb91348208d6dab6374ead6e727a3d728` |
-| `test-data/api_ws_contract_samples.md` | 802 | `f79d302f9c5bd3c1f837243ba405f67815f4340808db557346d83e34b53527d9` |
-| `test-data/authority_contract_cases.md` | 1132 | `90a48f58c1f4ef4e338fa8445afdb4ddd1520f5e8a6aefdb850956b2e167643c` |
-| `test-data/change_control_cases.md` | 576 | `a34d1304fcf06d4c55a280989f3835a88dc080108b44006313f1541a0db1a1ec` |
-| `test-data/dice_san_combat_chase_cases.md` | 1145 | `7c140367d5fa4c99ca4b8999e973ac1c6012eda743432e865eab6fb84ad108a8` |
-| `test-data/event_store_stream_cases.md` | 945 | `176f885c1fe98c2c94d939a698e4afac52f40a140aa0e00ac5123267dff60c21` |
-| `test-data/export_expected_snapshots.md` | 655 | `241123ce9b01a280490b9c8327820689b97b71066351a8e73dc8d976dd1070dc` |
-| `test-data/fork_lineage_cases.md` | 546 | `68bc6504a5b57557b89785f5c2332856687c668aca6e5361715c08cfdccb7acc` |
-| `test-data/golden_scenario_yaml.md` | 2060 | `c43cda6d652d33d39566254f8ca861792bd061a8533d8c66e283e407fe86e890` |
-| `test-data/permission_matrix_cases.md` | 675 | `f6e942d32d3f629c8de1554a2d5e888c7f62f19e01a718f57c2237ff903fc7b5` |
-| `test-data/prompt_inventory_fixture.md` | 527 | `66edf88f602858daf67b2a935128d55f5d8a04e526aa44bd695b677f5cb33c2c` |
-| `test-data/provider_model_certification_cases.md` | 1197 | `307425430f04a63700dff37419e22676ce879331eaf3168ea2399f59693b80d5` |
-| `test-data/rag_snapshot_cases.md` | 739 | `9cf3ff137b595ffe3bd04e4b4b34a7d485d0461aa85367335a27568638316ac6` |
-| `test-data/seed_users_campaigns.md` | 1155 | `b0e9f467452c607e238247d33284bc3182b0a9141e690f8ed6febd8c5ade07df` |
-| `test-data/tutorial_scenario_yaml.md` | 2430 | `a7972c359b58a5b08716db02193725e234ace5999764a47642ef3cbb8fbf54e4` |
-| `test-data/visibility_leakage_cases.md` | 876 | `aaddd1c81538a590f8f0b4f99595254ea66943e2053db30e34ca6c64edddd46f` |
+The three generated manifest outputs are excluded from their own hash set to avoid self-reference.
+Their paths remain fixed and `verify_manifest.py` requires all three outputs to be byte-identical.
+
+| path | size_bytes | sha256 | git_mode |
+|---|---:|---|---|
+| `.github/workflows/ci.yml` | 1420 | `03f04e5cced9cb4b0937a141abfb67d1c88d56f2931c7943832af23e4ed32bcf` | `100644` |
+| `.github/workflows/contracts.yml` | 1925 | `41690b35162a40a0859a720c17857f4c42ed9facb3e63575667c9990a13632e7` | `100644` |
+| `.github/workflows/docker-compose-smoke.yml` | 612 | `8b1e0e709741d4f30e800b49c03707ef2bc3de465f35497bd3beeb8f057b079e` | `100644` |
+| `.github/workflows/golden-scenarios.yml` | 783 | `1a6bb22d5c02f4f169f0e0c58386556b7030ba4fce7d318390cd1c346230771e` | `100644` |
+| `.github/workflows/release.yml` | 644 | `96542f3dac5bbbbbc31c2d9011ce72b4f5f3d6af5c97f1c6dac321be81c56759` | `100644` |
+| `.gitignore` | 57 | `540fdaa2c06057dfdffa97c4881d1916c3ea2776abf6b1f01131f20629c77b09` | `100644` |
+| `.nvmrc` | 8 | `98182b41c9ce3357797985cf12dc3b0124490ef88bc918a905373e7688e6aec9` | `100644` |
+| `00_INPUT_ANALYSIS_AND_TRACEABILITY.md` | 3896 | `2126a2ffce0a127a70339d5ce58023b6121b1849d30658908eb703339a123925` | `100644` |
+| `01_OVERALL_CONSTRUCTION_PLAN.md` | 8538 | `02a467687b00d5090f10ff6986622b339b974bf98a7cefd3bd7ee8019e1d97f4` | `100644` |
+| `02_STAGE_CONFIRMATION_MATRIX.md` | 7237 | `13455846a98d99a0a817d4669650b92d7ae1e4b1a712c7382fc478e7cfb39691` | `100644` |
+| `03_ENGINEERING_DIRECTORY_PLAN.md` | 7152 | `dae6972519e20b599aa77a69b223ccb73e2fd26d2e2d99a2bd930391b8d38baa` | `100644` |
+| `04_TEST_STRATEGY_AND_TEST_DATA.md` | 5179 | `44a50009f208b3e011e276b7584da9a42c41f4abed72cbd9205bfbd78ff06c95` | `100644` |
+| `05_CI_CD_CONFIGURATION.md` | 7682 | `39e7fad1cd07b5bd8bd201dacf89919de3ca95b1316386a135dc5777b486fc00` | `100644` |
+| `AGENTS.md` | 5779 | `9f8e4fa9c2f16f44a8db035b62e1c2d7eb4d89639dd584935c0c2be1fc0e5b0a` | `100644` |
+| `CI_CD_EXTRACTION_PROMPT.md` | 2740 | `806844c11b7f75d78059d7871d6c871f9f02f4e17b3bff39da49c6ab54575dcb` | `100644` |
+| `CODEX_MASTER_EXECUTION_GUIDE.md` | 2759 | `36a1c688e8fc018fbbe4e32b1591ce4b42599f9d0cef339ab418bfa41bddb4e3` | `100644` |
+| `CODEX_RELEASE_PREPARATION_GUIDE.md` | 2251 | `16b8b6987262aaf0ac8e687b4016715679dea289da08487d45f2b92e35e934c7` | `100644` |
+| `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md` | 4197 | `875b7156f0bc76685586dae8ac115a67ec4f8fc414f1d56c81788e5fcfe96e44` | `100644` |
+| `CODEX_START_ACCEPT_TEST_RELEASE_GUIDE.md` | 2669 | `fb25a91cead52611fcf5e3b95c93ee6f442d1344c3e0057bfbf858e49f3be247` | `100644` |
+| `CODEX_STRICT_OPERATION_CHECKLIST.md` | 2493 | `a90c0b23a22d8c2772c551baa7c4805a5c90f130e51068346c43f1fa0e452a18` | `100644` |
+| `Cargo.lock` | 1262 | `0e7c63ce394c4ea9e1830896159d65d0eaa5adf7edc7c820c09f4e5d514825a8` | `100644` |
+| `Cargo.toml` | 403 | `ccf1121ebec502af850d5d58aefa07cd2be8b449d045eef8f9e8fae40ab77494` | `100644` |
+| `DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md` | 3692 | `77f7e4acf141e50b7128dce020f266978824c23274c02250511da6157535c34d` | `100644` |
+| `PER_STAGE_FIXTURE_EXPANSION_PLAN.md` | 3838 | `2a45897e80fd56b1266a2c5d63b9d71d8179db4f2db13271a16c22fd8f2b623e` | `100644` |
+| `README.md` | 7244 | `8055b6e40b0c53a21a70d8d4d59a829dcd7c789a8e0d2584fa574ccfc3526238` | `100644` |
+| `SOURCE_BUNDLE_INTEGRATION_GUIDE.md` | 4696 | `1da3d086e5084d0908780988ff89b809f69b4bcaffc19042c5398d027ddd7d26` | `100644` |
+| `STRICT_LINK_AND_REFERENCE_VALIDATION.md` | 9176 | `b2e9005f3ce08a2f73ca2f7559a759b0d9574bb8f9f75ff275ce34d50e94d784` | `100644` |
+| `STRICT_REPAIR_CHANGELOG.md` | 1826 | `908aea55a78a134f7a31a06f86da552a815ac5d5de7178ef8c82ad1249942656` | `100644` |
+| `STRICT_SELF_CONTAINED_ACCEPTANCE_REPORT.md` | 930 | `ea6226f111d94ebf313d88993f181728fd098f9a3b4212ce6b0ac7bb2c01c716` | `100644` |
+| `STRICT_V221_ACCEPTANCE_REPORT.md` | 930 | `ea6226f111d94ebf313d88993f181728fd098f9a3b4212ce6b0ac7bb2c01c716` | `100644` |
+| `V1_ACCEPTANCE_EVIDENCE_MATRIX.md` | 6477 | `1ac1391527c0f79a89d10aa9e8cce2dee5c1cb7496bb003feac1403a284b1ab9` | `100644` |
+| `V221_FULL_PACKAGE_MARKDOWN_CLEANUP_REPORT.md` | 1337 | `fe17bacfb425121f89df0ba78957338cf40c2192d4fba53346f91e79e8a25782` | `100644` |
+| `artifacts/test-reports/s12-ui-boundary/admin.svg` | 1223 | `ea270753393ac19e22664d5f2664d495d920f25ee5c32385453a6b361c2b0505` | `100644` |
+| `artifacts/test-reports/s12-ui-boundary/developer.svg` | 1994 | `906d11badb06ef60b7d56d3ac6905cda132b649584c91ff015d765288d569894` | `100644` |
+| `artifacts/test-reports/s12-ui-boundary/human_kp.svg` | 1233 | `4c6de739b7a1321dcb53bc13d67b09ef0da4e297d662355593d1a6ef3238f26d` | `100644` |
+| `artifacts/test-reports/s12-ui-boundary/manifest.json` | 1551 | `3f29413e941bd0e4029dcf6a86d6f6de59ca532c477196766cc7deba464dc379` | `100644` |
+| `artifacts/test-reports/s12-ui-boundary/player.svg` | 1078 | `d4fa8b0325a60f3a4d6410c6d88e14f2aa85fa2876fc0623f4609ad7c5bb3ba2` | `100644` |
+| `batch-prompts/README.md` | 704 | `2aebc7256d326bd7bef5248049364d925e2c4a707d5d4b1774355216e97943be` | `100644` |
+| `batch-prompts/accept/B001.md` | 2896 | `405d2ace8938c5a5f6c373434f4415865b241bd31f61718a5f842c0454c8de3f` | `100644` |
+| `batch-prompts/accept/B002.md` | 2896 | `86221aaf68d2f863ac89c37f1fc478c4750a96d6b1a3f0b51949e421714aee00` | `100644` |
+| `batch-prompts/accept/B003.md` | 2906 | `791e50e6543db552e7d244a6fc8ecea995d1f87a68cba26da0d6acd6b2e33528` | `100644` |
+| `batch-prompts/accept/B004.md` | 2906 | `b6b58bc9d1d952cb3da821f9c259e753853f9b8dfcbec1aa759dc404635c26a6` | `100644` |
+| `batch-prompts/accept/B005.md` | 2906 | `4d82c08fc70eb1a2be3b9c686c2082d9a3746b2d0700dea9c13a89e7762bc15b` | `100644` |
+| `batch-prompts/accept/B006.md` | 2906 | `b74f4f9414c3413cbd3a10fe5c2958693c9aeaa25ec654e2f1296646ed210cf7` | `100644` |
+| `batch-prompts/accept/B007.md` | 2908 | `2f35531921c9bceb351218c2735bc4652cbdeb0a7a5dc38bb05801d1e86dc43f` | `100644` |
+| `batch-prompts/accept/B008.md` | 2908 | `dea56000f441f8e5db64dc49503c985a0e2af928db9606961756a5c4f5610b31` | `100644` |
+| `batch-prompts/accept/B009.md` | 2908 | `0e01d26a395494d7a6070ba453298817d5542c5b05aac282e948ee344ce4e7de` | `100644` |
+| `batch-prompts/accept/B010.md` | 2908 | `089dbb65c9548d3bb2d69fc16c6c7a7c1373879bcad499fde74683bf11567390` | `100644` |
+| `batch-prompts/accept/B011.md` | 2908 | `8458f46493472ccdfb10a34c0f00be8cd50bdebffafe9ebf063603122e7468a9` | `100644` |
+| `batch-prompts/accept/B012.md` | 2928 | `849d59bce576ae2c0d13b89af5df1067d58d605aed0834392087cd006bf20abf` | `100644` |
+| `batch-prompts/accept/B013.md` | 2928 | `a221114910d40d5bed0def773f6b13ceb72dfb4d8054865319310974412e583e` | `100644` |
+| `batch-prompts/accept/B014.md` | 2928 | `20da1dd3e684fda0f6cc965e00f23024c8e06ff0421d551abc63b63f049bc84e` | `100644` |
+| `batch-prompts/accept/B015.md` | 2928 | `661d2508333af5fa39ad59b3f5795673cd7b1bc6efcc09f5bba6cc5fb04fd67a` | `100644` |
+| `batch-prompts/accept/B016.md` | 2928 | `8b553d48a4f53efb53d469f8880e20f0d80703a86c80f270c852fad57649461f` | `100644` |
+| `batch-prompts/accept/B017.md` | 2916 | `8e58556006b2d5ab334538712c0d01e3019074f40eca530ece56b44c4d1c25e2` | `100644` |
+| `batch-prompts/accept/B018.md` | 2916 | `6406db3aa845d866c245537bb841945fd65eabf359d287bc0c846c4778914ff9` | `100644` |
+| `batch-prompts/accept/B019.md` | 2916 | `6e541b1bc0f2e5940008aea2c2991c9360ae541f923c798f2d574ae7aeee58dc` | `100644` |
+| `batch-prompts/accept/B020.md` | 2916 | `06cfe539f79dc6851e088cce1719c7fc7d9719f7a6133b64c5ee5de3dd18148d` | `100644` |
+| `batch-prompts/accept/B021.md` | 2910 | `372f81a28e4e7b5acce2a65ca0c887f845b2f52f240a595a89b4a9c1571db2df` | `100644` |
+| `batch-prompts/accept/B022.md` | 2910 | `7b39b1af1453ad71a919aa8e6d6bc47ebea9815e6553dfa9b65b4ccf3aa6c6d6` | `100644` |
+| `batch-prompts/accept/B023.md` | 2910 | `835f743946415068d47727330e6685b540d24273de9504aa3e7b5daa3c4a0d79` | `100644` |
+| `batch-prompts/accept/B024.md` | 2912 | `d299e822d3703f72c6fbd08fa588f8e32ade9b5697c0a81ee6e84a49a510dd00` | `100644` |
+| `batch-prompts/accept/B025.md` | 2912 | `4707c1d30effce1850d9654e302c64dbdf6643752d0c0835aec06031f0e2c651` | `100644` |
+| `batch-prompts/accept/B026.md` | 2912 | `7e6dcb25ded4a68999be24911bad116538ca6153efe537f5f142dc4ef447efc2` | `100644` |
+| `batch-prompts/accept/B027.md` | 2912 | `3bd0f17f3c1c89dc5f77a35d59a58149afc4b329ad85337c0f7ccea2107b1631` | `100644` |
+| `batch-prompts/accept/B028.md` | 2912 | `e9487bf78225cfb46a88f6c9cbe1e6ad418e4c825d41fc4a723a71156b51d037` | `100644` |
+| `batch-prompts/accept/B029.md` | 2930 | `3bb399ba03d9720cd45bc258274c18546795e605422dc12689f819365e13acf6` | `100644` |
+| `batch-prompts/accept/B030.md` | 2930 | `dee9ab1873a675446b3e0df88f47b61cbde6e3ed6f8838166a568892e972399e` | `100644` |
+| `batch-prompts/accept/B031.md` | 2932 | `0e4ab6b5cb9e16f07313b8aea31488cd271f8fc3b80aa3d6bad4f3ea7f3d08ad` | `100644` |
+| `batch-prompts/accept/B032.md` | 2932 | `537cd513355a37d4809dee4e61aa3aae2f27d97ad1702cdbecfee4233e86eaac` | `100644` |
+| `batch-prompts/accept/B033.md` | 2932 | `1e6b2155c8fd9497b4e108411bd13035ec9c8b4fa2117cf322d6b172f0e47cc6` | `100644` |
+| `batch-prompts/accept/B034.md` | 2932 | `18d85822238d9be71d361372135fa49a772b69155e5865a218fbc92c786fd6db` | `100644` |
+| `batch-prompts/accept/B035.md` | 2924 | `c8c7fbb3bb26bf8da47057323c7c667e5e5613a8e9b68c1598c2ff7714dd62f8` | `100644` |
+| `batch-prompts/accept/B036.md` | 2924 | `f31dc530db60dccfe009cad5a0209e39018e3b0a8780906368ee0071a1ab240c` | `100644` |
+| `batch-prompts/accept/B037.md` | 2924 | `fce6dcccc88dcabc26cb6f28279dba18081851a9aa4bcd06db00b3d17ec03189` | `100644` |
+| `batch-prompts/accept/B038.md` | 2916 | `975bd4a0c1f40f0b3ced5afbbd1489a3a43aab21deb420c536f09c376bc97f65` | `100644` |
+| `batch-prompts/accept/B039.md` | 2916 | `44144381376b9768467096bb3a7ab56e1aef16706ef597c807b55fa1c47ce248` | `100644` |
+| `batch-prompts/accept/B040.md` | 2916 | `41689a34b06e74193cdd05132489f1f391f35058c3504b01da4f313580e3acd1` | `100644` |
+| `batch-prompts/accept/B041.md` | 2916 | `f2a7e51d01a43baa195373480e54d57e30919ca9ae8e6de80db014f982c3c838` | `100644` |
+| `batch-prompts/accept/B042.md` | 2912 | `89fb4423685e73b3dafa51463041f2db44f96c6410d8612272a6b03921620c6e` | `100644` |
+| `batch-prompts/accept/B043.md` | 2912 | `5fe2086ba371694f8897d9dbbbf934f2876280fc42dd949e81c9aa6b910ec466` | `100644` |
+| `batch-prompts/accept/B044.md` | 2912 | `8d940033159197158e0dc3843bfa23e188fb75e4df66a4968339408061008218` | `100644` |
+| `batch-prompts/accept/B045.md` | 2912 | `ad11033c984d69cdd13f5063816612b55e07a9f3aba452aafb932e436b5430c3` | `100644` |
+| `batch-prompts/accept/B046.md` | 2910 | `ab79c4a12fd94043141c4c81bf7f6fb57b141c00619755c9379ea14649eb8ab7` | `100644` |
+| `batch-prompts/accept/B047.md` | 2910 | `f4edc89f94876fab04201ef59a10686f96002622644f323b4d211f1f33f5ce86` | `100644` |
+| `batch-prompts/accept/B048.md` | 2910 | `49a8902f6d1ff92dbd1fc36d3a29f1d8e190b2bfb2d921af760cb6b368162fea` | `100644` |
+| `batch-prompts/accept/B049.md` | 2910 | `9d429fa359504928620dbedbc35e5df1fbc309551a786f94d052f1348dcea429` | `100644` |
+| `batch-prompts/accept/B050.md` | 2910 | `58e122b57fd7e399e5b400973b7eb45f0c6c7c4ac5f0f91fdf231d647ed0b707` | `100644` |
+| `batch-prompts/accept/B051.md` | 2902 | `79ff7586126f95fab467f21c00572d9c8931c08a74e813182a492ce4ea3f35ca` | `100644` |
+| `batch-prompts/accept/B052.md` | 2902 | `292c5dc0f36b4514e2372681c7aebaefb525c15458f07b1e1fa1eba9b7b0f3f5` | `100644` |
+| `batch-prompts/start/B001.md` | 3393 | `d26cbd0b61b402dc1e65db303793eb384067b39347dcdf9a1eac4c63e1ff34e4` | `100644` |
+| `batch-prompts/start/B002.md` | 3393 | `f266128bd7a73978433775e70951c671de901addd54221dda81aeeae30a65329` | `100644` |
+| `batch-prompts/start/B003.md` | 3403 | `00d724ce2ffbf54decfb9a88e8a9426648ae70ac51df5af0f4a438dc8a71cd4a` | `100644` |
+| `batch-prompts/start/B004.md` | 3403 | `fc8835b23dc622cc326d5ba5ee965838885e4cc8318fe84a8ca809361cde286d` | `100644` |
+| `batch-prompts/start/B005.md` | 3403 | `1ac7576060fa59f57a91358b915c276fa2ae1058c594054de9dbc7d21cb5f682` | `100644` |
+| `batch-prompts/start/B006.md` | 3403 | `368024b6f977e8bd3c6d216c7e6808fe656be43718938cc7f05e307a042d597f` | `100644` |
+| `batch-prompts/start/B007.md` | 3405 | `13459b7e6eeb4986f29cd6bfac3901a9bedea1e6ebf97d1ca6ec77d8c01a0e18` | `100644` |
+| `batch-prompts/start/B008.md` | 3405 | `5acdf800f89ea1fe77050ff45d40c384ac279d36b897261691e03560e201458e` | `100644` |
+| `batch-prompts/start/B009.md` | 3405 | `88921a966522286f1d620170d0aeab287a55c2e3479effad95f28064d4e4b52b` | `100644` |
+| `batch-prompts/start/B010.md` | 3405 | `062245a1fdeac7a667bbc11f6f2036b46b67f87517df22c9679598e23cddced4` | `100644` |
+| `batch-prompts/start/B011.md` | 3404 | `1bc152fa933ddcbbefdef04a2ca40564e4b311b9ea443f614660ee146c6a6cbc` | `100644` |
+| `batch-prompts/start/B012.md` | 3425 | `8428dccdcba69b4a6778be3da38f5ade1b110e5f7a020796b8a0bde96b89a773` | `100644` |
+| `batch-prompts/start/B013.md` | 3425 | `95a9da3e3ede3c3d552f305522885c6f84f4bb2ddf8b459d66462b5a5c81e082` | `100644` |
+| `batch-prompts/start/B014.md` | 3425 | `1a9f388bee3ffccbddf2871b76a79df013402ae4b95aebdbc10209946b458066` | `100644` |
+| `batch-prompts/start/B015.md` | 3425 | `ab66549c4e6ebf1845473ed1621554797c78ffd9ee4085d7c3d0cc6059b72e21` | `100644` |
+| `batch-prompts/start/B016.md` | 3425 | `893f022be17d0152074fe5ac2d6674999e2405576676ec2ead928f507aeb93b7` | `100644` |
+| `batch-prompts/start/B017.md` | 3413 | `5eb7ad6b72dd0365bf15e7d235ea73f7a590ae7dd3675a63596e008dea326f12` | `100644` |
+| `batch-prompts/start/B018.md` | 3413 | `f74e3fee43e8d7feae4b8fd3581697a484636b0dfaf4be451f431abfc81ec07c` | `100644` |
+| `batch-prompts/start/B019.md` | 3413 | `795613424559a681495d3e6800a226c868a3f9d3e488a92e9979889b7b3dd75c` | `100644` |
+| `batch-prompts/start/B020.md` | 3413 | `1d2680cef0b08c39b7fa755b50ee8d4e99de27d6820ac2fd279e6fc1c4b1ddae` | `100644` |
+| `batch-prompts/start/B021.md` | 3407 | `9a5819771bcc09a727a5407ef007794a7aba5144004aa4f234340118239b1dee` | `100644` |
+| `batch-prompts/start/B022.md` | 3407 | `aa188fbf531482099787125a087b83e596bec50255b6f3720ba92c412746699e` | `100644` |
+| `batch-prompts/start/B023.md` | 3407 | `abcbc07e1640f3c37b06ad1de8387919481681076b389d1eeb302612de8c22a4` | `100644` |
+| `batch-prompts/start/B024.md` | 3409 | `157ce1f1c16503079abcecc49d20361a0d24f345d542ef5fad7497bebcee7f21` | `100644` |
+| `batch-prompts/start/B025.md` | 3409 | `20277de72e231deb874479a4025a7213db91df1e1209eb5af37174c727d95702` | `100644` |
+| `batch-prompts/start/B026.md` | 3409 | `67b1b1a244bcd148bb735c405ad21dd79f8dbc592869f4dc9941a0d61f0603ba` | `100644` |
+| `batch-prompts/start/B027.md` | 3409 | `f9915360d8640066da5eb1a4e0082fb55ffacfcc4a295ec11d6f8cc4b30b0ec0` | `100644` |
+| `batch-prompts/start/B028.md` | 3408 | `dc24fee705a34a9ef1ddf5eb518263cc34fd89abaed6a9cf94b0b535fd593098` | `100644` |
+| `batch-prompts/start/B029.md` | 3427 | `60784e9522918834cd65e43c1ba377b4b106fae904017fd8eb03e4b81bf188c9` | `100644` |
+| `batch-prompts/start/B030.md` | 3427 | `ee33c906d77859089ac6b378ac8d4fbbfd1bb15f59a5b93e1c45c2f4a15659a5` | `100644` |
+| `batch-prompts/start/B031.md` | 3429 | `20b3e6f56a872b8efb084ae4819d46173648b12b59c5cb7e912136955c3ae11f` | `100644` |
+| `batch-prompts/start/B032.md` | 3429 | `ddbb7bcecdf10ddc08828abbfa8ef1e251e8405fd5cfc2cd8a464b5ef396bef9` | `100644` |
+| `batch-prompts/start/B033.md` | 3429 | `6d9b018822ecb2a467ba2ba16b42fe867abc975ac46702cb5b02833785148dca` | `100644` |
+| `batch-prompts/start/B034.md` | 3428 | `2186e5f2753c73bf23d19fb193405df21ad571ffd991d12cb0a9c05f00b1620e` | `100644` |
+| `batch-prompts/start/B035.md` | 3421 | `3e5bebd7a6574e706f5b3ae205a98620d26eb86dd38af4e0f75424faf180380c` | `100644` |
+| `batch-prompts/start/B036.md` | 3421 | `bf2b3a89487c6ea92d90ce82073ae92a12535c94465ac55152ec2585b8b7664b` | `100644` |
+| `batch-prompts/start/B037.md` | 3420 | `027837ba4ae7ee3898e64a73f40ef6f848de4b6c83f4d7d677279966f1aea8fa` | `100644` |
+| `batch-prompts/start/B038.md` | 3413 | `1ca8ea632dc643ad0ed5117d7d8793abd6e3dd4c005bad381d692fc41c8d1e50` | `100644` |
+| `batch-prompts/start/B039.md` | 3413 | `c7b04efcc962464d443d684a76351a23ef1430a79dd4f5e3a6ccba74b0d7bc50` | `100644` |
+| `batch-prompts/start/B040.md` | 3413 | `95dd5e4c8687357967807b108ed63ad7268781394ed700182722ce2335f0a9d8` | `100644` |
+| `batch-prompts/start/B041.md` | 3412 | `84ab790fda985e0c55297b79c89def85fafdbe0382c3b237014f227071b58b78` | `100644` |
+| `batch-prompts/start/B042.md` | 3409 | `cd366341ab8d47d0df456c6382066678da95516dce2b4e32aae7d86e1cd68d23` | `100644` |
+| `batch-prompts/start/B043.md` | 3409 | `8e535ba97e9e8a87422b9af9a84bec866b95f8909c32b98a7a7af972278d2b1d` | `100644` |
+| `batch-prompts/start/B044.md` | 3409 | `8eb2ae9d0f51c20020fa5cf0fd5636284f5a1af729e4f33e106cd6e979ce18d1` | `100644` |
+| `batch-prompts/start/B045.md` | 3408 | `508e3eb11c34536d8f9a608abc32205ac2a45f6ae3004df6e7bcc668675c0aeb` | `100644` |
+| `batch-prompts/start/B046.md` | 3407 | `fbca814d359950f387038435eeaae6b648b6927aef094f7eab95c7534a8b7d08` | `100644` |
+| `batch-prompts/start/B047.md` | 3407 | `5b63ad06d09a076aa702f57f2bf3e747f320348ebf59df7cc45efe86e2f82f80` | `100644` |
+| `batch-prompts/start/B048.md` | 3407 | `098263ca25d0468858ba7ec207f4158d908794eedd8dcf05cbcb3047c69ea12c` | `100644` |
+| `batch-prompts/start/B049.md` | 3407 | `7466f3be2569245770320a4d479ceca0dba232e7f156c4a6912ede73bdf89bb4` | `100644` |
+| `batch-prompts/start/B050.md` | 3407 | `d63b4f195607f312ade9dd2ef928df78b1fe45404ce5b54602021186159caade` | `100644` |
+| `batch-prompts/start/B051.md` | 3399 | `2b2d4301d0f74fc2a9407e4029f630c4eabdb995baa6eb694e91af1151d881d1` | `100644` |
+| `batch-prompts/start/B052.md` | 3398 | `8e354a33317c811343608e54a5775a4a37dd8f89ebd8ade00e2f1dd0b52ef71d` | `100644` |
+| `batches/B001.md` | 10263 | `5143ab4f9c11d68d595432c5b27984fd4561f9d445a641d20ef5ec12fc419abf` | `100644` |
+| `batches/B002.md` | 10526 | `4dd1a1614a7e865efa19fd698e50fb16d2f98a46a4407da4a98e9883b449d712` | `100644` |
+| `batches/B003.md` | 13094 | `5164bfd23e88fafbf6e658ab8e3013b4714f3ae11808523de4fad72c51882b0a` | `100644` |
+| `batches/B004.md` | 14303 | `84999767c91eaf7d096c43b74fc00e4331aa1c80ce66e8258e557fab14e536cd` | `100644` |
+| `batches/B005.md` | 15990 | `17803b1ff75b99fca6cfaa8b9ed47caad3d9c6bf6ef5ff554bd55c67c8f1e156` | `100644` |
+| `batches/B006.md` | 12935 | `e7fe7176fd7e2cea96ba1873c0f7bc115fc4e3d3eac9027b1cf789f55296b27f` | `100644` |
+| `batches/B007.md` | 13562 | `f6774255ca00e208fffafd2a331901b1dba4232a608271f689f2eb70afbbfa29` | `100644` |
+| `batches/B008.md` | 14628 | `3383c179b86903ae663451cf44f18508ec2e9d3dc374e92031ff8de52648d768` | `100644` |
+| `batches/B009.md` | 15854 | `d4f22007e3550def2cad8109ec58c3adfc377879df239472c7257207053e45dc` | `100644` |
+| `batches/B010.md` | 14665 | `f0be8d9846543856b6f561637ef369ffe15b29f5b6148834a6a8b374a5064a19` | `100644` |
+| `batches/B011.md` | 4771 | `96ebd92d18e47bd88aced49d073bbc8c2d47818c8df98912d587183433ca5aa1` | `100644` |
+| `batches/B012.md` | 14881 | `d048aab02183e8b15b5a456aec4e2e8a8ff21368e5a97ca7f6e501b3c662abc1` | `100644` |
+| `batches/B013.md` | 15921 | `45003bfd80505664b541e6f251acc46e48fcc3c77f78177a4c304368fc935521` | `100644` |
+| `batches/B014.md` | 16328 | `a86aaf88d372747d957d6ad71cf4b393caadbc41b512b2854cdc460c4b6d34b1` | `100644` |
+| `batches/B015.md` | 16824 | `0a4d499d9409c5ddc4ed630bc5217f45fe60b610c02b5448527381c91ca174c2` | `100644` |
+| `batches/B016.md` | 10010 | `f224c1b3d1f9f8fc480cea2328bf630b2a75cebdd8dd523452a7813022135ac9` | `100644` |
+| `batches/B017.md` | 14421 | `cb78f6c6251b3b4013c5e4b6e332c7ac9bfc6cf30683127db4c23a1a31323abd` | `100644` |
+| `batches/B018.md` | 14899 | `436c99b2615febca3161702e60a16484fc4b9654d678fa2b6910beecb86f24e0` | `100644` |
+| `batches/B019.md` | 16342 | `7b3678bc2c06331bdc71b0102a7f201f6abc1e36f4b1ec08e08922e8240a80ac` | `100644` |
+| `batches/B020.md` | 12086 | `fb69184f105c8f572d404fc1280a0d1293afa0e26d1c69204c48dad9560c0693` | `100644` |
+| `batches/B021.md` | 13637 | `e89b797f00a2312f4c7520fa6229e0b1bc18d6b701578eca3a08907383e489df` | `100644` |
+| `batches/B022.md` | 14940 | `893fa46b60baf2e14ba6a3a2511bb319714a7f1506ba8835591123357c6c73b8` | `100644` |
+| `batches/B023.md` | 9873 | `c839875cb594839d9a2883c69e5299eb3f15af0f871cc379e0b45da8bd0933e4` | `100644` |
+| `batches/B024.md` | 13966 | `b569f37ff21e8fb1cc41c7d94f8acf8e6caddd2f9d28e878b1d97505ee2cb759` | `100644` |
+| `batches/B025.md` | 14989 | `328571c4dbe233adff39bb88f11435af0c439fda64f86c6069bc2e381af7a69d` | `100644` |
+| `batches/B026.md` | 15743 | `3121d8ebfd2a76bf323fa7d4e5e85860e46f00f927bc6f555f20063a84ef212f` | `100644` |
+| `batches/B027.md` | 15197 | `d76494953de37d06f869ad70c509095b8b90650209c833de0e74f8b261461872` | `100644` |
+| `batches/B028.md` | 5215 | `14e9ba7ebfd70909a45e470721529ceade9a5218f0e4f955f6df214f0feb1c96` | `100644` |
+| `batches/B029.md` | 14693 | `e50cf70e945d2ed7b2c272cb58720e2fa78b2e08216d219a5bbd4278440e0213` | `100644` |
+| `batches/B030.md` | 15132 | `6d76d9063d74bd797384657c989d6c234d21c3e9af4fd52762730c7a303927b8` | `100644` |
+| `batches/B031.md` | 15259 | `23be8771abac947bd9635971c25124bb7c362b6fa8c570f4dfe37f07d282dd97` | `100644` |
+| `batches/B032.md` | 16606 | `80a1dc7bf10b3a5b1e8648e436122697cfa81d7f8bf95a2d9b4fb7402b05a278` | `100644` |
+| `batches/B033.md` | 16403 | `6cd375b81dbb22ece51c8c06282e70857590b5cb71188b9c559d3f5d38ce529e` | `100644` |
+| `batches/B034.md` | 2839 | `53ea93e1088116bf99bbf4fd4c9182f62aadb3c6d2959a586056586922b79574` | `100644` |
+| `batches/B035.md` | 14957 | `18de7d85ddcd80e4f517ee1476b00d337b6011ddde0b3582c2167f94f175a530` | `100644` |
+| `batches/B036.md` | 16444 | `c6fae592d8a9f7a95b05e455b1ff030b82ffd4fcbe9ab5a4e0f8e8789ac3222b` | `100644` |
+| `batches/B037.md` | 3760 | `d8bd7fc184be19d7fd88719062038ae01e03f1c5f45a9129afc5736472160f96` | `100644` |
+| `batches/B038.md` | 13872 | `9983880eb11b37ff178821325b30b3ebe7fb947edb2aa448ebec47fd82f61e6a` | `100644` |
+| `batches/B039.md` | 15265 | `388fcd8ae1ced6d12d2b77fe7eac0745f78c0a31ee72903610e81f83c8a9b290` | `100644` |
+| `batches/B040.md` | 15560 | `30fef2c7fb4880cc61db4f9069f2aee2a520760bedf80a7afceb94317a6c3659` | `100644` |
+| `batches/B041.md` | 3189 | `99cfa5a263a8d7b015ded42afb38aa7f7381a4f77fd9eca7838cbc4f51ab62d7` | `100644` |
+| `batches/B042.md` | 13518 | `cd69584da20e3b77e4cb0b61c5a6d9999d40382eb79acd2da037f5235e2ca8d6` | `100644` |
+| `batches/B043.md` | 11438 | `7015ca3e2b2ff2d4b4a122bbe32e67172b04bde4bd031ec37e75933c68a162c6` | `100644` |
+| `batches/B044.md` | 14043 | `013ea4158906f7ea045e0a87f5b1047398fb9276382dc9de5b62b55ad2925f37` | `100644` |
+| `batches/B045.md` | 5333 | `d16ae4639308bdd02c4cfddfa918149c7513646f5ace51c17300fffd4a2d8b43` | `100644` |
+| `batches/B046.md` | 12409 | `8622e62e898975dcab4abc2d1e43b0e5fc6ad872484f9a9bf0d2b0f68bc79b2d` | `100644` |
+| `batches/B047.md` | 13868 | `6402c272892c155138f2fb553c4e6a27b08e9a12a45ae007c2325feba9eed615` | `100644` |
+| `batches/B048.md` | 15928 | `e32791fbb07122055d1019b1d921d9479481f57e987b6a1b6b015c3c19272f2e` | `100644` |
+| `batches/B049.md` | 13678 | `8e82ebe8caa6b89165c67fd8f14cae1a42bfd43634cdb3c5b7f2f6e0be3b73e5` | `100644` |
+| `batches/B050.md` | 5709 | `70cf1076fcabbd654757a7309e4e614ed38d7832a69dfad0e08f16eaa367a89b` | `100644` |
+| `batches/B051.md` | 12312 | `23ba19a008e78ae5bc434f745e1c4ad224947ab940c43c55f62901b85e62b42b` | `100644` |
+| `batches/B052.md` | 4131 | `008df235bbdd3d50a2cfaffd0df147b1887585293af85cc981ce42c49860559f` | `100644` |
+| `ci-cd/README.md` | 736 | `bd37ed1d3b8262ded9adff7932f5b7de0fb09445b260c4cc42f080948358655b` | `100644` |
+| `ci-cd/workflows-extractable/target-ci.yml.md` | 1483 | `520b4b77d9e2c9a24e5030deceb9bd21c06a14e5808da72553b4f72c10586ca4` | `100644` |
+| `ci-cd/workflows-extractable/target-contracts.yml.md` | 1995 | `afb1a7d98208a9ca66d275eaf8223ead2764e7174a4f82122f402d9bba11606a` | `100644` |
+| `ci-cd/workflows-extractable/target-docker-compose-smoke.yml.md` | 693 | `2e9be8d74326f7587e35847e19df4b707ab840ef56683bd46a2a6f908220a2c1` | `100644` |
+| `ci-cd/workflows-extractable/target-golden-scenarios.yml.md` | 860 | `0cf946533cafe7b63dab3c34c39a569b21365e405e6c4d86284a27dee55f3ad3` | `100644` |
+| `ci-cd/workflows-extractable/target-release.yml.md` | 712 | `0592a7db212752812533925420e9c14f2ec97aaf3d3ddc93b08c316494f61935` | `100644` |
+| `codex-active-normalized/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` | `100644` |
+| `codex-active-normalized/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` | `100644` |
+| `codex-active-normalized/README.md` | 484 | `5c82f74c4d621744b10ebaa0197cd996796839d5ea12311a57d033a1450799e4` | `100644` |
+| `codex-operator-guides/00_QUICK_START.md` | 1607 | `df5c5f5875b13e782d9df49d06d747607cfe6809b81fcc2b922ce0664481bd66` | `100644` |
+| `codex-operator-guides/01_WORKSPACE_AND_REPOSITORY_SETUP.md` | 1665 | `8a67b7939014d36a4cea911efa0b9924c23d6075563dbea2d981bb0b032a75f7` | `100644` |
+| `codex-operator-guides/02_STAGE_EXECUTION_PLAYBOOK.md` | 1564 | `0c69ee8dd59a00809fafea4df86c1f80cb58223bed686df3904f867d3662f4a4` | `100644` |
+| `codex-operator-guides/03_ACCEPTANCE_AND_REPAIR_PLAYBOOK.md` | 1557 | `c61e8aa5b4d76684f6474fda8713ca6dd8f49ced2b4a6ed6beea4efc933d8b6d` | `100644` |
+| `codex-operator-guides/04_TESTING_PLAYBOOK.md` | 1734 | `9ff470573ea8a09b82bfec5d9e8b303a7463555cd95f5ebf033149b9642eb12e` | `100644` |
+| `codex-operator-guides/05_CI_CD_SETUP_PLAYBOOK.md` | 1635 | `4faef610ea17bcea18a74fc659f527a8b523e09a7f2865b9bf98df13048b9b2c` | `100644` |
+| `codex-operator-guides/06_RELEASE_PREPARATION_PLAYBOOK.md` | 1561 | `34452b2bd17f6a7494694472539dee381f1335d4afec30de7faf6a15a03707c8` | `100644` |
+| `codex-operator-guides/07_EVIDENCE_AND_AUDIT_PLAYBOOK.md` | 1542 | `b6e28122735200556f849e77b25c48587f955c2efee5a33b90ed664ae666c2fa` | `100644` |
+| `codex-operator-guides/08_TROUBLESHOOTING_AND_ROLLBACK.md` | 1491 | `d1809311d8a6c8065eb1266d9207456204d799e2f6f8281114e67ce078f36e6c` | `100644` |
+| `codex-operator-guides/09_CODEX_SESSION_PROMPTS.md` | 3172 | `9a22049c75a2d8c6ee62c6dcda794b96944dd03150068e5bce5fcc57088ea535` | `100644` |
+| `codex-operator-guides/10_STRICT_VALIDATION_COMMANDS.md` | 1927 | `7eb92d8a99136549d0c728df1784b4735c5dd0d51a614dd30b896a6b841d4718` | `100644` |
+| `codex-operator-guides/README.md` | 1802 | `ce0100649f9afa5b062f49097f56d6d3b943e3950907b4aed7e1f01a92313253` | `100644` |
+| `codex-prompts/00-index/P0001.md` | 9090 | `9a139dac1241f111846926d0cf698e6fc2471a9df2aa7891334818b84cc4ce07` | `100644` |
+| `codex-prompts/00-index/P0002.md` | 12635 | `5f651148b087c80335c19a8efc0662f61d4b70a02d68330a997748cd8a9a431f` | `100644` |
+| `codex-prompts/00-index/P0003.md` | 12739 | `33a05ee3d367a6d33b34adf08a912d8a1900f6518628988533c04cfd9543e6f1` | `100644` |
+| `codex-prompts/00-index/P0004.md` | 12686 | `f7249d0641f7991cb59c654d48da3839e256ce7f2f990d1f8ca1ee7e243799c0` | `100644` |
+| `codex-prompts/00-index/P0005.md` | 12671 | `c25e0374d36eb7178537a63a7723f2fc4072da730816be3131cc8581db6a830c` | `100644` |
+| `codex-prompts/00-index/P0006.md` | 12687 | `e87965992f701fdab26a771e210e86c3690fe3dd8b9dd9cba22616f43f9f4b88` | `100644` |
+| `codex-prompts/00-index/P0007.md` | 12765 | `9fb502eeac429062374a91ede8e0a2f2599a39c44d32e71ef5c08dc5ea188d24` | `100644` |
+| `codex-prompts/00-index/P0008.md` | 12569 | `222236d6858f6fbb4875544dcb38ca4581d3caebb14ba597999774f20147b495` | `100644` |
+| `codex-prompts/00-index/P0009.md` | 12562 | `712bb657d166e8284157a2a97ef6673f294f5aeb9fedbe008081a7c2d9af74d9` | `100644` |
+| `codex-prompts/00-index/P0010.md` | 15193 | `6c1a53aaa02fbea6ec882731e90c1371409ce278df8d345790f30ba0863ad081` | `100644` |
+| `codex-prompts/00-index/P0011.md` | 12787 | `7159cedd8fc65a0e3c10507b8fa7a12ca8c948257a897dfae23b26e08012a102` | `100644` |
+| `codex-prompts/00-index/P0012.md` | 12243 | `33b8be694a07b3b8ea0bd113a1e6021ef41520849e7568087b740dafb029c696` | `100644` |
+| `codex-prompts/00-index/P0013.md` | 12254 | `171f2d787981c789434c4d7ca9b3ca23ad2e6a262462c9c62145dc4475bb61c5` | `100644` |
+| `codex-prompts/00-index/P0014.md` | 12328 | `2db252cff1cb97471dc89cd5d0be7871f229fdd9d04d917f49926f9af7c53eca` | `100644` |
+| `codex-prompts/00-index/P0015.md` | 13246 | `1eff040da5a00a1fd0903bd9428ebdee426b9de7077c8c6f3e1c4e1752f436ab` | `100644` |
+| `codex-prompts/00-index/P0016.md` | 14313 | `662d29142235403d0bc6f93e29c46028b457cf93e1cb869c99e43e351a03641c` | `100644` |
+| `codex-prompts/00-index/P0017.md` | 13243 | `b6a713dcc39a17e111190d5de09c6f349c8d349d3741802d2843c79e21184d51` | `100644` |
+| `codex-prompts/00-index/P0018.md` | 14061 | `988359e938810f866bd98542caaadc48424b77f43c1eca55729550d115f3e5e2` | `100644` |
+| `codex-prompts/00-index/P0019.md` | 14383 | `42c88dc849b2adb896f6ccba1b8224247e60a9eebc5bd6d4c0e3e992a217e253` | `100644` |
+| `codex-prompts/00-index/P0020.md` | 14406 | `92d66f6348283c26a613a4e287304562743fa7a7fdb8c82b667f4f8e754b8f4e` | `100644` |
+| `codex-prompts/00-index/P0021.md` | 14280 | `83fe758b4cdad0496a80e2027a5b4b5c66ce9b7637643e08c080ef32d2c27fb1` | `100644` |
+| `codex-prompts/00-index/P0022.md` | 14389 | `6c482e324aaa87982a50a002676614e2d96bbdcb42bf5445d58c346e1933b278` | `100644` |
+| `codex-prompts/00-index/P0023.md` | 14152 | `a4bd5d63e9fbae5d1a489967a66725657267a77de6a00072dab8ebc4ead4856c` | `100644` |
+| `codex-prompts/00-index/P0024.md` | 12325 | `6f27f51ef7c66bfb84b9b41752611e488a9c1431323b35c8c757b20fbf5d4b94` | `100644` |
+| `codex-prompts/00-index/P0025.md` | 12325 | `1e85cee284b92c23440e65b2a072bf4f73a0ca9ceb3b7a91c7c3d90ae50b6409` | `100644` |
+| `codex-prompts/00-index/P0026.md` | 12301 | `0fae06d5ce0f3016dfaa2db5d0a32b648824d70d9aedb8a85754e78043752d55` | `100644` |
+| `codex-prompts/00-index/P0027.md` | 12563 | `1fc3019aade0a9a904c91103257639396b567b00a644d894a401a46afed59870` | `100644` |
+| `codex-prompts/00-index/P0028.md` | 12175 | `2de6f5dd44cc9131422de65c088f6d3a51e624c41a813ce767f00366b2f8786e` | `100644` |
+| `codex-prompts/00-index/P0029.md` | 12679 | `571a73ffd04126922e2e48aa7c512758d9df18158ff00cbc100d0566dad0be92` | `100644` |
+| `codex-prompts/00-index/P0030.md` | 12707 | `6d26bb9c5e3c67b38c626a0d2ce6bcb5b41dfa9ba78462c3bf6abf469219be76` | `100644` |
+| `codex-prompts/00-index/P0031.md` | 12448 | `5085fae1943abeab447fb1e2640c76d6d12cabf63b85cf3a211dcd70f2e4fb35` | `100644` |
+| `codex-prompts/00-index/P0032.md` | 12623 | `8dfbbdd3a5fd041588c651e59414ac7877546e80243d558a3e62442a4f5a80a4` | `100644` |
+| `codex-prompts/00-index/P0033.md` | 12324 | `f27e625b5793918876f7b70d8293c4846f4408e1d8710a57e65488ff2df56e72` | `100644` |
+| `codex-prompts/00-index/P0034.md` | 12398 | `ea59fe1095e7e8bd58a084faadd7bea9e0fa366c36487ddc56bcbe80aa700d8a` | `100644` |
+| `codex-prompts/00-index/P0035.md` | 12395 | `157e2023458c6cfbb79216fd415ef39d28fdd432916921317e30ffecd31abbd8` | `100644` |
+| `codex-prompts/00-index/P0036.md` | 12371 | `b39b7b5b5ec8ab9b20f1d6a82aff56b6cd5ffa13f5975be65ef27412399863f0` | `100644` |
+| `codex-prompts/00-index/P0037.md` | 12245 | `24355dab5391e5e58914f018a065d0e7e28e74fd17d19916a6bea6c0cb05c013` | `100644` |
+| `codex-prompts/00-index/P0038.md` | 12777 | `4cf1c7402acf8faaeeae9e26bee97d963e4168f78ad5bc6799d7f9c22b05ed30` | `100644` |
+| `codex-prompts/00-index/P0039.md` | 12827 | `63e92ca8c5c398dfb029d37fab1fa577ed33c6c60cbf586e9fe6f1773de10066` | `100644` |
+| `codex-prompts/00-index/P0040.md` | 12729 | `d03b7aed0a1323588b1e2fd1d197f784dccb6dceab83fe51e39f4e857436a6c5` | `100644` |
+| `codex-prompts/00-index/P0041.md` | 12732 | `c5ff89a3893c82ce7fcb1517e3eeb4eea1884590477da900095bbed9122c3b3e` | `100644` |
+| `codex-prompts/00-index/P0042.md` | 12510 | `4ae346c36ed19ae248a9f4f33a611a1a20622b7175b131c83332c0c96632d5b2` | `100644` |
+| `codex-prompts/00-index/P0043.md` | 8701 | `6a3f405b533e15c2eab9612a2164fc5c5382a990fc42ea23b8929fdeeffd9959` | `100644` |
+| `codex-prompts/00-index/P0044.md` | 11825 | `865c84a7932aab8603137b3197d054b04fdc87fc5292dca2b776cabfd85d371d` | `100644` |
+| `codex-prompts/00-index/P0045.md` | 7618 | `b878d2e896f813df867451314fde36e870e56dd4710e0fd5b3bcab7daa36437b` | `100644` |
+| `codex-prompts/00-index/P0046.md` | 9237 | `42c8e07f85e126f5214430f563c215b66a635d3a3238cec58daa6207e9e25145` | `100644` |
+| `codex-prompts/00-index/P0047.md` | 9060 | `c48d06fcdc9aceb892743dbb09044826c5717df86a380f9649cbfce4a9d10c8a` | `100644` |
+| `codex-prompts/00-index/P0048.md` | 7535 | `618ef1ff948172ce1adee693713acde47a1c03eaaba1a053525011b58d2727f2` | `100644` |
+| `codex-prompts/01-foundation/P0001.md` | 17811 | `2e95897b9acdf31240b3035f087798da1397197d45698a409171d2003e84709b` | `100644` |
+| `codex-prompts/01-foundation/P0002.md` | 17718 | `a60e072f684cfbfe0e9b5d237208e29026a9692f0b399a20c199bea467b7e227` | `100644` |
+| `codex-prompts/01-foundation/P0003.md` | 17811 | `3b6edcc2ddb444956afe9a5cb4c8421655547d76d6aaf6b21e72d0249814ebde` | `100644` |
+| `codex-prompts/01-foundation/P0004.md` | 17966 | `0c5cba156e635243c62c099b611497c8aa369eff5d5b74c770d09ee27c04ef13` | `100644` |
+| `codex-prompts/01-foundation/P0005.md` | 17687 | `792d77ecc1ddafad29f7d148aac1f18545fdf788675b1d1280683f23ae60ed97` | `100644` |
+| `codex-prompts/01-foundation/P0006.md` | 12668 | `2b00974e129b5f0e0f7a3bc2a66d418d71dafa46a2018d4b010df173960e70ad` | `100644` |
+| `codex-prompts/01-foundation/P0007.md` | 17947 | `6e9bf036ec0b6488dc4a4f07dd3a379dffd2b81c0bf3b6faaddc6566a39462a0` | `100644` |
+| `codex-prompts/01-foundation/P0008.md` | 17749 | `8eb8b2ac82f5f34ab3418a320ffd5b195df56c472a95ef70e85e1e786eac1698` | `100644` |
+| `codex-prompts/01-foundation/P0009.md` | 16144 | `04d3f2f173fd4e1cff5940999705002709832b29b192630f4e022a181430b31d` | `100644` |
+| `codex-prompts/01-foundation/P0010.md` | 15936 | `e89a89de21130ea5c3047d20c87f9cd07f8bd6c06088453e1f2c4cafd72f4b66` | `100644` |
+| `codex-prompts/01-foundation/P0011.md` | 15996 | `8646cb0a4dde26b8d613ecd339c9c2008981ec114e20228ac2539c4136b38f44` | `100644` |
+| `codex-prompts/01-foundation/P0012.md` | 16080 | `7ecece998e82b63656956b913ad98f08188fb764e055d06aa23fc9ccb1183c26` | `100644` |
+| `codex-prompts/01-foundation/P0013.md` | 16123 | `bd6f949f4cd4d9c4fa8698b37bcf320b9b0f514f968afb6819fb20dca7a74bc1` | `100644` |
+| `codex-prompts/01-foundation/P0014.md` | 18292 | `9618c5c8dbdd6ed94d6273d011f6a4b49ae98674695a1298b37ef6621cf33778` | `100644` |
+| `codex-prompts/01-foundation/P0015.md` | 16904 | `915c4831a3b25a5f1f4f5f4b6f0b11cb87d9165ed13d1d493b7e34b2fdc36ba7` | `100644` |
+| `codex-prompts/01-foundation/P0016.md` | 17037 | `54d352a2fc296acaedf0b54c176da473377d21d8f0d71929d1ace8229d8d686e` | `100644` |
+| `codex-prompts/01-foundation/P0017.md` | 17269 | `7bbd8f2b265195f02e681e24d0f31852a25345466e679d7da53a4acc1dfbbac4` | `100644` |
+| `codex-prompts/01-foundation/P0018.md` | 17064 | `b0158543debea7b63dc95590584058a55e2fc030c8f8e5f36b48972ac84afd75` | `100644` |
+| `codex-prompts/01-foundation/P0019.md` | 17183 | `2fa1be05ef399cfc2f4f27373e7d74479cc3cf1c0b063ec65353c070a9ddd961` | `100644` |
+| `codex-prompts/01-foundation/P0020.md` | 18052 | `522f01151299684e5eb749380826bb2a5c7685c6d31fd9d5160af00dd6e068dc` | `100644` |
+| `codex-prompts/01-foundation/P0021.md` | 18010 | `30da7ccd46a01d358f26e32dad5ee2a24dad46cb5af61ef6b6605fe98d341f2d` | `100644` |
+| `codex-prompts/01-foundation/P0022.md` | 18048 | `76f61f6511a2bd1b6cb56d62a5e7a31681231b20da7bed7dacae60dee92f5b17` | `100644` |
+| `codex-prompts/01-foundation/P0023.md` | 18177 | `39cca3feff3ccaf776960fcd3b8d6d49512d99d33d02ca685ba91ecb5f58b408` | `100644` |
+| `codex-prompts/01-foundation/P0024.md` | 18125 | `6ba0802b38029cc7349182fb8cc8686eb59b02a8e67944cfcb97aeebdbf6d34d` | `100644` |
+| `codex-prompts/01-foundation/P0025.md` | 17342 | `ffdd9532fac1a64cc0537c4309c4790c140f40f27a0f0e9784758a1cab198521` | `100644` |
+| `codex-prompts/01-foundation/P0026.md` | 17082 | `29e151c2cae482b9a58f05bc4091f4e5d43b1663b2e087faa5217ad9cced0d76` | `100644` |
+| `codex-prompts/01-foundation/P0027.md` | 18125 | `228b684d971a676de46bbc3ef093a1f09614bc5e9d8c8d2394fc012d0fd7e5ba` | `100644` |
+| `codex-prompts/01-foundation/P0028.md` | 18541 | `eea06a9799b4a728dbb5fc8c5e9671828fc7087672dc4672fba39b429a9bb47c` | `100644` |
+| `codex-prompts/01-foundation/P0029.md` | 16975 | `46db07aacc47c7937ddfdaf9bdc6413b702bddd9a418188c7501fd65ac9f3a2f` | `100644` |
+| `codex-prompts/01-foundation/P0030.md` | 17261 | `c1dcaf56ccf8a32da093de15d513933bed30a9f2d56b491ad2ecb416df41d898` | `100644` |
+| `codex-prompts/01-foundation/P0031.md` | 17002 | `1b96975b3fc4bf5c21922c237ec96ef634ff728340e5c07caa320e31372366dc` | `100644` |
+| `codex-prompts/01-foundation/P0032.md` | 16975 | `0e8dcbe5d830d811af279cd638dd5c90148359a8a753cc8e57d2b42ea42e22cb` | `100644` |
+| `codex-prompts/01-foundation/P0033.md` | 16842 | `2ff17bb8389f6a5a4429186dc45ad691415ec5fb9e17d2a3a5c85ec77f3ac276` | `100644` |
+| `codex-prompts/01-foundation/P0034.md` | 17116 | `931eae0f20b9731fcf10522f992aabc89dcd31ca7bd1f45e1b718d76dc1a7e5b` | `100644` |
+| `codex-prompts/01-foundation/P0035.md` | 18008 | `9ed70f86e30f3ddd5d3f31ba85b9eb4dfd44d68ba5d318dc07effa8fd54c4bbb` | `100644` |
+| `codex-prompts/01-foundation/P0036.md` | 18015 | `8f4f04b8e598bbf77d1c0a67363855b4c3052c5ca7d647eeaa70cdc8664c278b` | `100644` |
+| `codex-prompts/01-foundation/P0037.md` | 18853 | `b2caf3f527c20def1a4c89bb2f3a67aec8f8510b432188f3aaaa27cdb72244ca` | `100644` |
+| `codex-prompts/01-foundation/P0038.md` | 18004 | `61a90a1ebb1f374970e9fc4c3e99c126ee6edd1af5a010b52aa30c3ce8b62072` | `100644` |
+| `codex-prompts/01-foundation/P0039.md` | 18043 | `57c5fab9226f40d8f79f052beae2a272b7c9820139882170e1715ce06b822438` | `100644` |
+| `codex-prompts/01-foundation/P0040.md` | 17932 | `a30d5d12a14ddbfcee2ccd12480d5cccf94b9ffef085cb2cc4ffaeeb7bdc603b` | `100644` |
+| `codex-prompts/01-foundation/P0041.md` | 18285 | `870070eb8504d9ef0caa267347e32a0f63def86ddbf7c44718d7b4d5aee418ce` | `100644` |
+| `codex-prompts/01-foundation/P0042.md` | 17968 | `b7794694ff76a8c9a8484e47d6fe9befc497ce987b9613fc7e2935a888b36dc9` | `100644` |
+| `codex-prompts/01-foundation/P0043.md` | 15823 | `b0f8ecc90f1e753fd7698a1082da6025d8986ca3ed8fd2caa79d86a946895f00` | `100644` |
+| `codex-prompts/01-foundation/P0044.md` | 16090 | `dfb5ebe37c4a0160a79ca6b95541984ed5d32c1d920c3bcbdd9449ec842234a2` | `100644` |
+| `codex-prompts/01-foundation/P0045.md` | 16169 | `b1c47cb692cb9c53ceb554b3076c01e74c05d83d24d6d1587941b430ebfdd3c2` | `100644` |
+| `codex-prompts/01-foundation/P0046.md` | 17922 | `97ccbdef458e261f75ea17a5ed2de2a84e6f4f06d975520af9688908eda95e02` | `100644` |
+| `codex-prompts/01-foundation/P0047.md` | 17052 | `30c899a260b01d8ceb0a396cd1b0059344e3b49293d8b4ccc9a0d5905f2cb919` | `100644` |
+| `codex-prompts/01-foundation/P0048.md` | 19255 | `e48827cbb6d70d2e346d9319edaacdc82b0f8362db8a4437fa0bcde3ed244c92` | `100644` |
+| `codex-prompts/01-foundation/P0049.md` | 19166 | `c25e9f3a4b3e49d66ca295fd7015ec7a71f01c494b2d8f3c5e11640d79dd0892` | `100644` |
+| `codex-prompts/01-foundation/P0050.md` | 19165 | `805f01f40e4b1864c0c0676ae7f13bd87631e791705f27f58c46b45e4082b78a` | `100644` |
+| `codex-prompts/01-foundation/P0051.md` | 19643 | `fa08ed5e41fa0025934496209ebf6d6d2b88ad3aeaf019de2f71edddd4ee089c` | `100644` |
+| `codex-prompts/01-foundation/P0052.md` | 19225 | `5d0963dc3639474dbd664d4b3567f7b26fd4cdc319e12a25c0cb62ff647eb66c` | `100644` |
+| `codex-prompts/01-foundation/P0053.md` | 19708 | `80486b4334734f3bec9ae281635b2f7b52ccf6521cb6843efb070f55a4c37ff0` | `100644` |
+| `codex-prompts/01-foundation/P0054.md` | 13303 | `9fbf4c8009b52522234780ad6734add1fe82fb0a28459fffa4be1e149083f69a` | `100644` |
+| `codex-prompts/01-foundation/P0055.md` | 13577 | `aa74ebbeccf15bf8ea53556d9e6d520f5d2abe63920e0896417454cf7e236032` | `100644` |
+| `codex-prompts/01-foundation/P0056.md` | 13614 | `a8223be6b83320793a6a658a4e6959885c2652265b77f2447b78c24360165903` | `100644` |
+| `codex-prompts/01-foundation/P0057.md` | 13800 | `441667ad0ba3ff50a05ec2a45856de60046026af27ba1ced78572461676e94a8` | `100644` |
+| `codex-prompts/01-foundation/P0058.md` | 13630 | `26e6a6cf982b89866f1c4c0d34eed485a94bb132dab140938f49da5b402c7971` | `100644` |
+| `codex-prompts/01-foundation/P0059.md` | 13794 | `cf30f5343e31ebc12bd1ac4befd87a21d952a8e5eccd0f7413d812398a03bccc` | `100644` |
+| `codex-prompts/01-foundation/P0060.md` | 13488 | `728efb9aafe30442bc6af21fdb4cef1c881ddc82fc1775bea506ca8adc11075d` | `100644` |
+| `codex-prompts/01-foundation/P0061.md` | 14721 | `5ba7acf297b5a003658c3769467395beb6e37b67f7043419b2b59e66c7eeed7e` | `100644` |
+| `codex-prompts/01-foundation/P0062.md` | 13709 | `78a5f721f948dbc65bf6b0467a346584f4d2a1446e4fe9a84d9cb43aebdee6f5` | `100644` |
+| `codex-prompts/01-foundation/P0063.md` | 13227 | `afa48cda5cd71eed03b57aa526bbf9c158e1bd420bad041bf5337b1eca7fdc4f` | `100644` |
+| `codex-prompts/01-foundation/P0064.md` | 14115 | `7b3906f4bee721ef91378d3ef28ea0723b8aadd2a32ec19a2bdded0ad9a4f677` | `100644` |
+| `codex-prompts/01-foundation/P0065.md` | 13357 | `8bee143681ee8b056b52f93699017b646b42c0d4ed411b5a28282761f0d622c7` | `100644` |
+| `codex-prompts/01-foundation/P0066.md` | 15279 | `5ea4950151d4d905ca18fa1d735fcf95bd046588da150fd7f5b19f904d0da94f` | `100644` |
+| `codex-prompts/01-foundation/P0067.md` | 14819 | `1ad2cdb231c6da60e997ee73f371237c2570c5e08194acd6ff940d767fde66b3` | `100644` |
+| `codex-prompts/01-foundation/P0068.md` | 13393 | `5566f9d56264ac53e21e45a899d8116996079d36196b45d662c4eae882137de8` | `100644` |
+| `codex-prompts/01-foundation/P0069.md` | 13333 | `115ca04498effba0a2dd16f1598af92fa606d9a5aa11c7d23d84b55d565c8675` | `100644` |
+| `codex-prompts/01-foundation/P0070.md` | 14098 | `321eb23aabda294d58820657cbc39a6eabce65aaba70a1fd8179d81bbb3b32ab` | `100644` |
+| `codex-prompts/01-foundation/P0071.md` | 14707 | `117d37614d703f0d4bbeef15cffda32f13d0ce55e9ef93ea0e2eb19b4c7814a5` | `100644` |
+| `codex-prompts/01-foundation/P0072.md` | 14707 | `86b3e5b869358b0f330b0acf67ee64e360dea9401d39078ecd8a146c145af09f` | `100644` |
+| `codex-prompts/01-foundation/P0073.md` | 14013 | `30f722ce5c7ab38dd7eff9b23e5b7cf38412fc42b1ae5bbe57b705586aa31d97` | `100644` |
+| `codex-prompts/01-foundation/P0074.md` | 14728 | `0405fe741256b0c850c2fef4477e0270379b437a65a72598631215f360055f4a` | `100644` |
+| `codex-prompts/01-foundation/P0075.md` | 12674 | `b19b436c15b08ed57ee64d9df8066bb60dcfb28ea1bd04415a5b303f23bc6b46` | `100644` |
+| `codex-prompts/01-foundation/P0076.md` | 12627 | `6c2cb5ea4cdf67c7f7fd773efe13ed1bac90e44215342db48433f9908be5f208` | `100644` |
+| `codex-prompts/01-foundation/P0077.md` | 13609 | `e5ec547529560ef247c53eb2f5e2dd8dc1369fd751582b52e011f5628e1f64e4` | `100644` |
+| `codex-prompts/01-foundation/P0078.md` | 17927 | `af2dee9d1a3de347d75eb0815960f62fc6d80830f043e822446a4135290a690d` | `100644` |
+| `codex-prompts/01-foundation/P0079.md` | 16441 | `e38b402a76b79612a77de37dd679f189016803835a275909a889659085820830` | `100644` |
+| `codex-prompts/01-foundation/P0080.md` | 16387 | `f55f9327bad1272630096726f8eefe23032cf68e0115181f0a1e6d75522fc214` | `100644` |
+| `codex-prompts/01-foundation/P0081.md` | 16551 | `c46be12ea407024fd81141c91a7d2e27b5e0489eecd7b4ee1bbaa68570f8e194` | `100644` |
+| `codex-prompts/01-foundation/P0082.md` | 16753 | `62d57842677fd50af800c507da6f452057b9e87a650b993e913c99dcb46c4bb9` | `100644` |
+| `codex-prompts/01-foundation/P0083.md` | 16487 | `6e1b4495d542c7e3be64f29999e7120054a01028b945ebec7e40ca0ab39cfd21` | `100644` |
+| `codex-prompts/01-foundation/P0084.md` | 18282 | `a371ce5a8f0173c65a6ab0b248b3fc0eba40ce751fc8dc1ba87ad680726422d2` | `100644` |
+| `codex-prompts/01-foundation/P0085.md` | 16249 | `5b883e225dc48b4d982ce51cb1f2a623a64ef8d8e8ee0f9a3f09cb606b2fc95a` | `100644` |
+| `codex-prompts/01-foundation/P0086.md` | 16041 | `ade662486392f03f3f62ee34b385b356000f8bba31ceb99766fc57e07efffde3` | `100644` |
+| `codex-prompts/01-foundation/P0087.md` | 16101 | `0b6fedebe2913000d8466b61128a2d0ee1553a26ffd91d6f4ad21282338a94b1` | `100644` |
+| `codex-prompts/01-foundation/P0088.md` | 16185 | `e5189a644880c136bfc9dfac2b3a2414da9be92f530206f6c0a8fc382d0bd7ac` | `100644` |
+| `codex-prompts/01-foundation/P0089.md` | 16228 | `fe967c6a0543d61365c0131155860e3c20beff45d5d50c1590519bc800bd773f` | `100644` |
+| `codex-prompts/01-foundation/P0090.md` | 15928 | `312fd270dc75aa42a1a780cf8bd7277620ffd0d0b12172028d6fb3be822e8cb2` | `100644` |
+| `codex-prompts/01-foundation/P0091.md` | 16230 | `3d84d1c6f31663f88ae28dec3a9d27a0c8e1d94c07113cfa6f85115f727af87d` | `100644` |
+| `codex-prompts/01-foundation/P0092.md` | 16274 | `9ffd8db159e1f806695e308c5a8f8e9efd90854c7661c1426c0cc45080582927` | `100644` |
+| `codex-prompts/01-foundation/P0093.md` | 17748 | `3d46a1c67c3160580e0c9f5f5ff0854885d3e6108c9afda43136b7adf7c9e36e` | `100644` |
+| `codex-prompts/01-foundation/P0094.md` | 17698 | `33893ffd82fe905268522f0971f7a48faa0cd07bf504af144e3b6d7ed7f63c6e` | `100644` |
+| `codex-prompts/01-foundation/P0095.md` | 17731 | `c439f5efdf736a4374cff1673d1f547c5b3cdbf48fd52c754f53aa7664857662` | `100644` |
+| `codex-prompts/01-foundation/P0096.md` | 18106 | `cd24d9eb73cb2609a8c04bb8934295709a8d56149825a2fd40624ad108f50c7e` | `100644` |
+| `codex-prompts/01-foundation/P0097.md` | 17694 | `2d099c35cad4631fbb5d25f5b10d16c3d3fbf9701bd4bb01ef5d5b523e32a56d` | `100644` |
+| `codex-prompts/01-foundation/P0098.md` | 17967 | `3d5951aa1e0f60ed54f309d2337a7a04a94dac183d7fb89c0963edb1bd2d3b37` | `100644` |
+| `codex-prompts/02-domain-core/P0001.md` | 18135 | `35464502e16b0339b0d9773a4d600b35da6c72e3c120ac78f23607a4a28a5277` | `100644` |
+| `codex-prompts/02-domain-core/P0002.md` | 18185 | `966bd0c96a3ae461d2362a065e794d18f362dd617d5644e93111c014352a28bf` | `100644` |
+| `codex-prompts/02-domain-core/P0003.md` | 18086 | `70b242fb1126bef50d130c99794b370514437ea2086a563eaef31d84503819f6` | `100644` |
+| `codex-prompts/02-domain-core/P0004.md` | 18252 | `f742f459514f441d7081f4dcd561f68727cfaf99da485b0875212a991fcce9e3` | `100644` |
+| `codex-prompts/02-domain-core/P0005.md` | 17943 | `8f45bdf42a1fd9503c1d054a3f33ccd309d7cf8102357463bb8f61a0f0b83aa8` | `100644` |
+| `codex-prompts/02-domain-core/P0006.md` | 17912 | `00d8b5cd8a38b54d72e7729166d1f7b0518db835eb6b739d589e819b9d36f920` | `100644` |
+| `codex-prompts/02-domain-core/P0007.md` | 12722 | `1e68f7975865af052f13f7aaf0329c0acabb8d06e16382458790fbcc1742d363` | `100644` |
+| `codex-prompts/02-domain-core/P0008.md` | 18251 | `cd099f63fd18f46f1488f761bd7a52ffefbe95ab024c352c67e6751257508e3c` | `100644` |
+| `codex-prompts/02-domain-core/P0009.md` | 20271 | `c95d76af29e1589198d87d23545e19146c5701cbe94aef133b09677cd694c784` | `100644` |
+| `codex-prompts/02-domain-core/P0010.md` | 16885 | `c2afb0b48581ad6950c922b8f87e94117e92451f4ae110330754c8a0583f4180` | `100644` |
+| `codex-prompts/02-domain-core/P0011.md` | 18353 | `3d6311d682777c3d7c6688f7882119d1be232eb74a213a4a5fd4727c54c4aea6` | `100644` |
+| `codex-prompts/02-domain-core/P0012.md` | 16925 | `caaee47a5cffaa827416fa3951039c1d70b1102557bd0f667a39bb3bbe1d5df9` | `100644` |
+| `codex-prompts/02-domain-core/P0013.md` | 16632 | `8a6bd23ed5c55db5c41ec873a372a175ca352c9dd5ded36336062e543d9e4b56` | `100644` |
+| `codex-prompts/02-domain-core/P0014.md` | 16719 | `350b60f819fe2e3039ae4ea415473ff2f19669f5c77a1077f050129f1a6c0329` | `100644` |
+| `codex-prompts/02-domain-core/P0015.md` | 16517 | `499a0f623786a6948a4cfb591b8e8312204e14ddbd3b1f19cb87e71a3d3c1d0c` | `100644` |
+| `codex-prompts/02-domain-core/P0016.md` | 16583 | `b14e125034e45899c6690a45c1e0ad0da55b5b9866d26ac59d798cb05f0bed90` | `100644` |
+| `codex-prompts/02-domain-core/P0017.md` | 18563 | `4263d626a3a97e13f6674e7e62ae5dbb1e947e309302ec79d7472666fc3a5f5d` | `100644` |
+| `codex-prompts/02-domain-core/P0018.md` | 18045 | `fe5a9a20548498a06548fd2c0b81bdf6ce285596394dae1f5d386013b304499c` | `100644` |
+| `codex-prompts/02-domain-core/P0019.md` | 18383 | `1bd8d15bea0cffe160e625289c5d0230bf8c7c08cdcaaa09798a3d309fa9a585` | `100644` |
+| `codex-prompts/02-domain-core/P0020.md` | 18689 | `591ff8cceb3e0ef2b588f884c2a6bf8ce9f5452a2e45db94e6921dbb1b16592c` | `100644` |
+| `codex-prompts/02-domain-core/P0021.md` | 17340 | `4d1402d8a4a01b93cc650dfdb3048d0f2dab3b568b38ed97b79b245399fb0c6d` | `100644` |
+| `codex-prompts/02-domain-core/P0022.md` | 18762 | `05293131c3fa5b78afcdba1436105ccb230b21f49354e81248171b0010491d35` | `100644` |
+| `codex-prompts/02-domain-core/P0023.md` | 18534 | `8c2a7ffd16c554e095a3b906dd2f2c55674ffe52c0919ddebc47a254e670c388` | `100644` |
+| `codex-prompts/02-domain-core/P0024.md` | 18982 | `94a1fd07fd3379ef5f2210e32b0aa30b71eb22d0c63dc0312a01cd76ba8a13dd` | `100644` |
+| `codex-prompts/02-domain-core/P0025.md` | 18894 | `4a3cdd3c8dbd9d8bada2f182fe748a5951c261183283ebbb20eb86d797bfb668` | `100644` |
+| `codex-prompts/02-domain-core/P0026.md` | 18117 | `fc678d50501b9ee299a4f6dc54c7d3c93f522cd604a1b4c676ffd00b3f07e36c` | `100644` |
+| `codex-prompts/02-domain-core/P0027.md` | 18479 | `492714c37590ee416c94d017ccec2e6afdda487757546d00029134de25cb17d9` | `100644` |
+| `codex-prompts/02-domain-core/P0028.md` | 19086 | `6c609f802a06bd0d18cd5f17c2ff5f3041dd76e779beb8e70e6b607a7bbf28bf` | `100644` |
+| `codex-prompts/02-domain-core/P0029.md` | 17571 | `2310561a0b5a16bb4af9cd12512e59939c23767bdf7c2ba13f643c5fa21a11a9` | `100644` |
+| `codex-prompts/02-domain-core/P0030.md` | 16985 | `a4bb2c4f4bfefd0b3abb94a816a9fffe184981208c8ee9ef48d80820a1815f55` | `100644` |
+| `codex-prompts/02-domain-core/P0031.md` | 16509 | `9c080c4a42e14ab8a344046a8be1f74416a29225e0ae8ce4ea77e8e01143dc5b` | `100644` |
+| `codex-prompts/02-domain-core/P0032.md` | 16940 | `8f88ad307a33dac3f942c9d6a3bab2c789431fb796033be731ad148ca3be3894` | `100644` |
+| `codex-prompts/02-domain-core/P0033.md` | 16853 | `1a2338835a4f2148b0b28d85c37a0d400e1585d31722032c5d7ad1df88cd4c3e` | `100644` |
+| `codex-prompts/02-domain-core/P0034.md` | 18370 | `2e110a52c0434f7e29e59e3f06ce5ca90a0a923bcde48d3fb6e06fd1ae058990` | `100644` |
+| `codex-prompts/02-domain-core/P0035.md` | 18117 | `5c7577ecaffb256ba5dbe534ff6272e47f5f514fa7edf64893b7c8daca937b58` | `100644` |
+| `codex-prompts/02-domain-core/P0036.md` | 18385 | `6d432d5b36ca872d27a35c8524bb45d03fb4dbfcfb0f1705f49066f167ddaeed` | `100644` |
+| `codex-prompts/02-domain-core/P0037.md` | 18369 | `a1a84f3856ab2e26d433cea854fae3fea1e9451b396daa1dd08d256bc7f0436f` | `100644` |
+| `codex-prompts/02-domain-core/P0038.md` | 18027 | `d6d7b27b0fedf5663ea03956b0d2e5f8f872305801163983eee9e9f9fd0737c5` | `100644` |
+| `codex-prompts/02-domain-core/P0039.md` | 18577 | `dc8d3ef2ec4f819e0e470af5c10bdba5b44f36e7946130174d0b3ced348dbd96` | `100644` |
+| `codex-prompts/02-domain-core/P0040.md` | 18017 | `82d3d439ae20b02d64e26b1fe7c682f7d1596985f98e4c5f3d4ea156f62f4192` | `100644` |
+| `codex-prompts/02-domain-core/P0041.md` | 18859 | `ea38a5de3c2298ecdc744ef1c8656074bb7b523410b2afdabc68b229f88e7274` | `100644` |
+| `codex-prompts/02-domain-core/P0042.md` | 15927 | `90210648af6769bf9184d776d142848f5a18beb4905c2839ed6a6f868e6880b0` | `100644` |
+| `codex-prompts/02-domain-core/P0043.md` | 16586 | `92d688f14580c4f32a15a74a6fe6314b8cac861965ac98a98fc0ade7a3153769` | `100644` |
+| `codex-prompts/02-domain-core/P0044.md` | 19879 | `f2f79c44f34deac5a8a337e77885acb16493ca2897231c4d4d201c08ff1e3003` | `100644` |
+| `codex-prompts/02-domain-core/P0045.md` | 18017 | `0dce8dd13be7572030dc12218412e862e7cfeebb4d19f292d58890f13287576a` | `100644` |
+| `codex-prompts/02-domain-core/P0046.md` | 16369 | `2e59916aac9e0d9455df0e0469172c4aa02447bc8b28dbb0105ce548e071a020` | `100644` |
+| `codex-prompts/02-domain-core/P0047.md` | 19685 | `1e9eb05a0209514bb96046b12fb08169f383cfc837a2264ebce25c65e2e350d9` | `100644` |
+| `codex-prompts/02-domain-core/P0048.md` | 16296 | `5aa48b4c9969e4fc7cc783ad40cc1447e927e0f0abe8868766a5a9fbf9d7cd6c` | `100644` |
+| `codex-prompts/02-domain-core/P0049.md` | 17693 | `a9a9093b3f2ddbe4ec41eeb928b05e4eed5df830c55263545e76749a6c5ba172` | `100644` |
+| `codex-prompts/02-domain-core/P0050.md` | 17305 | `47f100224ba0d65c698ac69e59b700b54aac8fae5891c59fe3960c2c2a7316c9` | `100644` |
+| `codex-prompts/02-domain-core/P0051.md` | 19261 | `fbb6dbe8b1dbba81c6539540569bc25a9c93b56125d8489bb5d920c919c85655` | `100644` |
+| `codex-prompts/02-domain-core/P0052.md` | 19499 | `ae080e63d4699078a0e2afcc37dc5cdad82ea584cad7c2df114f629c06280455` | `100644` |
+| `codex-prompts/02-domain-core/P0053.md` | 19208 | `d8431ccebdf5a46e94817a03b6807e5673ec28a0a719650a2c096ff54dd904c5` | `100644` |
+| `codex-prompts/02-domain-core/P0054.md` | 19081 | `d0d64474b73dc45d0823741d1e920f1e68e60049e9c0465ccc1dc00274a9382e` | `100644` |
+| `codex-prompts/02-domain-core/P0055.md` | 19649 | `2a106d362174554efe778d868a306e34176357a0d46396e9c1589f0ab6b2f16d` | `100644` |
+| `codex-prompts/02-domain-core/P0056.md` | 19529 | `164b0447c054c9aaee93e63beda8d474d67adc7bc7f223a66b019f626b81ade6` | `100644` |
+| `codex-prompts/02-domain-core/P0057.md` | 19230 | `83b88008ab92d97452881c083ccda3b0fb0c86ce4e9cca264bd8ed0b873e8dc3` | `100644` |
+| `codex-prompts/02-domain-core/P0058.md` | 19683 | `0011ce8a5924ba0878285c5a20910df3d16ea2515026fdbedb6794996fcefabc` | `100644` |
+| `codex-prompts/02-domain-core/P0059.md` | 13179 | `02c964d1787839ab7ceae893339820827c6d712880365329f26ab513e4c1169a` | `100644` |
+| `codex-prompts/02-domain-core/P0060.md` | 13523 | `72b815dd47dd94b7c4269a93ae91da22cb19eab50b1e5cc18b93256a7311e7a3` | `100644` |
+| `codex-prompts/02-domain-core/P0061.md` | 13605 | `2be2f04a29ed39c849dcfa9046042f92ed5091162496661ef7ae16d5b56960ef` | `100644` |
+| `codex-prompts/02-domain-core/P0062.md` | 13620 | `a883eb650098aa204480eabbc58e27af2c5a1560be82056ea9b1c5479f006816` | `100644` |
+| `codex-prompts/02-domain-core/P0063.md` | 13482 | `f56fb32d2865fb39083bea8a38a8059e6d423e6d0d372c32817ddf925d23dbd0` | `100644` |
+| `codex-prompts/02-domain-core/P0064.md` | 13398 | `345423201984c03f4f7936995d5c22df153facc18c9166d844ee19c190c27b52` | `100644` |
+| `codex-prompts/02-domain-core/P0065.md` | 14498 | `b2be9855bc95869f929c3aca62f041e1453ee84642f2c3b315e694eb7ba36cee` | `100644` |
+| `codex-prompts/02-domain-core/P0066.md` | 14693 | `4546744139cfba9cdb5f04cb08850de03f8de75f336b9196c895cd1489e88bff` | `100644` |
+| `codex-prompts/02-domain-core/P0067.md` | 15168 | `e8674054b39980d1e732d5a4d6d1a9cf656d56543272a899bb89536294c76928` | `100644` |
+| `codex-prompts/02-domain-core/P0068.md` | 15179 | `8a186ebf0bc205540707420c3f624e9d07594c0f524e69c868d73e2c1df119b3` | `100644` |
+| `codex-prompts/02-domain-core/P0069.md` | 15025 | `8931751ae3bafdccf09873643e967949946b4c99bfcf69070cf0b6cdb99b528e` | `100644` |
+| `codex-prompts/02-domain-core/P0070.md` | 13499 | `ed67a3b08f384fec727a8c72d3e51100f6989bd3d2ca066441d26c5348a3622f` | `100644` |
+| `codex-prompts/02-domain-core/P0071.md` | 14735 | `de64df77db7aa4ca9925cf00de8dd8396acfa87b9f0cab8876891bdcbaad143f` | `100644` |
+| `codex-prompts/02-domain-core/P0072.md` | 14530 | `4103f85e14ea4a23523a7c8fab3f82d9c45e998e9b08515563a1d7875fcc3f73` | `100644` |
+| `codex-prompts/02-domain-core/P0073.md` | 13417 | `139eec294ad58ff835dfab29d29a27568535ec328c347ce743ea8c8b1848a546` | `100644` |
+| `codex-prompts/02-domain-core/P0074.md` | 14176 | `703e67118f66dd860f3b5c2ff7b6a9abb471a9854843aaf92338b6b56d21bc4b` | `100644` |
+| `codex-prompts/02-domain-core/P0075.md` | 13275 | `dbcf2fdfd16cb55cf313111d03ce71c1aca051007d7a689a1bcce9e41cb08c41` | `100644` |
+| `codex-prompts/02-domain-core/P0076.md` | 13453 | `6a352d72b98e026596a38c2577e3abd2430f7f41f6b078787e7e23f0006401bb` | `100644` |
+| `codex-prompts/02-domain-core/P0077.md` | 13805 | `d43e5962643460e4a168c8df811047cf85f1ffe7570641aa9010933371c2f09d` | `100644` |
+| `codex-prompts/02-domain-core/P0078.md` | 13999 | `fd59a175cd950e234313c6dfba48220d935d78f5488bccfdf659bd761b4453fe` | `100644` |
+| `codex-prompts/02-domain-core/P0079.md` | 13890 | `1be230311f7bc4fe0d5fb41b22761101d9aaf25e25516dce45694c18fd14a502` | `100644` |
+| `codex-prompts/02-domain-core/P0080.md` | 18192 | `881127227047c7880b1fe8a3514246a091817297128ce86f78e4f94363fd7f40` | `100644` |
+| `codex-prompts/02-domain-core/P0081.md` | 16499 | `0bc84e10c20b9da6129ddd9dcb5014d824a7371791fa0576b4ff176f3df74a08` | `100644` |
+| `codex-prompts/02-domain-core/P0082.md` | 18277 | `8396b1ef26d6bbcffbd8c28a62e4291d095c47716a107457f7c5b5f5b0b277b7` | `100644` |
+| `codex-prompts/02-domain-core/P0083.md` | 16452 | `929e9d3d5414d7fba145c657e6ff484f5b069b247cc951869de9f83a20e8e53e` | `100644` |
+| `codex-prompts/02-domain-core/P0084.md` | 16396 | `720d7ce13c1d66f929d053380d944f339d1efaeeb5b2babb2db90a44abf030be` | `100644` |
+| `codex-prompts/02-domain-core/P0085.md` | 18343 | `d5bce7491e3c5a0e53118cd805676cc9e0313983adefd35691b3e39583c663b6` | `100644` |
+| `codex-prompts/02-domain-core/P0086.md` | 18348 | `ad44c12de586ea860df5feab2a8cb3db17bdf13e5ef827e75d6bb9bdb2ec9fff` | `100644` |
+| `codex-prompts/02-domain-core/P0087.md` | 18061 | `5f7ea3133baaa857a9484cbc87397633fd4c209a5b38232f6afc2fb29fb48cc1` | `100644` |
+| `codex-prompts/02-domain-core/P0088.md` | 16750 | `adb924b4957d6fa85630c6304af7adce826ab1419a800ebbb8a51b30d28e4ca2` | `100644` |
+| `codex-prompts/02-domain-core/P0089.md` | 16586 | `aa3059af9ebd3cc162901a7aaa2bf084ead26e0c51566da7862455b73c08ab09` | `100644` |
+| `codex-prompts/02-domain-core/P0090.md` | 16654 | `96f6b4a1eed542f919e103eec76c4ef732aae23772ad8cd5e0b0cb4f6d93ca63` | `100644` |
+| `codex-prompts/02-domain-core/P0091.md` | 16363 | `58c7a4bbbe7bde5307eb1a50d11b5a78509f5367d48ba60cd771c48bf1f478d1` | `100644` |
+| `codex-prompts/02-domain-core/P0092.md` | 16414 | `6d8c5cdd5bb7cb6dd8e8dbcad239bf59df358d1de374fb94b82223b4a968248d` | `100644` |
+| `codex-prompts/02-domain-core/P0093.md` | 16232 | `a1b3e2d91a3303b94f27d822a32387dadda73818832f8543c19d4bac0c20cc15` | `100644` |
+| `codex-prompts/02-domain-core/P0094.md` | 16221 | `9ec22b6f5b9680508cd324d4aee075485963cf532d87f211cb878cb0ceed105e` | `100644` |
+| `codex-prompts/02-domain-core/P0095.md` | 16032 | `66f1e4dcdbd651e3a748ce00d669984788cab9fce2815a72ad198d1a20430544` | `100644` |
+| `codex-prompts/02-domain-core/P0096.md` | 16726 | `cb250f600a9c7810c88f94dbb3c64490332e1f76b72f835104c5d53b9cb06754` | `100644` |
+| `codex-prompts/02-domain-core/P0097.md` | 16509 | `4dcf7b39e6c48539ce785eae0e81fc941cf4aacde0f2d5c3f6141d547e327333` | `100644` |
+| `codex-prompts/02-domain-core/P0098.md` | 16436 | `c19889580b6083d92945ab4ade664dbe89a6556f844b5bc3b1e7677089c5a039` | `100644` |
+| `codex-prompts/02-domain-core/P0099.md` | 17756 | `420c8a7dc6b6b31c38b37d615d6c84ea687a61cda74d4206661b09dd8a3d0d1a` | `100644` |
+| `codex-prompts/02-domain-core/P0100.md` | 19718 | `c4e7fe6d3c63dbd5df2dfc24c38be02f9dca3a24c7ac47591a0bb400a5588e4e` | `100644` |
+| `codex-prompts/02-domain-core/P0101.md` | 19434 | `5b8d1d7cef76fe95b1767eace9bd9eb6972f9e250117ee454fe19d6e08b4866f` | `100644` |
+| `codex-prompts/02-domain-core/P0102.md` | 19593 | `fb4b16e4977f32a3d68921fb9f3d442bb8d20e8dcc56d9657fbbce2da5fb9f4c` | `100644` |
+| `codex-prompts/02-domain-core/P0103.md` | 19821 | `6d9ddfb4e8c634df7d1cf5668d3a5a6a4741d49c5bc6e73e8662709c30505e44` | `100644` |
+| `codex-prompts/02-domain-core/P0104.md` | 19859 | `edfb373524c40922689b36950431ce0968c235e29928f8a0a3eebbc3e9dd01bf` | `100644` |
+| `codex-prompts/02-domain-core/P0105.md` | 17890 | `7882f5ae7b594eb9d3ba84242241b70cb11e98e2e9d591d726682f4470dbd920` | `100644` |
+| `codex-prompts/02-domain-core/P0106.md` | 19910 | `4092fa1f14ccab42f054deb72fb652ac4bcbbff2e861e3127359d02f4a6ff2e6` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0001.md` | 18206 | `6666b5388a6c9e5c514a4e73e93470b4fa5069ea80ed0889f1a50ea0d0b6cef5` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0002.md` | 18099 | `7e5ffe62e47baae81f25a159387654312223afd1da7f3ee791ae5185d166c978` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0003.md` | 12995 | `065b1bda692b356bcbcc237cca914d107ff0c15ca53457d14b1a0d0e7d5ed22b` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0004.md` | 18265 | `1f619bc6fd7f1893bffb3ba6e9a040586b75245f48d0dea6b6be53e316419357` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0005.md` | 18203 | `70500b647d30c3aad60ce0dbc82414c8551497175869e7070049dfdfc0bb5c55` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0006.md` | 18018 | `80d1f20144504d4df75382b4542fd89ade12a8156effb5ddfa3090e240bcabd2` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0007.md` | 18049 | `2ed42d2211327db0437b044ab4d97c669376fe72bc77a1a82fa4c05b3d89f8d1` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0008.md` | 17987 | `2bdaaf4f32771f145636b87588850dde0574f3c724d2847546caf768ba200216` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0009.md` | 18066 | `f76022d58c7808637295d78630b8901ce5dbc191b3a388f1c4b069a2386ce66a` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0010.md` | 20613 | `b184720562df88e4fabc6c66e710e8558665efdc967ee956abf249c18b6c0185` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0011.md` | 16834 | `298755eab9179ee1ab21e941273970d68736b05c4f155e8220359a7d10710421` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0012.md` | 18956 | `4e3f67da9d3f5f69e2190f8ffb322822222e2dda5e2748a56585693e5e313790` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0013.md` | 18370 | `f52a650a2a39695a20e3a97998d3bd87ce099b15d272550d6864e0bca7501812` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0014.md` | 17520 | `86bbc5aa6712f20fc4e7f6506e0ad601f5c1abd92fdaa08d546ab7f7081adf5e` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0015.md` | 17316 | `a20311bdb1a7178155e33195476aa5cd6a60f000749e5a1554d77dab66f79639` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0016.md` | 18924 | `3f0679ab856941f40c5095c99aea4db1423433e123e713030b9ebe02cbd3f77e` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0017.md` | 17493 | `707676e2268c3c3975fc2bb3c078ff9626a89ab7be661954495013b19bfa184b` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0018.md` | 16955 | `ac28a74b375ff6a6c4d20ea09a26329466eeb765a8d60c6f3722acf2d003dd01` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0019.md` | 17329 | `1c063147fd4cfbf738853a08ef68f29ace7d3991afa44fdd5422cb45343973e2` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0020.md` | 18760 | `c425875c939865779ed583639894fd41351269fa199cef29233598c5b4d08115` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0021.md` | 18360 | `7633dd3e78835792348b6353e496eb637d7b3c0dc476d90f0c2c9d6aeac10e4d` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0022.md` | 17422 | `109225273ebc9db523583fc976a6707f08d556adffb4bdc32d3bdeb22bce0e12` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0023.md` | 18345 | `4b57f7e7c2aa7ccb04fba48692fe6a9f164bd62594c47aa0926fd4799eeb230d` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0024.md` | 18432 | `c0365d95fa0e2003294b263de462d4c3564e4df6dae5dade45c48cb90823ca96` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0025.md` | 17442 | `b583099bb0b66402c684a8a4a122535e4260a144728f4aac875a05de392edcba` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0026.md` | 18385 | `c62877d7aa9e88400aa11dc9d95a032d3a74ea2749dae154bc2c2a0913dfbae0` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0027.md` | 19160 | `e77f8cf8fc649ca4742d7b9e7f6a0604f49582e9928911d620db4a9bbba891fe` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0028.md` | 19699 | `4cb5d65598a6faaf63dbb1a80319d038ecb2c3f9267881331d2f2bdede26153c` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0029.md` | 18777 | `04cfb1c503a718ab9029a461d2cd36dfb39932465b6411f9e938e271868d2178` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0030.md` | 17432 | `464bee44d45e973ba64c5c42bbccd7e3148f7ea80cdbb5ca988f085365a09713` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0031.md` | 18380 | `1541909b41be308045035109c4b8f8fd4d50feb140d42cff5f0edce15cfe3f10` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0032.md` | 17106 | `321d1e8c40077380a43417021432c83e882de334527ff7b9f885f21f363f488a` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0033.md` | 19066 | `20a01f5acfa28470b33068478c1185d71f16e936bc4354741fddc4ec99e732dc` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0034.md` | 17267 | `6ce64f257931e8d828be51608433d15a9c6bc4de913d4d8bbcc575b8b4d71fbd` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0035.md` | 18360 | `467f73a7c1d54700dcd970581cdd3506247dfd6a9ebdebae49736af2946b7011` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0036.md` | 16900 | `3295fa63ff062a5e514faa023ae4af13b5f11ffd9871c2ddd83ebc33c734822d` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0037.md` | 17277 | `c684148755dcae151b1c984bbb829aca3eabdf927747b314b3568ca07d7a4747` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0038.md` | 17461 | `cb885e6bf96ea8f1f3309c9bad1d20fa1fed84c1c084d6f5d40a25da93b8e473` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0039.md` | 19032 | `d76e55a736868750db40097dfae972dd88b8a243f0d08ffe8753f8a8d82d1b42` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0040.md` | 18757 | `20b86c14895df068b6c6994d5e28fa91418d471414758ad843190b8667affe5f` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0041.md` | 18769 | `4a28e0baa5acd222f230b1dd9b6a30cb52f5a957fa53e1b89b06199829d303f1` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0042.md` | 18350 | `28e69edded8d9ad782e50985afd5bd8bf57fd0648c17899f6b26c59e31868734` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0043.md` | 17598 | `4895c5d5f8854e27af1c85a133284fd05b8a4418a186f903f4262f59a467f02b` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0044.md` | 18370 | `0d5e00350befdf5d7d74ca960a3cb2c3fca3123792b72a0c09e92006b13c76eb` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0045.md` | 17434 | `112f8cbf69be512a60600cdcf5f088c3230955db571c03585bbbc6bdd1dfb313` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0046.md` | 18400 | `55d109efc6ac3ff52af80e710d011fe5a11d3df6c6b93e49bb8686f6f7a14aa3` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0047.md` | 18575 | `029105b50503621650af9e77d90e5850fcc5e41817058eba49d451cefb95f3b8` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0048.md` | 16702 | `4487ee001fd800088639a5ad073e6d9ace5ae66a312c1a0391319b65e570cfd0` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0049.md` | 16224 | `f1f30d0733a1683eea0c2d5b04b21540aa24e977d6462cc2c00ab96d89153869` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0050.md` | 16558 | `57c6ba8df445e3135050889e2dcc1068012a259d8884130eba7f463411a83d5d` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0051.md` | 16520 | `949fe782833a39649d361fdea71bbec6955d64cd972cf848e4cbb2ee14b82427` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0052.md` | 18543 | `295fa691615413f3d2ee3feeabfb7232141846b6d2ecbe6aa9ef66b69bb8e301` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0053.md` | 16544 | `3f374ef3dcf664c778ccbed207b94f1abda007bf1ece04a8808432902fac261f` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0054.md` | 16582 | `9e6caecabd77f16f6afa9bf4d988b78d029d1c8669ade12662150eb07083078b` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0055.md` | 16538 | `692cfcfdefc9da12b74a605ee1c35d69c088cd58969c4b6eb66189229565f5d0` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0056.md` | 16674 | `a0fdaad54ad9b5e9e0de32435a57d88732cdecd1e2c733e12b358f0c78fabad6` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0057.md` | 17445 | `8e106e119cbaad3beb9dc3cddcf3b1c417256aa79a2a2dbf1422022f2cec3296` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0058.md` | 17435 | `7b00e55bf676310448b2cb2391ad409e8bd12ed7609297be3ef5e9d6c0d92173` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0059.md` | 17837 | `d6a1548bbae147bec2fcbaaffdf4fc92ac1a5dbe60b367ad1394498e16ffd3cd` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0060.md` | 17435 | `5984716f8327c7e29273846b7b26f7acde99f2042603dd9890e99f635222aec7` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0061.md` | 19363 | `2f3a5e1657ce8e8f4e1fd6ebce91ba57b8a76cc44973d962416eab58e8a2b3e9` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0062.md` | 19510 | `90f42de80b57a18adbc38565dc59e81c6c633dd5cf468f0cd205c33cb4f5cd38` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0063.md` | 19422 | `7df37a2da6fa4e925d50a2cc4cd1c9fe190191ef7c9ff8cd42052ba3e4283832` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0064.md` | 19363 | `26f4aa1bc478f4fc28572b314cefac642a3ab4f98c1eafa8a7081b8eea050670` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0065.md` | 19393 | `9771bb099e58687bda87d24a20f98d2320ad07d8dc6052ba6947fa0573539591` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0066.md` | 19333 | `2ff36a45ca2422910408b2b84d8781b76bfa11e9c3173b3f3be163b279bb8fda` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0067.md` | 19476 | `72e24c008d25352a18c44c8cd2bba33abfbe5877ecf118e1d46ececb98bf1f78` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0068.md` | 13809 | `e9a35e2ea5f3934b52277326bfdbb79c38162e6288e192ff91c3780535761edd` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0069.md` | 14858 | `c7352d281e635eb779d423261f4e5dc5faf35a3c5cb2a54447674fbd1f51ffe9` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0070.md` | 14316 | `c494aba41018c888290188a06ac79a5ff776d8e1e56ea8f7b704bf10a9fb5569` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0071.md` | 14357 | `f39031479a612bdc1a34ea64a9ab5e87a877450309ea35169b34a4d3502325fd` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0072.md` | 13603 | `c6028cb91039052d058bb5153205c33bcdce640508981a479551086055cb97f1` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0073.md` | 13655 | `957518fc9b54a2e650f4d38de08e7ae0adbd11daa948d2872d34280e5184f5f0` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0074.md` | 13726 | `1bdc4202df91f2c56f6644f7a5e1d39bc2d5349b47b62b79ce33ab3e1d3bb34f` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0075.md` | 13609 | `0eab1b6cc52cf8bedb6ac35d4975a27f24e9f53d07e1339b08636b5f4babf17d` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0076.md` | 13603 | `e2e86fe8c77df8794ec827bda7d12aa1718a2cbaa0454b2cefd39178d96d1a9b` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0077.md` | 15202 | `5deca5adb6a2b8e9b77e13ac0f2a2d890a188db8b7efada7276fcd15373ab41a` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0078.md` | 14851 | `7ed08a68d8ca70a48f7a0aed11c5b80dced309bf1b65ece4c3ca63b005e22d68` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0079.md` | 13623 | `b80225c6d8d2bad99bb38614feae9f05ceab8793004ba46dbadd40d117200941` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0080.md` | 14844 | `fd962f63ea5cfbd1941f2e507b3cfea8420341e406945aeaf9104d9f5850f440` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0081.md` | 13609 | `1b32c3268fe0347deacfd670c44feece7fcd4e49a797be3e2360471d7178c484` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0082.md` | 14330 | `129e62993fb8894da947d66619e75e99e0acbc9ced3d958e984d92025713ffec` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0083.md` | 14644 | `5ac6ffcf99012b1a430d66a8d28a2b436ded5cec4c5c219229bffd2bbacb50c7` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0084.md` | 15213 | `8c36e77aa60669464ed8ca9f94045f31d0fd445e8811e52676760ddda0539a58` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0085.md` | 14865 | `dfc77210b25f8f58a6e1e77f3a0c9c6dc1ada7823a8b5554025e6a3bc1c395db` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0086.md` | 14305 | `17bb4cf943a1fb73a63e6ee90fbed7d97756911838dc8c1c28f2d1d5c12b08fd` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0087.md` | 13641 | `524d357d8a7a7d3071729a34440da011c72e50bd223b36836718117c8a21f3f5` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0088.md` | 14655 | `4e044f8742fc626b91688ac71eb20d0aecadcb7387b2e11ba56ebccdc925192c` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0089.md` | 13529 | `1b08d2cace63552ef56a57f9877dd47d8bc593cb746b3034b95c97e18ec11a0a` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0090.md` | 14851 | `210905b28cafe2ba2206c446286a4e5c93ba341724bb21b054e6d27315b400ec` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0091.md` | 13741 | `0be04826a53c4793666de9ae69ff0c6990c1d98ea99f1d02a55d529d7c2eceed` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0092.md` | 17263 | `b84bcec93a0184636519e59e0f1712530c4ffc2a23bc7110e299e9c1019d092b` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0093.md` | 16329 | `d62633f3569301cb5656f012f663bc66cfa133a26aa1dc4cbcb28fcfa1d127b5` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0094.md` | 16663 | `06781f22d2671b111746f183ed47fd46e2f9e8bedfa1649eb6b38a10d6855138` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0095.md` | 16649 | `f23d29d77a7a655134bf27142d07ca86c28b3e05a81322dfb8946eca47e4365c` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0096.md` | 16687 | `0665b30cec12d646c34469d16924b302832c67514643c7413674c058e6c7db06` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0097.md` | 16643 | `9d1f322339f9aece1cbb9baa47dff161c63180e93a34701374982a48761e2c11` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0098.md` | 16939 | `5b5c298367c6f54725e19414d0c1f40e46992a840cb98623235495e7da7a3244` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0099.md` | 16814 | `10c1e87b581de783b7401669dd8913e308e6178a6a2b30e617906ccad80a5fff` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0100.md` | 16842 | `c0cc413d67cde66e077ef656acc96923d2888a87a35702e985ac95ce4898f763` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0101.md` | 16625 | `ae3eea25c3c37ff16ec427c8397cb1e5d2df02e3ce06d67226061186e4280754` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0102.md` | 18208 | `61b4fd592a39b93618e47024af10348a27fc8fb5cb3c885c85ecdd66ddb45b53` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0103.md` | 18047 | `291eb4426f2650fda5275e1fde80f47e21388b5d7b83a353a7d537cecee4232f` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0104.md` | 18047 | `5ab37308616fea72ea9095189b3e0470d05327d4d4faa17c8c0eeeb23fc80f20` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0105.md` | 18229 | `817eab7a3d9fdd1cd12a2839b897fe17f7ee20ec40b469f9c697d07e6de892e2` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0106.md` | 18064 | `651ac7f19a9ef5ac060bef22c03e0cf6f0016b1ed87c5b771c3c68c4ee95915e` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0107.md` | 18030 | `6e3e328ff59aa97dcdf2b5ee5bf868724e7a31f106cdc2a6ed6e2d884cc4454f` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0108.md` | 18077 | `fb025fa858f2e955fe15cb5a993d711b918e7fbc4294e95dc77bb5dfdcec7cb5` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0109.md` | 16795 | `65bf4355be3acfe362b7f114a9824fcf41fa991dffc47daa3be90b3f4d26ac46` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0110.md` | 16845 | `d256bb0dcdacb7b108763026b0d6f50d6d00723b920fd9246e5dd6aa997737a8` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0111.md` | 16793 | `cf9b00e095637cdc1993baeb6c2d4921ba76570352729df52052d423ce483380` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0112.md` | 16778 | `97cf95a7760e4475188e5fa2a696ecd5d0789eb9f957ef7656e4d30f342bd6d5` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0113.md` | 16817 | `d9dcdbec15062ed48f174dc12b70415b22f7055d990f938e4326be72613ac50d` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0114.md` | 16819 | `441201d8cf277c227b296993dc8156369456adefb7cfdf1d0d99e567b04fdd30` | `100644` |
+| `codex-prompts/03-runtime-orchestration/P0115.md` | 16751 | `d8ee8b10ef9590c093b55408a8b01017fc53ca1dba4acaf6331fc55ba11f9256` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0001.md` | 18095 | `e0e1549d2b6507eec72a9ac78684024846ff7716759ca1efcc841820b74e50c5` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0002.md` | 17786 | `104bff6fa27f399fe9985ac4d572d1004d7be86624633f5b030e8f5653f7b225` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0003.md` | 18033 | `c4ec80d86372cc77d3491fac2e1f331d28368df9299eb00a51242f42beeb2c5a` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0004.md` | 18157 | `2ddca01c95be85020973aa9dea91ebf398e0124052dd798311159f7855701dda` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0005.md` | 18094 | `2b3cc26b63fddd6920e42084eed37a8511ea1b95ae63d1f171eba0f75565f3d3` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0006.md` | 17817 | `138bde42c23ffbef260bbedc701d9b2be16e486507e4ff737a17518be3c64374` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0007.md` | 12773 | `28b115c9517a48eef1546637a8326dfc1f63ec48cb323fa04d4eeac30301b482` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0008.md` | 17786 | `0cadb21739bf84aadbf3c6d47bac077021aabbfc992774900708eb8ba70a8dee` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0009.md` | 19942 | `81dc8f854a1cee43e6b8c12ec8be7b2cee875f0f5a2c7b55c25d0d6126faaf3f` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0010.md` | 16278 | `da59a787ccad21fa1a7dae17186b9317f74a549e534703a682cdb5dc980ac87d` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0011.md` | 16246 | `a00114d95b384e080049b9526881efe314682aff7a38dda64da2287374eb79f4` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0012.md` | 18080 | `e3a095a228a589e19ade8574eadadb2dfac160a165c7a3d37bc38cb4f72a408b` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0013.md` | 16258 | `9197c95141e4c5ed5d52225bffb3b1ff23f2629bec4e7634e4d17cd506a6b13c` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0014.md` | 17186 | `a81010279f5ac25f0d72c0f091ed420817346c143fb69299e20f2b6231457a3c` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0015.md` | 18711 | `1e91bc5eb14f1b7157eb5b20cfa6651d0c1685cc4eeef93263472dcfddc85e53` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0016.md` | 18965 | `60a2602978ac4956d8ec5f0a22df71c79e78339bcc1c343718834eb6140295ac` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0017.md` | 17360 | `9ad30e8e9693204a990eb10f81a2ee671222b2398da048956f81a2447c3a81b1` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0018.md` | 18506 | `194364d2d6d23bf33b0d05c59815d22e8a5124e4870907b5a01d45d9cf9e1ae5` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0019.md` | 18501 | `74e12d54ece8a3e65c1b30fd5a256619d1089643ed1a52082001166b5b21e18a` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0020.md` | 18150 | `48637508ba0c11426b73154f37a1dc9779fe9f8e3898f7685b9d3849a5679407` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0021.md` | 19030 | `ec9ac78c1957c44d74111cb5075dd4e10a7ec7defafe6fea672850f8da350a4a` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0022.md` | 19597 | `e5c01f65025bb51c3681ffec557f14fe63adbe074ac27d013d262161b260c3f2` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0023.md` | 17150 | `96fc195a9261a4103b8257e5b02e731b186c37fd78f3af030aab8a82e2993986` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0024.md` | 17159 | `169b3f740ae316bbb6b6c013b72429880d4355c24c70af8250f6b831cd5869f1` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0025.md` | 18085 | `ea682404b0dd729257438919e5116eaed91618ac2d93bf2555536992558d2e49` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0026.md` | 18100 | `294a687ff3454bb7a249d69490d321c964ec3a7820356c7baee08205fe2db588` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0027.md` | 17298 | `d187d555c8a041dec5ffa2c42f4faa3d807c7eb990f35cc2261eb76febf780ef` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0028.md` | 17023 | `e9ef658336459814bd65f6934467f3a73b8e8336eb1a82a3d856cfe5004297e6` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0029.md` | 17127 | `4e3087a4c7e0501cc2f8676be30a6ade94913bcc40182b495e04676883320f6e` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0030.md` | 17024 | `e4495396ef3244526449e9491ef9fc060085bf2042b147ebc209c923a121a05f` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0031.md` | 17303 | `d4024a9c107747962ceee9d2b1b956b9799e1bfe6f58860fbcc256986d149aea` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0032.md` | 18954 | `527695e3724ae923318052140369a1b0de8e65feb53e3a1dfde736ea406a28f3` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0033.md` | 18164 | `160b507e0c3aeaa1a278994c5f6c50ea04528445142c4a429de473364a6c9054` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0034.md` | 18158 | `0500c9801dc60c5f66ee0fcefdaeb3d2bd128588028dee269786c681929fc137` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0035.md` | 18296 | `85a39edf77868c91b615bf8f8f063e819290cc428b94f8cc17e06441eac97cdc` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0036.md` | 18057 | `c264f9d4822add925afdec95a5e9cccf1f5e96b25f5b6012a0008667c13cc851` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0037.md` | 18135 | `e6443a994a2178bbde8161b5eed65eb3b779d71bb3d09eed8a56ad06306d41cf` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0038.md` | 18099 | `ec7ac6e14b78a4ec445589300fb06948dd1e54202f029515749222af68eda6c9` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0039.md` | 18145 | `f4d008afe45d381abed31658f05d01cc0f5cb38210ca87d3bd93bace75e5537b` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0040.md` | 16304 | `4566e1da1b307538eb3ecf9bb815ea209b2eb83e02e7479101bda77b479f7375` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0041.md` | 16467 | `b0ca12c8f121920470c35e46c73e884179a6545983d0f6548ef5c85ca203d2a8` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0042.md` | 16265 | `004fd627557011cc6885b10a26c7d1edf4c2e5f80602bf1622c7e37c86aa5ae5` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0043.md` | 17327 | `7c982cd25db4396bb5086bf0f87d0ef14429249441eeb47a8be30fa377c2eb06` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0044.md` | 16079 | `0ecef45979aa6d6210f71fa17060fa795a81b935153ad5afdb4ae7aae4e4d97b` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0045.md` | 17550 | `5a4d222e82e9d13cd9597a64833bc5952d57f058d16f0ae180b845945803196a` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0046.md` | 18068 | `d8506af9bdbffb34a74b355f29d53fe52cb155c30850e67f30c11493486e5668` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0047.md` | 18100 | `dae06243e0e4e46e47ebd83c78915b1343bc8cdc2f8ceb1ff46dc1b82eefb193` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0048.md` | 17150 | `262a5cb4524d4dc8cf94756d8d9412fa7fdd7b53c9f79fc0e1ba66ba554b858a` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0049.md` | 19177 | `8ba46c548bafde60ca5181625aae21d691a20553c25803d86dea1678a5041ec1` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0050.md` | 19684 | `fd02664d3a0c3f2d2a30124bb52318f9fa10537372e81e9a7bb39b3412ae5dc2` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0051.md` | 19087 | `33c79730da06a73ce7bf938ba353fd431282339e92ea0827a3da1c51dad5a04e` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0052.md` | 19565 | `a18ecd9588cc8fbe8261a54d9a09f336c6dc601f61301982ea2b8ebeeaf83bcc` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0053.md` | 19147 | `4fb4fe97ec9a3c86706b03b056eee7ad5a8f39f7d4592818923f6d89f0ce50a0` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0054.md` | 13145 | `4b803fc54a40265e02f7277545f566808f308745bf3c0966f4568a87ca8f3af1` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0055.md` | 13095 | `a6d3fa909771237946988fd67afe2116ea89f9dd5c75d90f5aaa111883104daf` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0056.md` | 13498 | `f194a927f0b6777f9bb45526d338aa2d02f30fc0bf834b8990d74825b9e603b2` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0057.md` | 13489 | `cd5fe2921c0bc377b6df1412a3b961622de34429b544df5bef9ea00192efa37a` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0058.md` | 13411 | `d8cf88a0a26001867d6a14905d149a4527c073525288a0049a9b36f29705a3b9` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0059.md` | 14767 | `caba225a96cf7dc562d6f491319c710c602a8181549695e1f2341b27e21d40ef` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0060.md` | 13491 | `474e266e1cfc4fe6a728ca2971237fc9f6fa9e3980a2b0d1990a437ad91bda48` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0061.md` | 14676 | `31333070b8e0d2a0995977d046376be8189e1e90f258a9dc59e2cabe8f6b08b2` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0062.md` | 14669 | `9cf925cf910e6a156c0f7d10ddbfbc431a1f91c7c7840f30243a4bf795d5aa6a` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0063.md` | 13484 | `7f21d6b09b252e92364ecad5f289955d85769b5b8b9d14ec3a79c000003a200c` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0064.md` | 15217 | `de838e023124b0e2e136f3de71ec16942059d47f9287e7186bfa20077488176c` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0065.md` | 13596 | `dba0ff4cd85a925bbed724465695f9e3fcf7bcb22ffab7fdfb427441ee9a0ef9` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0066.md` | 14173 | `f39cd7d06092ef26fe53199e0c6427bbf9578339acdbfe3075da892d298665ca` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0067.md` | 14186 | `b30c1797f30a41290fbb974fc74f3174899b2d908dcaec67e2688f1a48100b2b` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0068.md` | 14655 | `e57f655cae6eef5ba3a0cdf5d84d524a63442b363e0a0794a30cd1ddf44be19c` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0069.md` | 13569 | `2b941705a52732499e736af73551b7457380af4dfda9d7bba036ef64792e7bf0` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0070.md` | 14249 | `7bab4429a49c5bea376608a88ee5a13f4f4b240a59d32db22b191961a65fb1a9` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0071.md` | 13495 | `de36dfad94f6fc93cb1b96cca84dbe58c74551a03bdcd1fcc7bb3442b81d7bd4` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0072.md` | 13330 | `68ce7b4bfcbe42504a23e3723684620825734fee02c233160285a6c35e3aec81` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0073.md` | 13509 | `6b70568bdd29116c6e77f06ccdfdca2ccb005b1fbfe242a7787a9f1ebf3e4216` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0074.md` | 13420 | `77a645b6fc9182b34dd35ead8d4f08a2f2e2098bffe75fbcd6304d4c293a2bc8` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0075.md` | 17987 | `986236744146fdd73accaa9502e1cea4047c21aea3e0709ca05a34e0f5f9ae71` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0076.md` | 17860 | `85ec5e1219c66a45392d1806373ecac7b1c17e86091249b444be51d2e74b3819` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0077.md` | 16536 | `834a5d0aa0cbdfb257269ee713e91a04a4e659067f3920e5c69a512c52631504` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0078.md` | 18447 | `9e97f1f50115300c3186773ad5e7e210593f246a2ee2dd2d6ce3356b5279c364` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0079.md` | 16577 | `4437ec643744dafc999dd9c0b44752b1046b926c7d99bc9c7ab186ee55b28eeb` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0080.md` | 16769 | `94b2d1db0a3c04a513afd9c0a50b696639687bb6875e341bbf3472af506b2d8a` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0081.md` | 16592 | `9cc6c15c9b0c7031cdd1a73259ac8401db27bfa92b77d9ee0b6a3cbbbabbc4c6` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0082.md` | 16351 | `baf572827e3afe3ef8654af789259037d2afd8a33661f9491a005c7603d59d35` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0083.md` | 16363 | `d69dce76efc0380776c4b1dad48bd02c5019fc3776c61676b759d1bc76c6239d` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0084.md` | 16383 | `eb1401fc4da3f6765e3270fa7d831f7042eb60ad9bb7f342708c61c09f0bf8b7` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0085.md` | 16409 | `638d1ab80f090f43718b317f353f6a3075df38abf82ba9ea2d525aa784515a93` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0086.md` | 16572 | `523310380dfc6312bfce80313d3a475d2607ea8c0ef14f3c5abd60fe3c871a73` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0087.md` | 16370 | `af10805e12dd7e51dff018e1eecb0cbd217a86e9658cb4922993c9d94e72176d` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0088.md` | 16069 | `2d745d5a57fb6ef74ac321c8b9af87df81bae98bf21ca76a1396394979ebfe5f` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0089.md` | 16184 | `2a88b6c5c8265bccaee908be9a86469bdc5bf0aa5971b5917661b11d261cca7e` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0090.md` | 16212 | `18e4d09eb19223c441da57dfb1127dea1e6339aded0aaf0c93adf7544c47ff7d` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0091.md` | 17779 | `403c87d3fade92d3e3b1637acc54df907b56de3ade74f6509651724cc1282560` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0092.md` | 18175 | `655ec5078c3f7f5f1eae964fe568a0020fa5b6a5cbc879de810ea187dfeaa45d` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0093.md` | 18021 | `5cdbb302ee0fb259cf68b7e58508af6d1971ee4991c6d7e0e0e7d4fa52ae2237` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0094.md` | 17739 | `64c61138dbad0085516f94cd4599559854067b74e63cc272928d6a45b23e6bcc` | `100644` |
+| `codex-prompts/04-ai-agent-system/P0095.md` | 17799 | `712cbcb9e762114102535b3c26b680412f7a6a401c4af58fad86611b23c143f3` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0001.md` | 18128 | `c1e5afa5bdc932caaa37cbafe385f4360127f66187084b1c39072c58790fb682` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0002.md` | 17912 | `1bbc3ec595632d1ffa8fd33681c7a769ef350d686d47dc9ffab996041982633c` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0003.md` | 17943 | `326d48932a47a2374835e5fefac9918a01082723ba937d5f28c1c19e8a1a57f2` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0004.md` | 17881 | `4848c4ca4ee1b5b8d86b4d50042f1105b1cc8ee8da2705eb39453b30cd8973f9` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0005.md` | 18159 | `5dd543cb0018a81c61a59bfc28ff16fb6fcd57bf11841bed14a0127f733ec11c` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0006.md` | 12689 | `845acdcb15f0e6d71d04b0bd2130c17c6afaa8ed65f88ad1cde90b6b8d6207cb` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0007.md` | 17634 | `2f195fedb11f60e0fe22ff2d742c2933dbeeacae3ee52ca44711c8041512810a` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0008.md` | 18190 | `a11a91023bd405452308b20322cb3aad4c42bf2982b09b7b680cac7e0e2fe95b` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0009.md` | 16407 | `407675e06e13948f748ba3a0fe90614fb8f21d7768ff9638e8a17c90ba767b3c` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0010.md` | 16098 | `17836bd48b8173341c71b46ec6747f187e0fced4924f7436598400547c410a39` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0011.md` | 17630 | `2d2ed337e780a0914630b1d28d82b66cf11a65a4d2ce59effcdc201acab7d854` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0012.md` | 16116 | `4bd46eab09e5386ddd16f85a94a2dd456d7ea56d998bd7f210ecd8f8656ccdcb` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0013.md` | 16074 | `972923eb2f74e449b22aadf4df1446182ac6fc7e830086fc373026264b123484` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0014.md` | 18563 | `4ee3dac66b1800ae8e27f732710c370a1071502508ccce802d06decde5257c73` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0015.md` | 18604 | `f111d103b7ba937d749e38027e74b7c52b63d0b6ddc3db0d61998645e21d0119` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0016.md` | 18949 | `35ca29abba1b20b8b1b95c4dc5afd02d69a8618733b46f1ea247ddbec61a40a4` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0017.md` | 18218 | `cf4861a3f1c0311361c7957091743fef52ac24070398b0189c37249542153886` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0018.md` | 17208 | `8265c8277eab0b5e15109bd6513ee6e93b016e581e0709ceacff5d1b7392e339` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0019.md` | 18147 | `20ea5a1f0941a5c89918a9d08b09ebfa1844cb9650a600cb963ceea72f2e4ac3` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0020.md` | 19145 | `04e8bc6baf0977fe30478b1507d82d59a788cfd4481d95b482661238c4afb1c8` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0021.md` | 17218 | `8589e2b235337c9e3a45de9503d6309aefbca2306dad55445942d89015d5f7a7` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0022.md` | 18152 | `d059b901e40b3ff437c8080df57a076811231be8175e12a62671b79876d9aaa5` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0023.md` | 17130 | `ad21ee7aaae9c96bedfee8da9fb3ae64453a83b65354d7c047ac9004aa804c48` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0024.md` | 17177 | `fbbf5f8a8c9302012c6cfec05f3896fa671f4ba22edadd46b66c3c8e04da043a` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0025.md` | 17271 | `bf705738e40dc2ec39ce1ecb23b2ddbd7c136e6e463ef0dd82489568f07e2c5e` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0026.md` | 18147 | `3a920b97abee8518618fa37c0ef962ea642ee9e32fb84ce9de00464a2f6d0d4b` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0027.md` | 18020 | `cbca98974d133526a97f704c9d44d9c201d5dad440d9ccf9beb6f9dc97a3de63` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0028.md` | 18017 | `a7a49ad427c76c5c43914f0f56f78238a5695a0a72cc9fa0d0f1493dcea97fa7` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0029.md` | 18152 | `df560fc9996e2c6a0f16e1f67f705004deff494b61761b3b07aab7b5bbabc1bb` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0030.md` | 18003 | `0d7006134cbd7433008feddd6af9acf005666ced0c3da71bfede21040e447035` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0031.md` | 17903 | `e99743742e81be96297e62cd599cc46dac679c01e837bf0e5dc4b52052a69577` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0032.md` | 18790 | `dbc236d3dbe25c36b0e5016dd2c6d9e73d2087083980590ac463bf490440fefb` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0033.md` | 18039 | `eb2b50d4e93e76af263c0525ea0f5692a65987880762fa0e85fcade16d16c195` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0034.md` | 16422 | `c05718494105819eb4c5050093e98925cffd1eff67afc32f12bbd8f96dd2cc7d` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0035.md` | 17262 | `7baaa086e5f8eeae187312387c52d1f4b0cb7bac2d5481f1c7f54a39ce0a4597` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0036.md` | 16077 | `aac066ac5cf652f2fe42c0f27e30f68c048ac74bce5d149c963d81d3b32208e9` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0037.md` | 16273 | `fd94825451e5832935a8af7e105fee1039cc12f02e22b8a650915a9b894470f0` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0038.md` | 19079 | `40d200b3c1ae6d27241a706a3c0510733843a05d9bc94294a6d5620af684da6f` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0039.md` | 16049 | `38d20d7dd1e9598efde4b357fb7e6f2a3dcdabee8b0189208761faa2c5c860c9` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0040.md` | 17118 | `189421d088d8595d68848c2fa92af0023f1ea51770f8bc080d95014a9ebfa116` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0041.md` | 17208 | `7089b9caf3385453280ed6ce223b49b65196a6d96e95e4acba767f4d442c96c4` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0042.md` | 13538 | `4ed7cd4f7cf8e0829858fa5b33e4faae05a75d0f0a6862fe77919392809893d0` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0043.md` | 13417 | `4e987df75d4b028a26f049554317c4977327958b0e51b9187197d97c62bd011a` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0044.md` | 13529 | `ace1c856b2b5b89f7783b46c798bb5125df00d7bd6909ddb97ac39fe5bb79af1` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0045.md` | 14750 | `1d15c4bd9c3d05662aa5a4ca005643d620f2ff4958a805a2b3795bc1b729e0a1` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0046.md` | 14142 | `7a73b26cdd0f5034e53f63567cb4988af42f620f545dd1ec1e3fc8219e8ec58e` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0047.md` | 14021 | `e205c50d6e3c03583d6d382b5c32f9de211170ef35e56f6b43e828f27a359028` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0048.md` | 13381 | `32cb74b7de1e875d4107901a35874c731b0c0e3e3c3de1c34b400888163b91c8` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0049.md` | 14680 | `fcb62d2ad8f63d999af0819fc8e152d829497f2346dd3a5ac15728ff25a0a3a3` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0050.md` | 13240 | `ad39dd9a08e280acab50fb49d5c815d767b1e09a01da4d5d11495186e11dfdd0` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0051.md` | 13451 | `ca04903b5d7e750fd6b0caeb010722ecf5a732e640f086176be4305b597f6aa8` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0052.md` | 14743 | `64b43d3e2a87c01f401872d02b0c50e5715fb860b4782833d7b5a9cba1b16de4` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0053.md` | 13395 | `eca271cb40d6dd7e8903869d93cd23c19dbd62d4b242c09d86a2e8eb4ac3c7fd` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0054.md` | 14138 | `a0386b5e2a0507ce269aad22dfa65f71709cf5cdd3977fd8276ca5d476a72f0b` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0055.md` | 13388 | `7c86204e4cce9c13fc0abb4ff53c1ada7e01df33c97e7d5d45a0eaaca3df721c` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0056.md` | 13369 | `0324dc96f08826cd2472d2a9a596fa5134f09e7cda8d21cae916cb95ef634c9e` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0057.md` | 16512 | `05bbaa2eed91705219d60f87cd4e55ed3c392820176625250d57e7488b7b73e9` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0058.md` | 16203 | `b45eef4ec5ed5f463740f46820095e959a15a74c1a476a71311d02bc5c2db3d5` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0059.md` | 16221 | `a35f7ad1214679cb7c29cd4814f59735551a6e7eb8f3ad91fef30f244ab7bd24` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0060.md` | 16179 | `b9836e5f6c5a29f5daaff67d8e9d1df2df9fc900a54402fc0c7d3c9aa6646a5c` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0061.md` | 16527 | `1699dd9663ab8f9906e7500218cca9db3f692987484e3fa80cc4b06b4a6e1604` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0062.md` | 15981 | `f54c304cf7d0fa1c32741db4fa61796fc1321bd141ca923162e2656b722c67dc` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0063.md` | 16182 | `d5a00838a33063d8cb06ef967ec1827eee978551eb6e2076c5766f184ea0468d` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0064.md` | 16378 | `b6780d003548a756cc1b112142d7f6ebbf6691310f909557b842b2bb5a923fd3` | `100644` |
+| `codex-prompts/05-ruleset-coc7/P0065.md` | 16154 | `fa38f0a10eb9c04692a9c6147a41e7a5848756d663ee6cab774bd28751de54fa` | `100644` |
+| `codex-prompts/06-data-eventing/P0001.md` | 17686 | `81e89a291975030d9a60a17324548f9556ea47e3f887c9173bc167ec11599c36` | `100644` |
+| `codex-prompts/06-data-eventing/P0002.md` | 17995 | `a617c7cef5f274d3c93e16519dd9f2a7acd75fff863021faf628469a36bae676` | `100644` |
+| `codex-prompts/06-data-eventing/P0003.md` | 17850 | `8b840737d0939050b50eb6a147e5944ebc3680c2d88a522c9120142045e1d5ee` | `100644` |
+| `codex-prompts/06-data-eventing/P0004.md` | 17902 | `1f0e27867221f83854d2df479317b89ac723d6e78be5c86c21513a66759eb1f6` | `100644` |
+| `codex-prompts/06-data-eventing/P0005.md` | 18147 | `b9f49778f67c03080d1e349833839b4c942c8522b97be2066839bba8e1aade84` | `100644` |
+| `codex-prompts/06-data-eventing/P0006.md` | 18213 | `db7a51295b89aee21c8a417e2bd148d65e270ee7cb4efb6be074f9da0b465475` | `100644` |
+| `codex-prompts/06-data-eventing/P0007.md` | 18115 | `c7d934694b468bf1eaea3ca3e6447806a13fabc4ee9ce63ec33fd36c8bb9014d` | `100644` |
+| `codex-prompts/06-data-eventing/P0008.md` | 12708 | `22df4e7015c6fdd437df9a981650ea718925782569c67a0e9071041a0a6d13bd` | `100644` |
+| `codex-prompts/06-data-eventing/P0009.md` | 17872 | `d265f6ecf942a47e72d9f7940f31c97f4927f50e2c43cb7c9ca4a486fd46b82f` | `100644` |
+| `codex-prompts/06-data-eventing/P0010.md` | 20182 | `7417d6eef3277a3220db3ba4f6924d4f5ba68729a55d91352ce3e51ec429ad0c` | `100644` |
+| `codex-prompts/06-data-eventing/P0011.md` | 19938 | `011e739494056313b62befa2c391e8697889e6b44acf835b1855ca7c3d05c65f` | `100644` |
+| `codex-prompts/06-data-eventing/P0012.md` | 20010 | `ad4d96a81d1e1ad4c333932a85c3e1fe14185e26682adcb649bc2217f2235884` | `100644` |
+| `codex-prompts/06-data-eventing/P0013.md` | 19716 | `144b19876d4019f6bd807a2e61c228bc045acd5511a2e2612bf3602ea85a36d1` | `100644` |
+| `codex-prompts/06-data-eventing/P0014.md` | 16132 | `d0acb9304289e958fe216a6f403559900c9e90ab67e4791366739f97534383a9` | `100644` |
+| `codex-prompts/06-data-eventing/P0015.md` | 16175 | `3cef8329d5f1ce6a8fb59599576a8341835ac8eb2e4474c9dec3738a26b9fdb7` | `100644` |
+| `codex-prompts/06-data-eventing/P0016.md` | 16363 | `9c670b8125f973743b17e5d82f05864930642a820f088bdd495797d0ec5b091a` | `100644` |
+| `codex-prompts/06-data-eventing/P0017.md` | 18136 | `7da342cbf9ed7b4cf0de825c26c32af2fdd5bb654d265313c11b8655d3f94336` | `100644` |
+| `codex-prompts/06-data-eventing/P0018.md` | 16106 | `f78193505c17d28ae79bf5e342f7d8605b7d08fee33f94362ffbf4af70502c73` | `100644` |
+| `codex-prompts/06-data-eventing/P0019.md` | 16610 | `2d8f3128de5aa51e7eea1a535fddb7af45eca174fe02c316f9d1857377d9fe85` | `100644` |
+| `codex-prompts/06-data-eventing/P0020.md` | 18407 | `6679ea8ce538def94d3c6241238e9f40d97e2219cd4ebcd9fc034c1c120ce5c2` | `100644` |
+| `codex-prompts/06-data-eventing/P0021.md` | 18489 | `a45f65113b26a82cf0a16d71beb4203360aaeb8a5863176ab87699236c034841` | `100644` |
+| `codex-prompts/06-data-eventing/P0022.md` | 17088 | `00f784652adab92a9918e2c7830a30e1f17fa0c8a3808364f2fc2eafe1e9253c` | `100644` |
+| `codex-prompts/06-data-eventing/P0023.md` | 19282 | `69e84e0c29fb2d279d71f089d63de4512ac4c5b7794427de66c431fb951ddb7a` | `100644` |
+| `codex-prompts/06-data-eventing/P0024.md` | 18392 | `670bdcb5ea3f75ccd0ab0dcb9320ee2241cacdc782550ee2d910a8b07236adac` | `100644` |
+| `codex-prompts/06-data-eventing/P0025.md` | 18550 | `0c97b0216e6de51b79476b2ad722bd365d965ac006c68b85b069a09941c05240` | `100644` |
+| `codex-prompts/06-data-eventing/P0026.md` | 18484 | `a3eef920489e271774d55bea9d4e5571e3225407d2cdb7f4c26a234aa2b819d7` | `100644` |
+| `codex-prompts/06-data-eventing/P0027.md` | 17122 | `a3dc14a91ba93ade141e251929ec1b1ea8b55ae697336dc78ce1cf290917367e` | `100644` |
+| `codex-prompts/06-data-eventing/P0028.md` | 18238 | `6265a888af5dab68351ce9c8be97b725987e8e868da073b6512334b2a2bf8816` | `100644` |
+| `codex-prompts/06-data-eventing/P0029.md` | 17904 | `bac67a63806ce5885d28f70bd1fb727ba2f21ef02bf843aa6282b435c7ebc2cf` | `100644` |
+| `codex-prompts/06-data-eventing/P0030.md` | 18238 | `8b5f08c4c9edba7a9166d5116611ad1b8d7a6202f053d8b30830dadc21673be7` | `100644` |
+| `codex-prompts/06-data-eventing/P0031.md` | 19734 | `fb08d3d1d8c0b1f293fec4aefff53be5c06d5664bf402d26b3e3cfb6d99911bb` | `100644` |
+| `codex-prompts/06-data-eventing/P0032.md` | 18656 | `9a03e07d0e31d4d326ed1a8ca3ef35b3d8e58276a238387c34e255636ee552eb` | `100644` |
+| `codex-prompts/06-data-eventing/P0033.md` | 18474 | `baff4b4ba49d4cbbf300405fc8af51fb4e3bbdc31bcb49745573fc6aeb2dbaa7` | `100644` |
+| `codex-prompts/06-data-eventing/P0034.md` | 18925 | `1cf472363960b651f57a010398314e0df087e9e8e0425c52018f193b83623226` | `100644` |
+| `codex-prompts/06-data-eventing/P0035.md` | 18547 | `248c04258d9340483d6521d500ffc5a7b25d25e366e145fb37826c4002a9b0d5` | `100644` |
+| `codex-prompts/06-data-eventing/P0036.md` | 17952 | `66efc277a05b583ceee4807faec28e59572ff0651dfcae5854985cd10eacaef0` | `100644` |
+| `codex-prompts/06-data-eventing/P0037.md` | 18866 | `3387b319ed877593bb89cad72f468f1d5b554f51184edef836bf3c4ebb4d7586` | `100644` |
+| `codex-prompts/06-data-eventing/P0038.md` | 18893 | `b44c19cdda7b31c6ea5bc71d30870769f62ddcd12dccc3be99a315afde6c4da3` | `100644` |
+| `codex-prompts/06-data-eventing/P0039.md` | 18481 | `9e84fe225d0edfdd2fe90ee239303ee362d584556cd2f2f714c90d6345f3d751` | `100644` |
+| `codex-prompts/06-data-eventing/P0040.md` | 18386 | `ea1a55b5d241cdcd425b0da79e056d51fc2438c13b2df18018758f25f1123f45` | `100644` |
+| `codex-prompts/06-data-eventing/P0041.md` | 18119 | `c31033734cafac5999c2acaaa532d20956b7a9e2956ed32c27d8a1e24f31364f` | `100644` |
+| `codex-prompts/06-data-eventing/P0042.md` | 16881 | `77eef567898a0ba2cc27827f54045bd8554721c887cd640be083f3c632d401d0` | `100644` |
+| `codex-prompts/06-data-eventing/P0043.md` | 17014 | `70494f02ff16fe48c5b939550c926925667b7768b827b66f10fc33a3c6de8059` | `100644` |
+| `codex-prompts/06-data-eventing/P0044.md` | 16679 | `f687b373348879274e6b4f993e138489645a1815888141847608bee028e82e71` | `100644` |
+| `codex-prompts/06-data-eventing/P0045.md` | 19641 | `34b111bddfc10122e5bb6415c8bf206dce304c2bfb5ecda3206c3031c8854358` | `100644` |
+| `codex-prompts/06-data-eventing/P0046.md` | 16347 | `964fee6fc549d7c80300c21f2de7aa749c070b73417b63c3ece306b29d3829a9` | `100644` |
+| `codex-prompts/06-data-eventing/P0047.md` | 16537 | `00b3eacbd822706891e550f331d1811e8d4e1422cc4f8a41a27e62ef16d3abd4` | `100644` |
+| `codex-prompts/06-data-eventing/P0048.md` | 15926 | `5459ba729e6dccb05cfd2af9970a36a8ec5579318aa1c0bfdd21b4dd88eef06f` | `100644` |
+| `codex-prompts/06-data-eventing/P0049.md` | 16095 | `474b9808fae51e35ae481251959f3621775c7acda1bda6e760da1d17af8239ca` | `100644` |
+| `codex-prompts/06-data-eventing/P0050.md` | 18342 | `50dc4c9c3154f5528d79b85e0f895a89608f2926ebf33ed15079498e192fbfbc` | `100644` |
+| `codex-prompts/06-data-eventing/P0051.md` | 18130 | `c062572df6163e7a5f3a3ce3acc1d77810d29bf4e241ed8c00e4bd930b72ca7f` | `100644` |
+| `codex-prompts/06-data-eventing/P0052.md` | 19729 | `7f0a7c1aa53e2e1ef6584bc089b14dee1c304f9dcfe4cfc55bec4951b1cdce4b` | `100644` |
+| `codex-prompts/06-data-eventing/P0053.md` | 19640 | `da946839350a1ff025a2b5c96208fe2536d5547296e8b3c43e91170685a3e4cb` | `100644` |
+| `codex-prompts/06-data-eventing/P0054.md` | 16326 | `b2a5816bad34e333376a6912b2ccc4df99f6cefbca619530c20f3e30e83e8557` | `100644` |
+| `codex-prompts/06-data-eventing/P0055.md` | 18241 | `b5faf178d224392bac0c6bb2095230e6a7d2d19c7c20c7f961c338887806ab93` | `100644` |
+| `codex-prompts/06-data-eventing/P0056.md` | 17201 | `5fc9f53bae8c9233d8de3d2e3a0b371b065ce54b8650277b4aa4fb6ca4c5c362` | `100644` |
+| `codex-prompts/06-data-eventing/P0057.md` | 18917 | `d5b13eff7666b2ed048cd2295bdb0fd91d994fda1f362bf40d7df9c11926d4bf` | `100644` |
+| `codex-prompts/06-data-eventing/P0058.md` | 17495 | `bc8beec8d7cf8ae14323ca6b54d8da31a0695b58ae929bab3b053eed89deb32d` | `100644` |
+| `codex-prompts/06-data-eventing/P0059.md` | 18120 | `299c03a17631b96a633684f162b8484747d0b625ecd77821bc13466c57e4035a` | `100644` |
+| `codex-prompts/06-data-eventing/P0060.md` | 17088 | `ed7a28af19beb809adf28e52fe688d7a6608651294dd422fdcae4e75fb66bd46` | `100644` |
+| `codex-prompts/06-data-eventing/P0061.md` | 19111 | `026c1d9f64d09608e8eefe7bed90d6ba7257dfd810f51acca15c4cf379d7aac7` | `100644` |
+| `codex-prompts/06-data-eventing/P0062.md` | 19294 | `299ce4e142ec6031233da24b4cc1567839eac41c83234589953db53e65918ab0` | `100644` |
+| `codex-prompts/06-data-eventing/P0063.md` | 19441 | `c03c0b3da95f7d5d9226f57a10aa3515857e2ede650becf791a2077f64bbca3d` | `100644` |
+| `codex-prompts/06-data-eventing/P0064.md` | 13149 | `cf4b44b77d9f4840de1f49b9e99d7d45065e5dc66b824d370d913b50d8da6fc6` | `100644` |
+| `codex-prompts/06-data-eventing/P0065.md` | 13354 | `a8e8fe5c924b311fd34d282dd7356410990b7c9e590759a7f232d7c3ffe02622` | `100644` |
+| `codex-prompts/06-data-eventing/P0066.md` | 13305 | `1daca4839e059e1dcc5d0fefce0c7b37ac10a223363b50b24b7e66999aa4a4ee` | `100644` |
+| `codex-prompts/06-data-eventing/P0067.md` | 13300 | `938015f22059c702b58a5f36d5fb9c14628023f5b6183218ffdaf9cdbf3015d2` | `100644` |
+| `codex-prompts/06-data-eventing/P0068.md` | 13482 | `a07bb322a99419a60096c00d7df44a46f86569dab8ce537296edb802e00f46ff` | `100644` |
+| `codex-prompts/06-data-eventing/P0069.md` | 13407 | `bd2324111bce639e98ee87cf3a3416e57ec50c91f7bfd4442472b938167bba8f` | `100644` |
+| `codex-prompts/06-data-eventing/P0070.md` | 13396 | `a79faba8568faf23dc8168fa93da0ca8272263b19ad3213f2a9c315778ccdee6` | `100644` |
+| `codex-prompts/06-data-eventing/P0071.md` | 14668 | `268dc6101a1f62d0d9f1d1c81a10fcd44b8f5e0d565520dee39e5dc4fc686081` | `100644` |
+| `codex-prompts/06-data-eventing/P0072.md` | 14496 | `533bc037bd3677d15f26edbd303c8218f5689610fe8a6b332bbefe8bcd5c619d` | `100644` |
+| `codex-prompts/06-data-eventing/P0073.md` | 14448 | `dc305b702d4f83b32ba23ca741098a8e0311e8998567f308df7350fc42d10259` | `100644` |
+| `codex-prompts/06-data-eventing/P0074.md` | 14394 | `51bfc3f443c7ad9e2d27d2bad37ecde11688bcb3946b9164d136b5deaf8fb0c2` | `100644` |
+| `codex-prompts/06-data-eventing/P0075.md` | 13279 | `d735405bc7fabc275e8c0f83fd29de44d8040c77c8242df5f297e1e1d6e7fef1` | `100644` |
+| `codex-prompts/06-data-eventing/P0076.md` | 13829 | `fefb97904bec17f51e60fa2cd81e53b08e94ba900efe17dfa28ae4006afdb47e` | `100644` |
+| `codex-prompts/06-data-eventing/P0077.md` | 14102 | `d3feadfcf964a049cd6334816dc2b3a542734c91f7da83203508fe50bffc4a51` | `100644` |
+| `codex-prompts/06-data-eventing/P0078.md` | 15113 | `7316ca263e151f1470eeb6906bd99dd964b11eb2ee82cc8a8293cf857f5c40db` | `100644` |
+| `codex-prompts/06-data-eventing/P0079.md` | 14745 | `1cb0c1270326f6f8a6a73b5d88fb9ed71acd75b4bcc2fe27212b86564910dafc` | `100644` |
+| `codex-prompts/06-data-eventing/P0080.md` | 13417 | `a5d793483aefc2d9ac3a2134bea1e54b060ecd3b3bbb35a0094ac94e65654e39` | `100644` |
+| `codex-prompts/06-data-eventing/P0081.md` | 13584 | `e78be7f4b0dab498de8124ee29c55a7186427a5f86f4a223098fb20ca9327bcf` | `100644` |
+| `codex-prompts/06-data-eventing/P0082.md` | 13607 | `5bde11fe6b83d3e8becf3e86936851a2b484cb829e6640b2c18976b1fb3c8867` | `100644` |
+| `codex-prompts/06-data-eventing/P0083.md` | 13426 | `3a394d77267296b568084596264bcee632423afd194892ba0728fefc1521509f` | `100644` |
+| `codex-prompts/06-data-eventing/P0084.md` | 13082 | `14f661296ca42d5f83c60460ec660032c3f4b72978f4ab0e0fd5d2bed526fca5` | `100644` |
+| `codex-prompts/06-data-eventing/P0085.md` | 13904 | `ba4eef4e9d4779c6249a8e58a5a55977be9c3a509a839d7eb87f0af5cc6efaa9` | `100644` |
+| `codex-prompts/06-data-eventing/P0086.md` | 18179 | `30943d62efe2b1f0da37abab341eb2749947ab1738a5e8d5d16a7b5aefe5b7db` | `100644` |
+| `codex-prompts/06-data-eventing/P0087.md` | 16578 | `863cce96666d6d62d7b7d38dc7e1e2a300e84e638749a33b260da0111c026015` | `100644` |
+| `codex-prompts/06-data-eventing/P0088.md` | 17978 | `0e4db84e89128d088f8e9ad8e4a2ce8378c3be9ebd753f88ec72a4eedc6f5b61` | `100644` |
+| `codex-prompts/06-data-eventing/P0089.md` | 16209 | `985dd0d610e5762569694c4f786b720f98806623862631cca66db7377d213571` | `100644` |
+| `codex-prompts/06-data-eventing/P0090.md` | 16386 | `458820fe0f4c21958b063495c126cc0c2026e668e0cfc7e57b3e644ae6e96072` | `100644` |
+| `codex-prompts/06-data-eventing/P0091.md` | 16237 | `29e67d0e0f31ba9803ee868a870d736c42d0f1aada2d832b04448346e14c0d43` | `100644` |
+| `codex-prompts/06-data-eventing/P0092.md` | 16280 | `b1ad19e760e98a548ac21416356daa4dc94a7164cda9fb0140430328055c34bc` | `100644` |
+| `codex-prompts/06-data-eventing/P0093.md` | 16211 | `c812f7973b07fd14a1003beeeb4ab117d3724686f6705acf03ca14bc2c1d5e9e` | `100644` |
+| `codex-prompts/06-data-eventing/P0094.md` | 16503 | `ccbebe60921786241c6cd6ef489ba7f97c98a0200b6597ac4edd6b78a1155b4e` | `100644` |
+| `codex-prompts/06-data-eventing/P0095.md` | 16750 | `7bf53b22255f57766c96165dc108c3ed72ca59100dcd838ae43aa5c75611e99e` | `100644` |
+| `codex-prompts/06-data-eventing/P0096.md` | 16487 | `fe5d5c0beaa535ece2a3cd743661231ec480490cedcd2215886f759dbe4d50f0` | `100644` |
+| `codex-prompts/06-data-eventing/P0097.md` | 16677 | `ee7a4a3c906bfe52d5aaad5cb735adb3d0f80f9b64156187d0aae3dbc40a6d99` | `100644` |
+| `codex-prompts/06-data-eventing/P0098.md` | 16031 | `ec7eff6c781a19d991d7256f5332e96de6a9e02a81c8041ed953e15cd5184ffd` | `100644` |
+| `codex-prompts/06-data-eventing/P0099.md` | 16200 | `fb1fbc76cfd5bfdaa097cb8ac753ef92c6cfcd94e5fd4645ec5815a583513da0` | `100644` |
+| `codex-prompts/06-data-eventing/P0100.md` | 16466 | `2f2e7e521cfdbc9604e94f9b3a004d69db2280cd485a8a89fb85a85fc50ff03e` | `100644` |
+| `codex-prompts/06-data-eventing/P0101.md` | 17710 | `4618768475a78641df3b9a3d1edbe527db1a9d93adea2d36e68230f30b8960a5` | `100644` |
+| `codex-prompts/06-data-eventing/P0102.md` | 17889 | `b8985c915e86722befa67edb443087124063d98d73308e87178428c15cb5fdec` | `100644` |
+| `codex-prompts/06-data-eventing/P0103.md` | 17897 | `1ca2381376322636ba4493f84e08c7c41a945c1c91c6d1f9315f042992958fce` | `100644` |
+| `codex-prompts/06-data-eventing/P0104.md` | 16517 | `52590099002d0aad940f560f203145b6143f60462c7b809b1eb81f037a2bc0af` | `100644` |
+| `codex-prompts/06-data-eventing/P0105.md` | 16539 | `4dad74ad4c63062bd13f1d1a1f3cda78f1a87d9a2153d23cc17875286c1502c0` | `100644` |
+| `codex-prompts/06-data-eventing/P0106.md` | 16703 | `409a71c091849e1722f31ff1332305710f3a239278135aae4f2efceefb36175e` | `100644` |
+| `codex-prompts/06-data-eventing/P0107.md` | 17754 | `2946ed02504d522b71aa03d24428095bc67ba71d5049f163d99d957c08f8715a` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0001.md` | 18003 | `dece866d9c9f3975624ec6b6e4df4d536d887d607b60cf11a0ecd3cbfcad369b` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0002.md` | 18313 | `715e13075a74263d7652fb35ea876ad8d8f5dcaf0e51241ad2eb88d766ee7d03` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0003.md` | 18252 | `f3f05590e07ccc6627ef328537f99c20778ece57e38982a8a97316df13ec356f` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0004.md` | 17956 | `921d3d71a69e902b8ae8d4000ee7c86fb3a73ac2bc0cbf783287d73afdbeac01` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0005.md` | 12962 | `650f69da003246e9d46a716e5461e4607a080bcb3bd97c20817e9bbd83a7a664` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0006.md` | 17880 | `e20cde9d495d8ae8237e83146c83c57507fbb7ef70fd4d35ad53dc2b23cba4bd` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0007.md` | 18450 | `b8fe5480abba9f182faab28e425f4c4fe8c26d39055d366ee283d31232f9ebc7` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0008.md` | 18121 | `8e3f94c30936bb7e0d7b511718db49b12bcb956453d0ba1eb659499831674abc` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0009.md` | 16695 | `31b119b2eba275eabdb795a058f123765e417cedd9906d30f025812d26384dbc` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0010.md` | 16612 | `37c063555340b253e08b2286fd2c19b5c5096b62f3cb7bf778e7ec1b46f4464c` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0011.md` | 18261 | `40601287a6c8648b8e23ea4047610794b22539d34649bb4e8d67f16a89c9aebb` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0012.md` | 19647 | `6f1f9d35cb4262ad72cff8fb7f1a741087d136709f64addfe8d2258eec4a4c6b` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0013.md` | 19314 | `0229119d377bf8298924befd0a49db18b17f28ba3409ca00e007cec7c3b4a2d0` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0014.md` | 17099 | `4006b521ffb80c4d7f9215b00384994f9de5d0280b1d3bb9068af20c42017f96` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0015.md` | 19319 | `62397b306172a35511191180aebce2163228c034c305435be7dab65971f00508` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0016.md` | 18884 | `53e96070a9b2b973d6254be417329907883134d0dd829ce8a5528aec1a5c18d5` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0017.md` | 18922 | `f1e13bdc284e58fa6d60ae3e46866fd8cfc80371f9a96810673d622a4c20fe6f` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0018.md` | 18325 | `dc483eb64c4c9fa799f9a888c15b0f73915b04b8350b38cff0f4e30e4c54e5be` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0019.md` | 18732 | `3bcc005a8463205acbacef4817907e9b19aff2ac805a9870a3e0dfde4b517822` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0020.md` | 18662 | `c16ec661972ae44faefb0d234789ab00f54c29fb9e88866d8e59866c250e4f54` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0021.md` | 18445 | `f3d3267382408bb35dba5ba05c794d454cf7c73af8885e1ed51cc67b003db8eb` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0022.md` | 18381 | `4831dbc4a80940324a914ced0ad488f132557b19ac67f7da43588c37043506e1` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0023.md` | 19042 | `3bce2d33a246fe68885a7def1145ed3cb11e8f3a531b0b2af9e7f3d3d62e2a4f` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0024.md` | 18140 | `95d5c3654a89c8576f6f0fd92a7b934aa68b75d621192965e40d8a5fb4af2d36` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0025.md` | 16405 | `2ba9e4a59fc77281f9be237413750411908e532e95104c794dfd61ce0e8d70d0` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0026.md` | 17448 | `48be061b40c69e4a38b33df2b6fa1d5303ad1307bc9f72932d99ffcd6d0ce7d9` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0027.md` | 16501 | `8bfac09aff81e5d8cddf153fb000cb026677f20398d2d0752d6b6570c7450522` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0028.md` | 16686 | `722c7d211f72963674097fe2515fc26621ec2604a4da32578897bee4a0930b06` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0029.md` | 16510 | `ea2ebe363f7f06bf01474df123a1991e1215ae2719373d37f3959a8154bbda2f` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0030.md` | 17456 | `684d5d4bb21cf04886356601adf24b1271eef785ffdec0857674b2aa64b577c2` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0031.md` | 13597 | `e55eff0059f8b9de2686c4957b05deef31b61fed3e98346b3edf25b274fb364f` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0032.md` | 13491 | `b69d3b6e26d1e1435313136282af7ea013b8db694dde346c7a1ec79c5cfc6e2e` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0033.md` | 13480 | `d22d4b7a310a6f03b30cff5c9e5b89f88f13a8ba7335d7b78aa2d9917a02ca8a` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0034.md` | 14250 | `c8b586067d5a3ef72e0a408fef79dc070623a165235bda928c4700b3dd441a3b` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0035.md` | 14275 | `8a73cc3d080fef89115adc8c50a6b9b807272fb40d129766454108207215f8c5` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0036.md` | 13980 | `700799d83796431d80ad268cd505afe584e0f879d07c99d881423e5a932021ee` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0037.md` | 13633 | `88e29f9df1936f17a02ec6a05bb15474688d43ecce3b40500c68ddacd1454f34` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0038.md` | 14790 | `e468ba020105b4337abfa3a513e87bc681d3bca220dfda379602e40a2d5f0f24` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0039.md` | 13925 | `c3850d6f0b23e7a40a210a052d2701d9ff591b0f0fc11c44c7b6d4ff9c52f7e6` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0040.md` | 14090 | `ef2a46b0df0e82abc13a7614ab86e909af7a6fc10f656775250bfd44b27a6446` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0041.md` | 16485 | `fc6217d8f27dd9bc4024229f88b75a222e1cadd36fd1e213b1aa455f354b88b8` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0042.md` | 16800 | `4a3b58a5595b7878fd591f5cab9d666a65deda6c0a32be418a99bcf582b37c81` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0043.md` | 16650 | `da818460dfa2d8f66cc6105a771a29df7cdc757e2a3aed80e9c2cbf2d3609c06` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0044.md` | 16826 | `6c253459f3fc2fc4a806323a705d106c7a221601bc4c668c4def835ebc37bcbc` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0045.md` | 16545 | `de246849b06cd8efceaf35fa8deb1ef71541252b209f69ce72c6de18101bbbe9` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0046.md` | 16350 | `060bddf928461e19aeeaf6a7295771bdae9c6c0baff54d12ded57c9fa620e7cc` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0047.md` | 16606 | `9bfa7fdfc4605c564b37633b93ff5729ce978a49ab3088bf760961328c2b9611` | `100644` |
+| `codex-prompts/07-api-realtime-contracts/P0048.md` | 16717 | `0b70bf9d81bf10d0314e37d881008c5d8108c6989f0ee2afb17de8cc45bbcbc7` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0001.md` | 18201 | `8ac70cbc51c4fa44159be0ac4fa7b1ba093b710e0debe304e2c21fdb53dbd1b8` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0002.md` | 18073 | `d4e731e5f69df625b6bdd2687833267a3049292265c1070ae71330bcfa7003d2` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0003.md` | 18296 | `b8420425f67aecc8c31b12c0e04e2b28b1f920f419c89704438206800646f946` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0004.md` | 18073 | `893bcd70d7e2ce61f05c52352d9300ea7783412eec7167e4f53cbe6dda7ae5b8` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0005.md` | 18042 | `50235732162d04b5b123fa834b3ae998eac779b90b2577fe78021699dbda8f65` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0006.md` | 18201 | `b13926dfbf1cf8664d41d655e92acbb68465d5a152c1c753adbcf124a19a74e1` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0007.md` | 13164 | `1d570ea5f0d56bc29b80a5d3100b9a3fcc1c03f5d8827a3ad5e8caeda07f4cb9` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0008.md` | 16611 | `93bef8b9b33d4b03903bf97a7e229720654a450ed969c1006e6e7955d60d72fa` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0009.md` | 18421 | `914dac5936f187741bb0bbfa4a900051cbdbf62f9e54600b47e2df849b993a0f` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0010.md` | 16754 | `9b73c255d0c7ecfcd80a046c307a571cdf722429fee19c42abd1c2e0fb08d914` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0011.md` | 17282 | `ed25b6fbbad45a8b6661bb1dce0be4770d5f842b88e76a5a62892d93abc0d89e` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0012.md` | 18995 | `29f9c3e2c8a80b0f3920a453d027ab3233ab8a5b6d4bd8853c2bdd2bb00841ab` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0013.md` | 18647 | `6c3b38c15c3833576f5b0aa851a429b5d3ecd018dbefdf1f7c1185aac9b95381` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0014.md` | 18601 | `5d5deedfe167ff17789b374ea64469a29ff929a043661dfb76397977b4b7be1a` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0015.md` | 19427 | `b3c0e2bc9381401a68a7ee655d99337c05d82cdc9ad88b41ce7cbfcff2cd8ee2` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0016.md` | 18687 | `e014fae1ceff62c6f4612f0456954c77b89aa7306e5b06a6c107796daed75ccb` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0017.md` | 17423 | `891d34d51322a21bc7bc35948b9a8b97fa2b886bfe9dfe553b2ae4165df3f6ad` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0018.md` | 18691 | `be466ea0923be4efbbe870c65c0f1c94da12096801ed0f66323069a5e096d86f` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0019.md` | 17731 | `61808ec12312a423e6ef787f2f33076cc2a83844a46abd160db0f7a4c12938b4` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0020.md` | 17852 | `e9f931cc710c5caae0f2d2340157e54a479c7b017577458589ee49678d40c540` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0021.md` | 17225 | `46e357c0f5addcafb722221a82d4e2c331892bb88e95819bdaffb2b0582f2e10` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0022.md` | 17840 | `45f3f932ce0134af60b469adde3a4a025f266c24d8e6b181503bf6b7d052eae8` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0023.md` | 18742 | `67381b3f610bd7505adff195c902c5b54ec04063dc6a6d6a7100ab89265ce9ff` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0024.md` | 18636 | `7ced1b19f2e20b2e69781cac3fb1c970cdcbef65ebbae77ed42fda1116829128` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0025.md` | 18633 | `d3608da01d8835aad2cee76bce6e9351a2bb80dc72d3688b1b217c0d840b3a05` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0026.md` | 18639 | `90057758b14442a4799c9895ae1b3826a5c9f71e41a194e1b13083c73b7ac816` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0027.md` | 18679 | `37564cc0f713e346edf943cfdc7f1e041f65883ac5c9649415353cfca4035f3e` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0028.md` | 17679 | `d98823edf5e420b995548a69c01337322c79854447e78e9673cc773c7c816a5c` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0029.md` | 16716 | `33d05242dfa4e394ab61616c4f7e01da6fbf22d3a3a2ff105fb51999eef588df` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0030.md` | 16533 | `bc7086509d50c505dfb66697c41a5b33070311e2af63f0a5c117d1ee755efabb` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0031.md` | 16676 | `6d2d270e92f0b914e5250b9b277d6af92322f7b77f7c674791456eddbe917e18` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0032.md` | 16806 | `714487805927cb0472773d33cce5d4f6b64e2db8bcc189c0d7ca32f68acfcb2d` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0033.md` | 16400 | `5e0570c85c9b7ccb4b1c688dd6ab2d94eab15635f032c9dadf89fe8c31be8e24` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0034.md` | 17563 | `3791a2913b234984dc6bf0dfe7c4f06877e93fc0836a3d4916bdeff62f75881b` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0035.md` | 17552 | `ea910ddf167311533782df5cf215eaf349b8e74576b0ef15583e436231f6ecc8` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0036.md` | 17662 | `6c0a042a08e2a220a8747f8e14bc19eb04925f130f2ad2194e9245b8c8666177` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0037.md` | 19348 | `ed0238f43f21171b67ac1d8ace3467fe42289a150fbad33cf3965091323dbd0c` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0038.md` | 19378 | `76d5dff84f38ab93daf98b07e37192fd2af817af69c53ea545f2c8dbf02aed8c` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0039.md` | 19349 | `974830e1a91668ede4f544b7bf20e75e5d21d1641279e87579abecd6e39353f2` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0040.md` | 19258 | `aa6a4cc3a1945fece74819efe08c17a823c959f5223bedb97d623ddb4a9e67a4` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0041.md` | 19318 | `31f223b612fb7570cae1b3e3efd904095fe2a6cc8e629743a7b9a934c98a50fe` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0042.md` | 19648 | `3cb5b29ef62681be2ca78f10114e7d6a1f61576353d167b2dcb1fdb7f5989deb` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0043.md` | 19701 | `886186861f4b13001cd65994dd61f7a9bf333892b0c5128d0495bc52a0e529a2` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0044.md` | 14115 | `a03a92a172f1c54ef787833fc67d94bf6bee4d41529110d3fee2e1fe1e25f28b` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0045.md` | 14113 | `7fd0563c4772029be1fc8a8abda509c4af0564dca7626c056ebf89e3d11f46c6` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0046.md` | 14576 | `75f301e4d61a95022ccf5efd6fcb6db7ca83e8d4db44a30b12fe1a5045f1b101` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0047.md` | 13729 | `28a576e090473ceb930626216975557c66e72272583282cbdca7e2c97d305cde` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0048.md` | 15052 | `55c4b3bda9fd40a75c3b7a2a41ee9f0f4560f74c176610a91c6f4afef650c2a5` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0049.md` | 15132 | `2515848427b24639baa2ae3a33928f46b2aa6b5e8901d893e9dce32adc4ca2cc` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0050.md` | 13979 | `21bdb304af05fbf88e5c56694673410931dbff2f879d16a4ce2e80dd8fa9127d` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0051.md` | 14173 | `5bc81047356b82efddee0cc334d5c7aef93207422405e884097fe95b47cbe719` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0052.md` | 15060 | `df50f6baea2321d39b60ecc0581cf20e76bdca7c532fbff422fcc939e869ee66` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0053.md` | 14072 | `df4efc256ebaf688ecfd76da0ed63c10bf4a63a21333165b5eeda18760bf6c25` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0054.md` | 14586 | `1cf1090588799757980c9e6334251da7b5add1b92aa28425c68d6d62216037e4` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0055.md` | 13851 | `13ae49e11c43bab6b847bd05e348fba23ac46b57c661267f906d71ef8b16933d` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0056.md` | 13749 | `f91ee7130c8fd4e73949ad3fcc457dd46f646e40075e3d4a7c43c5726015637f` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0057.md` | 16894 | `90092a5cf2d4b769e116806310195fd623a3605c66ac7350007bdba7717ae3b9` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0058.md` | 16540 | `896d50c91daca3fd0f3b3092bb1c5786f5ec4ac5d1afc29f73103b773b3d76b2` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0059.md` | 16816 | `dea34128d1c636e4c4b3331168516188730bfefc740c778130adcf1b66120470` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0060.md` | 16751 | `5a99707f6e138007d32075ca0f48fe2c36ea9e76855614b098c759a585041d29` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0061.md` | 16856 | `1db0be530ccedaf9d95fb7c84a7c55ba118b6c4052527c10f397a86e6439e1cb` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0062.md` | 16946 | `6e885630c46398ed5b01af23572ac4e10f65acf61bd78fd663c1bb896d8c9c38` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0063.md` | 16673 | `72587757d76a5b0c6cf0f02ead40a3623803c31fb8410307e0bddec14667784a` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0064.md` | 18297 | `449d85801997e3572b20e0f53ae5f3a053e81203d8d032c28f9fb253d08547f2` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0065.md` | 18110 | `6f34472194d0f221b3b0ea730f3ff612957ef4c95bf358b71cf4b13d94345c1e` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0066.md` | 18093 | `3fc4ea23e8829b2d270cade3c826c206be0e4d340c73da4087b54d0a68ca7161` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0067.md` | 18073 | `01c82cc146fe11a8ca7746539432782ce73a44f6f66307c70ae8ff39a35b602f` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0068.md` | 18094 | `649564701c49d961d5eb44d24d45cf9d191821ab8b1ecbd4a1a0baf4418808c9` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0069.md` | 18042 | `df3f2940d9fa54a4485826aec51591812b53e77b705aeab45903eddaf86c7bfc` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0070.md` | 18263 | `818d5cac424fba9fdb554b0bb9ed0987351fa61f9181c68318098685e5336673` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0071.md` | 18216 | `049893b6eef8a97a2badc2c2ca704a06ae483444c45f32a12a9cd980ff5edadf` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0072.md` | 16941 | `f1ce2fa5a94a47a9038e5a6a30c4cbb76d1a00793b1ffa5f7c2f54b54b4f05ea` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0073.md` | 16826 | `60729f81eac66d9df47990c5f118c185c62d2116f09df4ca18d22dbe3ca34764` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0074.md` | 18097 | `8125a384f0f986ab941ae46b95427568f51fc52e7689319eca682bf48a2da6ce` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0075.md` | 18119 | `ad6c666ccd84b19dadc53efcd551b255baaf54639dc326c3b27a19bcc5442a6c` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0076.md` | 16997 | `32fdff1bdc0daa233ea9874d3823298642f1b2e031c9532a36426f511d78e685` | `100644` |
+| `codex-prompts/08-platform-infrastructure/P0077.md` | 18520 | `65512a11a3c9f35a360cf843820a7ab49c1c82e2c27877e54c41162e6d50ad7c` | `100644` |
+| `codex-prompts/09-security-governance/P0001.md` | 12918 | `4b6b51ffcd3815dad16d8b9be089a1b6074894c3ae2379cf5a4f715ea8b0607e` | `100644` |
+| `codex-prompts/09-security-governance/P0002.md` | 12861 | `75d18dcef7a96b57feedbd2f720ffca2b5dce5ee3cee576ddd1ba4d25256746d` | `100644` |
+| `codex-prompts/09-security-governance/P0003.md` | 18308 | `8d93201add2f983e67c2aff83775120ac06373f8ceceaae81764950a18f5e9f1` | `100644` |
+| `codex-prompts/09-security-governance/P0004.md` | 12844 | `e8c7e3aca1d2c3bb1189c53e22a59f63f9c8052d41a80e492406ed58064bb734` | `100644` |
+| `codex-prompts/09-security-governance/P0005.md` | 18236 | `63ebb4567abd4dfa63ba4f2ef010b9e9dca0e5a08929c4e22526247facd6541a` | `100644` |
+| `codex-prompts/09-security-governance/P0006.md` | 12947 | `0e38c6893143e9f3a90a7f29c93a2b35562832b5a8ddf22d9b02bd6e74ac06f3` | `100644` |
+| `codex-prompts/09-security-governance/P0007.md` | 18092 | `0e25f29aa65e522ddd5a3cb36fa970abcd694cd02025c7418a9fa23e3d181609` | `100644` |
+| `codex-prompts/09-security-governance/P0008.md` | 18599 | `1749666c485b526add4143fa754d46695a24420909118ad40d047e1f90dcd100` | `100644` |
+| `codex-prompts/09-security-governance/P0009.md` | 20036 | `0970e707fbc2e34a8d9a7ab8511a8c074d6618e8e54531d0f3a8ce969756b1a1` | `100644` |
+| `codex-prompts/09-security-governance/P0010.md` | 17893 | `4c1f53aff9a82d03d004925a7468c44f3bc6b55ee46dde8e0f780eba1895c73a` | `100644` |
+| `codex-prompts/09-security-governance/P0011.md` | 17867 | `2aa47dabe42f4e5421a11be5d7e9a5c54eaf0f1e0623bdff0df1241f8fc9658c` | `100644` |
+| `codex-prompts/09-security-governance/P0012.md` | 16502 | `6d2b2b4cf096462f1e16d89be1e507c05647c33a2703fbe3b9488498ee550c60` | `100644` |
+| `codex-prompts/09-security-governance/P0013.md` | 17511 | `1127ef110168275560e6abd63fbd2974ad1c4947252dd66ba2284a6b80f2a32e` | `100644` |
+| `codex-prompts/09-security-governance/P0014.md` | 18357 | `bcd0fea022a1ef0ade3340733850e29fb226da3a039083cd8f54bee1b209478a` | `100644` |
+| `codex-prompts/09-security-governance/P0015.md` | 19652 | `cbb72e633974c6ed23857372cfca8cbe0fea110adab4145374ddc91ed9f3adea` | `100644` |
+| `codex-prompts/09-security-governance/P0016.md` | 18863 | `a657fc2d856fdf59c0a1378a3b0c929fad3456360500cb8f2174ce34b8a864b0` | `100644` |
+| `codex-prompts/09-security-governance/P0017.md` | 18448 | `59752dd65bcd52e62be5e945942db989342a37e20d5e9ef9c25e48ce8a6568ad` | `100644` |
+| `codex-prompts/09-security-governance/P0018.md` | 18461 | `9c6d08c6fbf5eb77da9ed5bfe03af32a9a3117becd4da18c828689c7a7956193` | `100644` |
+| `codex-prompts/09-security-governance/P0019.md` | 18442 | `431d9f446166535f4ddbb9fb30ccb3c946a9c785a1632fe6a760d7faa7eae174` | `100644` |
+| `codex-prompts/09-security-governance/P0020.md` | 18316 | `587d7b86dc33477df52167ff5a654a11fe466763a097d803892ad3ca160be6e4` | `100644` |
+| `codex-prompts/09-security-governance/P0021.md` | 18302 | `a9a52031762e566fb0447a5fbf0e9002ab0e41cfe5fd6e2e15326ac98baa467f` | `100644` |
+| `codex-prompts/09-security-governance/P0022.md` | 18359 | `68358e90bdcd1c7cd5d4d3a9309f00504a9229a936dafb26b47370d23f633b0a` | `100644` |
+| `codex-prompts/09-security-governance/P0023.md` | 18855 | `cc57669601cf9c3bd4859b5f1a5256558c00075542b3cd0429def5727c6a4e05` | `100644` |
+| `codex-prompts/09-security-governance/P0024.md` | 19360 | `9486caa02590bb81f679d9bc38b2d79bd437088b5396972bee0ccd44b783402d` | `100644` |
+| `codex-prompts/09-security-governance/P0025.md` | 17179 | `bcbddbc41fe592dd3bff2a6c690d508ab77b716149ab533823e4f0b074406f02` | `100644` |
+| `codex-prompts/09-security-governance/P0026.md` | 17120 | `be90ed52164ab1063fc40776886c454418c6e42bc84c996009f99867c4a5fa76` | `100644` |
+| `codex-prompts/09-security-governance/P0027.md` | 19106 | `a536e3ed643f598e4c203ce1c98f36470b3361812d8aba9c8ee837e8b2ba6f23` | `100644` |
+| `codex-prompts/09-security-governance/P0028.md` | 16377 | `91033435899094fbc36ae84603989aadda86a8986e2ab023261c409cfa81cbda` | `100644` |
+| `codex-prompts/09-security-governance/P0029.md` | 16713 | `5c6a03f8bbf8b26b9f81a0947bc4b8b4dc035950c668e0efa40ebffaed97e7b4` | `100644` |
+| `codex-prompts/09-security-governance/P0030.md` | 16214 | `82ed65bb169d30aa2202df7f62f22f6a54ccfcc22607909d4fe223e1e4ea322c` | `100644` |
+| `codex-prompts/09-security-governance/P0031.md` | 16550 | `d6ef456774e61459ad7ae4b69509bac0da2d7c9392d7efb5f249af335f5d74b8` | `100644` |
+| `codex-prompts/09-security-governance/P0032.md` | 17371 | `3dff3d3098bf740556bb0aa451fe5ee7b5c46f84e565a0e27ee299e139660839` | `100644` |
+| `codex-prompts/09-security-governance/P0033.md` | 17511 | `d195ba7df4cc154908759c00fd9d270d3a753a9f91e1638e0dfa130c06d1abb1` | `100644` |
+| `codex-prompts/09-security-governance/P0034.md` | 13460 | `e9e251e2aee785e38e57542463e5690d5ec2af7e80076b76c7b8bec4ff14d8f6` | `100644` |
+| `codex-prompts/09-security-governance/P0035.md` | 13583 | `2e5c2d32801b53a2028df8e8947accc3d1e0638db4b21fb49a30abe7407367ef` | `100644` |
+| `codex-prompts/09-security-governance/P0036.md` | 14910 | `8848abc1621d8d7d80df1ac16242f71307fd0a8c506841f910ba312ed1b6c094` | `100644` |
+| `codex-prompts/09-security-governance/P0037.md` | 14812 | `752b2ea4ffd22854c21d45ce5d6a7451bf6e97deddea131b73e6380b4a37591c` | `100644` |
+| `codex-prompts/09-security-governance/P0038.md` | 13773 | `62deb9f2db1842129f1a27af6c4d319bcecc6c667d4237a7a8349781604e64b6` | `100644` |
+| `codex-prompts/09-security-governance/P0039.md` | 13558 | `b5af0f4c3f3209b0c26f36c19608b4aa184c3a18eabf35b68d03ae05c409287e` | `100644` |
+| `codex-prompts/09-security-governance/P0040.md` | 13522 | `4735da63d1403fb4b68dc7a7902f51ba405612a0387d2fb0a3778b93e093c640` | `100644` |
+| `codex-prompts/09-security-governance/P0041.md` | 14658 | `8e82931fe1a7b34c40ebdc1872ee581d6adb341b10aa5fa4280f50f53bb28302` | `100644` |
+| `codex-prompts/09-security-governance/P0042.md` | 13617 | `901ecef47bc95fe38efb43abeed83e530e315aa4187edf61f8ade90d8f427a57` | `100644` |
+| `codex-prompts/09-security-governance/P0043.md` | 14263 | `52fc037cfaafcb1b7519088bb00d1741f5799203fcce136fdcf2bc1e1f9e8a08` | `100644` |
+| `codex-prompts/09-security-governance/P0044.md` | 13576 | `4d598c22c4dbc829f735b54e2d2d32e21c5fd458eae1135eb4eaf0e212d565da` | `100644` |
+| `codex-prompts/09-security-governance/P0045.md` | 13600 | `a4c59c68f7ce76fc4db17e85da8de87bf6ed0190c9ee1534605dca4353aa8062` | `100644` |
+| `codex-prompts/09-security-governance/P0046.md` | 16762 | `834723bc458dde594b45d1d5da52cf74258718409e227c00ce9f1d686e3fcfe8` | `100644` |
+| `codex-prompts/09-security-governance/P0047.md` | 16482 | `854c248c996c501acbca7d6700b8b5f89f22d60ded20999913cc7b557341db5c` | `100644` |
+| `codex-prompts/09-security-governance/P0048.md` | 17999 | `3882196207e3b7d893a1a97d0e85e9a86c94b33b8cb17bcff3c7b78cbd7a0a0c` | `100644` |
+| `codex-prompts/09-security-governance/P0049.md` | 18709 | `9b65802dab51ac2caf9ffc1ff9ba1d96a3d7b8c51bd6c922618bc513b39eecc9` | `100644` |
+| `codex-prompts/09-security-governance/P0050.md` | 16607 | `f1f3af9ddf2428a14f5fdbdd67286778b00d7db2632fabea2758303b0476e645` | `100644` |
+| `codex-prompts/09-security-governance/P0051.md` | 18420 | `733a32080a8adc2847f020f188a900bcf9bcca025d202039ad3b97c563a01822` | `100644` |
+| `codex-prompts/09-security-governance/P0052.md` | 16526 | `ca25a5e925708863bcfdc6be86deab4ebff8ed531af9732037c6b86b478eb185` | `100644` |
+| `codex-prompts/09-security-governance/P0053.md` | 16500 | `3a64f3b7605cf32988a1dc2012344465bdedaddda03539b8ee33698cc6126a53` | `100644` |
+| `codex-prompts/09-security-governance/P0054.md` | 13222 | `db7077b6ea010fd63b2354cc0226b19a96ed2af9f5475be85155f672b9c0b42d` | `100644` |
+| `codex-prompts/10-testing-quality/P0001.md` | 17882 | `4a83358eb04a703e5cc32b85c13cc080d744df416fd12120756c62296b002616` | `100644` |
+| `codex-prompts/10-testing-quality/P0002.md` | 12844 | `919240495acf8a80ac5534ed2f604a653d1ff122334c6bb4b159eafe28d98646` | `100644` |
+| `codex-prompts/10-testing-quality/P0003.md` | 18151 | `ae3362918028d2ee9e41379a29ae5de664c768604ee1f39d92fee47efa7ef30f` | `100644` |
+| `codex-prompts/10-testing-quality/P0004.md` | 12808 | `0fc5098d752210190f9dcbb4eda4c619e366655b014de95878db77d3b7fd55e2` | `100644` |
+| `codex-prompts/10-testing-quality/P0005.md` | 18211 | `4532076081bd30d5854ca427fd2773df6b2bce1b1efd7af1fd4f69c78eb008cb` | `100644` |
+| `codex-prompts/10-testing-quality/P0006.md` | 17780 | `a4a8c549341d3c80b9410ee85a91e483bd6a08ff117f4132dff36df2f7d47a58` | `100644` |
+| `codex-prompts/10-testing-quality/P0007.md` | 17980 | `e76f751627c2c2555024b88ee6c2fbd8a9bd2b93dc123d989d227a0be966edbb` | `100644` |
+| `codex-prompts/10-testing-quality/P0008.md` | 18211 | `140c2969d69dad5d04a6b498a1a2750cf93f3668424889202f885e9694e7aae9` | `100644` |
+| `codex-prompts/10-testing-quality/P0009.md` | 17781 | `17aa7466bcf363a7c08191798ae9b6084818816c6ada6d5f7c69cf1ad18ccd1c` | `100644` |
+| `codex-prompts/10-testing-quality/P0010.md` | 18420 | `26ae64ffb0ff7622d20b0b5f827f60520186a659844b2174f01eef9a77a99042` | `100644` |
+| `codex-prompts/10-testing-quality/P0011.md` | 16196 | `82c4365605487df57b00b2f9e8aa85453d64c2dc7c3ee0e0b128cb1a3537911c` | `100644` |
+| `codex-prompts/10-testing-quality/P0012.md` | 17739 | `974e9e74ce6d0a6e4f927596ca65ce503528d5d015de86853abd02d2a7f8deaf` | `100644` |
+| `codex-prompts/10-testing-quality/P0013.md` | 18939 | `f68599150005059b3b5ec47ab554ae1bfa6f3e033828a38178080aa9c9e95876` | `100644` |
+| `codex-prompts/10-testing-quality/P0014.md` | 18665 | `b9ed48e3c6a064d6f7f5d46a619a779f1fadd293ef6fa0b83adf51979c6e3971` | `100644` |
+| `codex-prompts/10-testing-quality/P0015.md` | 17209 | `237c41648319d00471ed725b74d0fe65edf14ff8014b29848166c4cada85ed08` | `100644` |
+| `codex-prompts/10-testing-quality/P0016.md` | 18434 | `d12566775211111596eb9ffcd4d92bba453db33649b4df51a057281270bbff81` | `100644` |
+| `codex-prompts/10-testing-quality/P0017.md` | 16963 | `e5eb0a00ce25259be8939636d61a9f97f41c4069d3f1eac86e0c684e494249b6` | `100644` |
+| `codex-prompts/10-testing-quality/P0018.md` | 19115 | `adddda2083bad418a35783614a1431b6b3b1c9afe1de89be67da0b589aafe7ce` | `100644` |
+| `codex-prompts/10-testing-quality/P0019.md` | 18652 | `9c1a668b6c88d4efb7dee25b0602b9e0db1d82cd2e1aa2849af1487013ce7af0` | `100644` |
+| `codex-prompts/10-testing-quality/P0020.md` | 18883 | `d5e2a2710a1e8a4f0fff408bc462b9781c87f90dec4cac7177b6a8220864e1a1` | `100644` |
+| `codex-prompts/10-testing-quality/P0021.md` | 18449 | `3ca5ad01f1d7a22b870184764608ddaa1983f95f91bb600af52782f5829176c1` | `100644` |
+| `codex-prompts/10-testing-quality/P0022.md` | 18100 | `6651c3d5c81be7c636641723aa71058e39e9c745b71a8bea45b5460e540ed14f` | `100644` |
+| `codex-prompts/10-testing-quality/P0023.md` | 18196 | `95d126413a6e35ff1c1759b837c09b9948cfba0e2a08130c2e33782e13d2fd12` | `100644` |
+| `codex-prompts/10-testing-quality/P0024.md` | 18580 | `d2401cab93d4f21ea7074cc32a954a4f2c582dadbadeeab97cac8645ace4a0d7` | `100644` |
+| `codex-prompts/10-testing-quality/P0025.md` | 18156 | `75bb85469bfd98ae9dfbf202c034790e4dcb4135be190621759d80386d84fdb9` | `100644` |
+| `codex-prompts/10-testing-quality/P0026.md` | 16908 | `293848c848b7cc91987d030df3781322366bc7508be0ddad7446974704bd2f92` | `100644` |
+| `codex-prompts/10-testing-quality/P0027.md` | 17276 | `73d483761d189fe77b18464deb367e7497a524875ca473a5ad6daf3b6de2f233` | `100644` |
+| `codex-prompts/10-testing-quality/P0028.md` | 18067 | `d1e4aa31178505fb190f897db4db3f5f51ffe9b5e0fc8c57104ce7e6e870f305` | `100644` |
+| `codex-prompts/10-testing-quality/P0029.md` | 18718 | `7f44a889abc44d7a6889d94aa347ceeba8e7db7ed06492a3ac9340a203aee5e5` | `100644` |
+| `codex-prompts/10-testing-quality/P0030.md` | 16388 | `1fd9c1f4cad489132ac001552fc264f94b5cf40e02f324a482ecfe454459b1b1` | `100644` |
+| `codex-prompts/10-testing-quality/P0031.md` | 16053 | `e0f265edb082f5e885fc319c7399ef6e3999b10a0488d54489663602cfa14d15` | `100644` |
+| `codex-prompts/10-testing-quality/P0032.md` | 16443 | `497e51f42c13747e834852a97707ce62e8f57e12fb0d3346cf6c1eea55be366f` | `100644` |
+| `codex-prompts/10-testing-quality/P0033.md` | 16152 | `bf5aa185a2d64894cca8364e329fddd6afb53aaade3c07e85fe64b579e83453b` | `100644` |
+| `codex-prompts/10-testing-quality/P0034.md` | 16513 | `bd75cf32b5739bb1fbb8a5f5bd0e70aca063d1b9e585d3fe396dcc9354c4ebc2` | `100644` |
+| `codex-prompts/10-testing-quality/P0035.md` | 19379 | `dbde76fceb7f124c0e48faec883dadafa537d1f59af71430164e5187ba183b8c` | `100644` |
+| `codex-prompts/10-testing-quality/P0036.md` | 18825 | `1b1b394113a7ae6954346310e0adfba255fa0a349f080cefcd069fa4d58df410` | `100644` |
+| `codex-prompts/10-testing-quality/P0037.md` | 17740 | `f12d11097d1f6402122dad75534c2fba442c86e152ae6771defb4fee63db8e66` | `100644` |
+| `codex-prompts/10-testing-quality/P0038.md` | 17209 | `43af5c450454e09194b8b209887f4f7c5d53359f21f9763190532cbb15586dfd` | `100644` |
+| `codex-prompts/10-testing-quality/P0039.md` | 18985 | `bb2ed5a9e21d678e740c6b9fb7c367269dd3d5644b7e09127d8630d08bc72397` | `100644` |
+| `codex-prompts/10-testing-quality/P0040.md` | 19360 | `3da4504c09f52ffcc9e04d795e732d5fedad4f48dcd92da7acbd2c944bb2e1ce` | `100644` |
+| `codex-prompts/10-testing-quality/P0041.md` | 17864 | `e42e5b1fa080124fbb44c165a397a98ba74002239980c8adf8781cf748a5b90b` | `100644` |
+| `codex-prompts/10-testing-quality/P0042.md` | 16372 | `a178baf68555bd6efd550325ec2c76fa620be572a1f8f2bd19b0b3e4e2e3c817` | `100644` |
+| `codex-prompts/10-testing-quality/P0043.md` | 16513 | `8a248be1069582db4423447717a3ddb1b9a0a0d02c229377d6a7078137f217c9` | `100644` |
+| `codex-prompts/10-testing-quality/P0044.md` | 19472 | `7cf8011d0b3f9b71c1b2e46a6e3388ad80c82927cc0b3adae96ed9cc3773ad1e` | `100644` |
+| `codex-prompts/10-testing-quality/P0045.md` | 19134 | `ef6ffc353d4b2c909e10b1b2336e1845ee06070b93e8b0efcf5254e180231b96` | `100644` |
+| `codex-prompts/10-testing-quality/P0046.md` | 13776 | `18e22a1b783e07b0e30a7cefeb8e12b9d3528f3715445084727b7b9f8fc66340` | `100644` |
+| `codex-prompts/10-testing-quality/P0047.md` | 15143 | `39a2b498d421bbec7941c53d260351d5d58782fcd7d5e54b3857f294d8324f35` | `100644` |
+| `codex-prompts/10-testing-quality/P0048.md` | 13441 | `9005eee2a7c38659d5ec17231b3dfbb51f8f74983a73f83589e219f8ba2e16a8` | `100644` |
+| `codex-prompts/10-testing-quality/P0049.md` | 13438 | `77986ebeea673252dfc42d15acb03341c6a5307c163bbf9b968b434840103663` | `100644` |
+| `codex-prompts/10-testing-quality/P0050.md` | 13371 | `94e0c715dfc642ef319893ce6eaa0b62445b808aaabc20e266da92fa731da676` | `100644` |
+| `codex-prompts/10-testing-quality/P0051.md` | 13373 | `ff1afbf1fdf8b5af599f62ce434bdec50569571bd85f54b59e96b270e90391a0` | `100644` |
+| `codex-prompts/10-testing-quality/P0052.md` | 14499 | `c5f00dbfbbb43d34b5c350f228f5687cc2046dfb02fbd50109c0c3a784b63037` | `100644` |
+| `codex-prompts/10-testing-quality/P0053.md` | 13807 | `1f1bfe43dd372968cbd1874194b19bce601b4d6a5256690120308b3ccc09ad0e` | `100644` |
+| `codex-prompts/10-testing-quality/P0054.md` | 13490 | `63cb2f62fd706acaf17bb7dbabc8efdaf2019c65f5eeec46508f476f4b42978a` | `100644` |
+| `codex-prompts/10-testing-quality/P0055.md` | 13924 | `4a5e6edcc8960162eb861f4954585d7f5c4983e3ee381979a744e01dd4a17bd9` | `100644` |
+| `codex-prompts/10-testing-quality/P0056.md` | 13709 | `e8cc9a81e3b4f920aea91c61448a55016a5b2e3910f1585d992347754be2a7f5` | `100644` |
+| `codex-prompts/10-testing-quality/P0057.md` | 14733 | `9f9877400c044dcf9c6363db47a5c018fcef6df1bc77de2e2f73eff52e04bedc` | `100644` |
+| `codex-prompts/10-testing-quality/P0058.md` | 13525 | `a3bb1a1ffc5dacd7e00d67cebe8ef3004f10193afb7723da5cfb9c232b26af35` | `100644` |
+| `codex-prompts/10-testing-quality/P0059.md` | 13514 | `4ee798d7682d364e5293a1ddf0233580307dd2d828cfa0efbbe8b012c0cd7523` | `100644` |
+| `codex-prompts/10-testing-quality/P0060.md` | 13524 | `79002aff8c0364a992f1d8cc51c6c9938fd152b012d8fc29fad060e584908768` | `100644` |
+| `codex-prompts/10-testing-quality/P0061.md` | 16415 | `e6bb3d53432ebad7ca6880f41bc84738ee25b077c05e30fc342dcb937e53cc51` | `100644` |
+| `codex-prompts/10-testing-quality/P0062.md` | 19981 | `3ae43316409c85b27636d7b953e010ca041b497801e139e9e081b4a5b7b1a87b` | `100644` |
+| `codex-prompts/10-testing-quality/P0063.md` | 20675 | `e6c078449ca8b5f2fa139dfdddcff4c9daabe205be3bef53cffe7a3b982e2e6a` | `100644` |
+| `codex-prompts/10-testing-quality/P0064.md` | 16494 | `823566562aed3ad301bf8fb90e9ce562c2dab28049c2835fb56e44d63a6d2306` | `100644` |
+| `codex-prompts/10-testing-quality/P0065.md` | 16336 | `04159357893d6a5636f580d5eb91663fe690876acac034c9317ff2fd63affd25` | `100644` |
+| `codex-prompts/10-testing-quality/P0066.md` | 16397 | `3180eeb7641e196f0367fff2ff50651211d5239c8984814126af98c8f6417612` | `100644` |
+| `codex-prompts/10-testing-quality/P0067.md` | 16493 | `09c0181f7005b7301d86a70e83c4c9689f07ea4c2b3c423d2503c6c550596943` | `100644` |
+| `codex-prompts/10-testing-quality/P0068.md` | 16158 | `61ba35089519b0ce00e02b174016fdd5171b8ff0eb5e1643cdbda411475c524f` | `100644` |
+| `codex-prompts/10-testing-quality/P0069.md` | 16583 | `f2232959619d8a383901cb15127b3a35325366ab290140a2ab4608416bf64de5` | `100644` |
+| `codex-prompts/10-testing-quality/P0070.md` | 16653 | `1644bc79f81e47321a65742c76d2c04df58fb4bc1ab1f53311409cefc70a1693` | `100644` |
+| `codex-prompts/10-testing-quality/P0071.md` | 16257 | `3794a4b7d019eb406d24de15846b5f9db7c969aa0232abca9377d3052ddc9670` | `100644` |
+| `codex-prompts/10-testing-quality/P0072.md` | 16477 | `b6555e537d0f15472a446c378e294e2c4ba0431308d9d494a8e912b9bb23aea7` | `100644` |
+| `codex-prompts/10-testing-quality/P0073.md` | 17797 | `5d493d029dee016539f461bea41b648608a5e1503c72172a0b157645ef4f1d33` | `100644` |
+| `codex-prompts/10-testing-quality/P0074.md` | 18095 | `e3114448cd55ed77937618e4ffe480298fbebd824bdb8cbaed1a57127f3e2dfd` | `100644` |
+| `codex-prompts/10-testing-quality/P0075.md` | 16520 | `8758264655209501e580ea19c95275d03bc88837f54b2aa40ebf900197336356` | `100644` |
+| `codex-prompts/10-testing-quality/P0076.md` | 18200 | `9f2fef8ec77115033cda4db55034c7275cc48768357ffbb4e246a161441cf017` | `100644` |
+| `codex-prompts/10-testing-quality/P0077.md` | 16559 | `63a3ccb624ebc29c5b96f00f00a9d83b05cf9011347f179c0a1411661d7fdddf` | `100644` |
+| `codex-prompts/10-testing-quality/P0078.md` | 17241 | `7774d6be93e331dd4a8c0fe527974a688e3468bddd5b8e8ebe5da2fc07c2b785` | `100644` |
+| `codex-prompts/11-ops-migration/P0001.md` | 18017 | `3b7970327b47fda434717a75fef62f452f17c57f9a2072b79b1b5469a841683a` | `100644` |
+| `codex-prompts/11-ops-migration/P0002.md` | 18113 | `cfb91b208998825fede3994cbfbd4da7dd5094cfd38e930eadd836cbb2786ea0` | `100644` |
+| `codex-prompts/11-ops-migration/P0003.md` | 18115 | `0213c9eef2f696fc5e5e4855efa35aef63824e34cd963f8ba00f4d08ab939e9d` | `100644` |
+| `codex-prompts/11-ops-migration/P0004.md` | 18115 | `7da0a1a740d344dad83dfbe1bef06ebe524ebd3bf4d566d69e789918f77ca3b3` | `100644` |
+| `codex-prompts/11-ops-migration/P0005.md` | 12758 | `e5d5f9c9c3f11d384df5f8214b3f0b8697bc94a836de607a52df4ce88c5984f4` | `100644` |
+| `codex-prompts/11-ops-migration/P0006.md` | 17858 | `6c4316847789ece2dcc591c43b89aefac70703672b79a7afc331e432814ab77d` | `100644` |
+| `codex-prompts/11-ops-migration/P0007.md` | 16327 | `fb39312ee20e2d532125c0d4dfdb3d14662092e3464c29b685dacbe3cff2f16c` | `100644` |
+| `codex-prompts/11-ops-migration/P0008.md` | 17434 | `67a8b0af1551eb29aaa0e67cbefaad7e476a5a9e29b72a7a1eb94b21cb59d037` | `100644` |
+| `codex-prompts/11-ops-migration/P0009.md` | 18340 | `33b9aed69ac6b2927472b0a64b1f739ba874a1552a914547912df48c66b4672f` | `100644` |
+| `codex-prompts/11-ops-migration/P0010.md` | 17150 | `868389f7c5938364c53b5a2cc175b24d6b5ec9e73850ea5f17ce2c8eba77de07` | `100644` |
+| `codex-prompts/11-ops-migration/P0011.md` | 18336 | `7b53584dd2b93855a58e8726bedae500069c8c6c7c54e3dec85f12276387787b` | `100644` |
+| `codex-prompts/11-ops-migration/P0012.md` | 18951 | `16e762eab4d54e02540663ca418f1ffb954fc15a8214bbfa810b337606f1832c` | `100644` |
+| `codex-prompts/11-ops-migration/P0013.md` | 18291 | `653631e666b79348ef56426d77fd85875a517ccc993dc519f4bc6763303b7519` | `100644` |
+| `codex-prompts/11-ops-migration/P0014.md` | 18235 | `e362eb32eacfe51c2ddd76916ac087ba18e5be512b47ee8ee4bb35e0a121f330` | `100644` |
+| `codex-prompts/11-ops-migration/P0015.md` | 18327 | `79a4f32c9b34269626bd2a5d6dd7f640a87805dcd3edab253a94f5b2ccc82878` | `100644` |
+| `codex-prompts/11-ops-migration/P0016.md` | 18224 | `19df91911bf35b49fcd6fde5525a027ae6e8d819c5a1059158c662f350f2adfe` | `100644` |
+| `codex-prompts/11-ops-migration/P0017.md` | 17085 | `ebc61bcc4c83d971f3ed6768f6309ce4aee132bc41a9267978a158a6c1b8ca68` | `100644` |
+| `codex-prompts/11-ops-migration/P0018.md` | 17700 | `22c42df82cefd93c4e2183cddd70eb5d55d00655bee5502b4408d88bf48fb98d` | `100644` |
+| `codex-prompts/11-ops-migration/P0019.md` | 18015 | `bfaa8a072ae4ab1a854cdcb4bbc40af37a4632ead81dcdb64dbfab7f8035d822` | `100644` |
+| `codex-prompts/11-ops-migration/P0020.md` | 16383 | `51661d729756430ed08738299b6ababa1fd5dd60ea7df0728dfe6d6117dfd676` | `100644` |
+| `codex-prompts/11-ops-migration/P0021.md` | 16662 | `6442fa412a677e011dcebf2cbca0987e315cd98a4d02f97a96315e9f9207a5ff` | `100644` |
+| `codex-prompts/11-ops-migration/P0022.md` | 16439 | `4a26907e348ef5a324daec26170457a56a8c1086754e8fb4ac0298100d4448a9` | `100644` |
+| `codex-prompts/11-ops-migration/P0023.md` | 16001 | `8c767e69f45d05f5a3199353a013c2264a140a9915af634496beffc055739352` | `100644` |
+| `codex-prompts/11-ops-migration/P0024.md` | 16233 | `f37b1eb5b8625ad2a2b9f5a49ce1f43a0cc814835066887ccfa85150f9e7174a` | `100644` |
+| `codex-prompts/11-ops-migration/P0025.md` | 18212 | `cc265748d4ef7249d2ce190b72ba413212c790d0576d92361af5e4f2c14200e6` | `100644` |
+| `codex-prompts/11-ops-migration/P0026.md` | 17427 | `7feb1892bf5944e23fabb6c934fd8ca135fb422abf7c076c76423ff2947014aa` | `100644` |
+| `codex-prompts/11-ops-migration/P0027.md` | 19209 | `22c8e111013a2067fd586d8d2ea19cf44e81c232e6d0c91099b39dc29039fcce` | `100644` |
+| `codex-prompts/11-ops-migration/P0028.md` | 13907 | `838632e2b48b25f1f3d8d6849b04de7253bafc79e12e9af9318962f615d52dd5` | `100644` |
+| `codex-prompts/11-ops-migration/P0029.md` | 13928 | `e6773992a0b1d54d1daa75b57ed654e56e692cec4325d2016c66afe4f1770a08` | `100644` |
+| `codex-prompts/11-ops-migration/P0030.md` | 13856 | `c2cac54c47cdaf80abe5997296e5a0f418c483b778ae40a2e1c9d43eed930f66` | `100644` |
+| `codex-prompts/11-ops-migration/P0031.md` | 13662 | `9f5c44a1ca15b2002edef91f969de710946e6e1020d85366fb3a40ac212914ea` | `100644` |
+| `codex-prompts/11-ops-migration/P0032.md` | 15067 | `87ceb8f18a58d11325dce0fec05f7a2f3eb0cb7124b5402196c329ecf60c7cbd` | `100644` |
+| `codex-prompts/11-ops-migration/P0033.md` | 14448 | `1eac9d59674daacb9bd6a8a383409acbe452929c2f278db7de7f26bacf1d7792` | `100644` |
+| `codex-prompts/11-ops-migration/P0034.md` | 13922 | `8f6ad6a413028f9de8757488bb706193473dfcc3fddd73875947ad6bf197944e` | `100644` |
+| `codex-prompts/11-ops-migration/P0035.md` | 13606 | `cf4106685e89102fad13a1eb07373cb6f371fa0bbe501ce7edfbecb5654b8f44` | `100644` |
+| `codex-prompts/11-ops-migration/P0036.md` | 16467 | `77d0edb6c2396344eb145e3155ae17b89ee79ae0709a2cdb9affe9a83a97c68f` | `100644` |
+| `codex-prompts/11-ops-migration/P0037.md` | 16523 | `02623fc654ef1b3b9e8c9acef7806a52828c01fb0d83677ac1f086581c37ec4c` | `100644` |
+| `codex-prompts/11-ops-migration/P0038.md` | 16802 | `420100403894bd220f51c3e38e1bde58420244078488dc33086e317ce50bf9e0` | `100644` |
+| `codex-prompts/11-ops-migration/P0039.md` | 16579 | `d7cc8ff4f487312b73eb4eaf7321b0ad1e9fed48efbef5de5e34db1d6aa511a9` | `100644` |
+| `codex-prompts/11-ops-migration/P0040.md` | 16141 | `556cf4f63e1b858c0c74b4294914e18290de88322a510f12146d2adc7938683a` | `100644` |
+| `codex-prompts/11-ops-migration/P0041.md` | 16373 | `a46313facf93feddb0a01d18adab9266d49081e861a63db822d36dbfa36cbf45` | `100644` |
+| `codex-prompts/11-ops-migration/P0042.md` | 17862 | `6519a497a81f164922f4af8d14a23d84c4735341c0524cc58f0500a5f46c8c5e` | `100644` |
+| `codex-prompts/11-ops-migration/P0043.md` | 18037 | `ffa60e4bf59868a9a74b44154f096d7572648def7a8dcfc626d80b5568744825` | `100644` |
+| `codex-prompts/12-extension-sdk/P0001.md` | 17832 | `a4d95b524784d0c1536726f004f5990be4ae7614d0f2766cf1426823b17c95df` | `100644` |
+| `codex-prompts/12-extension-sdk/P0002.md` | 12963 | `6d5513e1425fae1b45bc664a62707f1ba596d699698a41834062c11d9a5976f0` | `100644` |
+| `codex-prompts/12-extension-sdk/P0003.md` | 17709 | `1998f10f58c2b2bd0e6bf9e8b9c2b744fcddfc38fb8a24f1c788fca4299c8d5f` | `100644` |
+| `codex-prompts/12-extension-sdk/P0004.md` | 12762 | `8f951d2790ece9e7e3db948bf6288eef8a314756afebe77d89c53f75a46847eb` | `100644` |
+| `codex-prompts/12-extension-sdk/P0005.md` | 17894 | `076632bf6374459f2b44eed4bcf45220a0dec4829cd5b96072ed2a38cd7c44e3` | `100644` |
+| `codex-prompts/12-extension-sdk/P0006.md` | 17925 | `2e6ca3e5347e9722cb4ca2cb812feb2a94b67496d57f476cf38b5c3a138cfdb9` | `100644` |
+| `codex-prompts/12-extension-sdk/P0007.md` | 19653 | `9bc5660ae43e914667032f68087c157db4c86c4d15a14820d4dc853c70a44c12` | `100644` |
+| `codex-prompts/12-extension-sdk/P0008.md` | 18005 | `cd269a306e23cdbc73929482df9263834646565c74f3fdd5a446a1765a2c196a` | `100644` |
+| `codex-prompts/12-extension-sdk/P0009.md` | 17136 | `3467062f4b6b1d53631d282d10cc07447769345454de60587bfd7ed5c2059e29` | `100644` |
+| `codex-prompts/12-extension-sdk/P0010.md` | 18086 | `a0a60a43ad6e43e9c00535f95cdb69882403f964025a5c75747b01c6d6eb8645` | `100644` |
+| `codex-prompts/12-extension-sdk/P0011.md` | 17087 | `8cb05d04c526a04dd3767a79f5679d8c53e5b793d7d494a505bf1a097ea8aa22` | `100644` |
+| `codex-prompts/12-extension-sdk/P0012.md` | 18826 | `ce9f6a2c3d80820dffb6e54ab0291027f489e4baf56579783e55302526c56465` | `100644` |
+| `codex-prompts/12-extension-sdk/P0013.md` | 18089 | `2531f61450fd1396fe91e965c91b12fa17480149d6efa9ae5be64164be5b1fdc` | `100644` |
+| `codex-prompts/12-extension-sdk/P0014.md` | 18195 | `d594d18a61470ebadc765fd76aa10314497c7676fa36576513a155c019a5128a` | `100644` |
+| `codex-prompts/12-extension-sdk/P0015.md` | 18080 | `46a356d8f8dfe61b93904a9e53dc67df389875c8bd47b4e795dcfb7a2db76cf7` | `100644` |
+| `codex-prompts/12-extension-sdk/P0016.md` | 17030 | `348348aa7ba94b7e700fb1ad712632e1d6b637f5548f7b8f2f7c2d651e3e8266` | `100644` |
+| `codex-prompts/12-extension-sdk/P0017.md` | 16212 | `ebe444ec321e47762eec886611e965dd9c2bbdbfe90d5dbe18533d179456e850` | `100644` |
+| `codex-prompts/12-extension-sdk/P0018.md` | 17327 | `58d97b59408f88e19e2c72bf3452ceaabe0e739506499ad29513e5de56190777` | `100644` |
+| `codex-prompts/12-extension-sdk/P0019.md` | 16153 | `cb867af2b4da4048f64a7391ea783ca6f6e3a835bbe1e2fbe84ada946121f69b` | `100644` |
+| `codex-prompts/12-extension-sdk/P0020.md` | 17136 | `7121bfb727b333c6a09954c8c2480764b58d7e29e48d0211f8aca5e4ee2085c8` | `100644` |
+| `codex-prompts/12-extension-sdk/P0021.md` | 13175 | `0d42e9a13495ca2ebf6944b7cb30d3aebb1fcf4be1f9eed5806cc23c9ae25a38` | `100644` |
+| `codex-prompts/12-extension-sdk/P0022.md` | 13311 | `3361e6c41bf1e8dfdbb55878bdab7a5ecb39975a83ef85bca347b31c9ad1b8cd` | `100644` |
+| `codex-prompts/12-extension-sdk/P0023.md` | 14085 | `0d78492b264a967441f19f05cfa0ab56888128c29e0c606dc2dd56d6a0c08fc7` | `100644` |
+| `codex-prompts/12-extension-sdk/P0024.md` | 13530 | `7da4b190a3dc52208d2483f942dd914dffdbb6604fdcc5a0f46ed2f118c5f268` | `100644` |
+| `codex-prompts/12-extension-sdk/P0025.md` | 13439 | `d7d5074601487c68e6d5cbbcea080fc1cfa8e2398d3a382c9c3468879c402276` | `100644` |
+| `codex-prompts/12-extension-sdk/P0026.md` | 14703 | `a808499b21304bc71ca8a0a9616d903bfdc9bbef4ce356025c549f217778c7b3` | `100644` |
+| `codex-prompts/12-extension-sdk/P0027.md` | 13466 | `76ec50aa16e6eb48826977736a657e5d0af2878b6d81a603752734fc6c58efb2` | `100644` |
+| `codex-prompts/12-extension-sdk/P0028.md` | 16425 | `f336e2d0863dcaa6a9ea58ed96c78c1d9d4e41b3f5d278c923b628fe3dee60ea` | `100644` |
+| `codex-prompts/12-extension-sdk/P0029.md` | 16494 | `1683fbdb9482ca59163d63e159a474b9635e6c5549e7585765829115aac21767` | `100644` |
+| `codex-prompts/12-extension-sdk/P0030.md` | 16317 | `8d528d4e51366c520df8c45c5c864feef02da13d2cad981181b8cc2200e6ae57` | `100644` |
+| `codex-prompts/12-extension-sdk/P0031.md` | 16056 | `3cee402bd1b07de0878fb7270f9ae0208ef19bfbd2b7556d980e8cdcb430e34f` | `100644` |
+| `codex-prompts/12-extension-sdk/P0032.md` | 16258 | `0cb7a124b1b1d641301ca2870c3187d7a317e01b59dab12fbdc16c32287cec4c` | `100644` |
+| `codex-prompts/90-traceability/P0001.md` | 12646 | `2cadc5f4b77eeb337814d21efa0d8c43a9eca52638a59a83471ced5f40fda9b4` | `100644` |
+| `codex-prompts/90-traceability/P0002.md` | 7901 | `15a8bc47c3ce6508bb51b387fd9a1df414c9d755c87ffb2c0cd7ad18862f8192` | `100644` |
+| `codex-prompts/90-traceability/P0003.md` | 15304 | `c166e0f40ecdd211f0294ee773dde8f6df6e56c677e91152172bb91cd5400e79` | `100644` |
+| `codex-prompts/90-traceability/P0004.md` | 7821 | `57016043d37a11fe7015945c0ea83a5bf57b1aa980c5d5827d0318d72090f7b8` | `100644` |
+| `codex-prompts/90-traceability/P0005.md` | 14319 | `aa7f9067368882bfb9ac11d26ca1e52bfabe3b420d2acd1639047f7b925b95bf` | `100644` |
+| `codex-prompts/90-traceability/P0006.md` | 14150 | `3e3898b619c8e129a447e5b686e1f350171e221747251a0510f9ea5e4a8bfa00` | `100644` |
+| `codex-prompts/90-traceability/P0007.md` | 14564 | `61b9821aee07a9570d259b06ab9ee8e47da8cc7b3e4b1adbd606ffe589af1836` | `100644` |
+| `codex-prompts/90-traceability/P0008.md` | 13936 | `dd9e2451043d88c974839ede1c9cb5c27a265d6675c9acdc2ab67dd0c12d8d8b` | `100644` |
+| `codex-prompts/90-traceability/P0009.md` | 14038 | `f43df3e7b0583907e0b1dd4acd86236dabddcfd63c6d48d4cc8c3f1d2e821498` | `100644` |
+| `codex-prompts/90-traceability/P0010.md` | 12562 | `15646503ea74d6df73e5c1bd582bb2d9020e1bd5cf39530a80da4f62442bf2d4` | `100644` |
+| `codex-prompts/90-traceability/P0011.md` | 12459 | `59889fa66dedab06739244a8119db5266a889d737dd424fa5fbffb2ca0a57247` | `100644` |
+| `codex-prompts/90-traceability/P0012.md` | 12238 | `9fdd7ca2013525f7e34d6cc3993ff9e4e61ae9c0bfc3415beb791238afc80267` | `100644` |
+| `codex-prompts/90-traceability/P0013.md` | 12530 | `3cdd926ac41266851109d358d29fd81381325115a409de74cc05bbbbfc19d14d` | `100644` |
+| `codex-prompts/90-traceability/P0014.md` | 12409 | `63ae369c2bcc547c2e628fd3f2b361d4f766c0b183d843317e1ce11d7d114042` | `100644` |
+| `codex-prompts/90-traceability/P0015.md` | 13866 | `2eb27dfe37e2fc0b67672e1899a5bbacfb690e3069343a4295e5a38d0cf28517` | `100644` |
+| `codex-prompts/90-traceability/P0016.md` | 14227 | `3065529fa5b41385d4295261cd3f029f553f46fdb24448432b9aa218bf8dec9f` | `100644` |
+| `codex-prompts/90-traceability/P0017.md` | 14636 | `fcb2b568f677f71ae07f62dc74a903cd27e91a2c99120dae02fa5513afbd2ef3` | `100644` |
+| `codex-prompts/90-traceability/P0018.md` | 15008 | `5c8976a0117fc1f140d28ecf7f52d8e9290e5e1f2a020b686e88e30cf22f3819` | `100644` |
+| `codex-prompts/90-traceability/P0019.md` | 13407 | `1e71a9e60ac772c617bfcbd37afc596eeff59209dff69cb434a3daaf0c7b5b32` | `100644` |
+| `codex-prompts/90-traceability/P0020.md` | 13428 | `137f4015e1a143e826269f8b00877153a588833730605e6f1387d70a0e46bd08` | `100644` |
+| `codex-prompts/90-traceability/P0021.md` | 13379 | `189949b55570d4b08ba0cc5256fe513720590b5832885c9cb082604aadced0fd` | `100644` |
+| `codex-prompts/90-traceability/P0022.md` | 13581 | `706b89a2f2ab6d93d20ac9bc23efea4aad8b2ce55ab64855dcd21d5f0a6fb7f5` | `100644` |
+| `codex-prompts/90-traceability/P0023.md` | 13461 | `8cf5c0645c4058c560b3cc014e5910e06f7d30ed0ff858f2c81a234569bb833b` | `100644` |
+| `codex-prompts/90-traceability/P0024.md` | 13653 | `090ad7003d72b2900406a6fad2db2caf87ad970cdf0677136161de3723b8dcf2` | `100644` |
+| `codex-prompts/90-traceability/P0025.md` | 13334 | `bdf2b738a8231eb5805cd62c4e733fdfeaf2500078898a1492f3f18b38b08631` | `100644` |
+| `codex-prompts/90-traceability/P0026.md` | 13480 | `a0ed4211901f7831b307050296d8c5657a86d34bc6091bca1e6d9bb0eff4fd7c` | `100644` |
+| `codex-prompts/90-traceability/P0027.md` | 13356 | `56c8d6f90e749410e5c9c0342ee2f133944982ef20a30e5ee3e392bfe5b5853b` | `100644` |
+| `codex-prompts/90-traceability/P0028.md` | 13428 | `0ffc112ae634bcf841e9781a80ee5094ae77cf75fae0fe214f236272545071d4` | `100644` |
+| `codex-prompts/90-traceability/P0029.md` | 13407 | `67cfd1c356d3bce3580f616aa352080069e379224febb7a74f6429f153e23941` | `100644` |
+| `codex-prompts/90-traceability/P0030.md` | 13446 | `f6c3e52e35451d5b13b6a3835ceb6a2691202036f28d290f38433610b2ea8258` | `100644` |
+| `codex-prompts/90-traceability/P0031.md` | 13382 | `3d8f22e2fbad6f32e9e7ad590cb97bec5c3e01895e2a6e5638ee427abf3115fc` | `100644` |
+| `codex-prompts/90-traceability/P0032.md` | 14634 | `212ca8f2c30839962737d13d85207dfe629e470ee88efad2dee0fd4fe441a327` | `100644` |
+| `codex-prompts/90-traceability/P0033.md` | 13368 | `e9e3977572106065b1e22c6d8512ca1347441e01b1820011dc34847bcc04826e` | `100644` |
+| `codex-prompts/90-traceability/P0034.md` | 14053 | `68ae59ceb1d4376e0d1eb0ecf1056b4ad44d1de8eeb8ed2c5e1921f687b7406f` | `100644` |
+| `codex-prompts/90-traceability/P0035.md` | 13379 | `a49d5152973128cc14ccd30eda8e2557c90245e7d7cd34a828a65548eab516ad` | `100644` |
+| `codex-prompts/90-traceability/P0036.md` | 14457 | `840eb903aec464d8f2780ee6fc28b942edebf12266777853b11cbe4f8535fa91` | `100644` |
+| `codex-prompts/90-traceability/P0037.md` | 13367 | `4da765b939dd5058205438f04f056c3b0a16b9aa5c73d1ad93351777db312ef5` | `100644` |
+| `codex-prompts/90-traceability/P0038.md` | 14225 | `4e789083c798d69d10c55d1a574272eb265e8432c2b0e52f2b8af7642fd63280` | `100644` |
+| `codex-prompts/90-traceability/P0039.md` | 14606 | `e291717caa8a60567a90c4d60f28b47a3f605fb56b64d93fcd914e84de3a84ae` | `100644` |
+| `codex-prompts/90-traceability/P0040.md` | 13505 | `29a221e3533a451cb9fe9708eee23640b5be052088adc92d61284f00273f593e` | `100644` |
+| `codex-prompts/90-traceability/P0041.md` | 13389 | `9bb48090925643f814af2eebcc475df81ab07546190e35db6f12b83ceb789a59` | `100644` |
+| `codex-prompts/90-traceability/P0042.md` | 14964 | `e62f2a80cab08cd370dab77975e1ef232e71e0899b02b673a1cbf58fe0c98718` | `100644` |
+| `codex-prompts/90-traceability/P0043.md` | 14433 | `705f1cdd0fcdca77224fb0e4ef180551fde657b2a12581a7b7b9cf9f6180b823` | `100644` |
+| `codex-prompts/90-traceability/P0044.md` | 12473 | `811e1cb0b82d1a55801d965cd6727c117dcdc91045e61014860c409594942997` | `100644` |
+| `codex-prompts/90-traceability/P0045.md` | 12869 | `a781d5459700eed8c9b34176d3b3ab9b39b8f5085a07273b46fdb6cc987c3526` | `100644` |
+| `codex-prompts/90-traceability/P0046.md` | 13332 | `a61bc452eddc7f505d35773d38b8dc6d47bd2174094d9f8451f48991bf4af0bc` | `100644` |
+| `codex-prompts/90-traceability/P0047.md` | 12252 | `236477147e6e9673d82b62c4761667499a9bc95cf1dfd90e6f216f83655cd3a6` | `100644` |
+| `codex-prompts/90-traceability/P0048.md` | 14197 | `c5ac6a22f1358f9708e6066d6179bfbec657ba4ad8b443058ba9723c7751e5b4` | `100644` |
+| `codex-prompts/90-traceability/P0049.md` | 14022 | `5044cc1017519a6b840be76c64800ff5f3b2201b2243a3b80b888753659c4408` | `100644` |
+| `codex-prompts/90-traceability/P0050.md` | 13975 | `bd26a4b9db8ec8731fd7e24c5acea623b0123774ccb5d36e663488029570029e` | `100644` |
+| `codex-prompts/90-traceability/P0051.md` | 14296 | `786ee9b6d93d51fb8411abe12d54c1e50e083d48e7025307eba5f5c018b4659f` | `100644` |
+| `codex-prompts/90-traceability/P0052.md` | 13206 | `66ac85203d07d6e8a8c96622ae37b5dff7137ac6acaebf2d892dca355aade1e3` | `100644` |
+| `codex-prompts/90-traceability/P0053.md` | 13399 | `50783161335d74f996fec4132544e4209012814d9d89ed29ff91384efc5e4a7f` | `100644` |
+| `codex-prompts/90-traceability/P0054.md` | 13406 | `556790065b918517168fa11fc331f93a11088a78b473c40ce56f2ce79e2f2e28` | `100644` |
+| `codex-prompts/90-traceability/P0055.md` | 13346 | `f09cc5e21b1a3693fed9f54cc1d4637c860b5bb743a23203ff513a19e01857ae` | `100644` |
+| `codex-prompts/90-traceability/P0056.md` | 13425 | `65283e486d3e9f92480284f8d8184809d021759ddbb0bd05cb8e8ea322610a57` | `100644` |
+| `codex-prompts/90-traceability/P0057.md` | 13324 | `36910062f4f690d9c7f43552afe0ab33db05507a168098aebd13ccfaf16fb8c9` | `100644` |
+| `codex-prompts/90-traceability/P0058.md` | 13298 | `72defff5ad3aa27449eda43426ab4fa156495d82a86414ca464ff531ed7988cc` | `100644` |
+| `codex-prompts/90-traceability/P0059.md` | 13441 | `5f237efc0d2bd7e3856fbd963399dbd89a0bc07e56e7873870e1c72adff82855` | `100644` |
+| `codex-prompts/90-traceability/P0060.md` | 13312 | `1e39070c7edf30eaca04e1c6cb1417b778075e1dd3ac791e9bc57358c85004db` | `100644` |
+| `codex-prompts/90-traceability/P0061.md` | 13076 | `1222cb2bfabc0e4f150a5664f008cae0d8dc130b5841fed9554d2e4e6569633f` | `100644` |
+| `codex-prompts/90-traceability/P0062.md` | 14215 | `abdaa7a38f4daa89c455fef4e184a9e2ddba1b9dfd13c79bf66f758d8c90b160` | `100644` |
+| `codex-prompts/90-traceability/P0063.md` | 14793 | `e29aac4f3ea1da3559b28c3de093e202897333b037ef651495d4dc25ea3677d5` | `100644` |
+| `codex-prompts/90-traceability/P0064.md` | 13494 | `c1a68f09054e9a45b7dde6e6ebfb3afbc892e7e176422a2a948c7bdeb7408b18` | `100644` |
+| `codex-prompts/90-traceability/P0065.md` | 13536 | `3500666a21eb41564d05d0ac829bc0d6c37f4b4d3ef23c23ba8de6c3459f4924` | `100644` |
+| `codex-prompts/90-traceability/P0066.md` | 13401 | `e172ec6a78e1987e0e0a0f04f47aa1311fe300befb3e39928d1106b6b440469d` | `100644` |
+| `codex-prompts/90-traceability/P0067.md` | 14473 | `e600627cf3759360be71c58a043328d1582f73fc3416d4469a3b60fffaa05ad8` | `100644` |
+| `codex-prompts/90-traceability/P0068.md` | 14772 | `ea12d5c677b2f136f6d744a24b62e2713752bc7324fa4f18bf9849b2481b1168` | `100644` |
+| `codex-prompts/90-traceability/P0069.md` | 13608 | `d440cff829753df5994ea090cb618ee2bc6d4b998e56e4c45576bb579c9ee2f4` | `100644` |
+| `codex-prompts/90-traceability/P0070.md` | 13612 | `64a9440a714d784a9bbfff15d9d6edfa2bb4167d506256030a4236d185455365` | `100644` |
+| `codex-prompts/90-traceability/P0071.md` | 13284 | `ee961f6fb793bee1036a60d6c408bf0c0b3087f121c4d2529a28b411db33fe56` | `100644` |
+| `codex-prompts/90-traceability/P0072.md` | 13490 | `42140c08ad93fb41ce6207f28aedaefb66eae7e182d95eed3e108073a2a567b6` | `100644` |
+| `codex-prompts/90-traceability/P0073.md` | 13485 | `d2aef0885747129d0a701e2750bb583cb6de08cb1eaef5b26a9d45235946312b` | `100644` |
+| `codex-prompts/90-traceability/P0074.md` | 14870 | `6c0f6701a85b2184655284d240ad516a4b11e31811dfaa19309eb5cd772aadd8` | `100644` |
+| `codex-prompts/90-traceability/P0075.md` | 13260 | `4a9591735c0e8424c7b0a34ff125d8315c797d6e0e0b87ffccc3fba4dc87abc7` | `100644` |
+| `codex-prompts/90-traceability/P0076.md` | 13523 | `0dd18d0f707b9b03e5be46a024637ef69b75c448fda66e049be31acf8545dab9` | `100644` |
+| `codex-prompts/90-traceability/P0077.md` | 13353 | `e088b70d10f63dd7642e250b68001afd78dec653fdc5282cdbe55aab4afcd82e` | `100644` |
+| `codex-prompts/90-traceability/P0078.md` | 13409 | `783e167fd62c7cf3e87f88a89703c86e7b225bc3674dc4aa50f2ff670124013c` | `100644` |
+| `codex-prompts/90-traceability/P0079.md` | 13438 | `0e316fe2d0fe34f985d6d547b060157897b836ffbd26bcebed3c59a4f8017db9` | `100644` |
+| `codex-prompts/90-traceability/P0080.md` | 13410 | `663c7c15cf3abd92019db6f86d95db22512f0d7306630a61843f0067c0c3e7a2` | `100644` |
+| `codex-prompts/90-traceability/P0081.md` | 12488 | `d6674dc775c0abd97d69dd08d75a7394d522a536a3ac5748c96510484a0ff6de` | `100644` |
+| `codex-prompts/90-traceability/P0082.md` | 12693 | `77ea62141d4de3b5ca42a2021862a3dfb64fd87fdda00603e0718af1ac151809` | `100644` |
+| `codex-prompts/90-traceability/P0083.md` | 12515 | `536063df6ef4726a2ec5b55e9bda787879ea9079061429aa96dc64e3f528ce23` | `100644` |
+| `codex-prompts/90-traceability/P0084.md` | 13505 | `d602d39ab5f2f9132ed1b3832f2d8a527407af0e50aff4411d223729d54bde79` | `100644` |
+| `codex-prompts/90-traceability/P0085.md` | 14357 | `bcaa84f90f70bfa06f3cfe97cb22d68cdc1893ff717e2abac0b98e7fe2d64984` | `100644` |
+| `codex-prompts/90-traceability/P0086.md` | 12214 | `70e33d47d8d6a9aae48d6870d197da6ab8ed88c0b074d616f00158d89f80000d` | `100644` |
+| `codex-prompts/90-traceability/P0087.md` | 12394 | `d6949be5e04ae327bba21bec10960516088a7d1e178be3edaf712fc6fad33ad5` | `100644` |
+| `codex-prompts/90-traceability/P0088.md` | 12216 | `4eb7c4a061b76a25ec039c6452a69e366cbf052d7aee25645ae4386996426410` | `100644` |
+| `codex-prompts/90-traceability/P0089.md` | 12437 | `f4d7de624d2c7b5c84caa5946ae9bb07d8eecb0221da5dd236df5e27e31cd370` | `100644` |
+| `codex-prompts/90-traceability/P0090.md` | 12529 | `4653d6b5f1696a861484883a8340d7657c861a2425693728a7ebe1accf92d646` | `100644` |
+| `codex-prompts/90-traceability/P0091.md` | 12296 | `598caef3a50577e5862a7f463a778974db6ad77a7d1ea165bd3980b136f32769` | `100644` |
+| `codex-prompts/90-traceability/P0092.md` | 12479 | `e7740ca39e5e6b440a1e772e3fe47c57de23a908c90263bfd332f8fa36c66235` | `100644` |
+| `codex-prompts/90-traceability/P0093.md` | 13977 | `fcef9259504e9ba1f792a4476a8aeb5fc176ae8ea096c7970afa73eed3fd8a1b` | `100644` |
+| `codex-prompts/90-traceability/P0094.md` | 12543 | `89b1047393d9cd69191cf37b0df67d55bc95d76f85be855d25681bf63a8aecc8` | `100644` |
+| `codex-prompts/90-traceability/P0095.md` | 13402 | `a3d01c6534763b87f00687bcf0edb34c2ebb6c60540bb24d044a38d1d10be69a` | `100644` |
+| `codex-prompts/90-traceability/P0096.md` | 12939 | `c089fbf7ef8f1d3a9b8edfc874bc8cdc1033cd5787c90c84a324c0c7360e4ad4` | `100644` |
+| `codex-prompts/90-traceability/P0097.md` | 12322 | `015dfd40e341d79fe982866ebc67834712fea63ad289fd833c662037ec6cede2` | `100644` |
+| `codex-prompts/90-traceability/P0098.md` | 14066 | `0002eed5be001ef80f9b9f40a76c9a61a2fdf2264a6b74ed66eb10629271484e` | `100644` |
+| `codex-prompts/90-traceability/P0099.md` | 14025 | `bb805067f2636e73dc30414ac83e9fb486a8b72985b7c7762f755ca7c967730e` | `100644` |
+| `codex-prompts/90-traceability/P0100.md` | 14219 | `0dd38015adb4da8bcb94d6692a0456d678fb234da9929353dd1c949b0042de70` | `100644` |
+| `codex-prompts/90-traceability/P0101.md` | 12284 | `76db11b6b6221bbb2db8d834f6255b1198535fb4459ec758ede169a1d9e0d478` | `100644` |
+| `codex-prompts/90-traceability/P0102.md` | 12482 | `3edc0475b74126dae81a6a116a10ecb16f1967fce4935762bd8ede4dee70ac0e` | `100644` |
+| `codex-prompts/90-traceability/P0103.md` | 12252 | `692db705c2aea71c72817393a080f168beb94631181ed681660c332e8a5a8a24` | `100644` |
+| `codex-prompts/90-traceability/P0104.md` | 12527 | `bdc063591cd81257497f64fc13252aec94a151d747454d40cb1a18922b81f9e6` | `100644` |
+| `codex-prompts/90-traceability/P0105.md` | 13743 | `5294e8999435eec9a630cfae0dfce982d6383cf7bd75111f50401fb4be0ca53b` | `100644` |
+| `codex-prompts/90-traceability/P0106.md` | 15940 | `a15833cf2376a9d0aff0b29f84a5a838d66b6d12dad87d34c807606b331c139c` | `100644` |
+| `codex-prompts/90-traceability/P0107.md` | 15302 | `be2191cda37af9af1f3d5c93ef1edbf798b6c8942605b791276eeab8ef0d9afa` | `100644` |
+| `codex-prompts/90-traceability/P0108.md` | 12788 | `1d0c0e61bb02039e246b24df41aab77d325930c798bb9fa80da946091963f8a0` | `100644` |
+| `codex-prompts/90-traceability/P0109.md` | 12916 | `6374a29363ff33d48852a61225f494dee0477d76be7d6e9f918e202a78fcf38a` | `100644` |
+| `codex-prompts/90-traceability/P0110.md` | 12916 | `bca2961f578ff32f74cfb1cd4d65de357daaaace1ed219a1f759f19d19e571fb` | `100644` |
+| `codex-prompts/99-appendix/P0001.md` | 12308 | `bec3c74db9a6c2976cbe5bdb641b17caa9a499219200ec7b44dc36bd2d036f99` | `100644` |
+| `codex-prompts/99-appendix/P0002.md` | 12602 | `95041804b7a0f0a45f252e8e3211f9aa726cdf39e44f3c120ad23d68c906b2bd` | `100644` |
+| `codex-prompts/99-appendix/P0003.md` | 13109 | `895e09a60f67118dd86463649f5f9da33d02663811cebeb4011be580c0d75645` | `100644` |
+| `codex-prompts/99-appendix/P0004.md` | 14063 | `04a3dcaf975c40bceb756bf62b580723f764430e50a2c222e0f977986e03d006` | `100644` |
+| `codex-prompts/99-appendix/P0005.md` | 14046 | `4adc28d6f0bf1112701b580aee931a3b70309011a194dc3cef9203c657621d1e` | `100644` |
+| `codex-prompts/99-appendix/P0006.md` | 14269 | `92df43df35ea7e64ccbc1e26dbf2139148cf6b828b4316075abc9c30bc58ae42` | `100644` |
+| `codex-prompts/99-appendix/P0007.md` | 14444 | `2320fbb9375f038ae888a8359692e3b34526c97c97d00f43d63a6e8ce4e6a453` | `100644` |
+| `codex-prompts/99-appendix/P0008.md` | 14326 | `5ad919514919a4809c956592c53eb35bd6f8c4be8f3ae620b40b4eb4100e6cc0` | `100644` |
+| `codex-prompts/99-appendix/P0009.md` | 14433 | `7965a86bdd355f88ab07e698f311a9532abb3087e452623efa6a1fe9468e200e` | `100644` |
+| `codex-prompts/99-appendix/P0010.md` | 14048 | `be45d7ede3f7e4c41ec5240d531cab14aea4bce62a719a5aed1dba615428066f` | `100644` |
+| `codex-prompts/99-appendix/P0011.md` | 12314 | `9d312d8fc65e8293cd016f9e771594e6f8e630c2c0f08b5cc6c4af0f00815518` | `100644` |
+| `codex-prompts/99-appendix/P0012.md` | 12491 | `ea849ec92779fd2d319687a89970f890abe34dc18e03fe32a2cebbfd489921f3` | `100644` |
+| `codex-prompts/99-appendix/P0013.md` | 14399 | `406af79701c77aeb4bc978da957a04477559961a8f4f4178ffbc9ce907a3e4af` | `100644` |
+| `codex-prompts/99-appendix/P0014.md` | 12561 | `ea1a4c6ac9e74e3e0faf04f6d94c1f732bf1979aeba0c689ce9c90b6f2337d45` | `100644` |
+| `codex-prompts/99-appendix/P0015.md` | 12465 | `a5d272c2d2c268aff381db108269a1543827e3c37dbbe756af4a6e53da16c76f` | `100644` |
+| `codex-prompts/99-appendix/P0016.md` | 13038 | `9cb708975ba0482290d7a77ed69c87f26ba418cf7d4686741852ba6c4151c5c0` | `100644` |
+| `codex-prompts/99-appendix/P0017.md` | 12357 | `c6703937aa1aea263012e69c4083daa00ae87908ab2344f66577a1e5758882b5` | `100644` |
+| `codex-prompts/99-appendix/P0018.md` | 12378 | `823b5e53096dc669f2df6687a62402680cf7305eb1f20b3f1e99fd170dd0e7ec` | `100644` |
+| `codex-prompts/99-appendix/P0019.md` | 13220 | `11525d9055fe650c84cb2430713d0446909474f46090f1502d52fbc7017df305` | `100644` |
+| `codex-prompts/99-appendix/P0020.md` | 12384 | `a229b188a33cc39b1767dcf3934af316ffa64225bf5e464e5118d1f3cdffa38f` | `100644` |
+| `codex-prompts/99-appendix/P0021.md` | 12561 | `68c83ce899c13bde25ba03cf630c5249ae17fd4ab01adb125c659f6ec04bf8ec` | `100644` |
+| `codex-prompts/99-appendix/P0022.md` | 12535 | `729d94a371a87a7026bb5e713aa63ce5295ba6a01bf9873cb13aee2988cabb04` | `100644` |
+| `codex-prompts/99-appendix/P0023.md` | 12427 | `2fc0ee5741107ee566f655ac3f128dddc4572688f9f4e36af3a8697c8bb64381` | `100644` |
+| `codex-prompts/99-appendix/P0024.md` | 13282 | `33a8b77cbbcd179e8385ce7c1c9354fbdc9d6e35250b4730318246e595708c7e` | `100644` |
+| `codex-prompts/99-appendix/P0025.md` | 12725 | `d08f7d17c93d7f90188dfe186cd7dd6efdf83097607068752b778f87c70d7ec6` | `100644` |
+| `codex-prompts/99-appendix/P0026.md` | 12860 | `4248043d3f2df9c53eb66627912067e6c10a61168b2689c0fdb8562222f3297c` | `100644` |
+| `codex-prompts/99-appendix/P0027.md` | 12573 | `c4dc82ea5fa2c12f4a7e060e7a8a59c71c24b9237726c906599f7b215fd02fe0` | `100644` |
+| `codex-prompts/99-appendix/P0028.md` | 12894 | `15d4d4476e99ba645088cbd9fcc9896066734e8fcb6542773fa8fe54173523d4` | `100644` |
+| `codex-prompts/99-appendix/P0029.md` | 23769 | `cf3b3a852fd09699e1f46aa38b074df8e7206acfac3a3a4a68a757a5db9b9c76` | `100644` |
+| `codex-prompts/99-appendix/P0030.md` | 12893 | `ab099bb4fe9cd403f06685599661e4ff55fc5bc57d6f803ddf1a4aed7a140d87` | `100644` |
+| `codex-prompts/99-appendix/P0031.md` | 12675 | `3b6a1305e6a2a60cc824087601a08be0e133687b11afa568bdec6054da3d58c1` | `100644` |
+| `codex-prompts/99-appendix/P0032.md` | 10812 | `053b7adbfd5a52022519e91e8026f28eb5424edbc17da498d64213e793e365e6` | `100644` |
+| `codex-prompts/99-appendix/P0033.md` | 12776 | `81f73e190fad8a8e2b6495f03ba582cecb3450401734e57f1edf4c4c4f34031c` | `100644` |
+| `compose.override.yml` | 13 | `fa6ccea1ca4e3a031d9e99f25cc05db803aa9bac642c000ddab14f6d9da54b52` | `100644` |
+| `compose.yml` | 3306 | `3cb21232c2ce83687525b7248c20f3d6c2c9691592cb74c8927eb6cd93d5d8b5` | `100644` |
+| `crates/trpg-agent-runtime/Cargo.toml` | 184 | `e4ee417244933859f862d79b76e9d6cda36f4e6029fb1ee794dae8d7af3e6efb` | `100644` |
+| `crates/trpg-agent-runtime/src/adr_0009_agent_governance.rs` | 941 | `76c1d84114f8df01fee0e5b94bb15ee60f288b220a79a7cf857b9b91baf06f2e` | `100644` |
+| `crates/trpg-agent-runtime/src/adr_0009_agent_governance_agent_governance.rs` | 724 | `2f92d3d5499c04e1cc80ee71485644eaf7c1630a26544644399ef1ac9041a41e` | `100644` |
+| `crates/trpg-agent-runtime/src/adr_0010_rag_snapshot.rs` | 1556 | `7b69e4601c6a158d6baeaf39e8c35cee6c6dabaa7e2b76319e04c61dca8050d3` | `100644` |
+| `crates/trpg-agent-runtime/src/agent_context_assembler.rs` | 356 | `25c17fd868872400d3b4d69c417be03bfddd2b23a77fb2eb023627b436c9eaa5` | `100644` |
+| `crates/trpg-agent-runtime/src/agent_evaluation_golden_scenario.rs` | 308 | `e7b3aa1d66ea3ac18672049b3bc34cf345fc18d80796d5e1365e5bc71d50d0fa` | `100644` |
+| `crates/trpg-agent-runtime/src/agent_pack_sdk.rs` | 1697 | `d2e45104df453b631de956063ea802324d9cbdebcb0f21208200268854d5beda` | `100644` |
+| `crates/trpg-agent-runtime/src/agent_runtime.rs` | 18402 | `2653e7cdea8922b795653878bfbdfb5ebf5acb14e570e320caafdd67ee8bb36a` | `100644` |
+| `crates/trpg-agent-runtime/src/agent_runtime_impl.rs` | 1470 | `b7d874759025d6ac442beff0789a76e3fd3dbc0d1b323ca0242141f5330b0bc6` | `100644` |
+| `crates/trpg-agent-runtime/src/agent_runtime_tool_protocol.rs` | 354 | `8164b426313de155fc1f4ceade7c7ed69aa8e360ca660dd926bb4ca886d43e44` | `100644` |
+| `crates/trpg-agent-runtime/src/ai_agent.rs` | 1171 | `aeb07133cf9cf40ba80c9a9a394afe3f42834721acf72a039f39dca4bb8b70e0` | `100644` |
+| `crates/trpg-agent-runtime/src/ai_evaluation_golden_scenario.rs` | 304 | `54dd594ea506c5695d9e19b28fad4a7c80103bab7d4364425670941968dcf215` | `100644` |
+| `crates/trpg-agent-runtime/src/ai_evaluation_runtime.rs` | 296 | `7a0863d8b5850fbac95002e73967198dbda3a7f27095e8bf32960a7534e522b7` | `100644` |
+| `crates/trpg-agent-runtime/src/evaluation_golden_scenario.rs` | 1143 | `cc50d9e3066e6757fc835d40b109e319950b1767876ef2576b3346af76abfa1f` | `100644` |
+| `crates/trpg-agent-runtime/src/evaluation_golden_scenario_impl.rs` | 1142 | `4b7b90c1905e2b2a08d704fe5c2ac6baa5c5b169b59e44b7b0758e2a72e522b0` | `100644` |
+| `crates/trpg-agent-runtime/src/lib.rs` | 2070 | `6a31488f1420f332cabe3b8997e196fb675d514cd9c2506bc8ff320c0734ca57` | `100644` |
+| `crates/trpg-agent-runtime/src/local_model_certification.rs` | 1856 | `31b6768b8e50c79999d7431f028998e8a21db90357e345eb132361310645e034` | `100644` |
+| `crates/trpg-agent-runtime/src/memory_rag.rs` | 311 | `83046be0ccb9e720bd7f69d63cbea639d5083ead3529d582332fced9181fed2d` | `100644` |
+| `crates/trpg-agent-runtime/src/memory_rag_impl.rs` | 956 | `6b24dce008bceeb240166b05e7b65b87a2189a2d559bd37e9ef4af712326c0ed` | `100644` |
+| `crates/trpg-agent-runtime/src/memory_rag_rag_snapshot.rs` | 233 | `d1dfbfb341df54f4f8dadfa1c6c4987a540f78ca38980a464736c1b1933bb6b9` | `100644` |
+| `crates/trpg-agent-runtime/src/model_provider.rs` | 2603 | `d0136618e9fe9073e68bae1b5cd2b3c33b93ca09a5f9510e5bed81f7a1d1129e` | `100644` |
+| `crates/trpg-agent-runtime/src/model_provider_local_cloud.rs` | 422 | `acfef471f4534bde037ce736fb571c45d5e76e83b7368be8cd102676bc814cc6` | `100644` |
+| `crates/trpg-agent-runtime/src/model_provider_local_cloud_impl.rs` | 1130 | `fa1a9e0b583944f07fcc9e9e4406a0b2b0af6ce777ceca139e21edaba3811914` | `100644` |
+| `crates/trpg-agent-runtime/src/plugin_ruleset_agent_pack_sdk.rs` | 1358 | `523176b2d63cd00ff4ad1bf2d2c4869f755afecac0ea4014952cdbee9ff66810` | `100644` |
+| `crates/trpg-agent-runtime/src/rag_snapshot.rs` | 1653 | `97e355b12d8acb1d0dc2aa59270781878a6be00be188932fded93177c9e4dba0` | `100644` |
+| `crates/trpg-agent-runtime/src/rag_snapshot_impl.rs` | 1500 | `54f337271e9d891af7a3f8ea8d7b7d1a2658d5cb116391433d646502cb3dbc96` | `100644` |
+| `crates/trpg-agent-runtime/src/readme.rs` | 1193 | `310fbde82d97bb0e2d336c9c42a47be24a6a9ebbd075d74c26b50cd4c8ea633a` | `100644` |
+| `crates/trpg-agent-runtime/src/tool_protocol.rs` | 356 | `5af3ccad14e2dcd3d0bc8cd896da0e4f872e27da89065292918702de41af22df` | `100644` |
+| `crates/trpg-agent-runtime/src/working_memory_long_memory_rag.rs` | 315 | `a603e6c27328b892b5bf8843dce8b61b2c9f7b48b497464c9fd82d5e5a32f260` | `100644` |
+| `crates/trpg-agent-runtime/src/working_memory_rag_rag_snapshot.rs` | 237 | `3ca59c712497bf96f359898682c999fe2f2e86a4bf52f62d9d0946e1d24690f0` | `100644` |
+| `crates/trpg-agent-runtime/tests/adr_0009_agent_governance_contract_tests.rs` | 2676 | `fd3a30eec02d389878efc76f785083154fc3d0826ed4d5dbd60b75343486ff93` | `100644` |
+| `crates/trpg-agent-runtime/tests/adr_0010_rag_snapshot_contract_tests.rs` | 1677 | `2400a3acb2ecb9709f95fca271c88e65af262f8728ccad77d5bfb4a94ad43ec3` | `100644` |
+| `crates/trpg-agent-runtime/tests/agent_pack_sdk_contract_tests.rs` | 2152 | `7daada14891ac76b12f7140a8201f2634d566abdb6771fc2b20dc00c1f8c14bf` | `100644` |
+| `crates/trpg-agent-runtime/tests/agent_runtime_impl_contract_tests.rs` | 2242 | `4f779fbaffe5b6ceaacd69cc8ec3c4c89f80752fecbfc640e69080affdf295ff` | `100644` |
+| `crates/trpg-agent-runtime/tests/ai_agent_contract_tests.rs` | 2824 | `7c0cebd8a2f195bd4ad132244d2a7e148c8a597c87fa397225402b3d30f2537b` | `100644` |
+| `crates/trpg-agent-runtime/tests/batch_017_agent_runtime_contract_tests.rs` | 23178 | `be79a29a4e9f6e220267e387ba45288b1c86a0e8bc5c2356040055db57aa2c75` | `100644` |
+| `crates/trpg-agent-runtime/tests/evaluation_golden_scenario_contract_tests.rs` | 3361 | `29bfc86ea6b770f2085a2eee861e9dcede6dbf4ae5b8221e67497c1481a1ba15` | `100644` |
+| `crates/trpg-agent-runtime/tests/evaluation_golden_scenario_impl_contract_tests.rs` | 1821 | `e126371f88a6972de47b4eb7c44d825d1073702631be1dc1ff60c487496242c6` | `100644` |
+| `crates/trpg-agent-runtime/tests/memory_rag_impl_contract_tests.rs` | 2598 | `7c92d3e4ed3ae89ac198a9395a38afedf7e8aa3310a4176d36ca68e76641a35f` | `100644` |
+| `crates/trpg-agent-runtime/tests/model_provider_local_cloud_impl_contract_tests.rs` | 2465 | `47c5232012da654971730009595921c6463e9968866289781873dd7d0fc6ddb4` | `100644` |
+| `crates/trpg-agent-runtime/tests/plugin_ruleset_agent_pack_sdk_contract_tests.rs` | 1848 | `2b6b710ad3ad59f5df33ccbc34a8e1c17279f2f3d36ffc2cef591562f641398a` | `100644` |
+| `crates/trpg-agent-runtime/tests/rag_snapshot_impl_contract_tests.rs` | 1517 | `26bde17b127ff966b39a900eb7a2db8e026c130f32b1371bcce69313cf2e9f7b` | `100644` |
+| `crates/trpg-agent-runtime/tests/readme_contract_tests.rs` | 767 | `d1ba7f4630311a5d4c89641ddf9d07202da031ddcf23e47d39e6b656b40a7184` | `100644` |
+| `crates/trpg-api/Cargo.toml` | 174 | `d46365ee1a7aee36487d9836c3a20bd6e8db6ba81e888336a943c80360702aaa` | `100644` |
+| `crates/trpg-api/src/api.rs` | 229 | `0dba207d8ee35f3cc8c6d3e3f686dead7a9288021ea6c04c03424597b9553bbb` | `100644` |
+| `crates/trpg-api/src/api_and_transport.rs` | 278 | `9ce1e9f512ac2796669bfb1e1122368c88cf4aaa3875d1eac8adb844d948b5ab` | `100644` |
+| `crates/trpg-api/src/api_contracts.rs` | 249 | `8ac8defb8d2dbdc7eee4e3cb4b24446fc4aa235ee0c7ca6c92e54cd7d2da6982` | `100644` |
+| `crates/trpg-api/src/api_web_socket.rs` | 265 | `19b33cea7f76b3159b2453b77cd0fe530994c78a2dcba007c8183f6004dc579c` | `100644` |
+| `crates/trpg-api/src/api_web_socket_g_rpc_schema.rs` | 287 | `c6c8fe0da9c60dbf5b56d589f60a894b3bd7451aff5987bc80cd0f02ecd12efa` | `100644` |
+| `crates/trpg-api/src/contract_core.rs` | 21336 | `6b52a452ba6d7fe34dddc08523dbe490954133ced2db670922310d0e531ab4c6` | `100644` |
+| `crates/trpg-api/src/external_provider_contracts.rs` | 299 | `c874983d22e10823bf5dc2a62654828a29aa1b5b4cf9aa29c56741cc9ecdbfb9` | `100644` |
+| `crates/trpg-api/src/lib.rs` | 1363 | `88640e3aa31c824e5a8a2c4806e12816a613eed7613283678251856eb2479c43` | `100644` |
+| `crates/trpg-api/src/nats_subject_contracts.rs` | 415 | `e7452982b656ff688abaa6f8b1374bd9563a20d64f2fff07d2c42a0340f1bc39` | `100644` |
+| `crates/trpg-api/src/openapi.rs` | 414 | `fde460837b3b2af80bf7bacbc71b0feff8c158e687ee0a542f781044b196ccec` | `100644` |
+| `crates/trpg-api/src/openapi_contract.rs` | 264 | `d64dfc55dc433b0971ef10117ee8bef48b4d17efa0514d29e4ec1209b2611471` | `100644` |
+| `crates/trpg-api/src/openapi_index.rs` | 437 | `cabbbc9fd99d3e5281e6a8ed6fc8e0a9f3db30ec2131c96440f097b9cb7ecc13` | `100644` |
+| `crates/trpg-api/src/provider.rs` | 486 | `03689c35d26df56a08ffde7abc765efdbcaa07f80a4920efdeb8057147d1deb3` | `100644` |
+| `crates/trpg-api/src/readme.rs` | 1579 | `637e5f64ecc8fad6f24f623ed68a3dab140a5724ef0efa657f4b392d38f9ba18` | `100644` |
+| `crates/trpg-api/src/realtime_room_sync.rs` | 277 | `d951023f5c85c2851584ee3c847432c7b6594333ca8a7827b5861f75f7481451` | `100644` |
+| `crates/trpg-api/src/realtime_sync.rs` | 263 | `a6e2772db7ee2d0cce5e2601e9dfd9a2616a48242758861a83c39de34a4f4d91` | `100644` |
+| `crates/trpg-api/src/request_idempotency_contract.rs` | 294 | `5ed3b14d65f741f99af6611ff0cc8d95735bf2bd2521f23bc065c0692ec6dcfb` | `100644` |
+| `crates/trpg-api/src/websocket_protocol.rs` | 278 | `d139e20148d602d46c79b3e69f80393ed8af7ca4d0ae1ca38d21e7f67b1971a7` | `100644` |
+| `crates/trpg-api/tests/api_and_transport_contract_tests.rs` | 238 | `198cf81e57e458cad7d08b9805531a08b9da5e35fd9a712d85263b10f95fb8cb` | `100644` |
+| `crates/trpg-api/tests/api_contract_tests.rs` | 210 | `5b5aae44a94d15d11b8cd54430ecb92056ee32df94918eee66896738c4d7111b` | `100644` |
+| `crates/trpg-api/tests/api_contracts_contract_tests.rs` | 230 | `a2ba78bf807c0fbd8eeaf998ceee0d3a4301326cc2a71647cc0bdb7d7f4054e8` | `100644` |
+| `crates/trpg-api/tests/api_web_socket_contract_tests.rs` | 232 | `1ca45f89f6adb9493ad7c78bb596f6bd0b925135160c10c716cf491bc2e46a26` | `100644` |
+| `crates/trpg-api/tests/api_web_socket_g_rpc_schema_contract_tests.rs` | 258 | `56c4bc6793211f39580d3bb6d35d46a7149a61549f0237488900642299a71f74` | `100644` |
+| `crates/trpg-api/tests/batch_029_api_realtime_contract_tests.rs` | 10011 | `c688d5a4bf4cc5e0940c877b8a3bbdff8543a7e82eca736ef3aab647b5a58949` | `100644` |
+| `crates/trpg-api/tests/common/mod.rs` | 2788 | `06101579941d4125e0523352953ef8e72e4f7f89961568e1a205cfdc6e2e0680` | `100644` |
+| `crates/trpg-api/tests/external_provider_contracts_contract_tests.rs` | 258 | `2acbe58a38ef208fc89a2eed50757849c42a571c972f2584536015edd6a28dd8` | `100644` |
+| `crates/trpg-api/tests/nats_subject_contracts_contract_tests.rs` | 248 | `4c49a8baced95e3378a7cd6bc7736da54ee917aea5691ef95fcbf0b8ff0bdb9a` | `100644` |
+| `crates/trpg-api/tests/openapi_contract_contract_tests.rs` | 236 | `afc10e5059b99e816a99dea52e4531a9f558dfeed79968911d235c76c187ccda` | `100644` |
+| `crates/trpg-api/tests/openapi_contract_tests.rs` | 218 | `e5f51577b1acf34cb21476b235fa4ccb1fade911f212e209c19aea8abca458c9` | `100644` |
+| `crates/trpg-api/tests/openapi_index_contract_tests.rs` | 230 | `1e10e228f92249a7df9e802ef3fd53393208ccb717084ff1a5be55a76a23ec0c` | `100644` |
+| `crates/trpg-api/tests/provider_contract_tests.rs` | 220 | `b3175408a8baa7b7c6a11f7e22fcd90d99d3b5adef5f62a0adfa36deaa07d38e` | `100644` |
+| `crates/trpg-api/tests/readme_contract_tests.rs` | 8683 | `b6028628cd801e87d9cda26e77b222bc86f9f6543088e34114d42a6ac3c46e9f` | `100644` |
+| `crates/trpg-api/tests/realtime_room_sync_contract_tests.rs` | 240 | `1c80fbf41868cf90ca9db7d12e46e186ce4f82b8d0340cd58669425ea8f8886a` | `100644` |
+| `crates/trpg-api/tests/realtime_sync_contract_tests.rs` | 230 | `5467bb3bf47a16100dad23a7535261103d7481a4f77d29674cce9affbc87c0a5` | `100644` |
+| `crates/trpg-api/tests/request_idempotency_contract_contract_tests.rs` | 251 | `a24e6b1961b2d0cf8b2509e0f7c8f8b5fdfa8f0b85084fa1d273cec28b4ccecf` | `100644` |
+| `crates/trpg-api/tests/s08_fixture_acceptance_contract_tests.rs` | 4173 | `48f5e063fe2268c3f083e46d69bd36121e33d1f949bb30e090df49e366a44d4c` | `100644` |
+| `crates/trpg-api/tests/websocket_protocol_contract_tests.rs` | 240 | `d634f89fd921203684776b71794b90e3ef8ed51264e074d2fd7e9a2f7b35a54a` | `100644` |
+| `crates/trpg-data-eventing/Cargo.toml` | 184 | `75c64848d4f9330a290f0c4c31ecdc504edc6d8ae94fb12c2b58e9ba5d149ca9` | `100644` |
+| `crates/trpg-data-eventing/src/adr_0002_event_sourcing_cqrs.rs` | 457 | `d42b7e6b02b302b93a0b01434158dc5b1cd553e83dad8540dd051964c439f9c5` | `100644` |
+| `crates/trpg-data-eventing/src/adr_0002_event_sourcing_cqrs_event_sourcing_cqrs.rs` | 438 | `4005c142a8746b427140a8dadad5b06e8066bf670a20aa72991e474338095878` | `100644` |
+| `crates/trpg-data-eventing/src/adr_0004_nats_jetstream.rs` | 418 | `5216c88a3fc6d1a2c86ce546cb89ba33e32a383c6cfbd7bcf9ef44b64ea984a5` | `100644` |
+| `crates/trpg-data-eventing/src/adr_0005_postgres_pgvector.rs` | 454 | `b852cb17161da6ab5b65603505e6f75ed30ec35c3f8c404db660d968a1ec2d16` | `100644` |
+| `crates/trpg-data-eventing/src/adr_0005_postgres_pgvector_postgre_sql_pgvector.rs` | 457 | `c610a24d77ae8f0977d19e264b4ce88c8ddb90e8b5f3a96b8dae8a3d73841ad0` | `100644` |
+| `crates/trpg-data-eventing/src/adr_0010_rag_snapshot_rag_snapshot.rs` | 419 | `546f8ff638c629c6c41341760fe0962f5ea87346ca6db7b98b0c35f667c28cf1` | `100644` |
+| `crates/trpg-data-eventing/src/api_websocket_nats_contracts.rs` | 1038 | `b6413bf568e527558333fd837dbb894bffdee9387a4f000d45765fc3791381ee` | `100644` |
+| `crates/trpg-data-eventing/src/cache_redis.rs` | 338 | `622bb1fcdd5e1f248252b4856a96c61691b20faa6bcf6c661de5510e227fd773` | `100644` |
+| `crates/trpg-data-eventing/src/cache_redis_impl.rs` | 678 | `5370839697fe3bfdebaee49f6719dbbc37f077cce209b2f356355bf8739826f7` | `100644` |
+| `crates/trpg-data-eventing/src/database_schema_index.rs` | 393 | `496bc2ef93ab2544609057835cc30ce267a8a3a91cfcc683d92acf97a895e597` | `100644` |
+| `crates/trpg-data-eventing/src/domain_event_sourcing_projection.rs` | 783 | `c776d27e727105f92fb61e537f307ddfce55dea4a2100412586ba18dafd3d0a9` | `100644` |
+| `crates/trpg-data-eventing/src/event_bus_nats.rs` | 366 | `5543b23437097f12fb1a86de87703e406ed87e2394b4832df79e230cf93baf70` | `100644` |
+| `crates/trpg-data-eventing/src/event_bus_nats_impl.rs` | 784 | `d661e6785cd4e204db4cb0a1b64012b8eadf9858fe741d720010ac599691a71e` | `100644` |
+| `crates/trpg-data-eventing/src/event_command_json_schema.rs` | 846 | `b0874264f64208b1c15a3a73bcac648a516d9a00e461e4c04f6c06d35bc3e304` | `100644` |
+| `crates/trpg-data-eventing/src/event_json_schema.rs` | 2611 | `42a383b08b75ca122ec09334caa4643d96c56c0b600767f16860707ac8ce80bf` | `100644` |
+| `crates/trpg-data-eventing/src/event_json_schema_source_contract.rs` | 477 | `8bde3c79c2bb36bf5c6b9d1b7ff76453858c0830fcc89702767785c933a70cdb` | `100644` |
+| `crates/trpg-data-eventing/src/event_schema_index.rs` | 372 | `901f9bd8fe92f6bfa812ce7e59b569633fd0760624d4bf6f5ada95ed5e4961da` | `100644` |
+| `crates/trpg-data-eventing/src/event_sourcing_snapshot_projection.rs` | 838 | `a6d5622c5da87d7ca56e2dabafd8e865b658dea65503a3258b23d2aa1fe82d83` | `100644` |
+| `crates/trpg-data-eventing/src/event_store_projections.rs` | 410 | `560a5aaf0cf7c7054feb18e3232c4487eaf850166ad04364669e4ee27514b728` | `100644` |
+| `crates/trpg-data-eventing/src/event_store_sqlx_outbox_projection.rs` | 487 | `ca41ec072d30be20abd45d12c34222ff4aec53f4c22dc2d2c09ea07351a1ee3f` | `100644` |
+| `crates/trpg-data-eventing/src/lib.rs` | 19460 | `6c8c8af4d22651feb0d7c783a3056c949fb1a7b886b574ee1a2084f3f769857d` | `100644` |
+| `crates/trpg-data-eventing/src/nats_jet_stream.rs` | 652 | `ff30d3cb18e776fc254b8078fa14d76dc86171538764343109cfce7ce3570fd2` | `100644` |
+| `crates/trpg-data-eventing/src/nats_subject_contracts.rs` | 803 | `a358762836dc2fbab3b8819047f56bd721c6fcab9cd501a7c27fda7465c0b93a` | `100644` |
+| `crates/trpg-data-eventing/src/nats_subjects.rs` | 745 | `7ae580fb1b6b2b25a80fa00bb3c73a2a8dd5f9ef746c0e7409c9636df8659589` | `100644` |
+| `crates/trpg-data-eventing/src/nats_subjects_source_contract.rs` | 851 | `8f4ba3539d1ce54f3b74489b98dfb3b25f52a14a922c3a3f956cae2969855744` | `100644` |
+| `crates/trpg-data-eventing/src/outbox_projection_workers.rs` | 431 | `b112fdfb9cef49424804a703d863339baf128567c66959285a5152136b2d0ee9` | `100644` |
+| `crates/trpg-data-eventing/src/persistence_migrations.rs` | 2434 | `0bda0fe42de1612f5eac9318c4dfa302524452510ed816c7a13c7b8bd3b4f59c` | `100644` |
+| `crates/trpg-data-eventing/src/persistence_postgresql.rs` | 822 | `7bdf718edb391e5a6fc8b856b32eebd918a769a4075845ab9c566e9db0fc5853` | `100644` |
+| `crates/trpg-data-eventing/src/persistence_postgresql_impl.rs` | 818 | `2a51ed4f3a39ecc4686e51261af29cf41c0b0400a50580e2a87746f019ac0c65` | `100644` |
+| `crates/trpg-data-eventing/src/postgre_sql_sq_lx_pgvector.rs` | 747 | `2a045c6cb42b7ea66675705bfeea58f88882a849ede6d29ab5288c57925d8725` | `100644` |
+| `crates/trpg-data-eventing/src/rag_snapshot.rs` | 809 | `8b7043971eff7848582391558eceb3896965c246200b4c6971ff443dfe93288c` | `100644` |
+| `crates/trpg-data-eventing/src/readme.rs` | 591 | `00d3755013b887c3b49dc78f4ab60d23945b2f4d35b5666131f62a2a290a99fa` | `100644` |
+| `crates/trpg-data-eventing/src/redis_cache_presence.rs` | 409 | `c94e1107953a1c9c4e7b36ac995a90e770adc71454ff76d80aca1bc54245329b` | `100644` |
+| `crates/trpg-data-eventing/src/redis_presence.rs` | 601 | `0effd94f5d4aeff5856dcb60ebc9c923891dfbf69c22a97203e75210ab8396c2` | `100644` |
+| `crates/trpg-data-eventing/src/schema.rs` | 690 | `3a4216e15e5fa5f9b48a7d965189df3ff5806de273585afdd0db205a69caafec` | `100644` |
+| `crates/trpg-data-eventing/src/snapshot.rs` | 542 | `d35eda1d44a41d36aa1152f17b831b81bf16715f43f83d046a92cb4cbb1f93d6` | `100644` |
+| `crates/trpg-data-eventing/src/snapshot_strategy.rs` | 363 | `892dc7bd5d52378a3450381f971b6cf812a42c5387fd2cc8dc07b5296ec596e3` | `100644` |
+| `crates/trpg-data-eventing/src/sqlx_migrations.rs` | 701 | `6e33ccfaa303ac8a8cb55955d4b09b88040b1a996e3fb4dc34268a3ffac37eaf` | `100644` |
+| `crates/trpg-data-eventing/src/sqlx_migrations_contract.rs` | 972 | `614450dea354556320e623d8e2694bc95d8d4729ae03c6498c8eb0d8fac8c382` | `100644` |
+| `crates/trpg-data-eventing/tests/adr_0002_event_sourcing_cqrs_contract_tests.rs` | 5093 | `a845c976435011775db91ad5fe7d2b8d7c1b404649bffcaed84d92c18429f00f` | `100644` |
+| `crates/trpg-data-eventing/tests/adr_0005_postgres_pgvector_contract_tests.rs` | 5155 | `fa1551879ad098bb38519e420088d43baced96cc0497eaec3d3192488b8d1d65` | `100644` |
+| `crates/trpg-data-eventing/tests/batch_024_data_eventing_contract_tests.rs` | 14609 | `9dfa8103bc65bfb8896f4544ac92a4228527d8001086dc694cfd766924003039` | `100644` |
+| `crates/trpg-data-eventing/tests/batch_025_data_eventing_contract_tests.rs` | 11439 | `04cdf9a6fb2732e114682d56f1736e27141a99dfc7c2185915f47a8735d0f112` | `100644` |
+| `crates/trpg-data-eventing/tests/batch_026_data_eventing_contract_tests.rs` | 17538 | `81c5a19b07c32a9c0413b1c788af5123133127cce109fb45cb1dc045fefdeb9c` | `100644` |
+| `crates/trpg-data-eventing/tests/event_json_schema_contract_tests.rs` | 10587 | `3fd836be4ef3e588542c36ec76e8851c9cbed8cdf7869ea0781c2a74a2081862` | `100644` |
+| `crates/trpg-data-eventing/tests/event_store_contract.rs` | 8205 | `c500d3edcacafa16e33caf7efee084837074ec0f2bea95956b090c832e5ef59c` | `100644` |
+| `crates/trpg-data-eventing/tests/projection_replay.rs` | 9766 | `19c8b901bb1ab7e49864dc30e68d89b831fae7c987cf3bd6def681d63705ebf8` | `100644` |
+| `crates/trpg-domain-core/Cargo.toml` | 182 | `bf29fb94ef5bef1d89297e379067261c53d5a299fcb7c6d522f03eda68d3da9e` | `100644` |
+| `crates/trpg-domain-core/src/adr_0003_authority_contract.rs` | 1892 | `70078f5d712a74f2f206fc9d35afc071e452d4a4bf5a940092cd627c05c1e78b` | `100644` |
+| `crates/trpg-domain-core/src/adr_0003_authority_contract_authority_contract.rs` | 668 | `0a1af0c5c2675ddabc7636fca26b093496a0619f8685dc09094f3ae959d443b4` | `100644` |
+| `crates/trpg-domain-core/src/authority_contract.rs` | 4678 | `31526b4becf1b34d9de6d194e54890f81ba2ba1e696f0dfc648179a0195147ad` | `100644` |
+| `crates/trpg-domain-core/src/authority_contract_guard.rs` | 563 | `1508f9d1064e2cef1de326ea20473011e8931be964e7108310d21c848aaf55bf` | `100644` |
+| `crates/trpg-domain-core/src/authority_contract_impl.rs` | 1445 | `5ff3ed2b4dccc5df03c52c213ab7183bb219c97999cd7fed58550edafbe0d328` | `100644` |
+| `crates/trpg-domain-core/src/character_combat_san_chase.rs` | 1583 | `c31c1a4588178322a8f44261225494a2c752a1676950a35f4a5b92bbe6369cf7` | `100644` |
+| `crates/trpg-domain-core/src/character_combat_san_chase_impl.rs` | 1583 | `c31c1a4588178322a8f44261225494a2c752a1676950a35f4a5b92bbe6369cf7` | `100644` |
+| `crates/trpg-domain-core/src/command_authority_visibility.rs` | 782 | `eb41ad0fce495ff1c25e632fa248eb84b6b118c1af0c3bfa05a26023fb0af5cf` | `100644` |
+| `crates/trpg-domain-core/src/command_cqrs.rs` | 974 | `ba72b02cc487065d6d49260d246ac60a93e1207069f058ad10ec8cda6e257b67` | `100644` |
+| `crates/trpg-domain-core/src/command_cqrs_idempotency.rs` | 1026 | `544f21c5b5708b27665c9aa462d0f063d983a53ec10879d22fba10d8a70d121a` | `100644` |
+| `crates/trpg-domain-core/src/command_cqrs_impl.rs` | 795 | `4bc7b3a905d8e57c57d88da7d2cca778b10e8e0edfef221d6aea7fb0121ff3d8` | `100644` |
+| `crates/trpg-domain-core/src/ddd.rs` | 3028 | `072473b14ecd657c346f471dc58e1522870a4792e291a475fb88a0d6d967e9a3` | `100644` |
+| `crates/trpg-domain-core/src/decision_record_model.rs` | 1864 | `eb9c114700f803ad15ec4a47d070dfbb0847e867b98610419f35b28f836f8c7d` | `100644` |
+| `crates/trpg-domain-core/src/domain_command_cqrs.rs` | 1041 | `d7ec91d8fc57c57a452d6bd09b509d641c21c4e6748fbf1a58d30fc79efcf356` | `100644` |
+| `crates/trpg-domain-core/src/domain_entities_value_objects.rs` | 1258 | `ae3735de3fa3cf269056bfb2016ec315f082bad8835c826bebaa2a0fd14935a5` | `100644` |
+| `crates/trpg-domain-core/src/domain_event_sourcing_projection.rs` | 864 | `c47909cfa43f8f71607978b6e079939bb7f8fd402cc08392ff87f8108bb5a73b` | `100644` |
+| `crates/trpg-domain-core/src/domain_model.rs` | 1389 | `02367a7f7dde3d07fa9512f934f0a1f2b22f772e6eba443cc7c890c9abbb910f` | `100644` |
+| `crates/trpg-domain-core/src/domain_model_impl.rs` | 697 | `e93c78eca74ae24f37765ce76b71808b131e315bafd6dd29413e0c4520f656b6` | `100644` |
+| `crates/trpg-domain-core/src/domain_policy_hooks.rs` | 1078 | `73a76b147cb68a3db2a2c58c3863c72034512864d4fa53723a9bdeb9080d4cf0` | `100644` |
+| `crates/trpg-domain-core/src/domain_visibility_fact_provenance.rs` | 888 | `3ad22a0cb58063772dd0dbd5f768894f17ef3f2855de3f81e2d3b8f3c34db642` | `100644` |
+| `crates/trpg-domain-core/src/event_sourcing_projection.rs` | 1295 | `ece8efb69caf31829d3b5e53316f3624192056960ec905cb570dac126e39fdae` | `100644` |
+| `crates/trpg-domain-core/src/event_sourcing_projection_impl.rs` | 987 | `bf7a3d4fda86729f41766542e65a8e1c340a6a35f33c5d8efb19b9f2a63c3896` | `100644` |
+| `crates/trpg-domain-core/src/event_sourcing_snapshot_projection.rs` | 1642 | `04fc5e001a5f39a8d538e766698666b52dbd9235976897bc57ccdccb109c592a` | `100644` |
+| `crates/trpg-domain-core/src/fork_canon_lineage.rs` | 3271 | `05ef8445e2047d09a62df33e136eb086c79b7b8e51ab1a25af5682d553684cf6` | `100644` |
+| `crates/trpg-domain-core/src/investigation_clue_npc_time.rs` | 1467 | `3bcfcac9c455cdaf8cdf13d7f21d255fea61a3a2cf77dc2ec6d7cb332345ad17` | `100644` |
+| `crates/trpg-domain-core/src/investigation_clue_npc_time_impl.rs` | 1467 | `3bcfcac9c455cdaf8cdf13d7f21d255fea61a3a2cf77dc2ec6d7cb332345ad17` | `100644` |
+| `crates/trpg-domain-core/src/lib.rs` | 1199 | `6f92ca961d612719fc8e5cb1fc5fff6af8b0758a3cd2fb820f7e2df65dee66f9` | `100644` |
+| `crates/trpg-domain-core/src/openfga_opa_visibility.rs` | 1243 | `e20ebd67fe9038bf22faf6e464c0ac13f432da54b484e2205b3ddc62e0594026` | `100644` |
+| `crates/trpg-domain-core/src/readme.rs` | 764 | `c8e93eb599312a48ac2a84218d1a294cf1b843cea86a8476691ad6c8c2987a8d` | `100644` |
+| `crates/trpg-domain-core/src/rule_runtime_coc7.rs` | 1121 | `2b366aee74db02a35476f966197e26dc4ee236bc473f0fdc7765691e80136c33` | `100644` |
+| `crates/trpg-domain-core/src/rule_runtime_coc7_impl.rs` | 1121 | `2b366aee74db02a35476f966197e26dc4ee236bc473f0fdc7765691e80136c33` | `100644` |
+| `crates/trpg-domain-core/src/visibility_enforcement_points.rs` | 1291 | `82b6e30c7cb6311739fa1c6aff5f45b5a9990e0e59765a0f1a9637dcf89ba55c` | `100644` |
+| `crates/trpg-domain-core/src/visibility_fact_provenance.rs` | 2408 | `3f963c4ccd9a61c33865177f19e84f9997bf2399b96cc640402f463becccd90a` | `100644` |
+| `crates/trpg-domain-core/src/visibility_fact_provenance_impl.rs` | 1297 | `fe1f297c0404fdcc98c37a7cdb1362d252479cfbaa724ef05b7dcff65dddb076` | `100644` |
+| `crates/trpg-domain-core/src/visibility_leakage_tests.rs` | 489 | `979226544d36dd70d2c39e7ebf2faed0ad33c1802967212e3aa97b1b7158965b` | `100644` |
+| `crates/trpg-domain-core/tests/adr_0003_authority_contract_authority_contract_contract_tests.rs` | 819 | `fd92fc4bc0f90a408240228dc853255b372a69c62891e9984ebdb4129a08c580` | `100644` |
+| `crates/trpg-domain-core/tests/adr_0003_authority_contract_contract_tests.rs` | 3622 | `97bae9ba61163e7ba99ff693191f664026107f00d452882d900af0a2e21575ff` | `100644` |
+| `crates/trpg-domain-core/tests/authority_contract_contract_tests.rs` | 2200 | `c9fa29e346fcb93587f37a8673ccf469bf88139d8ad1c1b3ee2f2b16ad002f80` | `100644` |
+| `crates/trpg-domain-core/tests/authority_contract_guard_contract_tests.rs` | 1170 | `e75df47b84efbd95d379269626b88670bed5ef624731182878dd77b8ee6a7196` | `100644` |
+| `crates/trpg-domain-core/tests/authority_contract_impl_contract_tests.rs` | 2180 | `70744cdd5d43e4af4bd58532a293e75a14dd6c7d74a679f66459e2600e31d603` | `100644` |
+| `crates/trpg-domain-core/tests/character_combat_san_chase_contract_tests.rs` | 2409 | `30fb43b12b57d62b1d290be20b1bf103c3b8e19575c7bceb06aaaacce3cdf112` | `100644` |
+| `crates/trpg-domain-core/tests/character_combat_san_chase_impl_contract_tests.rs` | 2423 | `5952f1c205d730418161ca610e14179ac67f7fa652d80da1e79f00a5bb0f1dc5` | `100644` |
+| `crates/trpg-domain-core/tests/command_authority_visibility_contract_tests.rs` | 1214 | `98b00284de5ac4542c5eb9efe59921a449c9bc3cebd111977a0e2b0178293f82` | `100644` |
+| `crates/trpg-domain-core/tests/command_cqrs_contract_tests.rs` | 1726 | `9bd444dda2acdee0dd2a635e63d6503013deebd42e927ac0b24aa257275f0e76` | `100644` |
+| `crates/trpg-domain-core/tests/command_cqrs_idempotency_contract_tests.rs` | 1060 | `ee73d0fc704f3b9e0b62eb7616895d5167f02195fdc58cd52e44df9b97dcada9` | `100644` |
+| `crates/trpg-domain-core/tests/command_cqrs_impl_contract_tests.rs` | 2329 | `4ec95b35a2d29c3432b2f07814527d22e4de94606267d80c50ccc795d2c6b87a` | `100644` |
+| `crates/trpg-domain-core/tests/ddd_contract_tests.rs` | 574 | `b32898692318379a3645f9fc0ea17ccba218ecb5fad1736d26c6f3cf06e085fe` | `100644` |
+| `crates/trpg-domain-core/tests/decision_record_model_contract_tests.rs` | 1688 | `71b8373c7f49356af51da49bd9b6acddbf754ee30ba047eb061b699279572c03` | `100644` |
+| `crates/trpg-domain-core/tests/domain_command_cqrs_contract_tests.rs` | 1954 | `0a32bfbf79429826b33a66189071d15f6a123a81bad02fd7d1e4d67a74c4b00d` | `100644` |
+| `crates/trpg-domain-core/tests/domain_entities_value_objects_contract_tests.rs` | 885 | `5032b80c87e3e99fc8123baae8d7860a348a695200b31def3aeb538c5b6296b8` | `100644` |
+| `crates/trpg-domain-core/tests/domain_event_sourcing_projection_contract_tests.rs` | 1636 | `bb1361113bbba9b4a21237e9c2b80adcbc923b9da689ee4c30e63e1aea92c02c` | `100644` |
+| `crates/trpg-domain-core/tests/domain_model_contract_tests.rs` | 1608 | `6c705a15e15b072c63d5c1978eddf32f193124a218139b6db5db1431941e2a2c` | `100644` |
+| `crates/trpg-domain-core/tests/domain_model_impl_contract_tests.rs` | 2088 | `a65be6c2ceef3f756623550ced5b09f801bc53f3b217256956182885627836f1` | `100644` |
+| `crates/trpg-domain-core/tests/domain_policy_hooks_contract_tests.rs` | 1508 | `cededc0213c45aec2e0eca51a0a97fa149fba7e3f8c1e39d0b7bd322b1a6c42d` | `100644` |
+| `crates/trpg-domain-core/tests/domain_visibility_fact_provenance_contract_tests.rs` | 1421 | `a70aa7429ffb18bdfd80d2e3ad8dfe378c3a6ba0eb5648c77af10e420b7ea82c` | `100644` |
+| `crates/trpg-domain-core/tests/event_sourcing_projection_contract_tests.rs` | 2104 | `8d512f45b558f5617e215bc7cde9346d9567e292c95e847f2c243eb04a539b89` | `100644` |
+| `crates/trpg-domain-core/tests/event_sourcing_projection_impl_contract_tests.rs` | 2053 | `eabb2706a67691b245702a67f8073112b918ce8dc53dab209d5dfcb979420ac3` | `100644` |
+| `crates/trpg-domain-core/tests/event_sourcing_snapshot_projection_contract_tests.rs` | 1227 | `5133e2aec2c2d0422acc7f91edf2fc78932c418f4759538ca4efb314e9551afc` | `100644` |
+| `crates/trpg-domain-core/tests/fork_canon_lineage_contract_tests.rs` | 1247 | `b9b0861f2a383febb5edc1b32e3f65defdf2b3a0f640bc79d63a155c422604e2` | `100644` |
+| `crates/trpg-domain-core/tests/investigation_clue_npc_time_contract_tests.rs` | 2412 | `1dbc92d578931ff4a4f045cae2fa4bb56fadccec7a025b47fd140e3ca6b4338a` | `100644` |
+| `crates/trpg-domain-core/tests/investigation_clue_npc_time_impl_contract_tests.rs` | 2426 | `9ed33566e8d8e13d9aea69dee4c8859d7d3c2ee233fd2f99702145fcae47df83` | `100644` |
+| `crates/trpg-domain-core/tests/openfga_opa_visibility_contract_tests.rs` | 1426 | `b43025b99d0774524eb281e9991d10ee201045463aa37d5cb2b64ba3fa93e729` | `100644` |
+| `crates/trpg-domain-core/tests/readme_contract_tests.rs` | 443 | `7793abba6dcbddb6b29cce585fd3cfdc50d1bb68a381071d2cdb49625bd4337e` | `100644` |
+| `crates/trpg-domain-core/tests/rule_runtime_coc7_contract_tests.rs` | 2223 | `510f9677254e7c3de307acc9dcfde175756b88aa891771512d69ff6c82a37e1b` | `100644` |
+| `crates/trpg-domain-core/tests/rule_runtime_coc7_impl_contract_tests.rs` | 2237 | `de54ffbb9b0fad76b77245216515f1c30bcde80e80bc02c5b6c55ea7041140fe` | `100644` |
+| `crates/trpg-domain-core/tests/s02_fixture_acceptance_contract_tests.rs` | 6906 | `7a263ca7b5338079b14924d85cbef7c0f8ca27fab8a8ade584b2d2acab276a2b` | `100644` |
+| `crates/trpg-domain-core/tests/visibility_enforcement_points_contract_tests.rs` | 863 | `71c73ca58069990f8ec12c5fd192f1b3b28151d1d05355e34f7b6b6119cce4d1` | `100644` |
+| `crates/trpg-domain-core/tests/visibility_fact_provenance_contract_tests.rs` | 1867 | `423697617f14b3363d1eddc98b8aaf540943a034bac255cc08c05dcd9dfbaea2` | `100644` |
+| `crates/trpg-domain-core/tests/visibility_fact_provenance_impl_contract_tests.rs` | 2482 | `c24e87801a8fe58464e3c4663a3c7f624602d3095e8a4c615e2b1ca509a009f8` | `100644` |
+| `crates/trpg-domain-core/tests/visibility_leakage_tests_contract_tests.rs` | 932 | `0f565cb485597ab9584673a8fe9f395ee5ab9b998ba750a1e4de967b956759c2` | `100644` |
+| `crates/trpg-extension-sdk/Cargo.toml` | 184 | `be758661cd09d7963a026b9e57765c2276473097129a871c01dfb1c3dc23cfcc` | `100644` |
+| `crates/trpg-extension-sdk/src/adr_0008_plugin_boundaries.rs` | 1207 | `b7c5f937bea670efb94e6b18b979b56afb7856aa3c7725b7fc2a1e180725c72f` | `100644` |
+| `crates/trpg-extension-sdk/src/agent_pack_sdk.rs` | 1373 | `aa5a1132047ad985580c39a970799ef7719144114e751ac8a2e1dfe2d42dd15f` | `100644` |
+| `crates/trpg-extension-sdk/src/extension_compatibility_matrix.rs` | 2087 | `46d2ff8f3d746fe590f69429d74fea0fb3d6b8e0902eaceba0308511aa4aa4f9` | `100644` |
+| `crates/trpg-extension-sdk/src/lib.rs` | 1143 | `06fb7b207f5fef34fa421991a5bd640cbee8c65c8eb78b816825092cffbeda72` | `100644` |
+| `crates/trpg-extension-sdk/src/plugin_sdk.rs` | 1702 | `b6376eb2aff735d7f9933150f33fe5c7f756f34a5d678a331fb1fccf3b61f2c4` | `100644` |
+| `crates/trpg-extension-sdk/src/readme.rs` | 23651 | `fa77b8fe6e1382b4d848616a61de5383babf69890e71aaaf29a1db256e20422d` | `100644` |
+| `crates/trpg-extension-sdk/src/ruleset_pack_sdk.rs` | 1279 | `220e0f6fa3a504ea1dc9845f14182c98c77133ff671d5fe44363359e9dfe85cf` | `100644` |
+| `crates/trpg-extension-sdk/src/sdk.rs` | 1070 | `efdfe7451ed6ec7f45d736853fbe5145b1d81dc4c9dd6eb8619ebd307820b326` | `100644` |
+| `crates/trpg-extension-sdk/src/tool_provider_sdk.rs` | 1419 | `b93e12a97c5b888fa2b3ec5b2386ff8121cbe96715752e0861272b5a988bf2ee` | `100644` |
+| `crates/trpg-extension-sdk/tests/adr_0008_plugin_boundaries_contract_tests.rs` | 1241 | `b19e06588a3fc4abf6747c047d7e80a07bf350b5ab37c676609be1a73107b4e1` | `100644` |
+| `crates/trpg-extension-sdk/tests/agent_pack_sdk_contract_tests.rs` | 1477 | `f6d70a4792c4f829f812194f39d8af7ad9bc855d44f02664f1a3087ac5fd2a30` | `100644` |
+| `crates/trpg-extension-sdk/tests/common/mod.rs` | 7073 | `273fc7570e4c8ef03e27b42b0ba86700ce1c3d192d912b9a16f16576af795b4f` | `100644` |
+| `crates/trpg-extension-sdk/tests/extension_compatibility_matrix.rs` | 461 | `a6fe5e0de912dd1ef1a691019d1c6568ca31724ad3ad3101f70259e40d0fdc4e` | `100644` |
+| `crates/trpg-extension-sdk/tests/extension_compatibility_matrix_contract_tests.rs` | 2202 | `65522a03d8738ee0d04c746901b9b7d07953e61b47032836b0e797441f6625a6` | `100644` |
+| `crates/trpg-extension-sdk/tests/plugin_sdk_contract_tests.rs` | 2477 | `ca92ca08518ada75ea539bf22523f5395957efef9a2a69e20be7d594ee27b759` | `100644` |
+| `crates/trpg-extension-sdk/tests/readme_contract_tests.rs` | 1200 | `9e7f82e0a26a4a8bd3a5a5e5d6adea031f108b0a6d5a42711ca47f70f144e73b` | `100644` |
+| `crates/trpg-extension-sdk/tests/ruleset_pack_sdk_contract_tests.rs` | 917 | `08559d1786b81e48a2d7451b9c5e6ac2ebf5c26cbff15e194e8b15839c5cab5a` | `100644` |
+| `crates/trpg-extension-sdk/tests/s12_fixture_acceptance_contract_tests.rs` | 5966 | `0ce5100537cc4d63ad02273a35b9ca6819998e77be2d0e0f793dcd8eefec8759` | `100644` |
+| `crates/trpg-extension-sdk/tests/sdk_contract_tests.rs` | 1367 | `4056eebd9e7917a715401f7c5252b600f6fd1cacc6f87a689b8ae2c5fb11248e` | `100644` |
+| `crates/trpg-extension-sdk/tests/tool_provider_sdk_contract_tests.rs` | 1279 | `6acebc124ec404ce0c0cefc53fa31e98dbe4945d253755eccdfbb481bc329e51` | `100644` |
+| `crates/trpg-ops/Cargo.toml` | 174 | `8082fd5ba7949e6d90cdc78a9bcd7b5394ef5cb0b492da120ae0b59893bf22a7` | `100644` |
+| `crates/trpg-ops/src/backlog.rs` | 379 | `2997a1aeaf36c3d9dc22d715f625dd465867217bc08da6b7fb148deafb828da0` | `100644` |
+| `crates/trpg-ops/src/backup_restore_runbook.rs` | 532 | `51b2be28beba2d2b9a225f3b5936a5538278a471364e5a8a058fed25e6cec8ff` | `100644` |
+| `crates/trpg-ops/src/implementation_plan.rs` | 518 | `a000587f0f66f9d43b3b5b64cc7fa8518ac4d0f630610a7d462dddcb0a4aca2d` | `100644` |
+| `crates/trpg-ops/src/incident_response_runbook.rs` | 518 | `db7e63590d5981001b0ece8385ce049309da96e82f220080e22e87edd5108da0` | `100644` |
+| `crates/trpg-ops/src/lib.rs` | 1128 | `55d66548fa73622006770abd6439a9acf375b6f29a8a74c5e3036972c264f5f7` | `100644` |
+| `crates/trpg-ops/src/migration_upgrade_rollback.rs` | 834 | `7026f7bdb3fcf2e5ff594edab1b07b7cd8e90b06148465d45bfc9335fa5f057f` | `100644` |
+| `crates/trpg-ops/src/projection_rebuild_runbook.rs` | 536 | `ba5146515afa91a4ad77de513244720079829342f357151873c899dbf51b0e4c` | `100644` |
+| `crates/trpg-ops/src/readme.rs` | 14091 | `9438821bf29e9486e3a0d4c7ff5e21e96ec1d6b32d1cad3fad2a6a1bd247c203` | `100644` |
+| `crates/trpg-ops/src/release_checklist.rs` | 466 | `ccb33b64c71984fe62142faca7751d7948933edbd092780dcecd545dda1fe239` | `100644` |
+| `crates/trpg-ops/src/upgrade_backup_replay_runbooks.rs` | 627 | `5f1192fdd8adbc44d17b772045bac902e7d5cd43c929d2f5538a963a2a31a07d` | `100644` |
+| `crates/trpg-ops/src/upgrade_rollback.rs` | 7644 | `6b64889bf7e944ec073d03fd396f9b39b3133b5d3717dc9764e2e3b8c35bbd24` | `100644` |
+| `crates/trpg-ops/src/upgrade_rollback_impl.rs` | 7837 | `c3f3897f82b99e1b7f7b51c50428a9d9225a90df82bae05ae31e702c7a1b7877` | `100644` |
+| `crates/trpg-ops/tests/backlog_contract_tests.rs` | 280 | `640830434bbb3c98f3ab0a4592d86928e2870b591b4f4080490b409b2c0e2060` | `100644` |
+| `crates/trpg-ops/tests/backup_restore_runbook_contract_tests.rs` | 616 | `34b924f1f84cecde397c8d20890820084deec41e40a056052a1fe615fffcca27` | `100644` |
+| `crates/trpg-ops/tests/common/mod.rs` | 6908 | `964ec56c934d109b6f79af1b36dd5f60003a15297abfa98131cd49dc5a96fef1` | `100644` |
+| `crates/trpg-ops/tests/implementation_plan_contract_tests.rs` | 370 | `192887f9e825b14dcd7973ed0fdb7db3e4d1beb14765a8a5e8b04d79c530b6b8` | `100644` |
+| `crates/trpg-ops/tests/incident_response_runbook_contract_tests.rs` | 399 | `c89a2275a8a1b1238a6b5cfe83135412115d3ba356778f44aaa20fbca59b2e2a` | `100644` |
+| `crates/trpg-ops/tests/migration_upgrade_rollback_contract_tests.rs` | 1205 | `ae74326920524006aa31baa6557967fb28416f92ca3434be9befe5b959cfdf4b` | `100644` |
+| `crates/trpg-ops/tests/projection_rebuild_runbook_contract_tests.rs` | 406 | `ce573062e9418ce0fab0af4610325922a82b75f0a8d9b33a21568702edfd55ce` | `100644` |
+| `crates/trpg-ops/tests/readme_contract_tests.rs` | 1462 | `1a83b4f6efe8d4548ccbfad82c41c461439081fa1f20fe91f3c84f1b0e53baa5` | `100644` |
+| `crates/trpg-ops/tests/release_checklist_contract_tests.rs` | 352 | `612c40b0e15432ba9134473dbeef1fcd2da18b9d8c554ed215d2693af4bd3146` | `100644` |
+| `crates/trpg-ops/tests/s10_fixture_acceptance_contract_tests.rs` | 2602 | `e4f1d6fdcae68470c321e3650e26a06a734851a257d4644093f52a498fe35c1f` | `100644` |
+| `crates/trpg-ops/tests/upgrade_backup_replay_runbooks_contract_tests.rs` | 431 | `d9caf91fbe9f3dd75cc447d4229b537e382b87bd144021b6a13fe13a7a39c564` | `100644` |
+| `crates/trpg-ops/tests/upgrade_rollback_contract_tests.rs` | 3076 | `7a1902a37f446a47e443c47a414022fb168ffd3f1f866e795e6b65bc6fcea9e2` | `100644` |
+| `crates/trpg-ops/tests/upgrade_rollback_impl_contract_tests.rs` | 3247 | `9dba7acb1d24c5d5466533b08362e61fc586914128cbb9dbed7163e66ff03caa` | `100644` |
+| `crates/trpg-platform/Cargo.toml` | 179 | `1a6574d81b7eb99ecb91d2526bc1e46b90d115611e5746d539f0fb2bb0becc9a` | `100644` |
+| `crates/trpg-platform/src/api_contracts.rs` | 3069 | `8bb5d10480e1e5f9fd3e908a99e47fd2a5526fd8134a11cb6b075552c7214148` | `100644` |
+| `crates/trpg-platform/src/api_contracts_impl.rs` | 2783 | `561d7e1658d690b2cf37a10f3aa102645cfcb65871df40b768fed9ae18da3070` | `100644` |
+| `crates/trpg-platform/src/background_workers.rs` | 1022 | `851d0101256cc61483af8494f0df3caae99b5bd9e440ac85a492a271040cf929` | `100644` |
+| `crates/trpg-platform/src/deployment_observability.rs` | 1187 | `2075136734854ebf5b1ce643f408e066612e181a107355762dff13b59e831682` | `100644` |
+| `crates/trpg-platform/src/deployment_ops.rs` | 3385 | `9cb194f2d3eaac142643fc8b67a9a2fc7d30f6b39526955229240c5851fb3f8f` | `100644` |
+| `crates/trpg-platform/src/deployment_ops_impl.rs` | 2689 | `6acfcdabeed5d26c911e4cbcd2db5162d5a26b3c0aa40477fc68640144fb4462` | `100644` |
+| `crates/trpg-platform/src/lib.rs` | 869 | `f30f11eb1ea0742753177021bebff13b7dfba046f94d8f820a4ac392182a96ea` | `100644` |
+| `crates/trpg-platform/src/local_dev_environment.rs` | 1771 | `dadf119ddad0a460b115d5f88a7b170fe47b4a457177aa8747fefb37af331163` | `100644` |
+| `crates/trpg-platform/src/object_storage.rs` | 1517 | `4cdeea805aa9c34ca12777b924fa3fcec1b0ea0fc8ffa43f9ececf7761deec5c` | `100644` |
+| `crates/trpg-platform/src/observability.rs` | 1528 | `1d2b99c1243086a9f3a43a92da5223c887b1f4da761933980bcfe30bdf32100a` | `100644` |
+| `crates/trpg-platform/src/observability_audit_trace.rs` | 1013 | `40161f242dac6ff5efdc759c8a80394bed2929b92cc8619098f44ad86221e7d3` | `100644` |
+| `crates/trpg-platform/src/observability_impl.rs` | 2527 | `bf076d8d26678273d94b5d4272c766e782824e597df762b3b44528aad1afb7ec` | `100644` |
+| `crates/trpg-platform/src/performance_budget.rs` | 1306 | `6e7c62d6d7dcaf98e4ab4a48a83d938836ee6cb7460e8b4fb3bd0b1698941b8a` | `100644` |
+| `crates/trpg-platform/src/plugin_sdk.rs` | 3008 | `53ea9ce57e86b6a8a64ed854cb6dc675ab8afcc532e288820dcf94f41054e2ce` | `100644` |
+| `crates/trpg-platform/src/plugin_sdk_impl.rs` | 3032 | `f344c84dfaddcc8886923ca135846b6706ae137d73453adf1ce8faf41a4575ba` | `100644` |
+| `crates/trpg-platform/src/policy_authz.rs` | 3413 | `9f3ae237e99286036fa63fabb6b6da6346770f97d3f4111410a466e3e4cbf36b` | `100644` |
+| `crates/trpg-platform/src/policy_authz_impl.rs` | 3304 | `c96711652c3976e1128513de16fccbcfcf69576a9bf3e84d6784df7a1084a9ec` | `100644` |
+| `crates/trpg-platform/src/readme.rs` | 3005 | `e96e8a21739f277c9562864981f4654a59c8ba6bb8eb9dc4feffef5965c9bfa2` | `100644` |
+| `crates/trpg-platform/src/reliability_performance.rs` | 1235 | `87b82ce94027522687e44340a08a36073fec4dd4c6dd9a1086bfb0ae22b7314c` | `100644` |
+| `crates/trpg-platform/src/reliability_performance_impl.rs` | 3145 | `a2e22591237d5e94411626e970aa60794454f1f5afed03eaecb27e8cff999752` | `100644` |
+| `crates/trpg-platform/src/security_privacy_copyright.rs` | 6903 | `cce62911cca950f9ff3f83e2c10d2c8881220d89a78156ae134e5f99ac810c84` | `100644` |
+| `crates/trpg-platform/src/security_privacy_copyrightmpl.rs` | 3691 | `ca3fed42596b0e5ecb79b1f0b42fd13d4368c45d70efb7ec91da0cf4d63b230b` | `100644` |
+| `crates/trpg-platform/tests/api_contracts_contract_tests.rs` | 3285 | `23a3d3294d1c2d476095760be45fb0c49a3a4d23e6123d80188b4b65f3ce38aa` | `100644` |
+| `crates/trpg-platform/tests/api_contracts_impl_contract_tests.rs` | 2230 | `8d37d4464997f7a3621dc27caad8f4f58d6c1c4987cc7754275bf1b88612d9bb` | `100644` |
+| `crates/trpg-platform/tests/background_workers_contract_tests.rs` | 1553 | `c5bc31c90f530f22ca95586791e0f40494f11537b91ad76a2b5b61cb513e6106` | `100644` |
+| `crates/trpg-platform/tests/deployment_observability_contract_tests.rs` | 1757 | `59966a8e8e902acbecdb812795da613ec867cb8b78446a75b3c6744bb7ca4f17` | `100644` |
+| `crates/trpg-platform/tests/deployment_ops_contract_tests.rs` | 2993 | `88ec06e609df49ffd8d83900f61cc8cdbd178392da20baa752d12f83019b582f` | `100644` |
+| `crates/trpg-platform/tests/deployment_ops_impl_contract_tests.rs` | 2874 | `ee5291233c5b953956c8f8ad27dfd1634deb7e9cd755c56dcf9270a53bda7898` | `100644` |
+| `crates/trpg-platform/tests/local_dev_environment_contract_tests.rs` | 1696 | `0136a1d4c35396cf8413582d6a26ff999a0e07d643818e2d86d82bf903e11999` | `100644` |
+| `crates/trpg-platform/tests/object_storage_contract_tests.rs` | 1547 | `ce0f38acc0734351e7228dec239196a65be1ea9f7cd7bb19e525beb24e2a909e` | `100644` |
+| `crates/trpg-platform/tests/observability_audit_trace_contract_tests.rs` | 1550 | `c8aeee0e8b572b2e96c71fe8e090b5fad346e759f26fcf1cbf4faed21cd6c877` | `100644` |
+| `crates/trpg-platform/tests/observability_contract_tests.rs` | 1944 | `4abf7ee08e5c0f51d165ebde84c70778f23134bf4583a2a80a90e0a4fcccc9f4` | `100644` |
+| `crates/trpg-platform/tests/observability_impl_contract_tests.rs` | 2560 | `27f8ace17e10ca6ce74221713cc836d3836265b4180a5cff9397d0f5c911be9e` | `100644` |
+| `crates/trpg-platform/tests/performance_budget_contract_tests.rs` | 1320 | `cb6d27f28e9050fb36aed9e5bdd48c0a1cd58932b0868381bb5c4d7eb4503036` | `100644` |
+| `crates/trpg-platform/tests/plugin_sdk_contract_tests.rs` | 2893 | `4b1d42da6258d861f41511fea8a41addf58041ae07501c182bceab7a12df6b35` | `100644` |
+| `crates/trpg-platform/tests/plugin_sdk_impl_contract_tests.rs` | 2355 | `02837e62c5908dc966966379a90d7bf3e489b7c8245cffbc4d7e7623f4a0cabe` | `100644` |
+| `crates/trpg-platform/tests/policy_authz_contract_tests.rs` | 3181 | `01f1a8baf73936fab1c8c3b9a9033439dd767e4e2779b113f90e3189e2ac39cc` | `100644` |
+| `crates/trpg-platform/tests/policy_authz_impl_contract_tests.rs` | 2423 | `03b546824ad29d93ddee7dee6ca7b2e78eaaa1b5e1c7e5161f4ad716a6fd5ebe` | `100644` |
+| `crates/trpg-platform/tests/readme_contract_tests.rs` | 1205 | `77a4253f6cf676484540dc9ffbad7708c7dea278a8f7e1788017d8dc6d3f66e9` | `100644` |
+| `crates/trpg-platform/tests/reliability_performance_contract_tests.rs` | 1153 | `ff94a9e843e845348894cef3adaa6d03593543099398c021ae0af9a01b691899` | `100644` |
+| `crates/trpg-platform/tests/reliability_performance_impl_contract_tests.rs` | 2498 | `b1790b24840b20a062fb2050eaaeffbe191065d978055ee78f49904a30904bd1` | `100644` |
+| `crates/trpg-platform/tests/s09_fixture_acceptance_contract_tests.rs` | 2616 | `288ba25c9b5aaa1d9cd764735f5e9d330ee10d5c18d5193d214f86497e5f6d2d` | `100644` |
+| `crates/trpg-platform/tests/security_privacy_copyright_contract_tests.rs` | 7598 | `f3d5920d49adb53003740a29aee67f3e275623a1c5edb572ecd1b496070a2304` | `100644` |
+| `crates/trpg-platform/tests/security_privacy_copyrightmpl_contract_tests.rs` | 2981 | `8e2f06d16f33652c837d46b415dc950fc77fe12f1555b01df328e39f00d2ad57` | `100644` |
+| `crates/trpg-ruleset-coc7/Cargo.toml` | 183 | `f86d93ca67329a6d5b760160ff38a5d47843398854951b9e6a07532f046bd5b2` | `100644` |
+| `crates/trpg-ruleset-coc7/src/character_combat_san_chase.rs` | 2958 | `d2ba4f6c39e9f8358195e1f3c7659fb8f3b219a455a0eb7fe3543fb08faf911f` | `100644` |
+| `crates/trpg-ruleset-coc7/src/chase_state_machine.rs` | 1946 | `57f1a9a30f73f6c6d56c9bc3b6f3fa6a2dcf47b14c1939fdf29b407792df293b` | `100644` |
+| `crates/trpg-ruleset-coc7/src/coc7.rs` | 1956 | `f1328cc14a0d179c7c9aa05775a82f024bff222154db1595ac232a1126235143` | `100644` |
+| `crates/trpg-ruleset-coc7/src/coc7_rule_runtime.rs` | 1574 | `d58019fb8efaf1a4f43386fac1b1d7b2d9c75c2d4067a94949b3ad2aea3ae9aa` | `100644` |
+| `crates/trpg-ruleset-coc7/src/coc7_rules_engine.rs` | 1282 | `73e1a51d73abe93dd84c93e88634cef8d79ee97ddca3a5e3cdb4b6d579c503fc` | `100644` |
+| `crates/trpg-ruleset-coc7/src/combat_state_machine.rs` | 1771 | `3c2f9eab9db3aa4228e0924fce422c306288b4790ec6f5518f7053851700867c` | `100644` |
+| `crates/trpg-ruleset-coc7/src/dice_roll_contract.rs` | 3555 | `b8d0c24788bd515a15a4c0db2134c1768e5f59576cb223018924a6d3e66c5dbb` | `100644` |
+| `crates/trpg-ruleset-coc7/src/governance.rs` | 1566 | `2d62d05e2036311879e66353496c5736c8f7528b6c36525431bcde308c605613` | `100644` |
+| `crates/trpg-ruleset-coc7/src/investigation_clue_npc_time.rs` | 2168 | `95029d35f31e2a1069e6205ccac61d2bc39308b553cd591ee08aee989f0e8399` | `100644` |
+| `crates/trpg-ruleset-coc7/src/lib.rs` | 548 | `b2969e63a68067aa8245ac403c2384218026b071798e3ef3f20e0cd8dd122b28` | `100644` |
+| `crates/trpg-ruleset-coc7/src/npc.rs` | 1524 | `8d43e5d53fcb07211df6453a0cd0b24bc7e374a2389ce33c49c32cab0ef0de33` | `100644` |
+| `crates/trpg-ruleset-coc7/src/readme.rs` | 1948 | `e36cf246a56991faae3c99838a7b3835635538639f9952058df9648f10afaafd` | `100644` |
+| `crates/trpg-ruleset-coc7/src/rule_runtime_coc7.rs` | 1305 | `98ec967b8ca904f85605587ee9ef4a8f483b356cd3d26d84a77b87249fc38ec9` | `100644` |
+| `crates/trpg-ruleset-coc7/src/rule_runtime_coc7_ruleset_pack.rs` | 1789 | `a22fc3a57013cc8b9cb5579c56a8418ea35e18919604f8ae042d7c51857ac13f` | `100644` |
+| `crates/trpg-ruleset-coc7/src/rules_coc7.rs` | 1251 | `814c1b56856a6e24c42d6d83672a92ea24078188cec02849a4863035da0a6bef` | `100644` |
+| `crates/trpg-ruleset-coc7/src/ruleset_pack_sdk.rs` | 2291 | `456f249b873b8bfc0565df5caffabe23cfea0806bb86579bb561afaa05bbbd18` | `100644` |
+| `crates/trpg-ruleset-coc7/src/san.rs` | 1358 | `d113059e8d4efacaa4d57cb3dafca93ec08297ecafd39e3918bef773e213c602` | `100644` |
+| `crates/trpg-ruleset-coc7/src/sanity_madness_state_machine.rs` | 1764 | `871faecce594e1fe25e0729d41e9e2d9c1bd5e16776873de76babd61f851d57e` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/character_combat_san_chase_contract_tests.rs` | 1177 | `6d98cd56677b08fcb5e0586ba4399aa62da7d90d8ac7ae121dc7ea6383ac60b7` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/chase_state_machine_contract_tests.rs` | 772 | `96ac744aeff851051299ae56de0f5de07b1b005cbded796e23153bc8be244c30` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/coc7_contract_tests.rs` | 1425 | `0d4844885b5267acf7b3aa14f79617110681e3ece5ad34df603c66c50ad07db1` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/coc7_rule_runtime_contract_tests.rs` | 903 | `2d23e3aa2d24e7205c7a5ef821605c53be1f21a1768f4bb6555ef7c40b3d4eb0` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/coc7_rules_engine_contract_tests.rs` | 739 | `47728cff7ea12e41970a4764ff8560b30ccba70d3258f42c7df5b11b242d024a` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/combat_state_machine_contract_tests.rs` | 771 | `90fa3d7dfa41d5ca94eafd471dfdd5e135a4bbbd5ba45a2ae9e2b3d34de2a9cf` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/common/mod.rs` | 508 | `bc39ae04e66cf49fc96412576d186ebc1b94ea3a1c5df7922eaefe0565abafc7` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/dice_roll_contract_contract_tests.rs` | 948 | `91e928d857a7b110b432692650a342f43aeadbec325e3cf628c7496e730c244a` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/investigation_clue_npc_time_contract_tests.rs` | 1058 | `7f728cc511a7acb50bb9bbe67f6a00fafc1cbc1b2547ae4c70652434f1e6f868` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/npc_contract_tests.rs` | 957 | `eb5b425f5d5ae45e406a3494b70df828698a7a79a2443ff3ebc18b159e588dc6` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/readme_contract_tests.rs` | 1272 | `21af95f27c275992a86f9bed62f6fa85b0e915ece3c9b60a224fd635d645b618` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/rule_runtime_coc7_contract_tests.rs` | 816 | `8197ad8cf5469e4d45d8048ab72569dd680e912cc6e7387caa5dfcdf26c7e4da` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/rule_runtime_coc7_ruleset_pack_contract_tests.rs` | 832 | `6db9c8f35780c0f1fd654819a201a4c029d9970932ef033de98e48d51bf5ff98` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/rules_coc7_contract_tests.rs` | 915 | `e8de67f3fcfca0881a6aefb928ef45c45e142da400760087d578ddbb8932f6fc` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/ruleset_pack_sdk_contract_tests.rs` | 1334 | `7e77ad2967fcbe5856bee7788659806590f2fb986bf8db412811872722b3c329` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/s05_fixture_acceptance_contract_tests.rs` | 8614 | `011b732e08e5232061aa6d7c8b93c8e5c4a1c9a0e29f1d9f76bed1218bc23d60` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/san_contract_tests.rs` | 930 | `dd6e1c8a41e4f58f727b15c29a52e85e98d612029ec15c0ce698e5aa18f0369d` | `100644` |
+| `crates/trpg-ruleset-coc7/tests/sanity_madness_state_machine_contract_tests.rs` | 873 | `3aaa9595c3c911390fe5de2fd3ff8a328007b934ff4a0b6beca2cc95f4ac00e0` | `100644` |
+| `crates/trpg-runtime/Cargo.toml` | 178 | `09ca703b0342446e705a08ac036ba6e18e510553b00946d737cb06c3eac6c7d0` | `100644` |
+| `crates/trpg-runtime/src/adr_0007_internal_workflow_vs_temporal.rs` | 352 | `5ca86224d0c9091d692ad81ab690ac709e0279b833be9106eb014c1f314bba87` | `100644` |
+| `crates/trpg-runtime/src/campaign_session_runtime_service.rs` | 1321 | `ffec45ee7f6ee247042f62f22b20be9e4e24bedf71ecd5dc575a9ce21f7db3fc` | `100644` |
+| `crates/trpg-runtime/src/capability_layer.rs` | 382 | `842be5f0f3f6f72cfe239e0e6669370a3d4b81393b367df20145f235e934bd4d` | `100644` |
+| `crates/trpg-runtime/src/capability_layer_impl.rs` | 1090 | `e7b28752b2ed32daab4dc838127fa916b26e102596ef884b3fc58be3f510cc5d` | `100644` |
+| `crates/trpg-runtime/src/capability_layer_tool_grant.rs` | 423 | `5db6a6ac65b606127583fb9ac29ac251d24838a3ac72f82c9e09ba4024ca01ce` | `100644` |
+| `crates/trpg-runtime/src/capability_tool_grant.rs` | 406 | `c37b858731be1348ed9b0117bfabbd25943ab2f486d7ecf26f8a2b43b43f59af` | `100644` |
+| `crates/trpg-runtime/src/lib.rs` | 994 | `0abe35fa59a39c53aadfdaf667938b9bb8b29096619a765290f2706ff155db9a` | `100644` |
+| `crates/trpg-runtime/src/pending_decision.rs` | 391 | `0491198b87cd3256e5aca2bca2aee164a39a575d56b2194b4d82b9c12b69bc11` | `100644` |
+| `crates/trpg-runtime/src/pending_decision_impl.rs` | 852 | `75c0fbb98a1b70ce6c1594c6f1986e508468c3c5194c78fb218519aa1c4a9f1c` | `100644` |
+| `crates/trpg-runtime/src/readme.rs` | 1057 | `66a0b325cc1be40cea3e9cbd97f644b51e138e64bc08b708d731a343c88740b8` | `100644` |
+| `crates/trpg-runtime/src/realtime_room_sync.rs` | 449 | `0f35641985979fea3c37eef1ead5d0519d9e8e05ef0fc32adaaa008ebf32509b` | `100644` |
+| `crates/trpg-runtime/src/realtime_room_sync_impl.rs` | 1421 | `b56f57d2d3ef5967aa035c42c08fde04aa39531f078f7517b3e78139f6b9f79d` | `100644` |
+| `crates/trpg-runtime/src/realtime_runtime_binding.rs` | 447 | `480118116c75df97fb9bf3d19e6d105548621898bc7f4837efbbf400eb612dac` | `100644` |
+| `crates/trpg-runtime/src/runtime.rs` | 1754 | `447dffef9613541ba23d39e5ae4c1be8566fd2245fe99bff64b81a326de385f9` | `100644` |
+| `crates/trpg-runtime/src/runtime_pending_decision.rs` | 858 | `b6b1a833eebc87c0810461edfec4ddfa6ed9d64be0487f4bbde692c62278fc72` | `100644` |
+| `crates/trpg-runtime/src/runtime_state_machines.rs` | 12677 | `7f92c391c962697af2bc1a1929f31845e249492efdbc46bc29fe7293f88b5cca` | `100644` |
+| `crates/trpg-runtime/src/runtime_workflow_engine.rs` | 606 | `1546de44ddef40e7ad21e939f4621ed1408a77174e2b5421f37bcd35fae237f6` | `100644` |
+| `crates/trpg-runtime/src/runtime_workflow_state_machines.rs` | 1307 | `3a2081f608d642146014fde23492d4db39a923d46b82dbc471968cf8e2dbb197` | `100644` |
+| `crates/trpg-runtime/src/saga.rs` | 1123 | `e7de5354f0e14a1746633fb12f4eccf6e13da2bfbf9d8e6e78c051d7c7ab6635` | `100644` |
+| `crates/trpg-runtime/src/saga_transaction.rs` | 1005 | `0ef7b91e662a078fd99df70136dea6d0c1c1410c585852c8268059d5cbe61406` | `100644` |
+| `crates/trpg-runtime/src/saga_transaction_impl.rs` | 1437 | `4ac69a927305cf6a2eb33e1ab0d470252a45f6e937392fcd7a5c49ebe87da37d` | `100644` |
+| `crates/trpg-runtime/src/scheduler_service.rs` | 722 | `038df7cb9459d96525edddb5ddea6ff5287891a06c4daca9aa14f637aee56b59` | `100644` |
+| `crates/trpg-runtime/src/scheduler_service_impl.rs` | 1730 | `a87e4195ec22febeebb2b2a4afba2f3ae90bcde26df796cb814b94b0b098eda6` | `100644` |
+| `crates/trpg-runtime/src/session_runtime.rs` | 734 | `26e9be1b52bd91f5798e81472a2d844670dc10d514689fb0b1795e149346ffc2` | `100644` |
+| `crates/trpg-runtime/src/session_runtime_impl.rs` | 1116 | `b274f036b20a15e15a34b2dd577e58fb784a5adbc96deebee0cc73c438bb1698` | `100644` |
+| `crates/trpg-runtime/src/workflow_engine.rs` | 1101 | `cb95994aab3af33da70012799b4a3e7b548c1170bff8a0f773848bddc8f30204` | `100644` |
+| `crates/trpg-runtime/src/workflow_engine_impl.rs` | 1125 | `b872d968e037267e7029710e75131b6008dbb10667e941c0d8cb91de6088c725` | `100644` |
+| `crates/trpg-runtime/tests/batch_012_runtime_contract_tests.rs` | 16880 | `09b76371be3506945433dace0d8f577f0cd2f4d55ad073ec66abef821efa68b4` | `100644` |
+| `crates/trpg-runtime/tests/campaign_session_runtime_service_contract_tests.rs` | 2376 | `b11678c9b6f1210718f3106ecaeabce84b84940ddb349df510580661ab5879c5` | `100644` |
+| `crates/trpg-runtime/tests/capability_layer_impl_contract_tests.rs` | 5186 | `a95099e415da5811c33f8dc1b156cbb646d8abdbbf119d0e946dbe50045ac9d3` | `100644` |
+| `crates/trpg-runtime/tests/pending_decision_impl_contract_tests.rs` | 4980 | `9b3c0797ff499e14042fc79133f8163dec6561b7d365736e06c9e7714392d4a0` | `100644` |
+| `crates/trpg-runtime/tests/readme_contract_tests.rs` | 789 | `72f8dca500d78bba047504caee0dce943348929df5f1295e8638dab68d7e0805` | `100644` |
+| `crates/trpg-runtime/tests/realtime_room_sync_impl_contract_tests.rs` | 4998 | `2c661f28a37fe38ad72e863f0a08f7afb1cd13666214b96db562d83601f01853` | `100644` |
+| `crates/trpg-runtime/tests/runtime_contract_tests.rs` | 4051 | `0132262a72f8b4f95bd0302b4416e3d574f6bb8d8e87100cb474183c6cfe3e5b` | `100644` |
+| `crates/trpg-runtime/tests/runtime_pending_decision.rs` | 1267 | `b9d4d7dc35383fe8f8b90ab43505ab37745e57b7404c432bf9859e4ea63658a9` | `100644` |
+| `crates/trpg-runtime/tests/runtime_workflow_state_machines_contract_tests.rs` | 5418 | `4afd606541a7fed7b9f8169f08af542302eca7dcd0f10702463f44314bee592f` | `100644` |
+| `crates/trpg-runtime/tests/saga_contract_tests.rs` | 2091 | `9570307620ae243631b414fd697748ecd0524767ea40cb4f97713f95e5666cb2` | `100644` |
+| `crates/trpg-runtime/tests/saga_transaction_impl_contract_tests.rs` | 5662 | `8169d19903859fbc0bdb6447a17f6baa8d7330f6e8f37eb430f18f59a5060684` | `100644` |
+| `crates/trpg-runtime/tests/scheduler_service_impl_contract_tests.rs` | 5905 | `ddabd1bf14d424070168bcdb7220da54f397029fcf5b45b45bf5c19a59ca1290` | `100644` |
+| `crates/trpg-runtime/tests/session_runtime_impl_contract_tests.rs` | 5543 | `fe1b2a799412a007d6be3dbbaf2c7b687b3de5b47ffe206fda4bdd285d8a30b3` | `100644` |
+| `crates/trpg-runtime/tests/workflow_engine_contract.rs` | 1177 | `79a28199c6c188cfff2098154f8220fe7004be73968d27e3892ec8857dd4f965` | `100644` |
+| `crates/trpg-runtime/tests/workflow_engine_impl_contract_tests.rs` | 5739 | `68cd0169b509d15594d811018b5f72d3d78a402f5d512891840d6acce2f73206` | `100644` |
+| `crates/trpg-security-governance/Cargo.toml` | 190 | `083c8f30425bca7a23ee0c7273ff100a1fe8b98f6ca0d030d1f397a78ed1a8df` | `100644` |
+| `crates/trpg-security-governance/src/adr_0006_openfga_opa.rs` | 516 | `04fee7250cb9932b12ef91f64d8e5a061c95e0cee8f790e9a57a54bb01a3e2e2` | `100644` |
+| `crates/trpg-security-governance/src/audit_log_contract.rs` | 514 | `ce28fb81ffd60bd104fd44ecc87264099f04efc2abd1b409bf273aad8b92e430` | `100644` |
+| `crates/trpg-security-governance/src/copyright_boundary.rs` | 514 | `90095f4858cad15f024c011751c6455539f26652befa695e27ec3edaa120e3dd` | `100644` |
+| `crates/trpg-security-governance/src/data_retention_deletion.rs` | 519 | `c78ac8211bd3c3537de7e9c76b0afe96f582e19e596f9235a0c57e751b902e4b` | `100644` |
+| `crates/trpg-security-governance/src/lib.rs` | 10994 | `6160ba91ce6b99711c1fcc7807fed6290d3c1975b5a2a06c0c890da49aedbe94` | `100644` |
+| `crates/trpg-security-governance/src/permission_matrix.rs` | 513 | `6f825b18e6a4410f050a52ac98da4cfcc14935a96bacdaa475d2ee7055b1a5b0` | `100644` |
+| `crates/trpg-security-governance/src/policy_authorization.rs` | 516 | `1d7ddbe607d75c1e07898ce3eae07161cf050f05f45a5bf9a35dba3f3f2c716f` | `100644` |
+| `crates/trpg-security-governance/src/policy_authz.rs` | 508 | `1990c8631604cdac8b0301816ff9ca0ada44eb0c555f294e4c9906a33c2dcbe7` | `100644` |
+| `crates/trpg-security-governance/src/policy_openfga_opa.rs` | 514 | `da91b5d138b9e62ba23f4e9365b544b34ecb623985b0725dcd03efc07a8fe56c` | `100644` |
+| `crates/trpg-security-governance/src/privacy_copyright.rs` | 513 | `2fc4c1413dbfe564d445f7e98524749a27e6e38656215139dfa54e3ea791f14d` | `100644` |
+| `crates/trpg-security-governance/src/readme.rs` | 502 | `dd1720975f9214ba4c884817621cc72e3a0fd624975c16ff590d15ddf5e530f5` | `100644` |
+| `crates/trpg-security-governance/src/security_privacy.rs` | 512 | `08a8a756058bc127560082064d9ae59b08d24ec5c8e00d44fb4ad06154ffe8bb` | `100644` |
+| `crates/trpg-security-governance/src/security_privacy_copyright.rs` | 522 | `5e38ea9511039387002647cfa0c46746ab3f2d6d63676b7d648904d413c21491` | `100644` |
+| `crates/trpg-security-governance/src/visibility_enforcement_points.rs` | 525 | `6f23e0c48ef674b4ffb14a2d7ff402757248db3415798be2ffb64d8f92f1e979` | `100644` |
+| `crates/trpg-security-governance/tests/batch_035_security_governance_contract_tests.rs` | 15066 | `17bce7cb1574f0033ca57ce3baf6be2dc4887456e769e3f8f4390be9ce8ce4d9` | `100644` |
+| `crates/trpg-shared-kernel/Cargo.toml` | 113 | `14dc7066498c4a2c94a544e059d36b69f275f8d0fc1e92f634f8f414209db1b0` | `100644` |
+| `crates/trpg-shared-kernel/src/adr_0001_rust_first.rs` | 4935 | `657af9d2190461471a7495a4d30f2f8c2f2751a9713d54a2926931f95914c271` | `100644` |
+| `crates/trpg-shared-kernel/src/cargo_workspace.rs` | 2476 | `196cba92fe68ecb02da9425f8a8303893980b60feddce232c94a7dac73758506` | `100644` |
+| `crates/trpg-shared-kernel/src/cargo_workspace_impl.rs` | 2386 | `c66a9c4257752c24e2ee8a5330247c0ed1f685611e5245f0371a456f6e69ca2f` | `100644` |
+| `crates/trpg-shared-kernel/src/config_model.rs` | 1755 | `923c4f882d505fdf7ca7d76fdde78e78f89681272b34610d9dc44f4dbcfd4146` | `100644` |
+| `crates/trpg-shared-kernel/src/constitution.rs` | 3232 | `beeec06591ea01f08654808e2dba46159c0facc5e9ca63da96b2aaed2f685e55` | `100644` |
+| `crates/trpg-shared-kernel/src/constitution_impl.rs` | 2336 | `6e6d5a648f64f343dd3dc19c957824ab1fe8e50c401365cc0f91fae48383c4fc` | `100644` |
+| `crates/trpg-shared-kernel/src/crate_ownership.rs` | 1397 | `dad769edc0bc2d8685e449b8ce730177285262e6c51b4fa58c2657b03e0453f5` | `100644` |
+| `crates/trpg-shared-kernel/src/dependency_direction.rs` | 965 | `e8d2cfba5f7a68b73e120dc64ce058fc99c33b0e8388bafc3f41dcbe262a34b8` | `100644` |
+| `crates/trpg-shared-kernel/src/document_set.rs` | 3531 | `3bd8c695ac80601e91ce818ae395505d81b72e8a0db2056ba1462c5bd896e146` | `100644` |
+| `crates/trpg-shared-kernel/src/document_set_impl.rs` | 2334 | `deeec6ac14ccb46629d442df045475f5734f2845a41a24c7b01d0d90b4349351` | `100644` |
+| `crates/trpg-shared-kernel/src/error_model.rs` | 556 | `e88378f5a5a95a01722385154dfd24a1835fd6d0828657e9b42f9b6b3fda1cb4` | `100644` |
+| `crates/trpg-shared-kernel/src/lib.rs` | 909 | `abb4bc9637cd23b5f63b25498321a8c7e21f72aee3cf030b42ba847edb503c7b` | `100644` |
+| `crates/trpg-shared-kernel/src/open_source_reference_matrix.rs` | 1519 | `34833be17cf50afee7d1098334d8ba77997130ea9d9a31fe737aa23516b99113` | `100644` |
+| `crates/trpg-shared-kernel/src/open_source_reference_matrix_impl.rs` | 2875 | `98f7aa6a6f707763c212d11aee6c60dfb94b1fce4d6780341b283391073540b9` | `100644` |
+| `crates/trpg-shared-kernel/src/readme.rs` | 2832 | `cd26fcbb34ae00d57b530fcfcafef59395feef08e4e672fa774afb6c7d1ab674` | `100644` |
+| `crates/trpg-shared-kernel/src/rust_cargo_workspace.rs` | 1408 | `1c1d54e4690c3ddd7fa9068bde0e6aad8780da84e91d3ec7e3cd74ec270258e3` | `100644` |
+| `crates/trpg-shared-kernel/src/rust_coding_model.rs` | 1313 | `633609941929932f94f12cda64696f7defccc0bc19992afe270d317bdc8b3020` | `100644` |
+| `crates/trpg-shared-kernel/src/shared_kernel.rs` | 15807 | `857c51759e634d9063663a0a4433225cd46344b281c18221df8ad2de2fa64727` | `100644` |
+| `crates/trpg-shared-kernel/src/system_context.rs` | 4045 | `239f4b30b3384317b3636344beb915c7794dae3823ae887728dbc9fb5cab0562` | `100644` |
+| `crates/trpg-shared-kernel/src/system_context_impl.rs` | 2370 | `4d3d121f179437efde996d3fec415d3c36597a4389f2a4e4e44813d58d2486a0` | `100644` |
+| `crates/trpg-shared-kernel/src/technology_selection_rust.rs` | 4916 | `53393561aea09a3b2392b725dc1c4f848c55299b062586bac2057a895f0fa98f` | `100644` |
+| `crates/trpg-shared-kernel/src/technology_selection_rust_impl.rs` | 4343 | `175614b73e984bf5ba4d26375be3bd3eb2d5824960fbc970a62736c0ee6a60ce` | `100644` |
+| `crates/trpg-shared-kernel/src/workspace_and_governance.rs` | 6250 | `caf4a083c65629c063713c3f3a08e50485b454f3efedae206434150bed92569b` | `100644` |
+| `crates/trpg-shared-kernel/tests/adr_0001_rust_first_contract_tests.rs` | 4561 | `01b9fdd4d8118b20e9447e039b1c52283e7d74e22460eeab1062e3a74c787dbd` | `100644` |
+| `crates/trpg-shared-kernel/tests/cargo_workspace_contract_tests.rs` | 2445 | `66885010e01b8b7634fac42f752d95ef76c7d584b627876b3318ff97b45722bb` | `100644` |
+| `crates/trpg-shared-kernel/tests/cargo_workspace_impl_contract_tests.rs` | 1830 | `3af2df735cb8cf62080dc8b3578c041772d7b776d6d09fb171524952b0eee5f2` | `100644` |
+| `crates/trpg-shared-kernel/tests/config_model_contract_tests.rs` | 1417 | `8b694eba52cb77d0c8305cd5ce016753d262e84dd6b76dccd8be688f831e569d` | `100644` |
+| `crates/trpg-shared-kernel/tests/constitution_contract_tests.rs` | 2296 | `4e252c488d0cc170b4da0f7fcf4111ff204320630ef51df51e8080c48dac2571` | `100644` |
+| `crates/trpg-shared-kernel/tests/constitution_impl_contract_tests.rs` | 1604 | `cb5b24e5568c80132396ef5ab9b150c30be4e0b5694d732e9bcd1f53b96b1b81` | `100644` |
+| `crates/trpg-shared-kernel/tests/crate_ownership_contract_tests.rs` | 1244 | `c1a16ae011dbbcf6cad333c9eafc03e566b47475de0f2c5fa1583545e69bec54` | `100644` |
+| `crates/trpg-shared-kernel/tests/dependency_direction_contract_tests.rs` | 1025 | `383fef9f81b2c5a1e02234887ce98abd7f6d54f0c73cbd343cf1cf78d38c03f0` | `100644` |
+| `crates/trpg-shared-kernel/tests/document_set_contract_tests.rs` | 2427 | `7ed6f7bb82b3d5f04868587e845eab1e355353a2260510d821da60049ed6dba8` | `100644` |
+| `crates/trpg-shared-kernel/tests/document_set_impl_contract_tests.rs` | 1626 | `0a259e642b99c3ebf64b6ef7b74c63c1905de2130edb14a59708818c2a48ae22` | `100644` |
+| `crates/trpg-shared-kernel/tests/error_model_contract_tests.rs` | 883 | `af0bf37c7ac9ef6b9e62ab39c39f00e25ea40085c55a2fc516fd2b78925581d2` | `100644` |
+| `crates/trpg-shared-kernel/tests/open_source_reference_matrix_contract_tests.rs` | 1517 | `a5ea598b5d650c818a620881202d65bfb9e63e0ffe5aafa0ac990776cec82143` | `100644` |
+| `crates/trpg-shared-kernel/tests/open_source_reference_matrix_impl_contract_tests.rs` | 2505 | `5509236aec045d80c7c9d9e6e75567b73b60f53019f652c41a5c78cb22bd1557` | `100644` |
+| `crates/trpg-shared-kernel/tests/readme_contract_tests.rs` | 1736 | `7a5de6cc6e3b883b79b4202b5b46b1f8bb2cff92c22f8dcf5b3ac9364b910f34` | `100644` |
+| `crates/trpg-shared-kernel/tests/rust_cargo_workspace_contract_tests.rs` | 1502 | `8276c22584662cf2ad0cac2622ba873794f1ba17ff533154b052f0e94077c37c` | `100644` |
+| `crates/trpg-shared-kernel/tests/rust_coding_model_contract_tests.rs` | 979 | `3ea0e33a9a3a540926611c2d88caf1dfb60a7abeea6feeb5a1cf9c064cafeea3` | `100644` |
+| `crates/trpg-shared-kernel/tests/shared_kernel_contract_tests.rs` | 4018 | `4d006fbd1767e5cb36a58bc8ede6adec382c9626e1c3e4c87f3572ba2de57296` | `100644` |
+| `crates/trpg-shared-kernel/tests/system_context_contract_tests.rs` | 2620 | `86220bdbd46fdfdd066ca71b89e3f5a65e0fbae1f2a615a8d2e655579c2c5873` | `100644` |
+| `crates/trpg-shared-kernel/tests/system_context_impl_contract_tests.rs` | 2017 | `6967a57e6be16edd69ebafbf2e1428f664fbb460fff43ab191bc671e93568884` | `100644` |
+| `crates/trpg-shared-kernel/tests/technology_selection_rust_contract_tests.rs` | 3792 | `db48a4bb5b82189de631c3b34b55104a1916c94fea9b92a542722aaad8810636` | `100644` |
+| `crates/trpg-shared-kernel/tests/technology_selection_rust_impl_contract_tests.rs` | 2134 | `4633f11adb65ee16bed8c7375c8675e88f6ae495463df7588ee64432da640484` | `100644` |
+| `crates/trpg-shared-kernel/tests/workspace_and_governance_contract_tests.rs` | 3225 | `934c06dd4b495bd5a77fa9b43589efded285f6cc0cab95920ad4ca2b7f59c69c` | `100644` |
+| `crates/trpg-testing/Cargo.toml` | 234 | `68f5f5cccfb26c84beb3934394ac00708b0b1ee2b8ee830fbb9b7c45c44b207f` | `100644` |
+| `crates/trpg-testing/src/ai_evaluation_golden_scenario.rs` | 2392 | `23a854f153f08dc56680d030528fa0c520c7c0bf39cc5a5dab9bfb42630b2095` | `100644` |
+| `crates/trpg-testing/src/benchmark_plan.rs` | 2189 | `146482e967ae2fe03d9d91217556eed6bcad8e9441a1bafa7173416951d44694` | `100644` |
+| `crates/trpg-testing/src/contract_test_matrix.rs` | 1772 | `dbd2f8f40718f287b8836f850328914e5e6f23338e0384967443b46b36c8d09a` | `100644` |
+| `crates/trpg-testing/src/decision_trace_map.rs` | 5676 | `22fecc56ae6c5f90b0fae01346da83fbd4edc9883171ca2519fede64a5cc648c` | `100644` |
+| `crates/trpg-testing/src/golden_ci_test_matrix.rs` | 2831 | `276db9df5251c89ebe7836fc7bda018ed83b9670177b61cf02eb4a09e369954c` | `100644` |
+| `crates/trpg-testing/src/golden_scenario_ci.rs` | 1525 | `34dd0a9c34c48f71752fbb548fa46a87a5b53ff012cdf7515ec5151e427edbcc` | `100644` |
+| `crates/trpg-testing/src/golden_scenarios_ci.rs` | 4283 | `f23d76a63f3c0bac22eae80d38b00b6f0bfecda9fb411a5cd6a5c57cea673e9f` | `100644` |
+| `crates/trpg-testing/src/golden_scenarios_ci_impl.rs` | 2707 | `ed0a3c187aab72d5b8aa466e5d8ed85adc93cc47ca7f286d7f77c1db1c545ae1` | `100644` |
+| `crates/trpg-testing/src/implementation_acceptance_checklist.rs` | 2240 | `fb180f3a9d86d8a1a5c9aa4e82e51c3e73fdb733798c2eae8ac520807e76b64e` | `100644` |
+| `crates/trpg-testing/src/implementation_acceptance_checklist_source_contract.rs` | 2356 | `47f7e901c4f1d836e24de0b8efb957918f074561d7efc64eb9fe166005fd7981` | `100644` |
+| `crates/trpg-testing/src/latest_deep_research_rust_summary.rs` | 2731 | `7b68d107693a639e4265ce2f7497df20b55293d2be16deeb7435b23c42c8df58` | `100644` |
+| `crates/trpg-testing/src/lib.rs` | 10771 | `a66f5d7ace0b589c44764ec9a7e32c26c990be2de4bdedf8fa99a632506f82eb` | `100644` |
+| `crates/trpg-testing/src/model_certification_tests.rs` | 3134 | `9fbe6e42cce42dbcaf93a6b8c6cb864b986f85e180f9dbe7940807d16dc20128` | `100644` |
+| `crates/trpg-testing/src/principle_to_doc_trace.rs` | 2586 | `60fc7e442e7c046bfed6d9e4a8ac0403c5e85303ffbb88b182c99ea3cbebe68a` | `100644` |
+| `crates/trpg-testing/src/readme.rs` | 1339 | `294fb8c3e8f7fc993a796dd2494cce17b8961bb9aa03fd7d7c6607da65893225` | `100644` |
+| `crates/trpg-testing/src/replay_consistency_tests.rs` | 2329 | `c0160e4b9f4a015b5ea89bdb1a28bd6dcd2b17735060cbb2d6f40f0868df1ad9` | `100644` |
+| `crates/trpg-testing/src/requirement_to_test_trace.rs` | 3084 | `ff1e07b1d65145067d4ae26fbef5d4b9c5d78d04b58100032a1e4ecd843456d0` | `100644` |
+| `crates/trpg-testing/src/research_decision_matrix.rs` | 3137 | `d5dc1fb2c08ffcd6e50fb57f436f13c78b24044d07608ad9d6aab46b52350c7c` | `100644` |
+| `crates/trpg-testing/src/runtime_pending_decision.rs` | 2399 | `17ed6dce4cdfb11fa2749426a1e9c0d390a5d14e86a84cdf45b4426434323b5c` | `100644` |
+| `crates/trpg-testing/src/test_strategy.rs` | 2173 | `3fa2285d8d1c07d31477b276c48b776e35fec5d3a6e41b2854685bb876f0d519` | `100644` |
+| `crates/trpg-testing/src/test_strategy_impl.rs` | 2362 | `9cd0c94cefc68b5234e669d109ae546d144e3cad47adaf90dd589752ec34475a` | `100644` |
+| `crates/trpg-testing/src/testing_golden_ci.rs` | 2493 | `4ba2520b4ed733683b38f7fd9888e4889c8d2f3fd5bb6af55ab7239ed9346a89` | `100644` |
+| `crates/trpg-testing/src/testing_golden_scenarios_ci.rs` | 1662 | `831c9c464a320d90bdafa41a148c5c2e32e88a4aeb75f00e5e69baa39eda8378` | `100644` |
+| `crates/trpg-testing/src/top_level_principle_trace.rs` | 2923 | `146e7a561ecad7582d6e9f675c323ac608e1ade6ecb36228cff899f862993e28` | `100644` |
+| `crates/trpg-testing/src/visibility_leakage_tests.rs` | 2662 | `c9b6c856bd2cfe7d4491ce81424108b86c041f6ffc19853657b9c520e5d909ff` | `100644` |
+| `crates/trpg-testing/tests/ai_evaluation_golden_scenario_contract_tests.rs` | 823 | `b55821aee087012d090734f3415f291e6b17deb8b94c818e8bc84337ac150cf9` | `100644` |
+| `crates/trpg-testing/tests/benchmark_plan_contract_tests.rs` | 1546 | `ad4c408d2b7fb9893686038c8bdbf59eb664b1485d9c858da4761c14a61649b4` | `100644` |
+| `crates/trpg-testing/tests/contract_test_matrix_contract_tests.rs` | 1336 | `4a5435851d4ba1a9f23022042b07c17375d69d67c23e861dddd1dd5a417ce591` | `100644` |
+| `crates/trpg-testing/tests/decision_trace_map_contract_tests.rs` | 1484 | `892665294bee699bdaeda283fe1e1418f77b15791d709ed2bb6750cd0880c485` | `100644` |
+| `crates/trpg-testing/tests/golden_ci_test_matrix_contract_tests.rs` | 987 | `34fb1b851c523310801f13beecec7c74b84d4588274e706865e38b10b84351fd` | `100644` |
+| `crates/trpg-testing/tests/golden_scenario_ci_contract_tests.rs` | 735 | `9dba0b8530e20cb9053bb1618541a806f0230fc9a5cbaa414116cc86a9dd29c2` | `100644` |
+| `crates/trpg-testing/tests/golden_scenarios_ci.rs` | 1367 | `8484b5e55cdfc50707e3ed1abaf91f3699b3050b6d1ea5eb2b0be85256c429ec` | `100644` |
+| `crates/trpg-testing/tests/golden_scenarios_ci_contract_tests.rs` | 3696 | `15f69c621d2f68b4e6c4ce5273f36304cc45f61ac77495beffbe848f897b7c14` | `100644` |
+| `crates/trpg-testing/tests/golden_scenarios_ci_impl_contract_tests.rs` | 1126 | `f35518058dc6c9da1d6dfda45794b9faba9f7ab52bba141ed6ba1e0502350bab` | `100644` |
+| `crates/trpg-testing/tests/implementation_acceptance_checklist_contract_tests.rs` | 728 | `44d40170a298a49c0cd1c0b51fbcca5b5a47b97ddf359d3077d1c410238c86b2` | `100644` |
+| `crates/trpg-testing/tests/implementation_acceptance_checklist_source_contract_contract_tests.rs` | 948 | `1603b6e47bbe3ca52bae0e707e5113bb8b56833c2509b85e15e56a1d72e1fa76` | `100644` |
+| `crates/trpg-testing/tests/latest_deep_research_rust_summary_contract_tests.rs` | 781 | `34eee8f419ff24b0ba9e44d92304a2643bf2bfe6d08f9ab65218ebd30b36a092` | `100644` |
+| `crates/trpg-testing/tests/model_certification_tests.rs` | 587 | `5c2e6286915550f9ea9edb9de90c51bcccc06c7f8f94be0a3d1ec186fa22e170` | `100644` |
+| `crates/trpg-testing/tests/model_certification_tests_contract_tests.rs` | 1228 | `787470ceabbdd8d134edf4be4bfe5989751876a320ca86dd7fba073e30b1ed5d` | `100644` |
+| `crates/trpg-testing/tests/principle_to_doc_trace_contract_tests.rs` | 881 | `046fdbcf524b04d8ceb03a647c867492057acaee357d92f220ca4c08b7daca34` | `100644` |
+| `crates/trpg-testing/tests/readme_contract_tests.rs` | 663 | `51c1ea3efdd1a45f506894c2b4e7e47e500efbd30d662125281161034a3c1e0c` | `100644` |
+| `crates/trpg-testing/tests/replay_consistency_tests_contract_tests.rs` | 1322 | `22ebdd40e7d834303b18362f103e0108bd380b118f5a2bf492d85dc80714b218` | `100644` |
+| `crates/trpg-testing/tests/requirement_to_test_trace_contract_tests.rs` | 1107 | `d824a262cc64ec3528e38e2c474ad74f40a14028991cd71ce28021b6c0b0ddd2` | `100644` |
+| `crates/trpg-testing/tests/research_decision_matrix_contract_tests.rs` | 840 | `d9dff8f08aff8eedb3a44bd58940807205858f2dc0d36668e0905cfd341c19f7` | `100644` |
+| `crates/trpg-testing/tests/runtime_pending_decision_contract_tests.rs` | 848 | `f0deaaeb9a0b08b9bb7471a44a718ff46fa6b3779c498557ee8a65fecf6f9230` | `100644` |
+| `crates/trpg-testing/tests/test_strategy_contract_tests.rs` | 832 | `77e4508c96ecc63a5720b88ff545b251b5d9ae4a9d5980d95e7337fc634c66fe` | `100644` |
+| `crates/trpg-testing/tests/test_strategy_impl_contract_tests.rs` | 895 | `dce0f869ac748c35192963c872c559ea915a9c0e7050da38c73bbb5c12073cea` | `100644` |
+| `crates/trpg-testing/tests/testing_golden_ci_contract_tests.rs` | 980 | `353e17d0954b30e79745b8665fbf77cb91286a09aca9f9184a63428784d5e365` | `100644` |
+| `crates/trpg-testing/tests/testing_golden_scenarios_ci_contract_tests.rs` | 800 | `e532ca3e7a2c8cbf5d453f4b327f066d9635991ac5360bd0daef29290e02ca0c` | `100644` |
+| `crates/trpg-testing/tests/top_level_principle_trace_contract_tests.rs` | 827 | `5c4cb525982c8b61a2df02fe00295a79183c4a112000a91833280e074692bdb2` | `100644` |
+| `crates/trpg-testing/tests/visibility_leakage.rs` | 660 | `67d2d4c7cc32a7d72ccb73a26c95bd188b8921c2dc75ac024615164caee8740d` | `100644` |
+| `crates/trpg-testing/tests/visibility_leakage_tests_contract_tests.rs` | 1075 | `8446d7a2b159c1354d53256012691774fdaf7d0ae2355b8ddc8bfd986757da7f` | `100644` |
+| `docker-compose.ci.yml` | 3596 | `a2e915f49bd15d1ced49de4aa268c08d9b4f3a6d5f80c47535a4e3ee7a04d6d8` | `100644` |
+| `docs/codex/00-index/AGENTS.md` | 4164 | `7a4b058f57d75097de15c3902560a3b4fbdf70a639bd0ca5ddbe2529d8ad0170` | `100644` |
+| `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` | `100644` |
+| `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` | `100644` |
+| `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md` | 1290 | `04799a9d4fb559c9936815c49a495ba330e8340652c8a75f25ab0bf3d030dc0c` | `100644` |
+| `docs/codex/00-index/adr_0001_rust_first.md` | 568 | `7a560731da2f245d3a220173619a915f050013072a0b32ed52decd33be5ad350` | `100644` |
+| `docs/codex/00-index/backlog_open_questions.md` | 975 | `4ce70073ea8183f1d35626ddc11ff9cf5fd51dff7a8c39b6e5fc2429451ab6b8` | `100644` |
+| `docs/codex/00-index/canonical_document_boundary_previous-provenance.md` | 698 | `05f2cd605e37335a004251579d5f4bad5082b076850e0e17f7ec8eaee9067d4b` | `100644` |
+| `docs/codex/00-index/canonical_document_boundary_previous.md` | 804 | `917ad7aabd35eb87438194ca62c3c8b0f0577f34cc417c02a04fd10566500f3d` | `100644` |
+| `docs/codex/00-index/coc_ai_kp.md` | 1215 | `d64c9359d19a0caa8040cff80d11878991fd2ade67e2628fab7f34df8020d661` | `100644` |
+| `docs/codex/00-index/coc_ai_trpg_top_level_design.md` | 1135 | `cfc990765fe7669d2f1c87ebd7ee626d47249084a8779527e4c95f0fd0c4dcf5` | `100644` |
+| `docs/codex/00-index/codex-batch-plan.md` | 5578 | `34ae638a0a836bb2d703739c823b19d9d46233a968fc2ad5e8d6ab2bbed48efa` | `100644` |
+| `docs/codex/00-index/codex-execution-map.md` | 5850 | `abf3c430a1a10552cb92210fc522036153bb88df7e30756a57a9c649382a8c5e` | `100644` |
+| `docs/codex/00-index/codex-module-code-prompt.md` | 3954 | `b3b301598396c28694f68447fe24d9e9639373f32f3e17b3f55341822b371390` | `100644` |
+| `docs/codex/00-index/codex-module-review-prompt.md` | 1939 | `7153d5a1cf371dd2efc0eb6a8d58996c23b9aa62ad69dd3f4cee7bb08629f49b` | `100644` |
+| `docs/codex/00-index/codex-module-test-prompt.md` | 2241 | `7130a1fae6bd3082939c3185a2970fb3dc68ece3ca2f5209d9db33ecb29a27e7` | `100644` |
+| `docs/codex/00-index/codex-persistent-context.md` | 6582 | `1622412608cf4ca1001192dd497e990754f97d1d43950cd04c99d282e7e4a16f` | `100644` |
+| `docs/codex/00-index/codex-prompt-boundary.md` | 4964 | `0a91a567aa1357b389bec2adce5eee874421fad9c44efc9467399680df807f64` | `100644` |
+| `docs/codex/00-index/contract_index.md` | 653 | `06c8ec345a67c8b8d2ace6276582c8a9e87df5b9d157bb0c2a9e1c4174218db5` | `100644` |
+| `docs/codex/00-index/crate.md` | 439 | `695d0d099b0a8fd1b4fcd3015c130077996c1b46ccbd29a976cfb617398ced7f` | `100644` |
+| `docs/codex/00-index/crate_to_doc_map.md` | 1082 | `023b3343889664722552b3d48e2cdfec2f5cb98e1952b319702603b9c06feca3` | `100644` |
+| `docs/codex/00-index/decision_trace_map.md` | 778 | `bd7f2c7f27da34fd54ee3e8045a1221e3ec0762c6904851059a0d4cceaed1b7e` | `100644` |
+| `docs/codex/00-index/doc_to_contract_map.md` | 1207 | `faad66617f129dd37c843d186fd3d02f996d25626dc223a1ed712f0cb4e85676` | `100644` |
+| `docs/codex/00-index/docs_implementation.md` | 1098 | `0da0eaa3bf83968709da8f8030cbf3e092fc3fe204f03b9dd5d9e57bc1e3c59c` | `100644` |
+| `docs/codex/00-index/docs_implementation_00_index_doc_to_contract_map_strict_previous.md` | 601 | `95b4751e3c91855dca037f67d324838674184394b6821f0f1b16d00d8f66421c` | `100644` |
+| `docs/codex/00-index/docs_implementation_00_index_implementation_map_strict_previous.md` | 535 | `717e74ce93b4e4e1ed0220a0c533924d33666076ae8de34409e5364dc2ad30e4` | `100644` |
+| `docs/codex/00-index/docs_implementation_00_index_module_boundary_map_strict_previous.md` | 498 | `1ffbdba25f081bb924b2f46c8bb87fc17c0514ae29164b8b133987d01a5efefd` | `100644` |
+| `docs/codex/00-index/docs_implementation_00_index_reading_path_strict_previous.md` | 538 | `67cc92d59c52a98aa16d7592054c40951811697c159a0fe9bb2cf0a44184130e` | `100644` |
+| `docs/codex/00-index/generated_output_map.md` | 2171 | `cf77123a8af6beb137e9be2b1f8e8677a8ff7493f0f4dbf3cc73b0ad6cd66ef9` | `100644` |
+| `docs/codex/00-index/historical_cleanup_policy.md` | 689 | `d5e70445c8be4e8e39f05a04c37bdc44c92c120470d5d766e0652683b34988d3` | `100644` |
+| `docs/codex/00-index/implementation_acceptance_checklist.md` | 1107 | `91b9018e7a614ef361b12b899a26eabd5dd067a2d8c0b68bc07d7204ab743fb2` | `100644` |
+| `docs/codex/00-index/implementation_map.md` | 1315 | `d39d70451dbab33889633b5a47fac024347902900e0941b2dc7c74bad8d1fa90` | `100644` |
+| `docs/codex/00-index/implementation_plan.md` | 915 | `1ebb8c70ae2d3e4e4f9db0b2d7054ac11eb85dda1cbf2597a153a6265cd47ab3` | `100644` |
+| `docs/codex/00-index/m_00_index.md` | 818 | `f39e2c926fc7f9cc8b1bf3f69244709d88b20a921c28c6779d7d8a043fd7cbed` | `100644` |
+| `docs/codex/00-index/manifest.md` | 1140 | `d8f7df74b9fbe478761acf1ed656e078beaad5dce49341c7d605a3bb6b7cc703` | `100644` |
+| `docs/codex/00-index/module_boundary_map.md` | 854 | `eeab6853a05fccde24da2f1ee9ff369047a632b324bc98a69c016fc3073e55f0` | `100644` |
+| `docs/codex/00-index/per-file-prompt-manifest.md` | 12180 | `3fd0910ebbcf553128a9110d598549b76936abd67b9f28529662828466387cd9` | `100644` |
+| `docs/codex/00-index/previous-audit-provenance_json.md` | 866 | `b0962170c17f819408d5f85750114939ac318b7b0d127d615cb2c62cbf21ce01` | `100644` |
+| `docs/codex/00-index/previous-delivery-report-provenance.md` | 896 | `28ad531ea10b5f2a4e218e69491813e3e09200096faeaeadf21068d5f23dbfd8` | `100644` |
+| `docs/codex/00-index/processing_summary.md` | 1065 | `d0dc6dbb54e5c07306d7b2d71dd62dde187aa89564abfc3118656d8960fe68dd` | `100644` |
+| `docs/codex/00-index/reading_path.md` | 1162 | `26b5045a1cf6f371f5d4785f9523ff7add6ffd84ba5ce0cf7212135b621cde43` | `100644` |
+| `docs/codex/00-index/readme.md` | 2233 | `e6668c95a6ec8b416f221955f9a8839ed7e45ce659feabc1ced9830d55fdf082` | `100644` |
+| `docs/codex/00-index/recommended_tree_landing_report_previous-provenance.md` | 995 | `b0ad1abc5fd5c19e94ba15bc8e42f97f3da5c9de9f54b6417758c30f19585af8` | `100644` |
+| `docs/codex/00-index/reorganization_plan.md` | 1004 | `bf0b173cf83ed67bec88904ec7eb884c843d0c3962cd017b9c5b93187e79e420` | `100644` |
+| `docs/codex/00-index/source-to-codex-prompt-map.md` | 687878 | `317a058109f6ba5f2f137b77470c3e90f8786d9733b6bc31cdb1d5743696d985` | `100644` |
+| `docs/codex/00-index/source_to_code_ready_map.md` | 727 | `d268db6827d930b8f573d694a34ca29ffa5b038b21ab1d3b3ab85951add6bf4b` | `100644` |
+| `docs/codex/00-index/source_to_output_strict_map.md` | 1003 | `a684d15dac29f69400db85f76927f1b0a461d494797e5361c83abb35798f8df5` | `100644` |
+| `docs/codex/00-index/strict_rework_report.md` | 965 | `7268c52466d62ec67f6e2a8b166331eaa6b1d78c429593f1b6eb249ed02810c3` | `100644` |
+| `docs/codex/00-index/validation.md` | 780 | `9b6f0d1dbc508d488f0822c8890c4c1a1cde7b42f6a1db7a3972698cc6a6ca0f` | `100644` |
+| `docs/codex/01-foundation/AGENTS.md` | 4221 | `9f718537f998bce4cfec4462e4334536ca1fa8b2cc0c585267265f941e278e0f` | `100644` |
+| `docs/codex/01-foundation/README.md` | 1823 | `2b27d7eb645883d270ef6f06f4acf4af9ff8472aaa41ea809dd01cea00ca9eb4` | `100644` |
+| `docs/codex/01-foundation/codex-module-code-prompt.md` | 4014 | `76d7b1306a18761d04367bb34f3c99cf8423266a81060eb40094a09491a35a90` | `100644` |
+| `docs/codex/01-foundation/codex-module-review-prompt.md` | 1964 | `0c467b8297a620182a8cddb0136e670da3fa132662ad91ee22fecf1adcef47ff` | `100644` |
+| `docs/codex/01-foundation/codex-module-test-prompt.md` | 2267 | `dffabe3917aad455432a7737b9388074258c0437b387cc260c4c23460de7b584` | `100644` |
+| `docs/codex/01-foundation/m_01_foundation.md` | 1346 | `d3152078a21453951f4f89258f6bb97c03f8469f86d3aeb6ed9656981f0cb65b` | `100644` |
+| `docs/codex/01-foundation/manifest_processed.md` | 1667 | `7843692a91c7748ee3295f3ee9049640b01c67f1870a9054dc5f4ce0be53ff9d` | `100644` |
+| `docs/codex/01-foundation/per-file-prompt-manifest.md` | 31651 | `dcfc5c14fb75a0a981be2901844ed0a43fd94894c5c970216406d6244d15ba5a` | `100644` |
+| `docs/codex/01-foundation/readme_processed.md` | 1705 | `4c6cadcf63e9d7bbe70bce5909835c23ae6586809b2ca3caf3bd827348c32fe3` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_adr_adr_0001_rust_first.md` | 1787 | `1e695930d211f9095992f3e594f077963f4425e19eec4856bc39a69967990cbf` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_architecture_cargo_workspace.md` | 1811 | `fe212c85e8b4628684e0a410a0a9dedeb4650161dfc7f1acdf8f8867107e79b0` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_architecture_constitution.md` | 1800 | `d2f501c9ce67d34ba167ad1ea0564c5e819536a074806dc55e0ab53b823be384` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_architecture_document_set.md` | 1800 | `5e015fb792148570d56e48ddd2086c08d2dec06b5fa9ec6ddacf656b0aab8e07` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_architecture_open_source_reference_matrix.md` | 1850 | `920eb54e7a1b533ca50d2fa396b5d0e5e6f567e114bdaa7adf4de1b9284a048e` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_architecture_system_context.md` | 1808 | `0e5750211276235d3a646bba0da62114e5406da555f8536440fd8be318f9b6c0` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_architecture_technology_selection_rust.md` | 1841 | `a3e41b9f136cdd72ea08fdc3c23f7f89ff4bd7f331b08468bc3ab836e08e10ca` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_01_foundation_cargo_workspace.md` | 1859 | `539d1a03f7cd08350780a4424555d5b0494ce0640d67c07d888e2a1baf3cb760` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_01_foundation_config_model.md` | 1850 | `e355d28630a5d42fdac8bf05925ee1544ee2fa50b6f8532414452dd9e3381fe2` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_01_foundation_crate_ownership.md` | 1859 | `a2582f5ff487b2bc887a237d8da83d707d2767092ec272a8794bb9eced5ba091` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_01_foundation_dependency_direction.md` | 1874 | `b1a7728052413f5d54c755f44936b551a1ba7d9c82c8fc121339c7ef7f88c93f` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_01_foundation_error_model.md` | 1847 | `68ca98dd05649cf6ed461ec16d9341ed97288cdab13d06db73348f38cf340426` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_01_foundation_readme.md` | 1832 | `98f3af710d6207c001b0df92e5d6c4705b3307aed3033a98d34fd15b3c4eb183` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_01_foundation_rust_coding_model.md` | 1865 | `124d8811844d2f6b8714112dfa039d0390fdb9d70dc32ee19fb89b31167eed2c` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_01_foundation_shared_kernel.md` | 1853 | `759209a00062519242a0f8784f6b36dd44721f5afc28c20ead511ffe84605dd4` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_90_traceability_source_breakdown_architecture_cargo_workspace.md` | 1955 | `7862e770e8ccab4d4d2334c12914ff57b9202167eb8ef4ca5b718c34ab1bf595` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_90_traceability_source_breakdown_architecture_constitution.md` | 1946 | `c594ec2221ae711d482e8bccaef7b52495d93cd748d917313002381899d6266d` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_90_traceability_source_breakdown_architecture_document_set.md` | 1946 | `dc3ad4d2889278cfd545c01e26e9660a3a9b9bd68d519b07de4d69d66232e056` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_90_traceability_source_breakdown_architecture_open_source_reference_matrix.md` | 1994 | `20dd4c3dfe0f69923c07fc9f23c907d32cf1ce83b80c985c8cbd7aafec5cee38` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_90_traceability_source_breakdown_architecture_system_context.md` | 1952 | `ab2413923242ff73bedd591006220569b06f8687ab69416c95c5f319a0a0a9ee` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_docs_implementation_90_traceability_source_breakdown_architecture_technology_selection_rust.md` | 1985 | `8cb1cb4df7c4c56ebeab0fe3ebac47596d7002755dd6bfea4a289fc457546120` | `100644` |
+| `docs/codex/01-foundation/source_processing_record_sources_latest_deep_research_rust_summary.md` | 1880 | `01957624e77c749cee30190a54575990d7eaef6d629e166f495735180e6cc9ef` | `100644` |
+| `docs/codex/02-domain-core/AGENTS.md` | 4221 | `b405de01a1f1e4410bf0a827e6ad411952452081dd607d5eda5b2caf9a4b5c52` | `100644` |
+| `docs/codex/02-domain-core/README.md` | 1822 | `ce665807a87d7325236be9ab0b5de0a2af4d286919138bd1440bd020496bc9d3` | `100644` |
+| `docs/codex/02-domain-core/codex-module-code-prompt.md` | 4013 | `d8042eef79aa33946da8f77908cbfea475decb3c83f8eb08b546405f69af6578` | `100644` |
+| `docs/codex/02-domain-core/codex-module-review-prompt.md` | 1967 | `1f396759cb3a810ef2418786ef1b4a7a14e6c26ee59b6482bb9f38b4066a1135` | `100644` |
+| `docs/codex/02-domain-core/codex-module-test-prompt.md` | 2267 | `a7d56a64fe081958bc272269e1e455e847f7775d37280fb6e55e0db0b04fb7e8` | `100644` |
+| `docs/codex/02-domain-core/m_02_domain_core.md` | 1053 | `fe2040cf51996f6f83fc936dd3fab5b5d5c015438c7f29e0653b6c87ee4b4b55` | `100644` |
+| `docs/codex/02-domain-core/per-file-prompt-manifest.md` | 35528 | `5719dfac02aa88ddf48efb3d45e65d7f2ddbb683e04ecc05d1c355c504a58c20` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_adr_adr_0003_authority_contract.md` | 1539 | `07f88b3d9d51ac4b192826f7d9dc5d1430dae89bac54235847b4143aa6bceed5` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_domain_authority_contract.md` | 1223 | `a4ec381d96a7b943abf0ba86cbe5df0f8978efed9c125e4905f29a5e17a71d8b` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_domain_command_cqrs.md` | 1165 | `0aca326cba0a6c85de363cd562dee171d7ed238b9a51033d16ce15c981551315` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_domain_domain_model.md` | 1163 | `937fa7329435a79be458968c392a0e32b299af7d6c46180508564ba14b050d33` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_domain_event_sourcing_projection.md` | 1118 | `dbf992834394101e1e94e9f00d46713f063c0dae8cbfce13cfa9009491d91497` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_domain_visibility_fact_provenance.md` | 1224 | `99030f5469cb27d0103e9777d3bf2daa9432469529f7a355cfd95c09c9988ef9` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_authority_contract_guard.md` | 1195 | `7cb85c1308514bdc4ee04a617526344148b950af26c4c69b1069216b8bd23166` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_command_cqrs_idempotency.md` | 1119 | `5c626e926f41201523a238f1520313d98612c3a5fd87fea418fbc53b1ac44345` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_decision_record_model.md` | 1179 | `de6021fa34d35485cbd283e5bacf13e8a69a5a11deb0c5426bf55ae5be23996d` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_domain_entities_value_objects.md` | 1199 | `47e02790ab477726a36f259b8b26c009cbc03a540e927ab48a4635c76ac2bcde` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_domain_policy_hooks.md` | 1096 | `97c09ed22593669cf6cdf689858365f868f42b90b6d47b7a3588c0a910ac0c0d` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_fork_canon_lineage.md` | 1066 | `00a554fdc35c01faf943b34bec1dc44d534f205f624b70f1490d8b8904a7eb26` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_readme.md` | 1122 | `a2c6cd40fcbd5b8aa7ce46de31ed24e0b4231a8cffd440043a5c5beaa2e64069` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_02_domain_core_visibility_fact_provenance.md` | 1134 | `c84dfdbed517070c37cd089960069a4ad873383ed5961a03659fa80b4fdffa63` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_09_security_governance_visibility_enforcement_points.md` | 1345 | `0834874030aaca07577d020e7c1dee71d9b1ef3c0ce9e6297542fbce7900414b` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_10_testing_quality_visibility_leakage_tests.md` | 1226 | `013527e071ed2cb81409c0f2c23e01f3a2bde142a428e16f36acf309a9980ce0` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_authority_contract.md` | 1311 | `b4b578742ea2e8ec5ffc9a45674b99ca55b8ed4d312c2ab7d643445e458c9f90` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_command_cqrs.md` | 1456 | `8a94a683bff02bfe20310bff38c4d3a264a3815b4cbf04c5e631fd3d243a29cb` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_domain_model.md` | 1323 | `bf91d5274fe39c12a62f51caebd0a1e70b8ec96ebd939de4e1aba89ec3067b87` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_event_sourcing_projection.md` | 1224 | `98fcef295c1ac3f78bbbd81f2c57113628b5aaacac3663b1ec60dbc3ef84ecc3` | `100644` |
+| `docs/codex/02-domain-core/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_visibility_fact_provenance.md` | 1326 | `5aa8a39ec84d2450ca287c2868902d98506290b251d26cc2ae182ba1c5f05d78` | `100644` |
+| `docs/codex/03-runtime-orchestration/AGENTS.md` | 4266 | `b7f436f4398de517acd91706361f018b251b857e38aaa8d1a1539699328c430f` | `100644` |
+| `docs/codex/03-runtime-orchestration/README.md` | 1877 | `219160d5b843b9d038c914051de23f38046e9567337dc6e84aca19eafa074759` | `100644` |
+| `docs/codex/03-runtime-orchestration/codex-module-code-prompt.md` | 4078 | `69fb8addf11d8c37994dca4f89fa60b936a192c0c872fd0f948ae52ee498293c` | `100644` |
+| `docs/codex/03-runtime-orchestration/codex-module-review-prompt.md` | 1997 | `071dec9ca7665cb84a3e05d4bc85ae38e7d6063760404843ee2d081145062311` | `100644` |
+| `docs/codex/03-runtime-orchestration/codex-module-test-prompt.md` | 2299 | `48bd65f3410181d5424b21501ee053b72c5ba8c2e16c975bacd0727733c73577` | `100644` |
+| `docs/codex/03-runtime-orchestration/m_03_runtime_orchestration.md` | 1418 | `8fbbef89cec151b9b0bf2a1799f65da1d59d1d9c80f344b7442afc01134cd09c` | `100644` |
+| `docs/codex/03-runtime-orchestration/per-file-prompt-manifest.md` | 43111 | `49256846bb560d75e272f2505babfd5febe4b0dfea2fd272c7b5a66625524cf5` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_adr_adr_0007_internal_workflow_vs_temporal.md` | 757 | `adb062d3a3e1306d5958574647263cb0bb0b7242e7bf1c4352685d474419cb66` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_03_runtime_orchestration_capability_tool_grant.md` | 730 | `39619d99ed75c163770f26f7c5fde99ab96a8defb0c30076cfc8e5754cbbc03e` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_03_runtime_orchestration_pending_decision.md` | 747 | `e0a333cf9e1f4b9154232cb7139e77a423811485292d062ad10bdc4a01d1d4d0` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_03_runtime_orchestration_readme.md` | 676 | `9c7ebad7a11e9015e8762b8230b633e69b1bb53225061840887c570db32a8b8f` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_03_runtime_orchestration_realtime_runtime_binding.md` | 811 | `c04a1b79624f2cca77db1112c3cb66adbf7450950b5b8f61353ce7fb9dd19da3` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_03_runtime_orchestration_runtime_state_machines.md` | 778 | `b183a6c2f23cfa8cf8149ce00ad67e1892f145adae5345b829dcd4944d99d0ee` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_03_runtime_orchestration_saga_transaction.md` | 695 | `c2547aa390e2b152ada60f0fcc364f04b223c7ec16097f7b29cd553390378141` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_03_runtime_orchestration_scheduler_service.md` | 711 | `c92ef36e7723a5c39668a4079065da1a9c38f0f77109a0edd26152db6e5a27a8` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_03_runtime_orchestration_session_runtime.md` | 784 | `3286c8fc01ff5c0c62393495556e2c7c915543983d35512d3a6cd9bc28d246e4` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_03_runtime_orchestration_workflow_engine.md` | 694 | `a06ff5db617dcb6247768b5c9919b6b5cf57ee949ecab2c58119e0e396a9a8f4` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_90_traceability_source_breakdown_runtime_capability_layer.md` | 829 | `6e065555f21ea9bab9fdc61b8d741f030ccc30ec1082e2cd4184b8a740887fb7` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_90_traceability_source_breakdown_runtime_pending_decision.md` | 829 | `39466d36111dfb87c24ac317983b8a2f7a0b8fd3f07e6abe85c3fd62db9bcc7f` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_90_traceability_source_breakdown_runtime_realtime_room_sync.md` | 835 | `6584b31e36b8bda091a92cebd5eedd50846fb9bfdcedaffc5ac23a72347005cb` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_90_traceability_source_breakdown_runtime_saga_transaction.md` | 829 | `577508c3d858d2c8b7f2a5b46a5b8e281330b7b4f70ffd899c06a8eea58cfc27` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_90_traceability_source_breakdown_runtime_scheduler_service.md` | 832 | `e892ff65ecf3b609c62678358c423ce5567ea6936691c3480c8773b6137a49a1` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_90_traceability_source_breakdown_runtime_session_runtime.md` | 826 | `050e59f7ba0b484311818997e4973dd71610fea5eb1b6f9010b8d92c9407039e` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_implementation_90_traceability_source_breakdown_runtime_workflow_engine.md` | 826 | `89fadd5e9ef921d276996d81fdde7b1b826654625f8075b9c7277e1ae31ba84d` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_runtime_capability_layer.md` | 731 | `60e911ef8b80d4775bf81da244ec7a3ef177dd3e49bd7559599e4108d059ab8f` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_runtime_pending_decision.md` | 731 | `fdf6cb5225692a75d0fad2bc3270df09c509d6edc1f6f4cc69eabd8a87f17591` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_runtime_realtime_room_sync.md` | 737 | `e86803af42f7fb050fc08bc42aac676349a7a02a54f3d40dd1495fbd4e8e3309` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_runtime_saga_transaction.md` | 731 | `5d6ead53913a355d4f9d3f73c339572b0bd9ed4ed48e3b8586bc35668757dfef` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_runtime_scheduler_service.md` | 734 | `1b79cc2d90c3e24a2d5af30bb1e549aefd221049c2941cb081650b776397af94` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_runtime_session_runtime.md` | 728 | `ab4e79e5fb23d311e8358e43d2faddcfa451730ed772e4efb93f77b031fb67c7` | `100644` |
+| `docs/codex/03-runtime-orchestration/source_processing_record_docs_runtime_workflow_engine.md` | 728 | `1ef7237c2b5e7c8b243810166bd2d069d2ba03ab429bbc4ae79c7f5f3636a0c0` | `100644` |
+| `docs/codex/04-ai-agent-system/AGENTS.md` | 4235 | `612617199d8d372a510fa38f307a74f22db17f4bfb8fb49fa2f57d85e7620f8f` | `100644` |
+| `docs/codex/04-ai-agent-system/README.md` | 1837 | `31b6eb6ed2b5eec4525ca5404de98aa683e889af44cccb01335c1e41ce2d52c6` | `100644` |
+| `docs/codex/04-ai-agent-system/codex-module-code-prompt.md` | 4033 | `fb798388d310b1556181e898f33ed34d35834f50f53aebde9bdb4974fbe2d7ff` | `100644` |
+| `docs/codex/04-ai-agent-system/codex-module-review-prompt.md` | 1979 | `6a5d3b457f3cb6b813332cd41a34c4f4d5e4bfaa7a77dcb21dbe95eebaf2ff15` | `100644` |
+| `docs/codex/04-ai-agent-system/codex-module-test-prompt.md` | 2287 | `571bf5909d29c8b57477af04bc6d058a92b2c0a1b3fe6af60d9d77cbe86ef16f` | `100644` |
+| `docs/codex/04-ai-agent-system/m_04_ai_agent_system.md` | 1396 | `f8ede719c8e9a61296825cbea77e4645ed713866415e20c2ebf02bfa5615cebd` | `100644` |
+| `docs/codex/04-ai-agent-system/per-file-prompt-manifest.md` | 33295 | `74f92a94582154101c6ea1bbe790affdba4b534f601a2cbe24bbe2300f096bdc` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_adr_adr_0009_agent_governance.md` | 1227 | `357ee80a78e2c36e2fe05d5aa0d8cda985358cf112ccbca454d81a15034a62f1` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_adr_adr_0010_rag_snapshot.md` | 1066 | `7db4e965e857b0d1ff4fe0fc68a557df103d9b831d99a9a44be33a1c52b2d1ff` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_ai_agent_runtime.md` | 1047 | `42597ff65c5a3479541a08ee235fcd13264c7b84efb310708d997826e99de299` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_ai_evaluation_golden_scenario.md` | 1055 | `a8c841dcf51cf1ec74cefc3128c0596770a9a056afde05041311aeaa09227a5d` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_ai_memory_rag.md` | 1006 | `aa889735b0f8985b00d021cd002f5c717e249a6a72048f1a6267504ada0fe818` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_ai_model_provider_local_cloud.md` | 1059 | `d711baab8e1d5a7a603118ccc5b7536d6adc64f4bb5d26dd61c27ebed2de478b` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_ai_rag_snapshot.md` | 992 | `11ad236c132d2e0a58d91c05b4093c1fa01e05708c8a3ca0d65ecd0fa14968de` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_04_ai_agent_system_agent_context_assembler.md` | 1052 | `965427a6a3cb90b347c2b6c774417b1f680a6a08d0b78de8af3f8053b84af90c` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_04_ai_agent_system_agent_runtime.md` | 1045 | `81744132880c5f311f91ac2df6b800b31ee112e4a7c438fa2e65fbb98fd522b8` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_04_ai_agent_system_ai_evaluation_runtime.md` | 1039 | `ba54ca7023c0dbcf28ff9fc42020fb76032bcd5a30058f3bc36b4f623117d246` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_04_ai_agent_system_local_model_certification.md` | 1067 | `b9db638a2d2aa00e6831e5e2f95289d20e4dea769cfc9bcad56b9e3f35a7bd17` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_04_ai_agent_system_memory_rag_rag_snapshot.md` | 1049 | `88a62432f7607cfc4413ac664974ee6e0bd0caaec17fdb20bc4498b0a797f6ea` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_04_ai_agent_system_model_provider.md` | 1065 | `91f54bf0a005fd09c92303ba1629f20a68a94b62ae155f5c1288cdd97aa6f6a3` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_04_ai_agent_system_readme.md` | 1029 | `b45e8422156536e014cea7f52b348d249297fb4390448c4b723c9d6adeef68a6` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_04_ai_agent_system_tool_protocol.md` | 1046 | `c6ef4f3d5ed2610c8f4491127cb8030cb6f8d7f53bb63793e754ee2190729acd` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_12_extension_sdk_agent_pack_sdk.md` | 1049 | `4cafbd14da814d2b4c3aa17f8c476c67a38e7d2d70572709779b97fe737de6c8` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_90_traceability_source_breakdown_ai_agent_runtime.md` | 1105 | `c9fd0bf5a91ca3195bdb11238f8fb52da398cb8f050a945b6e26377c7fa9e4a8` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_90_traceability_source_breakdown_ai_evaluation_golden_scenario.md` | 1117 | `01b914c8392c5bd6cd1afd22e3927204455b41c9d1208d9dd14a5d8a6cabdcb7` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_90_traceability_source_breakdown_ai_memory_rag.md` | 1063 | `e292b964cdfb41b205b4cc35631742d18e9cb410654791468581b99a9418f6d8` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_90_traceability_source_breakdown_ai_model_provider_local_cloud.md` | 1157 | `86e5f7556599ba458f22f0e4bf15b629d547fce0f5796d1177af9be31a499069` | `100644` |
+| `docs/codex/04-ai-agent-system/source_processing_record_docs_implementation_90_traceability_source_breakdown_ai_rag_snapshot.md` | 1072 | `df2fa3353b5cedfcb6dcd663cd52985d85151a8b724c647bf63f170e8802cbc2` | `100644` |
+| `docs/codex/05-ruleset-coc7/AGENTS.md` | 4213 | `513b49046a32e3783e573267eb7f620c4adcc7219d6ef7317948fe08858792f4` | `100644` |
+| `docs/codex/05-ruleset-coc7/README.md` | 1814 | `d0c095541dc0ef10e3df5639670a05f653eb4cd44e09b723ac14aaf41b6bd95c` | `100644` |
+| `docs/codex/05-ruleset-coc7/codex-module-code-prompt.md` | 4007 | `4f663fa65bb8fe0b1e7b5a5e13d74d4b91e4116cfc4200d164919d3dbde8a8d0` | `100644` |
+| `docs/codex/05-ruleset-coc7/codex-module-review-prompt.md` | 1970 | `c5b73fc888df056cd0e3de39ebd5683de030aeb2a9e6fc85498c34ab7c1a502e` | `100644` |
+| `docs/codex/05-ruleset-coc7/codex-module-test-prompt.md` | 2273 | `b41630f03cce85a5c712a3756506b5610faa1be6f9031a1af0f911a65ae294bd` | `100644` |
+| `docs/codex/05-ruleset-coc7/m_05_ruleset_coc7.md` | 1395 | `c088a0361d403956fb6c935083d6ed7f6f3c0831b024a8aafdf651362eeb3d8b` | `100644` |
+| `docs/codex/05-ruleset-coc7/per-file-prompt-manifest.md` | 22271 | `2872a3fef0eb120d5176d147ff8090a00ab8e7828b10b5401fb84e7f6e43d3ca` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_domain_character_combat_san_chase.md` | 719 | `3b213e5e944d983b1bc2acd5602a3637925318c64c9b76bacf9e4d762ec4ef06` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_domain_investigation_clue_npc_time.md` | 684 | `a728636b4604f52d20b0975fd30f45b414fe3007c561a1ddcdc039d873c22496` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_domain_rule_runtime_coc7.md` | 670 | `7b2f1a24098578873306ec57132ad03ea8ce643d3cbd82f5128c7f4d4002aae2` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_05_ruleset_coc7_character_combat_san_chase.md` | 670 | `0d47f64f4573f742d77380f1a84b99e060dfd2f6a88d2c823776c3a924882bf6` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_05_ruleset_coc7_chase_state_machine.md` | 637 | `1505ecc5f764abf4fea5a914bf3b862ab74a017b96a3a7179721a9fb467294cd` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_05_ruleset_coc7_combat_state_machine.md` | 630 | `57f713d5779edb2f4ffb40fc061f316a41675aacbcb2d872fa408b23d762c2c7` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_05_ruleset_coc7_dice_roll_contract.md` | 639 | `0fd9deb2f7f4f64485b3f9c26eb387fe13d767e43dc4f28600256d2a465aee73` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_05_ruleset_coc7_investigation_clue_npc_time.md` | 673 | `ff7460bd28290a640e1c15178c9db63212f71bd15f6acad0da9d8153c13df19d` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_05_ruleset_coc7_readme.md` | 638 | `a0fe93f6596891baafbac200c27f6c0e8656ae2b4188b84999a8f9831634bcdc` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_05_ruleset_coc7_rules_coc7.md` | 694 | `e814e7a938dc41d7201614d2a223c83afa2b93f3c28dc8c356610d859e25d3f8` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_05_ruleset_coc7_sanity_madness_state_machine.md` | 739 | `a91b30d239205654e971a9e743d8df2c7747dd60b360fa0d04afb8af9c958a6c` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_12_extension_sdk_ruleset_pack_sdk.md` | 704 | `46bd80c388bdfa80467a9148c7c3f0daf389878a7e07357a402cf836e3e606c1` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_character_combat_san_chase.md` | 783 | `71f3c731f4ecf883e6c77e99066ad086aa681920cce152cc314bb2ae876a39c8` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_investigation_clue_npc_time.md` | 801 | `2f18e3e77fce763db3c8c9f73f4f64f31513a07eb8e52dcd416acdbc81223a55` | `100644` |
+| `docs/codex/05-ruleset-coc7/source_processing_record_docs_implementation_90_traceability_source_breakdown_domain_rule_runtime_coc7.md` | 793 | `71c48140248ce2aa0ef14a0b80c6049a0227b7781dc8ac35008415f10aef7ef5` | `100644` |
+| `docs/codex/06-data-eventing/AGENTS.md` | 4202 | `3d8f664ca913118d60655b25ab87b41451d0344c2b3c19e12ce5a2a3f2fbe140` | `100644` |
+| `docs/codex/06-data-eventing/README.md` | 1805 | `32b9fa2b16910e29e222977eb3b48ba1c0b34d61f8bd7497925ae92e4999227e` | `100644` |
+| `docs/codex/06-data-eventing/codex-module-code-prompt.md` | 3998 | `e272d3ebd67efb476d58756599ffe058ad58b5b3695b3c3cb30de7e7a41c6f4e` | `100644` |
+| `docs/codex/06-data-eventing/codex-module-review-prompt.md` | 1973 | `9212e4a878cee5005d400b04292882b6b9fa5fbcd593767472012ece5e166d64` | `100644` |
+| `docs/codex/06-data-eventing/codex-module-test-prompt.md` | 2279 | `c45af3472fab3056f85839f865a3da1445dfb38226cd0924cda247919332c5bd` | `100644` |
+| `docs/codex/06-data-eventing/m_06_data_eventing.md` | 2109 | `7c7e6033cd9e7aac90131c8416993035ac07b9004138982c12690db2ae947e2a` | `100644` |
+| `docs/codex/06-data-eventing/per-file-prompt-manifest.md` | 36689 | `56488c8b54e1f1d1233cf4ca71b5c82ee757858d2eb91d2052c2a19392e659d9` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_adr_adr_0002_event_sourcing_cqrs.md` | 919 | `433dd071a853a2fdea28bf3cdf00cdba7a12acd0c17abf03ace88c793ea7231a` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_adr_adr_0004_nats_jetstream.md` | 877 | `def756cb485a5549efb0191a20e40fb3fb4a423f1c6356782b6252a430a92b4d` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_adr_adr_0005_postgres_pgvector.md` | 916 | `0ae97e1abc0f5d1b28ad10a8a16b9db11fb14a8958fb3e49a267f0d3b3890465` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_contracts_nats_subjects.md` | 919 | `440bdaa8ae35d0b0741fdcb9e8f5bc0b6c7c377b685d4a79e354d66dd1bb5a99` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_db_sqlx_migrations_implementation.md` | 957 | `373802bab9813d11cf18aa622be201fe70dfd26e74dec0cd7ec083fb676d1af5` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_06_data_eventing_cache_redis.md` | 831 | `a5832684561ebe551b456c0a816dd11a8e49acd916bcb74d910db06875e87746` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_06_data_eventing_database_schema_index.md` | 904 | `37e2ffb34850151e4b03b52e487fba9d21b91b7ee28332524b75ef40b7d68b75` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_06_data_eventing_event_bus_nats.md` | 875 | `6ba9b53a0fb2885054c8204ec28d9526ee3d6ba4355fa3274ab911fd40a2fa30` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_06_data_eventing_event_schema_index.md` | 951 | `adf6af3a50ce018221efee12f51573ba889b31cd9e0ecdd35fdac8de6eb53d72` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_06_data_eventing_event_store_projections.md` | 892 | `34dd50b66d0918c974cc9cab9a9ce679c65087e811b8114bf012a1cf9196b63b` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_06_data_eventing_outbox_projection_workers.md` | 910 | `9b2b34b0525db2dd20290d41369f5159a9a6065e0180c5dbef15fe99207369e6` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_06_data_eventing_persistence_migrations.md` | 937 | `4cb0c6649dce3f024792deef70d696d6e13358fdbf39957c8d9a131864cce436` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_06_data_eventing_readme.md` | 863 | `1408204f78ee04ce2f8ce1cb2d0d98db8a94db5d36bffce68c40dd26249bfeaa` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_06_data_eventing_snapshot_strategy.md` | 888 | `d990a323c8c2e0c430f0e63f7ae18879ee69d438896369d2355829a0c80f3a91` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_07_api_realtime_contracts_nats_subject_contracts.md` | 878 | `15c4286f579803d88cffbaf9de4538f488fc49c08b07d129743513bfea17246b` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_90_traceability_source_breakdown_platform_cache_redis.md` | 892 | `4cc379113ed343c28ab3fe46eb7776be0ec2c73c1ad9865d98048382e4cd4da3` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_90_traceability_source_breakdown_platform_event_bus_nats.md` | 892 | `d81f1658e2314e268c95fd854adef1daaa98612a9aa94a7a9e9aa4a47cef3a64` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_implementation_90_traceability_source_breakdown_platform_persistence_postgresql.md` | 899 | `cda5f7784293ce856fadd38be637369ba85a3a937637169a92e8b456f4fd019e` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_platform_cache_redis.md` | 799 | `fb1fce2d3881e35fe2f05a52ccfe73d076ae7617fd0bfc2b08965fb773b8e807` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_platform_event_bus_nats.md` | 802 | `62523995cd315298327660080d45925a4f20d7101dd5a813efccb9a3ce74d643` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_platform_persistence_postgresql.md` | 841 | `3d3abec7f0701fc40200b18d64c7fe42b0913495d1d493f7d361ef35c3ce428d` | `100644` |
+| `docs/codex/06-data-eventing/source_processing_record_docs_schemas_event_json_schema.md` | 812 | `b347b82194eb6c7ea814c718b09a68ceb8342a982c4df7bdca32b18e906d8664` | `100644` |
+| `docs/codex/07-api-realtime-contracts/AGENTS.md` | 4254 | `434335a0b69e2996af9636762d50dae140adfa5a174d42a8194ec93437060e14` | `100644` |
+| `docs/codex/07-api-realtime-contracts/README.md` | 1855 | `4d47098cfa1277a1ad58b31ac7f67e832f4d70cd0cd8c0e911955214d348ca2c` | `100644` |
+| `docs/codex/07-api-realtime-contracts/codex-module-code-prompt.md` | 4058 | `af93fa7b4b3e0dddf438b92a900781e30957bea1d1028e1962b255dcbadf02f0` | `100644` |
+| `docs/codex/07-api-realtime-contracts/codex-module-review-prompt.md` | 2000 | `0698b31d60e4ae2e1d83e955cdfa62783091c332715b2bb17a594441dd8c5ea7` | `100644` |
+| `docs/codex/07-api-realtime-contracts/codex-module-test-prompt.md` | 2295 | `f9d7c61942eafba129208a641f15122b52580387b94c1646eec2fc95d55f735b` | `100644` |
+| `docs/codex/07-api-realtime-contracts/m_07_api_realtime_contracts.md` | 5534 | `c02612bd282b70737f8b648e2f39d8570b9cecd78952e9193447e6177bedbe96` | `100644` |
+| `docs/codex/07-api-realtime-contracts/per-file-prompt-manifest.md` | 18868 | `3214a60e725804d3b2c511fce602bdca94145080e89d2493e39d3b317527a9a8` | `100644` |
+| `docs/codex/07-api-realtime-contracts/source_processing_record_docs_api_openapi_implementation.md` | 1484 | `b918702d6561941c1d5d3904e01c62e315a81a8ef0ee026a07b2886db1df8998` | `100644` |
+| `docs/codex/07-api-realtime-contracts/source_processing_record_docs_implementation_07_api_realtime_contracts_api_and_transport.md` | 1487 | `f8860ebb33c81a2b1c8ea7f1a3ac7ca5f6a821a360d2bdea28dc3a218d878fde` | `100644` |
+| `docs/codex/07-api-realtime-contracts/source_processing_record_docs_implementation_07_api_realtime_contracts_external_provider_contracts.md` | 1534 | `c8a003b960f05d9c80da1a74b1574efc1ef8ac248df72785ba59c16ae4e50a32` | `100644` |
+| `docs/codex/07-api-realtime-contracts/source_processing_record_docs_implementation_07_api_realtime_contracts_openapi_index.md` | 1367 | `e1cfc3d3f0fb2851bd9e4ff5a7547c93794fc30278eef6287b9b880dbbca0428` | `100644` |
+| `docs/codex/07-api-realtime-contracts/source_processing_record_docs_implementation_07_api_realtime_contracts_readme.md` | 1388 | `d71a2c5b4e574f27884571f9de28437f59bb72bbe8af55738af1126b423964fd` | `100644` |
+| `docs/codex/07-api-realtime-contracts/source_processing_record_docs_implementation_07_api_realtime_contracts_realtime_sync.md` | 1308 | `406ccf2de1abb676676951bdfc6f39bf8593147fd5554e3412347a73de957874` | `100644` |
+| `docs/codex/07-api-realtime-contracts/source_processing_record_docs_implementation_07_api_realtime_contracts_request_idempotency_contract.md` | 1439 | `7dcf9ed9a5451865b7cfe93fc7ddf6a15a5e748d4f44659e4a2f15f013bd0456` | `100644` |
+| `docs/codex/07-api-realtime-contracts/source_processing_record_docs_implementation_07_api_realtime_contracts_websocket_protocol.md` | 1525 | `7abd45b51533e2065a4d24918435ce3470aa92bf94623725f6f9d03d30370ecd` | `100644` |
+| `docs/codex/07-api-realtime-contracts/source_processing_record_docs_implementation_90_traceability_source_breakdown_platform_api_contracts.md` | 1472 | `9b1f189ef50174ca5322444f601c5f89cf7b997c8c572d459caf5f315f5ee953` | `100644` |
+| `docs/codex/07-api-realtime-contracts/source_processing_record_docs_platform_api_contracts.md` | 1385 | `945a17df5893931b63f9de701024abde5b349d81c76113d61b4f6ebe8b46bb5f` | `100644` |
+| `docs/codex/08-platform-infrastructure/AGENTS.md` | 4234 | `3bc951cd6280bfce13ea1a179ace21d1154fe3846ce77becafe008157fe5c0a9` | `100644` |
+| `docs/codex/08-platform-infrastructure/README.md` | 1846 | `29e12702fad088896851f8348253f584a6dfb3ccbedc14d5201d4842639b04c2` | `100644` |
+| `docs/codex/08-platform-infrastructure/codex-module-code-prompt.md` | 4050 | `574ba931f26f9335cf7aa536ac22aeadf7a5ee79d87d97a9af1d1ae21dcee78b` | `100644` |
+| `docs/codex/08-platform-infrastructure/codex-module-review-prompt.md` | 2003 | `5346236f4faedbf7551c299fb3b4525e7617b653ebb1335f6625855d7aa0e46d` | `100644` |
+| `docs/codex/08-platform-infrastructure/codex-module-test-prompt.md` | 2309 | `9cc425a64a5f6247b9bf13233e765a2b01c8da5372557ae8981b5464dc7d7cff` | `100644` |
+| `docs/codex/08-platform-infrastructure/m_08_platform_infrastructure.md` | 1766 | `a2dd2d12269bd6c513a88e0958c5f1e087376ee9ee752031e89e1ddb9b66e861` | `100644` |
+| `docs/codex/08-platform-infrastructure/per-file-prompt-manifest.md` | 30031 | `b313849af03c8d1527ea5ffa013949668c0c9325503eb7cc703b1e36d59eed3e` | `100644` |
+| `docs/codex/08-platform-infrastructure/source_processing_record_docs_implementation_08_platform_infrastructure_background_workers.md` | 2004 | `92abf3ba057e7b60f9983f23ec3404a10c7d0e98b5fa1a86fde301649c3168b9` | `100644` |
+| `docs/codex/08-platform-infrastructure/source_processing_record_docs_implementation_08_platform_infrastructure_deployment_ops.md` | 1992 | `21813c7811ce13df42638028c2b8a548499c42427062f5f699361222ef35e5b7` | `100644` |
+| `docs/codex/08-platform-infrastructure/source_processing_record_docs_implementation_08_platform_infrastructure_local_dev_environment.md` | 2013 | `12af0b7aefe1b779f8b5c89fee2678ffa7b313cc00e39e9ef700e8ae59d17fe9` | `100644` |
+| `docs/codex/08-platform-infrastructure/source_processing_record_docs_implementation_08_platform_infrastructure_object_storage.md` | 1992 | `c0fedfed82ddfc02fe42d6f9655b59a4b330e8662c68b793765573e9ab6c0a06` | `100644` |
+| `docs/codex/08-platform-infrastructure/source_processing_record_docs_implementation_08_platform_infrastructure_observability.md` | 1989 | `ca40040b2a3abecf66031619e3e108bfe0474e37cbac863eb42f2e7337877a59` | `100644` |
+| `docs/codex/08-platform-infrastructure/source_processing_record_docs_implementation_08_platform_infrastructure_performance_budget.md` | 2004 | `8261605f57d3f21397a59ddc4b5eb7212eeaef42404275a88c0d3546882111c0` | `100644` |
+| `docs/codex/08-platform-infrastructure/source_processing_record_docs_implementation_08_platform_infrastructure_readme.md` | 1968 | `4a07074b51fa024d42b44cd931ff34d514c1a2da4b4e15ce2616cd51d07e0fe1` | `100644` |
+| `docs/codex/09-security-governance/AGENTS.md` | 4243 | `3704f0ad163948b1a2361e9d8b7be047b2fe8194c17062ab12a0692569e89f13` | `100644` |
+| `docs/codex/09-security-governance/README.md` | 1851 | `e3e39565cb798eb99ae35a97b8f18eecf6dbb176849345b09a89625241b614f5` | `100644` |
+| `docs/codex/09-security-governance/audit_log_contract.md` | 931 | `a7d2d3305360543b40c337fbe80ad057b336b17f3fb651545e91aebae8f13c18` | `100644` |
+| `docs/codex/09-security-governance/codex-module-code-prompt.md` | 4051 | `6c00d0a799ea8be30ee6ab2ab4cc0134a36f12e06a8f063c7905aa989f650c8a` | `100644` |
+| `docs/codex/09-security-governance/codex-module-review-prompt.md` | 1991 | `7e24060872d69beeba08649d1483b1ec975a710e75fe785caab82f36875bd40a` | `100644` |
+| `docs/codex/09-security-governance/codex-module-test-prompt.md` | 2315 | `b8b42f528c8198912cf7fb0a85c9e1ed99d5efc95eaf225aec76f11632c8868e` | `100644` |
+| `docs/codex/09-security-governance/copyright_boundary.md` | 937 | `5d19a3acdba146762e9ad3bd55753747f6736c2659f8b4d5e373b0186a5d6a70` | `100644` |
+| `docs/codex/09-security-governance/m_09_security_governance.md` | 2202 | `ce304653566fb5d54cb52bf946697f990004a6be9aff51298d6e00da1ab15b85` | `100644` |
+| `docs/codex/09-security-governance/per-file-prompt-manifest.md` | 20591 | `6401bd636cbbd4680b9f40372151cad6365d48fe4d4d0a5ff6129881847d2aad` | `100644` |
+| `docs/codex/09-security-governance/permission_matrix.md` | 906 | `8ba9567fc30473efb97e647180afe51e8e3f684461fef1b397c0e77dac2d8b9d` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_adr_adr_0006_openfga_opa.md` | 1119 | `3c38ce246b2654966c861c0a30b611123a2886411203e772d0b721901effb94d` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_implementation_09_security_governance_audit_log_contract.md` | 1096 | `a9b2b35e01b0b6ec8908e931035451e2eaa3cda091bccb27e97fefe774eaaaa0` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_implementation_09_security_governance_copyright_boundary.md` | 1035 | `b0cbeb8f50410d944c3cf98233ba207f68bfb959b20c1b372cef573b9ab8dea0` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_implementation_09_security_governance_data_retention_deletion.md` | 983 | `200af620a18c5ef4e5079152950c6dc78391e7daf435f8eb7e476d8f5db62eb9` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_implementation_09_security_governance_permission_matrix.md` | 1088 | `5662f5186b89578ac9ee0cc618ef81599922a0fce7643c4b40772dd1e5724e16` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_implementation_09_security_governance_policy_openfga_opa.md` | 1008 | `52c55ae112684f44720196297bd5eea50bb051f0fc524bbd5ae4e6bb15969c5d` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_implementation_09_security_governance_readme.md` | 998 | `a77a5194b9c37279fd39e2f974a2970c59529e57332ae7c2e371f3aa74fc9612` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_implementation_09_security_governance_security_privacy.md` | 1029 | `32827aa630bd3b8227db6056478650db655cb0940290279d25a02cc3a6d13856` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_implementation_90_traceability_source_breakdown_platform_policy_authz.md` | 1133 | `78294f1707b96ed3561c0ab555c20286b85f1c2e8bab2438e465c6d22f12b33e` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_implementation_90_traceability_source_breakdown_platform_security_privacy_copyright.md` | 1133 | `ef7884f9e49f63f8a62a94bc1c7ad6cadb72c84101860cc2a87e0cba3f5fff3a` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_platform_policy_authz.md` | 1055 | `615526d86e9a1f3f0a94580c83ddaec964499f520dbc1ba18ba861aa4aa3f20e` | `100644` |
+| `docs/codex/09-security-governance/source_processing_record_docs_platform_security_privacy_copyright.md` | 1099 | `ae82e37e28064e5eb489dac3e4bf306821682b34ecefe52c15c28d825ba2af6d` | `100644` |
+| `docs/codex/09-security-governance/strict_rework_audit.md` | 4161 | `bdb6c52477457c538ac0e1c663c69bf527fd3d5b3ef67889a187a2ac3ea282d5` | `100644` |
+| `docs/codex/10-testing-quality/AGENTS.md` | 4213 | `5697e719417466ddedf7e9da6264137ddcf128256a2f037747b5a60d3df92513` | `100644` |
+| `docs/codex/10-testing-quality/README.md` | 1817 | `cbfc7fcf22507dc26293457cc27add5298ec8980c018dbd0921dc29783058c10` | `100644` |
+| `docs/codex/10-testing-quality/codex-module-code-prompt.md` | 4013 | `4071e4ca5ba3587eec893d1dd32d39111cd311dec3236ebc997fe0fda80f5199` | `100644` |
+| `docs/codex/10-testing-quality/codex-module-review-prompt.md` | 1979 | `0c8d5e375f28bb6bac4c4d313f1c0b39b8d29ada4e13aead2a9d27e7889852fc` | `100644` |
+| `docs/codex/10-testing-quality/codex-module-test-prompt.md` | 2275 | `6fe8305994fa9ede63b48490e83421e9efdae9da95d97b000c67bc1c4e5f192e` | `100644` |
+| `docs/codex/10-testing-quality/contract_test_matrix.md` | 3848 | `f1d7cbc60f270de0956ad5c4a569975e97f8201ac381a54bb70edd369d828399` | `100644` |
+| `docs/codex/10-testing-quality/m_10_testing_quality.md` | 1869 | `dda84739cee02299a3d6f2eba55a384f6d055409293496910bfd185df045dde8` | `100644` |
+| `docs/codex/10-testing-quality/per-file-prompt-manifest.md` | 27618 | `1daef698b8ba20c53da5ea540ec7b82803a737e5dd810e987e098c03f06a7149` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_checklists_implementation_acceptance_checklist.md` | 1076 | `9c1dc2a3f3ca896c9b23e544e6d1b06327d7e99b2550fc31dd575b9ccb3e83ca` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_00_index_decision_trace_map.md` | 1105 | `17ea96c5069160fd5738307b7d21cb2b7b335a608b438b1915f924c0e629d01b` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_10_testing_quality_benchmark_plan.md` | 1034 | `994509906d1c7f8813acf30312fd78c3edd8786151cf0a52be45f5a87049fae5` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_10_testing_quality_contract_test_matrix.md` | 1104 | `310e1c098f94aed4e8db894611625f3af8b4d08ac786ef6cbc2bb287d5b16404` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_10_testing_quality_model_certification_tests.md` | 1121 | `5c0b7dd5749a83d6a2b50526dceb7c2f442fa28ac57ba8f240f0c62df545ba0f` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_10_testing_quality_readme.md` | 1036 | `5432bad2679c2adf2a99ea3889cdb5389a0e34a8ea86ba89bc67a5fc6c447b74` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_10_testing_quality_replay_consistency_tests.md` | 1016 | `60705c0d2b39eff28bba380d2b8e08667e3adba2794c935333782682ab5ee332` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_10_testing_quality_test_strategy.md` | 1014 | `425bd941173bc2da54785e78592eedaccd5d7dda2d915075e14fd7b26a7723eb` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_10_testing_quality_testing_golden_ci.md` | 972 | `d38d9f766ab614d40382f5283f22ca0781976514d0c0fc86bfe723b1a4c9aa5d` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_90_traceability_requirement_to_test_trace.md` | 968 | `20e1ec26a017876cb6ef5d43c692a0447474d0c06f79855d329a0ce230fee96d` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_90_traceability_source_breakdown_testing_golden_scenarios_ci.md` | 1150 | `c82be88a73329070e8f5ced8b7ee8bd42932a9cc4d5c5fd811f770d491ec0f51` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_90_traceability_source_breakdown_testing_test_strategy.md` | 1052 | `32aa16f4d7b6af4419f54c58910f7961db50fa0050818a5e4f044142b23acc67` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_implementation_90_traceability_top_level_principle_trace.md` | 1051 | `c29132f0f8ea69d964f60c67ca2434acdbfa2268b9166fb8840132c83fcc4698` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_testing_golden_scenarios_ci.md` | 971 | `47e46f4e3b202374b6403b550437e99b1f6697ed9d5cb75ad7cd8999bb4ab75c` | `100644` |
+| `docs/codex/10-testing-quality/source_processing_record_docs_testing_test_strategy.md` | 1001 | `04cbeb59bee68d57d1634743c68699704556e471b15e5231c6ad144da803cd90` | `100644` |
+| `docs/codex/11-ops-migration/AGENTS.md` | 4214 | `560736f7104c61609b74afd933215f413e3d07ac689f1e2689892564c9a4ffdb` | `100644` |
+| `docs/codex/11-ops-migration/README.md` | 1816 | `b1e57d70a0108edf078fe94f9f599667beb7c46ce45f5ae1b2345fa049e693db` | `100644` |
+| `docs/codex/11-ops-migration/codex-module-code-prompt.md` | 4010 | `c47aacb1b65f59f040a08fb9ad75af6cad37d743f6cbb017fccf1a085257a91e` | `100644` |
+| `docs/codex/11-ops-migration/codex-module-review-prompt.md` | 1973 | `9ad43d188d12775bfa1b1d7124d368d7c3ae017dc5dd5ebff9525cff858b25c6` | `100644` |
+| `docs/codex/11-ops-migration/codex-module-test-prompt.md` | 2259 | `7d8558c543f4930c7789e2739a332b29cbb7857401a6367d1ab6a1b4dc38e278` | `100644` |
+| `docs/codex/11-ops-migration/m_11_ops_migration.md` | 853 | `3a0e6faa3f7f79545554003a8ab5ea2f72b0a9178ee6671b2ce1ca4170841232` | `100644` |
+| `docs/codex/11-ops-migration/per-file-prompt-manifest.md` | 15292 | `8766764344a14f0df01694f4f5d560bd224195f154f41293f0513d8c29506d72` | `100644` |
+| `docs/codex/11-ops-migration/source_processing_record_docs_implementation_11_ops_migration_backup_restore_runbook.md` | 674 | `a7383f2d3744094e578d42722f551f34527c931aec9d2fe75556c73185aa76d3` | `100644` |
+| `docs/codex/11-ops-migration/source_processing_record_docs_implementation_11_ops_migration_incident_response_runbook.md` | 661 | `1d857805b0d1417631970f0a86348f2d7198bced8b6a8424bbde153534a9df81` | `100644` |
+| `docs/codex/11-ops-migration/source_processing_record_docs_implementation_11_ops_migration_migration_upgrade_rollback.md` | 664 | `ff4be6d1d8a5177d36c1293adc458046a6b796c52982cdfc41e0d745f37f59ac` | `100644` |
+| `docs/codex/11-ops-migration/source_processing_record_docs_implementation_11_ops_migration_projection_rebuild_runbook.md` | 669 | `59fb98a2215f38bb02359e3ea8a03fe6e334df405eb85970a8663d2674e8a55c` | `100644` |
+| `docs/codex/11-ops-migration/source_processing_record_docs_implementation_11_ops_migration_readme.md` | 633 | `58ce6d9450f87a5e1d4e7f4b52ea11256940c2089dd17e6c51690ac2e7fd0c03` | `100644` |
+| `docs/codex/11-ops-migration/source_processing_record_docs_implementation_11_ops_migration_release_checklist.md` | 650 | `93658220adf73855b55f5e45f504802f2c499b7466bcba95c0c7e7edde500e70` | `100644` |
+| `docs/codex/11-ops-migration/source_processing_record_docs_implementation_90_traceability_source_breakdown_migration_upgrade_rollback.md` | 707 | `f53ecc6b43ed0128b695b55d71da39aebfba91ab1512d33ba989cc7ae630d416` | `100644` |
+| `docs/codex/11-ops-migration/source_processing_record_docs_migration_upgrade_rollback.md` | 656 | `332b2eb23f5d04632bfd63a342c46fe81a534e26ddd367e3958476b5f02caa08` | `100644` |
+| `docs/codex/12-extension-sdk/AGENTS.md` | 4231 | `4813a51d732b12e1c8417fa9edfc195729c966fe1854d45dca669dba84effb3c` | `100644` |
+| `docs/codex/12-extension-sdk/README.md` | 1833 | `1a0a6f50b4f3e9e0363eb22fb0c5c52549253d28d46446fb9afcfe1fca825a32` | `100644` |
+| `docs/codex/12-extension-sdk/codex-module-code-prompt.md` | 4027 | `667329ddcafab6eade9b13d3fe825c8d0d781a9a0eafd5132985744c643ce357` | `100644` |
+| `docs/codex/12-extension-sdk/codex-module-review-prompt.md` | 1973 | `096443e1aafe06e2a9a3f68343959fa0635020d15436521e1cac3dccafeaccd5` | `100644` |
+| `docs/codex/12-extension-sdk/codex-module-test-prompt.md` | 2279 | `888c7fdb13515fc52a46ada9705bd9d2b64b851290d9d18ebfc79ea782a47eea` | `100644` |
+| `docs/codex/12-extension-sdk/extension_compatibility_matrix.md` | 1330 | `22042f01f0931216792e7282c8540562afbdf71077503d7e9a8acfeeefdb55aa` | `100644` |
+| `docs/codex/12-extension-sdk/m_12_extension_sdk.md` | 1104 | `ee5a5f5bf4f4ba178f330b4dd86322849b88dc35298df7e7b1e675a662574634` | `100644` |
+| `docs/codex/12-extension-sdk/per-file-prompt-manifest.md` | 11695 | `d4900d2668227b0947ce324899533ce0d8e775c439d80520ec335f0b45a5bf33` | `100644` |
+| `docs/codex/12-extension-sdk/source_processing_record_docs_adr_adr_0008_plugin_boundaries.md` | 777 | `d39fbeb968c3fb34c8c2d75f306fb83a75c5cb0cd3e0f153e69ed9a608e33d47` | `100644` |
+| `docs/codex/12-extension-sdk/source_processing_record_docs_implementation_12_extension_sdk_extension_compatibility_matrix.md` | 772 | `f4af5d65c9ea1ec85f144d2e22898c56b6f2857429a7230ae2dd8731bb193cb9` | `100644` |
+| `docs/codex/12-extension-sdk/source_processing_record_docs_implementation_12_extension_sdk_plugin_sdk.md` | 765 | `864be52ff8fa87c2adb36a23ba3f9f65952e506393daa87841cfba70575c9f8c` | `100644` |
+| `docs/codex/12-extension-sdk/source_processing_record_docs_implementation_12_extension_sdk_readme.md` | 716 | `63daf5427633a6839b36121ce85b0f605695cc536940c401548d24c76bbb71af` | `100644` |
+| `docs/codex/12-extension-sdk/source_processing_record_docs_implementation_12_extension_sdk_tool_provider_sdk.md` | 755 | `52a7218e85c754c7bba73a2869643bda303f68a2fed2e23b32cc2e880dbba146` | `100644` |
+| `docs/codex/12-extension-sdk/source_processing_record_docs_implementation_90_traceability_source_breakdown_platform_plugin_sdk.md` | 1283 | `532ae9f545d112f790d90646d0d66f525085108fbd2620b0ba509abac74fb38a` | `100644` |
+| `docs/codex/12-extension-sdk/source_processing_record_docs_platform_plugin_sdk.md` | 1155 | `6478f8127a9fd5305ee2ece4e1eb5a37e386157b787d977e651a2d3e93a15578` | `100644` |
+| `docs/codex/90-traceability/AGENTS.md` | 4223 | `1f848368ac5c498ee077fdbe2771ca1a34d4d46d380a73b3e24d4a6b3dd2b390` | `100644` |
+| `docs/codex/90-traceability/adr_trace.md` | 3425 | `9b76401a927a8e9565d0857730cb5d5fc9e1f2150ce5b2486e8b81565aa385e9` | `100644` |
+| `docs/codex/90-traceability/api_contracts.md` | 1722 | `c97d03a70d1ac91324a2b1ab3a119c3852431385023ac35e7ae7496d3d7881c1` | `100644` |
+| `docs/codex/90-traceability/backlog.md` | 2160 | `0bfa4c97788192cd19453a2afdb6dc34c72e300cdf12abe7fa6b84305cb06940` | `100644` |
+| `docs/codex/90-traceability/backlog_open_questions.md` | 3027 | `2a1e97eb2a4c5b70e01122f9cc27c44bf12f18b9e1324ca2bc3c140192165c3e` | `100644` |
+| `docs/codex/90-traceability/backlog_open_questions_impl.md` | 3578 | `f93014a679a5804408b5a753131cca36993b8c7baa7ac9153b492b853523d431` | `100644` |
+| `docs/codex/90-traceability/cargo_workspace.md` | 1728 | `e7e6cfcfa0a87099e0a9b3ce156f52634bfb6db5c7695f26f8015f7fe2b07bbd` | `100644` |
+| `docs/codex/90-traceability/chatgpt_followup_research_prompts.md` | 2821 | `7a60363e4c9b83acda2287306de3580cc9f01891504c3cf764c676a241a40939` | `100644` |
+| `docs/codex/90-traceability/chatgpt_followup_research_prompts_impl.md` | 3633 | `fd7be4153608743ac0df945f965f001b506b5bff74ede8af9f609158956d9c3a` | `100644` |
+| `docs/codex/90-traceability/codex-module-code-prompt.md` | 4017 | `1db35ba712a1b0f2ea098d80c5e3e33313649a7186d123a9bd234a64ed9424ad` | `100644` |
+| `docs/codex/90-traceability/codex-module-review-prompt.md` | 1967 | `2dcd0d178503d3cf6f55a8b03a53a99770ac7535c7ade681d6831f6199819ab6` | `100644` |
+| `docs/codex/90-traceability/codex-module-test-prompt.md` | 2276 | `27902b25d83c12ef82c4ec9034730a0fad688709b973c090661f02844379ee4f` | `100644` |
+| `docs/codex/90-traceability/completion_matrix.md` | 3496 | `0bf432fcb3f7d1657dc5b3bf12a6fc49d7227092fe22617ec27417d24f70638c` | `100644` |
+| `docs/codex/90-traceability/deep_prompt_execution_matrix_previous.md` | 2121 | `89a3bf942d3595cb10be6199261878761171fb6088b347a4200ef8f9a06a22e9` | `100644` |
+| `docs/codex/90-traceability/docs_implementation.md` | 2180 | `ab6f8c8d62a667f2d7dab5f3be86f1c6ff05b5e7284b4e5556bbea84be16d793` | `100644` |
+| `docs/codex/90-traceability/docs_implementation_00_index_old_to_new_mapping_strict_previous.md` | 2343 | `3c0fb8ad1fac0f1777b9733dec7f3cfdfe3366408af89de1cb335ebc1ee2e71c` | `100644` |
+| `docs/codex/90-traceability/docs_implementation_00_index_readme_strict_previous.md` | 2289 | `3402fa4b158cad57cc97c64f5df19d0ef42b0e2ca14a14689ad03cead97330cf` | `100644` |
+| `docs/codex/90-traceability/docs_implementation_90_traceability_adr_trace_strict_previous.md` | 2295 | `9767c03ec292278530639be89057d9fb0707600fbe0f57e60bfad430ddc6fcbe` | `100644` |
+| `docs/codex/90-traceability/docs_implementation_90_traceability_completion_matrix_previous_implementation.md` | 2369 | `c18794a4e47c19e3703525d4e477c258c142e1ee1fdde05c666e72c6099693fe` | `100644` |
+| `docs/codex/90-traceability/docs_implementation_90_traceability_completion_matrix_strict_previous.md` | 2319 | `4565862966889a0f3b399032c67a10bfc71f4e0d5466ce54c49955b1e7260d4b` | `100644` |
+| `docs/codex/90-traceability/docs_implementation_90_traceability_old_to_new_mapping_strict_previous.md` | 2333 | `a1d2d8afc364c8d8d62af062894487df63d7f2ee2ec8ba53f33a09e4ac1feca5` | `100644` |
+| `docs/codex/90-traceability/docs_implementation_90_traceability_original_31_error_codes_metr.md` | 3194 | `98ea16988e5aa13986e9c2535e2b7f1071dcf6cd6ae30573db802ce4a2a3d3d5` | `100644` |
+| `docs/codex/90-traceability/docs_implementation_90_traceability_original_implementation_read.md` | 3194 | `d072aae5b2ae6691ced56487b2867f88a207c6024d771d737d6244b1d4b23063` | `100644` |
+| `docs/codex/90-traceability/docs_implementation_90_traceability_readme_strict_previous.md` | 2286 | `eeddd4f6a9c55f10d76acd90f16a8297f6253864843b189547b7271b732f6a3a` | `100644` |
+| `docs/codex/90-traceability/docs_implementation_99_appendix_readme_strict_previous.md` | 3066 | `d238a8f7a335f805ed8ed316ea34d9d59a10faa999241fdc42e8817f21702713` | `100644` |
+| `docs/codex/90-traceability/docs_roadmap_implementation_plan_previous_implementation.md` | 2304 | `8e6b669f41f934239d587703dd42f154f07027936398a11a92efae1ee63d7e38` | `100644` |
+| `docs/codex/90-traceability/document_set.md` | 1719 | `5e1435c13d7535faa5b97c33c825abe5fd2e5a280dd2da527424ed998875d34a` | `100644` |
+| `docs/codex/90-traceability/domain_model.md` | 1719 | `3b9830b427e83b83302fa23c2af8b24393fc497e7caab6c602a52f6c952db9c3` | `100644` |
+| `docs/codex/90-traceability/historical_disposition_matrix_previous.md` | 2123 | `31392e926fc9308bd8ba427634be5717d0d2d921c311abcf9569a544a36420c1` | `100644` |
+| `docs/codex/90-traceability/implementation_plan.md` | 3015 | `869927cef5d2a40e25208ce73d3d138307b387a8a85bbbfecc45aa1a44ee6906` | `100644` |
+| `docs/codex/90-traceability/implementation_plan_impl.md` | 3563 | `75cec5b21e620fb63d486a7596e988fadf0a794cddf4d82394b3e9d59d83717f` | `100644` |
+| `docs/codex/90-traceability/investigation_clue_npc_time.md` | 1764 | `2dc5b20e17d9af8e8ef3875ab4bf11817b317ae8a3e507cac83383a8d65d0657` | `100644` |
+| `docs/codex/90-traceability/m_90_traceability.md` | 2025 | `b053ef52285f5fe93466ae8c6010c5a0176ff65f75badd3e6fd9c77e52c36ea6` | `100644` |
+| `docs/codex/90-traceability/manifest.md` | 4050 | `c2e15b44c89afa605451ec4dbf1ceedd7e2f0630946e2a33a6482494cceac853` | `100644` |
+| `docs/codex/90-traceability/manifest_source_boundary.md` | 2154 | `14e1e6437079dfca125b20f521973e0cfa8735df3061902396994bb6715d18a3` | `100644` |
+| `docs/codex/90-traceability/manifest_strict_previous.md` | 2181 | `fe5b78d223070357489145d1d89a9a2c009c695622aa8348eb5cefebde9c533f` | `100644` |
+| `docs/codex/90-traceability/memory_rag.md` | 1713 | `f73e514b28b65f3b1ad393af4e20382a7e6a78285c3a7229e1138229c6ec8ad1` | `100644` |
+| `docs/codex/90-traceability/model_provider_local_cloud.md` | 1761 | `8f140217a6d4f93ba321cb3c1b6c4d11450e4e27ff6005d16d28dc251893ea32` | `100644` |
+| `docs/codex/90-traceability/old_to_new_mapping.md` | 5115 | `e6d43162b9518dddcb5d5c789f8ad72e9909eb93ec1a025bddbb98d162665c20` | `100644` |
+| `docs/codex/90-traceability/open_source_reference_matrix.md` | 1767 | `fec4c6880d62684710a00d0b6031b16765a189af2c911565ce57e2871826ce42` | `100644` |
+| `docs/codex/90-traceability/original_31_error_codes_metrics.md` | 2661 | `25ebe2f568ea867a380659af8cecdabb9eee510622c5bf7660deedcff4d9c2ac` | `100644` |
+| `docs/codex/90-traceability/original_implementation_readme.md` | 2622 | `3f532b35b34b1aae6875ccec8b0f528b833932f2b2b25a9ff13942152f7afb75` | `100644` |
+| `docs/codex/90-traceability/output-path-ownership-matrix.md` | 82501 | `b969d42792e47a9db467df268fa3cf677510ad7d1b1d67212c255332391bbfcb` | `100644` |
+| `docs/codex/90-traceability/per-file-prompt-index.md` | 395587 | `d48df9e71b9367e4f2d29500540aeb41ce9b4dbe97ee9d0982f703c6c7fe3147` | `100644` |
+| `docs/codex/90-traceability/per-file-prompt-manifest.md` | 682747 | `a9fb8f2225ee9c048167cea7e6ff4392163e6698d1587959e6f8cb081315bbfe` | `100644` |
+| `docs/codex/90-traceability/per_file_code_ready_index.md` | 2068 | `78af04b8e9b5a324294a7765de48f61049a8d5f640b622489f79579504414919` | `100644` |
+| `docs/codex/90-traceability/previous-disposition-matrix-codex.md` | 305666 | `51bc2883bde245de3682b79b53dc52a942268630e12efd34c5cd50b5c0653c43` | `100644` |
+| `docs/codex/90-traceability/prompt-generation-matrix.md` | 110157 | `357e53a3174aee988c8a3abbb4e721b31f5b0d41718c804751ea45a9f9f186fe` | `100644` |
+| `docs/codex/90-traceability/read-every-file-audit-codex.md` | 310946 | `b2fb37865e856ceeb8be66ee9db38ba69e6fa0ce39eb523fcb54db963c6fe923` | `100644` |
+| `docs/codex/90-traceability/read_every_file_audit_previous.md` | 2328 | `976943ec4f2a9754c21dd188a32a1e8072778fa6a0782e8981671815b9704200` | `100644` |
+| `docs/codex/90-traceability/readme.md` | 7292 | `21310f19bc437851b619c331105e99a7068be36f4bf70f8c643bca9fe0afb20b` | `100644` |
+| `docs/codex/90-traceability/readme_source_boundary.md` | 2146 | `9f9dabeea364f2967338aeeab35f12db3da69d8f503f61486c376ca81ed7ec9b` | `100644` |
+| `docs/codex/90-traceability/readme_strict_previous.md` | 2173 | `d7c639cb296b05b37c889033b792262a9f5d020e473c0564b12cd387901c5e08` | `100644` |
+| `docs/codex/90-traceability/requirement_to_test_trace.md` | 2302 | `44c0134e7d579c0405c85a02b48f0a8fbcb1ccc5126c75bfaed92691724ba537` | `100644` |
+| `docs/codex/90-traceability/session_runtime.md` | 1728 | `7b81ccb99088e1843ad74470c99f7f70ba5c26fdd1aa222f3b386549000fbf69` | `100644` |
+| `docs/codex/90-traceability/source_breakdown_architecture_technology_selection_rust.md` | 1848 | `c086d525a82bc4ef705bb4906c7efdb193e25125a1d17fc73c397db76bd19cd0` | `100644` |
+| `docs/codex/90-traceability/source_breakdown_domain_command_cqrs.md` | 1791 | `455c455bf6482b5df048456022215255d36308930ae5949869632912d74b779f` | `100644` |
+| `docs/codex/90-traceability/source_implementation_completion_matrix_previous-provenance.md` | 2564 | `7761956f3de035cfb7ea39bd25c79f4d89014d144ae28bb0464ea2cb4b4c35f0` | `100644` |
+| `docs/codex/90-traceability/source_processing_index.md` | 2521 | `13c512c257cfc5f4ecf83c53bce07732615d7fff3baabf12147554060e4c3a57` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_00_index_crate_to_doc_map.md` | 2627 | `90c0abe891de164025d6903fb865b3535f302e4756ddc49490efa445454bd6ee` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_00_index_doc_to_contract_map.md` | 2636 | `db5b47218df7dd6c97202d410db1c8a4486b6afb84701cc4f78db1e39bacd2f9` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_00_index_implementation_map.md` | 2633 | `b67241f20caffd3ac4d1e463ceb33dfea7c88341e8655c09ce4641ba0ddd4811` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_00_index_module_boundary_map.md` | 2636 | `62afbd20f836eb2e479d2b43ca88953526b88fa2baf1cf2dd1be5f13dfcd69c1` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_00_index_old_to_new_mapping.md` | 2644 | `e836e1b410e3368cfc5e262ddc1f5564ecc14ff3880fbeeb615e92ada1e6c573` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_00_index_reading_path.md` | 2615 | `62c5f0b8835c1d10b78f693999fdd850108ea1d5a31f7b0f8b84d38d6a16db06` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_00_index_readme.md` | 2595 | `93cf3322527d3ee4eeb7a05952287f4c4535a312558dcbd2e2511855d473637c` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_00_index_reorganization_plan.md` | 2636 | `59a98bbbf212f0c9805d602d8c03a3250ef57ce35a842b71173a5d469988a01c` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_90_traceability_adr_trace.md` | 2626 | `393152bde4cca9156564b15df514a0ce1bfa3b63cb27624da5c354795df8f06f` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_90_traceability_completion_matrix.md` | 2651 | `29c110429ef551bf21aabc45e998d1391e041cacaf94cb29d6aabe79458e4706` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_90_traceability_old_to_new_mapping.md` | 2664 | `3333caab7cfe9657a6612c5321a7b12ef56591bd1796cc634318eea102289a4b` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_90_traceability_original_31_error_codes_metrics.md` | 2693 | `fdcdd618a97ed160ca51c3f4065dbb3e2f35d0b25da16820ed0e3eaf0c54edc5` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_90_traceability_original_implementation_readme.md` | 2690 | `aec481e0db9147b6f71ea19ff40638e3ee299cf37f5703a3eb8396592ccb2d4a` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_90_traceability_readme.md` | 2618 | `c2ce3c2aa7704272d082a3fbaedb962861df1931d68409d2afa2dab931b72935` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_90_traceability_source_breakdown_prompts_chatgpt_followup_research_prompts.md` | 2774 | `4338c333e6eef51d17fdb07bf65911f4875aec102066d15754cfbc70d9fce56a` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_90_traceability_source_breakdown_roadmap_backlog_open_questions.md` | 2741 | `3622c0834748e53386e3290969d20fc7dd14a67cbfba0a0d7591eeb7c7acaedf` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_90_traceability_source_breakdown_roadmap_implementation_plan.md` | 2732 | `1e249af751fccfc8d6917e6eb670dc852844f5269e63473cee77030cb919378d` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_99_appendix_document_template.md` | 2667 | `ecd070ceca05a445b6cc568d1f046c982b2e1b4a8ed114ca87eac32e4064953e` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_99_appendix_followup_research_prompts.md` | 2691 | `72c1e8f68912d3c280c22ff0e3e6e9205d22d2967a6ef5bbd66d23c2009ee5e1` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_99_appendix_glossary.md` | 2640 | `93049e632194b8ae365add052d51d0e6d6b7d78ae9f73a0d09ace787bd62769d` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_99_appendix_implementation_doc_template.md` | 2697 | `1e14cd1e75962221c56a4ff02cc5486891eeda2b0b29d532b7a09da1d51eea25` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_99_appendix_open_source_reference_notes.md` | 2696 | `4c06d0b86b20800a4ab27adb259694cbe5d33b98c0cc2cc480dc3b635f0c61de` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_99_appendix_readme.md` | 2634 | `07efc95db967e667ea1d5340e3918f776cbbb28878639c354f363c42c73e75f2` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_99_appendix_unresolved_questions.md` | 2676 | `81bb7a052044d825923f58d1c63c2906176b7536b2a9e1dc1009a90ae36676ad` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_implementation_readme.md` | 2566 | `b853585b24fc81572be9c8cb29096755a6f65293a2cb6352b570203810f9f5c4` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_prompts_chatgpt_followup_research_prompts.md` | 2658 | `d36280bdd94d16ba3be0abb32e5a876934cd7eb62bf9f87539014f33a3f4bee1` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_roadmap_backlog_open_questions.md` | 2597 | `54d3b96c154d73783e902d8fe5bf9c8b6b35894dca7d436f26eed2672b270144` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_docs_roadmap_implementation_plan.md` | 2588 | `4f9bd2357f81b0973cd9ebfa543003c531abc7cc297dc9e806d76b8c1f36efff` | `100644` |
+| `docs/codex/90-traceability/source_processing_record_sources_coc_ai_trpg_top_level_design.md` | 2600 | `f8be42d619385a1a8c9c6128f8fcaa76ee444d5d44729c405790ac5768f3eaff` | `100644` |
+| `docs/codex/90-traceability/strict_source_disposition_matrix.md` | 2558 | `dbf1864a9a0d565fb54e088271ff08aded573c9b8b3e1ce27fd83e6821240906` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0336-03-RUNTIME-ORCHESTRATION-c822b429eb.md` | 389 | `e0a34d3c85cf63505f5b0ed2a2471afd148121e99f14c7f21efa7b14a82a9d7a` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0337-03-RUNTIME-ORCHESTRATION-7b50c14f8c.md` | 379 | `cf0340a3c32685b63158b65a38d9d0a88eb85b651cb9beb7d3b6204574a22642` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0339-03-RUNTIME-ORCHESTRATION-d43dd17cb2.md` | 379 | `c04a6ce89baf83a149c4094d0a3da4d5de53c20ce1778651c9018466a09cfe99` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0340-03-RUNTIME-ORCHESTRATION-10b2ea170e.md` | 381 | `38ccca6de56bd5bd078fe256bf846770ae087cd39e08ad742a576f90d40f9f4b` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0341-03-RUNTIME-ORCHESTRATION-aebaddafe7.md` | 377 | `e283a527173c990e7595b36167caf8aa6ffd2d338a219e2bbb4f2d488cb97678` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0342-03-RUNTIME-ORCHESTRATION-7a95160d72.md` | 377 | `9b0623e235880ced22d9a542b6a870e822a1d4275749a37d0cc1800bc9aa9246` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0343-03-RUNTIME-ORCHESTRATION-e4504af27a.md` | 379 | `50f32ef6a4876a55bf49041a9d0bb0a1334d131ec3ddf6f4b830f31523011f3c` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0345-03-RUNTIME-ORCHESTRATION-b1c8a10647.md` | 381 | `2c96a6261eb7b0e5cca7c5337015faa7302e5e645f15dd3f8e4703f000cdcf1e` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0348-03-RUNTIME-ORCHESTRATION-90faa1ed8c.md` | 377 | `d81e9d5e06f42652fe9e224146ef3f3b12e9c9b4eebe36da144ded037124e1a1` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0350-03-RUNTIME-ORCHESTRATION-1a43208285.md` | 379 | `4861b654414ef31b35cc1e627944dfcbc11184c2fef3df657074a4e03ad7e02b` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0351-03-RUNTIME-ORCHESTRATION-69b7ab6212.md` | 401 | `204ab3ca56a99f21f19869fd491a40cfd3c763eed299cb2c31e1afbb3bece1a9` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0352-03-RUNTIME-ORCHESTRATION-4cbd4b1fb8.md` | 405 | `4fbdf65d1acbcb552c986aa69a1d2cd20c7b63bc15b02a76c4e69106820fc654` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0354-03-RUNTIME-ORCHESTRATION-152ca50c9c.md` | 403 | `ffa620a8d09fdadc15e7b835ea779c94fa4ccc1c5ba9029b2c85f9d205d950ed` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0356-03-RUNTIME-ORCHESTRATION-61bce608e0.md` | 399 | `d2f88addf7e5c864ecfca7aebfc025fa7dd2181efd1b4e22fe4e69cb252c1dff` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0357-03-RUNTIME-ORCHESTRATION-86c7da0e33.md` | 401 | `e723bbf9c138203d81975f7efc3cc73fc59f1630d25798abff45999115a0182f` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0359-03-RUNTIME-ORCHESTRATION-e2090e6b4e.md` | 403 | `8940f03ac8a8e428994d88e8ccd425a0ba9ac213376e893fbd56ecff4427c1ce` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0360-03-RUNTIME-ORCHESTRATION-c50be2f702.md` | 399 | `6d4b6f03ec7faf6eeca041c9b6e1019bf386d371b87d6df2006c025c622dc4f2` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0361-03-RUNTIME-ORCHESTRATION-f2420f7b36.md` | 423 | `91b722e415c52b7322dd1ed22a16a841bd300f167855c648228b0ebeee2b8e70` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0362-03-RUNTIME-ORCHESTRATION-84b7588e07.md` | 399 | `3bf32883c51828f9a2aa494fb1efc20ea9407d433b23b9f2031bf3193844a21a` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0364-03-RUNTIME-ORCHESTRATION-2d57ccb6df.md` | 401 | `044d66a6067c1fe00be6b530dc96040397264e828bd5524db38af3f33a0309ae` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0365-03-RUNTIME-ORCHESTRATION-ef38b50d52.md` | 417 | `2c241742adeec7b0a985d61d4687ce52301b28cca3fae57f692eaf764fcc0b39` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0366-03-RUNTIME-ORCHESTRATION-2d139b43a4.md` | 401 | `b344e5c5b17d9c6c10a6a08672b0e93841088290f367191aa7e4ad7751ea8d73` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0367-03-RUNTIME-ORCHESTRATION-4310937ca3.md` | 401 | `613b766f22a437c27fc6431027852e02d98099eafd9d081a430cb50c037863ce` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0368-03-RUNTIME-ORCHESTRATION-ebd7285fa5.md` | 405 | `d67c787158a950235f92f917ba6b489be5bfffddf83fc213c7b79a19e4762599` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0369-03-RUNTIME-ORCHESTRATION-0a78e83a1a.md` | 355 | `74b26b98e9a33450cc39e876e1f53e4cf1896e010bd3e8ed09e46a42b589322d` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0370-03-RUNTIME-ORCHESTRATION-4c244748fd.md` | 403 | `07a30a804df844313d83479fc0314a33346612d5d3fa4cc74c745e24064731dd` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0371-03-RUNTIME-ORCHESTRATION-cc05673cc7.md` | 411 | `fb94cc9fd4077c97f7f328919781b329194474426ff482905b3b5c7cbf5d5ff0` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0372-03-RUNTIME-ORCHESTRATION-350a867cc2.md` | 399 | `bad3df42c234af6d3ff541ecf06dc53226b1ef804edc3685b99a7536ac6a6e3f` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0373-03-RUNTIME-ORCHESTRATION-cf5fc5b856.md` | 401 | `cffa10cbf2910f05200cc45298990730e252f2ac31c8460d907a4adf0244e3f8` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0374-03-RUNTIME-ORCHESTRATION-989f2ac19c.md` | 359 | `016de823dee93ee59358def212364b890e00688ac40ea57184ea8be20d304b51` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0375-03-RUNTIME-ORCHESTRATION-ba0d8cb1b6.md` | 417 | `e2299e6519288122bb75faca3759b6a88de3e8aca79e68b1e75f61043e6d60c3` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0376-03-RUNTIME-ORCHESTRATION-2291e83e48.md` | 413 | `5cf6f096ceb676d1562f1c6ff4c2a45256103f56da67df3d30685add401ca446` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0378-03-RUNTIME-ORCHESTRATION-12ef641d01.md` | 401 | `5d372784330cf9697eb89c5f08f11ad5bce50d6fc5398515554226141fdc8469` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0379-03-RUNTIME-ORCHESTRATION-37bd987305.md` | 403 | `fa05019cb22b6b8b8f1df6dabbe19cb6a0929b85ee47e10a51ecf53789987a51` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0380-03-RUNTIME-ORCHESTRATION-4b721c9719.md` | 399 | `dd38f4bc488a01621f9d97713dd70107f633e3f171bf02ddad5e19f610abe005` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0381-03-RUNTIME-ORCHESTRATION-d8af636438.md` | 399 | `7fc420577c07647534d09cbe8aaea226e3193b86a97afad9075612debc89c724` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0382-03-RUNTIME-ORCHESTRATION-afd897d786.md` | 401 | `ae1549a5d68de5e4563da0b91374a346e6515236a6c59553c1d2ad64d178f749` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0383-03-RUNTIME-ORCHESTRATION-e02aaf736d.md` | 401 | `bd0d4c793892c4b3b77c39bbe4da7a66daaf024bee6dc839ccfa0fa0a827e127` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0384-03-RUNTIME-ORCHESTRATION-456e879b3c.md` | 403 | `1c1fe296c0adc0145ec1d54f8e285cfa46f68297b567613200ab332723695045` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0385-03-RUNTIME-ORCHESTRATION-bb77496a2f.md` | 415 | `93b9889c4fb518cd40f3c8984eff43b3db33155e45e51be9d8478864aa69d16c` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0417-03-RUNTIME-ORCHESTRATION-5294d2dac2.md` | 1437 | `7b704f5dbc14e0cef9231000e5a0b45fe85838d5d49623faf0b39fc06c9e7ed2` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0418-03-RUNTIME-ORCHESTRATION-d4892063b3.md` | 1390 | `335638610f50b7c2cb6b8f1e50a1eda6db42f844d3a96c45be374169382f102a` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0419-03-RUNTIME-ORCHESTRATION-f2713b91ee.md` | 1303 | `f7bb788b0835d231815bdbbcca36f52298b52bb19e9dced72a506c5285b40708` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0420-03-RUNTIME-ORCHESTRATION-2db449f566.md` | 1415 | `c674f3da3f1b51b7483664936c25f75c28e5e36d61a17de47bda4944594f9f45` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0421-03-RUNTIME-ORCHESTRATION-69905634c4.md` | 1250 | `cab098a173b9af9e48ac5ded2d8f6070ca623e1ea53fe34d12e7c788f5305f26` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0422-03-RUNTIME-ORCHESTRATION-fefdae1a01.md` | 1281 | `94e3fbcdde359cff5475a7cda5aa055960335cac66625ab95d3b967983f170fe` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0423-03-RUNTIME-ORCHESTRATION-b2135fac7b.md` | 1245 | `c7d15014d609843202ce5f647cf31235351336415432d243a2777530c22283c8` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0424-03-RUNTIME-ORCHESTRATION-b2b3e35e4d.md` | 1317 | `0c4f6343ee682539bd144d8c9f9f6a2510b9a62e1d0c0b8af39068b43d4b429a` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0425-03-RUNTIME-ORCHESTRATION-cce35e99f5.md` | 1386 | `86bd4a9df39b584a5fa5bf5553de678dcaa55d7503b205071895e14e908a959e` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0426-03-RUNTIME-ORCHESTRATION-dc42889e19.md` | 1296 | `61562c84882c3b09a7a83c67f4c77a1691ba8abdd6de7d1f468cbaebdb9967c1` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0427-03-RUNTIME-ORCHESTRATION-9082538db1.md` | 1281 | `cb0e0b6799a60086a9c2eb2307f12776e0ee016f0b69b044295b8c6ce95cbe3f` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0428-03-RUNTIME-ORCHESTRATION-91319d29a0.md` | 1148 | `be8a3ee907051981e05475e603ddf67fd1e45aaa1b364488e2cf563b8b004349` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0429-03-RUNTIME-ORCHESTRATION-d740d8b678.md` | 1160 | `69c2d935055769f37883481022ea2f347fee02f3a402279904ff1ef9635d1da3` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0430-03-RUNTIME-ORCHESTRATION-2d7580bbcb.md` | 1144 | `1615dba3edc440ddb42ce431a4611844d7e84557cd4a307d1e2e8e13c0ca5d22` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0431-03-RUNTIME-ORCHESTRATION-a0d7caadfa.md` | 1253 | `1bb65fb58f6d43eb5f372c75d9270e4703a17b1cd8f2aad08e99187f760f1991` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0432-03-RUNTIME-ORCHESTRATION-b0e45095dc.md` | 1244 | `88eea58c260c7516dbcd1d1e50f65602fd11087a92c0acb31eb893884e20d9c3` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0433-03-RUNTIME-ORCHESTRATION-06ff6db718.md` | 1205 | `ad5020be852e13cd49e3eb274febd3a5c727f3458ed60faf18a7ca697a426a79` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0434-03-RUNTIME-ORCHESTRATION-9f6d402cd5.md` | 1190 | `85cf8142556f5d0da553f05d8da62537aa863287c519a3b9624ba0e6d4bf60ee` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0435-03-RUNTIME-ORCHESTRATION-b56967a4fb.md` | 1190 | `f52e9ac3ae53ff68999a9cec902a4c40a8a6b08e7af66f8274aaca4203856d26` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0436-03-RUNTIME-ORCHESTRATION-95ff1ea117.md` | 1193 | `a21afb27f7810475dd9bc13b5ed7759ebd72c11cdc0da50ef5095e82839f2d08` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0437-03-RUNTIME-ORCHESTRATION-4c408c3ac7.md` | 1181 | `9c9b179722af192a9727c749ec4586146431f759917e0479a84b8daeaad5eb3b` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0438-03-RUNTIME-ORCHESTRATION-5a764587b1.md` | 1152 | `3892c4f32df14cddaa16dca3e20d935dccdc9f4141aeb8ed1cc384770a99243b` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0439-03-RUNTIME-ORCHESTRATION-27733b8b76.md` | 1200 | `ed3613d401254805f28369b42304047e6923a9de288986f9681a9cfb3ce9cb35` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0440-03-RUNTIME-ORCHESTRATION-a9e9078fe9.md` | 1290 | `53142cbaf95321bec2624294b28ca615700767f4b34a7f571bd0a1e68df47167` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0576-05-RULESET-COC7-c4db17f4ae.md` | 1328 | `33c6ac0e67a8bf25609543a48b2a5b18e68aedfab6865236aec6dce65f8e45fd` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0577-05-RULESET-COC7-beeb6daa0d.md` | 1251 | `4a3999bb9b02d596e775aafa5187ff7c67e78b444b2aff49ae4973d71b798eb1` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0578-05-RULESET-COC7-67fad89a16.md` | 1243 | `0229338d0b49646a5af3d556d7adef6ddb49569b2b4addb06aa2f1664d09a0c9` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0579-05-RULESET-COC7-ad43ae3bfd.md` | 1182 | `81d39a74c6e5391f0a262be801f3026216603b118f7520f8fef19e30f5b0670e` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0580-05-RULESET-COC7-60e84aa01c.md` | 1223 | `9850decf432656569e2f3fb7d726549f9455fb207c9c77fe158cc9b50a4d8d15` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0581-05-RULESET-COC7-4272e1db6a.md` | 1199 | `3a99e3f9c848475d0a596dd36e5f747f08d7cf225bf5649363cebbea5681c137` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0582-05-RULESET-COC7-f9d12478d9.md` | 1227 | `b22ba98044a81f8f6a493975d3e4d49bfbb8e160ebbbc44afa4fa47831a533dc` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0583-05-RULESET-COC7-a3d270fccb.md` | 1200 | `e1d43998c587ab2e46bc57d848ee307e99194b014249b33d7e7e27dde290723a` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0584-05-RULESET-COC7-14b91df550.md` | 1256 | `5e823baee67a67a6b37cf4834c824f5931a12ded8ba634ead788c5517d0422e5` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0683-07-API-REALTIME-CONTRACTS-80f5c71054.md` | 1150 | `7ff12cc0ec09155800895fc803031be6f9e883ce26f1b685d13c482ecd44876c` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0684-07-API-REALTIME-CONTRACTS-93d7eb8719.md` | 1097 | `34d0f03a5051887a695ace2b7cc64a3fa87c38a78982b2f1aa816261aba25475` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0690-07-API-REALTIME-CONTRACTS-b59ae9cd2b.md` | 1028 | `c47b76c69b6fbc2f05d81a1490f01793db9e18733df21da446310b35d25145a3` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0691-07-API-REALTIME-CONTRACTS-cc48fbd8a0.md` | 1049 | `49c4e13f2d8af9f510cef5ea41e476df719d4986b73649f610b1dfbc1e00d844` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0692-07-API-REALTIME-CONTRACTS-e7b22d433c.md` | 1079 | `15e7999fead6f9868d983bea4d25676c560e1c1aef274c7762c75d92b7fbf0ee` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0693-07-API-REALTIME-CONTRACTS-b376214934.md` | 1016 | `1972792f3db8b3751ec2996bc23bfc41be4c50e958343b1e8a74215ecaf3c6c7` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0694-07-API-REALTIME-CONTRACTS-87a18e12b6.md` | 1042 | `544e3967fa709dc40d43815c019ddf767d7cadec2ba6a28dd6c7cbcdea46c4a2` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0697-07-API-REALTIME-CONTRACTS-57f9fff7f4.md` | 1156 | `2e451789a37466dea6a650b99be172c5b4964e02fd55ad145bd90a4777e7ac92` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0699-07-API-REALTIME-CONTRACTS-8b3976529f.md` | 1140 | `fbdd213e77dbfcc1924945b0b97ad02fcac79f0eac146c8e153318864d872da0` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0701-07-API-REALTIME-CONTRACTS-12efb1a65d.md` | 1348 | `7819eaf74c2d45944034278d99847c5e85c67d76c13dbb7b8d857ec53d739d4f` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0702-07-API-REALTIME-CONTRACTS-cea0cd91d2.md` | 1342 | `50e6550cff283697c17d24db42189e4aea77b33acc871d89c033ef91e8316c39` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0703-07-API-REALTIME-CONTRACTS-97c35c9f82.md` | 1441 | `b9195236d52de1d5c229fc9a87b08f33cc20a1846ba0f0bebf8eef3221235892` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0704-07-API-REALTIME-CONTRACTS-113ebfe8d3.md` | 1357 | `9af624b091919c11bf4ee18d96124ee263b302d5f8f77d70bf183ab3d0c9039a` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0715-07-API-REALTIME-CONTRACTS-8b8a62e8ba.md` | 1340 | `504ce705ba16eceee5721019dd6fc3cc4bd6b626921253e2389cdfd7e561a1b2` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0716-07-API-REALTIME-CONTRACTS-1dcbfff315.md` | 1476 | `7d0b72ac7e156a8ac790573cc0eb7ca4946803c82c540ec425e06c8175d45270` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0717-07-API-REALTIME-CONTRACTS-fbe56925f9.md` | 1395 | `a562b21b1d49828b3190a0ddbaa2687587fd13a5f8a3ee589940082c63f7aae4` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0718-07-API-REALTIME-CONTRACTS-aabda45331.md` | 1275 | `5f2b918ae3a429b87d623b18daae9d6b50545a0a105916939759eb831158614a` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0719-07-API-REALTIME-CONTRACTS-ccf8b3c12e.md` | 1233 | `f1d4808319e1df163d68e881981a752441f72fd98c8ac73f5d94a047db102cd3` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0720-07-API-REALTIME-CONTRACTS-f03793d656.md` | 1220 | `f021cc238859d12a686d47c51d1db3bdb82d32f6674b653f6db375d03c70f029` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0721-07-API-REALTIME-CONTRACTS-496592c444.md` | 1276 | `9aca05dd2b2e44efa69c43b77d80dea29ae3b3a7df7238816802140a34919c3f` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0722-07-API-REALTIME-CONTRACTS-258f722334.md` | 1410 | `e43d6dc92eb35668d5046abba0cf52038449f99c19a2ad344765f9139da5b436` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0810-09-SECURITY-GOVERNANCE-d4514a1929.md` | 1296 | `e7bb8263db12647c8217820d2430fd697c967fd5b39e0f000add081cdba8a9ca` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0811-09-SECURITY-GOVERNANCE-d9cc760654.md` | 1128 | `989b08f4d3051f58e447d6370a2cb3fb6ed9638ff8c87d4b8b99426ebb639fce` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0812-09-SECURITY-GOVERNANCE-65a556b47d.md` | 1138 | `f22e32076ca1afc6c88579d7ef2517326be9a0ef2b300a289a994a3fd2626d69` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0813-09-SECURITY-GOVERNANCE-637c915ed6.md` | 1051 | `fdd0a004ac03588dd05bbc2174480263ace1411c1594b9b1789869186ddc15f6` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0814-09-SECURITY-GOVERNANCE-8063678545.md` | 1025 | `9c9f66853ef318ea83aab1596fad774173bc61e3bf4482f5e31ccc1257cc2923` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0815-09-SECURITY-GOVERNANCE-63b6032c87.md` | 1000 | `55e21c5bd4f2413dd24061d77b4a3386e39e2ef3e9d076dd7265fac095602f10` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0816-09-SECURITY-GOVERNANCE-f3a5e6e8b2.md` | 1021 | `02d399c86b1eb8295968e39f3ac1f6f059e3727e918fcce4a903cf9f36e4f173` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0817-09-SECURITY-GOVERNANCE-d0a9647ac0.md` | 1020 | `c1a074bdaf0fe79a32d017fe10b4791877aebdd616006cc8d10c2cb8f39ff87f` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0830-09-SECURITY-GOVERNANCE-9b64042016.md` | 997 | `efb64f94240701197e402dbb686afd025897b65cc0de68e3df65eaeff90dd9bd` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0831-09-SECURITY-GOVERNANCE-eb4c4db762.md` | 1003 | `de130f042e21c4e376ca295d40af1ed412eb027cbeda62b1110a4c1e32d40173` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0832-09-SECURITY-GOVERNANCE-ec7c566187.md` | 985 | `5fcde7f5132e2c3cc348fdd233c7dc50fb9dce16952ed6ca6364d1032ed5f972` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0833-09-SECURITY-GOVERNANCE-37b67f0327.md` | 936 | `0af042cbef020c4b62f672e3c4c1208c4fcf78001f742625f7c246f4b1e40333` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0834-09-SECURITY-GOVERNANCE-0091b85eae.md` | 1028 | `17eb527507046a9cb7f39647bb212dac15c96a249629efc6bc0224b2eb79c0fa` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0840-10-TESTING-QUALITY-069d3f779b.md` | 754 | `eab6570c7634c2d1721195595cac40e89fec2d199c02acfb78e053259aa31a86` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0841-10-TESTING-QUALITY-661dfc0224.md` | 664 | `526dc3f060622c73ae50566f63af36d0fea6a526d95b30ce75622154d429e478` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0843-10-TESTING-QUALITY-a8f283084f.md` | 635 | `766edce489a3a5d0d1ad987f914fe9675e5fa47fd0cab5948f4654da1bba4996` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0844-10-TESTING-QUALITY-be04cff75f.md` | 665 | `cdce56fa260f2db3867edfecc58c438cfd7019b22653136550ba35052ea262db` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0847-10-TESTING-QUALITY-923fc94916.md` | 618 | `d8309e28a537a7819b2457038a57d29a175e943dda85e9de82e95344a9e325ac` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0849-10-TESTING-QUALITY-3b745596ac.md` | 614 | `99251057c2294a3ec394ad4b99941d969b5714beeb1f00d98ac2d0e10dfa1eb1` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0850-10-TESTING-QUALITY-f5b7059f4f.md` | 618 | `4f992c1e024921d6da10aa8b79a4adc3999253d6ad74a2388dd67a7855984d15` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0851-10-TESTING-QUALITY-c4d5125cc0.md` | 656 | `7d1a4c90a3ae5f6eced5aec05642b1ca6ba098f53c11f3860083582c39f84329` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0853-10-TESTING-QUALITY-eaf9de3475.md` | 614 | `369a4c5e834d56692300f65c8a8307a25545c7bb2a418762dec6ac9ee2a9d326` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0854-10-TESTING-QUALITY-705d02fdf8.md` | 631 | `0bb23f880112b502ce48add62423c062f35b768a9f1eb62772a8edae64fa6936` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0855-10-TESTING-QUALITY-0adc8f6280.md` | 662 | `6cf72ffad7a5e3fe02c8bfab015609a5e806f77f000578ca10a5fdb8c6882b88` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0891-10-TESTING-QUALITY-bfdb55657b.md` | 537 | `66915d33c5a54c0db9a0ccd7d1a644fc3ffca18d83ca798f9a1d8552c073e261` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0894-10-TESTING-QUALITY-cbce2d32dc.md` | 529 | `61a5c5134eeeb221978291624e9bac7ab997d22f2dfec2e3900bdcaa13277f2e` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0895-10-TESTING-QUALITY-da41f3501a.md` | 502 | `0bc0d817ab86423e03580aa68d41efb04e0355e9db978b0536f1ad9ab1c129ab` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0896-10-TESTING-QUALITY-8f3eea7a40.md` | 515 | `7f813cf19faee577111aa10b9e5ba807dc8957bf6f54e2cd7e201b39c5a55c4a` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0897-10-TESTING-QUALITY-343bdf6c01.md` | 483 | `355527041183aeb932ad1ffa6442475c8e501020a60c0686c676517a65dc1a5f` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0898-10-TESTING-QUALITY-236e6fd7c8.md` | 518 | `81d0cde226d04fca79226be9b19d15f7efa29e74eb50ea7e8ce23f90a91ff626` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0899-10-TESTING-QUALITY-8afffdc3be.md` | 500 | `7bb9a38313b0be63a5c97a3c2a9634e429171292eac1aacf7f024a7899df12bc` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0900-10-TESTING-QUALITY-8546747a83.md` | 507 | `31ee6b437b72022dceb62967840161dccc8ed15f62dbda9975f23a4ecf568a9d` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0901-10-TESTING-QUALITY-45a7ba08ee.md` | 503 | `e7440a506b974123aba3bad8e563f8c02ff883b214bb3f834e500cbaf4b452b3` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0902-10-TESTING-QUALITY-b150cdeefc.md` | 495 | `eda9e956319051dca8f5ceecdafd9a175008121241e25db5a4dc85fbe0ceb593` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0903-10-TESTING-QUALITY-7c2a0eab6e.md` | 544 | `f6391ab5a6d8629b6ffc90b95763a3108407768766373c4d7d754261c55c2c06` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0904-10-TESTING-QUALITY-0bc9c5503b.md` | 530 | `1e68369a76591e05be7417daf6406ef36df7efe1e6a5fa23b4f3628f2b371b25` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0905-10-TESTING-QUALITY-d5c5ad6036.md` | 533 | `bc9c4e32f3ae24d7ca3232e9c68ac99717c8faea5b566240e7c17280a251ccc6` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0909-11-OPS-MIGRATION-8691a79279.md` | 496 | `6ff156ab1f8ad3ea5e2ef0d666961ff6fb501ecc6393804f55859b83a55dc48c` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0910-11-OPS-MIGRATION-ea7b7095ff.md` | 531 | `7032fe31f51103dc8ec2099e15fb644a4e824dcadb9854b357880eacc18e1abb` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0911-11-OPS-MIGRATION-5fc2899de2.md` | 546 | `67e15d1b2418b8afe9df6b4389c39c55e0496a261454a30985fb01358ed13c0b` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0912-11-OPS-MIGRATION-ccff982a05.md` | 512 | `724bac9e3065904749e6ebd7b3ef3ccf2b631ce899c84fe52751e4944d8bc92c` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0913-11-OPS-MIGRATION-a691c10608.md` | 505 | `e1d250f8ba2b408955ebc434483c37fcefcc5f5abe2a39419c1a7eb09287fbe1` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0914-11-OPS-MIGRATION-b6263620d1.md` | 503 | `27cbc9a9c7d02af8f1681ea3e79154b9abae2c51701a2c7b604beb4a68de18f5` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0915-11-OPS-MIGRATION-768ee7bafa.md` | 524 | `041182c115b3471a521d36dcb6fb3cad11a323fe1f8fb013dddc835a5e911ac4` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0916-11-OPS-MIGRATION-e17b29109d.md` | 516 | `e57e3246895a3137617a57047cec56ef522736520da0da7668191bb86fd41e45` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0918-11-OPS-MIGRATION-b2cf762294.md` | 466 | `6277ed138a21adb4df754a1ffaee0a5979eccc5b5581cb21cda09edd10f7c499` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0919-11-OPS-MIGRATION-edc271e6ea.md` | 457 | `d1e5af7e8d5f69a7ceabaaf5dd7eed5cc92aab2955bbbbf5378f3063d1b96543` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0922-11-OPS-MIGRATION-d61a4242e6.md` | 527 | `3295e0095fe6e56b4676b9274466c6e10162cdb7b54668fa577b4ab291a48354` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0923-11-OPS-MIGRATION-d906ed7ff3.md` | 524 | `8965172776dcfd9521a7c9797d4d8195e83e30cad3d6ddb17fe86f098442b550` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0924-11-OPS-MIGRATION-cbf06b28ea.md` | 491 | `3ae72e89eb697ca7ecfa22dd9a7c5dd7bbea53139ce9f3d62f711fcdd93151bd` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0925-11-OPS-MIGRATION-79f7803446.md` | 449 | `66693824d347da127cc3e09082c903eddbebacd6c8fc5c3dff6c23c9e51c48ad` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0926-11-OPS-MIGRATION-6e37507e71.md` | 514 | `68605c21d0fe950e38dc7efcde7218077d66d744209d5bfc6f0617b18168f3c0` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0928-11-OPS-MIGRATION-3c8839468c.md` | 497 | `814f33ee09584415ae4ca760d540f87e6581d14a0cde42347a8be6309c646a68` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0938-11-OPS-MIGRATION-9ecfe69fb4.md` | 529 | `5fe5deb6908c1c5e90a17d6846fb03eca5f825c55f372d384f2e9492e3c3f3f5` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0939-11-OPS-MIGRATION-eb460e9f63.md` | 513 | `9ace50fcd5a0e179f984b9b949c3c0a635a2428b626574baabd687c306332c1f` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0940-11-OPS-MIGRATION-e8fb918a90.md` | 553 | `96ca72363dcc04c00887b806a57280be126ea09250ca8ec07c36375edceb36d4` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0941-11-OPS-MIGRATION-4d01908706.md` | 505 | `e10c8768e4505d9654f16a61f7ec14c7104f9cf21ec4e89524a6565398a7b688` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0942-11-OPS-MIGRATION-fa38058aef.md` | 509 | `94e0b6aa569aa3c1bcbc061b6d50bbf092a3ec72f7780c139a3386eb0ee2b16e` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0943-11-OPS-MIGRATION-fcce5e5977.md` | 509 | `3eb5a08bd925c0b5b92604ec3b2a3c02af3a05c74f46b3d5be04f4daa663e737` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0944-11-OPS-MIGRATION-a1d363e292.md` | 543 | `0e42b305ca438e581d205f0a1af0bd770a266b55e10db74e0c7f1b84b09eb6fa` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0948-12-EXTENSION-SDK-caaf0a2d22.md` | 456 | `fffd220ab9ea9c07960addbc96d884d463654c7adbdcf6f3328da52fbedfd401` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0949-12-EXTENSION-SDK-1ce074b16d.md` | 494 | `7e66dab87fba2cbbe1722377d734b320723b6eef1b7d5407a628e46fd255bedf` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0950-12-EXTENSION-SDK-b7ded3674b.md` | 418 | `2c668981e627011dae28ececc5ef7134b7a6df8d627282ddf97520db9654b748` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0951-12-EXTENSION-SDK-d8ce614fff.md` | 478 | `7c62710aae08af2aed41cbb674f7998aa96ef2f3efa9399e11ec09e50402876a` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0952-12-EXTENSION-SDK-deb0e52024.md` | 441 | `210e1cc674b9de0b110a56a7e7aeda512642e10eb14b2a3420e9732e374b8cdb` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0954-12-EXTENSION-SDK-78491d1920.md` | 449 | `45e305d1f95a3db123d4eebf21697820ec7cb05907943c6a9c5e13274adab514` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0955-12-EXTENSION-SDK-229403a365.md` | 466 | `2ea240691a0fc9418756da13179f9056cb93745dbb49f9c6e6220e5328155991` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0956-12-EXTENSION-SDK-3843f407c8.md` | 445 | `7903ca9091cd0033d43b0b2a88f7888bbc8bddaa25be94a5aaf3ddba063bcb0b` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0958-12-EXTENSION-SDK-91b022044e.md` | 492 | `ec0d34550b5bf7e37cf678be94794b4e6324524d438516a37592aba9b5574285` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0959-12-EXTENSION-SDK-b434f7374b.md` | 461 | `e6f7912596ff963193d3808d9984ac94f3c57d8b02eb78d1cd795bf18c3795f9` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0967-12-EXTENSION-SDK-3c1737e6c1.md` | 747 | `470b7cf571451afb82ae031e26a715f6d534196e5dd276969bd94c2db1873c9c` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0968-12-EXTENSION-SDK-e572d9864c.md` | 700 | `45c709105516e609235654e0932d18c3f87c5e8a5f7b73b48d13f4eb102b8daa` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0969-12-EXTENSION-SDK-e024be282d.md` | 744 | `2ba927be8099933a7b1548455f5544660e6d61ecf13dcbc22e2e8b9bfa8c3d04` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0970-12-EXTENSION-SDK-266ae0e5ee.md` | 700 | `750eff4bc2dc31b010a71e1a84e4e85d87dd8fd2123b71448594cc38790a7060` | `100644` |
+| `docs/codex/90-traceability/supplemental-requirements/CODEX-0971-12-EXTENSION-SDK-f4f12f9055.md` | 703 | `bd05c856dd18d5034d58b46ca933714bd56c280dabb3aac7a0b94ac93364c3b1` | `100644` |
+| `docs/codex/90-traceability/system_context.md` | 1725 | `85e7d511beae836aadf11a18a3500f3909b1e83e8cacfedaaa65e8012b9c9347` | `100644` |
+| `docs/codex/90-traceability/template_debt_remediation.md` | 2567 | `38944e61f4e5e8525fb4295edd6c97208acd7a1df321d12a0213d90adaedfc40` | `100644` |
+| `docs/codex/90-traceability/top_level_principle_trace.md` | 2302 | `5327e76b9d116cdfe055824213c7ec1ec957bc589e162005354e4c881ff58c5a` | `100644` |
+| `docs/codex/99-appendix/AGENTS.md` | 4196 | `3006bca1059d2d7a2e16d0cd5daeaf4a138a599c509aab84fe57924f588856df` | `100644` |
+| `docs/codex/99-appendix/README.md` | 1463 | `bb14885817a696a9cc71ed507ce3f6f5e1e44a188d38f305f663f5df8e96bba8` | `100644` |
+| `docs/codex/99-appendix/chat_gpt.md` | 2189 | `622b63f5eddac6e40860e70035b2f0fa6d9bbd8a3da22d011eeb1b04bc208bd7` | `100644` |
+| `docs/codex/99-appendix/chatgpt_followup_research_prompts.md` | 3000 | `c159321afe4d3f706dc79b7f8a7fb1b8a5ae2af0988abf564f75278ede79a0b8` | `100644` |
+| `docs/codex/99-appendix/codex-module-code-prompt.md` | 3982 | `5f2c5302152eb4a366dfc43d7272e7652eaa5809a2c7d70a069df17c56d69876` | `100644` |
+| `docs/codex/99-appendix/codex-module-review-prompt.md` | 1954 | `1fc63a14da355b06d437575d666d1ea30c7588f9a6ca79ea10ccd5956f8633bd` | `100644` |
+| `docs/codex/99-appendix/codex-module-test-prompt.md` | 2259 | `561e18c9afa93f4d0721a676eba79093c164867403fbbecfb196c18859aea185` | `100644` |
+| `docs/codex/99-appendix/codex-official-reference-notes.md` | 2399 | `53ff703482a2489f7dd4615852121119c6eb3ab05b90ffe6dc417c9ee3f1073e` | `100644` |
+| `docs/codex/99-appendix/codex-prompt-template.md` | 2664 | `c93d11aef6aee1a28cba698ce07bf68b75498164763deee7ff2d187aaed76c11` | `100644` |
+| `docs/codex/99-appendix/codex-test-command-catalog.md` | 2389 | `b063a5ba6bf41a33055a8344607bc66f6be52be348ad12d48221d37e131ec60a` | `100644` |
+| `docs/codex/99-appendix/docs_implementation_99_appendix_document_template_strict_previous.md` | 2456 | `bbe24b5986d02534f8d97799a529c6218e27bffbfc4f56f40ac0a9029843f533` | `100644` |
+| `docs/codex/99-appendix/docs_implementation_99_appendix_glossary_strict_previous.md` | 2455 | `000a8ef853856fc3f6ba5b9ba032465c6f935669a64ca2c7537d1f0e8d08970f` | `100644` |
+| `docs/codex/99-appendix/docs_implementation_99_appendix_implementation_doc_template_strict.md` | 3433 | `3f0f734036e3d852446cb5eb3896f849144b0807d6950f8f2fd5d49ca59d3936` | `100644` |
+| `docs/codex/99-appendix/document_template.md` | 3762 | `45e6f365a5a472c8b7861f56a49e15f46f298336d2633a77cb15bf4ca484b8b4` | `100644` |
+| `docs/codex/99-appendix/followup_prompts_previous.md` | 2325 | `82aa8b68ec69dd00dde42ad151e3cff5173f7d808dc85484bdde60f5ceb355e4` | `100644` |
+| `docs/codex/99-appendix/followup_research_prompts.md` | 2793 | `499220955822a6259a2deb5c1e4b5430957c7f30a531bdd157e1ef91f5935d00` | `100644` |
+| `docs/codex/99-appendix/glossary.md` | 3661 | `429fe7bf32f5ee605d141b0e60f4c19f553824d0a9c49cf2dba99fe578f539da` | `100644` |
+| `docs/codex/99-appendix/implementation_doc_template.md` | 2731 | `acd63a862b7bff310121323e60af71a4754c235c275541421a0a1f835e69e82c` | `100644` |
+| `docs/codex/99-appendix/m_99_appendix.md` | 3700 | `88d6aaefbd096262c622f4387d569216ceaedd012e1bba47545dda4c55ce1357` | `100644` |
+| `docs/codex/99-appendix/open_questions_previous.md` | 2752 | `711f555dbfc4ae1fda2dfbc974a5193e9e06049a29e58080699aa3166bf5bc50` | `100644` |
+| `docs/codex/99-appendix/open_source_reference_notes.md` | 4365 | `1406b7673e6f5ace8f7b7dad730fb39b1dcf77b9a42317dd2a94dbd5b0a97b42` | `100644` |
+| `docs/codex/99-appendix/per-file-prompt-manifest.md` | 9377 | `c4b8fdc15f05891fc696a62cc347858da8e1548d48e538db259afc9971d60584` | `100644` |
+| `docs/codex/99-appendix/previous-cleanup-policy-codex.md` | 1944 | `1f7111c51d1b5ad181091b736cfd3bda0932acade377b000cb37439e2af8a241` | `100644` |
+| `docs/codex/99-appendix/prototype_catalog_previous-provenance.md` | 2588 | `f5d6c35e8de6e095910a2d802e2d91f845bfea127d25ed57c7ce175b6dd43004` | `100644` |
+| `docs/codex/99-appendix/prototype_catalog_previous.md` | 2441 | `e1c479d5922d48225bc54e4ee0514621f1def6dad056103f257a915664927df5` | `100644` |
+| `docs/codex/99-appendix/research_decision_matrix_previous.md` | 2482 | `db7e480a801338867a6f38b2450f592262c77186c3d6c0ec4df26140e135a7a0` | `100644` |
+| `docs/codex/99-appendix/research_notes_2026_06_30.md` | 3639 | `4e37e30bce3081eddf96964654fe8883307bc8b6930c33df30dcf05d81328eab` | `100644` |
+| `docs/codex/99-appendix/unresolved-codex-questions.md` | 2127 | `c65f2b0cfd55dca2c08f2d08d0c2b7dbb6b096687abec1b581720eeb8749df38` | `100644` |
+| `docs/codex/99-appendix/unresolved_questions.md` | 4300 | `9b96b814da244a80ee5f6a2b591c550995409ade925bc30b1eda1d328c41f1ad` | `100644` |
+| `docs/reports/stages/S00_ACCEPTANCE_EVIDENCE.md` | 1260 | `a0143961350148c2921dfeaf386f1797ce4f4fe0725633609bb026f5f3352be6` | `100644` |
+| `docs/reports/stages/S00_TEST_RESULTS.md` | 1238 | `5ac738da463dc679574174e66f6e39dd47fcff33a046784b147d872d1c0ff20b` | `100644` |
+| `docs/reports/stages/S00_TRACEABILITY.md` | 1133 | `78d61ed20f14ec8be26adf72f314c9f7d95183c19af158d1ce46576d0a2f7e4a` | `100644` |
+| `docs/reports/stages/S01_ACCEPTANCE_EVIDENCE.md` | 1059 | `25cfb3d9c30c408235879f70cc0053b232e0fbb5d3081a0ae7fb18bd46eda362` | `100644` |
+| `docs/reports/stages/S01_TEST_RESULTS.md` | 663 | `8afc81270cc257b680fb2fef934fa0bc78aa967e82d66345ff673ee55fc37687` | `100644` |
+| `docs/reports/stages/S01_TRACEABILITY.md` | 1244 | `4b700cc100ed0a3c4632cf0691fcfb57855ac82a31f92363eeed0728628ef7a9` | `100644` |
+| `docs/reports/stages/S02_ACCEPTANCE_EVIDENCE.md` | 1495 | `49931a6fd0c27bd50f64a23500d1babb70990350f6cd845cb8a005468dfa5c28` | `100644` |
+| `docs/reports/stages/S02_TEST_RESULTS.md` | 1171 | `b3380fd0b7d9e46d958c5ce69bd22dbb8c2f990c48ddd355b860d4072b6d29ee` | `100644` |
+| `docs/reports/stages/S02_TRACEABILITY.md` | 1934 | `848213c6bd3d4e76d7067f27d8557900ade4f6b36eb1107b9a990e5a4c5567be` | `100644` |
+| `docs/reports/stages/S03_ACCEPTANCE_EVIDENCE.md` | 1369 | `16b2271eb3b000ef7c4fd2079231dbc2be731c3773f4a40743824c351cd690ed` | `100644` |
+| `docs/reports/stages/S03_TEST_RESULTS.md` | 1131 | `10dbab408c8f2df91e4d718e362595cd2be84aa00b6af4b01f011f4d28f3720a` | `100644` |
+| `docs/reports/stages/S03_TRACEABILITY.md` | 1587 | `b93db8081a95086e45ec783886b491f35a3d64bc4e8fd8c2434a597651e136d2` | `100644` |
+| `docs/reports/stages/S04_ACCEPTANCE_EVIDENCE.md` | 6094 | `5afda3656a5a681b2480a7e3fe39eb5af3628cb200801a7afabcd75add1f44bb` | `100644` |
+| `docs/reports/stages/S04_TEST_RESULTS.md` | 5347 | `57151fc446d8c2ddffdbd370e2a83f3d412ce2cb71f6ed87edcb134b2589665a` | `100644` |
+| `docs/reports/stages/S04_TRACEABILITY.md` | 12349 | `565dfec017ae4c52b429054f4059b5b244e7d93c1b88a47954b8a275e4447c53` | `100644` |
+| `docs/reports/stages/S05_ACCEPTANCE_EVIDENCE.md` | 5988 | `cb35d6fbcab565e24ba12c56cdf35a2109726492a4a719adb9c903881d3c5679` | `100644` |
+| `docs/reports/stages/S05_TEST_RESULTS.md` | 3004 | `6ec32f0714c84569a0e9d935fb53c96c39709d1f1425dc160f558f9e97c87980` | `100644` |
+| `docs/reports/stages/S05_TRACEABILITY.md` | 5587 | `82271f6174875362e5c30adbc7507e76e55e7529213d2d585174dc5056170002` | `100644` |
+| `docs/reports/stages/S06_ACCEPTANCE_EVIDENCE.md` | 3217 | `22b4b8a5f03019e755454d7e55743dfc9a21cf387e1ac16109fcd64266974fc6` | `100644` |
+| `docs/reports/stages/S06_TEST_RESULTS.md` | 2346 | `923e0b9bd3cac04bf8270e276d76216f6b67a2669b0a8679dfe72559b1b70b27` | `100644` |
+| `docs/reports/stages/S06_TRACEABILITY.md` | 5489 | `973d345570bac8ee1b0d6b9e8ed417a3817d37edea4bc7e55d4a01239cb9d042` | `100644` |
+| `docs/reports/stages/S07_ACCEPTANCE_EVIDENCE.md` | 9683 | `35c729d9eec8f4ff7d4da2eb10230a46601ec5ca7150601fcb2654f8cdd3cc57` | `100644` |
+| `docs/reports/stages/S07_TEST_RESULTS.md` | 4732 | `5c6ee21e3c3f9ee7cb289fc9bdd53ec8931363410b55c684afd2a6932d35abed` | `100644` |
+| `docs/reports/stages/S07_TRACEABILITY.md` | 8081 | `25ead0fd7d31ebb43c01f919d26d354b71e9a3488bf4a93fc1121d5ee7ee91fe` | `100644` |
+| `docs/reports/stages/S11_ACCEPTANCE_EVIDENCE.md` | 3968 | `f4f5dcf266f4c709cce74861433df379efeee6af8e75a3e1058572b30b1b2026` | `100644` |
+| `docs/reports/stages/S11_TEST_RESULTS.md` | 2942 | `d00b2215e78f3de56e00ccc738d3c8945d0ab8384817f4377373d782fc5e4d69` | `100644` |
+| `docs/reports/stages/S11_TRACEABILITY.md` | 4808 | `578b0c1bf1777127fa752166370ad59bf35f5a7cab6db322e1ce83f9f86dce12` | `100644` |
+| `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md` | 39870 | `adf32ae3c77c062bb4fa55031376588a1664e41e74b5b2ba6f3100df4f3189f0` | `100644` |
+| `evidence/batches/BATCH-001/acceptance-report.md` | 1980 | `5f6f227230ef6319c6f5729515fcc34cc0754118eb33f0e8ceca3d0ca9938280` | `100644` |
+| `evidence/batches/BATCH-001/acceptance-test-output.txt` | 2069 | `36ae5e3b64009236d7a6975a0cddd34b942c94fa7694b9f6fe805bbabded3daa` | `100644` |
+| `evidence/batches/BATCH-001/changed-files.txt` | 1947 | `97023fb27b3c47f81113d99237bf54c14c21d513daa0f2af2215c1e3d3bcda36` | `100644` |
+| `evidence/batches/BATCH-001/handoff.md` | 1017 | `5933573994de968fd71b43a833b01394f8cffd92efdbed53101df1174bc443a4` | `100644` |
+| `evidence/batches/BATCH-001/plan.md` | 4840 | `2755716a37aaddc5a2e064ff48f31aa4458817c3cd527a81baa4629c802a7ec7` | `100644` |
+| `evidence/batches/BATCH-001/prompt-traceability.md` | 3287 | `46be824fb5ead2880d9e9a5606b8d929abdce80a3c785f630fd549ba4a88cd7f` | `100644` |
+| `evidence/batches/BATCH-001/test-output.txt` | 1661 | `571eb78ccd4165d8cf01372f167288530ba60dbe5c4ae7f4ef4dd2632bae0e1e` | `100644` |
+| `evidence/batches/BATCH-002/acceptance-report.md` | 2171 | `125b372c9a491203c521cad9e02dc65aaea9091d2bb0b21073321791779667c0` | `100644` |
+| `evidence/batches/BATCH-002/changed-files.txt` | 1527 | `d2933bae18f27b6157ae6c111f937884dcc659f25670faf88fc7549667a4497d` | `100644` |
+| `evidence/batches/BATCH-002/handoff.md` | 1405 | `af8f74cbe735d721cf2763d5b53df35db88977727ad865f72bf1a6d49e62f731` | `100644` |
+| `evidence/batches/BATCH-002/plan.md` | 5647 | `f649dafe41a6dad810e2c5df0ad25c979af7a87f656044d2c188bd9fa8e65f81` | `100644` |
+| `evidence/batches/BATCH-002/prompt-traceability.md` | 3804 | `86b90e703ae60cf940cb1042474ad8e5a4dcc181def6d78b89bf14c2eb53ed9e` | `100644` |
+| `evidence/batches/BATCH-002/test-output.txt` | 3666 | `dfd79f79797f3681d664413b1f14a2359e12e67f08c086b92260a5de0272da03` | `100644` |
+| `evidence/batches/BATCH-003/acceptance-report.md` | 2342 | `d8fe1dcea8ae6b0972ebe3c3b29e49bbd901a06ce3339effc818ac1f458489f0` | `100644` |
+| `evidence/batches/BATCH-003/changed-files.txt` | 1880 | `71731c58c28af052d39d868d2efc2ea790baca40cd0ba6528b01357d476b952d` | `100644` |
+| `evidence/batches/BATCH-003/handoff.md` | 1405 | `a700aad8e9d0b58cdcef2cb747b2ec6d8af1dbecd9fbe5489799cec97140e45e` | `100644` |
+| `evidence/batches/BATCH-003/plan.md` | 8136 | `992f1096205429e3ef6f6d61696f5643c162936641ec0a205899b407af06528b` | `100644` |
+| `evidence/batches/BATCH-003/prompt-traceability.md` | 4227 | `eeeca0a6f61777c4df0ad4df96c0c38a97a4915a6f0ceb755046d0d47e567f18` | `100644` |
+| `evidence/batches/BATCH-003/test-output.txt` | 2442 | `a0727ee526e5f4a7fd6f4706993054f8d2fc4d4faa41383e1942b04aa7c97f0d` | `100644` |
+| `evidence/batches/BATCH-004/acceptance-report.md` | 2604 | `1cdb5d6171d803f37e5b8c66d02ec50b185adacb5953308e1ee5b5a0568eefc5` | `100644` |
+| `evidence/batches/BATCH-004/changed-files.txt` | 1461 | `5b97f09b3875bd3dcb86bbfc2a2b4fb1873499c0038811d50e1a66b9a7e3dffa` | `100644` |
+| `evidence/batches/BATCH-004/handoff.md` | 1368 | `a706afca34c8a23bb062ba889116940f33736e36a59c52fefe33e619a4f3066b` | `100644` |
+| `evidence/batches/BATCH-004/plan.md` | 7233 | `23fd41e8f488fdf6c3da74b26530961a8ea071fd904862903250bbf040dbaaae` | `100644` |
+| `evidence/batches/BATCH-004/prompt-traceability.md` | 3555 | `210bbc2e05194c44e41ba88c6ab2ad45e3b8b0ca456032572d03bf78f1541329` | `100644` |
+| `evidence/batches/BATCH-004/test-output.txt` | 2529 | `224d700619fb1d4de414925e6f03c05a4a0b26459f0babeec21e0315df0ad278` | `100644` |
+| `evidence/batches/BATCH-005/ACCEPTANCE_EVIDENCE.md` | 2099 | `1abd287c01d5c43acf8878d3fd0b0cdf97f115a38793e5b3aec768ef89be16b9` | `100644` |
+| `evidence/batches/BATCH-005/PROMPT_COVERAGE.md` | 5055 | `e17bad337fea95098eefa6f4317638ce9adac47f7c85838f3647fe8be2cc5aa7` | `100644` |
+| `evidence/batches/BATCH-005/TEST_RESULTS.md` | 910 | `7c3c3e8f267d3198724e5bedec4ceb0aed9aa076610b0a02f7cf5992a61f7aa8` | `100644` |
+| `evidence/batches/BATCH-005/WORK_PLAN.md` | 14523 | `8154cbaac61877ba98ba1e589937ef8959c31eebfafb4ef9be1343b672580400` | `100644` |
+| `evidence/batches/BATCH-006/ACCEPTANCE_EVIDENCE.md` | 2607 | `0b48ea80166974584e3bde9f14cc4d49ac2241079fb2d44c646f7168623bc285` | `100644` |
+| `evidence/batches/BATCH-006/PROMPT_COVERAGE.md` | 5573 | `4580c4cad7b12fc8b333ddbb5201216ec120957653b811b7827b5fef318ef10a` | `100644` |
+| `evidence/batches/BATCH-006/TEST_RESULTS.md` | 2251 | `82cd612bba4e75ef63da0b8d84ee9d451c9bbe8982a3f5922b2e7be9eefe6e5e` | `100644` |
+| `evidence/batches/BATCH-006/WORK_PLAN.md` | 8107 | `d2a93a26597a02bbb6bf35c13da6d35259492d948212d8c7a26b74794a9dc9ca` | `100644` |
+| `evidence/batches/BATCH-007/ACCEPTANCE_EVIDENCE.md` | 5986 | `9673d3cce07e2f679a3bb99b5231296250ce6bb186565b813df1220b76377d0e` | `100644` |
+| `evidence/batches/BATCH-007/TEST_RESULTS.md` | 1875 | `7fa46f8a92ba5861021176cc9976ddd19e13e3920865a00dbada80eb7a98bd02` | `100644` |
+| `evidence/batches/BATCH-007/WORK_PLAN.md` | 5122 | `af1981e0d785b0f78064734a46d12c10e5cc685bc6ab0bcfb0110862b84b8987` | `100644` |
+| `evidence/batches/BATCH-008/ACCEPTANCE_EVIDENCE.md` | 2678 | `0648b1c2fb00315d7e3151807f5d4b4f08004206feedadc16ae12d85ebdf157d` | `100644` |
+| `evidence/batches/BATCH-008/TEST_RESULTS.md` | 1415 | `0154b5b9c7fb37974495848e5316de145d6f89dbdb5918bb4507582c92788641` | `100644` |
+| `evidence/batches/BATCH-008/WORK_PLAN.md` | 6874 | `906ab88b3f84af00e765ed006a9277d2d73dd1d887a9818fb4e6868038f35e1d` | `100644` |
+| `evidence/batches/BATCH-009/ACCEPTANCE_EVIDENCE.md` | 3212 | `ffc169cc34ceaf352a1b2754bca6958f8548cb82f1c5e205f71ebd4057000dc2` | `100644` |
+| `evidence/batches/BATCH-009/PROMPT_COVERAGE.md` | 5695 | `5cfbc1f0dc764e09b528220439f6df64478f40311752355071669417c534e3a3` | `100644` |
+| `evidence/batches/BATCH-009/TEST_RESULTS.md` | 1012 | `803bad069a435f8e047bf573f71788493768b9e523dfd61028d73b79d7c07d97` | `100644` |
+| `evidence/batches/BATCH-009/WORK_PLAN.md` | 8370 | `7cace3698a21f4f0b2dde8dd51244bae4f19c558989472ae1a6f720b2cebc52b` | `100644` |
+| `evidence/batches/BATCH-009/changed-files.txt` | 3332 | `3bae72403586f618b1a1d9b8a73425755fd7db7ad0b70e1d52452401deb30b42` | `100644` |
+| `evidence/batches/BATCH-009/handoff.md` | 1285 | `4d3775082766ba6756936bb8d53022b0a64c17e9f219d5ea32857507cfd008f6` | `100644` |
+| `evidence/batches/BATCH-010/ACCEPTANCE_EVIDENCE.md` | 4728 | `d3f5565ff7a20445be2e9894a27b401421b4ed1130b58444f4a1c4e1e23bc669` | `100644` |
+| `evidence/batches/BATCH-010/BATCH_WORK_PLAN.md` | 6941 | `955e504769367fb559b4b2051c90605cdcd875936e054c84d2f3f177d201dea6` | `100644` |
+| `evidence/batches/BATCH-010/TEST_RESULTS.md` | 2278 | `de1fa0101de3f4c3ea1815cdf315eb2efca71bc0f89c4c433fbbcbfca0def973` | `100644` |
+| `evidence/batches/BATCH-011/acceptance-report.md` | 1989 | `9d830627c90cb097619af1ecc11175aaf99d0480ceeac5d90e87ff0c6ccd74f4` | `100644` |
+| `evidence/batches/BATCH-011/acceptance-test-output.txt` | 1690 | `e9513eae43806e1ba1412f51abcda53584d0ccf09db905fb082395a6b572dc1c` | `100644` |
+| `evidence/batches/BATCH-011/changed-files.txt` | 541 | `ba8d9f8426c4c9ca9639fff697b303ee5900e320fd47e5f0f9ea5b0f1e8d2b92` | `100644` |
+| `evidence/batches/BATCH-011/handoff.md` | 1139 | `9785800c167513de17392b3f29c4753d832242a3f045cfe5021867f44d8b7a1d` | `100644` |
+| `evidence/batches/BATCH-011/plan.md` | 3290 | `4933932323eebc2623f8181499b0c7be6c37d5580fecfe49e83397749ddb77fc` | `100644` |
+| `evidence/batches/BATCH-011/prompt-traceability.md` | 1977 | `93041b2f9e9de06cdfc70c2391fb08d16743799ea6824f4da6644d7f515ec512` | `100644` |
+| `evidence/batches/BATCH-011/test-output.txt` | 1700 | `d34f983d90733c166d81a8445210d6fd79dad86fd7852874b29dddcfe2fab70a` | `100644` |
+| `evidence/batches/BATCH-012/changed-files.txt` | 2324 | `4766fe8d7673d323f4198104427882543922fca5950bc7675ccde4c31a54eb67` | `100644` |
+| `evidence/batches/BATCH-012/handoff.md` | 1891 | `44437eeadb7e3a3e876c60d1248a6c3400e87785d72a712c8ec933ee1a49b3d7` | `100644` |
+| `evidence/batches/BATCH-012/plan.md` | 7767 | `cb2031c27e2988c201d2c517d2c500055636d4364803fcf274bfe505b1190ad3` | `100644` |
+| `evidence/batches/BATCH-012/prompt-traceability.md` | 5053 | `b8b4d30399c8a6ddbdee1d5765d53cf29de365cf4c7ca2524a7da27e1ee7994e` | `100644` |
+| `evidence/batches/BATCH-012/test-output.txt` | 2334 | `544977811b06c235c7b00b9165ed2252e59cd920cdc42a79adee24c8db597b31` | `100644` |
+| `evidence/batches/BATCH-013/changed-files.txt` | 2845 | `9c2b4afc3e012fed91e6c48564f5db85f4ea15be74731115dd2a52f7a02fb209` | `100644` |
+| `evidence/batches/BATCH-013/handoff.md` | 1366 | `4ee226db220e182772da29989030df7ea92c1df761c372cb44e1a6ae30c02cfe` | `100644` |
+| `evidence/batches/BATCH-013/plan.md` | 6940 | `c11b83b3880230138020730e7f90ab088e8b38ed93847c6bedfb8f49c5693969` | `100644` |
+| `evidence/batches/BATCH-013/prompt-traceability.md` | 4135 | `a9f599a84d99048b25a5e096a83690dbb6646da8b2d121c8270b4b066667dd9c` | `100644` |
+| `evidence/batches/BATCH-013/test-output.txt` | 2117 | `244ef32d053dda8afc35c95d29ec640eb3e986f97d4f5cfb9df1d4a0d227071b` | `100644` |
+| `evidence/batches/BATCH-014/ACCEPTANCE_SUMMARY.md` | 3169 | `25164272122f21e411322ff6141bca1f293fc8f29a7431e91ae89b2fe09b456a` | `100644` |
+| `evidence/batches/BATCH-014/PROMPT_ROW_EVIDENCE.md` | 7676 | `65ff6dc03b5e2cd9c1fbcfb97dea1cf2195f552afae5a44036c3aa099b9eb23e` | `100644` |
+| `evidence/batches/BATCH-014/TEST_RESULTS.md` | 5536 | `7f5424f1da67ede96eb715e5ef97b7fbdcf540493ff941cc0811acd809af671f` | `100644` |
+| `evidence/batches/BATCH-014/WORK_PLAN.md` | 4567 | `f03ac124a82aa472d7f836fa3214ea5d3b37f99331a4693b8973ba963f7c310d` | `100644` |
+| `evidence/batches/BATCH-015/ACCEPTANCE_SUMMARY.md` | 2437 | `9ea689e687ec505b7045a16edfaf1fcbf3a53ae5c6c228d7ef5efb1d43ceb0b8` | `100644` |
+| `evidence/batches/BATCH-015/PROMPT_ROW_EVIDENCE.md` | 5552 | `888bf78d3f542a6d7ebfb6f8944c116b5a94c1ef7af18a77e1dc91f2300677a6` | `100644` |
+| `evidence/batches/BATCH-015/TEST_RESULTS.md` | 2581 | `2e0145c4b6f3a4832a38e781935a0769ed70836add2da0e91247a0b9c9a1d5e4` | `100644` |
+| `evidence/batches/BATCH-015/WORK_PLAN.md` | 8407 | `36ff400ba37d132244faf20eb6a91865ee97be4d65de13c6dd3453ea8960fab8` | `100644` |
+| `evidence/batches/BATCH-016/acceptance-report.md` | 1398 | `676bced090d9f9c4df970390473cb8db4849df0d4d881cb93150f30306167472` | `100644` |
+| `evidence/batches/BATCH-016/acceptance-test-output.txt` | 720 | `f47bc7776e3aa2b536c8bbc5c98f4e1f0397153583757de5a623837444a9402b` | `100644` |
+| `evidence/batches/BATCH-016/changed-files.txt` | 1858 | `4a1353dc14d1e3039ee23966a43bb3d19d7edb660cbdf222996e20f2ed3620a6` | `100644` |
+| `evidence/batches/BATCH-016/handoff.md` | 1019 | `cca624805b77f7ba76caa651881a4195b510f9aabd2e3e961a81ae9efa9a3a97` | `100644` |
+| `evidence/batches/BATCH-016/plan.md` | 5706 | `43e9234153287824dc86c05d4103fcf4bb8ab0363ce04f951395e0a2bf528007` | `100644` |
+| `evidence/batches/BATCH-016/prompt-traceability.md` | 4941 | `f3ab281c7fbdce1ac8b5bd6061f4339c0b0b436b56baf8c372144c84a4a0cfce` | `100644` |
+| `evidence/batches/BATCH-016/test-output.txt` | 1661 | `44dd3f4447fbdc71f3a8546661e39315380e758916ae8baaa4b95d62584cedd7` | `100644` |
+| `evidence/batches/BATCH-017/acceptance-report.md` | 2830 | `8b86e614597671a1b7134a30cf7582f6eac727c54eb1b4ad4320f252127c0a88` | `100644` |
+| `evidence/batches/BATCH-017/changed-files.txt` | 1601 | `9c45d6c68a3a79d25c5514a1598efc25048148b3230384cf97e0184262db6b75` | `100644` |
+| `evidence/batches/BATCH-017/handoff.md` | 2064 | `d56a3879b64bda8a477137f1f0d451d5bd56bb03ea0ea0231988fb647cce6cd1` | `100644` |
+| `evidence/batches/BATCH-017/plan.md` | 7578 | `4a2b4738013c5c0863102854ef38a4a7f80bbb63e8939a6b32eaf34b3c445d3c` | `100644` |
+| `evidence/batches/BATCH-017/prompt-traceability.md` | 2500 | `074c87db94b9c809646beeb736e28f39b40f705f8eee2b0d412bdde7be87bb24` | `100644` |
+| `evidence/batches/BATCH-017/test-output.txt` | 1771 | `0ee0949c0ad666dcd0164969400629a1f5b9950b03b7683bfb855308c4659666` | `100644` |
+| `evidence/batches/BATCH-018/ACCEPTANCE_EVIDENCE.md` | 846 | `7ecc366d90e477c49251e86c4f5af83af8c05d0135f66098a04c1690bea69b9a` | `100644` |
+| `evidence/batches/BATCH-018/BATCH_WORK_PLAN.md` | 822 | `db7805de01c721c3b98d7d66eb45958cf68b66e682abe78ce9ac652526a5236c` | `100644` |
+| `evidence/batches/BATCH-018/TEST_RESULTS.md` | 690 | `12063387c9618f164d6325523595e41a63b9bc4a507c6df81a9b8b8604cdeaa0` | `100644` |
+| `evidence/batches/BATCH-018/acceptance-report.md` | 2882 | `de605ec37ecf635644feb560ed442dfbf8cc09fb842fbfde6df0cca4b6abb03f` | `100644` |
+| `evidence/batches/BATCH-018/acceptance-test-output.txt` | 2506 | `0fa82ef2953ea80e4340eee41bfa11b19eab68fdf531937961fdf832ec522593` | `100644` |
+| `evidence/batches/BATCH-018/changed-files.txt` | 1211 | `2e108883a2696f084b3d918b03da0e328984cb5055e8c93b1b4e72dd348c8b66` | `100644` |
+| `evidence/batches/BATCH-018/handoff.md` | 1954 | `72017d718c48c090d4cecffb9bd110a05817d305d15f852c212866a9bf3b4e73` | `100644` |
+| `evidence/batches/BATCH-018/plan.md` | 2368 | `c7e467b0f6af3967664ad466c1517cfd9410edb797b8f20beb8135482088b25d` | `100644` |
+| `evidence/batches/BATCH-018/prompt-traceability.md` | 6299 | `cb4a377c313959bd5b34683bf95aa9bfef6c6c24ed9964106eb769d5009fbfdb` | `100644` |
+| `evidence/batches/BATCH-018/test-output.txt` | 3818 | `785e44ed354cbe9b4338375b78bab9b2aa921dd9d6a733e1f00151ad5262ecec` | `100644` |
+| `evidence/batches/BATCH-019/acceptance.md` | 1841 | `3b9884778f87fde561ebb897e09e94b106384b068a8276e1332f2f02d82bc600` | `100644` |
+| `evidence/batches/BATCH-019/changed-files.txt` | 3108 | `9865c065bea181d1a677a415101b32a4850fb76fbd78e52b697a606163482ad3` | `100644` |
+| `evidence/batches/BATCH-019/plan.md` | 7279 | `1828e86b3f2c3dfd921cee1cab70a2faadf2d3b51de9a3d419477a4b7ebb98af` | `100644` |
+| `evidence/batches/BATCH-019/prompt-coverage.md` | 944 | `83392203091ab6eea0db86d0a36361e634e7fa8bae3dc41f87e46eaa0ad7758a` | `100644` |
+| `evidence/batches/BATCH-019/test-results.md` | 1918 | `bcec3842e9d87e190a5339081e4332d4ae7d6346845227544193fe03c231c47d` | `100644` |
+| `evidence/batches/BATCH-020/acceptance.md` | 1587 | `f53d92f55c63ee6d60703006296b72960f8bf296b38223ff5c6e41fabafdcb4c` | `100644` |
+| `evidence/batches/BATCH-020/changed-files.txt` | 558 | `c03e15d44441f16a185693b699e10a62216e28820df38b9819fd61a2990bf1e3` | `100644` |
+| `evidence/batches/BATCH-020/plan.md` | 7704 | `0c665c0375e5341e1b4e0186af98a1c8b11094a147fbc1cb13cf3c041f74d455` | `100644` |
+| `evidence/batches/BATCH-020/prompt-coverage.md` | 2168 | `494a89bb86745d13b91346cec5f3aeb657c47b21a59fc7cb1be164fb0029d60a` | `100644` |
+| `evidence/batches/BATCH-020/test-results.md` | 1391 | `6843587dfc2561aea2e3f08a30bf9e2a19485a9cfafb3da1d006723b4c0fa063` | `100644` |
+| `evidence/batches/BATCH-021/acceptance-report.md` | 3667 | `2f4ac355fe3b7f31f0a1c00078b2f6615cba3743e0ad4cba40bcc7a271e8d5f2` | `100644` |
+| `evidence/batches/BATCH-021/acceptance-test-output.txt` | 2383 | `a63c4dd838f829e3f37b886a71e13041ac8b36428216993814288e74535c5851` | `100644` |
+| `evidence/batches/BATCH-021/changed-files.txt` | 2511 | `870cb86be002a4997096658dc1f840d2a3e0c19b450e5499aab885014b9d06d9` | `100644` |
+| `evidence/batches/BATCH-021/handoff.md` | 1379 | `5e86797afddc34f7ef5eb2bf71f223f26c529898483931ce8121f832b2bf43ca` | `100644` |
+| `evidence/batches/BATCH-021/plan.md` | 5141 | `3d1ed2a0ea6a544c1ef076f6865eb5b65b82125998e4598106895f96675df7e7` | `100644` |
+| `evidence/batches/BATCH-021/prompt-traceability.md` | 3610 | `a1464006fe35cdaeba77d28f9f231580df723349afadb4ef09a41a550202c9f9` | `100644` |
+| `evidence/batches/BATCH-021/test-output.txt` | 1680 | `7f4312bdfc0ce6716fbf9211a99bf013af7546ad17fbfe727f312972c1412f78` | `100644` |
+| `evidence/batches/BATCH-022/acceptance-report.md` | 1147 | `8f63b1fa55e0e5faf2bde7face1ae9720a616fa1ef1a3d039f6dd87b15319264` | `100644` |
+| `evidence/batches/BATCH-022/acceptance-test-output.txt` | 633 | `fee1c3d173467a8cd7197e15ecd769a6e8ec91bd4a549dda59971706dfd84bd8` | `100644` |
+| `evidence/batches/BATCH-022/changed-files.txt` | 1592 | `b9c123867dd5080fcb432165239ebff983749b07c3241d0de79a864b9d8611c3` | `100644` |
+| `evidence/batches/BATCH-022/handoff.md` | 1349 | `ee1bf6bec674816adad1b6c6c8f08436d14f2d86f2a8fece2f867dae9940fbe8` | `100644` |
+| `evidence/batches/BATCH-022/plan.md` | 5992 | `8755597d9e17763a7de8e38281e4091799a23cd4a2978b5a066070a3c6c46845` | `100644` |
+| `evidence/batches/BATCH-022/prompt-traceability.md` | 4202 | `ada917b97d34613e29cdba53c9bc98967c9412c6638790a857cae1729214412a` | `100644` |
+| `evidence/batches/BATCH-022/test-output.txt` | 1717 | `4b4908efb9889917a50e5df97eee79d72e4d229d0eed11628105ed041be52e16` | `100644` |
+| `evidence/batches/BATCH-023/acceptance-report.md` | 1311 | `40f9cac9b761e66480e86e9272b1357a97aa14342ce785f2136795b5ae8bd82d` | `100644` |
+| `evidence/batches/BATCH-023/acceptance-test-output.txt` | 1060 | `85d8cf7f70bbd8cb25043bfc3c69f27854d5b48b1dc2493be4649ea48effc667` | `100644` |
+| `evidence/batches/BATCH-023/changed-files.txt` | 1909 | `9394d90f0f838794d5ed29bb022db2b45586b8fae0d96e2057d872fff34b4a8e` | `100644` |
+| `evidence/batches/BATCH-023/handoff.md` | 819 | `9e480fcd8628996f92337e7bb195ae1696b531fcd2b73736495fec04b7bf536e` | `100644` |
+| `evidence/batches/BATCH-023/plan.md` | 5921 | `8895da0415baa068c138a7f1fdbed5345776b7b965f73e1954bdca880ef91f59` | `100644` |
+| `evidence/batches/BATCH-023/prompt-traceability.md` | 3137 | `1c138e465919572a8740c930695988d56daee5844b1a4483da0eaba1829e1c1d` | `100644` |
+| `evidence/batches/BATCH-023/test-output.txt` | 2558 | `0c94f70e5bb8b55f0d567ba07420b93faa81e80f769ca3cd7e5be8c6456b5e4c` | `100644` |
+| `evidence/batches/BATCH-024/acceptance-report.md` | 1217 | `0ab68ccdc327b3d5dd2bec937a01837fc4ad2a04fd06236f6ab7c0cb7010fdd6` | `100644` |
+| `evidence/batches/BATCH-024/changed-files.txt` | 1551 | `540cfa68c772d65aede54833fb46f0ea3cbed9a80d5d263ed786938120e2f282` | `100644` |
+| `evidence/batches/BATCH-024/handoff.md` | 2008 | `8ad4ac3ef70d3721884a2ff929a13da178f963fc1c434be4b0379edcb96a797e` | `100644` |
+| `evidence/batches/BATCH-024/plan.md` | 6268 | `afd697dedc0fd07e567b26b2a1fb0dc07eada797c6765dc3d075a31fc51601c3` | `100644` |
+| `evidence/batches/BATCH-024/prompt-traceability.md` | 4369 | `66095b83cb00e432e5d439ccfdc93a4af82ddeb1ed5cdeefaf1a17a302706bf0` | `100644` |
+| `evidence/batches/BATCH-024/test-output.txt` | 2713 | `629be8d77975f19ad0b5f16f0d47d4722687b417aa12991983e338019cb81379` | `100644` |
+| `evidence/batches/BATCH-025/ACCEPTANCE_EVIDENCE.md` | 2759 | `6b12c7d550db0b0b8b2db60837755b51de33f0dba09b42430a39641c7f26f7ad` | `100644` |
+| `evidence/batches/BATCH-025/SUMMARY.md` | 2287 | `62b30f5cb61eb6bfd51cd8d8df017151a3b35ff0636ac8199dd1a3745a004fb0` | `100644` |
+| `evidence/batches/BATCH-025/TEST_RESULTS.md` | 9823 | `e0d8a249cf44d35e01cc369c06d12b5f14a394cd249512e486a1fa7cd4511fa2` | `100644` |
+| `evidence/batches/BATCH-025/WORK_PLAN.md` | 6393 | `0e535d1131ffd70d6613437038c717f91d10678e3c19a5a900384a01d3175f81` | `100644` |
+| `evidence/batches/BATCH-026/ACCEPTANCE_SUMMARY.md` | 3816 | `3d4c7b17bb1c4dd4ab73947f97d56b005fd0729aebb42c9558d424e250a6684a` | `100644` |
+| `evidence/batches/BATCH-026/TEST_RESULTS.md` | 8110 | `c0c642a9a7a0a2d791bda28a50eb132d3a5f7edff57e9eff30d6227028a8a3a1` | `100644` |
+| `evidence/batches/BATCH-026/WORK_PLAN.md` | 7772 | `06e7b8a3e4f7587cf791e0974e8fbbff6b3fc1ac12e1f72de19bd1c2fd955069` | `100644` |
+| `evidence/batches/BATCH-027/ACCEPTANCE_SUMMARY.md` | 5837 | `19cff8a1742d04b613c517d343fb1fce6c52279ab3d8467b5b19fb80a51e918d` | `100644` |
+| `evidence/batches/BATCH-027/TEST_RESULTS.md` | 7171 | `aac4f282181c5853a9418d81dd27b3961c67ed106bfd0b91bbe706e6ec4e6c87` | `100644` |
+| `evidence/batches/BATCH-027/WORK_PLAN.md` | 9567 | `77d862e73cec255fa764d6769913754bb076281fd6f1177b1c5393c827c18492` | `100644` |
+| `evidence/batches/BATCH-028/ACCEPTANCE_SUMMARY.md` | 2546 | `b8acfb3ce481cc849685906d06402c4747c5fd673820fbee26342f2fa0e719bd` | `100644` |
+| `evidence/batches/BATCH-028/PROMPT_COVERAGE.md` | 1892 | `fe5648f1c63991ef1b9dca38eedc6812e2eafd6f7334bb06e9176e02e922d21f` | `100644` |
+| `evidence/batches/BATCH-028/TEST_RESULTS.md` | 1934 | `035fb368c1a208bcb27573ead563674fa1a7c642173410eb46324b630b82e0c9` | `100644` |
+| `evidence/batches/BATCH-028/WORK_PLAN.md` | 4356 | `d8c0cdf7c340d7c5cd5641fa37521003ebcda259de8dfa843e9e7c290ef73270` | `100644` |
+| `evidence/batches/BATCH-029/ACCEPTANCE_EVIDENCE.md` | 8894 | `d228b5611c6498222eefbf19dd4558b5a0ba689f3a6ac327a1721125580d7cc1` | `100644` |
+| `evidence/batches/BATCH-029/TEST_RESULTS.md` | 3861 | `11b12aaa66135b2e9b1e328d24ba1f2931c00f953dc005878fd8434dfc8d8a80` | `100644` |
+| `evidence/batches/BATCH-029/TRACEABILITY.md` | 6413 | `fcf498cae77011281159b4435ec0f3f6b32b0c509230367fd6144f7aff9c8286` | `100644` |
+| `evidence/batches/BATCH-029/WORK_PLAN.md` | 9410 | `3a10337d9e09120ae4868172a0a59156b50bf5cab16c3dec6b8dd16e7d3207ac` | `100644` |
+| `evidence/batches/BATCH-030/ACCEPTANCE_EVIDENCE.md` | 6589 | `ca6be8205224ed14d3e9fc28b60a99b769a30db6eb383236bb4beff8d3ffef9b` | `100644` |
+| `evidence/batches/BATCH-030/HANDOFF.md` | 1671 | `8a14f7f19930ca2010f3216e9e3dd897ad8d89d801a43aa4146a49d8d2b20c84` | `100644` |
+| `evidence/batches/BATCH-030/TEST_RESULTS.md` | 2998 | `72eb4fc3f799cb08ef29ac79eb623dcca1bf8195d2ff266dba66885c867adef4` | `100644` |
+| `evidence/batches/BATCH-030/TRACEABILITY.md` | 2974 | `0abc86bb51de02b0f13ef17b505ec84a194908e186b0f868974793df6e318c12` | `100644` |
+| `evidence/batches/BATCH-030/WORK_PLAN.md` | 5658 | `5e5ba9058fc42719beeee9c38b4d2298f27be407fa4e54eee1fa1e6ba442c2df` | `100644` |
+| `evidence/batches/BATCH-031/ACCEPTANCE_EVIDENCE.md` | 1398 | `3f3771f318a82f2d810c866dfdce4502a03f94f453c6db56ada9ac8d1c37a768` | `100644` |
+| `evidence/batches/BATCH-031/HANDOFF.md` | 1084 | `bec52290c890b43292cb1685a7078eb6d9b097abe5b77da6dfe3993dcce6c1e5` | `100644` |
+| `evidence/batches/BATCH-031/PROMPT_COVERAGE.md` | 2826 | `d9ee6115398582bf0d1a812e384e974d8f78f5e7da48e95ab62bcd6982b5e003` | `100644` |
+| `evidence/batches/BATCH-031/TEST_RESULTS.md` | 1888 | `6ee3a87d8e53bd33c3916965f77a707799e874ef0b4c20f1339ee63a93e1d002` | `100644` |
+| `evidence/batches/BATCH-031/WORK_PLAN.md` | 4938 | `e6cedcedac41f8144838635c7316cf2557d9a3f388ca89f2a2b5ceba005dc821` | `100644` |
+| `evidence/batches/BATCH-032/ACCEPTANCE_EVIDENCE.md` | 3281 | `82673cdd9369ab3a752950217ec1eac374f86edd74d8e078bdac13da788c8e79` | `100644` |
+| `evidence/batches/BATCH-032/HANDOFF.md` | 1226 | `6a930a702b409bce5e6cc79d123901298f2019984293729093caf2c6a6df3293` | `100644` |
+| `evidence/batches/BATCH-032/TEST_RESULTS.md` | 4150 | `e77d393fa9522a5583f0c343b184f8407591430ff0ee1b47eeabdc87a8ce7d2b` | `100644` |
+| `evidence/batches/BATCH-032/TRACEABILITY.md` | 6405 | `91e7fad4b144664a8d11246692dfbbaa2874639552b6056dfe405b3e383bfa81` | `100644` |
+| `evidence/batches/BATCH-032/WORK_PLAN.md` | 7550 | `e6cb2eec790bc56c0e16610a91c1a3f9772bca5c1703348dbef8b64c751956df` | `100644` |
+| `evidence/batches/BATCH-033/acceptance-report.md` | 1665 | `04ba81d34936b7c43d246c9a0879fa43f4eed829ae053f6a7839340bd893dcea` | `100644` |
+| `evidence/batches/BATCH-033/acceptance-test-output.txt` | 1067 | `e80fda28f486092857add9dab628a72be118c1bb8a482705dad9fbecf90c37ee` | `100644` |
+| `evidence/batches/BATCH-033/changed-files.txt` | 640 | `452b9715a39355b483020d6dfceb5fb063f4559042c160d4cdd5a30f3c6623a4` | `100644` |
+| `evidence/batches/BATCH-033/handoff.md` | 1825 | `86446cfe9bf725909e4259494c954b52625c9c17eca2fb463b23eb839712efa5` | `100644` |
+| `evidence/batches/BATCH-033/plan.md` | 6999 | `fd927de6f3533b6ab5da11730050672f14341f34eb37b2204a6c458603a74ef4` | `100644` |
+| `evidence/batches/BATCH-033/prompt-traceability.md` | 3509 | `f3bb9f47439cb9fa335d23ffc9edf915130942875730b319cd92b8906bcf6038` | `100644` |
+| `evidence/batches/BATCH-033/test-output.txt` | 1647 | `911fb72430ca8f2e65e9c506612547b47c706b6234386b564aee180f293f4373` | `100644` |
+| `evidence/batches/BATCH-034/ACCEPTANCE_EVIDENCE.md` | 1682 | `51565ee34ff1cd5a1ccf061f3dd1d1bfcfe926904b99d6eda2b3b9f30d93a441` | `100644` |
+| `evidence/batches/BATCH-034/CHANGED_FILES.txt` | 459 | `41a89e2a797a5118ec94028f4a422afb8ec153869b3d18a859856747aed17b17` | `100644` |
+| `evidence/batches/BATCH-034/HANDOFF.md` | 723 | `543d97cbe4822a35c1b8c31a6c24d1571c01eac138febf98fe9dfb86bd30cbc1` | `100644` |
+| `evidence/batches/BATCH-034/PROMPT_COVERAGE.md` | 1878 | `c0c6c6e15189f4aae1bc52d9ba9e09d50f850210f1d063a5182015e5c14d742a` | `100644` |
+| `evidence/batches/BATCH-034/SUMMARY.md` | 916 | `54ae87c9fdc06ea28c13aaf0cac2b315bffb96c18650a3a42074569aa5e22f7d` | `100644` |
+| `evidence/batches/BATCH-034/TEST_RESULTS.md` | 1669 | `25f3df9183a146fdc1aeaa40ab28a94693ce63d07ffd1fcddcf196f4b9a5d74b` | `100644` |
+| `evidence/batches/BATCH-034/WORK_PLAN.md` | 2201 | `f0e052cd995721f5811ed76446755c1070c87f495def5a9b81b95239cabe57c1` | `100644` |
+| `evidence/batches/BATCH-035/ACCEPTANCE.md` | 6320 | `386513ccf095739e5fbd4a23805c6dbd41d8dcd8896640a7e33f59f3fa2041bc` | `100644` |
+| `evidence/batches/BATCH-035/SUMMARY.md` | 2011 | `8a5e16e6405b50c41f0d2fe68e7683905db73927a0a1177a9eecc48e56694162` | `100644` |
+| `evidence/batches/BATCH-035/TEST_RESULTS.md` | 1591 | `ed0b8723745ebdca779e33392c2fe555a6744d878ee3106699f51bc251c2855e` | `100644` |
+| `evidence/batches/BATCH-035/WORK_PLAN.md` | 4428 | `1f73ce0ad43134fd4f2024d8946a0e2334c1400c243171361dfe5324ac3bf85a` | `100644` |
+| `evidence/batches/BATCH-036/ACCEPTANCE.md` | 1860 | `e6a7e429b64e3c559db1814144132c920fac335ce9408efd8021841409bec60a` | `100644` |
+| `evidence/batches/BATCH-036/SUMMARY.md` | 4258 | `3962b5f22753a3e5e1ba13399c057a3e46ca3cceacdd4dc35c1bb427f65f585a` | `100644` |
+| `evidence/batches/BATCH-036/TEST_RESULTS.md` | 2143 | `dcfa6e91cabf9410972b645db10a1b5833c9f0f547b90b820183010e3752341b` | `100644` |
+| `evidence/batches/BATCH-036/WORK_PLAN.md` | 11387 | `870daff06b9ee0364203c2f854b9f4c24a89314c597a1e50cc055a28da1480a3` | `100644` |
+| `evidence/batches/BATCH-037/BATCH_EVIDENCE.md` | 3211 | `50d68e1f082e3e48e220ef9d268b42d89ab38a867340fbaffe7f01e098542000` | `100644` |
+| `evidence/batches/BATCH-037/BATCH_WORK_PLAN.md` | 2169 | `c48181de59ae11a2771b238c31edb314a810d3f6ef3d93b72934233de4676940` | `100644` |
+| `evidence/batches/BATCH-038/ACCEPTANCE_EVIDENCE.md` | 2007 | `89f7f20971fe89e7f70af56bb311212be984073e89f20d3d50669aa943478b5d` | `100644` |
+| `evidence/batches/BATCH-038/PROMPT_COVERAGE.md` | 5431 | `1dcf5b615ed8855a691a8bdec3f71dcfe58a2cc3e8c75449141f5cc2a95653e9` | `100644` |
+| `evidence/batches/BATCH-038/SUMMARY.md` | 1478 | `f3f114a1e631a5156f32b454b6f38f3b57de965571897f8797b8ed69f7537c06` | `100644` |
+| `evidence/batches/BATCH-038/TEST_RESULTS.md` | 1765 | `5929ed196ec7cb7a727cbf96147122c7823f79d257174293ed86f410860950c3` | `100644` |
+| `evidence/batches/BATCH-038/WORK_PLAN.md` | 6434 | `2ba588d0db35334afae0764c1fd6d2bce6f90fd3966ddd558f30d23051873548` | `100644` |
+| `evidence/batches/BATCH-039/ACCEPTANCE.md` | 1827 | `7491a2ef8467e10e026b02c0cc5163c9b18b4fb79599ce4a5cda913c61179936` | `100644` |
+| `evidence/batches/BATCH-039/TEST_RESULTS.md` | 2189 | `94087ebe8769bdde4c6b82389b3e4908117006f59f4f3f8472ee329c36f9f22a` | `100644` |
+| `evidence/batches/BATCH-039/TRACEABILITY.md` | 5718 | `7ed46f0d32a9c6d2c364c00728e35eff6c2bc5b4ac1d467a79bfbf36ba05d3e4` | `100644` |
+| `evidence/batches/BATCH-039/WORK_PLAN.md` | 7865 | `d9aa3234b05d9f77683dbf5cc82a64c76590a59ba8768207e7783ac57df2b32d` | `100644` |
+| `evidence/batches/BATCH-040/ACCEPTANCE.md` | 1843 | `6d4ecda39e2fae77d709b75d4fef0e4b4e4218cb733395aa78315ad5b237834e` | `100644` |
+| `evidence/batches/BATCH-040/SUMMARY.md` | 1695 | `77dd2503d17841c13e542bb29246730d5b61f1acf728c0cf9980e04e78b70034` | `100644` |
+| `evidence/batches/BATCH-040/TEST_RESULTS.md` | 1999 | `2f529c4fa6c7ba657bb9fd2ca164c9f4a421ea5ff427409dbc967fe9db1aaf48` | `100644` |
+| `evidence/batches/BATCH-040/WORK_PLAN.md` | 7597 | `9364b1bdf969686a29bde0df06c6ce3ca4059f913995a4bc1f906a2eb95b895d` | `100644` |
+| `evidence/batches/BATCH-041/ACCEPTANCE.md` | 3832 | `e583bd8f2eb32fdbb0bbb601715f5092dbd83929d5a2f9413786118c69fa9722` | `100644` |
+| `evidence/batches/BATCH-041/SUMMARY.md` | 1977 | `9c34a1392246a53fcd5d6bfa808f4ce7ecb29940d167292315444f2786d2cd2a` | `100644` |
+| `evidence/batches/BATCH-041/TEST_RESULTS.md` | 3555 | `ea1d8cb47104a0c37aaa709e94c31c23ba368eb7643a74caa9d5199ba22cb52b` | `100644` |
+| `evidence/batches/BATCH-041/WORK_PLAN.md` | 2342 | `fccbebe08efeb0e2183dde86b493f5a29f08e473b69a1ff4de03440aaa1bf757` | `100644` |
+| `evidence/batches/BATCH-042/acceptance-report.md` | 2576 | `bdab43a1b5eeaed8a8f95326a55b71f862f450e5fb1b443a4d41edf163f25fb2` | `100644` |
+| `evidence/batches/BATCH-042/changed-files.txt` | 2850 | `1c2c862694938869452bd22e7bc5a92d75e4820b7bb42318f3a7091a58d99e64` | `100644` |
+| `evidence/batches/BATCH-042/handoff.md` | 1612 | `04a3183a0a40298bd7261ab8b7040b51470117defd476445f3ca70df949bb029` | `100644` |
+| `evidence/batches/BATCH-042/plan.md` | 3379 | `924cb1dfb9f3e71ee40b07763b22d44e08b6436d8b4e7f05e16f3c5e8270c377` | `100644` |
+| `evidence/batches/BATCH-042/prompt-traceability.md` | 3047 | `ea378e1ee96ee0fd4553be978298c47ecd3d982c544ad5bf3df78ed3d2f8fad1` | `100644` |
+| `evidence/batches/BATCH-042/test-output.txt` | 5886 | `58acef74d8b5cf8e1fc05c3bd266adf42745dd3579d67e9291832081ab0bbb51` | `100644` |
+| `evidence/batches/BATCH-043/acceptance-report.md` | 2784 | `be82e64ede05df35191be2b181855c96ceb1f0f5cdd2f5822f19c1bf63e18fbf` | `100644` |
+| `evidence/batches/BATCH-043/changed-files.txt` | 2548 | `afc46769ca016c895efaf55d0e24204129bc2dfef2bca86b97c0c187cb818a75` | `100644` |
+| `evidence/batches/BATCH-043/handoff.md` | 1308 | `cfacbf4353ec7218a70df96b9b71fe3f8401c871432a5b236a6e9efc5caca5d7` | `100644` |
+| `evidence/batches/BATCH-043/plan.md` | 5533 | `2df847f74e13d1f11f6a0fd1a55ac22bfa463be2f5cf063c03bfa75a323e71e8` | `100644` |
+| `evidence/batches/BATCH-043/prompt-traceability.md` | 1147 | `51aa50c89de500d2239517394084ae8a7ba28e2822f6264f1eaa7c0eab6c9e75` | `100644` |
+| `evidence/batches/BATCH-043/repair-report.md` | 1109 | `7d633e6f106612d559fa79acf4f6c53c1f70c274272a327c2fed073dbb48e517` | `100644` |
+| `evidence/batches/BATCH-043/test-output.txt` | 2237 | `6f0e7db73930b5c9912892928366ad63da9fa4b9ca5c3d64047504c77173f98b` | `100644` |
+| `evidence/batches/BATCH-043/upgrade-rollback-impl.md` | 1170 | `8cb8c0c5e41e12a92e66135f1f81a59b227b0c69e08553405e9ed4fa4638b064` | `100644` |
+| `evidence/batches/BATCH-043/upgrade-rollback.md` | 1138 | `5cd6285e4da50e3c5cfa4fabaff5755235210c2ba6c3c78f2a665948b29b3d59` | `100644` |
+| `evidence/batches/BATCH-044/acceptance-report.md` | 2972 | `13f46c1bef0284e3cd4d07f97bbe56c27df4952bfb548a5691b9937c061aae3f` | `100644` |
+| `evidence/batches/BATCH-044/adr-0008-plugin-boundaries.md` | 441 | `e16ec50944c6d4d6ddfa0e632f6482e3b8717165789ee78590ad7a1cd8186f5f` | `100644` |
+| `evidence/batches/BATCH-044/agent-pack-sdk.md` | 499 | `996cc781e5625ae0446ad1aab9786b99cad2af989d148bcf78850eb5b332f6c5` | `100644` |
+| `evidence/batches/BATCH-044/changed-files.txt` | 3427 | `ccd1ee8b3fff6e9a7fa9615cd220e9b69edc1a2cd89f38dd98b1beafdba07249` | `100644` |
+| `evidence/batches/BATCH-044/extension-compatibility-matrix.md` | 578 | `8d503b8bcf882f2aa498e5ef920faeba072dc0b95e46a0089ffb4fa0d151b29f` | `100644` |
+| `evidence/batches/BATCH-044/handoff.md` | 1475 | `80a6550b9875e165aac4fdfec13bca6ea0463ee42ab911dbd87e410c0098fb07` | `100644` |
+| `evidence/batches/BATCH-044/plan.md` | 7318 | `50944ffde7b8fab15a25d9001a73fddfaa07b5e55ed186cafe5d1a0e5683a2d4` | `100644` |
+| `evidence/batches/BATCH-044/plugin-sdk.md` | 486 | `b0e12e5ddd00bb84b2ff94ee7c482a7364fc66d8043b40f4c1b70054e4c394b6` | `100644` |
+| `evidence/batches/BATCH-044/prompt-traceability.md` | 1814 | `991006fc17108a04196248dd282e93de9a7d7c786e96074af010f38ef9cac618` | `100644` |
+| `evidence/batches/BATCH-044/readme.md` | 397 | `1ee04d424e6891642bd67496cff8b95e7305a9e316371ef9801491301f88cdb5` | `100644` |
+| `evidence/batches/BATCH-044/ruleset-pack-sdk.md` | 406 | `09523a5cca1c2dd7dfb003ba36e680249b733f7c356a475b58394bdfd9b4a376` | `100644` |
+| `evidence/batches/BATCH-044/sdk.md` | 394 | `975f1ad9cf5d6cd1943ea21e88bf4e7d17dea3c5da489b6fd565a8378186661f` | `100644` |
+| `evidence/batches/BATCH-044/test-output.txt` | 1964 | `0d6d5dbe350afda2ea4186857dc195309d216d6bc92c0603e1c685a4e616c9ff` | `100644` |
+| `evidence/batches/BATCH-044/tool-provider-sdk.md` | 417 | `ff471c8665ce445ffc430b0ab922de3a4cc52b6d38521efd7a084e9bf05f270d` | `100644` |
+| `evidence/batches/BATCH-045/ACCEPTANCE_EVIDENCE.md` | 2715 | `1ba599866cbc885aa20b1ba70431cd7773efc87e565ee2851bad1d4c61b23d67` | `100644` |
+| `evidence/batches/BATCH-045/PLAN.md` | 2505 | `69cc71ee4075905941d1c2d0ffba7198c1d3d1338236ab35c53d104a1f6093d7` | `100644` |
+| `evidence/batches/BATCH-045/TEST_RESULTS.md` | 1830 | `54a16665adf715f1c6e5f276ce6d817c972bb4cb7c8029be6ca3a5997668844f` | `100644` |
+| `evidence/batches/BATCH-046/acceptance-report.md` | 1307 | `526f162a64ab202a338021f69bf500826da7938b996641aa1b9f9a3557e9e794` | `100644` |
+| `evidence/batches/BATCH-046/acceptance-test-output.txt` | 775 | `dca9691175fc43b69d66fb9528bfa37f773a5fe712631df7f934d1baa10e1986` | `100644` |
+| `evidence/batches/BATCH-046/changed-files.txt` | 1696 | `a1bab892c782a8eb9b6f419dca68cda67630ebe228ccb7718cad78f6f9035d54` | `100644` |
+| `evidence/batches/BATCH-046/handoff.md` | 588 | `934775541bd59257f6d0c5ff5dd7fb4d931e15a3976deb06475e5108bb4fd938` | `100644` |
+| `evidence/batches/BATCH-046/plan.md` | 7026 | `cb571535881b2d6018fdf3ac6be4fde2deef9d9b418216ba52094ae157ece10f` | `100644` |
+| `evidence/batches/BATCH-046/prompt-traceability.md` | 9852 | `49c59dba2ac5cac6155012c3d8a7c4c3dc1fc05cb89fbd9b2ed8be08176b62a3` | `100644` |
+| `evidence/batches/BATCH-046/test-output.txt` | 767 | `556dac81a15191c0f730decdb16410fdfacd04638ea1c19c99f265b6f01c50c1` | `100644` |
+| `evidence/batches/BATCH-047/acceptance-report.md` | 3234 | `94ce7202a882df70fc0eaa8302ff88acc6bd392652fdf31d28c9b39572d6e796` | `100644` |
+| `evidence/batches/BATCH-047/acceptance-test-output.txt` | 4645 | `8ba541e4325241befe77858dc87ad93b87a1dae6b3a9a5a611ac65c4749ddaca` | `100644` |
+| `evidence/batches/BATCH-047/changed-files.txt` | 1896 | `ae0e084db76194ceb7056877a7032dbeaa03bfae401070b2b46d7761ffb8ddf2` | `100644` |
+| `evidence/batches/BATCH-047/handoff.md` | 1218 | `5d2be4766da581512bd642ac5aba89bda66daba777503beb9543c1fb675b2f29` | `100644` |
+| `evidence/batches/BATCH-047/plan.md` | 7549 | `8531b52ff779e032624b69e0cb824681a3d65bc80f0e4ab463f07f9c865e02ee` | `100644` |
+| `evidence/batches/BATCH-047/prompt-traceability.md` | 7702 | `0ecfe781b3a643353d4e9a0e889cf04e6599b1cabfcd349786ee4b97eff1e1dd` | `100644` |
+| `evidence/batches/BATCH-047/test-output.txt` | 7829 | `3716abdbf681c7739253902421a28035a2dec5576b533a2d51b7511f8103580e` | `100644` |
+| `evidence/batches/BATCH-048/acceptance-report.md` | 3386 | `235019b62dbe56f2139d1fd27d126c56a57147322284fae85d1ace9c69afc9e2` | `100644` |
+| `evidence/batches/BATCH-048/acceptance-test-output.txt` | 1377 | `26623dd0d36f2437b5ebb97d590ceabe53ad86e6f9b1a1a2fe7d568b8ffb930f` | `100644` |
+| `evidence/batches/BATCH-048/changed-files.txt` | 2834 | `cc10fc097c1ecf6a3a3a3167a15fce4cc83cbd8e52f4a16a5425bb33d3f4f5a3` | `100644` |
+| `evidence/batches/BATCH-048/handoff.md` | 1663 | `fac5c1e7e3174ae42944a381118d7cde5e86b87674a02aaf37dd1dc8a82598cd` | `100644` |
+| `evidence/batches/BATCH-048/plan.md` | 12305 | `87d68cfe8f613958dcad7fd00c720ad58e4a1633f92d1ece9af8845a99c67c48` | `100644` |
+| `evidence/batches/BATCH-048/prompt-traceability.md` | 11090 | `2c51ab2be6e2b0b6720c30aa201b56c61fc62784ed48a34e39890848e2314c57` | `100644` |
+| `evidence/batches/BATCH-048/test-output.txt` | 3195 | `bbd2590a07f765653eb67c4022a23297c4692ca1394b6ca8fe53bc98a472e51e` | `100644` |
+| `evidence/batches/BATCH-049/acceptance-report.md` | 4257 | `61e617f2a07d7e7c08f43d2aacc7bf68bf1c39d4047821f2a817e510b7845992` | `100644` |
+| `evidence/batches/BATCH-049/acceptance-test-output.txt` | 2946 | `a8e6dc5999b36c1788973315aecaa1c53419f5dd9c61e46b143e155c59808852` | `100644` |
+| `evidence/batches/BATCH-049/changed-files.txt` | 1819 | `5a3fc6f560a43328388ca52e80c7b9fcd9d8a40238911bb57bc414ce02c40aea` | `100644` |
+| `evidence/batches/BATCH-049/handoff.md` | 2016 | `563e8a2972f54181d6beef6ccaafdfc856ead78ebef5cacfe4e438a126860ba6` | `100644` |
+| `evidence/batches/BATCH-049/plan.md` | 10045 | `85dc10dab31e774d8b69e5944abe5549cf224424da0ebeaff1cd677e05129130` | `100644` |
+| `evidence/batches/BATCH-049/prompt-traceability.md` | 6500 | `db802c8eed9840229ba41091df72be0217eb5b90148626a3ffb8ed39fff7f6af` | `100644` |
+| `evidence/batches/BATCH-049/test-output.txt` | 4093 | `8f050c1607a278a96da461eee2b549be38d13f82357df29e46100ed3b009f449` | `100644` |
+| `evidence/batches/BATCH-050/acceptance-report.md` | 4059 | `a57e675feded13fceb1aee99068419533e8988c81762209bdba6ad384de06ac0` | `100644` |
+| `evidence/batches/BATCH-050/acceptance-test-output.txt` | 3416 | `5a9c2a72d99f51627a3d02da3ac35f95478624cc7ca65c3293af10f2c00c7f7c` | `100644` |
+| `evidence/batches/BATCH-050/changed-files.txt` | 744 | `cd40a5cd45418e76fbb90cd6f8ebf1f80f0fa290fef0cd3132e249acfb2c4c02` | `100644` |
+| `evidence/batches/BATCH-050/handoff.md` | 1962 | `bae6508e3c29bc97732969ad11555a49616cc1a673a0b8c1a126b058595dd9f8` | `100644` |
+| `evidence/batches/BATCH-050/plan.md` | 5251 | `574954af6f56bd28d2489fcfe07a5f25e7c4d402f731699e28b2f3ae38430ad4` | `100644` |
+| `evidence/batches/BATCH-050/prompt-traceability.md` | 3272 | `f58cabfd7af3a132beab97f77b82d22e72836158da7bb532482cc0276dee38b5` | `100644` |
+| `evidence/batches/BATCH-050/test-output.txt` | 3701 | `2da9ea6241e4d6acff44aec8bfada9b0e2cd20ba7d9c3802cc5ccf2fbc98c115` | `100644` |
+| `evidence/batches/BATCH-051/acceptance-report.md` | 3492 | `0b146323234c889515da44a06c5a1d05618a9ffe7fd56de284fb5a8589dbacb4` | `100644` |
+| `evidence/batches/BATCH-051/acceptance-test-output.txt` | 2797 | `42600cbcfb547e34d8a585c61682958108a62b4b391efa343db53421bf0805a9` | `100644` |
+| `evidence/batches/BATCH-051/changed-files.txt` | 1220 | `404bdcf14817bbd50d5f5b30b2b9caeba8e49285e5dc5c7762ce6985291c89e6` | `100644` |
+| `evidence/batches/BATCH-051/handoff.md` | 1962 | `7bd40e6c692ab8cdec52171df89e09d64e42fc3d33a863f80ff45719fa766e89` | `100644` |
+| `evidence/batches/BATCH-051/plan.md` | 7921 | `2e014f9a87cb406513bcf4d2408d0f1dee1928fb62bd506a12b050c8d6d46046` | `100644` |
+| `evidence/batches/BATCH-051/prompt-traceability.md` | 6216 | `4c6ab107723147267972e36bad47bb3ef3b1ef9391e06606a87244f8b8eed028` | `100644` |
+| `evidence/batches/BATCH-051/test-output.txt` | 3082 | `3f31b77493ab0c5821ce472a6b5f48d12877e7ec9d0a7da2b512c82cc300aa4e` | `100644` |
+| `evidence/batches/BATCH-052/acceptance-report.md` | 3618 | `f622ffb6e9e5acea5f836c8df7971e1f5aa1d70f749c7416fe6b88e1abd38e00` | `100644` |
+| `evidence/batches/BATCH-052/acceptance-test-output.txt` | 3693 | `c715f4b36645f10929d71b4125465a80c3662d8703619c457783310c0123ffdd` | `100644` |
+| `evidence/batches/BATCH-052/changed-files.txt` | 712 | `3a6d665433a1b72c77b1059c241b663113693d07d8cc251817b335f06753d7f3` | `100644` |
+| `evidence/batches/BATCH-052/handoff.md` | 1988 | `51b75500d17360d5df6a133d64920256e1a8fd1abe0067c95fa042784321706a` | `100644` |
+| `evidence/batches/BATCH-052/plan.md` | 5199 | `58076532afd1aad2e1dc1e90f03612e75693539ce89d74bdbbdbdccc2f55d6f5` | `100644` |
+| `evidence/batches/BATCH-052/prompt-traceability.md` | 3800 | `30dc875f962d3214f47b722d5587947cb2f2ee2edc8e841509a897c751f1709e` | `100644` |
+| `evidence/batches/BATCH-052/test-output.txt` | 3403 | `64a69a37a8deb3103824a67ff55ad6841a8895f274824ceee4a2ffbba849ee87` | `100644` |
+| `evidence/stages/S00/directory-boundary-check.txt` | 208 | `c8cfe890cf2417771503ad2ee0dc2463cdb963ba35254b55fa72c9cbcc9fee76` | `100644` |
+| `evidence/stages/S00/readiness.md` | 518 | `801aa97f898287e65765f940ae06c4e302b96ffa589cd3581662bef7b59e6bda` | `100644` |
+| `evidence/stages/S01/kernel-contract-tests.txt` | 535 | `cb03370d5ba0a81cc41f28dcb3dd7d0caec91c1d442c0cee49a3cdb00c5a595d` | `100644` |
+| `evidence/stages/S02/authority-contract-tests.txt` | 651 | `6bd419562489521721747b0ead985e4f95a356e87b1130386061420f0f83941c` | `100644` |
+| `evidence/stages/S02/fact-provenance-tests.txt` | 667 | `3b95bab822d4d505b3d28c2784896e48ef873572d2298b955a01d3e77cd6f95a` | `100644` |
+| `evidence/stages/S03/event-store-contract.txt` | 1038 | `2af28b79275e86c5d0a4b50f2a6aca845c903e8332d3879539863f709bffbc1b` | `100644` |
+| `evidence/stages/S03/projection-replay-hash.txt` | 1004 | `1c597d8afba539b6e56fd24a3920476224d8bbe090d9711bfdbce70c3ed4a204` | `100644` |
+| `evidence/stages/S05/coc7-rules-tests.txt` | 2312 | `58db45774c2799872c18a41fa608b82e8b9a17af290d9437d4960204a9e29057` | `100644` |
+| `evidence/stages/S05/dice-audit-tests.txt` | 1124 | `ce468ba42aacd22b641af9c6cc186c957b61b5fc083d28a9d096aec3ed239ae1` | `100644` |
+| `evidence/stages/S06/decision-pipeline-tests.txt` | 1551 | `37b74df6994f0a01bce64eba12111fdb10805ef5cea9f59b6511147b18e76971` | `100644` |
+| `evidence/stages/S06/tool-gate-tests.txt` | 1333 | `24a524abae462fab9b86fcf0abc0d3e5c8037cc1bf4c198ee39d88660208ade5` | `100644` |
+| `evidence/stages/S07/model-certification-tests.txt` | 1410 | `6ad3377be4778e620b1ad8f5fbbababe4ca5a288548428b307c2a1e9dc33992b` | `100644` |
+| `evidence/stages/S07/provider-adapter-tests.txt` | 1636 | `fe32a1727e0d6e696cbf4b35353a6204fa5db7cc7bfb16695d89637cdce1645a` | `100644` |
+| `evidence/stages/S07/rag-visibility-tests.txt` | 1993 | `af888ba1f62e1c6f55b4f53cbca8f0528af8825187778e49b6882630f6013521` | `100644` |
+| `evidence/stages/S09/docker-compose-config.txt` | 4192 | `a2451a9a9350f1e50978cb8440d24eb2c327419b16fe9cf166563d3226831b61` | `100644` |
+| `evidence/stages/S09/docker-compose-smoke.txt` | 2109 | `f827ec6072aea71eac9dca4ea4491979dfe0d41ca51148ee1aacb7c6e6c46bbc` | `100644` |
+| `evidence/stages/S09/docker-compose-up.txt` | 705 | `52b3f8a0dea3ecda14dde3eb0a5661433be3054307316abb2a05d8095bf52618` | `100644` |
+| `evidence/stages/S09/health-checks.json` | 140 | `55344799c2f139728b5fce2a79f9d4e6fdf13528a3848d7800969cc987392992` | `100644` |
+| `evidence/stages/S11/export-diff.txt` | 1284 | `ca2ec1252e48c51446f7687fe2af3026db6ffafe7fef3d8d7e1c50514a904043` | `100644` |
+| `evidence/stages/S11/golden-scenario.txt` | 1180 | `7f18cedff2a63280d1e653cb2a11878e877d2ee16485d8d3f61ba6d6962be008` | `100644` |
+| `evidence/stages/S11/visibility-leakage.txt` | 983 | `eb613aa9444a2e5fb084b1ff2e9d779b03985d59791ccb5bc404ca31f94921d0` | `100644` |
+| `evidence/stages/S12/developer-boundary.txt` | 1223 | `4eff5b22b95e181a66320426923c706a2a9d85f27b8ef1d4a382070ee643a5a9` | `100644` |
+| `evidence/stages/S12/sdk-contract.txt` | 519 | `6c614fa057ca3f966b471aa3527aeb4f622e3a8805513d99d719670c7a9d0d44` | `100644` |
+| `evidence/stages/S12/ui-role-snapshots.txt` | 1833 | `61e25ef724fe04ef4c08525023f92e92ae34d2a69783ca56b8c1e359b6bd611f` | `100644` |
+| `fixtures/README.md` | 2970 | `ec04885ec68f6f373a3e3993e465d8237818fffe4fce30a22f51e72b95077bed` | `100644` |
+| `fixtures/actions/golden_salt_bell_action_sequence.v1.json.md` | 1968 | `0e692ab7ad42fe7c8c954033bd4e00c40ac7cf7dc8705bad926a25459a576e0b` | `100644` |
+| `fixtures/agent/agent_tool_gate_cases.v1.json.md` | 1514 | `4863ddb05734fd56b645172ec76f06ff66f6072c5eee41962ed472b329b64af9` | `100644` |
+| `fixtures/agent/ai_decision_record_cases.v1.json.md` | 1037 | `75eff7f2e8ae580957cae43fff6aed8c67cc0467a912665d50b60cfd9fc7a569` | `100644` |
+| `fixtures/api/api_ws_nats_contract_cases.v1.json.md` | 1146 | `a6dd10885b8c2c98ab1300aacc66720430518c9ae1276b584e851e3ffde26dba` | `100644` |
+| `fixtures/authority/authority_contract_cases.v1.json.md` | 2180 | `d2514fd7807ca29767b35a5a3c21ff358a66eb7e36dd8ec4886aa627da2b8565` | `100644` |
+| `fixtures/authority/fork_lineage_cases.v1.json.md` | 928 | `c512a03fd1a81575ccac8117a64d4237cb9f2bc87520abeb7d2b43d3c5fbc2f1` | `100644` |
+| `fixtures/change-control/change_control_cases.v1.json.md` | 741 | `5327b0eeb3ffffb84318221899092032e30715b7e3228985f65c441d6db3444d` | `100644` |
+| `fixtures/ci/v1_acceptance_evidence_schema.v1.json.md` | 480 | `56c78d910ae08545e9d1e233ed311ceb923dfb1364963a051eedb18bedfc0917` | `100644` |
+| `fixtures/event_store/golden_event_stream_expected.v1.json.md` | 1541 | `7d1d4e081719d97ced71b85ed0840ca37bf72485766eaba40ea4006ab4536fec` | `100644` |
+| `fixtures/export/export_snapshots_expected.v1.json.md` | 813 | `749f404a1931134d854527f7db04c734f4de46692046e208d9de6bae53884136` | `100644` |
+| `fixtures/ops/backup_restore_projection_rebuild.v1.json.md` | 932 | `2be84b859c525a7b002c668914793a9aad65500c448f7d9f471e784083dde8f9` | `100644` |
+| `fixtures/provider/model_certification_matrix.v1.json.md` | 1647 | `84bd01e6fd8e72961487be803c9200d5a2fd1ecc3003ab6613275fb132d2db9c` | `100644` |
+| `fixtures/rag/rag_snapshot_cases.v1.json.md` | 1175 | `8b98c9269c17f0de6f4fab772e0d8f23ab6817abd5321ef8674c8e3c0a819756` | `100644` |
+| `fixtures/rules/coc7_character_creation_review.v1.json.md` | 948 | `a4aa85d8a9620a8ef9a1186c5b442f352f0f97b1a12e99d47fd7cf35dcffa5f2` | `100644` |
+| `fixtures/rules/coc7_dice_matrix.v1.json.md` | 1242 | `34f8f0a9246dc185c5dc92c4e2209b22a3c4f0de01732a2aadbedf67423ca1a1` | `100644` |
+| `fixtures/rules/coc7_san_combat_chase_flow.v1.json.md` | 1317 | `40b20137be35afb5a9824c19ea4c3711e6d3c0a699577616116b0efc6b6460f5` | `100644` |
+| `fixtures/scenarios/golden_salt_bell.scenario.yaml.md` | 2060 | `c43cda6d652d33d39566254f8ca861792bd061a8533d8c66e283e407fe86e890` | `100644` |
+| `fixtures/scenarios/tutorial_mist_archive.scenario.yaml.md` | 2430 | `a7972c359b58a5b08716db02193725e234ace5999764a47642ef3cbb8fbf54e4` | `100644` |
+| `fixtures/security/permission_matrix.v1.json.md` | 922 | `975962b7e84d00d8c06de8d7c30ee4778660866c546fc669555c7eeb7af9bebe` | `100644` |
+| `fixtures/stages/S00_stage_acceptance_fixture.v1.json.md` | 757 | `195c5bad004c94492e8effdf16eddc1b760810e959e257624bffa5e53da8a008` | `100644` |
+| `fixtures/stages/S01_stage_acceptance_fixture.v1.json.md` | 775 | `44789d424fd90c4fb1508830ead0ec51d89620298f2e140d3dd43538e1b9236c` | `100644` |
+| `fixtures/stages/S02_stage_acceptance_fixture.v1.json.md` | 829 | `3bca71e99ce672b4792b9f486e44bf1f958cf7d5e2f28c41927d7ac178bfc466` | `100644` |
+| `fixtures/stages/S03_stage_acceptance_fixture.v1.json.md` | 781 | `5c25fbb217ddfdfcf9bb4365e7b835b0306f578a17e8c75a57cda9cb29d48097` | `100644` |
+| `fixtures/stages/S04_stage_acceptance_fixture.v1.json.md` | 787 | `c50a7d0788599a70669fbba06527dcc84b65fcc1bd7fb4e692c0ebc2ed5602a9` | `100644` |
+| `fixtures/stages/S05_stage_acceptance_fixture.v1.json.md` | 745 | `64b3ae26088db9bc855eb07ee24868d151d476256a324cc63b13c86ed115e313` | `100644` |
+| `fixtures/stages/S06_stage_acceptance_fixture.v1.json.md` | 865 | `ca5f46ddd5a2bef61e47770438c933719c35d5b41086937a1b5e5563b72f547f` | `100644` |
+| `fixtures/stages/S07_stage_acceptance_fixture.v1.json.md` | 829 | `d074d7e558249c190982f2753eeef8578f3a5eb69098f74963ef37214df21bf8` | `100644` |
+| `fixtures/stages/S08_stage_acceptance_fixture.v1.json.md` | 763 | `fb2a00e483eb87d1f76a379cdd5f5dbccf00e80721c9b538f111e51616816191` | `100644` |
+| `fixtures/stages/S09_stage_acceptance_fixture.v1.json.md` | 835 | `71beb9ff1c4415bf52c541e36e715f09760219f9aa2be09fc2a2e83945792edc` | `100644` |
+| `fixtures/stages/S10_stage_acceptance_fixture.v1.json.md` | 763 | `1ea5d203b33550b9a0cdd7e711adad60998041e3e483824cf2c35e94bb8b559a` | `100644` |
+| `fixtures/stages/S11_stage_acceptance_fixture.v1.json.md` | 781 | `9e990c2e402114a048e0f95ebac410d20a57297b775497556e274e4f9df600e3` | `100644` |
+| `fixtures/stages/S12_stage_acceptance_fixture.v1.json.md` | 781 | `8acd3eafa9209ef390ed5ccc05f3ca1bdecf8b766123e354938ee73974282989` | `100644` |
+| `fixtures/stages/S13_stage_acceptance_fixture.v1.json.md` | 751 | `12a85ddf19fa994f140a15a30d08a9faa87c1963ddf118e2cdaeeec96d63146c` | `100644` |
+| `fixtures/stages/detailed/S00_governance_onboarding.current.json.md` | 1877 | `82e0dfc955facf9679ddb3b0aadfb599922093aadce05591525456c73aa02abb` | `100644` |
+| `fixtures/stages/detailed/S01_foundation_shared_kernel.current.json.md` | 1599 | `fb7f77d80cae141aa1bdedff3d53848ecc43e238430ad6842ec2e16469f9c705` | `100644` |
+| `fixtures/stages/detailed/S02_authority_event_expected_records.current.json.md` | 2638 | `8c304b188fb2c05af3f55bec01a812aba7b0fd850daefcb52668bfde438e65da` | `100644` |
+| `fixtures/stages/detailed/S03_event_store_projection_hash.current.json.md` | 2090 | `83d5d69fefbfe65e023416e87b8510b65aa912e49ea7280d35b7350dfb2ada1c` | `100644` |
+| `fixtures/stages/detailed/S04_visibility_policy_errors.current.json.md` | 2086 | `5242901f6ad2d4ba044c58dc6d85473ebad9396ff3108787c62a0ef139e875d4` | `100644` |
+| `fixtures/stages/detailed/S05_coc7_roll_san_combat_chase_expected.current.json.md` | 2332 | `28c1b78fe7039cceb10cdd48c3a9fe6e97f554cdd7af554f08a4b7ac7713b598` | `100644` |
+| `fixtures/stages/detailed/S06_decision_pipeline_commit_expected.current.json.md` | 1971 | `57584b17fe4e7be262500ffe3917ef15c85516b03578f6929ff6313cfa1ad612` | `100644` |
+| `fixtures/stages/detailed/S07_provider_rag_model_cert_expected.current.json.md` | 2375 | `5148eee25a9c710754d1f3ed0f2cf107cb3da661c5a990b74ed3822a232e8da4` | `100644` |
+| `fixtures/stages/detailed/S08_api_ws_nats_expected.current.json.md` | 2277 | `d5be52e013a06f6cd4ba43d31a743912b177af26687e1100e813a34808c00a38` | `100644` |
+| `fixtures/stages/detailed/S09_platform_infrastructure_deployment_expected.current.json.md` | 2277 | `67baa9ba84e159f893512cac57c9096a7fe617a19b9fdd8e9c024ee04f5c6801` | `100644` |
+| `fixtures/stages/detailed/S10_ops_migration_runbooks_expected.current.json.md` | 2251 | `9340a02bd2a7bd0b5adca1c8bbb3bd19c84bbb8d8fa46b651d81ad0d535d8817` | `100644` |
+| `fixtures/stages/detailed/S11_golden_visibility_export_diff_expected.current.json.md` | 2080 | `c880094d9772770647ab652e77e67f6ce02d9eda5ed2cb98bc37608692246b00` | `100644` |
+| `fixtures/stages/detailed/S12_extension_sdk_ui_boundary_expected.current.json.md` | 2063 | `6aa44947af2ff7107105e4621e75e7529214b8ead512fb344335eb604ead119a` | `100644` |
+| `fixtures/stages/detailed/S13_v1_release_evidence_expected.current.json.md` | 2067 | `1c7a3cd68879d9b2d332f9cb769d0a55200e57d120563c086a795d71b489eaf8` | `100644` |
+| `fixtures/visibility/visibility_redaction_matrix.v1.json.md` | 1285 | `1c8b22679ccfb48d632e81e53d5cde3c9184a569053705e8faa0927fc8db4492` | `100644` |
+| `inventory/ALL_PROVIDED_FILE_SCREENING.md` | 354653 | `23cd454448f6817dd8330f983a5e92ee6c750406637c318d90bab695b4cad765` | `100644` |
+| `inventory/CODEX_PROMPT_INVENTORY.md` | 722571 | `2b8dca2be4f1b99436ff8f2c7cad87b7182c5428ed4818000b195dde37670cd6` | `100644` |
+| `inventory/EXECUTION_BATCH_MAPPING.md` | 4345 | `1469c7fd7e956d51f270e9533b51b146789ad8549b8c71cf8fc72ff5f1e5c6d5` | `100644` |
+| `inventory/INPUT_FILE_INVENTORY.md` | 170083 | `7feb1a8713ddd4ffc37e54cb691c71ce3909b68948570d3de7a973b06d13e0e6` | `100644` |
+| `inventory/ORIGINAL_PATH_PROVENANCE_MAP.md` | 95151 | `a42180c27efa6514b92aae70219cb8c16b10e1c8ff65854c171e2532296a1997` | `100644` |
+| `inventory/ORIGINAL_V6_EXACT_ZIP_COVERAGE.md` | 199089 | `02c1422155f7646807309363a4dd9aa77b4b2853f3756a3c7d4a1f51ca160578` | `100644` |
+| `inventory/PATH_REWRITE_MAP.md` | 570205 | `a041219d19b51f0d9b762a070cbb90c36cedce6575ffcd1b1222d43c2725cdf6` | `100644` |
+| `inventory/SOURCE_SELECTION_DECISION_LOG.md` | 23900 | `6691644c204647c7b03ae992890b4d35d518fa7b848f3a87aec7948f50cc324f` | `100644` |
+| `inventory/V221_FULL_FILE_CLEANUP_AUDIT.md` | 281988 | `020adb0f5640947a42ec77cbb84a733aa96d68bad80184409f1095a902fbb191` | `100644` |
+| `inventory/V221_FULL_PACKAGE_MARKDOWN_CLOSURE_MATRIX.md` | 512 | `d8e7b5398997b82b41f129a9773d75af1c4152b26bce5492762ea1599a698d40` | `100644` |
+| `manifests/README.md` | 856 | `db07e216412e570d8f2f10bef5173ba84b4b0e71ebc4b5a197c6941d1aabe711` | `100644` |
+| `manifests/V221_BUILD_SUMMARY.json.md` | 218 | `e751edc1561449786c558b0ae754a426e04f6cf7b66547164e0d9aa80a76f1a7` | `100644` |
+| `manifests/V221_STRICT_VALIDATION_REPORT.md` | 273 | `af861c475f257ad9f28ff2f69f1d1a8c5c03db179939913ae103ec722329bfed` | `100644` |
+| `migrations/20260705000100_create_data_eventing_event_store.down.sql` | 113 | `3b058e599237b8ab932903b295f74fa8275b6754da1404c8c72ff5894300c5a3` | `100644` |
+| `migrations/20260705000100_create_data_eventing_event_store.up.sql` | 1381 | `d2d9a58a0a24613935c5a91772fd209e5b18434692488e80bbedd2890bedba70` | `100644` |
+| `package.json` | 341 | `e6a7edd0a16d7c6384127c8a988607f56c614d236bd11dc7eb4c1e107f420dd4` | `100644` |
+| `pnpm-lock.yaml` | 114 | `17c814b167307942d3609c7b9d916ceddb85839573ab39baa114e30edb132a1a` | `100644` |
+| `policy/opa/security_governance.rego` | 1196 | `4f59d2092bbaef49255320f86dd077dbab4f2d23227e2ac8df3fc0bb3ebb7321` | `100644` |
+| `policy/opa/security_governance_test.rego` | 3000 | `bea610df9144fc65ad774b093511c9c31688d629234791d093f485dfcd1b91d7` | `100644` |
+| `policy/openfga/security_governance.fga` | 672 | `700e9b9223899d90301899ec5366e0ffe77f40923bbb1444030d132f7f102929` | `100644` |
+| `prompts/persistent/00_REPO_AGENTS.md` | 2824 | `e321d9d6f1211a236282f7991b6bb3d3fc88a15def9b07db3bf421e3f17380a1` | `100644` |
+| `prompts/persistent/01_CODEX_EXECUTION_PROTOCOL.md` | 540 | `b0a5a3484d52944f2b9208191305775bbafc299c63556953a1a8ba029ad64866` | `100644` |
+| `prompts/persistent/02_DESIGN_CONSTRAINTS.md` | 401 | `a360fa75aac62940b75592f2630db6765f8fbc48d9c6aa6aa5210e09e2ff9a82` | `100644` |
+| `prompts/persistent/03_STAGE_START_TEMPLATE.md` | 663 | `b1421577f455103778744bbcd090a2fd16d3df618089d018063e8657752b7899` | `100644` |
+| `prompts/persistent/04_STAGE_ACCEPTANCE_TEMPLATE.md` | 651 | `23c5197b398ec19cb5d7ed1eda18231357b01a3a8ed2a8121d6d6abe8ae6afe0` | `100644` |
+| `prompts/persistent/05_REVIEWER_PROMPT.md` | 381 | `4a0feec836d1c2dfe90f05038b50a68999498af067c5e078f5a00ab624592dc9` | `100644` |
+| `prompts/persistent/06_REPAIR_PROMPT.md` | 362 | `ec76858f0edc3dcf962d53ce89b78a031df08c6ffb8dd60fbbef64b11b6136f8` | `100644` |
+| `prompts/persistent/07_TEST_AGENT_PROMPT.md` | 362 | `d2f5245ac8c23138bae47874dcab506459fec12556bd61b63c5310596787f45b` | `100644` |
+| `prompts/persistent/08_SCHEMA_MIGRATION_PROMPT.md` | 321 | `92d29f75aab37c39ca446c50b0cff6367a8a3a48fdcfa793cf574b014d6dceac` | `100644` |
+| `prompts/persistent/09_SECURITY_PRIVACY_REVIEW_PROMPT.md` | 373 | `9a465c5cc802459e3831801a8657314d80e4d0d5545cc90064e76290d1662a43` | `100644` |
+| `prompts/persistent/10_AGENT_GOVERNANCE_REVIEW_PROMPT.md` | 374 | `5457148af42b0a48fbae5e46c0e055090258e66ec21d559a56aff8fa214826d0` | `100644` |
+| `prompts/persistent/11_RELEASE_MANAGER_PROMPT.md` | 455 | `29a3bed0d10cbd89eeb17470c76aa481063b1bc240c9dcb77598c381ec20368a` | `100644` |
+| `prompts/persistent/12_CI_FAILURE_TRIAGE_PROMPT.md` | 363 | `9a70164751f6793a0f6a16219eaecbebbc0bc632b2d377967341554ae261fe01` | `100644` |
+| `prompts/persistent/13_CHANGE_CONTROL_GATE_PROMPT.md` | 366 | `10fd38595691fc9f19da72e304bc8576b297440abbd2613c2ebdb7efca77901d` | `100644` |
+| `prompts/persistent/14_CODEX_OUTPUT_REPORT_TEMPLATE.md` | 297 | `8c13d0d1faa8b8fb9c6caed03a8e9af0177f96a24f5e8c545b1341a638fe44ea` | `100644` |
+| `prompts/persistent/15_CURRENT_NORMALIZATION_PROMPT.md` | 688 | `e4f62b47e9ee06bdb4cf6e8396831fb588cfe905683ebe6b902093973607632b` | `100644` |
+| `rust-toolchain.toml` | 86 | `fa0addad5676243d360310f981a69528b0341d295cb5012253d9721aba4d30c0` | `100644` |
+| `scripts/backup_restore/smoke.sh` | 141 | `64d1fb3094d0ab680ddffb1de8c0ee6e8aa7b0f54024c9d390cf33c7bf95d2e1` | `100755` |
+| `scripts/ci/evidence.schema.json` | 298 | `4615406a198e872b75e1f8f1b466b33d9b898ce3c546b5aa9cb78d97aefe16ec` | `100644` |
+| `scripts/ci/generate_evidence.py` | 2168 | `1bbafefa8f04eeeff16a83610d165da5e5fd45fc1847ad6cfba2e9f3121024a0` | `100644` |
+| `scripts/ci/init-smoke.sh` | 168 | `88b4439abb55f867eb91659f2f71a6db85625a4892a2411eac769cb683849684` | `100755` |
+| `scripts/ci/manifest.py` | 1579 | `0aafa1c0674fe53f72638fe1060811019fb43dfaac5ef30da06071b53ef55bab` | `100644` |
+| `scripts/ci/release_readiness.py` | 3857 | `d27f07b598a2567e88b714844238ab7d8a1125b3e0f292d4a3b3eb6017e47404` | `100644` |
+| `scripts/ci/repo_truth.py` | 5425 | `85fba1f31d1dca4cb81d8f75717014c1d208bf9c3a849f5bbb67d135f52f447e` | `100644` |
+| `scripts/ci/test_repo_truth.py` | 3351 | `3d2cece3c434619004b7cae3f91b4c5d5e7403fd6800d785b72780c28a80d5e6` | `100644` |
+| `scripts/ci/validate_workflows.py` | 3006 | `8cd48d8806e4dcc6ba73f17f86dfe1ee24ee169d1328513f5d97ea4d22fb6c52` | `100644` |
+| `scripts/ci/verify_evidence_schema.py` | 1258 | `8ea2fc4fe7f23c3472aae10612516bcbfddcdcfdf40bbb8bcf854b21134ec621` | `100644` |
+| `scripts/ci/verify_manifest.py` | 1004 | `080307fce0ece3fcb183da6df33cbd6421344100aea738d7fe95704b428bff82` | `100644` |
+| `scripts/ci/verify_test_inventory.py` | 3517 | `db28c427624132db338e3a54521186a3db54f25507f7a7d950333b4f0f57d0dd` | `100644` |
+| `scripts/dev/smoke.ps1` | 869 | `1ed347292e9485d2a14bc95a436e88320b73003d4739aa91f5d28b49db02bf5a` | `100644` |
+| `scripts/projection_rebuild/verify.sh` | 146 | `9e486ee8973e96364b057c1bbc7e13877ee419b49ef31dde154c3bafbd5fcbc8` | `100755` |
+| `scripts/s12_ui_boundary_test.mjs` | 8864 | `07dc0ddf7e375479e80a272cf0642223585859a4c6f81e0451f190bac2998b34` | `100644` |
+| `scripts/verify-governance-boundary.ps1` | 7400 | `fef5884fd11137b5a292609ee906bb8b12fc7bd5cf0ce16d25852d9c5b6d6f2f` | `100644` |
+| `source-archive/provenance/S0001.md` | 855 | `5251b7b2c9d30df5814d8be973dd97994e922e5aba2c8e98d33dce5a5804d6e8` | `100644` |
+| `source-archive/provenance/S0002.md` | 2000 | `3a4318e4fb1eba9a268b04f81a7e3481fca21b3f591b74728adb9a8c9d30ea88` | `100644` |
+| `source-archive/provenance/S0003.md` | 939 | `b77a73e6df962fc35f4582f78ddeae01cae7e17c4b9840df1dba47508bc84280` | `100644` |
+| `source-archive/provenance/S0004.md` | 936 | `f399321c72e3f572c2c2516f4aa08d372cb79d64beae7e9b1ff5871a37a9aa4c` | `100644` |
+| `source-archive/provenance/S0005.md` | 1051 | `33c87a7fb88c5af5e86c5b9a70799957e4195429281ea213d3022fbed66810be` | `100644` |
+| `source-archive/provenance/S0006.md` | 982 | `efd33706734585947d301c4430adf3d0c75358ded56cd7945c6c4b0d7698df69` | `100644` |
+| `source-archive/provenance/S0007.md` | 982 | `efd33706734585947d301c4430adf3d0c75358ded56cd7945c6c4b0d7698df69` | `100644` |
+| `source-archive/quarantined/S0001.md` | 1427 | `a1306e16fab870bc341c4710b90d845639e01b9e94630db8fe78460df4218893` | `100644` |
+| `source-archive/quarantined/S0002.md` | 99039 | `94b23a269a6c238dbf7ff2e1d68d38898086943dcc5bd99f97dd8662cf52de68` | `100644` |
+| `source-archive/quarantined/S0003.md` | 3557 | `79455627036d55004d7121c9bf13f6b685812704a7ac34ff9e65530665d6af59` | `100644` |
+| `source-archive/quarantined/S0004.md` | 1846 | `47274cc8e54f3141204b0c65bd0ff96e9b8d49f1ef5c8ee3ba48fb2dc5a3dc6b` | `100644` |
+| `source-archive/quarantined/S0005.md` | 1776 | `6210852c5aead75ce8508690e8a2b73c82feb4a75baacb73aa70f41d2c518742` | `100644` |
+| `source-archive/quarantined/S0006.md` | 1922 | `95e24caba5b37ca52121e30a7d48ea34f81b6273d84d8f70b352cec46cdee2b8` | `100644` |
+| `source-archive/quarantined/S0007.md` | 3051 | `6bc96f0b58b626135083aea66a603c93e2fef926c067c0936f6448c690466cf6` | `100644` |
+| `source-archive/quarantined/S0008.md` | 2209 | `fb366884c778ef33f239e0fefa3cc1b6dddc3be30599b8e0bfca7776c5f3e49d` | `100644` |
+| `source-archive/quarantined/S0009.md` | 2465 | `53e9aa68ccf915718262bb57c9c62239a62bdb2a87313e866619bd15b23a1139` | `100644` |
+| `source-archive/quarantined/S0010.md` | 3031 | `df390abb10c14e34042918d8be84bfc07ea6d8f4c9894f6497b88dfb58a2bbb2` | `100644` |
+| `source-archive/quarantined/S0011.md` | 2398 | `f819fcc8530a35a88fb14ed7bd67138ee2afe7c39ae7085ebcaa0f3634b7d877` | `100644` |
+| `source-archive/quarantined/S0012.md` | 2049 | `d1483176bd2261ab9801a875f059e1a19446abc0f34e68a0b6ce5121b1b7d8e7` | `100644` |
+| `source-archive/quarantined/S0013.md` | 2568 | `1fd9a8795a6ca3e7361c71c4b29998c34cddbc8597282a617cc00062b74c8222` | `100644` |
+| `source-archive/quarantined/S0014.md` | 2388 | `0d8e22d6b75fd1f0a6f443087bf0a3caa9dedb98a54242ced591adb89c8d5375` | `100644` |
+| `source-archive/quarantined/S0015.md` | 3274 | `d00cf089eda9cdffa87a47ac08afe039f00ebb91698349e684a80090b8f81f33` | `100644` |
+| `source-archive/quarantined/S0016.md` | 2183 | `47537f1c705792bead46137fcc304831d447037686ef0b509de65505b3c09ccc` | `100644` |
+| `source-archive/quarantined/S0017.md` | 2485 | `9f22b14335cffb430526cb7599424fe7283f4906e1165e3618a6f83d42e0fa6c` | `100644` |
+| `source-archive/quarantined/S0018.md` | 2529 | `20932fd7d902abf4a2992db58a91d4542df3350509bdcc800f556a17aa0b1cb2` | `100644` |
+| `source-archive/quarantined/S0019.md` | 2375 | `1ece940be31f27996ff10ef5b7db33790a06d3520d4f6ef09d98bebf095a0e6b` | `100644` |
+| `source-archive/quarantined/S0020.md` | 3749 | `82b828eb9202ec82c57be6e0c9a7c2ec5ff65c3b4551f8a83d033608014abd64` | `100644` |
+| `source-archive/quarantined/S0021.md` | 2561 | `30d6da0638eac5903bb15847ec5f49c877f911c42057a6a1f113a336b51e9c9e` | `100644` |
+| `source-archive/quarantined/S0022.md` | 2024 | `a32a9b68668ea999672661a3d1d90aec88109f45c283120f0583453b030b6f73` | `100644` |
+| `source-archive/quarantined/S0023.md` | 3598 | `939767c88649ab942b77400ba10fcd484eafecf446ad6c7f5475bcaf331f1a8c` | `100644` |
+| `source-archive/quarantined/S0024.md` | 2217 | `155b26151007d90199718895d3cd3fe8f867248e53df83f51816c3e7cba3081c` | `100644` |
+| `source-archive/quarantined/S0025.md` | 2525 | `cfcdcfe8c91a064b4f870bf93512db17fe5968f287373e5243efac7c445da282` | `100644` |
+| `source-archive/reviews/S0001.md` | 8000 | `523783a4b399e9754b4d2f111fa40054d434d9991b4c71be3fa0542b42880457` | `100644` |
+| `source-archive/reviews/S0002.md` | 12212 | `86067535f4330395a75dfa9c825488c86f3827440b9e67ba8b1fbda5ec0c5e9f` | `100644` |
+| `source-archive/root/S0001.md` | 858 | `7c1591f57022aeb7903774364c8d56d461e6e0498f348b56e172e7402b72c1d2` | `100644` |
+| `source-archive/superseded/S0001.md` | 1396 | `10d5267f8b72499dea8542ec49470aeb8e516849e8ee0ee509ca87014e405429` | `100644` |
+| `source-archive/superseded/S0002.md` | 2690 | `96e7abcfcc69fce1d53316b1101285d0a91e47a3532b120aa7bcf151e8534178` | `100644` |
+| `source-archive/superseded/S0003.md` | 2690 | `96e7abcfcc69fce1d53316b1101285d0a91e47a3532b120aa7bcf151e8534178` | `100644` |
+| `source-archive/superseded/S0004.md` | 4275 | `d07ad586080d0ff3980655cc4e0699524f1562431fa256e2396c2d9e510ab7c3` | `100644` |
+| `source-archive/superseded/S0005.md` | 1205 | `514594fd75e2f0040d3b357ec9564fdaa79ca53329fb732230820b1ad14e7640` | `100644` |
+| `source-archive/superseded/S0006.md` | 4275 | `d07ad586080d0ff3980655cc4e0699524f1562431fa256e2396c2d9e510ab7c3` | `100644` |
+| `source-archive/superseded/S0007.md` | 346 | `7c5b6cc9bc29ccad66b5bdaf2a776be27b90fe5785b7e673a2e6f16ee89d61dc` | `100644` |
+| `source-archive/superseded/S0008.md` | 9996 | `afdebe964121611b7db28eb285a24b0338b0182d82aea9431c4fe2f54db52686` | `100644` |
+| `source-archive/superseded/S0009.md` | 8006 | `bc4669b84329e492e5cbe49594ae934298f4f329e06b791a7db2ea896d6725cf` | `100644` |
+| `source-archive/superseded/S0010.md` | 7380 | `f5d7669af76810eda70964fbc6553d2855d41dea2d880f5dddccc188efee86f6` | `100644` |
+| `source-archive/superseded/S0011.md` | 12214 | `a22b1bfc5722d6fd306b24bca5db0b71f495e1b3c9c1f25dd7ba6f7441cc3546` | `100644` |
+| `source-archive/superseded/S0012.md` | 736 | `d0f03cacd8cae56ed739c582335252d6ba58e57baa0d0c789a1f12201a7169d2` | `100644` |
+| `source-archive/superseded/S0013.md` | 17992 | `768f33fe1d14903a2d210a02d44a3c2a23f6497ee6906dd171d57139ab9a01c7` | `100644` |
+| `source-archive/superseded/S0014.md` | 17870 | `ccea9c4775792b71331966a63ae9275cbd9d7b9ff11b3c4928baab76b04bf528` | `100644` |
+| `source-archive/superseded/S0015.md` | 337 | `05920d9e8d7af4fbee4b50af62e691beaee91389e0a75d4251e1c9c0b15171a0` | `100644` |
+| `source-archive/superseded/S0016.md` | 185892 | `47e347d9d6af59c6ba65f0db21a1741bcfaf60ccbd4d8ab820e15103256a6fed` | `100644` |
+| `source-archive/superseded/S0017.md` | 1507 | `ed7b1ee993db37b434cb7105fb835d9f5b4db8965992eb1fe92a8d2c7cc1f2f3` | `100644` |
+| `source-archive/v6-legacy/S0001.md` | 361680 | `4bd09f69376cf77b812be929d21d92c4b14a0399c5e8e74a8d883d437bead31c` | `100644` |
+| `source-archive/v6-legacy/S0002.md` | 7986 | `0c7db77e0d090f438a2546ddc6f5e0daeb921d86085fbf1c9d96226465061e83` | `100644` |
+| `source-archive/v6-legacy/S0003.md` | 11617 | `c1d6dea73a7148067e5d0075809b318a9fab54449dde2cc25eb333189f3349a6` | `100644` |
+| `source-archive/v6-legacy/S0004.md` | 11615 | `2be9e6e5b271139f4f55bab74ca05bb8a9973dba9094527edbce81caec531999` | `100644` |
+| `source-archive/v6-legacy/S0005.md` | 11139 | `1c69e2abf3cb2e9657f6c370422d08c778b90c889025183d490a803d6ff78e58` | `100644` |
+| `source-archive/v6-legacy/S0006.md` | 11150 | `e2645ed0cb21d7feac60462ea396ae3212dd33e96e80141203c60d35a9c635d0` | `100644` |
+| `source-archive/v6-legacy/S0007.md` | 11224 | `acdadb11077ac0ebc171d3ce88e08ab5bca67b4dcc36ca7ceca13724ad1b7791` | `100644` |
+| `source-archive/v6-legacy/S0008.md` | 11221 | `5bdec20c306bc54788fcb7488d373e4c764ab954aa2a6f69c568aa6fa555e823` | `100644` |
+| `source-archive/v6-legacy/S0009.md` | 11221 | `0436a0f9649ce2db80f45e6eaebf596da0f3672248fa5c42bd52302c55f74159` | `100644` |
+| `source-archive/v6-legacy/S0010.md` | 11197 | `f7dff6523948c55d7f7d75af76245a28214472ecfaa453a324e0a075c016acc9` | `100644` |
+| `source-archive/v6-legacy/S0011.md` | 11412 | `2d666f14ddda2a15d1404b702020ce7019c8f9ac9f4eeae915ee6e8866cb9a22` | `100644` |
+| `source-archive/v6-legacy/S0012.md` | 11071 | `1dc8c01514f165ff6364663008620f9538baee67e58b1a5bb58e13a8361f8abf` | `100644` |
+| `source-archive/v6-legacy/S0013.md` | 11539 | `b9a4aec8f6bf229d090ab5b20cddaa5483f16450a1649b9258d270dcce7dabb7` | `100644` |
+| `source-archive/v6-legacy/S0014.md` | 11562 | `fa9d707a33c41d558508f2bfafc5670c1c23589026a4b07cd260562720114104` | `100644` |
+| `source-archive/v6-legacy/S0015.md` | 11351 | `d2ea5a5113b2f0260cccf362d8f537db65fd5c8bf34461472a800eae4d2b1bf0` | `100644` |
+| `source-archive/v6-legacy/S0016.md` | 11519 | `51bd0d73fe6c6853e9d0ca5bda62d4cc17173a5257f698c7d69d6125c06a2d92` | `100644` |
+| `source-archive/v6-legacy/S0017.md` | 11220 | `ecffd13e535bd04c1de60f32127496b75ca0cb16066f5b44c5f9a41b6bd75f5f` | `100644` |
+| `source-archive/v6-legacy/S0018.md` | 11294 | `54d3f28eaa63b82fd8926ff0033035661ea6fc0d7bcb60fc83b3fb02cb7f3713` | `100644` |
+| `source-archive/v6-legacy/S0019.md` | 11291 | `59fa9976ce8b00bc0e2c5a612c11cf39814b4d5ca7f88dcd9c72357e811525ff` | `100644` |
+| `source-archive/v6-legacy/S0020.md` | 11267 | `0a0f9f9bf0a79f074d9a04f892b03f44451249f4f7ee330fb6570f06cdb02491` | `100644` |
+| `source-archive/v6-legacy/S0021.md` | 11141 | `730f84b8e6e113ca3f05d9cb1f77b694d031192756c66bc3248331c514cd8291` | `100644` |
+| `source-archive/v6-legacy/S0022.md` | 11632 | `055e6c9f9968064385ed6eff81646714103932f82028e69cfe7e0424819d814e` | `100644` |
+| `source-archive/v6-legacy/S0023.md` | 11693 | `e18607d7fd9d92ccf7c64031bef963cb602ff924aac7bb637e50a5c70d267b62` | `100644` |
+| `source-archive/v6-legacy/S0024.md` | 11595 | `230237c826cee21a12fa51fbfeeaa6471a28b528ce858c5a316e7aae6fa7abe5` | `100644` |
+| `source-archive/v6-legacy/S0025.md` | 11628 | `da1c9b7a38d7faefcc029581772fd99ecff0bc4c451181e89630ddb199cb0fb3` | `100644` |
+| `source-archive/v6-legacy/S0026.md` | 11365 | `04046331ab306b36647b08f5e4d3c44f645f0089c1fc56606a7a1fc5d5428934` | `100644` |
+| `source-archive/v6-legacy/S0027.md` | 6498 | `4e3146a12441ee3967877ddb602c722bdeae0294dadfb723e8d9580cd91c0004` | `100644` |
+| `source-archive/v6-legacy/S0028.md` | 8111 | `f211c18a972a1b7316cae5daa37341a668a6f93b8c4903c4c7cce55964224328` | `100644` |
+| `source-archive/v6-legacy/S0029.md` | 15035 | `07c3b8ca1e7cc4478f872c4f159d63dd63087bde0e9f63bf321bd638dc5df8b2` | `100644` |
+| `source-archive/v6-legacy/S0030.md` | 14827 | `d4080528952f8fb37f24ce62dc26b4a21d45b8fe1557cf2dd0c0ead4f8bd5be9` | `100644` |
+| `source-archive/v6-legacy/S0031.md` | 14887 | `457b207cd5aa82624e1329202f455747b4560ce49e91e2dacd475a290602ec02` | `100644` |
+| `source-archive/v6-legacy/S0032.md` | 14971 | `734f38e09eaa7726dd1ee2dde3eca88228a406fe9d6e3e59dcb3802c29d17977` | `100644` |
+| `source-archive/v6-legacy/S0033.md` | 15014 | `d1e729df0dd64f0761134f0c2accd1f4b3b5e38b088f00733a2d120059a4d394` | `100644` |
+| `source-archive/v6-legacy/S0034.md` | 14714 | `adb4ca6716313808b4312a8d4ea4af97f28dbec30c8a9eacb163f6dd63aa20f9` | `100644` |
+| `source-archive/v6-legacy/S0035.md` | 14981 | `cf360cdd66b98de8ddee24e356c74b3e16eb3fd682f6f8222e0c190858dbb8e0` | `100644` |
+| `source-archive/v6-legacy/S0036.md` | 15060 | `dbee7d5e2997624882dbd0883fecfe0855d9f2625f31910130ea6465193e28ed` | `100644` |
+| `source-archive/v6-legacy/S0037.md` | 16813 | `8b57c1db4919a7bb6f6828f4f1b3b75bf6b2d74ecb68a807a50df484546384cb` | `100644` |
+| `source-archive/v6-legacy/S0038.md` | 16818 | `874ef8b7b01f96d0e1be4e00cdcea1e7e5728d8b70933a28d1b1279a436215e4` | `100644` |
+| `source-archive/v6-legacy/S0039.md` | 15302 | `cea92150101aa912a5aeb0ff5f4f3135f24a0d66977cec8041a752c5572ff3ef` | `100644` |
+| `source-archive/v6-legacy/S0040.md` | 15248 | `1c1620e2810467f8bcd68c7075bff1cbceff06bf9918a21a4219cc615ef0a20b` | `100644` |
+| `source-archive/v6-legacy/S0041.md` | 15432 | `e1478336c6acc37e9326d90397f7aaa238ebd4a6cfca3ae47a100f53e84a055c` | `100644` |
+| `source-archive/v6-legacy/S0042.md` | 15614 | `314c0721243e19b7bfe66d025b956b144342ee75e5aeae195ba337c443cbe026` | `100644` |
+| `source-archive/v6-legacy/S0043.md` | 15348 | `3ffa274e70d537abab4cea07912f8d64938b9ff23273c478342f0ad461c6e26d` | `100644` |
+| `source-archive/v6-legacy/S0044.md` | 17143 | `e661a7c35ff09a64be04fb6727320fd52c7b845cc02259e3035ade37e9a93273` | `100644` |
+| `source-archive/v6-legacy/S0045.md` | 15140 | `9bd2f2ffdbd912e87c5ef36b00d36ca1bea149d60323adcf37d8f5b4ba27453b` | `100644` |
+| `source-archive/v6-legacy/S0046.md` | 14932 | `4e4a07cf6589674a8a4b2df40a5867c0a2dcb219a1fe3608f2cdb677396dc378` | `100644` |
+| `source-archive/v6-legacy/S0047.md` | 14992 | `bd24e4a8a9135edeb58263dd32ce8fb43c02f4dad428b932fc85dd4f387826ae` | `100644` |
+| `source-archive/v6-legacy/S0048.md` | 15076 | `72dc53b5a04cd3e3c99b79b845c1c21680a06bd91de0bab858cae7692a8fe068` | `100644` |
+| `source-archive/v6-legacy/S0049.md` | 15119 | `028f1e6ca1c11821bb3d63602ecc3c6f9abd1525cd0e0ffbbdb32075f5284b9b` | `100644` |
+| `source-archive/v6-legacy/S0050.md` | 14819 | `cc09ad006bcf9312443f6769fe5e92d2597feedb844121336acf2c473551fba0` | `100644` |
+| `source-archive/v6-legacy/S0051.md` | 15121 | `25a8bb850e46428dbac075d89bb2f125d8aa76908be096a3cbc5ccf6af11b973` | `100644` |
+| `source-archive/v6-legacy/S0052.md` | 15165 | `79b7f8f590f2e3f345b490b839b160bd0012d622be9c727ca1cadda30f9a6d3c` | `100644` |
+| `source-archive/v6-legacy/S0053.md` | 16598 | `678db53fd05c88967e5720c209a1ed52aa33785c17489c05d99b33b17c455823` | `100644` |
+| `source-archive/v6-legacy/S0054.md` | 16548 | `6d8c3acc149d18a32e2cbdf18433a554e819661c0781ff101cd633fcdf0bec55` | `100644` |
+| `source-archive/v6-legacy/S0055.md` | 16581 | `a0b56ac362b0e4c3ba65e46c8be5f0d59f93aa1b956974ebf54139322467734d` | `100644` |
+| `source-archive/v6-legacy/S0056.md` | 16956 | `fdaa834752161f66049ddba01cea743bc7ac625e3d4fe7402969d210ddf985d7` | `100644` |
+| `source-archive/v6-legacy/S0057.md` | 16544 | `0b37ce9e3963d74f65f3ca1b0910c1d3dd4519f50025bceaeba64cb56f73b3d9` | `100644` |
+| `source-archive/v6-legacy/S0058.md` | 16817 | `636af373c72cf067d90e166341fdaf94dbc8e68d2224d1aba0d009aa311ca4a6` | `100644` |
+| `source-archive/v6-legacy/S0059.md` | 15371 | `2c41edec7012b8bcb781235459797c24ec7b12b831de07e25cd4373e55d0351d` | `100644` |
+| `source-archive/v6-legacy/S0060.md` | 17243 | `842722acee89c5d22ca00a648cdca552172e394c7d0baea45fa469e03701110d` | `100644` |
+| `source-archive/v6-legacy/S0061.md` | 15404 | `3c596bbb15887e7c46c2e85833f56685fd7c6cb846568102bf7299906a88da45` | `100644` |
+| `source-archive/v6-legacy/S0062.md` | 15113 | `3fb93a9685c207e9b8c231215b8a2d4051a14270502b814acb760a863e0c0121` | `100644` |
+| `source-archive/v6-legacy/S0063.md` | 15199 | `9d350509a07194bf0f2eef2ec019082cb69fcc3561317764e8c35069b20d0b08` | `100644` |
+| `source-archive/v6-legacy/S0064.md` | 15017 | `1ad4b85fd0dfb5413e870aa36ca1bbafda74fa9ccf6024f4cb25692f8f296e74` | `100644` |
+| `source-archive/v6-legacy/S0065.md` | 15006 | `770a8d4eddbcd3abf9617be07ca08a8754c8b2a9ade2895521ec77c367b4fa95` | `100644` |
+| `source-archive/v6-legacy/S0066.md` | 14817 | `4bdb732c7da0ca763b9ea805a9213056d1eee9fda89235e34e39b6ce6aba01f9` | `100644` |
+| `source-archive/v6-legacy/S0067.md` | 15476 | `0677c8195f042b8be2208a43b6a5f58d40026a760a18392430b492080e300ad2` | `100644` |
+| `source-archive/v6-legacy/S0068.md` | 16907 | `07c4afb38fd7ce94b170aec41624304f5bdd2e45df3f8c53dff51ba97c4cfa35` | `100644` |
+| `source-archive/v6-legacy/S0069.md` | 15186 | `12c5f5cd6410833f1a85eccecbebb1c00c21ed0f0cdd51a5725c341593a27294` | `100644` |
+| `source-archive/v6-legacy/S0070.md` | 17082 | `3bb4b03ff04b7df30ee99ce67a4b2049cf1f5b702b75862630bef74c5b93fef7` | `100644` |
+| `source-archive/v6-legacy/S0071.md` | 15359 | `730823408c3f751d31e8e55388fc57326837e796a310b38f921dc0f1db64fb6a` | `100644` |
+| `source-archive/v6-legacy/S0072.md` | 17137 | `1b17cc8e6cfccbf6d79a805f221affef1992af09fde66e0a841e5f4c3fb7f305` | `100644` |
+| `source-archive/v6-legacy/S0073.md` | 15312 | `39d2b3dfa3560465bb788fb263a7e0a9a82120b2cc8b60d9960f72bc48cb7e63` | `100644` |
+| `source-archive/v6-legacy/S0074.md` | 15256 | `77b6156d23588a349bbea9e53776f6e0e2e125916c305f1ece98b15205e0ebf0` | `100644` |
+| `source-archive/v6-legacy/S0075.md` | 17203 | `6eeb6e313e7bdbf6380b86d93749fc4dd254ede6c8f1562b36dee7913e18efdd` | `100644` |
+| `source-archive/v6-legacy/S0076.md` | 17208 | `ded1de0876859a8d812ac41e3b7601c9afd9bc75ff4fac16e09a81409c9da8bb` | `100644` |
+| `source-archive/v6-legacy/S0077.md` | 16921 | `232d0fd8ebbde5b884875c142ac8298bf2b653f1c42bea7a96a3ec2c833ef1c2` | `100644` |
+| `source-archive/v6-legacy/S0078.md` | 15610 | `5221b173e0f9a74ebd9a6715c9d743060f7f36dcdbdee1d111fd2d5405858640` | `100644` |
+| `source-archive/v6-legacy/S0079.md` | 15476 | `db7d694d1e81b3816f4953bd3ef38ba89052c14a4a07edae58f984efabc2000b` | `100644` |
+| `source-archive/v6-legacy/S0080.md` | 15544 | `fa0fdd5c8907835de7c72e686747bfd80ee98a045a650c05889186da6258aabe` | `100644` |
+| `source-archive/v6-legacy/S0081.md` | 15253 | `64304eaa53b62aa40b6d6678dbf9e6a591a2413d8aa644813118a2d7eee732c0` | `100644` |
+| `source-archive/v6-legacy/S0082.md` | 15304 | `38ba240f3dfca02ebb13f1dd6b9fc10f99faf6cab2ce987359c8aa1cb8399c92` | `100644` |
+| `source-archive/v6-legacy/S0083.md` | 15122 | `d6b22ee55ec34375334ab0b6252bf20660b8c969aae3bc60dda10143ee40a400` | `100644` |
+| `source-archive/v6-legacy/S0084.md` | 15111 | `163bc62c04fcd47f58a21a0d43b8994acecd45b00c709cc3b292eb4d7dc545c2` | `100644` |
+| `source-archive/v6-legacy/S0085.md` | 14922 | `e20c7a03d9c429b32a47053e4580c20e6687d55ff1c69f8b1146a1305c04eb08` | `100644` |
+| `source-archive/v6-legacy/S0086.md` | 15616 | `a6a96947e90fa721bda8efc3c348bb994a4e51186cb1f205e906800a5326e8ec` | `100644` |
+| `source-archive/v6-legacy/S0087.md` | 15399 | `054cb9d5929b04f8a833b0d3e042063b028da4548e0f7a3241ceede45576c25d` | `100644` |
+| `source-archive/v6-legacy/S0088.md` | 15326 | `ff54799d06f1fc968e92ce5e5246b6400b739d48ec71df25161e5ab09fc94ccc` | `100644` |
+| `source-archive/v6-legacy/S0089.md` | 16605 | `7f98a70f11f762fa2cfce5d92811ba6f22b494a46def34ee160faeb297a913b5` | `100644` |
+| `source-archive/v6-legacy/S0090.md` | 16756 | `d4d051ac7daf2640f0704b74f21591a7c7172113582b5f6f3d9e513a0c8cbe21` | `100644` |
+| `source-archive/v6-legacy/S0091.md` | 16587 | `ab0b9535f036d627454618ad7074d41f30fd380abd000bd8c413d6cda5261401` | `100644` |
+| `source-archive/v6-legacy/S0092.md` | 16503 | `eeab29f7654c5c5e48fd389c5fe7dd7a78f2a1c8b7aa8d2768ad6e2910f89deb` | `100644` |
+| `source-archive/v6-legacy/S0093.md` | 16665 | `0f0a888ef2e8aa4695f5645b98dd3120f00a20f7601d0413655bf4f93490ac64` | `100644` |
+| `source-archive/v6-legacy/S0094.md` | 16934 | `b76426848c33f1c4db65d590af113beb961038e21a0048820a017fc8dc913c65` | `100644` |
+| `source-archive/v6-legacy/S0095.md` | 16739 | `77ee52a018d2c7f598549c529973442dcee0914a34bcf711f4b6a75a82eb05f4` | `100644` |
+| `source-archive/v6-legacy/S0096.md` | 16958 | `dd5bb10684c8b5240acf644833128355beb13f8ffe9d5015437b4243a12f2080` | `100644` |
+| `source-archive/v6-legacy/S0097.md` | 15104 | `2adea750e0e8a9aad0d36a7e315dda3863b3fe5854d47e85f70bab6bc8d0d27e` | `100644` |
+| `source-archive/v6-legacy/S0098.md` | 16143 | `5e5639e0da74f3d4588fa4d734893c49b5bcc504912d3de8aef44d7af4ba915e` | `100644` |
+| `source-archive/v6-legacy/S0099.md` | 15209 | `fa1570ad85692878a562ccb45e4d0a7a718e655f40c6529e4c689d66463eb9d3` | `100644` |
+| `source-archive/v6-legacy/S0100.md` | 15543 | `767755eeb2d871c195683a9710f91479f4e6dbc6aa40070651624c1a322fcd8c` | `100644` |
+| `source-archive/v6-legacy/S0101.md` | 15529 | `1e2db3e8488b860ffe752c2e768bcecf4ad5f59aea8c6323fd5ce8ff4bb32888` | `100644` |
+| `source-archive/v6-legacy/S0102.md` | 15567 | `66d2ade47abc8a4b933a5d72e564b4102420b0ff0af5ccbc6f26860531fe586a` | `100644` |
+| `source-archive/v6-legacy/S0103.md` | 15523 | `61db7399d7f144b148f2a78f9fd2c56b92060537118e74a2b9231d9debda3020` | `100644` |
+| `source-archive/v6-legacy/S0104.md` | 15819 | `2eeec8cd76b824712ec9b9fdd408593013e90c5224dbdd7ef37a74dfc95d974e` | `100644` |
+| `source-archive/v6-legacy/S0105.md` | 15694 | `479199dda414be0060e930f48c217da2606eba01c721ed4981346e79ab8aff04` | `100644` |
+| `source-archive/v6-legacy/S0106.md` | 15722 | `70d10548529eb982c7a5f934b4237186a977e5cfbaa11a6bd40db43c391ec1ef` | `100644` |
+| `source-archive/v6-legacy/S0107.md` | 15505 | `78b9ae2fe1fc1f4e67a227cf6199d61bbf4383fd909fdb49500ded8c73071d30` | `100644` |
+| `source-archive/v6-legacy/S0108.md` | 17047 | `b51e9a2af0ed9a7246a6ee7680356be88125e5218328b3bb25cc0efd18110dcf` | `100644` |
+| `source-archive/v6-legacy/S0109.md` | 16886 | `b52afd7f1cd382a6178155f13065629674d4316c8e3801fc31dd131efa30a418` | `100644` |
+| `source-archive/v6-legacy/S0110.md` | 16886 | `67e8aa820d350b260ccb00330d003660d3343a0bab133aefab07f5ac82e48f5c` | `100644` |
+| `source-archive/v6-legacy/S0111.md` | 17068 | `65a6cd468fb37d62ed6d236db0b5e27e880c52ebd74834461b49e00a3cae4038` | `100644` |
+| `source-archive/v6-legacy/S0112.md` | 16903 | `106d840b003f6e656f30ebc29f89442eb57ce2817bda0fa1c643c8f3921c4bc6` | `100644` |
+| `source-archive/v6-legacy/S0113.md` | 16869 | `0201cea8f87a4763ad57d847f906062927372846b45b6042b40ddfe74a3dc06e` | `100644` |
+| `source-archive/v6-legacy/S0114.md` | 16916 | `4f1a134f2d30956dcab3718221aee22f9a47651aef34aa1c5279e2653383ef53` | `100644` |
+| `source-archive/v6-legacy/S0115.md` | 15645 | `96167f088ec1143e8fa16bec71454737c35b393869862d28fc11647b3555fd24` | `100644` |
+| `source-archive/v6-legacy/S0116.md` | 15695 | `1080ecf39e1707ffa0970214398073d53b901cc307734bbdb0fb83a6450d1477` | `100644` |
+| `source-archive/v6-legacy/S0117.md` | 15643 | `164f9566b368ac45db8a3322d1515279db6a871a197a702763116eae0537dfe3` | `100644` |
+| `source-archive/v6-legacy/S0118.md` | 15628 | `8a408baf81bab71e5634d9f3c2bdff9ff7233eec47019e6adfb3271d8c890981` | `100644` |
+| `source-archive/v6-legacy/S0119.md` | 15667 | `25ead1643fbec92bf0de2ef8bf9bc14d07c3879cc407ccfe45f3b88a80c63ee7` | `100644` |
+| `source-archive/v6-legacy/S0120.md` | 15669 | `b85714e92b8db6940087bb268001da448cfaa4b93556a95c75bce94780310857` | `100644` |
+| `source-archive/v6-legacy/S0121.md` | 15601 | `45c35468fb1a6ccc2406f3843b86a0bbedd9ed3f77a347afa7955c169c9f3e94` | `100644` |
+| `source-archive/v6-legacy/S0122.md` | 15132 | `cdbe04fcd160e67fab55eca05ad675face551c6f84f995bbea15f37b9049add5` | `100644` |
+| `source-archive/v6-legacy/S0123.md` | 16966 | `4ea9ca3120e20baa4d7b46ad29754fa37c6f7561e87ed2032ca4476ff0e04648` | `100644` |
+| `source-archive/v6-legacy/S0124.md` | 15144 | `4c07afd7b5d5436c32cb0c08497d5103d8614db753344f2c19e1257931a27736` | `100644` |
+| `source-archive/v6-legacy/S0125.md` | 15151 | `8f5bf8980ec544903a5b66f5b36ee204aef899bfa9ae6af53f10fa85c6652d1e` | `100644` |
+| `source-archive/v6-legacy/S0126.md` | 16213 | `a251a8e8bdcfc1430a252f8cd8cbcbe325c3475f9f7722432bcaae0c3e79f1df` | `100644` |
+| `source-archive/v6-legacy/S0127.md` | 14965 | `58474440ca64fe6b07b3770b7a6db067cd54fa09d9cd18c15c9ef0df724b199b` | `100644` |
+| `source-archive/v6-legacy/S0128.md` | 16436 | `615151b78425c923972fab57d7046af225e6029baa894131c5ddce9975be44e2` | `100644` |
+| `source-archive/v6-legacy/S0129.md` | 16986 | `fa317e68534a5046d0dc4f1d8bd36b0584976ac6b4218c1b69f455446441429d` | `100644` |
+| `source-archive/v6-legacy/S0130.md` | 16873 | `9ba7890ee19cd7f35532d1021a9290ae7824b98f7b64598df223273ed78edf8e` | `100644` |
+| `source-archive/v6-legacy/S0131.md` | 16746 | `8d287379caa337041ba8c72f68c596d3e53b3dac5b4cb747400b09f91c2e83c9` | `100644` |
+| `source-archive/v6-legacy/S0132.md` | 15392 | `2316d4aae745dfdc28b18558fe9595b65a8be1dc130501013ce1288f62157b90` | `100644` |
+| `source-archive/v6-legacy/S0133.md` | 17303 | `961506b84d03c749f434d7c9062960f87349936f867f0b12fa77aa6e2269c313` | `100644` |
+| `source-archive/v6-legacy/S0134.md` | 15433 | `97cb77070abdb53223de7982fe01346e2bb618e90e653b259e7461e3c9377c6d` | `100644` |
+| `source-archive/v6-legacy/S0135.md` | 15625 | `a21b4a2193c37ef452fa3ed39ca7761985f948c152f14ea63e27cedac815ddf5` | `100644` |
+| `source-archive/v6-legacy/S0136.md` | 15448 | `a436cf4fd215a0bfec27f4b7442f0cffcc4d2a5c7ec752b375f93b3e2d5b4562` | `100644` |
+| `source-archive/v6-legacy/S0137.md` | 15237 | `b8d7aeda17d82e825dd382f5415124664915ea522f2a27c6967c0cb6f20af929` | `100644` |
+| `source-archive/v6-legacy/S0138.md` | 15249 | `3b837a153a5cc72ccad9a3750203ae5c32d85d3a6454c3a4f5c6292406050d53` | `100644` |
+| `source-archive/v6-legacy/S0139.md` | 15269 | `6d1e98c2399b56da429a0f9faade21270ab516f8ae798a9c928976630e0968c2` | `100644` |
+| `source-archive/v6-legacy/S0140.md` | 15295 | `494e9ebdcedf9535f851558b377a320cf4e951c4c58b7a5068a52a2933051de1` | `100644` |
+| `source-archive/v6-legacy/S0141.md` | 15458 | `cbdd7d060395e6e800bbb2052945462bf442f2c85472015e70618f929587ab41` | `100644` |
+| `source-archive/v6-legacy/S0142.md` | 15256 | `e89c4d2ce5114a2c1877a65848f88df02a6e2bda76b6101f0ebb875335c660b2` | `100644` |
+| `source-archive/v6-legacy/S0143.md` | 14955 | `27ef2f734d5a80c87fa332d1461244e21cb4ecd5191069dd772dc449b7d23e5f` | `100644` |
+| `source-archive/v6-legacy/S0144.md` | 15070 | `0106003701e501d4e6c0f6c0f215fd3c0ea8bea0b0130135886a94ebe34cb70c` | `100644` |
+| `source-archive/v6-legacy/S0145.md` | 15098 | `41a76b38681469f75ac530fd7f69ce3cd5a80a840314994c2086989b0e89398d` | `100644` |
+| `source-archive/v6-legacy/S0146.md` | 16624 | `5ed6bc14950b857bea007140537465df75491ce14c8e0249242257d4b9bb05f2` | `100644` |
+| `source-archive/v6-legacy/S0147.md` | 17020 | `139fcda54085d132adfc7f7f01e6cab533092ba90d598577f529e403caaf1b39` | `100644` |
+| `source-archive/v6-legacy/S0148.md` | 16866 | `280c844adf78f195f67b2d72233824d73098f809cf605f3e952e7484c4c01a1b` | `100644` |
+| `source-archive/v6-legacy/S0149.md` | 16584 | `d3772c7a79ce691899898aa6466c0bad55a737b47e20f64ead9ff076db35664f` | `100644` |
+| `source-archive/v6-legacy/S0150.md` | 16644 | `bf41e4152106cdf46a007f3a75d66b013938e3433a3368524e627b0b85ddf69b` | `100644` |
+| `source-archive/v6-legacy/S0151.md` | 15296 | `daef3f237d0dbce5c7c2c5f4848cdce49c990d254b679c9afedacdaabff83be7` | `100644` |
+| `source-archive/v6-legacy/S0152.md` | 14987 | `3fb90e5b88e2932613e5e9da6cb3e2f611062176af090702daa996880a000b1e` | `100644` |
+| `source-archive/v6-legacy/S0153.md` | 16519 | `0213cf33767a5581d7436d10aab916097fd77b986c29ddff6cf0fc8dc7bf5931` | `100644` |
+| `source-archive/v6-legacy/S0154.md` | 15005 | `58a538c6d46408692bd872ebb854d01ccc9dfab66d6e85a8e05f9668fe7fedc5` | `100644` |
+| `source-archive/v6-legacy/S0155.md` | 14963 | `3bad4d9f176f97e228bde80d39e7ed068406f487fc2c33eef0738cf4b201fd0d` | `100644` |
+| `source-archive/v6-legacy/S0156.md` | 15311 | `fa19f52fa38b588da7f67b70ff246e23fcb43da4f47c05295f89ed7c12bcf7ae` | `100644` |
+| `source-archive/v6-legacy/S0157.md` | 16151 | `9d6e3bee91227ab4beaa2d325d43e37edfb3fcef9243e6579702cc02d0d7010f` | `100644` |
+| `source-archive/v6-legacy/S0158.md` | 14966 | `bc4ebc16a2b46ece0431b7aa247adeafb31256ec7bf4a347ab8c8977bceac3d9` | `100644` |
+| `source-archive/v6-legacy/S0159.md` | 15162 | `a86eba483a08bcf4309cd4358cf48fc80bff53ee8f95be0717407fef3a4ea4ae` | `100644` |
+| `source-archive/v6-legacy/S0160.md` | 14938 | `e55148e29cbbf6163683277eff1aad8b090fdd2027e82df09439782f739e9964` | `100644` |
+| `source-archive/v6-legacy/S0161.md` | 15401 | `d786ec3a640b9fa6ec35742f1b0de00936613a3ee9f6ae41b48238b5a962fe6d` | `100644` |
+| `source-archive/v6-legacy/S0162.md` | 15092 | `0e13c7d713863345a7a44813523ce3b9533ae6d09ded4d45c7bb265bf3e7d234` | `100644` |
+| `source-archive/v6-legacy/S0163.md` | 15110 | `ff69363eb0746b5de90e25283019d86ae749b2966ef4e01497775006c50b9ded` | `100644` |
+| `source-archive/v6-legacy/S0164.md` | 15068 | `6f2334314bd96e3aea9b4bd915d87237e2ecbbdf7affe862982f4c8fc2536169` | `100644` |
+| `source-archive/v6-legacy/S0165.md` | 15416 | `ec783d4ba480307224478d90402ec4394f0433d2c1469a1cdedfbc7b55159a10` | `100644` |
+| `source-archive/v6-legacy/S0166.md` | 14870 | `de9ea4caa03557edcceb67c24b0f7e7c2c88e287e55d722273c1fbc96d48e3fc` | `100644` |
+| `source-archive/v6-legacy/S0167.md` | 15071 | `919dc7d79ecf4bcb6f073b393eb3251f537eafe1d80e4db58e521e712db2c48f` | `100644` |
+| `source-archive/v6-legacy/S0168.md` | 15267 | `aae2c6ff92152e73bdcf324d4a616b598c83e16e893ca3337b89b68695fb89fd` | `100644` |
+| `source-archive/v6-legacy/S0169.md` | 15043 | `063b46d60012e8c9d9d6001f8c25aee15fa69772fdf98cb33766f75d19b4d12c` | `100644` |
+| `source-archive/v6-legacy/S0170.md` | 15020 | `fed02d3c32139772b9134afd35435c5fb421af54e962d9ce15beda9ebe701d35` | `100644` |
+| `source-archive/v6-legacy/S0171.md` | 15063 | `5bb16660e3b09bc3e448f8e023c565d6e9f4416e7a5c831cea90eff0a773413e` | `100644` |
+| `source-archive/v6-legacy/S0172.md` | 15251 | `e2920e2eed9107959463b1d85d68650cb05709dd16d3c3c387a9b06970411d95` | `100644` |
+| `source-archive/v6-legacy/S0173.md` | 14994 | `c815e4101c9b2bd809d2ecbbb3f19f53629bb6be796b88bb22e2a9a504251f40` | `100644` |
+| `source-archive/v6-legacy/S0174.md` | 15498 | `c29992ca60ba3a9966cb6410b7b2cb05755dc9537a2cb2f28db6d9bf86acea21` | `100644` |
+| `source-archive/v6-legacy/S0175.md` | 17295 | `ceba8d552316529781cd2384ffcbec6651e665f981fb7a411f451b0c0d17c67f` | `100644` |
+| `source-archive/v6-legacy/S0176.md` | 15235 | `20883f6716835a816758afe1863f7e3a18e750e27568fa8d35b6200a89942a0d` | `100644` |
+| `source-archive/v6-legacy/S0177.md` | 15425 | `26d2317cecfbb662bbd4988114426cd6b46e9ff7b9b77d33454d7c272130b4a7` | `100644` |
+| `source-archive/v6-legacy/S0178.md` | 14814 | `be20d6b73bdb2fad80d5de20ea379fa252dec6a9fdc75eecb2dc595988af8e99` | `100644` |
+| `source-archive/v6-legacy/S0179.md` | 14983 | `eeb60c0561be66058e62f4edc72b70ff760dc04ed4a93660f08a5ca7593405d3` | `100644` |
+| `source-archive/v6-legacy/S0180.md` | 17018 | `d59d24d16154e0309c7d05854b9d22fa9546f749bddabde515a0a79f346d15ad` | `100644` |
+| `source-archive/v6-legacy/S0181.md` | 17067 | `afde65c896f6050d139c24ae1c57cf6e05309eec4c67cdd3d60446dc2aaad2cb` | `100644` |
+| `source-archive/v6-legacy/S0182.md` | 15466 | `f26e567e6a2967f231a7d8f4d52ea4ce918d6663771bc61652d699e51210fd16` | `100644` |
+| `source-archive/v6-legacy/S0183.md` | 16866 | `9ead1500efaeea9c4112bde40ec27944dcd0b13680c18d174dd03bb4e69d0f71` | `100644` |
+| `source-archive/v6-legacy/S0184.md` | 15097 | `7baff73d7aeccfc7af1c574e3438575d4d6d61e20e769cc6b3a0033853886f5d` | `100644` |
+| `source-archive/v6-legacy/S0185.md` | 15274 | `ec3317978454f19849718e9bff30b16f450c0f2a2b6d32c51fac2eadb1f0aad9` | `100644` |
+| `source-archive/v6-legacy/S0186.md` | 15125 | `d8f6b2141ef3a8fdf8f98b4960ded3ad56740c580d85ca491c89b0277d4618b5` | `100644` |
+| `source-archive/v6-legacy/S0187.md` | 15168 | `eb121a02600deaae6171e230fdbc71343b77f449f1b311a2b51a1f01bb9c33cf` | `100644` |
+| `source-archive/v6-legacy/S0188.md` | 15099 | `a5434152eb32fc06789a092200cc76750e7ae0a395b3e55139ca58282dd0d13d` | `100644` |
+| `source-archive/v6-legacy/S0189.md` | 15391 | `909eb0498c1096c3b50599bf541554374edeed3882fb62ec48831d55adf0d3dc` | `100644` |
+| `source-archive/v6-legacy/S0190.md` | 15638 | `be3a0c6a69c624ce2aec763eba054be4fa4ff5417d54564705b43f4f3377a445` | `100644` |
+| `source-archive/v6-legacy/S0191.md` | 15375 | `ff9ddd5a8534f288cf70306c0101552ab2cf50dc72b6ff6a870e1e392a00079b` | `100644` |
+| `source-archive/v6-legacy/S0192.md` | 15565 | `7f48d0a661b1b4820a22ab3e79706897c3d6404cd7e282e937436c85a3fea2b2` | `100644` |
+| `source-archive/v6-legacy/S0193.md` | 14919 | `51ce684b4b2b77442b663df36685cdb121a28558e90ef0089925cf4b15575c85` | `100644` |
+| `source-archive/v6-legacy/S0194.md` | 15088 | `4bb533b4e70cde8e9ebaba9335bb5250bfc58a8ee376fed4c1b008423eba677e` | `100644` |
+| `source-archive/v6-legacy/S0195.md` | 15354 | `29efa048b28d692d9240b9dab6c021d90d3468290aa8122b2de856ebb00f986f` | `100644` |
+| `source-archive/v6-legacy/S0196.md` | 16557 | `63c164f96b2b2b4acb086c4f5a7cd26d884a0122db0423e106cdafa4d02ffd72` | `100644` |
+| `source-archive/v6-legacy/S0197.md` | 16736 | `7f76b8df3b42520f641eca6d501a2538517a807e674e0a14f9477428af8834a7` | `100644` |
+| `source-archive/v6-legacy/S0198.md` | 16744 | `082e1bced3030673e4d170abc59172d82263bae7397c791860247220e24a1b98` | `100644` |
+| `source-archive/v6-legacy/S0199.md` | 15375 | `bdfdcb5386a3f574efe90b7f9951fe0b5308b7da039b2364821ec31246826993` | `100644` |
+| `source-archive/v6-legacy/S0200.md` | 15397 | `61cb112d9d26992d226293529b50f631beabcfd1431e27a7c9667aa73344e077` | `100644` |
+| `source-archive/v6-legacy/S0201.md` | 15561 | `f6a8899f3720f942d17a674440acd8e1bc59723f8c62ef4f0f76723552f07f41` | `100644` |
+| `source-archive/v6-legacy/S0202.md` | 16642 | `92a40d78ed24c0ffa56b3ac84da26ea0fa52f7f02c53530ab763cc7a478d16f2` | `100644` |
+| `source-archive/v6-legacy/S0203.md` | 16327 | `3c9cca2a6c60153ab84b656a8b4966a41c4457f008b15b72c0d53d9e175e05fb` | `100644` |
+| `source-archive/v6-legacy/S0204.md` | 15364 | `7af06560d38dee3a3081790c8b28b8c61663df88ce00d617e801157f685e83e5` | `100644` |
+| `source-archive/v6-legacy/S0205.md` | 15679 | `e16c831fa4ab8d868024efd3e77c65896edb9d1dd52e7c0b2cf1674ded84e2c6` | `100644` |
+| `source-archive/v6-legacy/S0206.md` | 15529 | `0117b1e8d9b053b19c64cf84b17d4464947ae7a9e3bbc91efea0e0508ead9492` | `100644` |
+| `source-archive/v6-legacy/S0207.md` | 15705 | `bf5c5ddc0353225dd36b34cf01acdb5a7657517c3bc010c24f4ed414e6dda4d3` | `100644` |
+| `source-archive/v6-legacy/S0208.md` | 15424 | `8bb8e9037aabd7d78d2b1f6e3ff7c56df4fa79e42343dbecc5948944271ffab5` | `100644` |
+| `source-archive/v6-legacy/S0209.md` | 15229 | `a934d82b8e4b96fc22aa1fbc29350ef4b4170673cf321a249fce3c1fb999b972` | `100644` |
+| `source-archive/v6-legacy/S0210.md` | 15485 | `24bb72847d30305f5f809fb2fac69482790a47bfccda29fae8f180a881c4d106` | `100644` |
+| `source-archive/v6-legacy/S0211.md` | 15596 | `7746fad97d95663272f6ba1036c9174c92caaadfac87ad69496db128fe64666f` | `100644` |
+| `source-archive/v6-legacy/S0212.md` | 15278 | `2e246e1301fe67a78e240ca0ed50048f88685ef1fa7510272a2a7315c6f25210` | `100644` |
+| `source-archive/v6-legacy/S0213.md` | 15772 | `908bf5652978b3c0e162f50d2f56e059d939ba3dde4cec587def856e4534a0c0` | `100644` |
+| `source-archive/v6-legacy/S0214.md` | 15418 | `b02c6ea5c86b82a757cc0b289862678ca032ec9e7794df01c4869b555f5ae2f3` | `100644` |
+| `source-archive/v6-legacy/S0215.md` | 15694 | `04abf7fa8b36b293b5d3efa4385dde81566e214edcaef061c18fbba1f7278295` | `100644` |
+| `source-archive/v6-legacy/S0216.md` | 15629 | `c2b3469f3f3d48875afb04ffff838d716a66d8d899d22b2aea7bd20d8c6c4932` | `100644` |
+| `source-archive/v6-legacy/S0217.md` | 15734 | `3628bc7358bb79f14c522c1a9132bb71dc6b57e5b8049f86f859089c82f3cfaf` | `100644` |
+| `source-archive/v6-legacy/S0218.md` | 15824 | `362e77a04fd34d47059d6bc15017761848a1f72a719553770d91e6c2a11d3954` | `100644` |
+| `source-archive/v6-legacy/S0219.md` | 15551 | `e35697716e36bdafcd00e4654a68d8f4cab37c0e2867a0030e315bba5cd74437` | `100644` |
+| `source-archive/v6-legacy/S0220.md` | 17134 | `9608d558cf48553bfb81bc6a839810e7be3d5a1c205945d72e1fbbac162afbff` | `100644` |
+| `source-archive/v6-legacy/S0221.md` | 16947 | `70142473c07c43a05140f1e14b8dd502eb9717c5f84153e8f6175f771b1db8be` | `100644` |
+| `source-archive/v6-legacy/S0222.md` | 16930 | `aa6e9f2cb8e46c6b2c9891dea9e8cb5fb579fcfb84c098b7096471d53e9605ca` | `100644` |
+| `source-archive/v6-legacy/S0223.md` | 16910 | `f990099f5eac01c85171d42d844803ef39a812d95bf3ee3b5707123808dc6f26` | `100644` |
+| `source-archive/v6-legacy/S0224.md` | 16931 | `8440c3070a84f4f55064a997c3d41b41580647b6dc1b48eeb88f60c8bb91a4b0` | `100644` |
+| `source-archive/v6-legacy/S0225.md` | 16879 | `397c5ea8d1dc441d8059d77678ccbb9a6bf869e079940b097ae14e71590f3992` | `100644` |
+| `source-archive/v6-legacy/S0226.md` | 17100 | `4db5dce9725e368e620b5aa9985e10c049b710b4dcd84fe41d26173678e8736c` | `100644` |
+| `source-archive/v6-legacy/S0227.md` | 17064 | `3eae35aafe50890280c11623ceeae58eaeacff9e2d89d9ab18dfcb59a9e0902f` | `100644` |
+| `source-archive/v6-legacy/S0228.md` | 15789 | `7a0c55db81d23b30cab1b862a78f201df4fcbf2c516d978a235ccc978241bfe5` | `100644` |
+| `source-archive/v6-legacy/S0229.md` | 15674 | `d22e2d46e020cb4e4a1b6f3939ce6c514644bc4a099c472ed1049946ecef89a2` | `100644` |
+| `source-archive/v6-legacy/S0230.md` | 16945 | `a2da1d2033f3733b26a2e87a183c0ac72b3e9212eeaeda298cb026ae5c583f06` | `100644` |
+| `source-archive/v6-legacy/S0231.md` | 16967 | `51d167739233a54494d2fe0a73503bc014482ef46d3842e6d182b28f17f9f2eb` | `100644` |
+| `source-archive/v6-legacy/S0232.md` | 15845 | `5bc7e6bf2af1f9d8233fcdf668209f4fbc7e021567d309a9eddf4a9ce3e64386` | `100644` |
+| `source-archive/v6-legacy/S0233.md` | 17368 | `e521970b41647c2366e7400411c89c81e5e41af0fcbf896edbe2c56851311a46` | `100644` |
+| `source-archive/v6-legacy/S0234.md` | 15096 | `06efe10697a13d282161683f0d000b7983ccc9ba04e3ff86e63e0d0480531943` | `100644` |
+| `source-archive/v6-legacy/S0235.md` | 15644 | `a6fca6043c2b0ae9debe865b62d6b62552921824fdbcb628a3041faba14a3db0` | `100644` |
+| `source-archive/v6-legacy/S0236.md` | 15364 | `cdb7ef4d2017936c8758b44b5942ffdf60a707d35190e3f49c6d2815df5a1772` | `100644` |
+| `source-archive/v6-legacy/S0237.md` | 15201 | `dfcade4c1789364a788ecd1d6deb66b59e0418edf9ea886c8a7f5555171f13bb` | `100644` |
+| `source-archive/v6-legacy/S0238.md` | 15735 | `bac2ca6605fb8416a0543c4d325bc9cf4f767db43715fc6e46fd9b9a9bd50c8b` | `100644` |
+| `source-archive/v6-legacy/S0239.md` | 15489 | `0ac77500336bc798a9d7c3892549d8a3374ac0674026fea91eb2ebac06636159` | `100644` |
+| `source-archive/v6-legacy/S0240.md` | 15537 | `33c9b9f03fa844df39221273f530720c50fb27a420e03f3bd9a6a5dc8b317d8c` | `100644` |
+| `source-archive/v6-legacy/S0241.md` | 15408 | `07eacef256a50c464e8c9d0db4f8237a4d162b0768e305f8cf2f4f1b556095f0` | `100644` |
+| `source-archive/v6-legacy/S0242.md` | 15382 | `ea0ee7992d883eba7f89c416e8e75463fb158e64a5386d5995c81b689b5ae4db` | `100644` |
+| `source-archive/v6-legacy/S0243.md` | 12104 | `492957632291f59dcb99809c5214bcb77002673e2eaba81e087b5a672aa89875` | `100644` |
+| `source-archive/v6-legacy/S0244.md` | 16667 | `fb91ba371ceb8efaeb6130d5524310f50cb830a33d221f9d6c6413e37f622e2b` | `100644` |
+| `source-archive/v6-legacy/S0245.md` | 15082 | `9decffc0dd976d421b3a017c11a1989ac56fe94abaab3555033780f1be0223ae` | `100644` |
+| `source-archive/v6-legacy/S0246.md` | 16625 | `2076449d2065a986a9b33a547eb5abb1840d9190a77857927e062ce426e92cb2` | `100644` |
+| `source-archive/v6-legacy/S0247.md` | 16953 | `0a2c0ee1aa46047ac5f22103e794ea4c87ea0f61bd6e8f82d4f821b0224a1474` | `100644` |
+| `source-archive/v6-legacy/S0248.md` | 14939 | `bb0965190e9889301a8b1a382c342d8492f23e3e5bf4d3999dc02cb87e3d22c5` | `100644` |
+| `source-archive/v6-legacy/S0249.md` | 15038 | `4fd59a8dada707583a0918bc951a1e72ef99e17b09858f93714b766e31fe50cf` | `100644` |
+| `source-archive/v6-legacy/S0250.md` | 15399 | `bfea843e26d797f0166e121d5caf66dbe8ccba48ef5e93272b3343dd6841e73f` | `100644` |
+| `source-archive/v6-legacy/S0251.md` | 16750 | `f150f83a8aa3dd7f133f4d3aae79c46bbf7d61d142a514b2d528db0786a44837` | `100644` |
+| `source-archive/v6-legacy/S0252.md` | 15258 | `f2f2dbd572334e78e46b270d6deddacf0d5c500046b60cb5a263c458d67ea4fa` | `100644` |
+| `source-archive/v6-legacy/S0253.md` | 15399 | `2724f526f2268b25902aa2b66fb71d92b6f03e48a7d0beeef25715ef5bb3e551` | `100644` |
+| `source-archive/v6-legacy/S0254.md` | 15301 | `39dd02cf8cfd8d1eb6d97c18922992601c840834495903e4325ad739d461dad1` | `100644` |
+| `source-archive/v6-legacy/S0255.md` | 19531 | `a59aad242b2d0bc830758d9bf74438d3794e17b976b94276d376e9de04fc4562` | `100644` |
+| `source-archive/v6-legacy/S0256.md` | 15380 | `2dd34e29581390da248a93401df9dfffdb8d113881f179fcb1602d150cc19a52` | `100644` |
+| `source-archive/v6-legacy/S0257.md` | 15222 | `f9b4354ff44ddc5f9a73dfce146efe09adf4b8ce398932dd6d44153c62c8c3b1` | `100644` |
+| `source-archive/v6-legacy/S0258.md` | 15283 | `824abd2d6fa10e754af5c6be369eed7ad9b419a425e9a2247ea5c82157b2caa9` | `100644` |
+| `source-archive/v6-legacy/S0259.md` | 15379 | `672ed5bc63546acf1b31b8c3edb702f3848bf6da8a4069d1aa3cdd0c92bfb4c2` | `100644` |
+| `source-archive/v6-legacy/S0260.md` | 15044 | `7a8af6d83f2c7ed7c5ff30cbdc85ece2bd70ae8ffa3302418999507c191b8fab` | `100644` |
+| `source-archive/v6-legacy/S0261.md` | 15469 | `39391908b28a09a659d152f9abff51179cab5dd3f44016d38e18f90fd0871bad` | `100644` |
+| `source-archive/v6-legacy/S0262.md` | 15539 | `5b795ce3b57ac017144a5c1003c642a9538ed81de0b29f31ec1308fa2824ecfc` | `100644` |
+| `source-archive/v6-legacy/S0263.md` | 15143 | `cf983733500d7c19ceeb44fa7f9f554bb9294883e02817823442f5c26ac2ff15` | `100644` |
+| `source-archive/v6-legacy/S0264.md` | 15363 | `8b3b68e58ddffe05c95e92c9796367f36aa99f659c24a99468b110c8c262d61a` | `100644` |
+| `source-archive/v6-legacy/S0265.md` | 16642 | `385a1a7236ef6828abb4d0d35549decfd1162a762c91ebbdf8076655852e49ce` | `100644` |
+| `source-archive/v6-legacy/S0266.md` | 16940 | `582d996838e515336110ea40a5d65a5bc4b5d1dd6be4fa2bc7a491cefb8c2a16` | `100644` |
+| `source-archive/v6-legacy/S0267.md` | 15406 | `ba5ee8ce389e1ee6971c24c116eaa03bbcb8147d13593c05ac68b446bc9e2545` | `100644` |
+| `source-archive/v6-legacy/S0268.md` | 17056 | `a872fd503d12fd4570d4d1ff9383e3c9b8ffa9fabdb7b0bc7b3f352a085830e4` | `100644` |
+| `source-archive/v6-legacy/S0269.md` | 15415 | `33697fdb7f2aba3491db8d7ac4f60b9b15ce5b77b02d817ebf6c056a680350fc` | `100644` |
+| `source-archive/v6-legacy/S0270.md` | 16127 | `42b76d342c124588a2d364c73acfc3a7abc111f78763432a84e958f4f1819b9a` | `100644` |
+| `source-archive/v6-legacy/S0271.md` | 15215 | `df8ea13d807e09774ddfa2b8725d86fee6196ff9209c5777b29610a7b2836d6f` | `100644` |
+| `source-archive/v6-legacy/S0272.md` | 15271 | `21ea592dea990ffb6bcca63d631eaf585566a095abf874bf02fa35a25624add4` | `100644` |
+| `source-archive/v6-legacy/S0273.md` | 15550 | `487fad6545737132fb9dce5dfe196758844069944bc05adf0256cd6f2fd3361e` | `100644` |
+| `source-archive/v6-legacy/S0274.md` | 15327 | `e102c5bfa99b71f6141ee2d88e6daa91695fb372fd50b7029bbbf7e600923cfb` | `100644` |
+| `source-archive/v6-legacy/S0275.md` | 14889 | `eb1a1698576c862ff70fea033f370f79477b952077903a46d1c89536b111a1d5` | `100644` |
+| `source-archive/v6-legacy/S0276.md` | 15121 | `4dfafc81658fe0a5b9bd4739ef726a71851b34e48dfce539c5fb9613bffaf58b` | `100644` |
+| `source-archive/v6-legacy/S0277.md` | 17100 | `0366a33a6b8781134010954ddf440a5e3ffa5d8befc70784a1554fb297dbcd30` | `100644` |
+| `source-archive/v6-legacy/S0278.md` | 15355 | `58c7a9985ee1f5dc250da76cc154f6ca7924b9a88492852ff7149d2e464fe10b` | `100644` |
+| `source-archive/v6-legacy/S0279.md` | 15411 | `ad6696b7f5c59b38ef6aa6ffedd5765a190a5cc60ebf539196c359b2812a6b44` | `100644` |
+| `source-archive/v6-legacy/S0280.md` | 15690 | `21fd59b8c9914558b5c84c61f5f69fa74e9202564506d1696ea94cb6e8ef1dda` | `100644` |
+| `source-archive/v6-legacy/S0281.md` | 15467 | `dda2269f407852da163e1661d7cc93b2626ddbe727e507f8fed12eeba0e71760` | `100644` |
+| `source-archive/v6-legacy/S0282.md` | 15029 | `63746808572d2d0588a8a3cd403a7d0d4553d9a91e7aaf19274a118e85139635` | `100644` |
+| `source-archive/v6-legacy/S0283.md` | 15261 | `d2fd45bfc6791fbad444a4936a1962c7a73e77bc3ce4a84b8bcbd5adce0b0648` | `100644` |
+| `source-archive/v6-legacy/S0284.md` | 16709 | `4ae2c722cf6709a96368c062f0f277cb8ff88c9e7873efe59fa680500bd0d4b1` | `100644` |
+| `source-archive/v6-legacy/S0285.md` | 16895 | `d18916d509350b1cfa6941d0d4585efdbba37e3947b5cffdbbd8efc9585ac018` | `100644` |
+| `source-archive/v6-legacy/S0286.md` | 15100 | `6f72ec0687d627c55f8d30e82c2b490fd29187ae42a676b12d7ea4be75a26f96` | `100644` |
+| `source-archive/v6-legacy/S0287.md` | 16215 | `79c739a09ee5976d47ad065caa661f35947b657bb5fbf01e55587da1d4cfdb3c` | `100644` |
+| `source-archive/v6-legacy/S0288.md` | 15041 | `807da5fef5f6acae269336d751fe243fc55f730e20ae5ad920ddf9a81012d33c` | `100644` |
+| `source-archive/v6-legacy/S0289.md` | 15313 | `f11a48752c09aa372372e6999ec697319927a4b54f454ad34bb1023a3cc5d402` | `100644` |
+| `source-archive/v6-legacy/S0290.md` | 15382 | `8b8c91b1da0f79f5031906c98f0076ae5ad4b4d9d6eed1848ee073ce9083ec58` | `100644` |
+| `source-archive/v6-legacy/S0291.md` | 15205 | `ef459834e1a1c5fbc1d2a470c115c1e3c28b650ccaf4e77e076456a44980e557` | `100644` |
+| `source-archive/v6-legacy/S0292.md` | 14944 | `0c958b0f8efdeff024985062d894df057a09c79378b2088a3f5466c73371bd58` | `100644` |
+| `source-archive/v6-legacy/S0293.md` | 15146 | `92015c969f425f50f5cf0de85954b4f57c1bc42f1c4b28a1e758a4f234da8f8a` | `100644` |
+| `source-archive/v6-legacy/S0294.md` | 14199 | `38c9177b2c476d6f5b1fbccc72f28983191133594d123920cd4f4a0ae4cae957` | `100644` |
+| `source-archive/v6-legacy/S0295.md` | 14815 | `4862ca4c46b23eea6eae6b14ad320a09b6923f111e2f78ef02c5e51c9949dfbb` | `100644` |
+| `source-archive/v6-legacy/S0296.md` | 12755 | `840a0bc396d114dcc2de0f521839b8c9aade947b44bf2385f7e4a9d29b5277bc` | `100644` |
+| `source-archive/v6-legacy/S0297.md` | 12857 | `4db6243b844fb8e5cc99dd574b553b24f18a70fa1a45a998e533a7eb267afeb6` | `100644` |
+| `source-archive/v6-legacy/S0298.md` | 11451 | `e2bdca2b18b49609a11110baf9186bed97faeb1a1dd52f94a79b7d3318d9d8aa` | `100644` |
+| `source-archive/v6-legacy/S0299.md` | 11304 | `9c987561fc304b4cdfa1b075eb0299222323b430d87675be556ec6e8cebed1ba` | `100644` |
+| `source-archive/v6-legacy/S0300.md` | 11127 | `c4458c472676e543f8738b8790be8339f4b231938ed6b96b3b0dfec432118a3e` | `100644` |
+| `source-archive/v6-legacy/S0301.md` | 11419 | `0f7a0ad75704f142048dfa49165a972dbf27a3fe2cca2b1e7db498df2ac17f4c` | `100644` |
+| `source-archive/v6-legacy/S0302.md` | 11298 | `c89a147d7f834456a48061781437bb2e6e8f3f42b9f80e22cc3f5ac82670ea28` | `100644` |
+| `source-archive/v6-legacy/S0303.md` | 12750 | `6eecac6eba991aee77467e4bc3f6699b3ca4b77d8c9b704c95e423579c1e627d` | `100644` |
+| `source-archive/v6-legacy/S0304.md` | 11318 | `f97c13089981ccdfeeea5b096cc004252a4c16add2a91f7799c61e03dbe74470` | `100644` |
+| `source-archive/v6-legacy/S0305.md` | 11141 | `57345635a65918b4e2ee99c3b8adb1dfcd37b30051fd2cdcb5f0a8e1a3e8c5e7` | `100644` |
+| `source-archive/v6-legacy/S0306.md` | 13108 | `713c8f88cad97964f4ce09456fa75c9dbed7310d674e1467a4a5b1e3d876697c` | `100644` |
+| `source-archive/v6-legacy/S0307.md` | 11377 | `c12e6b8507fccc156b009bed6e46d9982b62d43f4112db5adcee93968de0d6cb` | `100644` |
+| `source-archive/v6-legacy/S0308.md` | 11363 | `0632398fc7d4f026a48378ae88fba420febd34cec4759fee2e34395c218a07ff` | `100644` |
+| `source-archive/v6-legacy/S0309.md` | 11103 | `fae0fd7841c81153da4460964f92cf522812b5318eb8eb5e66d69a14d60c6b6a` | `100644` |
+| `source-archive/v6-legacy/S0310.md` | 11283 | `8f5f2d1159b8d223495e599c3025b09688429e89ff0da17abfee2d5e9e1dadbc` | `100644` |
+| `source-archive/v6-legacy/S0311.md` | 11105 | `03c1ad70da9672418d7ca51269ad72ada915e81c354bdbac21d4bc19694429ad` | `100644` |
+| `source-archive/v6-legacy/S0312.md` | 11285 | `28736b383543a42b4a0c3f8105eaa87b3f872d447ad8243197c0111333ca3d2a` | `100644` |
+| `source-archive/v6-legacy/S0313.md` | 11374 | `bf4540d3f126d255b51f7fc5b68b832bfc4c050acdff55787bfe126fb0defb23` | `100644` |
+| `source-archive/v6-legacy/S0314.md` | 11185 | `5ed14079bb14727de12f9f63e51925c83699b2f78f95d1ded12483b84ca8332f` | `100644` |
+| `source-archive/v6-legacy/S0315.md` | 11368 | `d6a2266a8b3cd2efeb5dc8095d9f4d49b249702bbcd58db3c87359a2b5a6911b` | `100644` |
+| `source-archive/v6-legacy/S0316.md` | 12861 | `00213c1aebec05d981aba98f1e9fa7e88bb66b1d2410385828ce96fe7ec03895` | `100644` |
+| `source-archive/v6-legacy/S0317.md` | 11388 | `dd94b590d3b3d8e20830d8d44f4c27ce4c4170328ad848494bff579857d76d37` | `100644` |
+| `source-archive/v6-legacy/S0318.md` | 12250 | `f9de99f7a0fd4495bf32778150d8d6785d54ffc719fe37add6a5d1b288552ef0` | `100644` |
+| `source-archive/v6-legacy/S0319.md` | 11828 | `d3b3ce7de85f04dd168c1e8e414499c4efbc97f3c6145ab0505c3c380c964540` | `100644` |
+| `source-archive/v6-legacy/S0320.md` | 11211 | `4be3bc5a00c848f1b1fff1288649d71cf1a2ac17d8148e4489e203c86efbdea8` | `100644` |
+| `source-archive/v6-legacy/S0321.md` | 12914 | `8eda5cd45c02e3cd84b4d63202371cf07b9621c7495385892cc35a00c3a9df55` | `100644` |
+| `source-archive/v6-legacy/S0322.md` | 12873 | `81016786424f9d1b686ea2f73f90e50fbbffd1e1628e7b34d1d0e4dbdaac824b` | `100644` |
+| `source-archive/v6-legacy/S0323.md` | 13067 | `85b45852bc4a702257225c87e0cabb2bca4098534a71ef17176d16042a9a70fb` | `100644` |
+| `source-archive/v6-legacy/S0324.md` | 11173 | `beea0ba96cf98ac90d7a20d04b1c4483b90df3d599d10d889f213ce26291f2a6` | `100644` |
+| `source-archive/v6-legacy/S0325.md` | 11371 | `f4a9110fd0788bfe6efacfd326ba98e590608616ace46a056f29db06c8cd421c` | `100644` |
+| `source-archive/v6-legacy/S0326.md` | 11141 | `bd06a8b07c412984a87a4a0cf00a92453fb53364f4211c3b5c5eedb1ad50d2c5` | `100644` |
+| `source-archive/v6-legacy/S0327.md` | 11416 | `6f331843da36142834ad2ca546e541a61444807c6d111e3e2e6cd2ff2b3e7e6c` | `100644` |
+| `source-archive/v6-legacy/S0328.md` | 14197 | `c580154a8ef7ad7ee9bc439f18d75d3c9cb9612b7d49277374aa3794ddb87042` | `100644` |
+| `source-archive/v6-legacy/S0329.md` | 11201 | `60419eca2e1f6664713cdd67c567fa421b624c7e8d41c6754dd4dbde11b308f4` | `100644` |
+| `source-archive/v6-legacy/S0330.md` | 11452 | `6f81f13c31779db232e95a2fbabd51527240ea9169d11e566dc3199c2fca3199` | `100644` |
+| `source-archive/v6-legacy/S0331.md` | 12002 | `53c9f6865ae5caf3944a045dea7fcd70b96039bf10701bebcefc73814451db05` | `100644` |
+| `source-archive/v6-legacy/S0332.md` | 11207 | `a93d2cee7c7e38f4e875b3f30bf7eb912da7cb328d5e734d3c74dc98625db5cf` | `100644` |
+| `source-archive/v6-legacy/S0333.md` | 11384 | `b3b548097985e68eb25d0509c92f97b46712e55853dc28429cef171274d89067` | `100644` |
+| `source-archive/v6-legacy/S0334.md` | 13257 | `f7183a9185131f1067ac89f3a1c69f63ee684ce5fba10ddc1ecb246f2e388a0b` | `100644` |
+| `source-archive/v6-legacy/S0335.md` | 11370 | `48524977ce2f5a8a972be18423cd88e6b7dde4a7e59302310b9ca0ea3ec76a9d` | `100644` |
+| `source-archive/v6-legacy/S0336.md` | 11358 | `17d827d76b170c969b82e39c9c174f7d2937a5e7f7f2161fe0e3c16824eec3f9` | `100644` |
+| `source-archive/v6-legacy/S0337.md` | 11890 | `38d55c3bad130df109817a0a48bac5f256f53534328284219748c3e3c0b0ee2b` | `100644` |
+| `source-archive/v6-legacy/S0338.md` | 11250 | `a5cc2b0433ed50ac892b4df7231b25aecb4e40060a254e3e73d3d6c2a7b9b313` | `100644` |
+| `source-archive/v6-legacy/S0339.md` | 11271 | `d03fabe7e6dae9a9887ed82880f630fb8ffca54adec826eae8e87e1e4c8c2816` | `100644` |
+| `source-archive/v6-legacy/S0340.md` | 12113 | `09cbc8258e79205362c01d25c2459634b5d84e14beb473ea6d20d9403b89bb5d` | `100644` |
+| `source-archive/v6-legacy/S0341.md` | 11277 | `317fa691f34e9a1655273b79007aec39b05379f8312ed406b13f5ab94225af5a` | `100644` |
+| `source-archive/v6-legacy/S0342.md` | 11454 | `92fc1778f4b79c9d65c3b31419b57eed98d2db744b8c696c0a59506c5276439c` | `100644` |
+| `source-archive/v6-legacy/S0343.md` | 11428 | `9acc625085ddc77727bc2c0e9653c78789acddc08a98e2a95c676d1ef953efe6` | `100644` |
+| `source-archive/v6-legacy/S0344.md` | 11320 | `dcaeb65c94c13ba53af6fbc68fa7b1aceda4d005f94371a0d4d6851821c48ac4` | `100644` |
+| `source-archive/v6-legacy/S0345.md` | 12175 | `0190b9c0cf5f46e1246752ea17385a32b984a8cd28c44b96e6bd7bc0edea3307` | `100644` |
+| `source-archive/v6-legacy/S0346.md` | 21925 | `69bedd435797c96ad563a6909b5dbe5bf9ae8852bc3bd1576f564355ebc2aecf` | `100644` |
+| `source-archive/v6-legacy/S0347.md` | 9694 | `7bc5893ff2f05974c1a476fb0ee8b94abb29d05a927a0fbe0f9d6027e5f69cce` | `100644` |
+| `source-archive/v6-legacy/S0348.md` | 861 | `69154955b1a6e4ebcac90dc34ea2d85e86b802fc5715d7074e32ea2710deeb14` | `100644` |
+| `source-archive/v6-paths/S0001.md` | 362113 | `39e26e1f7f880f4880d774682bde65e948f230d9ece2b1b2d515737f421acaef` | `100644` |
+| `source-archive/v6-paths/S0002.md` | 8470 | `ab2dec2c6d623af0cfde4b866e6213d6af1a8476c4af0b250d7e97874a2ccdcf` | `100644` |
+| `source-archive/v6-paths/S0003.md` | 12133 | `0189cbbf0b162914b61d5fa0c20998627a87302976cb7a035dcb2eb16f3261d0` | `100644` |
+| `source-archive/v6-paths/S0004.md` | 12269 | `9111a8eadf55c1d39747fbfdb66df28141974f29fd4c927e6f2e3d85757e0673` | `100644` |
+| `source-archive/v6-paths/S0005.md` | 11738 | `b5720b3abdfbe5045902646004b8eba57d98426f89c4cbcf1a3525d7ee56e7a3` | `100644` |
+| `source-archive/v6-paths/S0006.md` | 11751 | `383bb0bbebb26bd213f4109f72768032974b7af72ad233d1abac46189ed14447` | `100644` |
+| `source-archive/v6-paths/S0007.md` | 11828 | `55a3d951a4bac47b66632149610a3a7691d014949f81367d24dc4ae1c6dbff50` | `100644` |
+| `source-archive/v6-paths/S0008.md` | 11826 | `b5be00a6b87dac7138cc12649c34aa533f3ade49b922eefb73123fae9090d51c` | `100644` |
+| `source-archive/v6-paths/S0009.md` | 11824 | `58a9a81243dc5287835ad47d046478018818366de86696b4b129f9ee9013795f` | `100644` |
+| `source-archive/v6-paths/S0010.md` | 11801 | `0ccefc981f58e295d1587d675c86205e635fad36b121cc28b7440d20a7c6fa90` | `100644` |
+| `source-archive/v6-paths/S0011.md` | 12056 | `4473755414e0d4f781dbe4ee22140b067526e5cf19b4d02c303a266c506f7022` | `100644` |
+| `source-archive/v6-paths/S0012.md` | 11668 | `75744e738c2af041b173ba256730a661ab0541ee45f4f53851747f47de4b3184` | `100644` |
+| `source-archive/v6-paths/S0013.md` | 12151 | `c0eeca871ba25430f70dac2169a15d0115f09f32b997e4af2bea8a2d6f3ca86c` | `100644` |
+| `source-archive/v6-paths/S0014.md` | 12207 | `a62352d4d6238a37ef4c8012f615e3dc82d0233d9228730d270669aa27a0ff5a` | `100644` |
+| `source-archive/v6-paths/S0015.md` | 11963 | `5a0f379dd8f761862119b72e454bed0814358d6e9b662be34ec172ecbe78f501` | `100644` |
+| `source-archive/v6-paths/S0016.md` | 12132 | `8dd55f271d744b6fca636b551a3c5d0f516d958574365afc44da1b6231f1c7fb` | `100644` |
+| `source-archive/v6-paths/S0017.md` | 11833 | `074401784ebb3f31181c8ce157957653888a8957bc112074f2d388adb00122aa` | `100644` |
+| `source-archive/v6-paths/S0018.md` | 11907 | `066a61868a9dba426544fc31ec56f97976bd6cf03eb757d1f63a35e6f2e2dba1` | `100644` |
+| `source-archive/v6-paths/S0019.md` | 11904 | `b0b532599eb5a44f4f9cae77de36cc0278f105dc26d02dde2ac198a7751169a4` | `100644` |
+| `source-archive/v6-paths/S0020.md` | 11880 | `33bcd2b575acb4c91f5ea160b47976af662d0cacc9bd1fc4d9fc2d076ee57099` | `100644` |
+| `source-archive/v6-paths/S0021.md` | 11754 | `033fd9dffdb553aa6428cf6e084b739fef8d52dcf6a63487987ee3e8dfb1caa5` | `100644` |
+| `source-archive/v6-paths/S0022.md` | 12286 | `136e95591cf6bf27dd6eeb235102860137ac3e34c38c77e621bf120f99231ff3` | `100644` |
+| `source-archive/v6-paths/S0023.md` | 12346 | `77aee3ffd8746aa12a97f28819024c608d5d8b82f8389383dbb75f050f8919ed` | `100644` |
+| `source-archive/v6-paths/S0024.md` | 12249 | `ec11b9f192786bb9fe17756fe7ee1629b9b26fd17d775856f58873e2f4ad589b` | `100644` |
+| `source-archive/v6-paths/S0025.md` | 12241 | `d99c5081faec88086ceb26ed1dbdfe009b02407d52c24501621e3cc7a30de192` | `100644` |
+| `source-archive/v6-paths/S0026.md` | 11982 | `b2f7bb93ef3e9fdabbd0c27860c72b4a233f3d7d8783942dd262182a45b7e85a` | `100644` |
+| `source-archive/v6-paths/S0027.md` | 6936 | `2eee4296c253c2f805f3540f5fef841749235054904f21ad6bb04820a064dd2f` | `100644` |
+| `source-archive/v6-paths/S0028.md` | 8554 | `c95c53c29daefa6b360aa2218011be500fba390fdd4e93984b54568f4322b8d1` | `100644` |
+| `source-archive/v6-paths/S0029.md` | 15650 | `c31e0cec52a4e2aab15690e5832dc4b7d8eedc0a505455518b7de922cc647855` | `100644` |
+| `source-archive/v6-paths/S0030.md` | 15439 | `84960ec80d56b8548739f30e9f35f622a927d425d6d154d053344f75f74d3245` | `100644` |
+| `source-archive/v6-paths/S0031.md` | 15502 | `70f76a65b746c241484c19fde8842e7a251845ad1f254857cd269aaab9272187` | `100644` |
+| `source-archive/v6-paths/S0032.md` | 15588 | `fb98e10e4075364de6be0dd635cf1311dbbae8a57de0f4fb4a3d885a29a81b57` | `100644` |
+| `source-archive/v6-paths/S0033.md` | 15625 | `0ef7c3e8f757032f215aeb1dffb0be51b35e3fa068c4309e9762b4db497f92f1` | `100644` |
+| `source-archive/v6-paths/S0034.md` | 15320 | `8141afafe4c4e68205f89a636bd6f9a475ddfb97029005fa63a98a650dfee5a1` | `100644` |
+| `source-archive/v6-paths/S0035.md` | 15598 | `fab201d0d64377899d7f8000889c51ecc09f4f63bebe3cd219be6909f3a8e995` | `100644` |
+| `source-archive/v6-paths/S0036.md` | 15673 | `334b5d6d404f9a607e572b9a90f651e15d3b6bfc5344077dca814cbf417817d6` | `100644` |
+| `source-archive/v6-paths/S0037.md` | 17431 | `1110ff7cca20915d2f9d222416165a79d53f20ef295c8f52c318fc9633ab4926` | `100644` |
+| `source-archive/v6-paths/S0038.md` | 17436 | `81a2c83440a96519cf5b6a13763a0a0ce20ee6f00d8bea0645534306bfdce9e5` | `100644` |
+| `source-archive/v6-paths/S0039.md` | 15960 | `efd36efaee4702f990cbd19f4a867a2b5b3421477a5af1018597e3b4108b08a4` | `100644` |
+| `source-archive/v6-paths/S0040.md` | 15906 | `50d453eafce6ca8624374fa86a753449b3ea60648e8d1250cd2b8cf7aab349a2` | `100644` |
+| `source-archive/v6-paths/S0041.md` | 16069 | `6d0c760163790578698a16bc160dc3255102df162a831990247cb0c384d9bcd1` | `100644` |
+| `source-archive/v6-paths/S0042.md` | 16273 | `cd914d5495ec8d095d547c4a48e99aa1a445bacf2c761e20ee554057e4601cc3` | `100644` |
+| `source-archive/v6-paths/S0043.md` | 16007 | `a3895b2f05d125eeacd3129ef6617895a384ac1d16a98ac3d8a79c72d5d0a803` | `100644` |
+| `source-archive/v6-paths/S0044.md` | 17802 | `10c7f92459c6265c04202fc01a2c821dc827812b247ef9bbb59689558b4b1845` | `100644` |
+| `source-archive/v6-paths/S0045.md` | 15758 | `8518ef4e9c85f8ec68ceea95f3bf28af8744cfe0d82770c8e94968526e3025f7` | `100644` |
+| `source-archive/v6-paths/S0046.md` | 15550 | `3483e35d3b2c9512ec76ca13a352c17c6eff696d16b5608bdda3eb47abfab268` | `100644` |
+| `source-archive/v6-paths/S0047.md` | 15610 | `eadd486ddf3dc7d1d58bf5865d5f75d87417c1c352fa6e0b40e936b7f0f57c2c` | `100644` |
+| `source-archive/v6-paths/S0048.md` | 15693 | `3a35cd1331ed4d35e5ef40ac2ddc5442306fe4f333ec70fda61122355ffc57ee` | `100644` |
+| `source-archive/v6-paths/S0049.md` | 15737 | `2b680cdd375ec78566f699e12dd3f8cb6f824d3064041acfefc590d9b04fae56` | `100644` |
+| `source-archive/v6-paths/S0050.md` | 15437 | `7324e72a9d4b2926784c5170adf0dacad3b0c26e327d10a8ccccc7a9a7e1947b` | `100644` |
+| `source-archive/v6-paths/S0051.md` | 15739 | `a2297db1da808024296a5f6659e94ee63cf65981ed618b1289865d65a137b2b9` | `100644` |
+| `source-archive/v6-paths/S0052.md` | 15783 | `e79c70728cdb8f67821c827bd9685949a74a89ccbef4cf22fc9d82574d7f3f32` | `100644` |
+| `source-archive/v6-paths/S0053.md` | 17257 | `05ef54b3f3bea14cd32ef847ea9cea36065065833937d08599fc12893ed58417` | `100644` |
+| `source-archive/v6-paths/S0054.md` | 17207 | `897c193f0b754a51d2f271c22f19590b53ddcb35c2eb1da1e6c74ca46010a889` | `100644` |
+| `source-archive/v6-paths/S0055.md` | 17240 | `4cc6c49ce1bfc4b48ec18932feec8eff151bd9b9a52e3a3f6446abe32e58badb` | `100644` |
+| `source-archive/v6-paths/S0056.md` | 17615 | `f3cc1e402b83008110e48810ba5b187df87b6383180c3e0bb820c8b239aa3642` | `100644` |
+| `source-archive/v6-paths/S0057.md` | 17203 | `75b0def634ab5430af3ab6ab896e2c6bd5ee604da51d7a050bde581717822ab7` | `100644` |
+| `source-archive/v6-paths/S0058.md` | 17476 | `06924e6a565129078f86637767568cea3f703f1e03cac7d8d85cd6fa2c7a35a6` | `100644` |
+| `source-archive/v6-paths/S0059.md` | 15989 | `72c9111fa6a39fb1253583e4336565bddae589cd47d9b4ad5237b81f18ce7884` | `100644` |
+| `source-archive/v6-paths/S0060.md` | 17862 | `9897005927ca907b0d5783fb490d81f55af0dbf9c8706378dff9ea5970c3f87f` | `100644` |
+| `source-archive/v6-paths/S0061.md` | 16022 | `c4c7b4d5fe370a51f0ad7a7849d6f4c62b740cc80b7b09a93823df3676001b07` | `100644` |
+| `source-archive/v6-paths/S0062.md` | 15732 | `5928613978880f7fe459acc9e16e7ab9739a4d075e148a4670beb3408d06d4ea` | `100644` |
+| `source-archive/v6-paths/S0063.md` | 15817 | `003f5fefaef242754203a46e52a2dde66e75bbdfe23f686b0009c862f176b737` | `100644` |
+| `source-archive/v6-paths/S0064.md` | 15636 | `e589dd2e06110f830e8f55c194ebad8ce23cca0befb8c942a1a00abbe0c5e0bd` | `100644` |
+| `source-archive/v6-paths/S0065.md` | 15624 | `ca709c3672300b3ac43038f48781fe17d74d6eef6991b267e7d4830a7a19fba8` | `100644` |
+| `source-archive/v6-paths/S0066.md` | 15426 | `fc6e088606abad831449f8c1deb240e6d2e87b4d2fa484c65e2316d38eb0d2f3` | `100644` |
+| `source-archive/v6-paths/S0067.md` | 16095 | `da50d50e35a06111566f09cc091a4eeaa37bf3c78fb350d490de43cf18c83287` | `100644` |
+| `source-archive/v6-paths/S0068.md` | 17526 | `1ac904c3b4a8695e32c48c13e598bdb34a6aa1f1619e834a51088f54454d5f7a` | `100644` |
+| `source-archive/v6-paths/S0069.md` | 15805 | `44623cf450c314fff4d22f4d242f3c393648ef35a5116b765891068c5c2d5e5d` | `100644` |
+| `source-archive/v6-paths/S0070.md` | 17701 | `478234d873733f1e1093051c5967f89cc1d7104a1525322a2c1de283d7fe33f3` | `100644` |
+| `source-archive/v6-paths/S0071.md` | 16019 | `af03ffd6ac93552ae05bf8ba18ea7f103fde6119628498f556f0c0f2df02f18b` | `100644` |
+| `source-archive/v6-paths/S0072.md` | 17797 | `e85c69ee075f42de3ce1139058c681d8eb23e5c5822d667749fe770fa1555d81` | `100644` |
+| `source-archive/v6-paths/S0073.md` | 15971 | `cb68ca5f94b82d98df4782d84b6450fb66456730a31364c58f957401a5ade509` | `100644` |
+| `source-archive/v6-paths/S0074.md` | 15915 | `a605590052f0b7e5a484b0eeffe6cf650e08766d79a5e9bab68fd911e9b59fef` | `100644` |
+| `source-archive/v6-paths/S0075.md` | 17863 | `9767579437e54973d03de3b68fab194958639c890ce6c148fde4bbefaa0eb706` | `100644` |
+| `source-archive/v6-paths/S0076.md` | 17868 | `e68f98045a9b6008fcf2f5138b2e7f3df8f095b139da698cede1422a20936e82` | `100644` |
+| `source-archive/v6-paths/S0077.md` | 17580 | `8d777290d86aa2b9107879dc8a7bcd8df2fa348852c9005ba87a584d836ce1e7` | `100644` |
+| `source-archive/v6-paths/S0078.md` | 16270 | `cca5acec7f89d1db5c718c19d06a71887be908f27400b8f0672eab49c12da366` | `100644` |
+| `source-archive/v6-paths/S0079.md` | 16095 | `132769b5e166224b2b95f0d5ddc1c434be4de23a659e2974e10ac8f577fda635` | `100644` |
+| `source-archive/v6-paths/S0080.md` | 16163 | `4ac00fe0ee590dcdab0cf71fa39ea6835e58fe3cdebdb3dde326e3944b8d5b1a` | `100644` |
+| `source-archive/v6-paths/S0081.md` | 15871 | `ea6b4e87bfc484cfea1ce02dd25084c2103d7347c7747d09b837c48c07ffc7e4` | `100644` |
+| `source-archive/v6-paths/S0082.md` | 15923 | `5998c86ace1e3411df84c5949992f39020bb07dade3760bf4f301a38b7844184` | `100644` |
+| `source-archive/v6-paths/S0083.md` | 15741 | `6d9de80712e622f93977ef08e356e3a6b0789f8458285793befa1bed83abbe94` | `100644` |
+| `source-archive/v6-paths/S0084.md` | 15730 | `a7086c6d276fcb0fe4c10b14f26b48e4f40082a87ff67c6c410197e045722ec8` | `100644` |
+| `source-archive/v6-paths/S0085.md` | 15541 | `53cd38aa11f75b26e491d84955260a677ccce0a52da4e49b7bb48a1a7ebdbfe3` | `100644` |
+| `source-archive/v6-paths/S0086.md` | 16235 | `2ef24f52d29208e1b5372407259f0533b9ffa90717d66901775e0b9f2a6a68c7` | `100644` |
+| `source-archive/v6-paths/S0087.md` | 16018 | `8a877024cff08d781577d529c1584586a3412a63b6d86b1a8c47658cd4336ed5` | `100644` |
+| `source-archive/v6-paths/S0088.md` | 15945 | `fa76a41f4d5fe0b2a978be8224093c6e1ac8b730e4159af6dc78b29dcd577c36` | `100644` |
+| `source-archive/v6-paths/S0089.md` | 17265 | `d513aa1565014ebfdedb4eba9d01582c066d06b57fd9f91cde0f19126befb7f0` | `100644` |
+| `source-archive/v6-paths/S0090.md` | 17416 | `805b0249700d644d316e66a0d7dbb952c7fea84c57d0192fc6859797bb771621` | `100644` |
+| `source-archive/v6-paths/S0091.md` | 17247 | `f7434e3493ba3899f7a660aa9a5939ece724b675532fee8a85a290623b6d674b` | `100644` |
+| `source-archive/v6-paths/S0092.md` | 17163 | `cf7e75d8ce7cb8cf58a873099cc878b399a15cc0419ea59ac177c9098753309d` | `100644` |
+| `source-archive/v6-paths/S0093.md` | 17325 | `80f95eb523dc40fb0bc27920a3bb4027edd849c50f925f78d36010d2d3af85fe` | `100644` |
+| `source-archive/v6-paths/S0094.md` | 17594 | `118dc2c201028ed1cfdbe330df39c805aa324efd5885c407b251b9067ea95242` | `100644` |
+| `source-archive/v6-paths/S0095.md` | 17399 | `86cc315bb2ab98a3233cf2c536be9b0eada5ad181244db1d5ebcfe0a361225f1` | `100644` |
+| `source-archive/v6-paths/S0096.md` | 17618 | `dfef14ca6ab5c77ce8e2b222d92032e5f6fa8e8da970e342bd14367412b42438` | `100644` |
+| `source-archive/v6-paths/S0097.md` | 15733 | `f2a4ecc823c78cb505539b36ec3e0e301e128fbe7abc17912628822078caf0b8` | `100644` |
+| `source-archive/v6-paths/S0098.md` | 16772 | `f130dcf9c10c1af5344f126f02a8ef3970b7d7de6e6afb9e33b331b716cdf156` | `100644` |
+| `source-archive/v6-paths/S0099.md` | 15838 | `4c7f52bef143900d227d26a85e54777783b70873ea914fb32de89fed945ca932` | `100644` |
+| `source-archive/v6-paths/S0100.md` | 16172 | `d96b7f8ced03795d1b61d754d45a961330f660e774654834c87a33fe39a8ac10` | `100644` |
+| `source-archive/v6-paths/S0101.md` | 16158 | `17bdb189f1f4edcbc4836a6fda8d53c6213206c85ab2fc902a4088cd18611e01` | `100644` |
+| `source-archive/v6-paths/S0102.md` | 16196 | `668dae97fdd95da1fb0968eca68b9dd12d91cb6c384939ee262f4258bd9d72ef` | `100644` |
+| `source-archive/v6-paths/S0103.md` | 16152 | `b12ea346e214f3658818de64bac4c090e5d69a90e656fa67faf149c6bd7cfb0f` | `100644` |
+| `source-archive/v6-paths/S0104.md` | 16448 | `50f4f3e8e7a984e43633a7d774588f798ab239219fca962f05865a615089d917` | `100644` |
+| `source-archive/v6-paths/S0105.md` | 16323 | `c62510d00ec7db1a94cbb37799cefdb8498df45d313d412014e2c913ca4f1251` | `100644` |
+| `source-archive/v6-paths/S0106.md` | 16351 | `eabeea2c725c1472986024bcd062d42351ef15da61f8d673dbfeb774640dd4ef` | `100644` |
+| `source-archive/v6-paths/S0107.md` | 16134 | `9452fc93eef5a245c5eec6e7d84327cac1809be5d0c656fa4687e0f74dd221db` | `100644` |
+| `source-archive/v6-paths/S0108.md` | 17717 | `173a42d1b97c2529d85bec28c872cd3e2ffc91d2d7a30add08d47cde0c42f99e` | `100644` |
+| `source-archive/v6-paths/S0109.md` | 17556 | `7a99db0699e2bd847b84ba2d2c1ef9d137307a5e536286e0d6e6046fe71db6a4` | `100644` |
+| `source-archive/v6-paths/S0110.md` | 17556 | `824073f329e5cd74affd4383f7cfa8229cfb2e2b51a01578c736c04f6e9f5309` | `100644` |
+| `source-archive/v6-paths/S0111.md` | 17738 | `965682387ab52dfdeb747b85227740d27f4d00e2b2ae0ee047cb2cfe45ade3d1` | `100644` |
+| `source-archive/v6-paths/S0112.md` | 17573 | `978b6cc71f0769aa6413d5590ddb88d05705100f2c5da606333e7d18b252c3f3` | `100644` |
+| `source-archive/v6-paths/S0113.md` | 17539 | `47fed59155d104f9d96fa5a46eaf657aa213cf932ea6df413d891c0a87c5a767` | `100644` |
+| `source-archive/v6-paths/S0114.md` | 17586 | `6e6e5969186a44abca594e944458cded65b95952537357294542bbf379b724ac` | `100644` |
+| `source-archive/v6-paths/S0115.md` | 16315 | `e58bbb75bdd2ccc843442a5c55430657004220e733858bd79e7babc1da49b799` | `100644` |
+| `source-archive/v6-paths/S0116.md` | 16365 | `a8afdb7f89e7f7080d8c8f5bdc6428ee67d9b938b1eca2698ec8d3ce41310cff` | `100644` |
+| `source-archive/v6-paths/S0117.md` | 16313 | `4b70af4466be1e7ba46cc6d4045b76d723d826d95b66b7811294f802978d02fe` | `100644` |
+| `source-archive/v6-paths/S0118.md` | 16298 | `e2ef568d7fccaf61d4f69ccae36a07c3e3cdc30c67416d580baf055862226b2e` | `100644` |
+| `source-archive/v6-paths/S0119.md` | 16337 | `a4bd59a0c38da5ebea54720409731139b330bf9b4bd06f86cb2578f010b31483` | `100644` |
+| `source-archive/v6-paths/S0120.md` | 16339 | `c6d2f6dffa7587a331abecdb268bc48f676fdc2fa8638312a6f9b3a5e093cff4` | `100644` |
+| `source-archive/v6-paths/S0121.md` | 16271 | `2f0f2f65bf426713b4969e0773ad0d444bf549028cacd36950c9dd2069eba778` | `100644` |
+| `source-archive/v6-paths/S0122.md` | 15755 | `21dfb9feed7a40224f573d4ffd7acc8feae3600ef666534df5b6f105ea2e89c8` | `100644` |
+| `source-archive/v6-paths/S0123.md` | 17589 | `efb5ed962a8c511755916fd5bb488834eda84c0dc669a09bf443fed9957a0b41` | `100644` |
+| `source-archive/v6-paths/S0124.md` | 15766 | `3460531fded6498981013aa116867ad623cf72944390c6380e5b1fd099a0a599` | `100644` |
+| `source-archive/v6-paths/S0125.md` | 15774 | `446c06222276bc85bd9d1858b9989dbfe5f58c7b13cde055666838ee1a0d8ea3` | `100644` |
+| `source-archive/v6-paths/S0126.md` | 16834 | `afdb760aeb650cdaca5fda158fb4574adbe097403510761f2dec941215ea5cc2` | `100644` |
+| `source-archive/v6-paths/S0127.md` | 15588 | `8d3385a07bb51635564b5b9d42e0f38011dce23ede9a9397ff0b562be081516f` | `100644` |
+| `source-archive/v6-paths/S0128.md` | 17059 | `e0eeac1c54e03bb4b33bf5ad15006f422cbc1ba7c86622003db673a2ee647382` | `100644` |
+| `source-archive/v6-paths/S0129.md` | 17609 | `4bcd5285d3f9d49fab38a221f2cf2cb9eeecca9049d6ee6c85ad43e34f63b154` | `100644` |
+| `source-archive/v6-paths/S0130.md` | 17496 | `e045bcfde59641c1ed9039c59adeb0df795953fe763477e6bafc5efe9d3ffb04` | `100644` |
+| `source-archive/v6-paths/S0131.md` | 17369 | `01fa19bcaa7623c6718aa933a2daabbafc4c29a0ceaddb248405a92bfdd763a0` | `100644` |
+| `source-archive/v6-paths/S0132.md` | 16056 | `bf4c066f86bd93f87169e5724999b9457d582dececf2fec5ffa54773857d4504` | `100644` |
+| `source-archive/v6-paths/S0133.md` | 17967 | `521d7734467926c0e8cd08dfce1fc93ff56b4cf68efefc1f96385d292289c8d4` | `100644` |
+| `source-archive/v6-paths/S0134.md` | 16097 | `65fcc39479aaff1cd4cb9a8db05900b927492bd5f6ef720d31135a20052a6f2d` | `100644` |
+| `source-archive/v6-paths/S0135.md` | 16289 | `0240be9c024020f3bdd2e4196f7f28467cbeaf409ef51b4969fad86125274a84` | `100644` |
+| `source-archive/v6-paths/S0136.md` | 16111 | `3b760de23baaf9b06b5ce5f07735a07735974c9f1297b87841bf0e6ff9a3e897` | `100644` |
+| `source-archive/v6-paths/S0137.md` | 15860 | `e9cd99776bbeefc7294e0728401d165956a77c2bdc2b084b24099084b841a638` | `100644` |
+| `source-archive/v6-paths/S0138.md` | 15872 | `f16bcabc8f63e637b5525ba828dc871068593479b3f362462dd16650d4745163` | `100644` |
+| `source-archive/v6-paths/S0139.md` | 15892 | `eb8cb4c4672e275fd1d442029ee9bd6828cf72af5d2e60feff2cef6f49f9267e` | `100644` |
+| `source-archive/v6-paths/S0140.md` | 15918 | `77c577f5a5844563b7d5933dc83a86b92b2f9ba5e9653af616e3161ac2f5d1fa` | `100644` |
+| `source-archive/v6-paths/S0141.md` | 16081 | `60b46ef3f464428478c6824d6db4d284ba98802c24f5241676ce5dde5a8d4313` | `100644` |
+| `source-archive/v6-paths/S0142.md` | 15879 | `ff08f036602a386f23e419ad3d11bf116f852fee926d3e6d8fcf456f014fcafb` | `100644` |
+| `source-archive/v6-paths/S0143.md` | 15578 | `724999b2345433715e89ed6abc27eb6cc333028b6dbd9734847d4f85fd871c3d` | `100644` |
+| `source-archive/v6-paths/S0144.md` | 15693 | `1f88c6cd22508c5487c6f655c0776e36a80e5dcad1e3be45422ccbaf621d296c` | `100644` |
+| `source-archive/v6-paths/S0145.md` | 15721 | `3833c8e75a8308d979f6e8bead8a6b38baf365d1e0e69f9616de6e12be0b3050` | `100644` |
+| `source-archive/v6-paths/S0146.md` | 17288 | `4e199dff751cce33a5868e6293c27e773c5a2febeede932073adfead6369adf1` | `100644` |
+| `source-archive/v6-paths/S0147.md` | 17684 | `b8e691842b26b469aa66804ef444d817ce8f2a9c3982ee90c2ed022520a82fd3` | `100644` |
+| `source-archive/v6-paths/S0148.md` | 17530 | `d575d1e628155b4be46aced3d689e488858fd1d68eeef3223450f33929a41609` | `100644` |
+| `source-archive/v6-paths/S0149.md` | 17248 | `60b7c424863d0a1cb29c3456206c57731d7c316085bf49269019b1b47b2e6318` | `100644` |
+| `source-archive/v6-paths/S0150.md` | 17308 | `426affd496ba79011e7dbd2c3161e60b1b2555b0811e01fa66fb432fa8d57b1a` | `100644` |
+| `source-archive/v6-paths/S0151.md` | 15916 | `b07a22e491e1fbeae5218b14f059434138b6b2fc6d44911e98e2679be5cadcb6` | `100644` |
+| `source-archive/v6-paths/S0152.md` | 15607 | `e62da3b3f18c3cc258f80a94f520fdabc64e3e35ab9d03e6ee40e27554bff1b7` | `100644` |
+| `source-archive/v6-paths/S0153.md` | 17139 | `df32ee309625f58499fae09a6400b4ea3b4e0da768bf3c58ed761d236ba8d228` | `100644` |
+| `source-archive/v6-paths/S0154.md` | 15625 | `53890ed9acaeb2ee52b2889ec06e8af5fa61b3d16a1f1dff8a6a4a45ee8d1341` | `100644` |
+| `source-archive/v6-paths/S0155.md` | 15583 | `cf09dc42aecb55f42ca5d428342b63a8ad9bd92ce09f5c87947e6b1a46339d7e` | `100644` |
+| `source-archive/v6-paths/S0156.md` | 15930 | `f6380ede309b332b6aa7488839880a878efa00a143bc3392eb8372b95c3e5241` | `100644` |
+| `source-archive/v6-paths/S0157.md` | 16763 | `0e9661233c044a5589cc4aca3af08ee7b48f2c9a803e5057a82d863afbc9931c` | `100644` |
+| `source-archive/v6-paths/S0158.md` | 15582 | `765e18c69226e8f5ca7254a11b0b9cfe0b44089f9afedd604fa0d26f285f665f` | `100644` |
+| `source-archive/v6-paths/S0159.md` | 15782 | `8672d79ac6fc67f84c532522912c890be73789e2896fa044f44089a166923966` | `100644` |
+| `source-archive/v6-paths/S0160.md` | 15558 | `b176ee71d49f4781b0886b1ae8f525d62bcb031851f8aca1071c1839287b910d` | `100644` |
+| `source-archive/v6-paths/S0161.md` | 16021 | `d998a4ba682a63b9b21d662d1e8217b7a42edfeb8d3e1ac05ec54a67dae66ded` | `100644` |
+| `source-archive/v6-paths/S0162.md` | 15712 | `6bb3c10a7e2f58539cfb02d840a72ccbb8937d9c13dfde003ea86c2fab0ebed7` | `100644` |
+| `source-archive/v6-paths/S0163.md` | 15729 | `7e17f05487c6d97d330e1143b8c8dfd8d2967ce17081a3df691ebc64fab5d074` | `100644` |
+| `source-archive/v6-paths/S0164.md` | 15688 | `ce276b4aa6f562339015493de91dddba28a7ca611745049dafce1c82675484ff` | `100644` |
+| `source-archive/v6-paths/S0165.md` | 16036 | `6e24d762621e8290d7d85d1bd392e483d08f52783ee3957975628c6e76f387aa` | `100644` |
+| `source-archive/v6-paths/S0166.md` | 15489 | `af84883beb1f4e624b8adb740c312a7a221d15a9f0e9a6be127a621eea68284b` | `100644` |
+| `source-archive/v6-paths/S0167.md` | 15691 | `6bd18311b3934ffd186566a72307acfabc6351516afa8aa69abe7ed7dc196695` | `100644` |
+| `source-archive/v6-paths/S0168.md` | 15886 | `6a0c9ebbe7a837bd0eabccfcad8a73ff7b0c90523ce95444c7aa746261227d00` | `100644` |
+| `source-archive/v6-paths/S0169.md` | 15663 | `991494da127fe6e36d941f70d91f58ba45d94c3975aa727cbd43b499b0048c23` | `100644` |
+| `source-archive/v6-paths/S0170.md` | 15640 | `9829273c63eebe8acbac365ea346fc3a6c5c7f09f06fe2c268ce9208fb010acf` | `100644` |
+| `source-archive/v6-paths/S0171.md` | 15684 | `addda74e9ac342ec5661f28f42cf30b15b23d6eec3dc0b73ae7390dbe800dcfd` | `100644` |
+| `source-archive/v6-paths/S0172.md` | 15871 | `039fa7d70fe19364827a2608d59285ddc1f2e0d7a3daf9830bdc2046199535e5` | `100644` |
+| `source-archive/v6-paths/S0173.md` | 15615 | `098cc4c9b6234ca09e84bee5d9b0e860f6938c4443a70b117ffa08ead002a357` | `100644` |
+| `source-archive/v6-paths/S0174.md` | 16119 | `f7717de89e62fb72882d69d026a8573a7d98712a4d88bb538208556d0db703fe` | `100644` |
+| `source-archive/v6-paths/S0175.md` | 17916 | `6a6331575ef2f99e3683dedd466bd34d620005573cc3c4468609be5e1bcafba2` | `100644` |
+| `source-archive/v6-paths/S0176.md` | 15855 | `99b223ee0a4b54186f0388e30a48494dc50f42479b962f64523ca325a7c5b843` | `100644` |
+| `source-archive/v6-paths/S0177.md` | 16046 | `990b3cf8f77ea0fb9c8bf7e294a28e0a805e5de9e8d06f26061ca8aef3ac9b03` | `100644` |
+| `source-archive/v6-paths/S0178.md` | 15429 | `c31ff3bd312e023988b934a5c4844b4ab4ae68c749b14735ae5526c90a41f029` | `100644` |
+| `source-archive/v6-paths/S0179.md` | 15604 | `dee52515442ecdd6be7a76c219267ede9beeef6695f875e89ecf518b3ff29dd0` | `100644` |
+| `source-archive/v6-paths/S0180.md` | 17639 | `8f5077c5d3434aebd51c6a36d6ddb0a891a568505e892ff9e8ae633ef1fb1b60` | `100644` |
+| `source-archive/v6-paths/S0181.md` | 17688 | `9a2a600f7f831bf9000c91ffbe872e564117912e7ab42905805c5844d89c5ddc` | `100644` |
+| `source-archive/v6-paths/S0182.md` | 16087 | `32d79eb3a065f1c467807ba88e7771bb4c0ff1063de4e263a19839c1d7108e2c` | `100644` |
+| `source-archive/v6-paths/S0183.md` | 17487 | `85bba37add037fc98588c801f57a27e2ef44bcd85a09989112f5c087f62b61ac` | `100644` |
+| `source-archive/v6-paths/S0184.md` | 15718 | `bd2c42b4b351d4873a695d36e17c5f4aab99ee1984eba309e1887cc9e5ddb04a` | `100644` |
+| `source-archive/v6-paths/S0185.md` | 15895 | `a6be2584bb029acc305f87e7e6082320b3d62773f3a137ba2d630d2e87d05b17` | `100644` |
+| `source-archive/v6-paths/S0186.md` | 15746 | `9a1b94ca78483252b7594735e043ba42916edc0722629d069a9d1672ec64e2b9` | `100644` |
+| `source-archive/v6-paths/S0187.md` | 15789 | `12c3562a4c4e4c2e440f2565c3a19e2fb0818d90d6c79552c13344404fb27bcc` | `100644` |
+| `source-archive/v6-paths/S0188.md` | 15720 | `3e28d91e461ad348d5a221856fb222d31f7abd7e3ae11bbf4ab78a4ebf37a314` | `100644` |
+| `source-archive/v6-paths/S0189.md` | 16012 | `70d97df10a0c2e4ca62f3a663c04464827a99c81f351aa92ce90509cdf9d6a06` | `100644` |
+| `source-archive/v6-paths/S0190.md` | 16259 | `28504c8a3085873cd9589228dd02543f1d92cea7cb42662c847b152061c17a30` | `100644` |
+| `source-archive/v6-paths/S0191.md` | 15996 | `8bf4ffbd526ebbb5399f738de7b63ca81fc8aaab0d1325ccf0179fb968dc7081` | `100644` |
+| `source-archive/v6-paths/S0192.md` | 16186 | `fbfd14d256efe4ff90da6245127b68ec14e0ca4fb7939f6890114032e41bce44` | `100644` |
+| `source-archive/v6-paths/S0193.md` | 15540 | `f085934df748f09716c07adbc06ec1b12c3492ef89aeb892113499b306264515` | `100644` |
+| `source-archive/v6-paths/S0194.md` | 15709 | `f891fb6b20af8fcf8361dde23649591231cde77a8bc296ca770ac81b98c3dc5e` | `100644` |
+| `source-archive/v6-paths/S0195.md` | 15975 | `4f229b1bad4fc25db1b58a389949b59f6d4c9f35b0c7f0ae16f0f1db91011e86` | `100644` |
+| `source-archive/v6-paths/S0196.md` | 17219 | `27544f2bfb1dd368c65d520ba504e32603f04ed6f63d8bb613d0b808b3e57097` | `100644` |
+| `source-archive/v6-paths/S0197.md` | 17398 | `d6d21e24b08c585377ddcd5ad36da7d01f076585595d873de1f6fde967b9d4b9` | `100644` |
+| `source-archive/v6-paths/S0198.md` | 17406 | `ea0f3d0b1bdf611ecaac4a85a66ec103cc44121e590a2efcf723c910f00a58e4` | `100644` |
+| `source-archive/v6-paths/S0199.md` | 16037 | `c714c3f7a7ad724c995fe4448d5e827dd0a72f0e7160e6769999405662bf402b` | `100644` |
+| `source-archive/v6-paths/S0200.md` | 16059 | `62750d89ebe8ca084b48a38b653c03d9606d2ca15a5d1aa40495cb57b5428155` | `100644` |
+| `source-archive/v6-paths/S0201.md` | 16223 | `c2fdde9de3e339e9e2732f73adec32d27d54b0f2713515e3d0fa83b8dc18499a` | `100644` |
+| `source-archive/v6-paths/S0202.md` | 17262 | `557e4a44a228dedded22a331888dc947eef2c63d6bc32cbce7d80396a67911df` | `100644` |
+| `source-archive/v6-paths/S0203.md` | 16957 | `aabde2202d4700e94efb0b1c1b22e82c8c5c49f5728f5cd82eacfc8b13081229` | `100644` |
+| `source-archive/v6-paths/S0204.md` | 15994 | `59e35e6ab0ce4984a6216656b162dcdb29c88b5e72c6f448ee94d7b85813bac6` | `100644` |
+| `source-archive/v6-paths/S0205.md` | 16309 | `7c5285c5a8297d05088fdb3df9e966f4440feb48785d4c0c7eff765b8fdd3f74` | `100644` |
+| `source-archive/v6-paths/S0206.md` | 16159 | `ea15eefb8898d0141e39891bf47bd8fe1aec888539f3ecb90f4a10eed8f13545` | `100644` |
+| `source-archive/v6-paths/S0207.md` | 16335 | `c6eadea8cc81141442d37fbcc1d848b7e791846b34116a9e5de96d8dd006d988` | `100644` |
+| `source-archive/v6-paths/S0208.md` | 16054 | `8924ec818379de6f7261be8aed6de6957cedd93a072547c59775b9a29c4cf550` | `100644` |
+| `source-archive/v6-paths/S0209.md` | 15859 | `03b548bcca4ca5e544c764afc78554cab91f24c2eb0867db394f71131b639569` | `100644` |
+| `source-archive/v6-paths/S0210.md` | 16115 | `d434449dcff446687daf32f0dcb5862d704c0e58da2eec32493bca0d5c32c8f9` | `100644` |
+| `source-archive/v6-paths/S0211.md` | 16226 | `dba9e29d0596991871dd07f731023adfefb4c8f47981e9cf26f3cd2acc9bfaf9` | `100644` |
+| `source-archive/v6-paths/S0212.md` | 15909 | `af20d84926d97566f145a053211c82d81355c6721c7ba2a0960e1cb5b3882c34` | `100644` |
+| `source-archive/v6-paths/S0213.md` | 16402 | `4f86a6fe66667464eb30c2d1ab5be7ad823bd254c092e6f6e13c2a2cbcbf0f89` | `100644` |
+| `source-archive/v6-paths/S0214.md` | 16048 | `ee273d16fe1d1b3f37be54aa8649a72f1dd04f26177c16f1dfb5c38cd362d02e` | `100644` |
+| `source-archive/v6-paths/S0215.md` | 16324 | `10d9bddbf66f14badcd3efab4bc008c13e7cb7d45c6c4cbe8017c90e102f982a` | `100644` |
+| `source-archive/v6-paths/S0216.md` | 16259 | `a1f88cf36361515ce84087e9ea65911a86fd87336d90b01ce0f9abfb29965d8d` | `100644` |
+| `source-archive/v6-paths/S0217.md` | 16364 | `b65b96266ea0ecda2ab9d655018133abf4a97109b4a93fc8fd1488cedefb684a` | `100644` |
+| `source-archive/v6-paths/S0218.md` | 16454 | `9a85c1a7b3990f236f73646f393fc949748c77db014307739e5f4af7322a1791` | `100644` |
+| `source-archive/v6-paths/S0219.md` | 16181 | `91ccb7d90b03f7c7694e6dc7f322f7d2ef2618bd4cba32903ad50615d85d9108` | `100644` |
+| `source-archive/v6-paths/S0220.md` | 17806 | `f5aa98f2335859ce32f50140478591ec376c6d87e291f39da8dffd5c4cc867db` | `100644` |
+| `source-archive/v6-paths/S0221.md` | 17619 | `770bd12d88784860ad3ff6e5552a78d02e2618bf69b6337920814758fe35cc70` | `100644` |
+| `source-archive/v6-paths/S0222.md` | 17602 | `318273d32c07816a763da7de468309572628533f952a76a1fe3880b22d349c09` | `100644` |
+| `source-archive/v6-paths/S0223.md` | 17582 | `ed109807ca7b93508e1d9f90233bbfde93485bd1ed2142702e6c3569032b80b3` | `100644` |
+| `source-archive/v6-paths/S0224.md` | 17603 | `83937669f954d26f0c4429b5210266c552a98c98bf025bde69a9d7c1c51c874c` | `100644` |
+| `source-archive/v6-paths/S0225.md` | 17551 | `1d316fa6703cdb868326e49a08d069659b7c16d5ba4ce065225cf8d80fc8229a` | `100644` |
+| `source-archive/v6-paths/S0226.md` | 17772 | `e52b1b21e1af2fefad53f264647def04739eaed094c97defb90b0c710047aa1d` | `100644` |
+| `source-archive/v6-paths/S0227.md` | 17736 | `88b309d19e04e620da6697b7fa65b63b9b2218c0564359f326e8a9f7c7e59763` | `100644` |
+| `source-archive/v6-paths/S0228.md` | 16461 | `4af832293c6f0e2493505ffb83eaab7fa0bd41529bfccd45a6abc155718fcfb5` | `100644` |
+| `source-archive/v6-paths/S0229.md` | 16346 | `fbbf0cc4c3fd7c36406df37e41b6932febf713ad5f31a0c51d665e9b7b587962` | `100644` |
+| `source-archive/v6-paths/S0230.md` | 17617 | `25eeaff24c94bd44cec9958e4a54fec0e6612f6bba890933d851533f7a04b4c8` | `100644` |
+| `source-archive/v6-paths/S0231.md` | 17639 | `da38691d531843d74b22d0b78302e64a8f09dda5ef25d8b525a24254f7e53e6f` | `100644` |
+| `source-archive/v6-paths/S0232.md` | 16517 | `eff15f1e5ef6d14b01ec5f41d46d25d7d91d00b25db3d3564b5c4a0e7b103ca8` | `100644` |
+| `source-archive/v6-paths/S0233.md` | 18040 | `97b35b6c9be820bcb7fa8253511b2ca8066ec2be7f1a9feef7926de389164097` | `100644` |
+| `source-archive/v6-paths/S0234.md` | 15723 | `beaf94c396a4738f77a0341b7f421b33e27b6f170e43b63b3e6529b45ce8bfb4` | `100644` |
+| `source-archive/v6-paths/S0235.md` | 16271 | `f16fd7986aa2b8b841a0eb60900d3afcaaf96454e8c193497c379a9e2102657a` | `100644` |
+| `source-archive/v6-paths/S0236.md` | 15991 | `06b1f71cc9823a47b48a1fd8fd522d621c5e15deac3c90729115f020192ad118` | `100644` |
+| `source-archive/v6-paths/S0237.md` | 15828 | `4773da2267a9661a2eb22002e97abe6be7173fa9505b0cd074b7f5d89182105c` | `100644` |
+| `source-archive/v6-paths/S0238.md` | 16362 | `790ab8cefa9a1b0dd819ec1adec164400da81e3929a2c1733c74cc94dc6b70e4` | `100644` |
+| `source-archive/v6-paths/S0239.md` | 16116 | `f313b1593317edf31070f85bb24482d10d77abc4a7ec880dacc9efc584ead372` | `100644` |
+| `source-archive/v6-paths/S0240.md` | 16164 | `b85223f23efcd1dded3e9e9e257dd1dff03654cab8d9912ba43e5fb48b9e5195` | `100644` |
+| `source-archive/v6-paths/S0241.md` | 16035 | `e962647d35cac530684053534da88528af1b76189552bc4962bc43cb645d2ade` | `100644` |
+| `source-archive/v6-paths/S0242.md` | 16009 | `3e021e7d6101f015d73a8b2a9c06d0eb038aad23a97a545949d4d44a37659f68` | `100644` |
+| `source-archive/v6-paths/S0243.md` | 12712 | `01404e5f885b64476e230f2ec4b4a748ee45bf640eff86620fd70c008a3d6c74` | `100644` |
+| `source-archive/v6-paths/S0244.md` | 17290 | `d9595cb2f3fdf747015895d1b4bfde2cf274edfd621ea894c3db39dee73be08d` | `100644` |
+| `source-archive/v6-paths/S0245.md` | 15705 | `ff148332728969e5c042be51328bb1462bb14db68bb9629e646b71c0b1ebf188` | `100644` |
+| `source-archive/v6-paths/S0246.md` | 17248 | `3fc18c4733406906b3d4abff0254bf238b42268ae8cc666788be214bbada7af9` | `100644` |
+| `source-archive/v6-paths/S0247.md` | 17575 | `8ed324a7ea39c5bda87838ac01c5ffad1d2aac248d3396dbd04b8045564d956a` | `100644` |
+| `source-archive/v6-paths/S0248.md` | 15560 | `c8efde2ea19d03ad3fc9af6ab1d4ee39c22dfb27c9160d0dc2dc6727ce5e9c53` | `100644` |
+| `source-archive/v6-paths/S0249.md` | 15661 | `07b42328d64ce60f671c9abaaf6dd89c6880cb715bcb7cc0f4da50dec6a03a95` | `100644` |
+| `source-archive/v6-paths/S0250.md` | 16022 | `f50d70283c89967f57beab1b4c1b8c4546a86903c6326fd120517e032f5140a0` | `100644` |
+| `source-archive/v6-paths/S0251.md` | 17373 | `da53672dfa55dc39c5b7a0f396fc79df842ce061ab97b460755adebcd70cad03` | `100644` |
+| `source-archive/v6-paths/S0252.md` | 15881 | `cc730f4ceaef3c05eab6b0f324dbbde4ca4fe81db6eea1d75fedd1f1e707d3be` | `100644` |
+| `source-archive/v6-paths/S0253.md` | 16022 | `93a7fde2538dbd8c2d785772ba392be635fe827beed625578042f4406e9f5927` | `100644` |
+| `source-archive/v6-paths/S0254.md` | 15924 | `b5ae9f3e033745fa79bd6b022679ff2302f46906a50f96f616ee1cda0f0c3f82` | `100644` |
+| `source-archive/v6-paths/S0255.md` | 20195 | `ae4c4489706ce51766ffff0b4d3ea8bcf9bbd3986d8787204ed1e38f8631ddec` | `100644` |
+| `source-archive/v6-paths/S0256.md` | 16003 | `c9c7e2eae4932a8dc31a8bab6cc33e16bf142b6a59c71eff26f286226f0c53bb` | `100644` |
+| `source-archive/v6-paths/S0257.md` | 15845 | `9a74bcd77e9306bb22aefdd614caf123e24eb33c17907618dcc73ea81f4f119b` | `100644` |
+| `source-archive/v6-paths/S0258.md` | 15906 | `eda5226c0f8954dc4fbfd3078884cc010d1715e4b1b2676b5d015c025415f8c7` | `100644` |
+| `source-archive/v6-paths/S0259.md` | 16002 | `26b469a8f0750c30be91fd6a6c5606e6264b603a44db962ab7d785e4cf76bebe` | `100644` |
+| `source-archive/v6-paths/S0260.md` | 15667 | `cfe8fd3d4f5bdd1dd693b364caf4d1e512bf22aa2be8f72ee6fe1bb9097a4651` | `100644` |
+| `source-archive/v6-paths/S0261.md` | 16092 | `b12abe62619faf29e5ab17bfe8934b50fe46d71e15170c829f531ecb0e1e3983` | `100644` |
+| `source-archive/v6-paths/S0262.md` | 16162 | `d9f0a6104c842610b782412c13591a68fe2a02da47e6befadb180011138047e7` | `100644` |
+| `source-archive/v6-paths/S0263.md` | 15766 | `4fbb812ab57cc79cf8dd71e1f451c44a845e6a1a8b8a47269b41deafc957c2a2` | `100644` |
+| `source-archive/v6-paths/S0264.md` | 15986 | `ffb151f2d7e322ddbf6d9d15b45eb4b9aa096df731c503542b4874eb8c86e3f0` | `100644` |
+| `source-archive/v6-paths/S0265.md` | 17306 | `e9e28c2a43e753531d6fcc74e4304fa39ad2021b2f62f4e26afcfce0b37cc92f` | `100644` |
+| `source-archive/v6-paths/S0266.md` | 17604 | `898f837c4f12f60448d939664aa7af84ba5efbc656a271765882492489bfb694` | `100644` |
+| `source-archive/v6-paths/S0267.md` | 16028 | `224c70ce6d8ee3d95dd0bf914abccfdcc14d9eb3e633848fac48946ec3ce8ef0` | `100644` |
+| `source-archive/v6-paths/S0268.md` | 17720 | `e7487ff0d7633b450f421c2cda883f95859a62c84cc758322e2f501b941a11a2` | `100644` |
+| `source-archive/v6-paths/S0269.md` | 16079 | `1b19a85e81d0e7126c5ecb445865f6205a2f82cacdf48fa08a53d3508470ce7a` | `100644` |
+| `source-archive/v6-paths/S0270.md` | 16750 | `0e555ebc7234a7c0b2c3d7bcc63866915d5d4e5803a92ca69d31d1c353a837fc` | `100644` |
+| `source-archive/v6-paths/S0271.md` | 15836 | `2aa659a533c783afe183fd6d2877e6f9cc59660eb778690935ccdbf2b3241ce0` | `100644` |
+| `source-archive/v6-paths/S0272.md` | 15891 | `4b33bd3e464980684bb61d04deea973ae9a4d96fc1f8c076cc5b716410a2ebb3` | `100644` |
+| `source-archive/v6-paths/S0273.md` | 16171 | `dad4940f563f0675c48dd5fb0c90d709c1264daabb5c181cba57c82942ed3238` | `100644` |
+| `source-archive/v6-paths/S0274.md` | 15948 | `665548d6a834a6f26fc28d5ab9dd8ecd3cf24d3917a71cf1e389f599a27c9f75` | `100644` |
+| `source-archive/v6-paths/S0275.md` | 15504 | `b4860cb5c93d22a14d3a2869362c071393f079f00eaa836ceea67a863e10ed1d` | `100644` |
+| `source-archive/v6-paths/S0276.md` | 15742 | `1b04ac6f9328a4c0e22d0e65f2dd377a754d2d83f50542b858d82a6ecaac0a50` | `100644` |
+| `source-archive/v6-paths/S0277.md` | 17721 | `81bb53f012aa1a588e26077526038fce8ff6be5b1c7b12cb961638bf38b50a8b` | `100644` |
+| `source-archive/v6-paths/S0278.md` | 15976 | `ea4939f2e117c688ca54bb1823186b50b62d440fe6f8f55c6dd21896188207c0` | `100644` |
+| `source-archive/v6-paths/S0279.md` | 16032 | `97a275b6789e9f1b1c47b902ae9e267de3f06387c22c0ef0389b98e1a13f8b9d` | `100644` |
+| `source-archive/v6-paths/S0280.md` | 16311 | `22ca14a01f94d4636d8b2de08a2422aa3b2f398114624806f8c753cbd3946144` | `100644` |
+| `source-archive/v6-paths/S0281.md` | 16088 | `9e49a33467c6649108d1e35f6cbff3fa69922f40e8a239b401900641413b7830` | `100644` |
+| `source-archive/v6-paths/S0282.md` | 15650 | `f768be54df9bd36f80dd33d5dd149aa01a9118897e6c662ad3bb61d6f9ec980b` | `100644` |
+| `source-archive/v6-paths/S0283.md` | 15882 | `a4ae8b0ba5a1070184c456de5bf48e18adab17702b5b672d6fa23b49927dab26` | `100644` |
+| `source-archive/v6-paths/S0284.md` | 17371 | `b396aeb935a9c0be8a6ee67b22eb424e84c76b8fe714e052a565056120384f05` | `100644` |
+| `source-archive/v6-paths/S0285.md` | 17557 | `6c9dc1d283f9bb920f7061049266abc3e35757838109afe316f8b9023779d851` | `100644` |
+| `source-archive/v6-paths/S0286.md` | 15719 | `6a428551b7a0984a4f69d3fcaa0cba37379a3fa9223575bb0fbe021fb901c281` | `100644` |
+| `source-archive/v6-paths/S0287.md` | 16830 | `1b23f132662ea10932a519c300cdf4bb70f3d761f7b48a8a399622347fab3336` | `100644` |
+| `source-archive/v6-paths/S0288.md` | 15662 | `f7e503a353bf3c0468d3e3534398c88ddbddf031340d64e2d4079354a83fe899` | `100644` |
+| `source-archive/v6-paths/S0289.md` | 15934 | `d85c50ffde6f20eaa64dbdc136eb1556d1840a7f5a9adb382e17ba739727a96f` | `100644` |
+| `source-archive/v6-paths/S0290.md` | 16003 | `d4388aa5c199a3ea40187eeabd063d35c5acf417e3cccb2a188ab5024ffb87cc` | `100644` |
+| `source-archive/v6-paths/S0291.md` | 15826 | `35e4c606f9d68bfd14371a79230b875a68aaec2bacc658a46192f524f1372951` | `100644` |
+| `source-archive/v6-paths/S0292.md` | 15565 | `55d94d7410b22e4cd092b1e178874eed9e5f9d524d5ab91a5896334f468146eb` | `100644` |
+| `source-archive/v6-paths/S0293.md` | 15766 | `292acb82dab856867beb4dda37b47ef0a0f9a069fc0d6145a72f0710671778c2` | `100644` |
+| `source-archive/v6-paths/S0294.md` | 14698 | `b2c7450ebccc7c4b2505a631561a2df836310e8f653d88b324a0ccf042ddfbca` | `100644` |
+| `source-archive/v6-paths/S0295.md` | 15311 | `a7cba7f31a4948fc3933f0b288355c4bfba782f277d67d443771b61af037984a` | `100644` |
+| `source-archive/v6-paths/S0296.md` | 13416 | `d47be5734320202e0adac00309b6bf67edbd8088a52a50adcd9780b3df3f7283` | `100644` |
+| `source-archive/v6-paths/S0297.md` | 13518 | `f123da022bdd91962e7edf2ea4315cd57bd5f820ba213a60e073d676f96af017` | `100644` |
+| `source-archive/v6-paths/S0298.md` | 12071 | `cfdb2cf3fc30ca680e5373d303b11e71f05cbf1921bc32ba51f43e6f65b356fd` | `100644` |
+| `source-archive/v6-paths/S0299.md` | 11921 | `5f79429aa872a838a82e7a810001e5e067f4f1029185276c050bc4bcdab25b2b` | `100644` |
+| `source-archive/v6-paths/S0300.md` | 11732 | `d2d9855cf4bcb6ba0fa514fc26e5e187274e11588e8796c4482e6269d2876dc7` | `100644` |
+| `source-archive/v6-paths/S0301.md` | 12039 | `1383d47509e7717cfd461bdf2d8a79f15a362bb107ae590e1c6cc88f7b4b1d0b` | `100644` |
+| `source-archive/v6-paths/S0302.md` | 11913 | `9cbddf9c8408f0a85fe0365aca4f89444913efc80dd65238d1189221e7d6cf1a` | `100644` |
+| `source-archive/v6-paths/S0303.md` | 13386 | `56f545121c28a2b84306a71a3d7dba797f34109da3cdd73ab663b185b2ae7d5f` | `100644` |
+| `source-archive/v6-paths/S0304.md` | 11938 | `4f779dddbe7fdc382c2d237185c27a89af365aac124af58ca07c62f84984b67e` | `100644` |
+| `source-archive/v6-paths/S0305.md` | 11753 | `25f857f3e8f4617f0ceaf8a831ae43e215332836050d3502bd02b26caf82f0e8` | `100644` |
+| `source-archive/v6-paths/S0306.md` | 13769 | `61f0c78432943fc3df626277f1be3e0bb74faff837048a918bb4a5cf4de3774f` | `100644` |
+| `source-archive/v6-paths/S0307.md` | 11997 | `3c5f54773f714c8a292a7c51ba74eaef42304b14b588e93990d29dd4e21b741d` | `100644` |
+| `source-archive/v6-paths/S0308.md` | 12024 | `25d50c6bf64ce3b760aadc3a9667f17577e3f4b54879dfaef3f4e16e15c67535` | `100644` |
+| `source-archive/v6-paths/S0309.md` | 11711 | `3b6561343f249a572950343d9940e8eca2b5c7cd5d0eb3a098348a8fbc906420` | `100644` |
+| `source-archive/v6-paths/S0310.md` | 11879 | `a1f1a2a2ba3b40f22407e3eb2dd192fa32aa4ed746fe8d6cb3786e4b1f7ee30c` | `100644` |
+| `source-archive/v6-paths/S0311.md` | 11683 | `407e8e3e188e852b01fcc71383053a97149c114d7ece028d065e0621b7e544b9` | `100644` |
+| `source-archive/v6-paths/S0312.md` | 11902 | `d03014ae84a11d0d8453b1b36d0725c92f0b881a9544e5e306023e4816a05511` | `100644` |
+| `source-archive/v6-paths/S0313.md` | 11994 | `26bef4aa811c6d5af1158e82a75a96816b29957f2899752f1b99eafe49ab992b` | `100644` |
+| `source-archive/v6-paths/S0314.md` | 11805 | `49efcb2a55214d03ffc5a1694ee2ea7bf78a123d251605a89f4efd8fbcadc17f` | `100644` |
+| `source-archive/v6-paths/S0315.md` | 11988 | `9f4e18ce12a52436d724b3ae0215738e110f8c15152eff8f869ffa08c4b94648` | `100644` |
+| `source-archive/v6-paths/S0316.md` | 13497 | `ef1a9fb3df97b8034f4e976b833f295383ef4a446567b1e7d5ec05b19ad55ad4` | `100644` |
+| `source-archive/v6-paths/S0317.md` | 12007 | `c748ce0dbed62df8dc280bc36793089444820befa6050f057cbcf85e306def2b` | `100644` |
+| `source-archive/v6-paths/S0318.md` | 12911 | `3d5da5bbec14b8c62678e99cfbf71dda4f0d494ad98b0470422a6185a3b48ef5` | `100644` |
+| `source-archive/v6-paths/S0319.md` | 12448 | `642c12c6345b49de05c42ea2200ec154db68e693a6881e4de81fbf009322cc88` | `100644` |
+| `source-archive/v6-paths/S0320.md` | 11830 | `0f02a16831333dcc5b52372caa0d7711b1f502e23d445695de8eb49c797ca8cc` | `100644` |
+| `source-archive/v6-paths/S0321.md` | 13574 | `da1f7e12f7bd10639ab40cc693cd01b144c9e6dc219ed72c7242d3a752e2395d` | `100644` |
+| `source-archive/v6-paths/S0322.md` | 13533 | `304658bf08bdaf0f69fbc35a42c596f5e74e067c6862a24d6c435939f5ea630f` | `100644` |
+| `source-archive/v6-paths/S0323.md` | 13727 | `d76fd930de173e0b65541abdc125db7e18800a6f1217130c6667fda1e7b61b06` | `100644` |
+| `source-archive/v6-paths/S0324.md` | 11793 | `a6900f7e19236c9b4e815ae2a49b0749a788b105ebde81d66faa53bbf326c25f` | `100644` |
+| `source-archive/v6-paths/S0325.md` | 11991 | `f7f12d7fc0c182cf0cf91544b5ee3fc186e080ee337110ff60385835da57a6c9` | `100644` |
+| `source-archive/v6-paths/S0326.md` | 11754 | `f0c166b3f6523610481b2cfec255b9a7b1e3775cad2f513e9636b551f5d7776f` | `100644` |
+| `source-archive/v6-paths/S0327.md` | 12027 | `fe5c0f99a143116eba379baf5f80137902c254f41431b2e09b57a26ac58ea3c7` | `100644` |
+| `source-archive/v6-paths/S0328.md` | 14689 | `b0539c895202b759e61758d22a44e9c837445a18b652e461e6020d9820eb98bf` | `100644` |
+| `source-archive/v6-paths/S0329.md` | 11812 | `8ca8e21533a158020d06df7dfaa32ec6c62bec60b57ceecb465a90ceafd57545` | `100644` |
+| `source-archive/v6-paths/S0330.md` | 12065 | `acdce71b8051bb5c41d09b8e91b2ff53da2f0e0b71eaf60d770e589f9dc8189c` | `100644` |
+| `source-archive/v6-paths/S0331.md` | 12618 | `0444ad9e17c326d391f2957f67de9f1ca45f7da2f32763da8b288a25d48bbc9c` | `100644` |
+| `source-archive/v6-paths/S0332.md` | 11809 | `4170a5f0b0db240cdf3cc91d58bb66e7aaf92658b179175e3801c83ae946e72c` | `100644` |
+| `source-archive/v6-paths/S0333.md` | 12000 | `36d5853c91946170df8697ea28f41b3381bcabf60828956689ab98f7eef8b3f7` | `100644` |
+| `source-archive/v6-paths/S0334.md` | 13913 | `570cf5ff1ba8ce745397f484a52c68521de0c30d9fdef8eced4803a76c6e1d32` | `100644` |
+| `source-archive/v6-paths/S0335.md` | 12022 | `a3c4d1621f3436a0280d78cd43a9b80e6737ee16a5cefd0c5ec75e1763e151d0` | `100644` |
+| `source-archive/v6-paths/S0336.md` | 11974 | `0adfa76734ee413644e4d849d410aa47f8c44e37052c6ba1e3d4c9abe6015935` | `100644` |
+| `source-archive/v6-paths/S0337.md` | 12547 | `7b8d76e026caf746cd6d99e0b863e5323e2e74e03b915ee263fc827bdfb06576` | `100644` |
+| `source-archive/v6-paths/S0338.md` | 11864 | `cc8069f8393fde4bebc9507b50bf1b05bf50e55b14d67b36da25fc0188f9e949` | `100644` |
+| `source-archive/v6-paths/S0339.md` | 11887 | `113cc7097fa0db5198a64bd74ca79bef60210676c92c331eb880dc9fd3da03ec` | `100644` |
+| `source-archive/v6-paths/S0340.md` | 12729 | `49ba9b44955305417fceab1ae3b440b567f7efc028fd00ad7838aa7adb5ca71f` | `100644` |
+| `source-archive/v6-paths/S0341.md` | 11893 | `90f82f37405aa234f24dc913ba19df013a0dab618b81cc83c301b11a754ad89a` | `100644` |
+| `source-archive/v6-paths/S0342.md` | 12069 | `aaeff81e3cd2448a7ce0d5748d7a8d85736b2f70344e0e605460950ad53c2b51` | `100644` |
+| `source-archive/v6-paths/S0343.md` | 12044 | `051f2000ae6a18d9881b49a2180703f0febddee4535399a9fa50b8341d83f565` | `100644` |
+| `source-archive/v6-paths/S0344.md` | 11936 | `f25a5d72466fb74f4c54113f54a718be6670c36020b8d92a212a3d2229878ea6` | `100644` |
+| `source-archive/v6-paths/S0345.md` | 12790 | `49ec49867c0ac2c70c10004a59fbbacfa799da1b73696081c5482b0438127586` | `100644` |
+| `source-archive/v6-paths/S0346.md` | 22412 | `4556c36f0ed26744ae14f4b90c3e6fdb1e37259ee3244f5265aca23d478af533` | `100644` |
+| `source-archive/v6-paths/S0347.md` | 10181 | `ef594a8ee4c6b52f92691aaf9a8b35c69bf558f258c263f8cc277075402777a7` | `100644` |
+| `source-archive/v6-paths/S0348.md` | 1286 | `5d4287290259baa12a93d9b6ee75cd7701f005596785d4af2123d3aa1d4f9449` | `100644` |
+| `source-archive/v6-root/S0001.md` | 6490 | `253c787feaffe870eec72522d056b29d83d45c5fd83407bfc6fa7c0965039b8e` | `100644` |
+| `source-archive/v6-root/S0002.md` | 1969 | `bbb40cba7670490be6b4d90d789e60f6b9d39640762022e997c4af3e864cb57f` | `100644` |
+| `source-archive/v6-root/S0003.md` | 2728 | `b419db60a9b67718eb96d389c716a769633781110211d857336b5fecdc0c18a1` | `100644` |
+| `source-archive/v6-root/S0004.md` | 170942 | `272b2cf9402efb94046be8e4bcb4c3d97ec5032b927f78809def01939b2d5b73` | `100644` |
+| `source-archive/v6-root/S0005.md` | 2513 | `48f6f4156387581935d85d6cebe41fa3e41ed00d6532f0e29abe412d66d05843` | `100644` |
+| `source-archive/v6-root/S0006.md` | 3899 | `350df7f3f40664806b53850ccc285a8cf34310d38358c925010a26bdf9329d32` | `100644` |
+| `source-archive/v6-root/S0007.md` | 1765 | `da1c6300a0ade346a151b3444cae3849f380f4063e1cc7acefbed94c061aba49` | `100644` |
+| `source-archive/v6-root/S0008.md` | 3152 | `efe182606f560b623d64b5a97aaff7f2255991b344ac8c0b76c481230315c55e` | `100644` |
+| `stages/s00-governance-onboarding/ACCEPTANCE_PROMPT.md` | 2028 | `6ec89d6ece3a92a8f5c603b866220e2cea17599ed7fac9fd93476aff698bb7f4` | `100644` |
+| `stages/s00-governance-onboarding/README.md` | 3857 | `f86b02d45a62b864ac57d94c75b0da5f086498f17b388cd7bd3ca7d20e0e856d` | `100644` |
+| `stages/s00-governance-onboarding/REPAIR_PROMPT.md` | 1617 | `98ef79fd3cceb6e3b7f0153469393022866de227159a32fd110f255ac645aa53` | `100644` |
+| `stages/s00-governance-onboarding/START_PROMPT.md` | 2568 | `85b6639edb5b99a91d80838c92ba7aafe9c8609fe6cce3ca91ed3c0d8dd3ce78` | `100644` |
+| `stages/s00-governance-onboarding/TEST_DATA.md` | 2180 | `4e5583c365fd176342fba6ff6c48e741cbbf88d3bd8aaf329999aacbe712e23b` | `100644` |
+| `stages/s00-governance-onboarding/TEST_PLAN.md` | 2755 | `1304f1f0e25eeda9f3741318c0d365eb4575824c140711bb8e01c131c0a089db` | `100644` |
+| `stages/s01-foundation-shared-kernel/ACCEPTANCE_PROMPT.md` | 2109 | `26c40972ce6252cd29d7a97231fb4702eafa6956e3cc061c886878dd9bb40f40` | `100644` |
+| `stages/s01-foundation-shared-kernel/README.md` | 2683 | `a9f7cf5fcd164f69b189e6d43f4a193c4d79eff989f305b56c6ce2a5f4442977` | `100644` |
+| `stages/s01-foundation-shared-kernel/REPAIR_PROMPT.md` | 1627 | `6533d89851dfc9dd2c698e419d5b979c88c946010e06a36d5402e3115d36c4af` | `100644` |
+| `stages/s01-foundation-shared-kernel/START_PROMPT.md` | 2326 | `3b94057e2b01f0a7f35cdfd5f66aaa1bfd4501974b8e3718431762b7981ca7c8` | `100644` |
+| `stages/s01-foundation-shared-kernel/TEST_DATA.md` | 2193 | `b402ca2bc55fcb8fcaecc9eddf848bb14d32851cba201033c264f3d80d9837e7` | `100644` |
+| `stages/s01-foundation-shared-kernel/TEST_PLAN.md` | 1869 | `ccee0051d1e3e691e9d95aab2d123d1c1cbe9a591b05f0b74b7f2c90431010d2` | `100644` |
+| `stages/s02-domain-core-authority-event-model/ACCEPTANCE_PROMPT.md` | 2096 | `7a8f2aaf15fffde21cc58ed1814d05d3069cb5ef79b122242c0768a1ac9dc329` | `100644` |
+| `stages/s02-domain-core-authority-event-model/README.md` | 2782 | `7cdcf148aeb13a7565183ec284f6868756774fbb08d9f1ab9776220c17878e5a` | `100644` |
+| `stages/s02-domain-core-authority-event-model/REPAIR_PROMPT.md` | 1671 | `e395c1237184a772553a982e4fc91c72f557fca436be3e9ee6a83ba2d99bfc4d` | `100644` |
+| `stages/s02-domain-core-authority-event-model/START_PROMPT.md` | 2427 | `e5e3d7a3d9b7b6b1bd35b018627e436433350f31f56b244013fafd46f1491352` | `100644` |
+| `stages/s02-domain-core-authority-event-model/TEST_DATA.md` | 2285 | `bb748d7a8399d9b394d00ebed97d976b22fa5416ede25fba2d712c8abe6fc7d5` | `100644` |
+| `stages/s02-domain-core-authority-event-model/TEST_PLAN.md` | 2010 | `0d4dc4659ee7f6226ef969aaaafd89c26ee0210d4fd3f4ca2ac6e573e0b10953` | `100644` |
+| `stages/s03-data-eventing-persistence/ACCEPTANCE_PROMPT.md` | 2143 | `83909d73ae48f9bd8b29e1bbd611eb852c8ffae7fd46f4238ab28cf297eddd66` | `100644` |
+| `stages/s03-data-eventing-persistence/README.md` | 2824 | `5300214ab9ad838ca935696fe6788192c85eaa9f83e16068793197f9577010f0` | `100644` |
+| `stages/s03-data-eventing-persistence/REPAIR_PROMPT.md` | 1703 | `0fc2156f48b020133342e1a515bcd725f38e5703579efbea3e2a45d39e555943` | `100644` |
+| `stages/s03-data-eventing-persistence/START_PROMPT.md` | 2464 | `4df8cd7bb030f3b481f0a5fc87cf49a73feabb7e0124c72d2c45abee012f7c1c` | `100644` |
+| `stages/s03-data-eventing-persistence/TEST_DATA.md` | 2311 | `44fe10139a865134d58522e155a28243d0bf143c4aee437c0194d144ae1aa0d7` | `100644` |
+| `stages/s03-data-eventing-persistence/TEST_PLAN.md` | 2027 | `ffc662b4b8c445228c5b8dc14cdf29752eb8ab0a38ac718b505b05879e4ba327` | `100644` |
+| `stages/s04-security-governance-policy/ACCEPTANCE_PROMPT.md` | 2067 | `664ce47037a2c2bcdff227d3601d276178ee4e472d55af3f43d1cab485e7f5c9` | `100644` |
+| `stages/s04-security-governance-policy/README.md` | 2702 | `c81579b626a9fb0b2d6011eb107c6bc0708fedcf84e766b4703967c9d441454e` | `100644` |
+| `stages/s04-security-governance-policy/REPAIR_PROMPT.md` | 1687 | `30c9f3cd5e02f03f204ad6ef21e8ad867d79fcd53fdba51e43fec08fa244e583` | `100644` |
+| `stages/s04-security-governance-policy/START_PROMPT.md` | 2412 | `ac5bef34297613f1dcc6ea5f182dabd324bd5b6795bb3f75371370c7aef33f2a` | `100644` |
+| `stages/s04-security-governance-policy/TEST_DATA.md` | 2308 | `d687b737cf73591d05166d2df576ee0d7d1d571dfc89b2b34b2a574ad96af984` | `100644` |
+| `stages/s04-security-governance-policy/TEST_PLAN.md` | 2039 | `533b0bc7a31fee5d2dd9788cd6937cedcd2cfa94e734e62cce4fce930dbeaa71` | `100644` |
+| `stages/s05-ruleset-coc7-engine/ACCEPTANCE_PROMPT.md` | 2050 | `0813c4996ddb94b876b63b8e2beb8f8cc0be76d099274ddd0bd749bcb4b54df3` | `100644` |
+| `stages/s05-ruleset-coc7-engine/README.md` | 2688 | `cf925e83fc51f09409e2e2836e368727d4c637305f16e4c9a586f8f6091f9952` | `100644` |
+| `stages/s05-ruleset-coc7-engine/REPAIR_PROMPT.md` | 1705 | `2fc891ebdfb256b622e6356b5cf8427903a59ed32318f325441ed833e8b5987e` | `100644` |
+| `stages/s05-ruleset-coc7-engine/START_PROMPT.md` | 2429 | `d154398b3f978b57d359e12e7f1fb8a6140a009f29bc0e66cb7cbc8f9b646447` | `100644` |
+| `stages/s05-ruleset-coc7-engine/TEST_DATA.md` | 2325 | `a1c697c362c25af50a46c461cfc9e0078e24b3800510e132845bbd65cd7cd56f` | `100644` |
+| `stages/s05-ruleset-coc7-engine/TEST_PLAN.md` | 1991 | `ad75ba36a1d35be1ecd0960678182112dac3172c2d9b108c9654e92445ec634a` | `100644` |
+| `stages/s06-runtime-orchestration-decision-pipeline/ACCEPTANCE_PROMPT.md` | 2168 | `d3f471b4aa70f98530139866ce0a255541ba8bd1146f7b9b477c89c7c9d9aca3` | `100644` |
+| `stages/s06-runtime-orchestration-decision-pipeline/README.md` | 2873 | `e97ecb2bb0996be668910ca5216aae7b94655829a4fd758516abfb237364c372` | `100644` |
+| `stages/s06-runtime-orchestration-decision-pipeline/REPAIR_PROMPT.md` | 1725 | `4b300911fab6b3ca8c0cee9067b08037e326e3cdaed71571fe661ba27a090097` | `100644` |
+| `stages/s06-runtime-orchestration-decision-pipeline/START_PROMPT.md` | 2541 | `23247895247004cf164ca806101c8488133954368cfeb2f21574e6f8f807c359` | `100644` |
+| `stages/s06-runtime-orchestration-decision-pipeline/TEST_DATA.md` | 2343 | `db2c6f689bac1b0fc35d19ac28c000a8cb08f80c6dbecd505abdbbfd82e1db17` | `100644` |
+| `stages/s06-runtime-orchestration-decision-pipeline/TEST_PLAN.md` | 2054 | `d51720363b420f91105e5ac7c3f96514f5d7578c141697f6966a0a8e0ce7976f` | `100644` |
+| `stages/s07-agent-runtime-provider-memory-rag/ACCEPTANCE_PROMPT.md` | 2170 | `151050124a07c6f505a503d1f94475e493b1d5f4551e802813c758526d092ffa` | `100644` |
+| `stages/s07-agent-runtime-provider-memory-rag/README.md` | 2942 | `89ac051b792ce5ed6c6fa8bba5087a46f06701f435dbc14a9b5044389a9f2440` | `100644` |
+| `stages/s07-agent-runtime-provider-memory-rag/REPAIR_PROMPT.md` | 1731 | `48194b51a9706d2c64668266fe11a513b6c8c648b613b3a3a5bec5a2b91d89af` | `100644` |
+| `stages/s07-agent-runtime-provider-memory-rag/START_PROMPT.md` | 2532 | `cf6056f766e6887900d659165d5e15804f30368992c8ad3491176a1d84aacd2f` | `100644` |
+| `stages/s07-agent-runtime-provider-memory-rag/TEST_DATA.md` | 2354 | `e499f9d88a3a692045890f8f978a6f7a1424ec8c1779819a477e7737b898ccb9` | `100644` |
+| `stages/s07-agent-runtime-provider-memory-rag/TEST_PLAN.md` | 2101 | `b2cfa81be41145d7943e33f294a2e4781f071108688d15aa1ee0dae232b70699` | `100644` |
+| `stages/s08-api-realtime-contracts/ACCEPTANCE_PROMPT.md` | 2076 | `7c6fefd531ad1ad4f66a901354b6a4f6a8eb62337a2c61cce0076d76bacfd828` | `100644` |
+| `stages/s08-api-realtime-contracts/README.md` | 2712 | `b100a747c45b12883142fcecfc640bb8e9cfcb298ab802c6d701797cbc68f559` | `100644` |
+| `stages/s08-api-realtime-contracts/REPAIR_PROMPT.md` | 1703 | `f38cd44d7c2cc4c8ab0c4b2105a69be6f70f36ab2b782741640865d7c7b71d8c` | `100644` |
+| `stages/s08-api-realtime-contracts/START_PROMPT.md` | 2430 | `7d984872ee0c0c825a6b75efa72e80d9ba04be89280eb692767a5fab81111f13` | `100644` |
+| `stages/s08-api-realtime-contracts/TEST_DATA.md` | 2306 | `4087ca9601ae438358a70a2b84f519cf78d14c0f1e6f692ef5b9de107f63103c` | `100644` |
+| `stages/s08-api-realtime-contracts/TEST_PLAN.md` | 2006 | `4566b66d0268934694fe47f4b8e67dcf6f33bd34139de735c28a8e93b3992a04` | `100644` |
+| `stages/s09-platform-infrastructure-deployment/ACCEPTANCE_PROMPT.md` | 2234 | `18d711f37d95b5ea0890cb232f47a5a21b4060070fdb3e69b4cf3b32627f4772` | `100644` |
+| `stages/s09-platform-infrastructure-deployment/README.md` | 2837 | `0ab27094ef8c16169897540c8c926dfa8021ebb3b1278b37dc43aa792f621913` | `100644` |
+| `stages/s09-platform-infrastructure-deployment/REPAIR_PROMPT.md` | 1725 | `65e23713bb19a7da743bcaa5d6a6595da981480061a844113a3094269f7cc252` | `100644` |
+| `stages/s09-platform-infrastructure-deployment/START_PROMPT.md` | 2494 | `1a9778ec53b0ce529f1458c9d0f73b52ca31087fc88eda593d4648578e2f3317` | `100644` |
+| `stages/s09-platform-infrastructure-deployment/TEST_DATA.md` | 2320 | `d95d08ee9b2c2fe3ee469ada484af4afafa9bdbfea8ed80223de46d62612ee56` | `100644` |
+| `stages/s09-platform-infrastructure-deployment/TEST_PLAN.md` | 1933 | `d9e1bfa51dde7aa2fc803af5adb0c34531552c1ab8a4abdd277444ae7694f7ac` | `100644` |
+| `stages/s10-ops-migration-runbooks/ACCEPTANCE_PROMPT.md` | 2050 | `39c507269c9cad7e30465be93dbdf283ffba8651814eb028a498720eb7ad6342` | `100644` |
+| `stages/s10-ops-migration-runbooks/README.md` | 2479 | `148998d2cb0452946f3cb9bb8deb47d4d8b07e1fe67a35138d03763d39d68cc4` | `100644` |
+| `stages/s10-ops-migration-runbooks/REPAIR_PROMPT.md` | 1693 | `04a30b4eb4ced0486f01139e848946dc5bff9ddf53fce20923b92ae9320fe93c` | `100644` |
+| `stages/s10-ops-migration-runbooks/START_PROMPT.md` | 2347 | `e21940e5af3db19716ebf45c67a75c0c4738132951adc355702ab1daa18f0c5a` | `100644` |
+| `stages/s10-ops-migration-runbooks/TEST_DATA.md` | 2271 | `00789928f5a0687214ebba48a5a8d13130812de1b9c652b003c53f7fffd12ae9` | `100644` |
+| `stages/s10-ops-migration-runbooks/TEST_PLAN.md` | 1892 | `7148660c49458cd54fd4fbe9e02e8b05796b7c1522e681c6101e32b53cc8f6ab` | `100644` |
+| `stages/s11-testing-quality-golden-ci/ACCEPTANCE_PROMPT.md` | 2157 | `a75734088aa44060796556b6fb104dd553a01167bd2fc30bec575a92e7f883ba` | `100644` |
+| `stages/s11-testing-quality-golden-ci/README.md` | 2886 | `fbb8ae2e72b3f4ebf456c739a7892c91528662f61d3d8e3e035166821bd1c412` | `100644` |
+| `stages/s11-testing-quality-golden-ci/REPAIR_PROMPT.md` | 1725 | `2dfca67c65e5520c2b20881608430c13e5d2f13ead5e51212e9ab3fbb4c7453d` | `100644` |
+| `stages/s11-testing-quality-golden-ci/START_PROMPT.md` | 2494 | `ecbcc301cb90b6a77247332ac414cd46f15588e932ba490bea181e432ae7ae1d` | `100644` |
+| `stages/s11-testing-quality-golden-ci/TEST_DATA.md` | 2398 | `0c993a07d45284b1c18c7c3aba28b2082c0cd6217c4c871e671a3a9516f661b0` | `100644` |
+| `stages/s11-testing-quality-golden-ci/TEST_PLAN.md` | 2089 | `f01deab00706236c9249b85a9ea7e57d1df85fc41a62bb382dd910d557e8c008` | `100644` |
+| `stages/s12-extension-sdk-ui-boundary/ACCEPTANCE_PROMPT.md` | 2009 | `dbaf61eac1854ec100a1a431907b109629c0cfaff9deb4c7891a00353754914f` | `100644` |
+| `stages/s12-extension-sdk-ui-boundary/README.md` | 2609 | `7b307bf24af280d8d779327975fe14e8d0febf7c5593eb11e8956eb36889a0fb` | `100644` |
+| `stages/s12-extension-sdk-ui-boundary/REPAIR_PROMPT.md` | 1615 | `997f3f584fe60a5adf5d24341647e0288974831a064becaada6a2e23ea376ed4` | `100644` |
+| `stages/s12-extension-sdk-ui-boundary/START_PROMPT.md` | 2318 | `b562d38e80bc8399d11e222c2896070fbf551a6fbb51cec6a0fb86ec955c136d` | `100644` |
+| `stages/s12-extension-sdk-ui-boundary/TEST_DATA.md` | 2194 | `ba37ca52884bd089aead8870021b1da76e9370d6984e03a58761899542358071` | `100644` |
+| `stages/s12-extension-sdk-ui-boundary/TEST_PLAN.md` | 1917 | `0a35de96bedab6f53ed930002a50d772ac01a74ca5bb21d2770804435e3fdff6` | `100644` |
+| `stages/s13-v1-release-hardening/ACCEPTANCE_PROMPT.md` | 1979 | `1469e251598db51fb0148d210a3c45ba7efaf0089a541c734a75ec1d1c542693` | `100644` |
+| `stages/s13-v1-release-hardening/README.md` | 2626 | `5dd800acebae7a09aefe67896a38006f2f27c71c288bdc577b02aa02c2e8c957` | `100644` |
+| `stages/s13-v1-release-hardening/REPAIR_PROMPT.md` | 1615 | `14f7306f9489c5ee66b5ba138767ade300bb515a1527c7637de379ecda52d362` | `100644` |
+| `stages/s13-v1-release-hardening/START_PROMPT.md` | 2392 | `e38bd40f51b31decba539ec0e5ec9ec84b4a50b1f5ad226859b0dc6211c12be1` | `100644` |
+| `stages/s13-v1-release-hardening/TEST_DATA.md` | 2226 | `cdb18c58b384ba7b63789ae79253c121c192d4ba63aa12b8a480055550c06483` | `100644` |
+| `stages/s13-v1-release-hardening/TEST_PLAN.md` | 2017 | `f64cb934034402f4f33d13bac54564dcee884cf22b4230c15c922ddeec234d36` | `100644` |
+| `test-data/agent_tool_call_cases.md` | 1030 | `2dcc14e12dae1c66347402448d14757cb91348208d6dab6374ead6e727a3d728` | `100644` |
+| `test-data/api_ws_contract_samples.md` | 802 | `f79d302f9c5bd3c1f837243ba405f67815f4340808db557346d83e34b53527d9` | `100644` |
+| `test-data/authority_contract_cases.md` | 1132 | `90a48f58c1f4ef4e338fa8445afdb4ddd1520f5e8a6aefdb850956b2e167643c` | `100644` |
+| `test-data/change_control_cases.md` | 576 | `a34d1304fcf06d4c55a280989f3835a88dc080108b44006313f1541a0db1a1ec` | `100644` |
+| `test-data/dice_san_combat_chase_cases.md` | 1145 | `7c140367d5fa4c99ca4b8999e973ac1c6012eda743432e865eab6fb84ad108a8` | `100644` |
+| `test-data/event_store_stream_cases.md` | 945 | `176f885c1fe98c2c94d939a698e4afac52f40a140aa0e00ac5123267dff60c21` | `100644` |
+| `test-data/export_expected_snapshots.md` | 655 | `241123ce9b01a280490b9c8327820689b97b71066351a8e73dc8d976dd1070dc` | `100644` |
+| `test-data/fork_lineage_cases.md` | 546 | `68bc6504a5b57557b89785f5c2332856687c668aca6e5361715c08cfdccb7acc` | `100644` |
+| `test-data/golden_scenario_yaml.md` | 2060 | `c43cda6d652d33d39566254f8ca861792bd061a8533d8c66e283e407fe86e890` | `100644` |
+| `test-data/permission_matrix_cases.md` | 675 | `f6e942d32d3f629c8de1554a2d5e888c7f62f19e01a718f57c2237ff903fc7b5` | `100644` |
+| `test-data/prompt_inventory_fixture.md` | 527 | `66edf88f602858daf67b2a935128d55f5d8a04e526aa44bd695b677f5cb33c2c` | `100644` |
+| `test-data/provider_model_certification_cases.md` | 1197 | `307425430f04a63700dff37419e22676ce879331eaf3168ea2399f59693b80d5` | `100644` |
+| `test-data/rag_snapshot_cases.md` | 739 | `9cf3ff137b595ffe3bd04e4b4b34a7d485d0461aa85367335a27568638316ac6` | `100644` |
+| `test-data/seed_users_campaigns.md` | 1155 | `b0e9f467452c607e238247d33284bc3182b0a9141e690f8ed6febd8c5ade07df` | `100644` |
+| `test-data/tutorial_scenario_yaml.md` | 2430 | `a7972c359b58a5b08716db02193725e234ace5999764a47642ef3cbb8fbf54e4` | `100644` |
+| `test-data/visibility_leakage_cases.md` | 876 | `aaddd1c81538a590f8f0b4f99595254ea66943e2053db30e34ca6c64edddd46f` | `100644` |

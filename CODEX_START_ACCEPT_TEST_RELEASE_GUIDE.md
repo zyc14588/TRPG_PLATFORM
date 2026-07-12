@@ -43,9 +43,11 @@ New-Item -ItemType Directory -Force evidence/stages/SXX
 git diff --name-only
 cargo fmt --all -- --check
 cargo test --workspace --all-features
-pnpm typecheck
-pnpm test:e2e
+npm test
+python scripts/ci/verify_test_inventory.py
 ```
+
+当前仓库尚无可执行产品前端，因此不声明 `pnpm typecheck` 或 `pnpm test:e2e`；这些能力出现前 Release Readiness 必须保持 `BLOCKED`。
 
 ## 预期证据
 
