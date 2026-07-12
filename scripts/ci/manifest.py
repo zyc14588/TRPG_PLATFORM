@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 from pathlib import Path
 
-from repo_truth import MANIFEST_OUTPUTS, ROOT, git_files, git_modes, sha256_file
+from repo_truth import MANIFEST_OUTPUTS, ROOT, git_blob_bytes, git_files, git_modes
 
 
 OUTPUTS = tuple(sorted(MANIFEST_OUTPUTS))
@@ -13,6 +14,7 @@ OUTPUTS = tuple(sorted(MANIFEST_OUTPUTS))
 def render(root: Path = ROOT) -> str:
     all_files = git_files(root)
     files = [path for path in all_files if path not in MANIFEST_OUTPUTS]
+    blobs = git_blob_bytes(root)
     modes = git_modes(root)
     lines = [
         "# Repository Source Manifest v1",
@@ -27,8 +29,9 @@ def render(root: Path = ROOT) -> str:
         "|---|---:|---|---|",
     ]
     for name in files:
-        path = root / name
-        lines.append(f"| `{name}` | {path.stat().st_size} | `{sha256_file(path)}` | `{modes.get(name, '100644')}` |")
+        content = blobs[name] if name in blobs else (root / name).read_bytes()
+        digest = hashlib.sha256(content).hexdigest()
+        lines.append(f"| `{name}` | {len(content)} | `{digest}` | `{modes.get(name, '100644')}` |")
     return "\n".join(lines) + "\n"
 
 

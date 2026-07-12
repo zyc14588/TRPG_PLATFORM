@@ -56,6 +56,42 @@ def git_modes(root: Path = ROOT) -> dict[str, str]:
     return modes
 
 
+def git_blob_bytes(root: Path = ROOT) -> dict[str, bytes]:
+    index = subprocess.run(
+        ["git", "ls-files", "-s", "-z"], cwd=root, check=True, capture_output=True
+    ).stdout
+    paths = {}
+    for entry in index.split(b"\0"):
+        if not entry:
+            continue
+        metadata, path = entry.split(b"\t", 1)
+        _, object_id, stage = metadata.split()
+        if stage != b"0":
+            raise RuntimeError("manifest generation requires an unconflicted Git index")
+        paths[path.decode("utf-8")] = object_id.decode("ascii")
+
+    object_ids = sorted(set(paths.values()))
+    output = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        cwd=root,
+        check=True,
+        input=("\n".join(object_ids) + "\n").encode("ascii"),
+        capture_output=True,
+    ).stdout
+    blobs = {}
+    offset = 0
+    for object_id in object_ids:
+        header_end = output.index(b"\n", offset)
+        _, object_type, size = output[offset:header_end].split()
+        if object_type != b"blob":
+            raise RuntimeError(f"manifest object is not a blob: {object_id}")
+        offset = header_end + 1
+        size = int(size)
+        blobs[object_id] = output[offset : offset + size]
+        offset += size + 1
+    return {path: blobs[object_id] for path, object_id in paths.items()}
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
