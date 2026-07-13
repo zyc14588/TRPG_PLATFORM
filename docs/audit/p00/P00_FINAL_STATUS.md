@@ -1,5 +1,7 @@
 # P00 Final Status
 
+<!-- P00C Sentinel probe: this temporary branch must never be merged. -->
+
 > This ledger is intentionally incomplete until GitHub-hosted evidence, branch protection, and the unmerged Sentinel PR are verified. It must not be read as PASS evidence before the remote attestation update.
 
 ```text
