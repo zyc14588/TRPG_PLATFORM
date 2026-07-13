@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from manifest import render
 from release_readiness import assess, readiness_report_errors, release_evidence_errors
@@ -130,6 +131,34 @@ jobs:\n  negative:\n    runs-on: ubuntu-latest\n    timeout-minutes: 1
             self.assertEqual(payload["github_sha"], payload["base_commit"])
             self.assertEqual(set(payload["report_files"]), set(payload["generated_artifact_sha256"]))
             self.assertEqual(validate_evidence(payload, artifact_base=report.parent), [])
+            live = {
+                "GITHUB_REPOSITORY": payload["repository"],
+                "GITHUB_SHA": payload["github_sha"],
+                "GITHUB_RUN_ID": "123",
+                "GITHUB_RUN_ATTEMPT": "1",
+                "GITHUB_WORKFLOW": "test",
+                "GITHUB_JOB": "test",
+                "RUNNER_OS": payload["runner_os"],
+            }
+            payload.update(
+                github_run_id="123",
+                github_run_attempt="1",
+                workflow="test",
+                job="test",
+            )
+            with patch.dict("os.environ", live, clear=False):
+                self.assertEqual(
+                    validate_evidence(payload, artifact_base=report.parent, live_context=True), []
+                )
+                payload["github_run_id"] = "124"
+                self.assertIn(
+                    "github_run_id does not match live GitHub context",
+                    validate_evidence(payload, artifact_base=report.parent, live_context=True),
+                )
+            payload["github_run_id"] = "LOCAL"
+            payload["github_run_attempt"] = "LOCAL"
+            payload["workflow"] = "local"
+            payload["job"] = "local"
             release_errors = release_evidence_errors(payload, ROOT, report.parent)
             self.assertIn("release evidence must record a passing command", release_errors)
             self.assertIn(

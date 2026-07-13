@@ -243,7 +243,10 @@ def compose_services(path: Path) -> dict[str, dict[str, object]]:
 
 
 def validate_evidence(
-    data: dict, root: Path = ROOT, artifact_base: Path | None = None
+    data: dict,
+    root: Path = ROOT,
+    artifact_base: Path | None = None,
+    live_context: bool = False,
 ) -> list[str]:
     required = set(EVIDENCE_REQUIRED)
     errors = [f"missing field: {name}" for name in sorted(required - data.keys())]
@@ -288,6 +291,22 @@ def validate_evidence(
     for name in ("workflow", "job", "runner_os"):
         if not isinstance(data.get(name), str) or not data.get(name):
             errors.append(f"{name} must be a non-empty string")
+    if live_context:
+        live_fields = {
+            "repository": "GITHUB_REPOSITORY",
+            "github_sha": "GITHUB_SHA",
+            "github_run_id": "GITHUB_RUN_ID",
+            "github_run_attempt": "GITHUB_RUN_ATTEMPT",
+            "workflow": "GITHUB_WORKFLOW",
+            "job": "GITHUB_JOB",
+            "runner_os": "RUNNER_OS",
+        }
+        for field, environment_name in live_fields.items():
+            expected = os.environ.get(environment_name)
+            if not expected:
+                errors.append(f"missing live context: {environment_name}")
+            elif str(data.get(field)) != expected:
+                errors.append(f"{field} does not match live GitHub context")
     if not re.fullmatch(r"[0-9a-f]{64}", str(data.get("worktree_diff_sha256", ""))):
         errors.append("invalid worktree_diff_sha256")
     elif data.get("worktree_diff_sha256") != worktree_diff_sha256(root):
@@ -298,12 +317,14 @@ def validate_evidence(
     elif data.get("environment_sha256") != canonical_json_sha256(tool_versions):
         errors.append("environment_sha256 mismatch")
     else:
-        actual_versions = current_tool_versions(root)
         for name in ("platform", "python", "rustc", "cargo", "node", "npm", "pnpm"):
             if not tool_versions.get(name) or tool_versions[name] == "NOT_VERIFIED":
                 errors.append(f"tool version not verified: {name}")
-            elif tool_versions[name] != actual_versions[name]:
-                errors.append(f"tool version does not match current environment: {name}")
+        if live_context:
+            actual_versions = current_tool_versions(root)
+            for name, version in tool_versions.items():
+                if version != actual_versions.get(name):
+                    errors.append(f"tool version does not match current environment: {name}")
         rust_match = re.search(
             r'(?m)^channel\s*=\s*"([^"]+)"',
             (root / "rust-toolchain.toml").read_text(encoding="utf-8"),

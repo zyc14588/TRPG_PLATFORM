@@ -94,6 +94,8 @@ def main() -> int:
             resolved.relative_to(artifact_root)
         except ValueError:
             parser.error("--generated-artifact must stay inside the report directory")
+        if resolved.parent != artifact_root:
+            parser.error("--generated-artifact must be directly inside the report directory")
         if resolved == args.report:
             parser.error("--generated-artifact cannot be the evidence manifest itself")
         generated_paths.append(resolved)

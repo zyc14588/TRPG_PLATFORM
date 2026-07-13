@@ -54,7 +54,12 @@ def main() -> int:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8", newline="\n")
     elif args.check:
-        errors = [name for name in OUTPUTS if not (ROOT / name).is_file() or (ROOT / name).read_text(encoding="utf-8") != content]
+        expected = content.encode("utf-8")
+        errors = [
+            name
+            for name in OUTPUTS
+            if not (ROOT / name).is_file() or (ROOT / name).read_bytes() != expected
+        ]
         if errors:
             print("manifest drift: " + ", ".join(errors), file=sys.stderr)
             return 1

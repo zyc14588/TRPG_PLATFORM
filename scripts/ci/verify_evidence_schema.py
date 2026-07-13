@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import tempfile
@@ -25,14 +26,20 @@ def schema_errors(schema: dict) -> list[str]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--live-context", action="store_true")
+    parser.add_argument("evidence", nargs="*")
+    args = parser.parse_args()
     schema = json.loads((ROOT / "scripts/ci/evidence.schema.json").read_text(encoding="utf-8"))
     errors = schema_errors(schema)
-    for name in sys.argv[1:]:
+    for name in args.evidence:
         path = Path(name)
         try:
             errors.extend(
                 validate_evidence(
-                    json.loads(path.read_text(encoding="utf-8")), artifact_base=path.parent
+                    json.loads(path.read_text(encoding="utf-8")),
+                    artifact_base=path.parent,
+                    live_context=args.live_context,
                 )
             )
         except (OSError, json.JSONDecodeError) as error:

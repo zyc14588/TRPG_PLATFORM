@@ -54,7 +54,7 @@ jobs:
             --generated-artifact "$case_dir/exit-code.txt" \
             --generated-artifact "$case_dir/sha256.txt" \
             -- python3 scripts/ci/p00_negative_case.py --case "${{ matrix.case }}" --output-dir "$case_dir"
-          python3 scripts/ci/verify_evidence_schema.py "$case_dir/evidence-manifest.json"
+          python3 scripts/ci/verify_evidence_schema.py --live-context "$case_dir/evidence-manifest.json"
       - name: Upload controlled negative evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

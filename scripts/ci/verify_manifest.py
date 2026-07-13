@@ -19,7 +19,7 @@ def main() -> int:
     for path in paths:
         if path is None or not path.is_file():
             errors.append(f"missing manifest: {path}")
-        elif path.read_text(encoding="utf-8") != expected:
+        elif path.read_bytes() != expected.encode("utf-8"):
             errors.append(f"manifest drift: {path}")
     if errors:
         print("\n".join(errors), file=sys.stderr)

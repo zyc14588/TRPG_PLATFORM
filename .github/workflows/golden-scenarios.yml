@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/golden-scenarios"
           python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/golden-scenarios/evidence-manifest.json" --artifact MANIFEST.md -- bash -c 'cargo test -p trpg-testing --test golden_scenarios_ci --all-features --locked && cargo test -p trpg-testing --test model_certification_tests --all-features --locked && cargo test -p trpg-testing --test visibility_leakage --all-features --locked'
-          python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/golden-scenarios/evidence-manifest.json"
+          python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/golden-scenarios/evidence-manifest.json"
       - name: Upload golden evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -35,7 +35,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/workspace-ci"
           python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/workspace-ci/evidence-manifest.json" --artifact MANIFEST.md -- bash scripts/ci/test-all.sh
-          python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/workspace-ci/evidence-manifest.json"
+          python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/workspace-ci/evidence-manifest.json"
       - name: Upload workspace evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
