@@ -1827,7 +1827,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-testing/tests/visibility_leakage.rs` | 660 | `67d2d4c7cc32a7d72ccb73a26c95bd188b8921c2dc75ac024615164caee8740d` | `100644` |
 | `crates/trpg-testing/tests/visibility_leakage_tests_contract_tests.rs` | 1075 | `8446d7a2b159c1354d53256012691774fdaf7d0ae2355b8ddc8bfd986757da7f` | `100644` |
 | `docker-compose.ci.yml` | 3596 | `a2e915f49bd15d1ced49de4aa268c08d9b4f3a6d5f80c47535a4e3ee7a04d6d8` | `100644` |
-| `docs/audit/p00/P00_FINAL_STATUS.md` | 1282 | `fb4b691de097e39ae7a1893a0e78632ea2ec02ae1c5201d4a3ecf28352d021c0` | `100644` |
+| `docs/audit/p00/P00_FINAL_STATUS.md` | 8016 | `de63f054580598206460aa861966be0aa128fff64726e24f51dfeab371f9c5fa` | `100644` |
 | `docs/codex/00-index/AGENTS.md` | 4164 | `7a4b058f57d75097de15c3902560a3b4fbdf70a639bd0ca5ddbe2529d8ad0170` | `100644` |
 | `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` | `100644` |
 | `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` | `100644` |
