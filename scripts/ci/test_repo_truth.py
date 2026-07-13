@@ -136,6 +136,58 @@ class RepositoryTruthNegativeTests(unittest.TestCase):
         self.assertTrue(any("CODEX-" in error for error in errors))
         self.assertTrue(any("byte-identical production modules" in error for error in errors))
 
+    def test_documentary_construction_metadata_is_rejected_in_production_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            production = root / "crates/trpg-shared-kernel/src/lib.rs"
+            production.parent.mkdir(parents=True)
+            production.write_text(
+                "\n".join(
+                    (
+                        "source_file: source,",
+                        "test_file: test,",
+                        "points_to_bootstrap_prompt",
+                        "BootstrapPrompt",
+                        "BatchPlan",
+                        "per_file_prompts",
+                        "FoundationDocument",
+                        "SourceBundleGuide",
+                        "NormalizedExecutionMap",
+                        "SafeOutputMap",
+                        "TokenRewriteTable",
+                        "current_foundation_document_set",
+                        "points_to_top_level_design",
+                        "points_to_normalized_maps",
+                        "states_historical_inputs_are_provenance_only",
+                        "crate::workspace_and_governance::GovernanceContract {",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            errors = production_source_errors(root)
+
+        for token in (
+            "source_file:",
+            "test_file:",
+            "points_to_bootstrap_prompt",
+            "BootstrapPrompt",
+            "BatchPlan",
+            "per_file_prompts",
+            "FoundationDocument",
+            "SourceBundleGuide",
+            "NormalizedExecutionMap",
+            "SafeOutputMap",
+            "TokenRewriteTable",
+            "current_foundation_document_set",
+            "points_to_top_level_design",
+            "points_to_normalized_maps",
+            "states_historical_inputs_are_provenance_only",
+        ):
+            self.assertTrue(any(error.endswith(token) for error in errors), token)
+        self.assertTrue(
+            any("bypasses the canonical constructor" in error for error in errors)
+        )
+
     def test_workspace_dependency_cycle_is_rejected(self) -> None:
         metadata = {
             "packages": [

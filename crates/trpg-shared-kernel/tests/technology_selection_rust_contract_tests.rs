@@ -11,7 +11,7 @@ use trpg_shared_kernel::workspace_and_governance::{
 };
 
 #[test]
-fn technology_selection_rust_contract_uses_current_safe_outputs() {
+fn technology_selection_rust_contract_preserves_governance_boundaries() {
     let record = technology_selection_rust_record(current_rust_technology_selections());
     let contract = &record.governance_contract;
 
@@ -19,14 +19,6 @@ fn technology_selection_rust_contract_uses_current_safe_outputs() {
     validate_governance_contract(contract).unwrap();
     assert_eq!(contract.module_name, "technology_selection_rust");
     assert_eq!(contract.surface, GovernanceSurface::TechnologySelectionRust);
-    assert_eq!(
-        contract.source_file,
-        "crates/trpg-shared-kernel/src/technology_selection_rust.rs"
-    );
-    assert_eq!(
-        contract.test_file,
-        "crates/trpg-shared-kernel/tests/technology_selection_rust_contract_tests.rs"
-    );
     assert_eq!(
         contract.canonical_state_boundary,
         CanonicalStateBoundary::EventStore

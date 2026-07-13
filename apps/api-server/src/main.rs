@@ -2,14 +2,15 @@
 
 use trpg_service_runtime::{serve, Check, Readiness, ServiceConfig};
 
-fn main() {
-    let contracts = trpg_api::api_realtime_contracts();
+fn build_readiness(
+    contracts: &[trpg_api::contract_core::ApiRealtimeContract],
+    adapter_valid: bool,
+) -> Readiness {
     let registry_valid = !contracts.is_empty()
         && contracts
             .iter()
             .all(|contract| trpg_api::contract_core::validate_api_contract(contract).is_ok());
-    let adapter_valid = trpg_api::contract_core::validate_primary_adapter_boundaries().is_ok();
-    let readiness = Readiness::new(vec![
+    Readiness::new(vec![
         if registry_valid {
             Check::pass(
                 "api_contract_registry",
@@ -23,7 +24,15 @@ fn main() {
         } else {
             Check::fail("api_adapter_boundaries", "adapter validation failed")
         },
-    ]);
+    ])
+}
+
+fn main() {
+    let contracts = trpg_api::api_realtime_contracts();
+    let readiness = build_readiness(
+        &contracts,
+        trpg_api::contract_core::validate_primary_adapter_boundaries().is_ok(),
+    );
 
     if let Err(error) = serve(ServiceConfig {
         service: "api-server",
@@ -33,5 +42,15 @@ fn main() {
     }) {
         eprintln!("api-server failed: {error}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_contract_registry_is_not_ready() {
+        assert!(!build_readiness(&[], true).is_ready());
     }
 }

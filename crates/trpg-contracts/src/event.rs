@@ -2,6 +2,9 @@ use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
 
+pub const CANONICAL_EVENT_VERSION: u16 = 1;
+pub const CANONICAL_EVENT_SCHEMA_ID: &str = "trpg.events.canonical";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CanonicalEvent {
     CampaignCreated,
@@ -49,23 +52,11 @@ impl CanonicalEvent {
     }
 
     pub const fn version(self) -> u16 {
-        1
+        CANONICAL_EVENT_VERSION
     }
 
-    pub const fn schema_name(self) -> &'static str {
-        match self {
-            Self::CampaignCreated => "campaign_created.v1.schema.json",
-            Self::AuthorityContractLocked => "authority_contract_locked.v1.schema.json",
-            Self::CharacterSheetSubmitted => "character_sheet_submitted.v1.schema.json",
-            Self::CharacterSheetVersionLocked => "character_sheet_version_locked.v1.schema.json",
-            Self::DiceRolled => "dice_rolled.v1.schema.json",
-            Self::ClueRevealed => "clue_revealed.v1.schema.json",
-            Self::SessionSummaryCreated => "session_summary_created.v1.schema.json",
-            Self::SharedKernelTypesValidated => "shared_kernel_types_validated.v1.schema.json",
-            Self::ApiRequestAccepted => "api_request_accepted.v1.schema.json",
-            Self::WebSocketStateSynced => "web_socket_state_synced.v1.schema.json",
-            Self::NatsMessagePublished => "nats_message_published.v1.schema.json",
-        }
+    pub const fn schema_id(self) -> &'static str {
+        CANONICAL_EVENT_SCHEMA_ID
     }
 
     pub const fn descriptor(self) -> EventDescriptor {
@@ -73,7 +64,7 @@ impl CanonicalEvent {
             event: self,
             name: self.name(),
             version: self.version(),
-            schema_name: self.schema_name(),
+            schema_id: self.schema_id(),
         }
     }
 
@@ -105,7 +96,7 @@ pub struct EventDescriptor {
     event: CanonicalEvent,
     name: &'static str,
     version: u16,
-    schema_name: &'static str,
+    schema_id: &'static str,
 }
 
 impl EventDescriptor {
@@ -121,8 +112,8 @@ impl EventDescriptor {
         self.version
     }
 
-    pub const fn schema_name(self) -> &'static str {
-        self.schema_name
+    pub const fn schema_id(self) -> &'static str {
+        self.schema_id
     }
 }
 

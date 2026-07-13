@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
-use trpg_contracts::WireErrorCode;
+use trpg_contracts::{CanonicalEvent, EventDescriptor, WireErrorCode};
 
 pub type KernelResult<T> = Result<T, TrpgError>;
 
@@ -383,6 +383,7 @@ pub fn validate_command_envelope<T>(command: &CommandEnvelope<T>) -> KernelResul
 pub struct EventEnvelope<P> {
     pub sequence: u64,
     pub event_type: &'static str,
+    pub event_descriptor: Option<EventDescriptor>,
     pub command_id: EntityId,
     pub idempotency_key: String,
     pub authority_contract_version: u64,
@@ -415,6 +416,28 @@ impl<P: Clone> EventStore<P> {
         event_type: &'static str,
         payload: P,
     ) -> KernelResult<EventEnvelope<P>> {
+        let descriptor = CanonicalEvent::lookup(event_type)
+            .ok()
+            .map(CanonicalEvent::descriptor);
+        self.append_with_descriptor(command, event_type, descriptor, payload)
+    }
+
+    pub fn append_canonical<T>(
+        &mut self,
+        command: &CommandEnvelope<T>,
+        event: CanonicalEvent,
+        payload: P,
+    ) -> KernelResult<EventEnvelope<P>> {
+        self.append_with_descriptor(command, event.name(), Some(event.descriptor()), payload)
+    }
+
+    fn append_with_descriptor<T>(
+        &mut self,
+        command: &CommandEnvelope<T>,
+        event_type: &'static str,
+        event_descriptor: Option<EventDescriptor>,
+        payload: P,
+    ) -> KernelResult<EventEnvelope<P>> {
         validate_command_envelope(command)?;
 
         let actual_version = self.events.len() as u64;
@@ -435,6 +458,7 @@ impl<P: Clone> EventStore<P> {
         let event = EventEnvelope {
             sequence: actual_version + 1,
             event_type,
+            event_descriptor,
             command_id: command.command_id.clone(),
             idempotency_key: command.idempotency_key.clone(),
             authority_contract_version: command.authority_contract_version,

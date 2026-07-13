@@ -61,6 +61,21 @@ PRODUCTION_SOURCE_FORBIDDEN = (
     "SUPPLEMENTAL_PROMPT",
     "BATCH_",
     "CODEX-",
+    "source_file:",
+    "test_file:",
+    "points_to_bootstrap_prompt",
+    "BootstrapPrompt",
+    "BatchPlan",
+    "per_file_prompts",
+    "FoundationDocument",
+    "SourceBundleGuide",
+    "NormalizedExecutionMap",
+    "SafeOutputMap",
+    "TokenRewriteTable",
+    "current_foundation_document_set",
+    "points_to_top_level_design",
+    "points_to_normalized_maps",
+    "states_historical_inputs_are_provenance_only",
 )
 EVIDENCE_SCHEMA_VERSION = "p00-3"
 EVIDENCE_GENERATOR_VERSION = "p00-3"
@@ -360,6 +375,14 @@ def production_source_errors(root: Path = ROOT) -> list[str]:
                             "production source contains test/construction-only token: "
                             f"{relative}: {token}"
                         )
+                if relative != "crates/trpg-shared-kernel/src/workspace_and_governance.rs" and re.search(
+                    r"(?<!struct )(?<!-> )\b(?:[A-Za-z_][A-Za-z0-9_]*::)*GovernanceContract\s*\{",
+                    text,
+                ):
+                    errors.append(
+                        "production governance contract bypasses the canonical constructor: "
+                        f"{relative}"
+                    )
     for paths in source_hashes.values():
         if len(paths) > 1:
             errors.append("byte-identical production modules: " + ", ".join(sorted(paths)))

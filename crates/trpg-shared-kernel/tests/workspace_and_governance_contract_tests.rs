@@ -8,20 +8,12 @@ use trpg_shared_kernel::workspace_and_governance::{
 };
 
 #[test]
-fn workspace_and_governance_contract_uses_current_safe_outputs() {
+fn workspace_and_governance_contract_preserves_governance_boundaries() {
     let contract = workspace_governance_contract();
 
     validate_governance_contract(&contract).unwrap();
     assert_eq!(contract.module_name, "workspace_and_governance");
     assert_eq!(contract.surface, GovernanceSurface::WorkspaceAndGovernance);
-    assert_eq!(
-        contract.source_file,
-        "crates/trpg-shared-kernel/src/workspace_and_governance.rs"
-    );
-    assert_eq!(
-        contract.test_file,
-        "crates/trpg-shared-kernel/tests/workspace_and_governance_contract_tests.rs"
-    );
     assert_eq!(contract.command_fields, REQUIRED_COMMAND_FIELDS);
     assert_eq!(
         contract.canonical_state_boundary,

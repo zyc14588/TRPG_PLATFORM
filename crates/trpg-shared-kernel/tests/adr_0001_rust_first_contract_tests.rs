@@ -10,7 +10,7 @@ use trpg_shared_kernel::workspace_and_governance::{
 };
 
 #[test]
-fn adr_0001_rust_first_contract_uses_current_safe_outputs() {
+fn adr_0001_rust_first_contract_preserves_governance_boundaries() {
     let record = adr_0001_rust_first_record(current_rust_first_decisions());
     let contract = &record.governance_contract;
 
@@ -18,14 +18,6 @@ fn adr_0001_rust_first_contract_uses_current_safe_outputs() {
     validate_governance_contract(contract).unwrap();
     assert_eq!(contract.module_name, "adr_0001_rust_first");
     assert_eq!(contract.surface, GovernanceSurface::Adr0001RustFirst);
-    assert_eq!(
-        contract.source_file,
-        "crates/trpg-shared-kernel/src/adr_0001_rust_first.rs"
-    );
-    assert_eq!(
-        contract.test_file,
-        "crates/trpg-shared-kernel/tests/adr_0001_rust_first_contract_tests.rs"
-    );
     assert_eq!(
         contract.canonical_state_boundary,
         CanonicalStateBoundary::EventStore

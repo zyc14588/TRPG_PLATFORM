@@ -3,8 +3,7 @@
 use std::collections::HashSet;
 use trpg_service_runtime::{serve, Check, Readiness, ServiceConfig};
 
-fn main() {
-    let migrations = trpg_data_eventing::persistence_migrations::migration_statements();
+fn build_readiness(migrations: &[(&str, &str)], required_columns: &[&str]) -> Readiness {
     let unique_names = migrations
         .iter()
         .map(|(name, _)| *name)
@@ -19,22 +18,27 @@ fn main() {
         .iter()
         .find(|(name, _)| *name == "create_event_store")
         .map(|(_, statement)| *statement);
-    let required_columns =
-        trpg_data_eventing::sqlx_migrations_contract::required_event_store_columns();
     let schema_complete = event_store_sql.is_some_and(|statement| {
         required_columns
             .iter()
             .all(|column| statement.contains(column))
     });
     let registry_valid = unique_names && nonempty && schema_complete;
-    let readiness = Readiness::new(vec![if registry_valid {
+    Readiness::new(vec![if registry_valid {
         Check::pass(
             "migration_registry",
             format!("{} migrations validated", migrations.len()),
         )
     } else {
         Check::fail("migration_registry", "migration registry validation failed")
-    }]);
+    }])
+}
+
+fn main() {
+    let migrations = trpg_data_eventing::persistence_migrations::migration_statements();
+    let required_columns =
+        trpg_data_eventing::sqlx_migrations_contract::required_event_store_columns();
+    let readiness = build_readiness(migrations, required_columns);
 
     if let Err(error) = serve(ServiceConfig {
         service: "migration-runner",
@@ -44,5 +48,15 @@ fn main() {
     }) {
         eprintln!("migration-runner failed: {error}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_migration_registry_is_not_ready() {
+        assert!(!build_readiness(&[], &["sequence"]).is_ready());
     }
 }

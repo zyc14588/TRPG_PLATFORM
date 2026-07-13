@@ -7,3 +7,6 @@ license = "UNLICENSED"
 
 [lib]
 path = "src/lib.rs"
+
+[dependencies]
+tokio = { version = "=1.52.3", features = ["rt", "signal"] }

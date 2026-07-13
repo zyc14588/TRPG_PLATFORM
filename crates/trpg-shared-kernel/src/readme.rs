@@ -1,57 +1,40 @@
 use crate::shared_kernel::{CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError};
 use crate::workspace_and_governance::{
     append_governance_reviewed, validate_governance_contract, GovernanceContract, GovernanceReview,
-    GovernanceReviewedPayload, GovernanceSurface, REQUIRED_COMMAND_FIELDS,
+    GovernanceReviewedPayload, GovernanceSurface,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReadmeContract {
-    pub points_to_top_level_design: bool,
-    pub points_to_bootstrap_prompt: bool,
-    pub points_to_normalized_maps: bool,
-    pub states_historical_inputs_are_provenance_only: bool,
-    pub forbids_direct_model_provider_access: bool,
+pub struct ProductEntryBoundary {
+    pub agent_gateway_required: bool,
+    pub direct_model_provider_access_forbidden: bool,
+    pub event_store_is_canonical: bool,
+    pub visibility_and_provenance_required: bool,
 }
 
 pub fn readme_contract() -> GovernanceContract {
-    GovernanceContract {
-        module_name: "readme",
-        source_file: "crates/trpg-shared-kernel/src/readme.rs",
-        test_file: "crates/trpg-shared-kernel/tests/readme_contract_tests.rs",
-        surface: GovernanceSurface::Readme,
-        command_fields: REQUIRED_COMMAND_FIELDS,
-        requires_agent_gateway: true,
-        permits_direct_model_provider_access: false,
-        permits_direct_agent_state_write: false,
-        permits_authority_contract_mutation: false,
-        canonical_state_boundary:
-            crate::workspace_and_governance::CanonicalStateBoundary::EventStore,
-        read_models_rebuildable: true,
-        propagates_visibility_and_provenance: true,
+    GovernanceContract::new("readme", GovernanceSurface::Readme)
+}
+
+pub fn current_product_entry_boundary() -> ProductEntryBoundary {
+    ProductEntryBoundary {
+        agent_gateway_required: true,
+        direct_model_provider_access_forbidden: true,
+        event_store_is_canonical: true,
+        visibility_and_provenance_required: true,
     }
 }
 
-pub fn current_readme_contract() -> ReadmeContract {
-    ReadmeContract {
-        points_to_top_level_design: true,
-        points_to_bootstrap_prompt: true,
-        points_to_normalized_maps: true,
-        states_historical_inputs_are_provenance_only: true,
-        forbids_direct_model_provider_access: true,
-    }
-}
-
-pub fn validate_readme_contract(contract: &ReadmeContract) -> KernelResult<()> {
+pub fn validate_product_entry_boundary(boundary: &ProductEntryBoundary) -> KernelResult<()> {
     validate_governance_contract(&readme_contract())?;
 
-    if !contract.points_to_top_level_design
-        || !contract.points_to_bootstrap_prompt
-        || !contract.points_to_normalized_maps
-        || !contract.states_historical_inputs_are_provenance_only
-        || !contract.forbids_direct_model_provider_access
+    if !boundary.agent_gateway_required
+        || !boundary.direct_model_provider_access_forbidden
+        || !boundary.event_store_is_canonical
+        || !boundary.visibility_and_provenance_required
     {
         return Err(TrpgError::WorkspaceViolation(
-            "readme must preserve foundation governance entry points",
+            "product entry must preserve governance boundaries",
         ));
     }
 
@@ -62,9 +45,10 @@ pub fn readme_review() -> GovernanceReview {
     GovernanceReview {
         contract: readme_contract(),
         checked_requirements: vec![
-            "readme_points_to_current_authority_documents",
-            "readme_keeps_historical_inputs_as_provenance",
-            "readme_preserves_agent_gateway_boundary",
+            "agent_gateway_is_required",
+            "direct_model_provider_access_is_forbidden",
+            "event_store_is_canonical",
+            "visibility_and_fact_provenance_propagate",
         ],
     }
 }

@@ -1,6 +1,6 @@
 use trpg_shared_kernel::readme::{
-    append_readme_reviewed, current_readme_contract, readme_contract, readme_review,
-    validate_readme_contract,
+    append_readme_reviewed, current_product_entry_boundary, readme_contract, readme_review,
+    validate_product_entry_boundary,
 };
 use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 use trpg_shared_kernel::workspace_and_governance::{
@@ -8,27 +8,26 @@ use trpg_shared_kernel::workspace_and_governance::{
 };
 
 #[test]
-fn readme_contract_points_to_current_governance_entry_points() {
+fn readme_contract_preserves_product_entry_boundaries() {
     let contract = readme_contract();
-    let readme = current_readme_contract();
+    let boundary = current_product_entry_boundary();
 
     validate_governance_contract(&contract).unwrap();
-    validate_readme_contract(&readme).unwrap();
+    validate_product_entry_boundary(&boundary).unwrap();
     assert_eq!(contract.surface, GovernanceSurface::Readme);
-    assert!(readme.points_to_top_level_design);
-    assert!(readme.points_to_bootstrap_prompt);
-    assert!(readme.points_to_normalized_maps);
-    assert!(readme.states_historical_inputs_are_provenance_only);
-    assert!(readme.forbids_direct_model_provider_access);
+    assert!(boundary.agent_gateway_required);
+    assert!(boundary.direct_model_provider_access_forbidden);
+    assert!(boundary.event_store_is_canonical);
+    assert!(boundary.visibility_and_provenance_required);
 }
 
 #[test]
-fn readme_contract_rejects_missing_current_governance_links() {
-    let mut readme = current_readme_contract();
-    readme.points_to_top_level_design = false;
+fn readme_contract_rejects_weakened_product_boundary() {
+    let mut boundary = current_product_entry_boundary();
+    boundary.event_store_is_canonical = false;
 
     assert!(matches!(
-        validate_readme_contract(&readme),
+        validate_product_entry_boundary(&boundary),
         Err(TrpgError::WorkspaceViolation(_))
     ));
 }
@@ -45,6 +44,6 @@ fn readme_review_is_recorded_as_a_governed_event() {
     let event = append_readme_reviewed(&mut store, &command).unwrap();
 
     assert_eq!(event.payload.module_name, "readme");
-    assert_eq!(event.payload.reviewed_requirements, 3);
+    assert_eq!(event.payload.reviewed_requirements, 4);
     assert_eq!(event.authority_contract_version, 1);
 }

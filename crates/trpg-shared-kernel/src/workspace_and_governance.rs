@@ -42,11 +42,10 @@ pub enum CanonicalStateBoundary {
     RagIndex,
 }
 
+#[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GovernanceContract {
     pub module_name: &'static str,
-    pub source_file: &'static str,
-    pub test_file: &'static str,
     pub surface: GovernanceSurface,
     pub command_fields: &'static [&'static str],
     pub requires_agent_gateway: bool,
@@ -56,6 +55,23 @@ pub struct GovernanceContract {
     pub canonical_state_boundary: CanonicalStateBoundary,
     pub read_models_rebuildable: bool,
     pub propagates_visibility_and_provenance: bool,
+}
+
+impl GovernanceContract {
+    pub const fn new(module_name: &'static str, surface: GovernanceSurface) -> Self {
+        Self {
+            module_name,
+            surface,
+            command_fields: REQUIRED_COMMAND_FIELDS,
+            requires_agent_gateway: true,
+            permits_direct_model_provider_access: false,
+            permits_direct_agent_state_write: false,
+            permits_authority_contract_mutation: false,
+            canonical_state_boundary: CanonicalStateBoundary::EventStore,
+            read_models_rebuildable: true,
+            propagates_visibility_and_provenance: true,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -72,20 +88,10 @@ pub struct GovernanceReviewedPayload {
 }
 
 pub fn workspace_governance_contract() -> GovernanceContract {
-    GovernanceContract {
-        module_name: "workspace_and_governance",
-        source_file: "crates/trpg-shared-kernel/src/workspace_and_governance.rs",
-        test_file: "crates/trpg-shared-kernel/tests/workspace_and_governance_contract_tests.rs",
-        surface: GovernanceSurface::WorkspaceAndGovernance,
-        command_fields: REQUIRED_COMMAND_FIELDS,
-        requires_agent_gateway: true,
-        permits_direct_model_provider_access: false,
-        permits_direct_agent_state_write: false,
-        permits_authority_contract_mutation: false,
-        canonical_state_boundary: CanonicalStateBoundary::EventStore,
-        read_models_rebuildable: true,
-        propagates_visibility_and_provenance: true,
-    }
+    GovernanceContract::new(
+        "workspace_and_governance",
+        GovernanceSurface::WorkspaceAndGovernance,
+    )
 }
 
 pub fn workspace_governance_review() -> GovernanceReview {
@@ -110,20 +116,6 @@ pub fn validate_governance_contract(contract: &GovernanceContract) -> KernelResu
     {
         return Err(TrpgError::WorkspaceViolation(
             "module name must be current-safe",
-        ));
-    }
-
-    let source_suffix = format!("src/{}.rs", contract.module_name);
-    let test_suffix = format!("tests/{}_contract_tests.rs", contract.module_name);
-    if !contract
-        .source_file
-        .starts_with("crates/trpg-shared-kernel/")
-        || !contract.source_file.ends_with(&source_suffix)
-        || !contract.test_file.starts_with("crates/trpg-shared-kernel/")
-        || !contract.test_file.ends_with(&test_suffix)
-    {
-        return Err(TrpgError::WorkspaceViolation(
-            "contract outputs must use current-safe shared-kernel paths",
         ));
     }
 

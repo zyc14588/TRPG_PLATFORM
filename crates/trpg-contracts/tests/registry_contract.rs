@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use trpg_contracts::{CanonicalEvent, WireErrorCode};
+use trpg_contracts::{
+    CanonicalEvent, WireErrorCode, CANONICAL_EVENT_SCHEMA_ID, CANONICAL_EVENT_VERSION,
+};
 
 fn fixture(relative: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -169,23 +171,21 @@ fn every_non_core_production_error_is_registered() {
 }
 
 #[test]
-fn canonical_event_registry_is_closed_versioned_and_schema_named() {
+fn canonical_event_registry_is_closed_versioned_and_schema_identified() {
     let mut names = BTreeSet::new();
     let mut schemas = BTreeSet::new();
     for event in CanonicalEvent::ALL {
         let descriptor = event.descriptor();
         assert_eq!(descriptor.event(), *event);
         assert_eq!(descriptor.name(), event.name());
-        assert_eq!(descriptor.version(), 1);
-        assert_eq!(descriptor.schema_name(), event.schema_name());
-        assert!(descriptor.schema_name().ends_with(".v1.schema.json"));
+        assert_eq!(descriptor.version(), CANONICAL_EVENT_VERSION);
+        assert_eq!(descriptor.schema_id(), event.schema_id());
+        assert_eq!(descriptor.schema_id(), CANONICAL_EVENT_SCHEMA_ID);
         assert!(names.insert(descriptor.name()), "duplicate event name");
-        assert!(
-            schemas.insert(descriptor.schema_name()),
-            "duplicate schema name"
-        );
+        schemas.insert(descriptor.schema_id());
         assert_eq!(CanonicalEvent::lookup(descriptor.name()), Ok(*event));
     }
+    assert_eq!(schemas, BTreeSet::from([CANONICAL_EVENT_SCHEMA_ID]));
     assert!(CanonicalEvent::lookup("ArbitraryEvent").is_err());
 }
 
@@ -235,7 +235,7 @@ fn fixture_event_union_exactly_matches_the_canonical_registry() {
     assert_eq!(fixture_names, registry_names);
     for name in fixture_names {
         let event = CanonicalEvent::lookup(name).unwrap();
-        assert_eq!(event.version(), 1);
-        assert!(event.schema_name().ends_with(".v1.schema.json"));
+        assert_eq!(event.version(), CANONICAL_EVENT_VERSION);
+        assert_eq!(event.schema_id(), CANONICAL_EVENT_SCHEMA_ID);
     }
 }

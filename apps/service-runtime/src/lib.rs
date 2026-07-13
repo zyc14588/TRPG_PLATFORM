@@ -1,12 +1,19 @@
 #![forbid(unsafe_code)]
 
 use std::env;
+use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::thread;
 use std::time::Duration;
 
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const IO_TIMEOUT: Duration = Duration::from_secs(5);
+const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Check {
@@ -43,7 +50,7 @@ impl Readiness {
         Self { checks }
     }
 
-    fn is_ready(&self) -> bool {
+    pub fn is_ready(&self) -> bool {
         !self.checks.is_empty() && self.checks.iter().all(|check| check.passed)
     }
 }
@@ -61,13 +68,20 @@ pub fn serve(config: ServiceConfig) -> io::Result<()> {
         env::var("TRPG_BIND_ADDR").unwrap_or_else(|_| config.default_bind_addr.to_owned());
     let max_requests = max_requests_from_env()?;
     let listener = TcpListener::bind(&bind_addr)?;
+    listener.set_nonblocking(true)?;
+    let shutdown = Arc::new(AtomicBool::new(false));
+    install_shutdown_handlers(&shutdown)?;
     println!("{} listening on {}", config.service, listener.local_addr()?);
 
     let mut served = 0usize;
-    loop {
+    while !shutdown.load(Ordering::Relaxed) {
         let (mut stream, _) = match listener.accept() {
             Ok(connection) => connection,
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                thread::sleep(ACCEPT_POLL_INTERVAL);
+                continue;
+            }
             Err(error) => return Err(error),
         };
         if let Err(error) = handle_connection(&mut stream, &config) {
@@ -78,6 +92,90 @@ pub fn serve(config: ServiceConfig) -> io::Result<()> {
             return Ok(());
         }
     }
+    println!("{} shutdown complete", config.service);
+    Ok(())
+}
+
+fn signal_runtime() -> io::Result<tokio::runtime::Runtime> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+}
+
+fn install_shutdown_handlers(shutdown: &Arc<AtomicBool>) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+
+        let interrupt_runtime = signal_runtime()?;
+        let mut interrupt_signal = {
+            let _runtime_guard = interrupt_runtime.enter();
+            signal(SignalKind::interrupt())?
+        };
+        spawn_shutdown_waiter(
+            "trpg-sigint",
+            interrupt_runtime,
+            Arc::clone(shutdown),
+            async move { interrupt_signal.recv().await.is_some() },
+        )?;
+
+        let terminate_runtime = signal_runtime()?;
+        let mut terminate_signal = {
+            let _runtime_guard = terminate_runtime.enter();
+            signal(SignalKind::terminate())?
+        };
+        spawn_shutdown_waiter(
+            "trpg-sigterm",
+            terminate_runtime,
+            Arc::clone(shutdown),
+            async move { terminate_signal.recv().await.is_some() },
+        )?;
+    }
+
+    #[cfg(windows)]
+    {
+        let ctrl_c_runtime = signal_runtime()?;
+        let mut ctrl_c_signal = {
+            let _runtime_guard = ctrl_c_runtime.enter();
+            tokio::signal::windows::ctrl_c()?
+        };
+        spawn_shutdown_waiter(
+            "trpg-ctrl-c",
+            ctrl_c_runtime,
+            Arc::clone(shutdown),
+            async move { ctrl_c_signal.recv().await.is_some() },
+        )?;
+
+        let ctrl_break_runtime = signal_runtime()?;
+        let mut ctrl_break_signal = {
+            let _runtime_guard = ctrl_break_runtime.enter();
+            tokio::signal::windows::ctrl_break()?
+        };
+        spawn_shutdown_waiter(
+            "trpg-ctrl-break",
+            ctrl_break_runtime,
+            Arc::clone(shutdown),
+            async move { ctrl_break_signal.recv().await.is_some() },
+        )?;
+    }
+
+    Ok(())
+}
+
+fn spawn_shutdown_waiter(
+    name: &str,
+    runtime: tokio::runtime::Runtime,
+    shutdown: Arc<AtomicBool>,
+    wait: impl Future<Output = bool> + Send + 'static,
+) -> io::Result<()> {
+    thread::Builder::new()
+        .name(name.to_owned())
+        .spawn(move || {
+            if runtime.block_on(wait) {
+                shutdown.store(true, Ordering::Relaxed);
+            }
+        })?;
+    Ok(())
 }
 
 fn validate_config(config: &ServiceConfig) -> io::Result<()> {

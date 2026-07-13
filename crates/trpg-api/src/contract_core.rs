@@ -73,6 +73,7 @@ pub const REQUIRED_COMMAND_FIELDS: &[&str] = &[
 pub const REQUIRED_EVENT_FIELDS: &[&str] = &[
     "sequence",
     "event_type",
+    "event_descriptor",
     "command_id",
     "idempotency_key",
     "authority_contract_version",
@@ -324,7 +325,7 @@ pub fn visible_realtime_delta(
     event: &EventEnvelope<ApiRealtimeEventPayload>,
     principal: &PrincipalScope,
 ) -> KernelResult<Option<RealtimeDelta>> {
-    validate_api_projection_realtime_event_type(event.event_type)?;
+    validate_api_projection_realtime_event(event)?;
     if !event.visibility.can_view(principal) {
         return Ok(None);
     }
@@ -358,7 +359,7 @@ pub fn rebuild_api_projection(
 ) -> KernelResult<ApiProjection> {
     let mut modules = Vec::new();
     for event in events {
-        validate_api_projection_realtime_event_type(event.event_type)?;
+        validate_api_projection_realtime_event(event)?;
         if !modules.contains(&event.payload.module_name) {
             modules.push(event.payload.module_name);
         }
@@ -386,8 +387,8 @@ pub fn build_openapi_contract_document(
         .map(CanonicalEvent::descriptor)
         .collect();
     for event in &canonical_events {
-        if !schemas.contains(&event.schema_name()) {
-            schemas.push(event.schema_name());
+        if !schemas.contains(&event.schema_id()) {
+            schemas.push(event.schema_id());
         }
     }
 
@@ -417,6 +418,19 @@ pub fn validate_api_projection_realtime_event_type(event_type: &str) -> KernelRe
     Err(TrpgError::InvalidConfiguration(
         "api_projection_realtime_event_type",
     ))
+}
+
+fn validate_api_projection_realtime_event(
+    event: &EventEnvelope<ApiRealtimeEventPayload>,
+) -> KernelResult<()> {
+    validate_api_projection_realtime_event_type(event.event_type)?;
+    match CanonicalEvent::lookup(event.event_type) {
+        Ok(canonical) if event.event_descriptor == Some(canonical.descriptor()) => Ok(()),
+        Err(_) if event.event_descriptor.is_none() => Ok(()),
+        _ => Err(TrpgError::InvalidConfiguration(
+            "api_projection_realtime_event_descriptor",
+        )),
+    }
 }
 
 pub fn validate_nats_subject(subject: &str) -> KernelResult<()> {

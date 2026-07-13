@@ -1,7 +1,9 @@
+use trpg_contracts::{CANONICAL_EVENT_SCHEMA_ID, CANONICAL_EVENT_VERSION};
 use trpg_data_eventing::{
     append_canonical_event, canonical_projection_descriptor, ActorRole, AuthorityContract,
     AuthorityMode, CanonicalEvent, CommandEnvelope, DataEventOperation, DataEventPayload, EntityId,
     EventStore, FactProvenance, ProvenanceKind, Visibility, VisibilityLabel,
+    EVENT_ENVELOPE_REQUIRED_FIELDS,
 };
 
 fn command(expected_version: u64, event: CanonicalEvent) -> CommandEnvelope<()> {
@@ -27,6 +29,7 @@ fn command(expected_version: u64, event: CanonicalEvent) -> CommandEnvelope<()> 
 fn canonical_constructor_and_projection_share_the_registry() {
     let authority = AuthorityContract::new("campaign_registry", AuthorityMode::AiKp, 1).unwrap();
     let mut store: EventStore<DataEventPayload> = EventStore::default();
+    assert!(EVENT_ENVELOPE_REQUIRED_FIELDS.contains(&"event_descriptor"));
 
     for (index, canonical) in CanonicalEvent::ALL.iter().copied().enumerate() {
         let event = append_canonical_event(
@@ -41,9 +44,12 @@ fn canonical_constructor_and_projection_share_the_registry() {
         .unwrap();
         let descriptor = canonical_projection_descriptor(&event).unwrap();
         assert_eq!(event.event_type, canonical.name());
+        assert_eq!(event.event_descriptor, Some(canonical.descriptor()));
         assert_eq!(event.payload.event_name, descriptor.name());
+        assert_eq!(descriptor.version(), CANONICAL_EVENT_VERSION);
         assert_eq!(descriptor.version(), canonical.version());
-        assert_eq!(descriptor.schema_name(), canonical.schema_name());
+        assert_eq!(descriptor.schema_id(), CANONICAL_EVENT_SCHEMA_ID);
+        assert_eq!(descriptor.schema_id(), canonical.schema_id());
     }
 }
 
@@ -64,5 +70,33 @@ fn projection_rejects_an_event_outside_the_registry() {
         )
         .unwrap();
 
+    assert_eq!(event.event_descriptor, None);
+    assert!(canonical_projection_descriptor(&event).is_err());
+}
+
+#[test]
+fn raw_canonical_append_is_normalized_and_descriptor_guards_projection() {
+    let canonical = CanonicalEvent::CampaignCreated;
+    let mut store: EventStore<DataEventPayload> = EventStore::default();
+    let mut event = store
+        .append(
+            &command(0, canonical),
+            canonical.name(),
+            DataEventPayload {
+                module_name: "canonical_event_registry",
+                event_name: canonical.name(),
+                operation: DataEventOperation::EventStoreAppend,
+                read_models: &["event_store"],
+            },
+        )
+        .unwrap();
+
+    assert_eq!(event.event_descriptor, Some(canonical.descriptor()));
+    assert_eq!(
+        canonical_projection_descriptor(&event),
+        Ok(canonical.descriptor())
+    );
+
+    event.event_type = CanonicalEvent::AuthorityContractLocked.name();
     assert!(canonical_projection_descriptor(&event).is_err());
 }

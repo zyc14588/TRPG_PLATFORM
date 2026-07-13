@@ -1,9 +1,8 @@
 use crate::open_source_reference_matrix::{validate_reference_entry, ReferenceEntry};
 use crate::shared_kernel::{CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError};
 use crate::workspace_and_governance::{
-    append_governance_reviewed, validate_governance_contract, CanonicalStateBoundary,
-    GovernanceContract, GovernanceReview, GovernanceReviewedPayload, GovernanceSurface,
-    REQUIRED_COMMAND_FIELDS,
+    append_governance_reviewed, validate_governance_contract, GovernanceContract, GovernanceReview,
+    GovernanceReviewedPayload, GovernanceSurface,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -13,21 +12,10 @@ pub struct OpenSourceReferenceMatrixLanding {
 }
 
 pub fn open_source_reference_matrix_impl_contract() -> GovernanceContract {
-    GovernanceContract {
-        module_name: "open_source_reference_matrix_impl",
-        source_file: "crates/trpg-shared-kernel/src/open_source_reference_matrix_impl.rs",
-        test_file:
-            "crates/trpg-shared-kernel/tests/open_source_reference_matrix_impl_contract_tests.rs",
-        surface: GovernanceSurface::OpenSourceReferenceMatrixImplementation,
-        command_fields: REQUIRED_COMMAND_FIELDS,
-        requires_agent_gateway: true,
-        permits_direct_model_provider_access: false,
-        permits_direct_agent_state_write: false,
-        permits_authority_contract_mutation: false,
-        canonical_state_boundary: CanonicalStateBoundary::EventStore,
-        read_models_rebuildable: true,
-        propagates_visibility_and_provenance: true,
-    }
+    GovernanceContract::new(
+        "open_source_reference_matrix_impl",
+        GovernanceSurface::OpenSourceReferenceMatrixImplementation,
+    )
 }
 
 pub fn open_source_reference_matrix_landing(

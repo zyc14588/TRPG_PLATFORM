@@ -1,4 +1,5 @@
-use trpg_shared_kernel::document_set::{current_foundation_document_set, FoundationDocument};
+use trpg_shared_kernel::constitution::ConstitutionArticle;
+use trpg_shared_kernel::document_set::current_governance_checklist;
 use trpg_shared_kernel::document_set_impl::{
     append_document_set_impl_reviewed, document_set_impl_review, document_set_landing,
     validate_document_set_landing,
@@ -6,20 +7,20 @@ use trpg_shared_kernel::document_set_impl::{
 use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 
 #[test]
-fn document_set_impl_landing_accepts_current_document_set() {
-    let landing = document_set_landing(current_foundation_document_set());
+fn document_set_impl_landing_accepts_current_governance_checklist() {
+    let landing = document_set_landing(current_governance_checklist());
 
     validate_document_set_landing(&landing).unwrap();
     assert_eq!(landing.governance_contract.module_name, "document_set_impl");
 }
 
 #[test]
-fn document_set_impl_landing_rejects_incomplete_document_set() {
-    let mut document_set = current_foundation_document_set();
-    document_set
-        .documents
-        .retain(|document| *document != FoundationDocument::SafeOutputMap);
-    let landing = document_set_landing(document_set);
+fn document_set_impl_landing_rejects_incomplete_governance_checklist() {
+    let mut checklist = current_governance_checklist();
+    checklist
+        .articles
+        .retain(|article| *article != ConstitutionArticle::VisibilityAndProvenanceRequired);
+    let landing = document_set_landing(checklist);
 
     assert!(matches!(
         validate_document_set_landing(&landing),

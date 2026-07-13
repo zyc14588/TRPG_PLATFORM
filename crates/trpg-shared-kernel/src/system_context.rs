@@ -1,7 +1,7 @@
 use crate::shared_kernel::{CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError};
 use crate::workspace_and_governance::{
     append_governance_reviewed, validate_governance_contract, GovernanceContract, GovernanceReview,
-    GovernanceReviewedPayload, GovernanceSurface, REQUIRED_COMMAND_FIELDS,
+    GovernanceReviewedPayload, GovernanceSurface,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,21 +27,7 @@ pub struct SystemContextPolicy {
 }
 
 pub fn system_context_contract() -> GovernanceContract {
-    GovernanceContract {
-        module_name: "system_context",
-        source_file: "crates/trpg-shared-kernel/src/system_context.rs",
-        test_file: "crates/trpg-shared-kernel/tests/system_context_contract_tests.rs",
-        surface: GovernanceSurface::SystemContext,
-        command_fields: REQUIRED_COMMAND_FIELDS,
-        requires_agent_gateway: true,
-        permits_direct_model_provider_access: false,
-        permits_direct_agent_state_write: false,
-        permits_authority_contract_mutation: false,
-        canonical_state_boundary:
-            crate::workspace_and_governance::CanonicalStateBoundary::EventStore,
-        read_models_rebuildable: true,
-        propagates_visibility_and_provenance: true,
-    }
+    GovernanceContract::new("system_context", GovernanceSurface::SystemContext)
 }
 
 pub fn current_system_context_policy() -> SystemContextPolicy {

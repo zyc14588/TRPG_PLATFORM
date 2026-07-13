@@ -9,7 +9,7 @@ use trpg_api::contract_core::{
     validate_api_projection_realtime_event_type, validate_domain_nats_subject,
     validate_nats_subject, validate_primary_adapter_boundaries, visible_realtime_delta,
     ApiRealtimeEventPayload, ProviderAccessPath, COMMAND_ENDPOINT, HTTP_FRAMEWORK,
-    OPENAPI_GENERATOR, REALTIME_DELTA_SUBJECT, REALTIME_REPLAYABLE_EVENTS,
+    OPENAPI_GENERATOR, REALTIME_DELTA_SUBJECT, REALTIME_REPLAYABLE_EVENTS, REQUIRED_EVENT_FIELDS,
     SQLX_EVENT_STORE_ADAPTER_BOUNDARY, WEBSOCKET_SYNC_ENDPOINT,
 };
 use trpg_api::{
@@ -17,6 +17,7 @@ use trpg_api::{
     request_idempotency_contract, AuthorityContract, AuthorityMode, CanonicalEvent, EventStore,
     FormalWritePath, PrincipalScope, TrpgError, Visibility,
 };
+use trpg_contracts::{CANONICAL_EVENT_SCHEMA_ID, CANONICAL_EVENT_VERSION};
 
 #[test]
 fn batch_029_maps_all_primary_contracts_to_current_safe_modules() {
@@ -33,6 +34,10 @@ fn batch_029_maps_all_primary_contracts_to_current_safe_modules() {
     assert!(contracts
         .iter()
         .all(|contract| contract.uses_current_safe_names()));
+    assert!(REQUIRED_EVENT_FIELDS.contains(&"event_descriptor"));
+    assert!(contracts
+        .iter()
+        .all(|contract| contract.required_event_fields.contains(&"event_descriptor")));
 }
 
 #[test]
@@ -153,20 +158,28 @@ fn openapi_and_nats_contracts_expose_governed_metadata() {
             .collect::<HashSet<_>>()
             .len()
     );
+    let canonical_schema_ids: HashSet<_> = document
+        .canonical_events
+        .iter()
+        .map(|event| event.schema_id())
+        .collect();
+    assert_eq!(canonical_schema_ids.len(), 1);
+    assert!(canonical_schema_ids.contains(CANONICAL_EVENT_SCHEMA_ID));
     assert_eq!(
-        document.canonical_events.len(),
         document
-            .canonical_events
+            .schemas
             .iter()
-            .map(|event| event.schema_name())
-            .collect::<HashSet<_>>()
-            .len()
+            .filter(|schema| **schema == CANONICAL_EVENT_SCHEMA_ID)
+            .count(),
+        1
     );
     for event in &document.canonical_events {
         assert_eq!(CanonicalEvent::lookup(event.name()), Ok(event.event()));
+        assert_eq!(event.version(), CANONICAL_EVENT_VERSION);
         assert_eq!(event.version(), event.event().version());
-        assert_eq!(event.schema_name(), event.event().schema_name());
-        assert!(document.schemas.contains(&event.schema_name()));
+        assert_eq!(event.schema_id(), CANONICAL_EVENT_SCHEMA_ID);
+        assert_eq!(event.schema_id(), event.event().schema_id());
+        assert!(document.schemas.contains(&event.schema_id()));
     }
     assert_eq!(document.websocket_delta_subject, REALTIME_DELTA_SUBJECT);
     assert!(document
@@ -258,13 +271,47 @@ fn projection_and_realtime_accept_registry_and_internal_events_but_reject_unknow
     );
 
     for canonical_event in REALTIME_REPLAYABLE_EVENTS {
-        let mut event = internal_event.clone();
-        event.event_type = canonical_event.name();
+        let idempotency_key = format!("idem_{}", canonical_event.name().to_ascii_lowercase());
+        let canonical_command = common::command_for(&api_contract, 0, &idempotency_key);
+        authority.validate_command(&canonical_command).unwrap();
+        let mut canonical_store = EventStore::default();
+        let event = canonical_store
+            .append_canonical(
+                &canonical_command,
+                *canonical_event,
+                internal_event.payload.clone(),
+            )
+            .unwrap();
+        assert_eq!(event.event_descriptor, Some(canonical_event.descriptor()));
         assert!(visible_realtime_delta(&event, &PrincipalScope::System)
             .unwrap()
             .is_some());
         assert_eq!(rebuild_api_projection(&[event]).unwrap().event_count, 1);
     }
+
+    let mut missing_descriptor = internal_event.clone();
+    missing_descriptor.event_type = CanonicalEvent::ApiRequestAccepted.name();
+    assert_eq!(
+        visible_realtime_delta(&missing_descriptor, &PrincipalScope::System).unwrap_err(),
+        TrpgError::InvalidConfiguration("api_projection_realtime_event_descriptor")
+    );
+    assert_eq!(
+        rebuild_api_projection(&[missing_descriptor.clone()]).unwrap_err(),
+        TrpgError::InvalidConfiguration("api_projection_realtime_event_descriptor")
+    );
+
+    missing_descriptor.event_descriptor = Some(CanonicalEvent::NatsMessagePublished.descriptor());
+    assert_eq!(
+        visible_realtime_delta(&missing_descriptor, &PrincipalScope::System).unwrap_err(),
+        TrpgError::InvalidConfiguration("api_projection_realtime_event_descriptor")
+    );
+
+    let mut unexpected_descriptor = internal_event.clone();
+    unexpected_descriptor.event_descriptor = Some(CanonicalEvent::ApiRequestAccepted.descriptor());
+    assert_eq!(
+        rebuild_api_projection(&[unexpected_descriptor]).unwrap_err(),
+        TrpgError::InvalidConfiguration("api_projection_realtime_event_descriptor")
+    );
 
     let unknown_event_type = "UnknownCanonicalFixtureEvent";
     assert_eq!(

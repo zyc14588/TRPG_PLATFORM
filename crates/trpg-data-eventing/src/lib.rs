@@ -66,6 +66,7 @@ pub const COMMAND_ENVELOPE_REQUIRED_FIELDS: &[&str] = &[
 pub const EVENT_ENVELOPE_REQUIRED_FIELDS: &[&str] = &[
     "sequence",
     "event_type",
+    "event_descriptor",
     "command_id",
     "idempotency_key",
     "authority_contract_version",
@@ -282,18 +283,34 @@ pub fn append_canonical_event<T>(
     operation: DataEventOperation,
     read_models: &'static [&'static str],
 ) -> DataEventResult<EventEnvelope<DataEventPayload>> {
-    append_data_event(
-        store,
-        contract,
+    if !is_current_safe_name(module_name) {
+        return Err(TrpgError::CodingPolicyViolation(
+            "data_eventing_current_safe_name",
+        ));
+    }
+
+    contract.validate_command(command)?;
+    store.append_canonical(
         command,
-        DataEventWrite::new(module_name, event.name(), operation, read_models),
+        event,
+        DataEventPayload {
+            module_name,
+            event_name: event.name(),
+            operation,
+            read_models,
+        },
     )
 }
 
 pub fn canonical_projection_descriptor<P>(
     event: &EventEnvelope<P>,
 ) -> Result<EventDescriptor, UnknownEventName> {
-    CanonicalEvent::lookup(event.event_type).map(CanonicalEvent::descriptor)
+    let descriptor = event.event_descriptor.ok_or(UnknownEventName)?;
+    let expected = CanonicalEvent::lookup(event.event_type)?.descriptor();
+    if descriptor != expected {
+        return Err(UnknownEventName);
+    }
+    Ok(descriptor)
 }
 
 pub fn rebuild_projection_from_events(

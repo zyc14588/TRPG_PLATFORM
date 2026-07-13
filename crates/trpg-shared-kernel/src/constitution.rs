@@ -1,7 +1,7 @@
 use crate::shared_kernel::{CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError};
 use crate::workspace_and_governance::{
     append_governance_reviewed, validate_governance_contract, GovernanceContract, GovernanceReview,
-    GovernanceReviewedPayload, GovernanceSurface, REQUIRED_COMMAND_FIELDS,
+    GovernanceReviewedPayload, GovernanceSurface,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,21 +19,7 @@ pub struct ConstitutionChecklist {
 }
 
 pub fn constitution_contract() -> GovernanceContract {
-    GovernanceContract {
-        module_name: "constitution",
-        source_file: "crates/trpg-shared-kernel/src/constitution.rs",
-        test_file: "crates/trpg-shared-kernel/tests/constitution_contract_tests.rs",
-        surface: GovernanceSurface::Constitution,
-        command_fields: REQUIRED_COMMAND_FIELDS,
-        requires_agent_gateway: true,
-        permits_direct_model_provider_access: false,
-        permits_direct_agent_state_write: false,
-        permits_authority_contract_mutation: false,
-        canonical_state_boundary:
-            crate::workspace_and_governance::CanonicalStateBoundary::EventStore,
-        read_models_rebuildable: true,
-        propagates_visibility_and_provenance: true,
-    }
+    GovernanceContract::new("constitution", GovernanceSurface::Constitution)
 }
 
 pub fn current_constitution_checklist() -> ConstitutionChecklist {
