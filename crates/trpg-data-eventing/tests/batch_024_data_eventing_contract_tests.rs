@@ -11,65 +11,26 @@ use trpg_data_eventing::{
 use trpg_data_eventing::{ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId};
 
 #[test]
-fn b024_contracts_map_all_primary_prompts_to_current_safe_outputs() {
+fn b024_contracts_map_all_modules_to_current_safe_outputs() {
     let contracts = all_data_event_contracts();
     assert!(contracts.len() >= 15);
 
     let expected = [
-        ("CODEX-0057-06-DATA-EVENTING-069ff7204e", "cache_redis"),
-        (
-            "CODEX-0058-06-DATA-EVENTING-524ce53bca",
-            "database_schema_index",
-        ),
-        ("CODEX-0059-06-DATA-EVENTING-8ceec1d689", "event_bus_nats"),
-        (
-            "CODEX-0060-06-DATA-EVENTING-34e6c845e3",
-            "event_schema_index",
-        ),
-        (
-            "CODEX-0061-06-DATA-EVENTING-f0442479c9",
-            "event_store_projections",
-        ),
-        (
-            "CODEX-0062-06-DATA-EVENTING-09d943908d",
-            "outbox_projection_workers",
-        ),
-        (
-            "CODEX-0063-06-DATA-EVENTING-f6f824261f",
-            "persistence_migrations",
-        ),
-        (
-            "CODEX-0064-06-DATA-EVENTING-2031b0ef61",
-            "snapshot_strategy",
-        ),
-        (
-            "CODEX-0585-06-DATA-EVENTING-11db1301e6",
-            "adr_0002_event_sourcing_cqrs_event_sourcing_cqrs",
-        ),
-        (
-            "CODEX-0586-06-DATA-EVENTING-5d2fcb8dee",
-            "adr_0004_nats_jetstream",
-        ),
-        (
-            "CODEX-0587-06-DATA-EVENTING-157ac308e6",
-            "adr_0005_postgres_pgvector_postgre_sql_pgvector",
-        ),
-        (
-            "CODEX-0588-06-DATA-EVENTING-ca435ac678",
-            "adr_0010_rag_snapshot_rag_snapshot",
-        ),
-        (
-            "CODEX-0592-06-DATA-EVENTING-0af61f65cd",
-            "event_json_schema_source_contract",
-        ),
-        (
-            "CODEX-0595-06-DATA-EVENTING-f8fc21553c",
-            "event_store_sqlx_outbox_projection",
-        ),
-        (
-            "CODEX-0596-06-DATA-EVENTING-526d27d67f",
-            "redis_cache_presence",
-        ),
+        "cache_redis",
+        "database_schema_index",
+        "event_bus_nats",
+        "event_schema_index",
+        "event_store_projections",
+        "outbox_projection_workers",
+        "persistence_migrations",
+        "snapshot_strategy",
+        "adr_0002_event_sourcing_cqrs_event_sourcing_cqrs",
+        "adr_0004_nats_jetstream",
+        "adr_0005_postgres_pgvector_postgre_sql_pgvector",
+        "adr_0010_rag_snapshot_rag_snapshot",
+        "event_json_schema_source_contract",
+        "event_store_sqlx_outbox_projection",
+        "redis_cache_presence",
     ];
 
     let modules: HashSet<_> = contracts
@@ -78,11 +39,11 @@ fn b024_contracts_map_all_primary_prompts_to_current_safe_outputs() {
         .collect();
     assert_eq!(modules.len(), contracts.len());
 
-    for (prompt_id, module_name) in expected {
+    for module_name in expected {
         let contract = contracts
             .iter()
-            .find(|contract| contract.prompt_id == prompt_id)
-            .expect("B024 primary prompt has a contract");
+            .find(|contract| contract.module_name == module_name)
+            .expect("B024 module has a contract");
 
         assert_eq!(contract.module_name, module_name);
         assert_eq!(contract.event_store_table, EVENT_STORE_TABLE);
@@ -426,7 +387,7 @@ fn governed_command<T>(
     role: ActorRole,
     mode: AuthorityMode,
 ) -> CommandEnvelope<T> {
-    let mut command = CommandEnvelope::governed(payload, role, mode);
+    let mut command = trpg_test_support::governed_command!(payload, role, mode);
     command.command_id = EntityId::new(format!("command_{idempotency_key}")).unwrap();
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;

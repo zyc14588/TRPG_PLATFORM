@@ -1,4 +1,4 @@
-use trpg_domain_core::ddd::{ActorRole, AuthorityMode, CommandEnvelope, EventStore};
+use trpg_domain_core::ddd::{ActorRole, AuthorityMode, EventStore};
 use trpg_domain_core::event_sourcing_snapshot_projection::{
     append_domain_event, rebuild_projection,
 };
@@ -7,7 +7,7 @@ use trpg_domain_core::event_sourcing_snapshot_projection::{
 fn event_sourcing_projection_rebuilds_from_event_log_without_new_canon_events() {
     let mut store = EventStore::default();
     let command_one =
-        CommandEnvelope::governed("payload", ActorRole::Workflow, AuthorityMode::AiKp);
+        trpg_test_support::governed_command!("payload", ActorRole::Workflow, AuthorityMode::AiKp);
     append_domain_event(
         &mut store,
         &command_one,
@@ -17,7 +17,7 @@ fn event_sourcing_projection_rebuilds_from_event_log_without_new_canon_events() 
     .unwrap();
 
     let mut command_two =
-        CommandEnvelope::governed("payload", ActorRole::Workflow, AuthorityMode::AiKp);
+        trpg_test_support::governed_command!("payload", ActorRole::Workflow, AuthorityMode::AiKp);
     command_two.command_id = trpg_domain_core::ddd::EntityId::new("command_002").unwrap();
     command_two.idempotency_key = "idem_002".to_owned();
     command_two.expected_version = 1;

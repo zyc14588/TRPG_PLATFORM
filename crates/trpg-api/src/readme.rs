@@ -5,9 +5,6 @@ use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult,
 };
 
-pub const PROMPT_ID: &str = "CODEX-0700-07-API-REALTIME-CONTRACTS-32445eadff";
-pub const SUPPLEMENTAL_PROMPT_ID: &str = "CODEX-0719-07-API-REALTIME-CONTRACTS-ccf8b3c12e";
-pub const CURRENT_SAFE_MODULE: &str = "api_realtime_contracts::readme";
 pub const MODULE_NAME: &str = "readme";
 pub const EVENT_TYPE: &str = "ReadmeContractRecorded";
 pub const EVENT_SCHEMA_NAME: &str = "readme.event_schema";
@@ -25,7 +22,6 @@ pub const README_GOVERNANCE_REQUIREMENTS: &[&str] = &[
 
 pub fn contract() -> ApiRealtimeContract {
     ApiRealtimeContract::new(
-        PROMPT_ID,
         MODULE_NAME,
         EVENT_TYPE,
         EVENT_SCHEMA_NAME,

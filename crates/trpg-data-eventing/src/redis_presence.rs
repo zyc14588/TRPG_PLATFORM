@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     RedisPresenceCommand,
     RedisPresenceOperation,
     append_redis_presence_event,
-    "CODEX-0603-06-DATA-EVENTING-dd4ec4ebfa",
     "redis_presence",
     "RedisPresenceCached",
     "data_eventing.redis_presence.event_schema",
@@ -11,8 +10,6 @@ crate::define_data_event_module!(
 );
 
 crate::define_data_event_artifacts!(
-    RedisPresenceService,
-    RedisPresenceRepository,
     RedisPresenceEvent,
     RedisPresenceError,
     EVENT_TYPE,

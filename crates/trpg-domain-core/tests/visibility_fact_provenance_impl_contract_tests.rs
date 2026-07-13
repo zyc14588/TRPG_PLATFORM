@@ -1,7 +1,7 @@
 use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, DomainError, EntityId, EventStore, FactProvenance,
-    FactSource, PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, DomainError, EntityId, EventStore, FactProvenance, FactSource,
+    PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
 };
 use trpg_domain_core::visibility_fact_provenance::{DerivedObject, RedactionOutcome};
 use trpg_domain_core::visibility_fact_provenance_impl::{
@@ -36,7 +36,7 @@ fn visibility_fact_provenance_impl_preserves_visibility_and_provenance_on_replay
         "rules_001",
     )
     .unwrap();
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command!(
         "fact promotion",
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,

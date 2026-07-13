@@ -44,17 +44,7 @@ where
         OpsEvent::RunbookStepRecorded(record) => {
             assert_eq!(record.module_name, contract.module_name);
             assert_eq!(record.operation, contract.operation);
-            assert!(
-                record
-                    .evidence_path
-                    .starts_with("evidence/batches/BATCH-042/")
-                    || record
-                        .evidence_path
-                        .starts_with("evidence/batches/BATCH-043/")
-                    || record
-                        .evidence_path
-                        .starts_with("docs/codex/11-ops-migration/")
-            );
+            assert!(record.evidence_path.starts_with("evidence/ops/"));
         }
         other => panic!("unexpected event payload: {other:?}"),
     }
@@ -208,7 +198,8 @@ pub fn governed_command<T>(
     idempotency_key: &'static str,
     visibility: Visibility,
 ) -> CommandEnvelope<T> {
-    let mut command = CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command =
+        trpg_test_support::governed_command!(payload, ActorRole::Workflow, AuthorityMode::AiKp);
     command.command_id = EntityId::new(format!("command_{idempotency_key}")).unwrap();
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;

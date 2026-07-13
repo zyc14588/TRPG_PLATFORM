@@ -3,7 +3,7 @@ use trpg_platform::reliability_performance::{
     RELIABILITY_POLICY_EVALUATED_EVENT,
 };
 use trpg_platform::PlatformEventStore;
-use trpg_shared_kernel::{ActorRole, AuthorityMode, CommandEnvelope};
+use trpg_shared_kernel::{ActorRole, AuthorityMode};
 
 #[test]
 fn retry_delay_is_capped_by_policy() {
@@ -19,7 +19,7 @@ fn retry_delay_is_capped_by_policy() {
 
 #[test]
 fn reliability_policy_evaluation_is_evented() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         EvaluateReliabilityPolicy {
             operation: "background_worker_restart".to_owned(),
             attempt: 1,

@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use trpg_data_eventing::{
-    api_websocket_nats_contracts, batch_026_data_event_contracts, cache_redis_impl,
-    domain_event_sourcing_projection, event_bus_nats_impl, is_current_safe_name,
+    api_websocket_nats_contracts, cache_redis_impl, domain_event_sourcing_projection,
+    event_bus_nats_impl, integration_data_event_contracts, is_current_safe_name,
     nats_subject_contracts, nats_subjects, nats_subjects_source_contract,
     persistence_postgresql_impl, rag_snapshot, rebuild_projection_from_events,
     replay_visible_data_events, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope,
@@ -22,52 +22,28 @@ const S03_DETAILED_FIXTURE: &str = include_str!(
 
 #[test]
 fn b026_primary_contracts_map_to_current_safe_outputs() {
-    let contracts = batch_026_data_event_contracts();
+    let contracts = integration_data_event_contracts();
     assert_eq!(contracts.len(), 9);
 
     let expected = [
         (
-            "CODEX-0626-06-DATA-EVENTING-59249231e5",
             "api_websocket_nats_contracts",
             DataEventOperation::SchemaRegister,
         ),
+        ("nats_subjects", DataEventOperation::SchemaRegister),
+        ("nats_subject_contracts", DataEventOperation::SchemaRegister),
         (
-            "CODEX-0627-06-DATA-EVENTING-e54d49d1d8",
-            "nats_subjects",
-            DataEventOperation::SchemaRegister,
-        ),
-        (
-            "CODEX-0628-06-DATA-EVENTING-14e037cb2a",
-            "nats_subject_contracts",
-            DataEventOperation::SchemaRegister,
-        ),
-        (
-            "CODEX-0630-06-DATA-EVENTING-fe8798d507",
             "nats_subjects_source_contract",
             DataEventOperation::SchemaRegister,
         ),
         (
-            "CODEX-0634-06-DATA-EVENTING-12eb9d50b4",
             "domain_event_sourcing_projection",
             DataEventOperation::ProjectionRebuild,
         ),
+        ("rag_snapshot", DataEventOperation::SnapshotCreate),
+        ("cache_redis_impl", DataEventOperation::CacheWrite),
+        ("event_bus_nats_impl", DataEventOperation::OutboxPublish),
         (
-            "CODEX-0635-06-DATA-EVENTING-e414d1cc2e",
-            "rag_snapshot",
-            DataEventOperation::SnapshotCreate,
-        ),
-        (
-            "CODEX-0636-06-DATA-EVENTING-2e55e84997",
-            "cache_redis_impl",
-            DataEventOperation::CacheWrite,
-        ),
-        (
-            "CODEX-0637-06-DATA-EVENTING-745a12af17",
-            "event_bus_nats_impl",
-            DataEventOperation::OutboxPublish,
-        ),
-        (
-            "CODEX-0638-06-DATA-EVENTING-0f91c8671e",
             "persistence_postgresql_impl",
             DataEventOperation::EventStoreAppend,
         ),
@@ -79,11 +55,11 @@ fn b026_primary_contracts_map_to_current_safe_outputs() {
         .collect();
     assert_eq!(modules.len(), contracts.len());
 
-    for (prompt_id, module_name, operation) in expected {
+    for (module_name, operation) in expected {
         let contract = contracts
             .iter()
-            .find(|contract| contract.prompt_id == prompt_id)
-            .expect("B026 primary prompt has a contract");
+            .find(|contract| contract.module_name == module_name)
+            .expect("B026 module has a contract");
 
         assert_eq!(contract.module_name, module_name);
         assert_eq!(contract.operation, operation);
@@ -279,7 +255,7 @@ fn b026_primary_surfaces_append_governed_events_and_bind_fixtures() {
         .iter()
         .map(|event| event.payload.module_name)
         .collect();
-    for contract in batch_026_data_event_contracts() {
+    for contract in integration_data_event_contracts() {
         assert!(modules.contains(contract.module_name));
     }
 
@@ -493,7 +469,7 @@ fn governed_command<T>(
     role: ActorRole,
     mode: AuthorityMode,
 ) -> CommandEnvelope<T> {
-    let mut command = CommandEnvelope::governed(payload, role, mode);
+    let mut command = trpg_test_support::governed_command!(payload, role, mode);
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;
     command.fact_provenance =

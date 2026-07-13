@@ -5,26 +5,14 @@ use trpg_api::contract_core::{
     validate_api_contract, ApiRealtimeEventPayload, ProviderAccessPath,
 };
 use trpg_api::{
-    readme, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventStore,
-    FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
+    readme, ActorRole, AuthorityContract, AuthorityMode, EntityId, EventStore, FormalWritePath,
+    PrincipalScope, TrpgError, Visibility, VisibilityLabel,
 };
 
 #[test]
 fn readme_contract_uses_current_safe_primary_metadata() {
     let contract = readme::contract();
 
-    assert_eq!(
-        readme::CURRENT_SAFE_MODULE,
-        "api_realtime_contracts::readme"
-    );
-    assert_eq!(
-        readme::SUPPLEMENTAL_PROMPT_ID,
-        "CODEX-0719-07-API-REALTIME-CONTRACTS-ccf8b3c12e"
-    );
-    assert_eq!(
-        contract.prompt_id,
-        "CODEX-0700-07-API-REALTIME-CONTRACTS-32445eadff"
-    );
     assert_eq!(contract.module_name, "readme");
     assert_eq!(contract.event_type, "ReadmeContractRecorded");
     assert_eq!(contract.event_schema_name, "readme.event_schema");
@@ -91,7 +79,7 @@ fn readme_rejects_authority_and_formal_write_boundary_violations() {
         operation: contract.operation,
         request_summary: "readme direct ai actor must not commit formal state",
     };
-    let mut ai_direct_actor = CommandEnvelope::governed(
+    let mut ai_direct_actor = trpg_test_support::governed_command!(
         ai_direct_actor_payload,
         ActorRole::AiKeeper,
         AuthorityMode::AiKp,
@@ -119,7 +107,6 @@ fn readme_commits_only_through_event_store_and_preserves_provenance() {
 
     assert_eq!(store.events().len(), 1);
     assert_eq!(event.event_type, "ReadmeContractRecorded");
-    assert_eq!(event.payload.prompt_id, readme::PROMPT_ID);
     assert_eq!(event.payload.module_name, "readme");
     assert_eq!(
         event.payload.endpoint,
@@ -132,9 +119,13 @@ fn readme_commits_only_through_event_store_and_preserves_provenance() {
     assert_eq!(event.correlation_id.as_str(), "corr_001");
     assert_eq!(event.causation_id.as_str(), "cause_001");
 
-    assert!(replay_visible_deltas(&store, &PrincipalScope::Public).is_empty());
+    assert!(replay_visible_deltas(&store, &PrincipalScope::Public)
+        .unwrap()
+        .is_empty());
     assert_eq!(
-        replay_visible_deltas(&store, &PrincipalScope::Keeper).len(),
+        replay_visible_deltas(&store, &PrincipalScope::Keeper)
+            .unwrap()
+            .len(),
         1
     );
 
@@ -160,21 +151,37 @@ fn readme_realtime_visibility_filters_private_and_ai_internal_content() {
     readme::append_contract_event(&mut private_store, &authority, &private_command).unwrap();
 
     assert_eq!(
-        replay_visible_deltas(&private_store, &PrincipalScope::Player(player_a)).len(),
+        replay_visible_deltas(&private_store, &PrincipalScope::Player(player_a))
+            .unwrap()
+            .len(),
         1
     );
-    assert!(replay_visible_deltas(&private_store, &PrincipalScope::Player(player_b)).is_empty());
-    assert!(replay_visible_deltas(&private_store, &PrincipalScope::Public).is_empty());
+    assert!(
+        replay_visible_deltas(&private_store, &PrincipalScope::Player(player_b))
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        replay_visible_deltas(&private_store, &PrincipalScope::Public)
+            .unwrap()
+            .is_empty()
+    );
 
     let mut ai_store: EventStore<ApiRealtimeEventPayload> = EventStore::default();
     let mut ai_command = common::command_for(&contract, 0, "idem_readme_ai_internal");
     ai_command.visibility = Visibility::new(VisibilityLabel::AiInternal);
     readme::append_contract_event(&mut ai_store, &authority, &ai_command).unwrap();
 
-    assert!(replay_visible_deltas(&ai_store, &PrincipalScope::Public).is_empty());
-    assert!(replay_visible_deltas(&ai_store, &PrincipalScope::Keeper).is_empty());
+    assert!(replay_visible_deltas(&ai_store, &PrincipalScope::Public)
+        .unwrap()
+        .is_empty());
+    assert!(replay_visible_deltas(&ai_store, &PrincipalScope::Keeper)
+        .unwrap()
+        .is_empty());
     assert_eq!(
-        replay_visible_deltas(&ai_store, &PrincipalScope::System).len(),
+        replay_visible_deltas(&ai_store, &PrincipalScope::System)
+            .unwrap()
+            .len(),
         1
     );
 }

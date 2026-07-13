@@ -25,10 +25,6 @@ fn chunks() -> Vec<RagChunk> {
 
 #[test]
 fn rag_snapshot_impl_requires_embedding_model_and_metadata() {
-    assert_eq!(
-        rag_snapshot_impl::PROMPT_ID,
-        "CODEX-0485-04-AI-AGENT-SYSTEM-962b774429"
-    );
     let error =
         rag_snapshot_impl::RagSnapshotImpl::new("snapshot_bad", "", 2, chunks()).unwrap_err();
 

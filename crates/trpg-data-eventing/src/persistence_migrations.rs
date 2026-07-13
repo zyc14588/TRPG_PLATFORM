@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     PersistenceMigrationsCommand,
     PersistenceMigrationsOperation,
     append_persistence_migrations_event,
-    "CODEX-0063-06-DATA-EVENTING-f6f824261f",
     "persistence_migrations",
     "PersistenceMigrationRecorded",
     "data_eventing.persistence_migrations.event_schema",

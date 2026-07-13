@@ -2,8 +2,6 @@ use crate::agent_runtime::{assemble_context, AssembledAgentContext, ContextFact}
 use crate::rag_snapshot::{query_visible_chunks, RagChunk};
 use trpg_shared_kernel::{EventStore, PrincipalScope};
 
-pub const PROMPT_ID: &str = "CODEX-0483-04-AI-AGENT-SYSTEM-a577767984";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MemoryRagView {
     pub context: AssembledAgentContext,

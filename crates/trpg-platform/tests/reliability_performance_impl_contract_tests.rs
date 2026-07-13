@@ -9,7 +9,7 @@ use trpg_shared_kernel::{
 };
 
 fn command() -> CommandEnvelope<RecordReliabilityPerformanceGuard> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command!(
         RecordReliabilityPerformanceGuard {
             operation: "projection_rebuild".to_owned(),
             attempt: 8,
@@ -24,7 +24,7 @@ fn command() -> CommandEnvelope<RecordReliabilityPerformanceGuard> {
 
 #[test]
 fn reliability_performance_impl_rejects_authority_contract_violation() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         command().payload,
         ActorRole::AiKeeper,
         AuthorityMode::HumanKp,

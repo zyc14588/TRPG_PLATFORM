@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt;
+pub use trpg_contracts::WireErrorCode;
 
 pub use trpg_shared_kernel::shared_kernel::{
     Actor, ActorRole, AuthorityContract as KernelAuthorityContract, AuthorityMode, CommandEnvelope,
@@ -19,22 +20,26 @@ pub enum DomainError {
     ExpectedVersionConflict { expected: u64, actual: u64 },
     VisibilityDenied,
     PolicyDenied,
-    SharedKernel(&'static str),
+    SharedKernel(WireErrorCode),
 }
 
 impl DomainError {
-    pub fn code(&self) -> &'static str {
+    pub const fn wire_code(&self) -> WireErrorCode {
         match self {
-            Self::AuthorityContractImmutable => "AUTHORITY_CONTRACT_IMMUTABLE",
-            Self::AuthorityViolation => "AUTHORITY_VIOLATION",
-            Self::InvalidConfirmedFactSource => "INVALID_CONFIRMED_FACT_SOURCE",
-            Self::MissingCommandMetadata => "MISSING_COMMAND_METADATA",
-            Self::DuplicateCommand => "DUPLICATE_COMMAND",
-            Self::ExpectedVersionConflict { .. } => "EXPECTED_VERSION_CONFLICT",
-            Self::VisibilityDenied => "VISIBILITY_DENIED",
-            Self::PolicyDenied => "POLICY_DENIED",
-            Self::SharedKernel(code) => code,
+            Self::AuthorityContractImmutable => WireErrorCode::AuthorityContractImmutable,
+            Self::AuthorityViolation => WireErrorCode::AuthorityViolation,
+            Self::InvalidConfirmedFactSource => WireErrorCode::InvalidConfirmedFactSource,
+            Self::MissingCommandMetadata => WireErrorCode::MissingCommandMetadata,
+            Self::DuplicateCommand => WireErrorCode::DuplicateCommand,
+            Self::ExpectedVersionConflict { .. } => WireErrorCode::ExpectedVersionConflict,
+            Self::VisibilityDenied => WireErrorCode::VisibilityDenied,
+            Self::PolicyDenied => WireErrorCode::PolicyDenied,
+            Self::SharedKernel(code) => *code,
         }
+    }
+
+    pub const fn code(&self) -> &'static str {
+        self.wire_code().as_str()
     }
 }
 
@@ -57,7 +62,7 @@ impl From<TrpgError> for DomainError {
                 Self::ExpectedVersionConflict { expected, actual }
             }
             TrpgError::VisibilityDenied => Self::VisibilityDenied,
-            other => Self::SharedKernel(other.code()),
+            other => Self::SharedKernel(other.wire_code()),
         }
     }
 }

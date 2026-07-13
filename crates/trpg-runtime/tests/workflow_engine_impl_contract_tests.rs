@@ -1,6 +1,6 @@
 use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeModule, RuntimeTool, ToolRequest,
-    BATCH_014_PRIMARY_MODULES,
+    RUNTIME_MODULES,
 };
 use trpg_runtime::workflow_engine_impl;
 use trpg_runtime::{
@@ -13,7 +13,7 @@ fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
 }
 
 fn command(payload: RuntimeDecision) -> CommandEnvelope<RuntimeDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command!(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 fn string_command(
@@ -21,8 +21,11 @@ fn string_command(
     expected_version: u64,
     idempotency_key: &str,
 ) -> CommandEnvelope<String> {
-    let mut command =
-        CommandEnvelope::governed(payload.to_owned(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command!(
+        payload.to_owned(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp
+    );
     command.command_id =
         EntityId::new(format!("command_{idempotency_key}")).expect("valid command id");
     command.idempotency_key = idempotency_key.to_owned();
@@ -33,11 +36,7 @@ fn string_command(
 
 #[test]
 fn workflow_engine_impl_preserves_governed_decision_event_contract() {
-    assert_eq!(
-        workflow_engine_impl::PROMPT_ID,
-        "CODEX-0392-03-RUNTIME-ORCHESTRATION-1cb6fb735e"
-    );
-    assert!(BATCH_014_PRIMARY_MODULES.contains(&RuntimeModule::WorkflowEngineImpl));
+    assert!(RUNTIME_MODULES.contains(&RuntimeModule::WorkflowEngineImpl));
 
     let request = ToolRequest::formal(
         RuntimeAgent::AiKeeperOrchestrator,

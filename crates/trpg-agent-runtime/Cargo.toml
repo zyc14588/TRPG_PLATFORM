@@ -6,4 +6,8 @@ publish = false
 license = "UNLICENSED"
 
 [dependencies]
+trpg-contracts = { path = "../trpg-contracts" }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
+
+[dev-dependencies]
+trpg-test-support = { path = "../trpg-test-support" }

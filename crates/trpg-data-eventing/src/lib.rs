@@ -37,6 +37,7 @@ pub mod snapshot_strategy;
 pub mod sqlx_migrations;
 pub mod sqlx_migrations_contract;
 
+pub use trpg_contracts::{CanonicalEvent, EventDescriptor, UnknownEventName};
 pub use trpg_shared_kernel::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
     EventStore, FactProvenance, FormalWritePath, PrincipalScope, ProvenanceKind, TrpgError,
@@ -145,7 +146,6 @@ impl DataEventWrite {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DataEventContract {
-    pub prompt_id: &'static str,
     pub module_name: &'static str,
     pub event_type: &'static str,
     pub operation: DataEventOperation,
@@ -162,7 +162,6 @@ pub struct DataEventContract {
 
 impl DataEventContract {
     pub fn new(
-        prompt_id: &'static str,
         module_name: &'static str,
         event_type: &'static str,
         operation: DataEventOperation,
@@ -170,7 +169,6 @@ impl DataEventContract {
         event_schema_name: &'static str,
     ) -> Self {
         Self {
-            prompt_id,
             module_name,
             event_type,
             operation,
@@ -275,6 +273,29 @@ pub fn append_data_event<T>(
     )
 }
 
+pub fn append_canonical_event<T>(
+    store: &mut EventStore<DataEventPayload>,
+    contract: &AuthorityContract,
+    command: &CommandEnvelope<T>,
+    module_name: &'static str,
+    event: CanonicalEvent,
+    operation: DataEventOperation,
+    read_models: &'static [&'static str],
+) -> DataEventResult<EventEnvelope<DataEventPayload>> {
+    append_data_event(
+        store,
+        contract,
+        command,
+        DataEventWrite::new(module_name, event.name(), operation, read_models),
+    )
+}
+
+pub fn canonical_projection_descriptor<P>(
+    event: &EventEnvelope<P>,
+) -> Result<EventDescriptor, UnknownEventName> {
+    CanonicalEvent::lookup(event.event_type).map(CanonicalEvent::descriptor)
+}
+
 pub fn rebuild_projection_from_events(
     events: &[EventEnvelope<DataEventPayload>],
 ) -> ProjectionSnapshot {
@@ -316,12 +337,12 @@ pub fn all_data_event_contracts() -> Vec<DataEventContract> {
         event_store_sqlx_outbox_projection::contract(),
         redis_cache_presence::contract(),
     ];
-    contracts.extend(batch_025_data_event_contracts());
-    contracts.extend(batch_026_data_event_contracts());
+    contracts.extend(storage_and_schema_contracts());
+    contracts.extend(integration_data_event_contracts());
     contracts
 }
 
-pub fn batch_025_data_event_contracts() -> Vec<DataEventContract> {
+pub fn storage_and_schema_contracts() -> Vec<DataEventContract> {
     vec![
         persistence_postgresql::contract(),
         redis_presence::contract(),
@@ -337,7 +358,7 @@ pub fn batch_025_data_event_contracts() -> Vec<DataEventContract> {
     ]
 }
 
-pub fn batch_026_data_event_contracts() -> Vec<DataEventContract> {
+pub fn integration_data_event_contracts() -> Vec<DataEventContract> {
     vec![
         api_websocket_nats_contracts::contract(),
         nats_subjects::contract(),
@@ -351,7 +372,7 @@ pub fn batch_026_data_event_contracts() -> Vec<DataEventContract> {
     ]
 }
 
-pub fn batch_028_data_event_contracts() -> Vec<DataEventContract> {
+pub fn event_json_schema_contracts() -> Vec<DataEventContract> {
     vec![event_json_schema::contract()]
 }
 
@@ -531,14 +552,12 @@ macro_rules! define_data_event_module {
         $command:ident,
         $operation_ty:ident,
         $append_fn:ident,
-        $prompt_id:literal,
         $module_name:literal,
         $event_type:literal,
         $schema_name:literal,
         $operation_kind:expr,
         [$($read_model:literal),* $(,)?]
     ) => {
-        pub const PROMPT_ID: &str = $prompt_id;
         pub const MODULE_NAME: &str = $module_name;
         pub const EVENT_TYPE: &str = $event_type;
         pub const EVENT_SCHEMA_NAME: &str = $schema_name;
@@ -584,7 +603,6 @@ macro_rules! define_data_event_module {
 
         pub fn contract() -> $crate::DataEventContract {
             $crate::DataEventContract::new(
-                PROMPT_ID,
                 MODULE_NAME,
                 EVENT_TYPE,
                 $operation_kind,
@@ -598,19 +616,11 @@ macro_rules! define_data_event_module {
 #[macro_export]
 macro_rules! define_data_event_artifacts {
     (
-        $service:ident,
-        $repository:ident,
         $event:ident,
         $error:ident,
         $event_type:ident,
         $schema_name:ident
     ) => {
-        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-        pub struct $service;
-
-        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-        pub struct $repository;
-
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub struct $event {
             pub event_type: &'static str,

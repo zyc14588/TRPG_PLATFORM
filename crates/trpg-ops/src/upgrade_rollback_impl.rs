@@ -1,4 +1,3 @@
-pub const PROMPT_ID: &str = "CODEX-0929-11-OPS-MIGRATION-02f99d0dd9";
 pub const MODULE_NAME: &str = "upgrade_rollback_impl";
 pub const EVENT_TYPE: &str = "OpsUpgradeRollbackImplRecorded";
 pub const READ_MODELS: &[&str] = &[
@@ -7,7 +6,7 @@ pub const READ_MODELS: &[&str] = &[
     "event_store_hash",
     "projection_replay",
 ];
-pub const EVIDENCE_PATH: &str = "evidence/batches/BATCH-043/upgrade-rollback-impl.md";
+pub const EVIDENCE_PATH: &str = "evidence/ops/upgrade-rollback-impl.md";
 pub const OPENAPI_OPERATION_ID: &str = "ops_upgrade_rollback_impl_record";
 pub const EVENT_SCHEMA_NAME: &str = "trpg.ops.upgrade_rollback_impl.event_schema";
 pub const NATS_SUBJECT: &str = "trpg.ops.upgrade_rollback_impl.recorded";
@@ -150,11 +149,6 @@ impl Default for UpgradeRollbackImplService {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum UpgradeRollbackImplError {
-    GovernanceViolation(&'static str),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UpgradeRollbackImplTransactionEvidence {
     pub sqlx_boundary: &'static str,
     pub event_store_boundary: &'static str,
@@ -237,7 +231,6 @@ pub fn append_upgrade_rollback_impl_event<T>(
 
 pub fn contract() -> crate::OpsRunbookContract {
     crate::OpsRunbookContract::new(
-        PROMPT_ID,
         MODULE_NAME,
         EVENT_TYPE,
         crate::OpsRunbookOperation::UpgradeRollbackImpl,

@@ -3,8 +3,6 @@ use crate::runtime_state_machines::{
 };
 use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, EventStore};
 
-pub const PROMPT_ID: &str = "CODEX-0391-03-RUNTIME-ORCHESTRATION-daba262944";
-
 pub fn start_session_runtime_impl<T: Clone>(
     store: &mut EventStore<RuntimeEventPayload>,
     contract: &AuthorityContract,

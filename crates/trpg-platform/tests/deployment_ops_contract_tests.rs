@@ -3,7 +3,7 @@ use trpg_platform::deployment_ops::{
     ProviderEndpoint, DEPLOYMENT_CONFIGURED_EVENT,
 };
 use trpg_platform::PlatformEventStore;
-use trpg_shared_kernel::{ActorRole, AuthorityMode, CommandEnvelope, TrpgError};
+use trpg_shared_kernel::{ActorRole, AuthorityMode, TrpgError};
 
 fn endpoint(provider: &str, api_key: &str, authenticated: bool) -> ProviderEndpoint {
     endpoint_with_base_url(provider, api_key, "http://127.0.0.1:11434", authenticated)
@@ -82,7 +82,7 @@ fn production_rejects_public_unauthenticated_local_llm_fixture_case() {
 
 #[test]
 fn deployment_configuration_is_evented() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         ConfigureDeployment {
             environment: DeploymentEnvironment::Production,
             endpoint: endpoint("cloud-provider", "real_key", true),

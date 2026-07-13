@@ -26,7 +26,7 @@ fn s09_placeholders_are_explicit_and_cannot_claim_ready() {
 }
 
 #[test]
-fn s09_release_readiness_fails_closed_without_product_runtime() {
+fn s09_release_readiness_recognizes_runtime_and_fails_closed_without_deployment() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Path::parent)
@@ -46,12 +46,15 @@ fn s09_release_readiness_fails_closed_without_product_runtime() {
         .expect("release readiness checker executes");
     assert!(
         !output.status.success(),
-        "missing product runtime must block release"
+        "missing product deployment must block release"
     );
     let payload = fs::read_to_string(&report).expect("readiness report generated for this run");
     fs::remove_file(report).expect("remove temporary readiness report");
     assert!(payload.contains("\"status\": \"BLOCKED\""));
-    assert!(payload.contains("NO_PRODUCT_BINARY"));
+    assert!(!payload.contains("NO_PRODUCT_BINARY"));
+    assert!(!payload.contains("AUD-001"));
+    assert!(payload.contains("AUD-002"));
+    assert!(payload.contains("AUD-006"));
     assert!(payload.contains("PLACEHOLDER_SERVICE"));
 }
 

@@ -1,7 +1,7 @@
 use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::command_cqrs::{CommandAcceptedPayload, DomainCommandKind};
 use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, DomainError, EventStore, FactSource, FormalWritePath,
+    ActorRole, AuthorityMode, DomainError, EventStore, FactSource, FormalWritePath,
 };
 use trpg_domain_core::domain_model::{
     reject_direct_state_write, DomainModelCommand, DomainModelService,
@@ -16,7 +16,7 @@ fn domain_model_accepts_only_governed_command_path() {
         1,
     )
     .unwrap();
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         "look under desk",
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,
@@ -37,7 +37,8 @@ fn domain_model_accepts_only_governed_command_path() {
 
 #[test]
 fn domain_model_rejects_direct_agent_state_write() {
-    let mut command = CommandEnvelope::governed("draft", ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command =
+        trpg_test_support::governed_command!("draft", ActorRole::Workflow, AuthorityMode::AiKp);
     command.write_path = FormalWritePath::DirectAgent;
 
     assert_eq!(

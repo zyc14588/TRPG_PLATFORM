@@ -1,13 +1,12 @@
 use trpg_data_eventing::{
-    all_data_event_contracts, batch_028_data_event_contracts, event_json_schema,
-    is_current_safe_name, replay_visible_data_events, ActorRole, AuthorityContract, AuthorityMode,
-    CommandEnvelope, DataEventOperation, DataEventPayload, EntityId, EventStore, FactProvenance,
-    FormalWritePath, PrincipalScope, ProvenanceKind, TrpgError, Visibility, VisibilityLabel,
+    all_data_event_contracts, event_json_schema, event_json_schema_contracts, is_current_safe_name,
+    replay_visible_data_events, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope,
+    DataEventOperation, DataEventPayload, EntityId, EventStore, FactProvenance, FormalWritePath,
+    PrincipalScope, ProvenanceKind, TrpgError, Visibility, VisibilityLabel,
     COMMAND_ENVELOPE_REQUIRED_FIELDS, EVENT_ENVELOPE_REQUIRED_FIELDS, EVENT_STORE_TABLE,
     NATS_EVENTS_APPENDED, NATS_PROJECTION_REBUILD_REQUESTED, OUTBOX_TABLE,
 };
 
-const P0107_PROMPT: &str = include_str!("../../../codex-prompts/06-data-eventing/P0107.md");
 const S03_DETAILED_FIXTURE: &str = include_str!(
     "../../../fixtures/stages/detailed/S03_event_store_projection_hash.current.json.md"
 );
@@ -18,11 +17,10 @@ const RAG_SNAPSHOT_FIXTURE: &str =
 
 #[test]
 fn event_json_schema_contract_maps_to_current_safe_primary_output() {
-    let contracts = batch_028_data_event_contracts();
+    let contracts = event_json_schema_contracts();
     assert_eq!(contracts.len(), 1);
 
     let contract = &contracts[0];
-    assert_eq!(contract.prompt_id, "CODEX-0682-06-DATA-EVENTING-af0d5b5090");
     assert_eq!(contract.module_name, "event_json_schema");
     assert_eq!(contract.event_type, "EventJsonSchemaRegistered");
     assert_eq!(contract.operation, DataEventOperation::SchemaRegister);
@@ -37,7 +35,7 @@ fn event_json_schema_contract_maps_to_current_safe_primary_output() {
     let all_contracts = all_data_event_contracts();
     assert!(all_contracts
         .iter()
-        .any(|candidate| candidate.prompt_id == contract.prompt_id));
+        .any(|candidate| candidate.module_name == contract.module_name));
     for name in [
         contract.module_name,
         contract.event_type,
@@ -205,8 +203,6 @@ fn event_json_schema_appends_only_through_governed_event_store_path() {
 
 #[test]
 fn event_json_schema_preserves_visibility_provenance_and_fixture_bindings() {
-    assert!(P0107_PROMPT.contains("CODEX-0682-06-DATA-EVENTING-af0d5b5090"));
-    assert!(P0107_PROMPT.contains("data_eventing::event_json_schema"));
     assert!(S03_DETAILED_FIXTURE.contains("\"ProjectionRebuilt\""));
     assert!(EVENT_STREAM_FIXTURE.contains("\"idempotency_repeat\""));
     assert!(RAG_SNAPSHOT_FIXTURE.contains("\"expected_player_context\": \"REDACTED\""));
@@ -294,7 +290,7 @@ fn governed_command_with_role(
     role: ActorRole,
     visibility: Visibility,
 ) -> CommandEnvelope<event_json_schema::EventJsonSchemaCommand> {
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command!(
         event_json_schema::EventJsonSchemaCommand::record("schema aggregate"),
         role,
         AuthorityMode::AiKp,

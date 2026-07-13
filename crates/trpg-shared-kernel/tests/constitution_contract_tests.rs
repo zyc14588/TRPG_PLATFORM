@@ -2,9 +2,7 @@ use trpg_shared_kernel::constitution::{
     append_constitution_reviewed, constitution_contract, constitution_review,
     current_constitution_checklist, validate_constitution_checklist, ConstitutionArticle,
 };
-use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, TrpgError,
-};
+use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 use trpg_shared_kernel::workspace_and_governance::{
     validate_governance_contract, GovernanceSurface,
 };
@@ -49,7 +47,7 @@ fn constitution_contract_rejects_missing_articles() {
 
 #[test]
 fn constitution_review_is_recorded_as_a_governed_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         constitution_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,

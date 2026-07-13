@@ -1,13 +1,11 @@
 use trpg_runtime::runtime_state_machines::RuntimeEventPayload;
 use trpg_runtime::saga::{self, SagaCompensationRequest};
-use trpg_runtime::{
-    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath,
-};
+use trpg_runtime::{ActorRole, AuthorityContract, AuthorityMode, EventStore, FormalWritePath};
 
 #[test]
 fn saga_compensation_uses_governed_event_append() {
     let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         "compensate".to_owned(),
         ActorRole::Workflow,
         AuthorityMode::AiKp,
@@ -22,13 +20,6 @@ fn saga_compensation_uses_governed_event_append() {
     )
     .unwrap();
 
-    assert_eq!(
-        saga::PROMPT_ID,
-        "CODEX-0353-03-RUNTIME-ORCHESTRATION-b1f275b36f"
-    );
-    assert!(
-        saga::SUPPLEMENTAL_PROMPT_IDS.contains(&"CODEX-0369-03-RUNTIME-ORCHESTRATION-0a78e83a1a")
-    );
     assert_eq!(event.event_type, "SagaCompensated");
     assert_eq!(event.idempotency_key, command.idempotency_key);
     assert_eq!(event.fact_provenance, command.fact_provenance);
@@ -43,7 +34,7 @@ fn saga_compensation_uses_governed_event_append() {
 #[test]
 fn saga_rejects_direct_agent_state_write() {
     let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command!(
         "compensate".to_owned(),
         ActorRole::Workflow,
         AuthorityMode::AiKp,

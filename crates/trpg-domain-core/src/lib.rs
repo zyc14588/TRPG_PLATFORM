@@ -33,4 +33,4 @@ pub mod visibility_fact_provenance;
 pub mod visibility_fact_provenance_impl;
 pub mod visibility_leakage_tests;
 
-pub use ddd::{DomainError, DomainResult, FactSource};
+pub use ddd::{DomainError, DomainResult, FactSource, WireErrorCode};

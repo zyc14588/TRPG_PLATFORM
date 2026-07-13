@@ -2,7 +2,6 @@ crate::define_extension_sdk_module!(
     SdkCommand,
     SdkService,
     append_sdk_event,
-    "CODEX-0953-12-EXTENSION-SDK-7588c965bd",
     "sdk",
     "ExtensionSdkRecorded",
     crate::ExtensionOperation::Sdk,
@@ -17,7 +16,7 @@ crate::define_extension_sdk_module!(
         crate::ExtensionCapability::RegisterToolProvider,
         crate::ExtensionCapability::ReadProjection,
     ],
-    "evidence/batches/BATCH-044/sdk.md"
+    "evidence/extensions/sdk.md"
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,12 +28,12 @@ pub struct ExtensionSdkManifest {
 impl ExtensionSdkManifest {
     pub fn current() -> Self {
         Self {
-            sdk_version: "s12.batch044.v1".to_owned(),
-            contract_count: crate::all_batch_044_contracts().len(),
+            sdk_version: env!("CARGO_PKG_VERSION").to_owned(),
+            contract_count: crate::all_extension_contracts().len(),
         }
     }
 
-    pub fn covers_batch_044(&self) -> bool {
+    pub fn has_complete_contract_registry(&self) -> bool {
         self.contract_count == 8
     }
 }

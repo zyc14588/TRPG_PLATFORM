@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#001310">
+    <title>COC AI TRPG</title>
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <header class="masthead">
+      <h1>COC AI TRPG</h1>
+      <button id="refresh" class="refresh" type="button" disabled aria-controls="health-table" aria-label="刷新五个服务进程的健康状态">
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="30" height="30">
+          <path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" />
+        </svg>
+        <span>刷新健康状态</span>
+      </button>
+    </header>
+
+    <main>
+      <section class="runtime" aria-labelledby="runtime-heading">
+        <h2 id="runtime-heading" class="visually-hidden">产品运行状态</h2>
+        <p class="runtime-meta">
+          <span>配置：<strong id="config-status">加载中</strong></span>
+          <span class="divider" aria-hidden="true">|</span>
+          <span>版本：<strong id="web-version">—</strong></span>
+        </p>
+
+        <div class="table-frame">
+          <table id="health-table">
+            <caption class="visually-hidden">五个产品服务进程的存活与就绪状态</caption>
+            <thead>
+              <tr>
+                <th scope="col">服务进程</th>
+                <th scope="col">LIVE</th>
+                <th scope="col">READY</th>
+              </tr>
+            </thead>
+            <tbody id="health-body">
+              <tr class="loading-row">
+                <th scope="row">服务配置</th>
+                <td><span class="state state-loading"><span class="dot" aria-hidden="true"></span>检查中</span></td>
+                <td><span class="state state-loading"><span class="dot" aria-hidden="true"></span>检查中</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <p id="announcer" class="visually-hidden" role="status" aria-live="polite"></p>
+    </main>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

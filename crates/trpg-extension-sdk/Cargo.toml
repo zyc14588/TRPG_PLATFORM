@@ -7,3 +7,6 @@ license = "UNLICENSED"
 
 [dependencies]
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
+
+[dev-dependencies]
+trpg-test-support = { path = "../trpg-test-support" }

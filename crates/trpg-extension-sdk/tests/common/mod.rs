@@ -25,10 +25,9 @@ where
     assert!(contract
         .required_command_fields
         .contains(&"expected_version"));
-    assert!(contract
-        .forbidden_capabilities
-        .iter()
-        .any(|capability| capability.denial_code() == "EXTENSION_DIRECT_LLM_FORBIDDEN"));
+    assert!(contract.forbidden_capabilities.iter().any(|capability| {
+        capability.denial_code() == trpg_extension_sdk::WireErrorCode::ExtensionDirectLlmForbidden
+    }));
 
     let authority = authority_contract();
     let mut store = ExtensionEventStore::default();
@@ -46,9 +45,7 @@ where
         ExtensionEvent::ContractRecorded(record) => {
             assert_eq!(record.module_name, contract.module_name);
             assert_eq!(record.operation, contract.operation);
-            assert!(record
-                .evidence_path
-                .starts_with("evidence/batches/BATCH-044/"));
+            assert!(record.evidence_path.starts_with("evidence/extensions/"));
             assert!(record
                 .capabilities
                 .iter()
@@ -209,7 +206,8 @@ pub fn governed_command<T>(
     idempotency_key: &'static str,
     visibility: Visibility,
 ) -> CommandEnvelope<T> {
-    let mut command = CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command =
+        trpg_test_support::governed_command!(payload, ActorRole::Workflow, AuthorityMode::AiKp);
     command.command_id = EntityId::new(format!("command_{idempotency_key}")).unwrap();
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;

@@ -3,31 +3,83 @@
 version = 4
 
 [[package]]
+name = "admin-server"
+version = "0.1.0"
+dependencies = [
+ "trpg-platform",
+ "trpg-service-runtime",
+]
+
+[[package]]
+name = "agent-worker"
+version = "0.1.0"
+dependencies = [
+ "trpg-agent-runtime",
+ "trpg-service-runtime",
+]
+
+[[package]]
+name = "api-server"
+version = "0.1.0"
+dependencies = [
+ "trpg-api",
+ "trpg-service-runtime",
+]
+
+[[package]]
+name = "migration-runner"
+version = "0.1.0"
+dependencies = [
+ "trpg-data-eventing",
+ "trpg-service-runtime",
+]
+
+[[package]]
+name = "realtime-server"
+version = "0.1.0"
+dependencies = [
+ "trpg-runtime",
+ "trpg-service-runtime",
+]
+
+[[package]]
 name = "trpg-agent-runtime"
 version = "0.1.0"
 dependencies = [
+ "trpg-contracts",
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]
 
 [[package]]
 name = "trpg-api"
 version = "0.1.0"
 dependencies = [
+ "trpg-contracts",
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]
+
+[[package]]
+name = "trpg-contracts"
+version = "0.1.0"
 
 [[package]]
 name = "trpg-data-eventing"
 version = "0.1.0"
 dependencies = [
+ "trpg-contracts",
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]
 
 [[package]]
 name = "trpg-domain-core"
 version = "0.1.0"
 dependencies = [
+ "trpg-contracts",
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]
 
 [[package]]
@@ -35,6 +87,7 @@ name = "trpg-extension-sdk"
 version = "0.1.0"
 dependencies = [
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]
 
 [[package]]
@@ -42,6 +95,7 @@ name = "trpg-ops"
 version = "0.1.0"
 dependencies = [
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]
 
 [[package]]
@@ -49,6 +103,7 @@ name = "trpg-platform"
 version = "0.1.0"
 dependencies = [
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]
 
 [[package]]
@@ -56,6 +111,7 @@ name = "trpg-ruleset-coc7"
 version = "0.1.0"
 dependencies = [
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]
 
 [[package]]
@@ -63,6 +119,7 @@ name = "trpg-runtime"
 version = "0.1.0"
 dependencies = [
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]
 
 [[package]]
@@ -70,10 +127,23 @@ name = "trpg-security-governance"
 version = "0.1.0"
 dependencies = [
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]
 
 [[package]]
+name = "trpg-service-runtime"
+version = "0.1.0"
+
+[[package]]
 name = "trpg-shared-kernel"
+version = "0.1.0"
+dependencies = [
+ "trpg-contracts",
+ "trpg-test-support",
+]
+
+[[package]]
+name = "trpg-test-support"
 version = "0.1.0"
 
 [[package]]
@@ -82,4 +152,5 @@ version = "0.1.0"
 dependencies = [
  "trpg-agent-runtime",
  "trpg-shared-kernel",
+ "trpg-test-support",
 ]

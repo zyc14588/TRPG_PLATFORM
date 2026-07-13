@@ -1,6 +1,4 @@
-use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, TrpgError,
-};
+use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 use trpg_shared_kernel::technology_selection_rust_impl::{
     append_technology_selection_rust_impl_reviewed, current_rust_technology_decisions,
     technology_selection_rust_impl_review, technology_selection_rust_landing,
@@ -46,7 +44,7 @@ fn technology_selection_rust_impl_rejects_direct_model_provider_access() {
 
 #[test]
 fn technology_selection_rust_impl_review_is_recorded_as_a_governed_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         technology_selection_rust_impl_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,

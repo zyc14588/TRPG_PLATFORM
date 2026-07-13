@@ -6,8 +6,6 @@ use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, PrincipalScope,
 };
 
-pub const PROMPT_ID: &str = "CODEX-0377-03-RUNTIME-ORCHESTRATION-fc718c91e6";
-
 pub fn append_runtime_workflow_state_machine_event<T: Clone>(
     store: &mut EventStore<RuntimeEventPayload>,
     contract: &AuthorityContract,

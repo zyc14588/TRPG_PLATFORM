@@ -8,7 +8,7 @@ pub fn human_contract() -> AuthorityContract {
 }
 
 pub fn rules_command<T>(payload: T) -> CommandEnvelope<T> {
-    CommandEnvelope::governed(payload, ActorRole::RulesEngine, AuthorityMode::HumanKp)
+    trpg_test_support::governed_command!(payload, ActorRole::RulesEngine, AuthorityMode::HumanKp)
 }
 
 pub fn event_store() -> EventStore<Coc7EventPayload> {

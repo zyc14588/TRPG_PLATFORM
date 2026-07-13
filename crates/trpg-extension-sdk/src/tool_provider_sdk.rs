@@ -2,7 +2,6 @@ crate::define_extension_sdk_module!(
     ToolProviderSdkCommand,
     ToolProviderSdkService,
     append_tool_provider_sdk_event,
-    "CODEX-0107-12-EXTENSION-SDK-18948e0a9e",
     "tool_provider_sdk",
     "ExtensionToolProviderSdkRecorded",
     crate::ExtensionOperation::ToolProviderSdk,
@@ -16,7 +15,7 @@ crate::define_extension_sdk_module!(
         crate::ExtensionCapability::InvokeGrantedTool,
         crate::ExtensionCapability::ReadProjection,
     ],
-    "evidence/batches/BATCH-044/tool-provider-sdk.md"
+    "evidence/extensions/tool-provider-sdk.md"
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
 use trpg_data_eventing::{
-    batch_025_data_event_contracts, event_command_json_schema, event_sourcing_snapshot_projection,
-    is_current_safe_name, nats_jet_stream, persistence_migrations, persistence_postgresql,
-    postgre_sql_sq_lx_pgvector, rebuild_projection_from_events, schema, snapshot, sqlx_migrations,
-    sqlx_migrations_contract, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope,
+    event_command_json_schema, event_sourcing_snapshot_projection, is_current_safe_name,
+    nats_jet_stream, persistence_migrations, persistence_postgresql, postgre_sql_sq_lx_pgvector,
+    rebuild_projection_from_events, schema, snapshot, sqlx_migrations, sqlx_migrations_contract,
+    storage_and_schema_contracts, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope,
     DataEventOperation, DataEventPayload, EventStore, FactProvenance, FormalWritePath,
     ProvenanceKind, TrpgError, COMMAND_ENVELOPE_REQUIRED_FIELDS, EVENT_ENVELOPE_REQUIRED_FIELDS,
     EVENT_STORE_TABLE, NATS_EVENTS_APPENDED, NATS_PROJECTION_REBUILD_REQUESTED, OUTBOX_TABLE,
@@ -12,62 +12,33 @@ use trpg_data_eventing::{
 
 #[test]
 fn b025_primary_contracts_map_to_current_safe_outputs() {
-    let contracts = batch_025_data_event_contracts();
+    let contracts = storage_and_schema_contracts();
     assert_eq!(contracts.len(), 11);
 
     let expected = [
         (
-            "CODEX-0601-06-DATA-EVENTING-6b440dcd4b",
             "persistence_postgresql",
             DataEventOperation::EventStoreAppend,
         ),
+        ("redis_presence", DataEventOperation::CacheWrite),
+        ("nats_jet_stream", DataEventOperation::OutboxPublish),
         (
-            "CODEX-0603-06-DATA-EVENTING-dd4ec4ebfa",
-            "redis_presence",
-            DataEventOperation::CacheWrite,
-        ),
-        (
-            "CODEX-0604-06-DATA-EVENTING-2cd43712b5",
-            "nats_jet_stream",
-            DataEventOperation::OutboxPublish,
-        ),
-        (
-            "CODEX-0605-06-DATA-EVENTING-7aa50c4023",
             "postgre_sql_sq_lx_pgvector",
             DataEventOperation::ProjectionRebuild,
         ),
+        ("sqlx_migrations", DataEventOperation::MigrationRecord),
         (
-            "CODEX-0606-06-DATA-EVENTING-96df5cfdb1",
-            "sqlx_migrations",
-            DataEventOperation::MigrationRecord,
-        ),
-        (
-            "CODEX-0607-06-DATA-EVENTING-2a432fa185",
             "event_sourcing_snapshot_projection",
             DataEventOperation::ProjectionRebuild,
         ),
+        ("schema", DataEventOperation::SchemaRegister),
+        ("readme", DataEventOperation::ArchitectureDecisionRecord),
+        ("snapshot", DataEventOperation::SnapshotCreate),
         (
-            "CODEX-0609-06-DATA-EVENTING-6f17ea580b",
-            "schema",
-            DataEventOperation::SchemaRegister,
-        ),
-        (
-            "CODEX-0615-06-DATA-EVENTING-58af1867fc",
-            "readme",
-            DataEventOperation::ArchitectureDecisionRecord,
-        ),
-        (
-            "CODEX-0616-06-DATA-EVENTING-0b28c2b885",
-            "snapshot",
-            DataEventOperation::SnapshotCreate,
-        ),
-        (
-            "CODEX-0620-06-DATA-EVENTING-f991a07544",
             "event_command_json_schema",
             DataEventOperation::SchemaRegister,
         ),
         (
-            "CODEX-0625-06-DATA-EVENTING-181b11b4cd",
             "sqlx_migrations_contract",
             DataEventOperation::MigrationRecord,
         ),
@@ -79,11 +50,11 @@ fn b025_primary_contracts_map_to_current_safe_outputs() {
         .collect();
     assert_eq!(modules.len(), contracts.len());
 
-    for (prompt_id, module_name, operation) in expected {
+    for (module_name, operation) in expected {
         let contract = contracts
             .iter()
-            .find(|contract| contract.prompt_id == prompt_id)
-            .expect("B025 primary prompt has a contract");
+            .find(|contract| contract.module_name == module_name)
+            .expect("B025 module has a contract");
 
         assert_eq!(contract.module_name, module_name);
         assert_eq!(contract.operation, operation);
@@ -334,7 +305,7 @@ fn governed_command<T>(
     role: ActorRole,
     mode: AuthorityMode,
 ) -> CommandEnvelope<T> {
-    let mut command = CommandEnvelope::governed(payload, role, mode);
+    let mut command = trpg_test_support::governed_command!(payload, role, mode);
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;
     command.fact_provenance =

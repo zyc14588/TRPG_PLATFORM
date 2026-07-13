@@ -1,0 +1,9 @@
+[package]
+name = "trpg-service-runtime"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "UNLICENSED"
+
+[lib]
+path = "src/lib.rs"

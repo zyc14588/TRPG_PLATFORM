@@ -1,9 +1,8 @@
 use trpg_agent_runtime::memory_rag_impl;
 use trpg_agent_runtime::rag_snapshot::RagChunk;
 use trpg_agent_runtime::{
-    ActorRole, AgentDecision, AgentKind, AgentTool, CommandEnvelope, ContextFact, EventStore,
-    PrincipalScope, ToolRequest, Visibility, VisibilityLabel, BATCH_019_PRIMARY_MODULES,
-    BATCH_019_PROMPT_IDS,
+    ActorRole, AgentDecision, AgentKind, AgentModule, AgentTool, ContextFact, EventStore,
+    PrincipalScope, ToolRequest, Visibility, VisibilityLabel, AGENT_RUNTIME_MODULES,
 };
 
 fn chunks() -> Vec<RagChunk> {
@@ -28,14 +27,15 @@ fn chunks() -> Vec<RagChunk> {
 }
 
 #[test]
-fn memory_rag_impl_maps_batch_019_primary_contract() {
-    assert_eq!(
-        memory_rag_impl::PROMPT_ID,
-        "CODEX-0483-04-AI-AGENT-SYSTEM-a577767984"
-    );
-    assert_eq!(BATCH_019_PROMPT_IDS.len(), 25);
-    assert_eq!(BATCH_019_PRIMARY_MODULES.len(), 4);
-    assert!(BATCH_019_PROMPT_IDS.contains(&memory_rag_impl::PROMPT_ID));
+fn memory_and_rag_implementations_are_registered_by_product_role() {
+    for module in [
+        AgentModule::MemoryRagImpl,
+        AgentModule::ModelProviderLocalCloudImpl,
+        AgentModule::RagSnapshotImpl,
+        AgentModule::Adr0009AgentGovernance,
+    ] {
+        assert!(AGENT_RUNTIME_MODULES.contains(&module));
+    }
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn memory_rag_impl_filters_context_chunks_and_replay_by_visibility() {
         AgentTool::RequestSkillCheck,
     );
     let decision = AgentDecision::new("decision_memory_rag_b019", request, "check").unwrap();
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command!(
         decision.clone(),
         ActorRole::Workflow,
         trpg_agent_runtime::AuthorityMode::AiKp,

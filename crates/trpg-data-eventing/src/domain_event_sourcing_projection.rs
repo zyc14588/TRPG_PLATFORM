@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     DomainEventSourcingProjectionCommand,
     DomainEventSourcingProjectionOperation,
     append_domain_event_sourcing_projection_event,
-    "CODEX-0634-06-DATA-EVENTING-12eb9d50b4",
     "domain_event_sourcing_projection",
     "DomainEventSourcingProjectionRebuilt",
     "data_eventing.domain_event_sourcing_projection.event_schema",
@@ -11,8 +10,6 @@ crate::define_data_event_module!(
 );
 
 crate::define_data_event_artifacts!(
-    DomainEventSourcingProjectionService,
-    DomainEventSourcingProjectionRepository,
     DomainEventSourcingProjectionEvent,
     DomainEventSourcingProjectionError,
     EVENT_TYPE,

@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     EventJsonSchemaCommand,
     EventJsonSchemaOperation,
     append_event_json_schema_event,
-    "CODEX-0682-06-DATA-EVENTING-af0d5b5090",
     "event_json_schema",
     "EventJsonSchemaRegistered",
     "data_eventing.event_json_schema.event_schema",
@@ -11,8 +10,6 @@ crate::define_data_event_module!(
 );
 
 crate::define_data_event_artifacts!(
-    EventJsonSchemaService,
-    EventJsonSchemaRepository,
     EventJsonSchemaEvent,
     EventJsonSchemaError,
     EVENT_TYPE,

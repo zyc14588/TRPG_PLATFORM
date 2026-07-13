@@ -15,9 +15,12 @@ from repo_truth import (
     ROOT,
     canonical_json_sha256,
     compose_services,
+    dependency_graph_errors,
     git_modes,
+    production_source_errors,
     sha256_file,
     validate_evidence,
+    workspace_dependency_errors,
 )
 from validate_workflows import validate as validate_workflows
 from verify_evidence_schema import schema_errors
@@ -25,6 +28,131 @@ from verify_test_inventory import inventory
 
 
 class RepositoryTruthNegativeTests(unittest.TestCase):
+    def test_workspace_dependency_graph_matches_declared_layers(self) -> None:
+        self.assertEqual(workspace_dependency_errors(), [])
+
+    def test_outward_and_test_dependencies_are_rejected(self) -> None:
+        metadata = {
+            "packages": [
+                {
+                    "name": "trpg-contracts",
+                    "dependencies": [{"name": "trpg-shared-kernel"}],
+                },
+                {
+                    "name": "trpg-shared-kernel",
+                    "dependencies": [{"name": "trpg-testing"}],
+                },
+                {"name": "trpg-testing", "dependencies": []},
+            ]
+        }
+        errors = dependency_graph_errors(metadata)
+        self.assertTrue(any("points outward" in error for error in errors))
+        self.assertTrue(any("depends on test package" in error for error in errors))
+
+    def test_production_dev_dependency_on_test_support_is_allowed(self) -> None:
+        metadata = {
+            "packages": [
+                {
+                    "name": "trpg-shared-kernel",
+                    "dependencies": [{"name": "trpg-test-support", "kind": "dev"}],
+                },
+                {
+                    "name": "trpg-test-support",
+                    "dependencies": [{"name": "trpg-shared-kernel", "kind": None}],
+                },
+                {
+                    "name": "trpg-testing",
+                    "dependencies": [{"name": "trpg-test-support", "kind": None}],
+                },
+            ]
+        }
+        self.assertEqual(dependency_graph_errors(metadata), [])
+
+    def test_production_normal_dependency_on_test_support_is_rejected(self) -> None:
+        metadata = {
+            "packages": [
+                {
+                    "name": "api-server",
+                    "dependencies": [{"name": "trpg-shared-kernel", "kind": None}],
+                },
+                {
+                    "name": "trpg-shared-kernel",
+                    "dependencies": [{"name": "trpg-test-support", "kind": None}],
+                },
+                {"name": "trpg-test-support", "dependencies": []},
+            ]
+        }
+        errors = dependency_graph_errors(metadata)
+        self.assertTrue(any("outside dev-only test support" in error for error in errors))
+        self.assertTrue(any("service/app normal dependency graph" in error for error in errors))
+
+    def test_production_build_dependency_on_test_support_is_rejected(self) -> None:
+        metadata = {
+            "packages": [
+                {
+                    "name": "trpg-shared-kernel",
+                    "dependencies": [{"name": "trpg-test-support", "kind": "build"}],
+                },
+                {"name": "trpg-test-support", "dependencies": []},
+            ]
+        }
+        self.assertTrue(
+            any(
+                "outside dev-only test support" in error
+                for error in dependency_graph_errors(metadata)
+            )
+        )
+
+    def test_production_fixture_factories_are_rejected_but_test_support_is_excluded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            production = root / "crates/trpg-shared-kernel/src/lib.rs"
+            test_support = root / "crates/trpg-test-support/src/lib.rs"
+            production.parent.mkdir(parents=True)
+            test_support.parent.mkdir(parents=True)
+            production.write_text(
+                'CommandEnvelope::governed("command_001", "idem_001");\n', encoding="utf-8"
+            )
+            test_support.write_text(
+                'CommandEnvelope::governed("command_001", "idem_001");\n', encoding="utf-8"
+            )
+            errors = production_source_errors(root)
+        self.assertEqual(len(errors), 3)
+        self.assertTrue(all("trpg-shared-kernel" in error for error in errors))
+
+    def test_construction_metadata_and_duplicate_production_modules_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = root / "crates/trpg-runtime/src/first.rs"
+            second = root / "apps/api-server/src/second.rs"
+            first.parent.mkdir(parents=True)
+            second.parent.mkdir(parents=True)
+            source = 'pub const PROMPT_ID: &str = "CODEX-0000";\n'
+            first.write_text(source, encoding="utf-8")
+            second.write_text(source, encoding="utf-8")
+            errors = production_source_errors(root)
+
+        self.assertTrue(any("PROMPT_ID" in error for error in errors))
+        self.assertTrue(any("CODEX-" in error for error in errors))
+        self.assertTrue(any("byte-identical production modules" in error for error in errors))
+
+    def test_workspace_dependency_cycle_is_rejected(self) -> None:
+        metadata = {
+            "packages": [
+                {
+                    "name": "trpg-shared-kernel",
+                    "dependencies": [{"name": "trpg-domain-core"}],
+                },
+                {
+                    "name": "trpg-domain-core",
+                    "dependencies": [{"name": "trpg-shared-kernel"}],
+                },
+            ]
+        }
+        self.assertTrue(
+            any("dependency cycle" in error for error in dependency_graph_errors(metadata))
+        )
+
     def test_historical_pass_evidence_is_rejected(self) -> None:
         legacy = ROOT / "evidence/stages/S09/docker-compose-smoke.txt"
         with self.assertRaises(json.JSONDecodeError):
@@ -48,12 +176,13 @@ class RepositoryTruthNegativeTests(unittest.TestCase):
             )
             self.assertTrue(compose_services(compose)["api"]["placeholder"])
 
-    def test_release_readiness_is_blocked_without_product_runtime(self) -> None:
+    def test_release_readiness_recognizes_product_runtime_and_blocks_on_deployment(self) -> None:
         report = assess(ROOT)
         self.assertEqual(report["status"], "BLOCKED")
         ids = {blocker["id"] for blocker in report["blockers"]}
-        self.assertTrue({"AUD-001", "AUD-002", "AUD-006"}.issubset(ids))
-        self.assertIn("NO_PRODUCT_BINARY", ids)
+        self.assertTrue({"AUD-002", "AUD-006"}.issubset(ids))
+        self.assertNotIn("AUD-001", ids)
+        self.assertNotIn("NO_PRODUCT_BINARY", ids)
         self.assertIn("NO_PRODUCT_DOCKERFILE", ids)
         self.assertIn("PLACEHOLDER_SERVICE", ids)
         self.assertEqual(readiness_report_errors(report), [])

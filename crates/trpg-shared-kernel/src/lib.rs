@@ -26,3 +26,6 @@ pub use shared_kernel::{
     EventStore, FactProvenance, FormalWritePath, KernelContractSnapshot, KernelResult,
     PrincipalScope, ProvenanceKind, TrpgError, Visibility, VisibilityLabel,
 };
+pub use trpg_contracts::{
+    CanonicalEvent, EventDescriptor, UnknownEventName, UnknownWireErrorCode, WireErrorCode,
+};

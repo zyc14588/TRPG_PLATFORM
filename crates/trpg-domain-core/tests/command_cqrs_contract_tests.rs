@@ -1,8 +1,6 @@
 use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::command_cqrs::{submit_domain_command, DomainCommandKind};
-use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, FactSource, FormalWritePath,
-};
+use trpg_domain_core::ddd::{ActorRole, AuthorityMode, EventStore, FactSource, FormalWritePath};
 
 #[test]
 fn command_cqrs_commits_formal_commands_as_event_store_entries() {
@@ -13,8 +11,11 @@ fn command_cqrs_commits_formal_commands_as_event_store_entries() {
         1,
     )
     .unwrap();
-    let command =
-        CommandEnvelope::governed("payload", ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let command = trpg_test_support::governed_command!(
+        "payload",
+        ActorRole::HumanKeeper,
+        AuthorityMode::HumanKp
+    );
     let mut store = EventStore::default();
 
     let event = submit_domain_command(
@@ -40,7 +41,8 @@ fn command_cqrs_rejects_direct_agent_state_write() {
         1,
     )
     .unwrap();
-    let mut command = CommandEnvelope::governed("payload", ActorRole::System, AuthorityMode::AiKp);
+    let mut command =
+        trpg_test_support::governed_command!("payload", ActorRole::System, AuthorityMode::AiKp);
     command.write_path = FormalWritePath::DirectAgent;
     let mut store = EventStore::default();
 

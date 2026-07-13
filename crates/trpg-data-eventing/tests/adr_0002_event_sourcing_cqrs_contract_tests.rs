@@ -9,7 +9,6 @@ use trpg_data_eventing::{
 fn adr_0002_contract_uses_b027_current_safe_owner_and_module() {
     let contract = adr_0002_event_sourcing_cqrs::contract();
 
-    assert_eq!(contract.prompt_id, "CODEX-0661-06-DATA-EVENTING-d4c088ceeb");
     assert_eq!(contract.module_name, "adr_0002_event_sourcing_cqrs");
     assert_eq!(contract.event_store_table, EVENT_STORE_TABLE);
     assert_eq!(contract.outbox_table, OUTBOX_TABLE);
@@ -26,8 +25,8 @@ fn adr_0002_contract_uses_b027_current_safe_owner_and_module() {
     let all = all_data_event_contracts();
     let b027 = all
         .iter()
-        .find(|contract| contract.prompt_id == "CODEX-0661-06-DATA-EVENTING-d4c088ceeb")
-        .expect("B027 ADR-0002 primary contract is registered");
+        .find(|contract| contract.module_name == "adr_0002_event_sourcing_cqrs")
+        .expect("ADR-0002 contract is registered");
     assert_eq!(b027.module_name, "adr_0002_event_sourcing_cqrs");
 }
 
@@ -116,7 +115,7 @@ fn governed_command(
     expected_version: u64,
     idempotency_key: &str,
 ) -> CommandEnvelope<adr_0002_event_sourcing_cqrs::Adr0002EventSourcingCqrsCommand> {
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command!(
         adr_0002_event_sourcing_cqrs::Adr0002EventSourcingCqrsCommand::record("B027 ADR-0002"),
         ActorRole::Workflow,
         AuthorityMode::AiKp,

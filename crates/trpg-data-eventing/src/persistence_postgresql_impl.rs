@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     PersistencePostgresqlImplCommand,
     PersistencePostgresqlImplOperation,
     append_persistence_postgresql_impl_event,
-    "CODEX-0638-06-DATA-EVENTING-0f91c8671e",
     "persistence_postgresql_impl",
     "PersistencePostgresqlImplRecorded",
     "data_eventing.persistence_postgresql_impl.event_schema",
@@ -11,8 +10,6 @@ crate::define_data_event_module!(
 );
 
 crate::define_data_event_artifacts!(
-    PersistencePostgresqlImplService,
-    PersistencePostgresqlImplRepository,
     PersistencePostgresqlImplEvent,
     PersistencePostgresqlImplError,
     EVENT_TYPE,

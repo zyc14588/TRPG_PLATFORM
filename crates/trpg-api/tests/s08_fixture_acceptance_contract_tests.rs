@@ -1,8 +1,8 @@
 mod common;
 
 use trpg_api::contract_core::{
-    append_api_contract_event, replay_visible_deltas, s08_expected_fixture_contract,
-    validate_domain_nats_subject, validate_primary_adapter_boundaries, ApiRealtimeEventPayload,
+    append_api_contract_event, replay_visible_deltas, validate_domain_nats_subject,
+    validate_primary_adapter_boundaries, ApiRealtimeEventPayload, REALTIME_REPLAYABLE_EVENTS,
 };
 use trpg_api::{api_and_transport, EntityId, EventStore, PrincipalScope, TrpgError, Visibility};
 
@@ -16,34 +16,37 @@ const VISIBILITY_LEAKAGE_CASES: &str =
 
 #[test]
 fn s08_detailed_fixture_is_bound_to_trpg_api_automated_assertions() {
-    let fixture = s08_expected_fixture_contract();
-
     assert!(S08_STAGE_FIXTURE.contains("\"stage\": \"S08\""));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.api_method));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.api_path));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.idempotency_key));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.websocket_message_type));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.correlation_id));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.room));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.nats_subject));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.automation_target));
-
-    for event_type in fixture.expected_events {
-        assert!(S08_DETAILED_FIXTURE.contains(event_type));
+    for fixture_value in [
+        "POST",
+        "/campaigns/{id}/actions",
+        "idem_001",
+        "player_action",
+        "corr_001",
+        "campaign_001",
+        "campaign.campaign_001.event.created",
+        "cargo test -p trpg-api --test s08_fixture_acceptance_contract_tests --all-features",
+    ] {
+        assert!(S08_DETAILED_FIXTURE.contains(fixture_value));
     }
-    for record in fixture.expected_records {
+
+    for event_type in REALTIME_REPLAYABLE_EVENTS {
+        assert!(S08_DETAILED_FIXTURE.contains(event_type.name()));
+    }
+    for record in ["ApiAuditRecord", "RealtimeDeliveryRecord"] {
         assert!(S08_DETAILED_FIXTURE.contains(record));
     }
-    for error in fixture.expected_errors {
+    for error in [
+        "IDEMPOTENCY_KEY_REQUIRED",
+        "REALTIME_VISIBILITY_VIOLATION",
+        "NATS_SUBJECT_CONTRACT_VIOLATION",
+        "IDEMPOTENCY_CONTRACT_BROKEN",
+    ] {
         assert!(S08_DETAILED_FIXTURE.contains(error));
     }
 
     validate_primary_adapter_boundaries().unwrap();
-    validate_domain_nats_subject(fixture.nats_subject).unwrap();
-    assert_eq!(
-        fixture.automation_target,
-        "cargo test -p trpg-api --test s08_fixture_acceptance_contract_tests --all-features"
-    );
+    validate_domain_nats_subject("campaign.campaign_001.event.created").unwrap();
 }
 
 #[test]
@@ -77,11 +80,19 @@ fn s08_private_realtime_fixture_path_is_event_store_filtered() {
 
     append_api_contract_event(&mut store, &authority, &command, &api_contract).unwrap();
     assert_eq!(
-        replay_visible_deltas(&store, &PrincipalScope::Player(player_a)).len(),
+        replay_visible_deltas(&store, &PrincipalScope::Player(player_a))
+            .unwrap()
+            .len(),
         1
     );
-    assert!(replay_visible_deltas(&store, &PrincipalScope::Player(player_b)).is_empty());
-    assert!(replay_visible_deltas(&store, &PrincipalScope::Public).is_empty());
+    assert!(
+        replay_visible_deltas(&store, &PrincipalScope::Player(player_b))
+            .unwrap()
+            .is_empty()
+    );
+    assert!(replay_visible_deltas(&store, &PrincipalScope::Public)
+        .unwrap()
+        .is_empty());
 }
 
 #[test]

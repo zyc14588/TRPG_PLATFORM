@@ -1,8 +1,6 @@
 use crate::agent_runtime::{commit_agent_decision, AgentDecision, AgentEventPayload, AgentResult};
 use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EventEnvelope, EventStore};
 
-pub const PROMPT_ID: &str = "CODEX-0470-04-AI-AGENT-SYSTEM-01fd0c2f41";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AiAgentBoundary {
     pub ai_entrypoint: &'static str,

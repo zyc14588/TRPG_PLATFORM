@@ -9,7 +9,7 @@ use trpg_shared_kernel::{
 };
 
 fn command() -> CommandEnvelope<EvaluatePlatformAuthorization> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command!(
         EvaluatePlatformAuthorization {
             principal: "system".to_owned(),
             resource: "platform_events".to_owned(),
@@ -24,7 +24,7 @@ fn command() -> CommandEnvelope<EvaluatePlatformAuthorization> {
 
 #[test]
 fn policy_authz_rejects_authority_contract_violation() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         command().payload,
         ActorRole::AiKeeper,
         AuthorityMode::HumanKp,

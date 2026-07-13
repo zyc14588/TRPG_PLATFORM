@@ -1,6 +1,6 @@
 use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, PrincipalScope,
-    TrpgError, Visibility, VisibilityLabel,
+    TrpgError, Visibility, VisibilityLabel, WireErrorCode,
 };
 
 pub const S10_BACKUP_EVENT_HASH: &str =
@@ -159,18 +159,21 @@ pub enum OpsRunbookError {
 }
 
 impl OpsRunbookError {
-    pub fn code(&self) -> &'static str {
+    pub const fn wire_code(&self) -> WireErrorCode {
         match self {
-            Self::RestoreHashMismatch => "RESTORE_HASH_MISMATCH",
-            Self::RollbackRunbookRequired => "ROLLBACK_RUNBOOK_REQUIRED",
-            Self::ProjectionRebuildHashMismatch => "PROJECTION_REBUILD_HASH_MISMATCH",
+            Self::RestoreHashMismatch => WireErrorCode::RestoreHashMismatch,
+            Self::RollbackRunbookRequired => WireErrorCode::RollbackRunbookRequired,
+            Self::ProjectionRebuildHashMismatch => WireErrorCode::ProjectionRebuildHashMismatch,
         }
+    }
+
+    pub fn code(&self) -> &'static str {
+        self.wire_code().as_str()
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OpsRunbookContract {
-    pub prompt_id: &'static str,
     pub module_name: &'static str,
     pub event_type: &'static str,
     pub operation: OpsRunbookOperation,
@@ -183,14 +186,12 @@ pub struct OpsRunbookContract {
 
 impl OpsRunbookContract {
     pub const fn new(
-        prompt_id: &'static str,
         module_name: &'static str,
         event_type: &'static str,
         operation: OpsRunbookOperation,
         read_models: &'static [&'static str],
     ) -> Self {
         Self {
-            prompt_id,
             module_name,
             event_type,
             operation,
@@ -297,7 +298,7 @@ pub fn replay_visible_ops_events(
     store.replay_visible(principal)
 }
 
-pub fn all_batch_042_contracts() -> Vec<OpsRunbookContract> {
+pub fn all_ops_runbook_contracts() -> Vec<OpsRunbookContract> {
     vec![
         crate::backup_restore_runbook::contract(),
         crate::incident_response_runbook::contract(),
@@ -311,7 +312,7 @@ pub fn all_batch_042_contracts() -> Vec<OpsRunbookContract> {
     ]
 }
 
-pub fn all_batch_043_contracts() -> Vec<OpsRunbookContract> {
+pub fn all_upgrade_rollback_contracts() -> Vec<OpsRunbookContract> {
     vec![
         crate::upgrade_rollback_impl::contract(),
         crate::upgrade_rollback::contract(),
@@ -320,7 +321,6 @@ pub fn all_batch_043_contracts() -> Vec<OpsRunbookContract> {
 
 pub fn contract() -> OpsRunbookContract {
     OpsRunbookContract::new(
-        "CODEX-0917-11-OPS-MIGRATION-9f27ade2d3",
         "readme",
         "OpsReadmeRecorded",
         OpsRunbookOperation::ReadmeRecord,
@@ -338,7 +338,7 @@ pub fn append_readme_event<T>(
         authority,
         command,
         contract(),
-        "docs/codex/11-ops-migration/README.md",
+        "evidence/ops/readme.md",
     )
 }
 
@@ -428,18 +428,13 @@ fn update_hash(hash: &mut u64, bytes: &[u8]) {
 macro_rules! define_ops_runbook_module {
     (
         $command:ident,
-        $service:ident,
-        $repository:ident,
-        $error:ident,
         $append_fn:ident,
-        $prompt_id:literal,
         $module_name:literal,
         $event_type:literal,
         $operation:expr,
         [$($read_model:literal),* $(,)?],
         $evidence_path:literal
     ) => {
-        pub const PROMPT_ID: &str = $prompt_id;
         pub const MODULE_NAME: &str = $module_name;
         pub const EVENT_TYPE: &str = $event_type;
         pub const READ_MODELS: &[&str] = &[$($read_model),*];
@@ -462,17 +457,6 @@ macro_rules! define_ops_runbook_module {
             }
         }
 
-        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-        pub struct $service;
-
-        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-        pub struct $repository;
-
-        #[derive(Clone, Debug, PartialEq, Eq)]
-        pub enum $error {
-            GovernanceViolation(&'static str),
-        }
-
         pub fn $append_fn<T>(
             store: &mut $crate::OpsEventStore,
             authority: &$crate::AuthorityContract,
@@ -483,7 +467,6 @@ macro_rules! define_ops_runbook_module {
 
         pub fn contract() -> $crate::OpsRunbookContract {
             $crate::OpsRunbookContract::new(
-                PROMPT_ID,
                 MODULE_NAME,
                 EVENT_TYPE,
                 $operation,

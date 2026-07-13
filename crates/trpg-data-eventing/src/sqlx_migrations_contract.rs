@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     SqlxMigrationsContractCommand,
     SqlxMigrationsContractOperation,
     append_sqlx_migrations_contract_event,
-    "CODEX-0625-06-DATA-EVENTING-181b11b4cd",
     "sqlx_migrations_contract",
     "SqlxMigrationsContractRecorded",
     "data_eventing.sqlx_migrations_contract.event_schema",
@@ -11,8 +10,6 @@ crate::define_data_event_module!(
 );
 
 crate::define_data_event_artifacts!(
-    SqlxMigrationsContractService,
-    SqlxMigrationsContractRepository,
     SqlxMigrationsContractEvent,
     SqlxMigrationsContractError,
     EVENT_TYPE,

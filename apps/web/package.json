@@ -1,0 +1,13 @@
+{
+  "name": "@coc-ai-trpg/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/server.mjs --root . --port 4173",
+    "preview": "node scripts/server.mjs --root dist --port 4173",
+    "start": "node scripts/server.mjs --root dist --port 4173",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

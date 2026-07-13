@@ -3,7 +3,7 @@ use std::fmt;
 
 use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, PrincipalScope,
-    TrpgError, Visibility, VisibilityLabel,
+    TrpgError, Visibility, VisibilityLabel, WireErrorCode,
 };
 
 pub const EXTENSION_REDACTED: &str = "[redacted]";
@@ -39,17 +39,21 @@ pub type ExtensionSdkResult<T> = Result<T, ExtensionSdkError>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExtensionSdkError {
-    ForbiddenCapability(&'static str),
-    CompatibilityRejected(&'static str),
+    ForbiddenCapability(WireErrorCode),
+    CompatibilityRejected(WireErrorCode),
     Kernel(TrpgError),
 }
 
 impl ExtensionSdkError {
-    pub fn code(&self) -> &'static str {
+    pub fn wire_code(&self) -> WireErrorCode {
         match self {
-            Self::ForbiddenCapability(code) | Self::CompatibilityRejected(code) => code,
-            Self::Kernel(error) => error.code(),
+            Self::ForbiddenCapability(code) | Self::CompatibilityRejected(code) => *code,
+            Self::Kernel(error) => error.wire_code(),
         }
+    }
+
+    pub fn code(&self) -> &'static str {
+        self.wire_code().as_str()
     }
 }
 
@@ -109,16 +113,16 @@ impl ExtensionCapability {
         FORBIDDEN_CAPABILITIES.contains(self)
     }
 
-    pub fn denial_code(&self) -> &'static str {
+    pub const fn denial_code(&self) -> WireErrorCode {
         match self {
-            Self::AppendEventStore => "EXTENSION_STATE_WRITE_FORBIDDEN",
-            Self::DirectLlm => "EXTENSION_DIRECT_LLM_FORBIDDEN",
-            Self::DatabaseWrite => "EXTENSION_DATABASE_WRITE_FORBIDDEN",
-            Self::InternalToolGateAccess => "EXTENSION_TOOL_GATE_BYPASS_FORBIDDEN",
-            Self::ModifyAuthorityContract => "EXTENSION_AUTHORITY_CONTRACT_FORBIDDEN",
-            Self::ForgeDice => "EXTENSION_DICE_FORGE_FORBIDDEN",
-            Self::RevealRestrictedVisibility => "EXTENSION_VISIBILITY_LEAK_FORBIDDEN",
-            _ => "EXTENSION_CAPABILITY_DENIED",
+            Self::AppendEventStore => WireErrorCode::ExtensionStateWriteForbidden,
+            Self::DirectLlm => WireErrorCode::ExtensionDirectLlmForbidden,
+            Self::DatabaseWrite => WireErrorCode::ExtensionDatabaseWriteForbidden,
+            Self::InternalToolGateAccess => WireErrorCode::ExtensionToolGateBypassForbidden,
+            Self::ModifyAuthorityContract => WireErrorCode::ExtensionAuthorityContractForbidden,
+            Self::ForgeDice => WireErrorCode::ExtensionDiceForgeForbidden,
+            Self::RevealRestrictedVisibility => WireErrorCode::ExtensionVisibilityLeakForbidden,
+            _ => WireErrorCode::ExtensionCapabilityDenied,
         }
     }
 }
@@ -164,7 +168,7 @@ impl ExtensionCapabilityGrantSet {
             ))
         } else {
             Err(ExtensionSdkError::ForbiddenCapability(
-                "EXTENSION_CAPABILITY_DENIED",
+                WireErrorCode::ExtensionCapabilityDenied,
             ))
         }
     }
@@ -239,22 +243,22 @@ impl ExtensionPolicyGate {
     pub fn authorize(&self) -> ExtensionSdkResult<()> {
         if !self.tool_grant_allowed {
             return Err(ExtensionSdkError::ForbiddenCapability(
-                "EXTENSION_TOOL_GRANT_DENIED",
+                WireErrorCode::ExtensionToolGrantDenied,
             ));
         }
         if !self.openfga_allowed {
             return Err(ExtensionSdkError::ForbiddenCapability(
-                "EXTENSION_OPENFGA_DENIED",
+                WireErrorCode::ExtensionOpenFgaDenied,
             ));
         }
         if !self.opa_allowed {
             return Err(ExtensionSdkError::ForbiddenCapability(
-                "EXTENSION_OPA_DENIED",
+                WireErrorCode::ExtensionOpaDenied,
             ));
         }
         if !self.audit_recorded {
             return Err(ExtensionSdkError::ForbiddenCapability(
-                "EXTENSION_AUDIT_REQUIRED",
+                WireErrorCode::ExtensionAuditRequired,
             ));
         }
         for capability in &self.requested_capabilities {
@@ -380,7 +384,6 @@ impl SdkCompatibilityReport {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExtensionContract {
-    pub prompt_id: &'static str,
     pub module_name: &'static str,
     pub event_type: &'static str,
     pub operation: ExtensionOperation,
@@ -395,7 +398,6 @@ pub struct ExtensionContract {
 
 impl ExtensionContract {
     pub const fn new(
-        prompt_id: &'static str,
         module_name: &'static str,
         event_type: &'static str,
         operation: ExtensionOperation,
@@ -403,7 +405,6 @@ impl ExtensionContract {
         allowed_capabilities: &'static [ExtensionCapability],
     ) -> Self {
         Self {
-            prompt_id,
             module_name,
             event_type,
             operation,
@@ -593,7 +594,7 @@ pub fn replay_visible_extension_events(
     store.replay_visible(principal)
 }
 
-pub fn all_batch_044_contracts() -> Vec<ExtensionContract> {
+pub fn all_extension_contracts() -> Vec<ExtensionContract> {
     vec![
         crate::agent_pack_sdk::contract(),
         crate::plugin_sdk::contract(),
@@ -608,7 +609,6 @@ pub fn all_batch_044_contracts() -> Vec<ExtensionContract> {
 
 pub fn contract() -> ExtensionContract {
     ExtensionContract::new(
-        "CODEX-0957-12-EXTENSION-SDK-2c33b70efe",
         "readme",
         "ExtensionSdkReadmeRecorded",
         ExtensionOperation::Readme,
@@ -627,7 +627,7 @@ pub fn append_readme_event<T>(
         authority,
         command,
         contract(),
-        "evidence/batches/BATCH-044/readme.md",
+        "evidence/extensions/readme.md",
     )
 }
 
@@ -698,7 +698,6 @@ macro_rules! define_extension_sdk_module {
         $command:ident,
         $service:ident,
         $append_fn:ident,
-        $prompt_id:literal,
         $module_name:literal,
         $event_type:literal,
         $operation:expr,
@@ -706,7 +705,6 @@ macro_rules! define_extension_sdk_module {
         [$($capability:expr),* $(,)?],
         $evidence_path:literal
     ) => {
-        pub const PROMPT_ID: &str = $prompt_id;
         pub const MODULE_NAME: &str = $module_name;
         pub const EVENT_TYPE: &str = $event_type;
         pub const READ_MODELS: &[&str] = &[$($read_model),*];
@@ -773,7 +771,6 @@ macro_rules! define_extension_sdk_module {
 
         pub fn contract() -> $crate::ExtensionContract {
             $crate::ExtensionContract::new(
-                PROMPT_ID,
                 MODULE_NAME,
                 EVENT_TYPE,
                 $operation,

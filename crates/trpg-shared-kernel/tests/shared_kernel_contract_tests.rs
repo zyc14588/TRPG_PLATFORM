@@ -1,7 +1,7 @@
 use trpg_shared_kernel::shared_kernel::{
     kernel_contract_snapshot, validate_command_envelope, ActorRole, AuthorityContract,
     AuthorityMode, CommandEnvelope, EntityId, EventStore, FormalWritePath, PrincipalScope,
-    TrpgError, Visibility, VisibilityLabel,
+    ProvenanceKind, TrpgError, Visibility, VisibilityLabel,
 };
 
 #[test]
@@ -32,9 +32,34 @@ fn shared_kernel_enforces_typed_ids_and_visibility_fixture_contract() {
 }
 
 #[test]
+fn test_support_governed_command_preserves_the_legacy_fixture_metadata() {
+    let command: CommandEnvelope<&str> =
+        trpg_test_support::governed_command!("payload", ActorRole::Workflow, AuthorityMode::AiKp);
+
+    assert_eq!(command.command_id.as_str(), "command_001");
+    assert_eq!(command.idempotency_key, "idem_001");
+    assert_eq!(command.expected_version, 0);
+    assert_eq!(command.actor.id.as_str(), "actor_001");
+    assert_eq!(command.actor.role, ActorRole::Workflow);
+    assert_eq!(command.authority_mode, AuthorityMode::AiKp);
+    assert_eq!(command.authority_contract_version, 1);
+    assert_eq!(command.visibility.label(), &VisibilityLabel::SystemOnly);
+    assert_eq!(
+        command.fact_provenance.kind,
+        ProvenanceKind::RulesEngineDecision
+    );
+    assert_eq!(command.fact_provenance.reference.as_str(), "fact_001");
+    assert_eq!(command.fact_provenance.recorded_by.as_str(), "rules_001");
+    assert_eq!(command.correlation_id.as_str(), "corr_001");
+    assert_eq!(command.causation_id.as_str(), "cause_001");
+    assert_eq!(command.write_path, FormalWritePath::WorkflowDecision);
+    assert_eq!(command.payload, "payload");
+}
+
+#[test]
 fn shared_kernel_blocks_direct_agent_state_writes() {
     let mut command =
-        CommandEnvelope::governed("payload", ActorRole::AiKeeper, AuthorityMode::AiKp);
+        trpg_test_support::governed_command!("payload", ActorRole::AiKeeper, AuthorityMode::AiKp);
     command.write_path = FormalWritePath::DirectAgent;
 
     assert_eq!(
@@ -46,8 +71,11 @@ fn shared_kernel_blocks_direct_agent_state_writes() {
 #[test]
 fn shared_kernel_keeps_authority_contract_immutable() {
     let contract = AuthorityContract::new("campaign_001", AuthorityMode::HumanKp, 1).unwrap();
-    let command =
-        CommandEnvelope::governed("payload", ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let command = trpg_test_support::governed_command!(
+        "payload",
+        ActorRole::HumanKeeper,
+        AuthorityMode::HumanKp
+    );
 
     contract.validate_command(&command).unwrap();
 
@@ -64,8 +92,11 @@ fn shared_kernel_keeps_authority_contract_immutable() {
 #[test]
 fn shared_kernel_replay_redacts_visibility_restricted_events() {
     let player = EntityId::new("character_001").unwrap();
-    let mut command =
-        CommandEnvelope::governed("secret", ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let mut command = trpg_test_support::governed_command!(
+        "secret",
+        ActorRole::HumanKeeper,
+        AuthorityMode::HumanKp
+    );
     command.visibility = Visibility::private_to_player(player.clone());
 
     let mut store = EventStore::default();
@@ -87,7 +118,8 @@ fn shared_kernel_replay_redacts_visibility_restricted_events() {
 
 #[test]
 fn shared_kernel_replay_never_exposes_ai_internal_to_players() {
-    let mut command = CommandEnvelope::governed("internal", ActorRole::System, AuthorityMode::AiKp);
+    let mut command =
+        trpg_test_support::governed_command!("internal", ActorRole::System, AuthorityMode::AiKp);
     command.visibility = Visibility::new(VisibilityLabel::AiInternal);
 
     let mut store = EventStore::default();

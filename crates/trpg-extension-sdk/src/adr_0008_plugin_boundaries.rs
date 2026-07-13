@@ -2,7 +2,6 @@ crate::define_extension_sdk_module!(
     Adr0008PluginBoundariesCommand,
     Adr0008PluginBoundariesService,
     append_adr_0008_plugin_boundaries_event,
-    "CODEX-0946-12-EXTENSION-SDK-f6fbec755d",
     "adr_0008_plugin_boundaries",
     "ExtensionAdr0008PluginBoundariesRecorded",
     crate::ExtensionOperation::Adr0008PluginBoundaries,
@@ -11,7 +10,7 @@ crate::define_extension_sdk_module!(
         crate::ExtensionCapability::RegisterPlugin,
         crate::ExtensionCapability::ReadProjection,
     ],
-    "evidence/batches/BATCH-044/adr-0008-plugin-boundaries.md"
+    "evidence/extensions/adr-0008-plugin-boundaries.md"
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]

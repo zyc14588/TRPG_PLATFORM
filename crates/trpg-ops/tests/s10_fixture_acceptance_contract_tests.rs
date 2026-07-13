@@ -1,6 +1,7 @@
 use trpg_ops::{
     verify_projection_rebuild, verify_restore_hash, BackupManifest, OpsRunbookError,
-    RunbookExecutionRecord, S10_BACKUP_EVENT_HASH, S10_PROJECTION_HASH, S10_RESTORE_EVENT_HASH,
+    RunbookExecutionRecord, WireErrorCode, S10_BACKUP_EVENT_HASH, S10_PROJECTION_HASH,
+    S10_RESTORE_EVENT_HASH,
 };
 
 const S10_STAGE_FIXTURE: &str =
@@ -62,4 +63,26 @@ fn projection_rebuild_verify_checks_are_executable() {
         projection_error,
         OpsRunbookError::ProjectionRebuildHashMismatch
     );
+}
+
+#[test]
+fn every_ops_error_uses_the_canonical_wire_registry() {
+    for (error, expected) in [
+        (
+            OpsRunbookError::RestoreHashMismatch,
+            WireErrorCode::RestoreHashMismatch,
+        ),
+        (
+            OpsRunbookError::RollbackRunbookRequired,
+            WireErrorCode::RollbackRunbookRequired,
+        ),
+        (
+            OpsRunbookError::ProjectionRebuildHashMismatch,
+            WireErrorCode::ProjectionRebuildHashMismatch,
+        ),
+    ] {
+        assert_eq!(error.wire_code(), expected);
+        assert_eq!(error.code(), expected.as_str());
+        assert_eq!(WireErrorCode::lookup(error.code()), Ok(expected));
+    }
 }

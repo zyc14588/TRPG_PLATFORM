@@ -2,7 +2,6 @@ crate::define_extension_sdk_module!(
     AgentPackSdkCommand,
     AgentPackSdkService,
     append_agent_pack_sdk_event,
-    "CODEX-0103-12-EXTENSION-SDK-1322493559",
     "agent_pack_sdk",
     "ExtensionAgentPackSdkRecorded",
     crate::ExtensionOperation::AgentPackSdk,
@@ -12,7 +11,7 @@ crate::define_extension_sdk_module!(
         crate::ExtensionCapability::EmitProposedDecision,
         crate::ExtensionCapability::ReadProjection,
     ],
-    "evidence/batches/BATCH-044/agent-pack-sdk.md"
+    "evidence/extensions/agent-pack-sdk.md"
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]

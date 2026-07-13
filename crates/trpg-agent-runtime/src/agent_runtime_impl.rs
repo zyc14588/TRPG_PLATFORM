@@ -6,8 +6,6 @@ use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, PrincipalScope,
 };
 
-pub const PROMPT_ID: &str = "CODEX-0481-04-AI-AGENT-SYSTEM-b5f1e3af9c";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentRuntimeImplBoundary {
     pub command_boundary: &'static str,

@@ -1,6 +1,6 @@
 use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeModule, RuntimeTool, ToolRequest,
-    BATCH_014_PRIMARY_MODULES,
+    RUNTIME_MODULES,
 };
 use trpg_runtime::runtime_workflow_state_machines;
 use trpg_runtime::{
@@ -13,17 +13,12 @@ fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
 }
 
 fn command(payload: RuntimeDecision) -> CommandEnvelope<RuntimeDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command!(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 #[test]
 fn runtime_workflow_state_machines_preserves_governed_decision_event_contract() {
-    assert_eq!(
-        runtime_workflow_state_machines::PROMPT_ID,
-        "CODEX-0377-03-RUNTIME-ORCHESTRATION-fc718c91e6"
-    );
-    assert_eq!(BATCH_014_PRIMARY_MODULES.len(), 8);
-    assert!(BATCH_014_PRIMARY_MODULES.contains(&RuntimeModule::RuntimeWorkflowStateMachines));
+    assert!(RUNTIME_MODULES.contains(&RuntimeModule::RuntimeWorkflowStateMachines));
 
     let request = ToolRequest::formal(
         RuntimeAgent::AiKeeperOrchestrator,

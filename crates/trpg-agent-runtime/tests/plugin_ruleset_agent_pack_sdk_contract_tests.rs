@@ -9,7 +9,7 @@ fn policy(gateway_entrypoint: &'static str) -> PluginRulesetAgentPackPolicy {
         gateway_entrypoint,
         manifest: AgentPackManifest {
             pack_id: "coc7_keeper_pack",
-            prompt_id: plugin_ruleset_agent_pack_sdk::PROMPT_ID,
+            prompt_version: "investigation_prompt_v1",
             tool_schema_version: "agent_tool_schema_current",
             allowed_tools: vec![AgentTool::RevealClue, AgentTool::RequestSkillCheck],
             allowed_visibility: vec![VisibilityLabel::Public],
@@ -19,11 +19,6 @@ fn policy(gateway_entrypoint: &'static str) -> PluginRulesetAgentPackPolicy {
 
 #[test]
 fn plugin_ruleset_agent_pack_sdk_requires_agent_gateway_scope() {
-    assert_eq!(
-        plugin_ruleset_agent_pack_sdk::PROMPT_ID,
-        "CODEX-0479-04-AI-AGENT-SYSTEM-f4f075147a"
-    );
-
     let request = ToolRequest::formal(
         AgentKind::AiKeeperOrchestrator,
         AgentTool::RequestSkillCheck,
@@ -34,7 +29,7 @@ fn plugin_ruleset_agent_pack_sdk_requires_agent_gateway_scope() {
         &request,
     );
 
-    assert_eq!(denied.error, Some("ToolPermissionDenied"));
+    assert_eq!(denied.error, Some("TOOL_PERMISSION_DENIED"));
 }
 
 #[test]
@@ -47,6 +42,6 @@ fn plugin_ruleset_agent_pack_sdk_cannot_bypass_runtime_tool_gate() {
         &request,
     );
 
-    assert_eq!(denied.error, Some("ToolPermissionDenied"));
+    assert_eq!(denied.error, Some("TOOL_PERMISSION_DENIED"));
     assert!(!denied.tool_executed);
 }

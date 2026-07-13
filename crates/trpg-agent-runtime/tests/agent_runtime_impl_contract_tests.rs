@@ -6,15 +6,11 @@ use trpg_agent_runtime::{
 };
 
 fn ai_kp_command(payload: AgentDecision) -> CommandEnvelope<AgentDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command!(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 #[test]
 fn agent_runtime_impl_rejects_direct_agent_state_write() {
-    assert_eq!(
-        agent_runtime_impl::PROMPT_ID,
-        "CODEX-0481-04-AI-AGENT-SYSTEM-b5f1e3af9c"
-    );
     let boundary = agent_runtime_impl::agent_runtime_impl_boundary();
     assert!(boundary.event_store_boundary.contains("Event Store"));
 

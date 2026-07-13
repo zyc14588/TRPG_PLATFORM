@@ -1,0 +1,10 @@
+[package]
+name = "realtime-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "UNLICENSED"
+
+[dependencies]
+trpg-runtime = { path = "../../crates/trpg-runtime" }
+trpg-service-runtime = { path = "../service-runtime" }

@@ -28,6 +28,7 @@ REQUIRED_WORKFLOWS = (
     "release.yml",
 )
 REQUIRED_SCRIPTS = (
+    "scripts/ci/service-process-smoke.sh",
     "scripts/ci/validate_workflows.py",
     "scripts/ci/verify_test_inventory.py",
     "scripts/ci/verify_manifest.py",
@@ -35,9 +36,15 @@ REQUIRED_SCRIPTS = (
 )
 RELEASE_COMMAND = ["bash", "scripts/ci/test-all.sh"]
 REQUIRED_AUDIT_BLOCKERS = {
-    "AUD-001": "V1 product runtime binary is not implemented",
     "AUD-002": "V1 product container image is not implemented",
     "AUD-006": "V1 Compose services remain explicit placeholders",
+}
+REQUIRED_PRODUCT_BINARIES = {
+    "api-server",
+    "realtime-server",
+    "agent-worker",
+    "admin-server",
+    "migration-runner",
 }
 
 
@@ -60,8 +67,14 @@ def assess(root: Path, evidence: Path | None = None) -> dict:
         {"id": audit_id, "reason": reason}
         for audit_id, reason in REQUIRED_AUDIT_BLOCKERS.items()
     ]
-    if not cargo_targets(root, "bin"):
-        blockers.append({"id": "NO_PRODUCT_BINARY", "reason": "Cargo has no product binary target"})
+    missing_binaries = sorted(REQUIRED_PRODUCT_BINARIES - cargo_targets(root, "bin"))
+    if missing_binaries:
+        blockers.append(
+            {
+                "id": "NO_PRODUCT_BINARY",
+                "reason": f"missing product binary targets: {', '.join(missing_binaries)}",
+            }
+        )
 
     dockerfiles = [path for path in git_files(root) if Path(path).name.startswith("Dockerfile")]
     if not dockerfiles:

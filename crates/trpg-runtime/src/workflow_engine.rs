@@ -3,8 +3,6 @@ use crate::runtime_state_machines::{
 };
 use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, EventStore};
 
-pub const PROMPT_ID: &str = "CODEX-0039-03-RUNTIME-ORCHESTRATION-99d8270e66";
-
 pub fn advance_workflow<T: Clone>(
     store: &mut EventStore<RuntimeEventPayload>,
     contract: &AuthorityContract,

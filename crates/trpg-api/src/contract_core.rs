@@ -1,3 +1,4 @@
+use trpg_contracts::{CanonicalEvent, EventDescriptor};
 use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, PrincipalScope,
     TrpgError, VisibilityLabel,
@@ -13,13 +14,8 @@ pub const COMMAND_HANDLER_SYMBOL: &str = "handle_transport_command";
 pub const WEBSOCKET_SYNC_ENDPOINT: &str = "/ws/v1/campaigns/{campaign_id}/rooms/{room_id}";
 pub const SQLX_EVENT_STORE_ADAPTER_BOUNDARY: &str = "sqlx_event_store_transaction_boundary";
 pub const FORMAL_STATE_WRITE_BOUNDARY: &str = "state_service_event_store_boundary";
-pub const STAGE_FIXTURE_API_METHOD: &str = "POST";
-pub const STAGE_FIXTURE_API_PATH: &str = "/campaigns/{id}/actions";
-pub const STAGE_FIXTURE_IDEMPOTENCY_KEY: &str = "idem_001";
-pub const STAGE_FIXTURE_ROOM: &str = "campaign_001";
-pub const STAGE_FIXTURE_NATS_SUBJECT: &str = "campaign.campaign_001.event.created";
-pub const STAGE_FIXTURE_AUTOMATION_TARGET: &str =
-    "cargo test -p trpg-api --test s08_fixture_acceptance_contract_tests --all-features";
+pub const ACTION_COMMAND_METHOD: &str = "POST";
+pub const ACTION_COMMAND_PATH: &str = "/campaigns/{id}/actions";
 
 pub const REQUIRED_HTTP_HEADERS: &[&str] = &[
     "idempotency_key",
@@ -54,18 +50,10 @@ pub const ADAPTER_BOUNDARIES: &[&str] = &[
     "nats_outbox_publish_boundary",
 ];
 
-pub const S08_EXPECTED_EVENTS: &[&str] = &[
-    "ApiRequestAccepted",
-    "WebSocketStateSynced",
-    "NatsMessagePublished",
-];
-
-pub const S08_EXPECTED_RECORDS: &[&str] = &["ApiAuditRecord", "RealtimeDeliveryRecord"];
-pub const S08_EXPECTED_ERRORS: &[&str] = &[
-    "IDEMPOTENCY_KEY_REQUIRED",
-    "REALTIME_VISIBILITY_VIOLATION",
-    "NATS_SUBJECT_CONTRACT_VIOLATION",
-    "IDEMPOTENCY_CONTRACT_BROKEN",
+pub const REALTIME_REPLAYABLE_EVENTS: &[CanonicalEvent] = &[
+    CanonicalEvent::ApiRequestAccepted,
+    CanonicalEvent::WebSocketStateSynced,
+    CanonicalEvent::NatsMessagePublished,
 ];
 
 pub const REQUIRED_COMMAND_FIELDS: &[&str] = &[
@@ -134,7 +122,6 @@ impl ApiRealtimeOperation {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ApiRealtimeContract {
-    pub prompt_id: &'static str,
     pub module_name: &'static str,
     pub endpoint: &'static str,
     pub event_type: &'static str,
@@ -150,14 +137,12 @@ pub struct ApiRealtimeContract {
 
 impl ApiRealtimeContract {
     pub const fn new(
-        prompt_id: &'static str,
         module_name: &'static str,
         event_type: &'static str,
         event_schema_name: &'static str,
         operation: ApiRealtimeOperation,
     ) -> Self {
         Self {
-            prompt_id,
             module_name,
             endpoint: COMMAND_ENDPOINT,
             event_type,
@@ -200,7 +185,6 @@ pub struct ApiCommandPayload {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApiRealtimeEventPayload {
     pub module_name: &'static str,
-    pub prompt_id: &'static str,
     pub operation: ApiRealtimeOperation,
     pub endpoint: &'static str,
     pub event_schema_name: &'static str,
@@ -233,6 +217,7 @@ pub struct OpenApiContractDocument {
     pub generator: &'static str,
     pub required_headers: &'static [&'static str],
     pub schemas: Vec<&'static str>,
+    pub canonical_events: Vec<EventDescriptor>,
     pub websocket_delta_subject: &'static str,
     pub policy_gates: &'static [&'static str],
     pub adapter_boundaries: &'static [&'static str],
@@ -268,7 +253,7 @@ pub struct HttpApiAdapterContract {
 pub struct RealtimeAdapterContract {
     pub websocket_endpoint: &'static str,
     pub nats_subjects: &'static [&'static str],
-    pub replayable_event_types: &'static [&'static str],
+    pub replayable_event_types: &'static [CanonicalEvent],
     pub visibility_filtered: bool,
     pub reconnect_supported: bool,
     pub multi_room_supported: bool,
@@ -288,21 +273,6 @@ pub struct ToolPermissionGateContract {
     pub checks: &'static [&'static str],
     pub policy_gates: &'static [&'static str],
     pub formal_state_tools_require_agent_gateway: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct S08ExpectedFixtureContract {
-    pub api_method: &'static str,
-    pub api_path: &'static str,
-    pub idempotency_key: &'static str,
-    pub websocket_message_type: &'static str,
-    pub correlation_id: &'static str,
-    pub room: &'static str,
-    pub nats_subject: &'static str,
-    pub expected_events: &'static [&'static str],
-    pub expected_records: &'static [&'static str],
-    pub expected_errors: &'static [&'static str],
-    pub automation_target: &'static str,
 }
 
 pub fn validate_api_contract(api_contract: &ApiRealtimeContract) -> KernelResult<()> {
@@ -341,7 +311,6 @@ pub fn append_api_contract_event<T>(
         api_contract.event_type,
         ApiRealtimeEventPayload {
             module_name: api_contract.module_name,
-            prompt_id: api_contract.prompt_id,
             operation: api_contract.operation,
             endpoint: api_contract.endpoint,
             event_schema_name: api_contract.event_schema_name,
@@ -354,12 +323,13 @@ pub fn append_api_contract_event<T>(
 pub fn visible_realtime_delta(
     event: &EventEnvelope<ApiRealtimeEventPayload>,
     principal: &PrincipalScope,
-) -> Option<RealtimeDelta> {
+) -> KernelResult<Option<RealtimeDelta>> {
+    validate_api_projection_realtime_event_type(event.event_type)?;
     if !event.visibility.can_view(principal) {
-        return None;
+        return Ok(None);
     }
 
-    Some(RealtimeDelta {
+    Ok(Some(RealtimeDelta {
         sequence: event.sequence,
         event_type: event.event_type,
         module_name: event.payload.module_name,
@@ -367,33 +337,38 @@ pub fn visible_realtime_delta(
         correlation_id: event.correlation_id.as_str().to_owned(),
         causation_id: event.causation_id.as_str().to_owned(),
         provenance_reference: event.fact_provenance.reference.as_str().to_owned(),
-    })
+    }))
 }
 
 pub fn replay_visible_deltas(
     store: &EventStore<ApiRealtimeEventPayload>,
     principal: &PrincipalScope,
-) -> Vec<RealtimeDelta> {
-    store
-        .events()
-        .iter()
-        .filter_map(|event| visible_realtime_delta(event, principal))
-        .collect()
+) -> KernelResult<Vec<RealtimeDelta>> {
+    let mut deltas = Vec::new();
+    for event in store.events() {
+        if let Some(delta) = visible_realtime_delta(event, principal)? {
+            deltas.push(delta);
+        }
+    }
+    Ok(deltas)
 }
 
-pub fn rebuild_api_projection(events: &[EventEnvelope<ApiRealtimeEventPayload>]) -> ApiProjection {
+pub fn rebuild_api_projection(
+    events: &[EventEnvelope<ApiRealtimeEventPayload>],
+) -> KernelResult<ApiProjection> {
     let mut modules = Vec::new();
     for event in events {
+        validate_api_projection_realtime_event_type(event.event_type)?;
         if !modules.contains(&event.payload.module_name) {
             modules.push(event.payload.module_name);
         }
     }
 
-    ApiProjection {
+    Ok(ApiProjection {
         event_count: events.len(),
         last_sequence: events.last().map(|event| event.sequence).unwrap_or(0),
         modules,
-    }
+    })
 }
 
 pub fn build_openapi_contract_document(
@@ -405,6 +380,16 @@ pub fn build_openapi_contract_document(
             schemas.push(api_contract.event_schema_name);
         }
     }
+    let canonical_events: Vec<_> = CanonicalEvent::ALL
+        .iter()
+        .copied()
+        .map(CanonicalEvent::descriptor)
+        .collect();
+    for event in &canonical_events {
+        if !schemas.contains(&event.schema_name()) {
+            schemas.push(event.schema_name());
+        }
+    }
 
     OpenApiContractDocument {
         command_endpoint: COMMAND_ENDPOINT,
@@ -412,10 +397,26 @@ pub fn build_openapi_contract_document(
         generator: OPENAPI_GENERATOR,
         required_headers: REQUIRED_HTTP_HEADERS,
         schemas,
+        canonical_events,
         websocket_delta_subject: REALTIME_DELTA_SUBJECT,
         policy_gates: POLICY_GATES,
         adapter_boundaries: ADAPTER_BOUNDARIES,
     }
+}
+
+pub fn validate_api_projection_realtime_event_type(event_type: &str) -> KernelResult<()> {
+    if CanonicalEvent::lookup(event_type).is_ok()
+        || crate::api_realtime_contracts()
+            .into_iter()
+            .chain(std::iter::once(crate::readme::contract()))
+            .any(|contract| contract.event_type == event_type)
+    {
+        return Ok(());
+    }
+
+    Err(TrpgError::InvalidConfiguration(
+        "api_projection_realtime_event_type",
+    ))
 }
 
 pub fn validate_nats_subject(subject: &str) -> KernelResult<()> {
@@ -459,8 +460,8 @@ pub fn evaluate_provider_access(route: ProviderAccessPath) -> KernelResult<Provi
 pub fn http_api_adapter_contract() -> HttpApiAdapterContract {
     HttpApiAdapterContract {
         framework: HTTP_FRAMEWORK,
-        route: STAGE_FIXTURE_API_PATH,
-        method: STAGE_FIXTURE_API_METHOD,
+        route: ACTION_COMMAND_PATH,
+        method: ACTION_COMMAND_METHOD,
         handler_symbol: COMMAND_HANDLER_SYMBOL,
         openapi_generator: OPENAPI_GENERATOR,
         dto_schema: "ApiCommandPayload",
@@ -472,12 +473,8 @@ pub fn http_api_adapter_contract() -> HttpApiAdapterContract {
 pub fn realtime_adapter_contract() -> RealtimeAdapterContract {
     RealtimeAdapterContract {
         websocket_endpoint: WEBSOCKET_SYNC_ENDPOINT,
-        nats_subjects: &[
-            COMMAND_DISPATCHED_SUBJECT,
-            REALTIME_DELTA_SUBJECT,
-            STAGE_FIXTURE_NATS_SUBJECT,
-        ],
-        replayable_event_types: S08_EXPECTED_EVENTS,
+        nats_subjects: &[COMMAND_DISPATCHED_SUBJECT, REALTIME_DELTA_SUBJECT],
+        replayable_event_types: REALTIME_REPLAYABLE_EVENTS,
         visibility_filtered: true,
         reconnect_supported: true,
         multi_room_supported: true,
@@ -502,22 +499,6 @@ pub fn tool_permission_gate_contract() -> ToolPermissionGateContract {
     }
 }
 
-pub fn s08_expected_fixture_contract() -> S08ExpectedFixtureContract {
-    S08ExpectedFixtureContract {
-        api_method: STAGE_FIXTURE_API_METHOD,
-        api_path: STAGE_FIXTURE_API_PATH,
-        idempotency_key: STAGE_FIXTURE_IDEMPOTENCY_KEY,
-        websocket_message_type: "player_action",
-        correlation_id: "corr_001",
-        room: STAGE_FIXTURE_ROOM,
-        nats_subject: STAGE_FIXTURE_NATS_SUBJECT,
-        expected_events: S08_EXPECTED_EVENTS,
-        expected_records: S08_EXPECTED_RECORDS,
-        expected_errors: S08_EXPECTED_ERRORS,
-        automation_target: STAGE_FIXTURE_AUTOMATION_TARGET,
-    }
-}
-
 pub fn validate_primary_adapter_boundaries() -> KernelResult<()> {
     let http = http_api_adapter_contract();
     if http.framework != HTTP_FRAMEWORK || http.openapi_generator != OPENAPI_GENERATOR {
@@ -537,6 +518,11 @@ pub fn validate_primary_adapter_boundaries() -> KernelResult<()> {
     let realtime = realtime_adapter_contract();
     for subject in realtime.nats_subjects {
         validate_domain_nats_subject(subject)?;
+    }
+    for event in realtime.replayable_event_types {
+        if !CanonicalEvent::ALL.contains(event) {
+            return Err(TrpgError::InvalidConfiguration("realtime_canonical_event"));
+        }
     }
     if !realtime.visibility_filtered
         || !realtime.reconnect_supported
@@ -629,20 +615,17 @@ fn has_long_hex_run(value: &str) -> bool {
 #[macro_export]
 macro_rules! define_api_realtime_contract_module {
     (
-        $prompt_id:literal,
         $module_name:literal,
         $event_type:literal,
         $event_schema_name:literal,
         $operation:expr
     ) => {
-        pub const PROMPT_ID: &str = $prompt_id;
         pub const MODULE_NAME: &str = $module_name;
         pub const EVENT_TYPE: &str = $event_type;
         pub const EVENT_SCHEMA_NAME: &str = $event_schema_name;
 
         pub fn contract() -> $crate::contract_core::ApiRealtimeContract {
             $crate::contract_core::ApiRealtimeContract::new(
-                PROMPT_ID,
                 MODULE_NAME,
                 EVENT_TYPE,
                 EVENT_SCHEMA_NAME,

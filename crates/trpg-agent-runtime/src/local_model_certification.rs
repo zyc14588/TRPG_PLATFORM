@@ -1,7 +1,5 @@
 use crate::agent_runtime::{AgentError, AgentResult};
 
-pub const PROMPT_ID: &str = "CODEX-0044-04-AI-AGENT-SYSTEM-4a4aa2a8df";
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LocalModelLevel {
     Level0,

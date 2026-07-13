@@ -1,5 +1,13 @@
 [workspace]
 members = [
+    "apps/service-runtime",
+    "apps/api-server",
+    "apps/realtime-server",
+    "apps/agent-worker",
+    "apps/admin-server",
+    "apps/migration-runner",
+    "crates/trpg-contracts",
+    "crates/trpg-test-support",
     "crates/trpg-shared-kernel",
     "crates/trpg-domain-core",
     "crates/trpg-runtime",

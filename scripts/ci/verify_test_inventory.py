@@ -60,6 +60,7 @@ def inventory(root: Path = ROOT) -> tuple[dict, list[str]]:
     modes = git_modes(root)
     for script in (
         "scripts/ci/init-smoke.sh",
+        "scripts/ci/service-process-smoke.sh",
         "scripts/ci/test-all.sh",
         "scripts/backup_restore/smoke.sh",
         "scripts/projection_rebuild/verify.sh",

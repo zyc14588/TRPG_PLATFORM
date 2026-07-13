@@ -3,8 +3,7 @@ use trpg_shared_kernel::adr_0001_rust_first::{
     current_rust_first_decisions, validate_adr_0001_rust_first_record,
 };
 use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EntityId, EventStore, PrincipalScope, TrpgError,
-    Visibility,
+    ActorRole, AuthorityMode, EntityId, EventStore, PrincipalScope, TrpgError, Visibility,
 };
 use trpg_shared_kernel::workspace_and_governance::{
     validate_governance_contract, CanonicalStateBoundary, GovernanceSurface,
@@ -65,7 +64,7 @@ fn adr_0001_rust_first_rejects_governance_bypasses() {
 
 #[test]
 fn adr_0001_rust_first_review_is_recorded_through_event_store() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         adr_0001_rust_first_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,
@@ -84,7 +83,7 @@ fn adr_0001_rust_first_review_is_recorded_through_event_store() {
     assert_eq!(event.payload.module_name, "adr_0001_rust_first");
     assert_eq!(event.payload.reviewed_requirements, 4);
 
-    let duplicate = CommandEnvelope::governed(
+    let duplicate = trpg_test_support::governed_command!(
         adr_0001_rust_first_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,
@@ -101,7 +100,7 @@ fn adr_0001_rust_first_review_is_recorded_through_event_store() {
 #[test]
 fn adr_0001_rust_first_preserves_visibility_and_authority_guards() {
     let player = EntityId::new("character_001").unwrap();
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command!(
         adr_0001_rust_first_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,
@@ -117,7 +116,7 @@ fn adr_0001_rust_first_preserves_visibility_and_authority_guards() {
     );
     assert!(store.replay_visible(&PrincipalScope::Public).is_empty());
 
-    let invalid_authority = CommandEnvelope::governed(
+    let invalid_authority = trpg_test_support::governed_command!(
         adr_0001_rust_first_review(),
         ActorRole::AiKeeper,
         AuthorityMode::AiKp,

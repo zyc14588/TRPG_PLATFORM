@@ -2,11 +2,6 @@ use trpg_agent_runtime::readme;
 
 #[test]
 fn readme_snapshot_keeps_gateway_runtime_provider_boundary() {
-    assert_eq!(
-        readme::PROMPT_ID,
-        "CODEX-0475-04-AI-AGENT-SYSTEM-2a3840db15"
-    );
-
     let snapshot = readme::readme_governance_snapshot();
 
     assert_eq!(snapshot.ai_entrypoint, "Agent Gateway");

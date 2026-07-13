@@ -23,7 +23,7 @@ pub fn command_for(
         request_summary: "B029 governed API realtime contract check",
     };
     let mut command =
-        CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::HumanKp);
+        trpg_test_support::governed_command!(payload, ActorRole::Workflow, AuthorityMode::HumanKp);
     command.command_id = EntityId::new(format!("command_{}", api_contract.module_name)).unwrap();
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;
@@ -31,8 +31,7 @@ pub fn command_for(
 }
 
 #[allow(dead_code)]
-pub fn assert_contract_governance(api_contract: ApiRealtimeContract, expected_prompt_id: &str) {
-    assert_eq!(api_contract.prompt_id, expected_prompt_id);
+pub fn assert_contract_governance(api_contract: ApiRealtimeContract) {
     validate_api_contract(&api_contract).unwrap();
     assert!(api_contract.uses_current_safe_names());
 
@@ -45,20 +44,23 @@ pub fn assert_contract_governance(api_contract: ApiRealtimeContract, expected_pr
 
     assert_eq!(event.event_type, api_contract.event_type);
     assert_eq!(event.payload.module_name, api_contract.module_name);
-    assert_eq!(event.payload.prompt_id, expected_prompt_id);
     assert_eq!(event_visibility_label(&event), &VisibilityLabel::KeeperOnly);
     assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
     assert_eq!(event.fact_provenance.recorded_by.as_str(), "rules_001");
     assert_eq!(event.correlation_id.as_str(), "corr_001");
     assert_eq!(event.causation_id.as_str(), "cause_001");
 
-    assert!(replay_visible_deltas(&store, &PrincipalScope::Public).is_empty());
+    assert!(replay_visible_deltas(&store, &PrincipalScope::Public)
+        .unwrap()
+        .is_empty());
     assert_eq!(
-        replay_visible_deltas(&store, &PrincipalScope::Keeper).len(),
+        replay_visible_deltas(&store, &PrincipalScope::Keeper)
+            .unwrap()
+            .len(),
         1
     );
 
-    let projection = rebuild_api_projection(store.events());
+    let projection = rebuild_api_projection(store.events()).unwrap();
     assert_eq!(projection.event_count, 1);
     assert_eq!(projection.last_sequence, 1);
     assert!(projection.modules.contains(&api_contract.module_name));

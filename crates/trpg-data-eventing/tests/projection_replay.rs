@@ -267,7 +267,8 @@ fn governed_command_with_visibility(
     visibility: Visibility,
 ) -> CommandEnvelope<()> {
     let idempotency_key = idempotency_key.into();
-    let mut command = CommandEnvelope::governed((), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command =
+        trpg_test_support::governed_command!((), ActorRole::Workflow, AuthorityMode::AiKp);
     command.command_id = EntityId::new(format!("command_{idempotency_key}")).unwrap();
     command.idempotency_key = idempotency_key.clone();
     command.expected_version = expected_version;

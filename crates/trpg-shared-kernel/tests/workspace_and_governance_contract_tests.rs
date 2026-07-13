@@ -1,5 +1,5 @@
 use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath, TrpgError,
+    ActorRole, AuthorityMode, EventStore, FormalWritePath, TrpgError,
 };
 use trpg_shared_kernel::workspace_and_governance::{
     append_governance_reviewed, validate_governance_contract, workspace_governance_contract,
@@ -55,7 +55,7 @@ fn workspace_and_governance_rejects_governance_bypasses() {
 
 #[test]
 fn workspace_and_governance_appends_reviews_through_event_store() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         workspace_governance_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,
@@ -74,7 +74,7 @@ fn workspace_and_governance_appends_reviews_through_event_store() {
     assert_eq!(event.payload.module_name, "workspace_and_governance");
     assert_eq!(store.events().len(), 1);
 
-    let mut bypass = CommandEnvelope::governed(
+    let mut bypass = trpg_test_support::governed_command!(
         workspace_governance_review(),
         ActorRole::System,
         AuthorityMode::AiKp,

@@ -24,6 +24,7 @@ fi
 test -z "$(git status --porcelain=v1)"
 
 python3 scripts/ci/repo_truth.py --check
+python3 scripts/ci/repo_truth.py --check-dependencies
 python3 scripts/ci/validate_workflows.py
 python3 scripts/ci/discover_tests.py --check
 python3 scripts/ci/verify_test_inventory.py --report "$tool_dir/test-inventory.json"
@@ -31,6 +32,7 @@ python3 scripts/ci/manifest.py --check
 python3 scripts/ci/verify_evidence_schema.py
 
 bash -n scripts/ci/init-smoke.sh
+bash -n scripts/ci/service-process-smoke.sh
 bash -n scripts/ci/test-all.sh
 bash -n scripts/backup_restore/smoke.sh
 bash -n scripts/projection_rebuild/verify.sh
@@ -63,8 +65,11 @@ fi
 
 cargo fmt --all -- --check
 cargo check --workspace --all-targets --all-features --locked
-cargo test --workspace --all-features --locked
+cargo test --workspace --all-targets --all-features --locked
 npm test
+cargo build --workspace --all-targets --release --locked
+pnpm --filter ./apps/web... build
+TRPG_SKIP_BUILD=1 ./scripts/ci/service-process-smoke.sh
 
 curl -fsSLo "$tool_dir/opa" https://openpolicyagent.org/downloads/v1.18.2/opa_linux_amd64_static
 printf '%s  %s\n' 9903e5125ac281104f2c4b7371d10cc3b74a98933743fcbfc174f9bf0ab20de8 "$tool_dir/opa" | sha256sum -c -

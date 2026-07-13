@@ -1,0 +1,10 @@
+[package]
+name = "migration-runner"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "UNLICENSED"
+
+[dependencies]
+trpg-data-eventing = { path = "../../crates/trpg-data-eventing" }
+trpg-service-runtime = { path = "../service-runtime" }

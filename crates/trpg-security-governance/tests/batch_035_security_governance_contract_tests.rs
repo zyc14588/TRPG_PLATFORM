@@ -29,7 +29,7 @@ fn command(
     role: PermissionPrincipalRole,
     action: SecurityGovernanceAction,
 ) -> CommandEnvelope<SecurityGovernanceCommand> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command!(
         SecurityGovernanceCommand::new(role, action),
         ActorRole::Workflow,
         AuthorityMode::HumanKp,

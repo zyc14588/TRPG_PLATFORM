@@ -1,6 +1,4 @@
-use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, TrpgError,
-};
+use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 use trpg_shared_kernel::system_context::{
     append_system_context_reviewed, current_system_context_policy, system_context_contract,
     system_context_review, validate_system_context_policy, ContextPropagationChannel,
@@ -56,7 +54,7 @@ fn system_context_contract_rejects_bypass_and_missing_channel() {
 
 #[test]
 fn system_context_review_is_recorded_as_a_governed_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         system_context_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,

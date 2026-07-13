@@ -1,7 +1,7 @@
 use trpg_runtime::pending_decision_impl;
 use trpg_runtime::runtime_state_machines::{
     PendingDecisionStatus, RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeModule,
-    RuntimeTool, ToolRequest, BATCH_014_PRIMARY_MODULES,
+    RuntimeTool, ToolRequest, RUNTIME_MODULES,
 };
 use trpg_runtime::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath,
@@ -13,16 +13,12 @@ fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
 }
 
 fn command(payload: RuntimeDecision) -> CommandEnvelope<RuntimeDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command!(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 #[test]
 fn pending_decision_impl_preserves_governed_decision_event_contract() {
-    assert_eq!(
-        pending_decision_impl::PROMPT_ID,
-        "CODEX-0387-03-RUNTIME-ORCHESTRATION-ff36c2cdcf"
-    );
-    assert!(BATCH_014_PRIMARY_MODULES.contains(&RuntimeModule::PendingDecisionImpl));
+    assert!(RUNTIME_MODULES.contains(&RuntimeModule::PendingDecisionImpl));
 
     let request = ToolRequest::formal(
         RuntimeAgent::AiKeeperOrchestrator,

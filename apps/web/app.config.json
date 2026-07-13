@@ -1,0 +1,35 @@
+{
+  "version": "0.1.0",
+  "services": [
+    {
+      "id": "api",
+      "name": "API",
+      "processName": "api-server",
+      "healthBaseUrl": "http://127.0.0.1:8080"
+    },
+    {
+      "id": "realtime",
+      "name": "Realtime",
+      "processName": "realtime-server",
+      "healthBaseUrl": "http://127.0.0.1:8081"
+    },
+    {
+      "id": "agent-worker",
+      "name": "Agent Worker",
+      "processName": "agent-worker",
+      "healthBaseUrl": "http://127.0.0.1:8082"
+    },
+    {
+      "id": "admin",
+      "name": "Admin",
+      "processName": "admin-server",
+      "healthBaseUrl": "http://127.0.0.1:8083"
+    },
+    {
+      "id": "migration",
+      "name": "Migration",
+      "processName": "migration-runner",
+      "healthBaseUrl": "http://127.0.0.1:8084"
+    }
+  ]
+}

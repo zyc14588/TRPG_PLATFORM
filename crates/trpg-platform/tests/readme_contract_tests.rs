@@ -2,7 +2,7 @@ use trpg_platform::{
     record_readme_contract, PlatformEvent, PlatformEventStore, RecordReadmeContract,
     PLATFORM_INFRASTRUCTURE_INVARIANTS, PLATFORM_README_RECORDED_EVENT,
 };
-use trpg_shared_kernel::{ActorRole, AuthorityMode, CommandEnvelope};
+use trpg_shared_kernel::{ActorRole, AuthorityMode};
 
 #[test]
 fn readme_invariants_name_top_level_red_lines() {
@@ -15,7 +15,7 @@ fn readme_invariants_name_top_level_red_lines() {
 
 #[test]
 fn readme_contract_is_evented() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         RecordReadmeContract {
             reviewer: "codex".to_owned(),
         },

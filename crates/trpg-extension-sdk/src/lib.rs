@@ -8,7 +8,7 @@ pub mod sdk;
 pub mod tool_provider_sdk;
 
 pub use readme::{
-    all_batch_044_contracts, append_extension_event, contract, is_current_safe_name,
+    all_extension_contracts, append_extension_event, contract, is_current_safe_name,
     redact_extension_output, replay_visible_extension_events, CompatibilityResult,
     ExtensionCapability, ExtensionCapabilityGrantSet, ExtensionCommand, ExtensionContract,
     ExtensionEvent, ExtensionEventEnvelope, ExtensionEventRecord, ExtensionEventStore,
@@ -21,5 +21,5 @@ pub use readme::{
 pub use trpg_shared_kernel::{
     Actor, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
     EventStore, FactProvenance, FormalWritePath, KernelResult, PrincipalScope, ProvenanceKind,
-    TrpgError, Visibility, VisibilityLabel,
+    TrpgError, Visibility, VisibilityLabel, WireErrorCode,
 };

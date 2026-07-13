@@ -18,8 +18,8 @@ fn readme_records_governed_event() {
 }
 
 #[test]
-fn readme_registry_keeps_all_batch_044_names_current_safe() {
-    let contracts = trpg_extension_sdk::all_batch_044_contracts();
+fn readme_registry_keeps_all_extension_names_current_safe() {
+    let contracts = trpg_extension_sdk::all_extension_contracts();
 
     assert_eq!(contracts.len(), 8);
     assert!(contracts

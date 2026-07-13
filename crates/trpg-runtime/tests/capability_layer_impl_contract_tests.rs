@@ -1,7 +1,7 @@
 use trpg_runtime::capability_layer_impl;
 use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeModule, RuntimeTool, ToolRequest,
-    BATCH_014_PRIMARY_MODULES,
+    RUNTIME_MODULES,
 };
 use trpg_runtime::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath,
@@ -13,16 +13,12 @@ fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
 }
 
 fn command(payload: RuntimeDecision) -> CommandEnvelope<RuntimeDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command!(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 #[test]
 fn capability_layer_impl_preserves_governed_decision_event_contract() {
-    assert_eq!(
-        capability_layer_impl::PROMPT_ID,
-        "CODEX-0386-03-RUNTIME-ORCHESTRATION-027bb089fe"
-    );
-    assert!(BATCH_014_PRIMARY_MODULES.contains(&RuntimeModule::CapabilityLayerImpl));
+    assert!(RUNTIME_MODULES.contains(&RuntimeModule::CapabilityLayerImpl));
 
     let request = ToolRequest::formal(
         RuntimeAgent::AiKeeperOrchestrator,

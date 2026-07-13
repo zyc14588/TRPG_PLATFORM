@@ -21,7 +21,7 @@
     "authority_mode":"AI_KP",
     "agent":"AtmosphereWriter",
     "requested_tool":"reveal_clue",
-    "expected":{"tool_executed":false,"error":"ToolPermissionDenied"}
+    "expected":{"tool_executed":false,"error":"TOOL_PERMISSION_DENIED"}
   },
   {
     "case_id":"prompt_injection_note_ignored",

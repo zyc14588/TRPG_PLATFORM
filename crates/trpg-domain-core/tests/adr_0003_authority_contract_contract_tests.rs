@@ -4,8 +4,8 @@ use trpg_domain_core::adr_0003_authority_contract::{
 };
 use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, DomainError, EntityId, EventStore, FactProvenance,
-    FormalWritePath, PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, DomainError, EntityId, EventStore, FactProvenance, FormalWritePath,
+    PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
 };
 
 #[test]
@@ -13,7 +13,7 @@ fn adr_0003_authority_contract_rejects_authority_violation_without_event() {
     let contract =
         DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
             .unwrap();
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         "human override",
         ActorRole::HumanKeeper,
         AuthorityMode::AiKp,
@@ -31,8 +31,11 @@ fn adr_0003_authority_contract_blocks_direct_agent_write_without_event() {
     let contract =
         DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
             .unwrap();
-    let mut command =
-        CommandEnvelope::governed("direct write", ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command!(
+        "direct write",
+        ActorRole::Workflow,
+        AuthorityMode::AiKp
+    );
     command.write_path = FormalWritePath::DirectAgent;
     let mut store = EventStore::default();
 
@@ -53,8 +56,11 @@ fn adr_0003_authority_contract_keeps_visibility_and_fact_provenance_on_replay() 
         "rules_001",
     )
     .unwrap();
-    let mut command =
-        CommandEnvelope::governed("ruling", ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let mut command = trpg_test_support::governed_command!(
+        "ruling",
+        ActorRole::HumanKeeper,
+        AuthorityMode::HumanKp
+    );
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     command.fact_provenance = provenance.clone();
     let mut store = EventStore::default();

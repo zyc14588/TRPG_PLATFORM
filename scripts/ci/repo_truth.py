@@ -23,6 +23,45 @@ MANIFEST_OUTPUTS = {
     "manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md",
 }
 PRODUCT_SERVICES = ("web", "api", "realtime", "agent-worker", "admin")
+SERVICE_PACKAGES = {
+    "trpg-service-runtime",
+    "api-server",
+    "realtime-server",
+    "agent-worker",
+    "admin-server",
+    "migration-runner",
+}
+WORKSPACE_LAYERS = {
+    "trpg-contracts": 0,
+    "trpg-shared-kernel": 1,
+    "trpg-domain-core": 2,
+    "trpg-ruleset-coc7": 3,
+    "trpg-data-eventing": 3,
+    "trpg-security-governance": 3,
+    "trpg-extension-sdk": 3,
+    "trpg-ops": 3,
+    "trpg-runtime": 4,
+    "trpg-agent-runtime": 5,
+    "trpg-api": 5,
+    "trpg-platform": 5,
+    "trpg-service-runtime": 6,
+    "api-server": 7,
+    "realtime-server": 7,
+    "agent-worker": 7,
+    "admin-server": 7,
+    "migration-runner": 7,
+}
+TEST_PACKAGES = {"trpg-testing", "trpg-test-support"}
+PRODUCTION_SOURCE_FORBIDDEN = (
+    "CommandEnvelope::governed",
+    "command_001",
+    "idem_001",
+    "PROMPT_ID",
+    "prompt_id",
+    "SUPPLEMENTAL_PROMPT",
+    "BATCH_",
+    "CODEX-",
+)
 EVIDENCE_SCHEMA_VERSION = "p00-3"
 EVIDENCE_GENERATOR_VERSION = "p00-3"
 EVIDENCE_REQUIRED = (
@@ -216,6 +255,121 @@ def cargo_targets(root: Path = ROOT, kind: str | None = None) -> set[str]:
             if kind is None or kind in target["kind"]:
                 targets.add(target["name"])
     return targets
+
+
+def dependency_graph_errors(metadata: dict) -> list[str]:
+    """Validate actual workspace edges, rather than a hand-built example graph."""
+    packages = {package["name"]: package for package in metadata["packages"]}
+    workspace = set(packages)
+    errors = []
+
+    unknown = workspace - set(WORKSPACE_LAYERS) - TEST_PACKAGES
+    errors.extend(f"workspace dependency layer is not declared: {name}" for name in sorted(unknown))
+
+    graph: dict[str, set[str]] = {name: set() for name in workspace}
+    normal_graph: dict[str, set[str]] = {name: set() for name in workspace}
+    for source, package in packages.items():
+        for dependency in package["dependencies"]:
+            target = dependency["name"]
+            if target not in workspace:
+                continue
+            kind = dependency.get("kind") or "normal"
+            if kind != "dev":
+                graph[source].add(target)
+            if kind == "normal":
+                normal_graph[source].add(target)
+            if source in TEST_PACKAGES:
+                continue
+            if target == "trpg-test-support" and kind == "dev":
+                continue
+            if target in TEST_PACKAGES:
+                errors.append(
+                    f"production package depends on test package outside dev-only test support: "
+                    f"{source} -> {target} ({kind})"
+                )
+                continue
+            source_layer = WORKSPACE_LAYERS.get(source)
+            target_layer = WORKSPACE_LAYERS.get(target)
+            if source_layer is not None and target_layer is not None and target_layer >= source_layer:
+                errors.append(
+                    f"workspace dependency points outward: {source} -> {target} "
+                    f"({source_layer} -> {target_layer})"
+                )
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(name: str, path: tuple[str, ...]) -> None:
+        if name in visiting:
+            start = path.index(name)
+            errors.append("workspace dependency cycle: " + " -> ".join(path[start:] + (name,)))
+            return
+        if name in visited:
+            return
+        visiting.add(name)
+        for target in sorted(graph[name]):
+            visit(target, path + (name,))
+        visiting.remove(name)
+        visited.add(name)
+
+    for name in sorted(graph):
+        visit(name, ())
+
+    def test_support_path(name: str, path: tuple[str, ...]) -> tuple[str, ...] | None:
+        if name == "trpg-test-support":
+            return path + (name,)
+        if name in path:
+            return None
+        for target in sorted(normal_graph[name]):
+            found = test_support_path(target, path + (name,))
+            if found:
+                return found
+        return None
+
+    for service in sorted(SERVICE_PACKAGES & workspace):
+        path = test_support_path(service, ())
+        if path:
+            errors.append(
+                "service/app normal dependency graph includes test support: " + " -> ".join(path)
+            )
+    return sorted(set(errors))
+
+
+def production_source_errors(root: Path = ROOT) -> list[str]:
+    errors = []
+    source_hashes: dict[str, list[str]] = {}
+    for package_root_name in ("crates", "apps"):
+        package_root = root / package_root_name
+        if not package_root.is_dir():
+            continue
+        for package in sorted(path for path in package_root.iterdir() if path.is_dir()):
+            if package.name in TEST_PACKAGES:
+                continue
+            source = package / "src"
+            if not source.is_dir():
+                continue
+            for path in sorted(source.rglob("*.rs")):
+                text = path.read_text(encoding="utf-8")
+                relative = path.relative_to(root).as_posix()
+                if text.strip():
+                    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                    source_hashes.setdefault(digest, []).append(relative)
+                for token in PRODUCTION_SOURCE_FORBIDDEN:
+                    if token in text:
+                        errors.append(
+                            "production source contains test/construction-only token: "
+                            f"{relative}: {token}"
+                        )
+    for paths in source_hashes.values():
+        if len(paths) > 1:
+            errors.append("byte-identical production modules: " + ", ".join(sorted(paths)))
+    return errors
+
+
+def workspace_dependency_errors(root: Path = ROOT) -> list[str]:
+    return sorted(
+        set(dependency_graph_errors(cargo_metadata(root)) + production_source_errors(root))
+    )
 
 
 def compose_services(path: Path) -> dict[str, dict[str, object]]:
@@ -462,8 +616,15 @@ def repository_truth_errors(root: Path = ROOT) -> list[str]:
 
 
 def main() -> int:
+    if sys.argv[1:] == ["--check-dependencies"]:
+        errors = workspace_dependency_errors()
+        if errors:
+            print("\n".join(errors), file=sys.stderr)
+            return 1
+        print("workspace dependency and production source boundaries verified")
+        return 0
     if sys.argv[1:] != ["--check"]:
-        print("usage: repo_truth.py --check", file=sys.stderr)
+        print("usage: repo_truth.py --check | --check-dependencies", file=sys.stderr)
         return 2
     errors = repository_truth_errors()
     if errors:

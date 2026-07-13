@@ -1,7 +1,7 @@
 use trpg_runtime::realtime_room_sync_impl;
 use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeModule, RuntimeTool, ToolRequest,
-    BATCH_014_PRIMARY_MODULES,
+    RUNTIME_MODULES,
 };
 use trpg_runtime::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath,
@@ -13,16 +13,12 @@ fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
 }
 
 fn command(payload: RuntimeDecision) -> CommandEnvelope<RuntimeDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command!(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 #[test]
 fn realtime_room_sync_impl_preserves_governed_decision_event_contract() {
-    assert_eq!(
-        realtime_room_sync_impl::PROMPT_ID,
-        "CODEX-0388-03-RUNTIME-ORCHESTRATION-705a854eb2"
-    );
-    assert!(BATCH_014_PRIMARY_MODULES.contains(&RuntimeModule::RealtimeRoomSyncImpl));
+    assert!(RUNTIME_MODULES.contains(&RuntimeModule::RealtimeRoomSyncImpl));
 
     let request = ToolRequest::formal(
         RuntimeAgent::AiKeeperOrchestrator,

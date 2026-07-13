@@ -1,3 +1,4 @@
+use trpg_contracts::WireErrorCode;
 use trpg_shared_kernel::{
     AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope, EventStore,
     FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
@@ -20,19 +21,25 @@ pub enum AgentError {
 }
 
 impl AgentError {
-    pub fn code(&self) -> &'static str {
+    pub const fn wire_code(&self) -> WireErrorCode {
         match self {
-            Self::Core(error) => error.code(),
-            Self::ToolPermissionDenied => "ToolPermissionDenied",
-            Self::HumanKpDraftOnly => "HUMAN_KP_AI_DRAFT_ONLY",
-            Self::AgentDirectStateWriteForbidden => "AGENT_DIRECT_STATE_WRITE_FORBIDDEN",
-            Self::DirectLlmCallForbidden => "DIRECT_LLM_CALL_FORBIDDEN",
-            Self::PromptInjectionDetected => "PROMPT_INJECTION_DETECTED",
-            Self::LocalModelNotCertifiedForAiKp => "LOCAL_MODEL_NOT_CERTIFIED_FOR_AI_KP",
-            Self::SilentFallbackForbidden => "SILENT_FALLBACK_FORBIDDEN",
-            Self::UnauthenticatedLocalProviderExposed => "UNAUTHENTICATED_LOCAL_PROVIDER_EXPOSED",
-            Self::RagVisibilityScopeViolation => "RAG_VISIBILITY_SCOPE_VIOLATION",
+            Self::Core(error) => error.wire_code(),
+            Self::ToolPermissionDenied => WireErrorCode::ToolPermissionDenied,
+            Self::HumanKpDraftOnly => WireErrorCode::HumanKpAiDraftOnly,
+            Self::AgentDirectStateWriteForbidden => WireErrorCode::AgentDirectStateWriteForbidden,
+            Self::DirectLlmCallForbidden => WireErrorCode::DirectLlmCallForbidden,
+            Self::PromptInjectionDetected => WireErrorCode::PromptInjectionDetected,
+            Self::LocalModelNotCertifiedForAiKp => WireErrorCode::LocalModelNotCertifiedForAiKp,
+            Self::SilentFallbackForbidden => WireErrorCode::SilentFallbackForbidden,
+            Self::UnauthenticatedLocalProviderExposed => {
+                WireErrorCode::UnauthenticatedLocalProviderExposed
+            }
+            Self::RagVisibilityScopeViolation => WireErrorCode::RagVisibilityScopeViolation,
         }
+    }
+
+    pub fn code(&self) -> &'static str {
+        self.wire_code().as_str()
     }
 }
 
@@ -71,7 +78,7 @@ pub enum AgentModule {
     EvaluationGoldenScenario,
 }
 
-pub const BATCH_017_PRIMARY_MODULES: &[AgentModule] = &[
+pub const AGENT_RUNTIME_MODULES: &[AgentModule] = &[
     AgentModule::AgentContextAssembler,
     AgentModule::AgentRuntime,
     AgentModule::AiEvaluationRuntime,
@@ -88,99 +95,13 @@ pub const BATCH_017_PRIMARY_MODULES: &[AgentModule] = &[
     AgentModule::AiEvaluationGoldenScenario,
     AgentModule::WorkingMemoryRagRagSnapshot,
     AgentModule::MemoryRag,
-];
-
-pub const BATCH_017_PROMPT_IDS: &[&str] = &[
-    "CODEX-0040-04-AI-AGENT-SYSTEM-0ed30fc5f0",
-    "CODEX-0041-04-AI-AGENT-SYSTEM-570f17da9d",
-    "CODEX-0042-04-AI-AGENT-SYSTEM-bbc851a5de",
-    "CODEX-0043-04-AI-AGENT-SYSTEM-8bea44b53b",
-    "CODEX-0044-04-AI-AGENT-SYSTEM-4a4aa2a8df",
-    "CODEX-0045-04-AI-AGENT-SYSTEM-e852321d0b",
-    "CODEX-0046-04-AI-AGENT-SYSTEM-6468c9be5b",
-    "CODEX-0047-04-AI-AGENT-SYSTEM-524e2550a8",
-    "CODEX-0441-04-AI-AGENT-SYSTEM-b81eba8b66",
-    "CODEX-0442-04-AI-AGENT-SYSTEM-34a7e5c6f0",
-    "CODEX-0443-04-AI-AGENT-SYSTEM-bcbd7b78de",
-    "CODEX-0444-04-AI-AGENT-SYSTEM-20434579ca",
-    "CODEX-0445-04-AI-AGENT-SYSTEM-43507a6209",
-    "CODEX-0446-04-AI-AGENT-SYSTEM-bafcf3dfc6",
-    "CODEX-0447-04-AI-AGENT-SYSTEM-3497400719",
-    "CODEX-0448-04-AI-AGENT-SYSTEM-41ecd49e88",
-    "CODEX-0449-04-AI-AGENT-SYSTEM-b319601824",
-    "CODEX-0450-04-AI-AGENT-SYSTEM-3e566913fa",
-    "CODEX-0451-04-AI-AGENT-SYSTEM-dab850ee74",
-    "CODEX-0452-04-AI-AGENT-SYSTEM-4f2dab7f75",
-    "CODEX-0453-04-AI-AGENT-SYSTEM-159b37a04c",
-    "CODEX-0454-04-AI-AGENT-SYSTEM-014bc53177",
-    "CODEX-0455-04-AI-AGENT-SYSTEM-a49d9b14ee",
-    "CODEX-0456-04-AI-AGENT-SYSTEM-d68068a022",
-    "CODEX-0457-04-AI-AGENT-SYSTEM-487c497469",
-];
-
-pub const BATCH_019_PRIMARY_MODULES: &[AgentModule] = &[
     AgentModule::MemoryRagImpl,
     AgentModule::ModelProviderLocalCloudImpl,
     AgentModule::RagSnapshotImpl,
     AgentModule::Adr0009AgentGovernance,
-];
-
-pub const BATCH_019_PROMPT_IDS: &[&str] = &[
-    "CODEX-0483-04-AI-AGENT-SYSTEM-a577767984",
-    "CODEX-0484-04-AI-AGENT-SYSTEM-e96dc3868d",
-    "CODEX-0485-04-AI-AGENT-SYSTEM-962b774429",
-    "CODEX-0486-04-AI-AGENT-SYSTEM-9ce89f19f8",
-    "CODEX-0487-04-AI-AGENT-SYSTEM-dbe6de7e59",
-    "CODEX-0488-04-AI-AGENT-SYSTEM-03fc2209c6",
-    "CODEX-0489-04-AI-AGENT-SYSTEM-752b9c9430",
-    "CODEX-0490-04-AI-AGENT-SYSTEM-475b10a2a4",
-    "CODEX-0491-04-AI-AGENT-SYSTEM-a7c5faa922",
-    "CODEX-0492-04-AI-AGENT-SYSTEM-f219f76442",
-    "CODEX-0493-04-AI-AGENT-SYSTEM-eb040218e6",
-    "CODEX-0494-04-AI-AGENT-SYSTEM-e007c89f57",
-    "CODEX-0495-04-AI-AGENT-SYSTEM-799fc14dc2",
-    "CODEX-0496-04-AI-AGENT-SYSTEM-c0f67c85c7",
-    "CODEX-0497-04-AI-AGENT-SYSTEM-044ab5dc87",
-    "CODEX-0498-04-AI-AGENT-SYSTEM-13927ff7ed",
-    "CODEX-0499-04-AI-AGENT-SYSTEM-04b8aaf7da",
-    "CODEX-0500-04-AI-AGENT-SYSTEM-9f239edf80",
-    "CODEX-0501-04-AI-AGENT-SYSTEM-687782b527",
-    "CODEX-0502-04-AI-AGENT-SYSTEM-1cc19ac6d6",
-    "CODEX-0503-04-AI-AGENT-SYSTEM-0e7645f3a5",
-    "CODEX-0504-04-AI-AGENT-SYSTEM-2d75990472",
-    "CODEX-0505-04-AI-AGENT-SYSTEM-9f37999d40",
-    "CODEX-0506-04-AI-AGENT-SYSTEM-e75d4617db",
-    "CODEX-0507-04-AI-AGENT-SYSTEM-a1e5d3d499",
-];
-
-pub const BATCH_020_PRIMARY_MODULES: &[AgentModule] = &[
     AgentModule::Adr0010RagSnapshot,
     AgentModule::EvaluationGoldenScenario,
 ];
-
-pub const BATCH_020_PROMPT_IDS: &[&str] = &[
-    "CODEX-0508-04-AI-AGENT-SYSTEM-f2ee9f2b79",
-    "CODEX-0509-04-AI-AGENT-SYSTEM-90fc5447c3",
-    "CODEX-0510-04-AI-AGENT-SYSTEM-c10997b277",
-    "CODEX-0511-04-AI-AGENT-SYSTEM-d4b544c710",
-    "CODEX-0512-04-AI-AGENT-SYSTEM-9aca88599f",
-    "CODEX-0513-04-AI-AGENT-SYSTEM-61890cfc3d",
-    "CODEX-0514-04-AI-AGENT-SYSTEM-a5ddc4c4c8",
-    "CODEX-0515-04-AI-AGENT-SYSTEM-3d03dccf07",
-    "CODEX-0516-04-AI-AGENT-SYSTEM-9146c6434e",
-    "CODEX-0517-04-AI-AGENT-SYSTEM-43ed30f2e9",
-    "CODEX-0518-04-AI-AGENT-SYSTEM-b0096db6a4",
-    "CODEX-0519-04-AI-AGENT-SYSTEM-bd4d1ae282",
-    "CODEX-0520-04-AI-AGENT-SYSTEM-e81ac9192d",
-    "CODEX-0521-04-AI-AGENT-SYSTEM-0a9a11d351",
-    "CODEX-0522-04-AI-AGENT-SYSTEM-0979831cd7",
-    "CODEX-0523-04-AI-AGENT-SYSTEM-e5a5c03c2c",
-    "CODEX-0524-04-AI-AGENT-SYSTEM-43adbfc936",
-    "CODEX-0525-04-AI-AGENT-SYSTEM-adbdea50ff",
-    "CODEX-0526-04-AI-AGENT-SYSTEM-934a081c8e",
-    "CODEX-0527-04-AI-AGENT-SYSTEM-3d3a1f2aad",
-];
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AgentKind {
     AiKeeperOrchestrator,

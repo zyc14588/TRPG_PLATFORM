@@ -8,7 +8,7 @@ use trpg_shared_kernel::{
 };
 
 fn command() -> CommandEnvelope<RegisterPluginToolGrant> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command!(
         RegisterPluginToolGrant {
             plugin_id: "investigator_helper".to_owned(),
             tool_name: "read_public_projection".to_owned(),
@@ -21,7 +21,7 @@ fn command() -> CommandEnvelope<RegisterPluginToolGrant> {
 
 #[test]
 fn plugin_sdk_rejects_authority_contract_violation() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         command().payload,
         ActorRole::AiKeeper,
         AuthorityMode::HumanKp,

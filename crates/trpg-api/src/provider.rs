@@ -1,5 +1,4 @@
 crate::define_api_realtime_contract_module!(
-    "CODEX-0695-07-API-REALTIME-CONTRACTS-f602cf5008",
     "provider",
     "ProviderContractRecorded",
     "provider.event_schema",

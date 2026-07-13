@@ -5,15 +5,11 @@ use trpg_agent_runtime::{
 };
 
 fn ai_kp_command(payload: AgentDecision) -> CommandEnvelope<AgentDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command!(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 #[test]
 fn ai_agent_commits_only_through_event_store_with_provenance() {
-    assert_eq!(
-        ai_agent::PROMPT_ID,
-        "CODEX-0470-04-AI-AGENT-SYSTEM-01fd0c2f41"
-    );
     let boundary = ai_agent::ai_agent_boundary();
     assert_eq!(boundary.ai_entrypoint, "Agent Gateway");
     assert!(boundary

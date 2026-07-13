@@ -16,13 +16,14 @@ pub mod realtime_sync;
 pub mod request_idempotency_contract;
 pub mod websocket_protocol;
 
+pub use trpg_contracts::{CanonicalEvent, EventDescriptor, UnknownEventName};
 pub use trpg_shared_kernel::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
     EventStore, FactProvenance, FormalWritePath, PrincipalScope, ProvenanceKind, TrpgError,
     Visibility, VisibilityLabel,
 };
 
-pub fn batch_029_api_realtime_contracts() -> Vec<contract_core::ApiRealtimeContract> {
+pub fn api_realtime_contracts() -> Vec<contract_core::ApiRealtimeContract> {
     vec![
         api_and_transport::contract(),
         external_provider_contracts::contract(),

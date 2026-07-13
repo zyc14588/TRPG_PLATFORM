@@ -1,6 +1,6 @@
 use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, EntityId, EventStore, FactProvenance,
-    PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, EntityId, EventStore, FactProvenance, PrincipalScope, ProvenanceKind,
+    Visibility, VisibilityLabel,
 };
 use trpg_domain_core::event_sourcing_projection::{
     append_rebuildable_canon_event, rebuild_projection_from_events,
@@ -10,8 +10,11 @@ use trpg_domain_core::event_sourcing_snapshot_projection::DomainEventPayload;
 
 #[test]
 fn event_sourcing_projection_rejects_authority_violation_without_event() {
-    let command =
-        CommandEnvelope::governed("projection", ActorRole::HumanKeeper, AuthorityMode::AiKp);
+    let command = trpg_test_support::governed_command!(
+        "projection",
+        ActorRole::HumanKeeper,
+        AuthorityMode::AiKp
+    );
     let mut store: EventStore<DomainEventPayload> = EventStore::default();
     let write = CanonEventWrite::new("event_001", "DecisionRecorded");
 
@@ -29,8 +32,11 @@ fn event_sourcing_projection_keeps_visibility_and_fact_provenance_on_replay() {
         "rules_001",
     )
     .unwrap();
-    let mut command =
-        CommandEnvelope::governed("projection", ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command!(
+        "projection",
+        ActorRole::Workflow,
+        AuthorityMode::AiKp
+    );
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     command.fact_provenance = provenance.clone();
     let mut store: EventStore<DomainEventPayload> = EventStore::default();

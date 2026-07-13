@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
+use trpg_contracts::WireErrorCode;
 
 pub type KernelResult<T> = Result<T, TrpgError>;
 
@@ -28,28 +29,32 @@ pub enum TrpgError {
 }
 
 impl TrpgError {
-    pub fn code(&self) -> &'static str {
+    pub const fn wire_code(&self) -> WireErrorCode {
         match self {
-            Self::InvalidEntityId => "INVALID_ENTITY_ID",
-            Self::UnknownVisibilityLabel => "UNKNOWN_VISIBILITY_LABEL",
-            Self::MissingIdempotencyKey => "MISSING_IDEMPOTENCY_KEY",
-            Self::MissingCorrelationId => "MISSING_CORRELATION_ID",
-            Self::MissingCausationId => "MISSING_CAUSATION_ID",
-            Self::MissingFactProvenance => "MISSING_FACT_PROVENANCE",
-            Self::AuthorityViolation => "AUTHORITY_VIOLATION",
-            Self::AuthorityContractMutation => "AUTHORITY_CONTRACT_MUTATION",
-            Self::DirectAgentStateWrite => "DIRECT_AGENT_STATE_WRITE",
-            Self::PolicyDenied => "POLICY_DENIED",
-            Self::ExpectedVersionConflict { .. } => "EXPECTED_VERSION_CONFLICT",
-            Self::DuplicateCommand => "DUPLICATE_COMMAND",
-            Self::VisibilityDenied => "VISIBILITY_DENIED",
-            Self::InvalidConfiguration(_) => "INVALID_CONFIGURATION",
-            Self::DependencyViolation(_) => "DEPENDENCY_DIRECTION_VIOLATION",
-            Self::CrateOwnershipViolation(_) => "CRATE_OWNERSHIP_VIOLATION",
-            Self::WorkspaceViolation(_) => "WORKSPACE_CONTRACT_VIOLATION",
-            Self::CodingPolicyViolation(_) => "RUST_CODING_POLICY_VIOLATION",
-            Self::OpenSourceReferenceViolation(_) => "OPEN_SOURCE_REFERENCE_VIOLATION",
+            Self::InvalidEntityId => WireErrorCode::InvalidEntityId,
+            Self::UnknownVisibilityLabel => WireErrorCode::UnknownVisibilityLabel,
+            Self::MissingIdempotencyKey => WireErrorCode::MissingIdempotencyKey,
+            Self::MissingCorrelationId => WireErrorCode::MissingCorrelationId,
+            Self::MissingCausationId => WireErrorCode::MissingCausationId,
+            Self::MissingFactProvenance => WireErrorCode::MissingFactProvenance,
+            Self::AuthorityViolation => WireErrorCode::AuthorityViolation,
+            Self::AuthorityContractMutation => WireErrorCode::AuthorityContractMutation,
+            Self::DirectAgentStateWrite => WireErrorCode::DirectAgentStateWrite,
+            Self::PolicyDenied => WireErrorCode::PolicyDenied,
+            Self::ExpectedVersionConflict { .. } => WireErrorCode::ExpectedVersionConflict,
+            Self::DuplicateCommand => WireErrorCode::DuplicateCommand,
+            Self::VisibilityDenied => WireErrorCode::VisibilityDenied,
+            Self::InvalidConfiguration(_) => WireErrorCode::InvalidConfiguration,
+            Self::DependencyViolation(_) => WireErrorCode::DependencyDirectionViolation,
+            Self::CrateOwnershipViolation(_) => WireErrorCode::CrateOwnershipViolation,
+            Self::WorkspaceViolation(_) => WireErrorCode::WorkspaceContractViolation,
+            Self::CodingPolicyViolation(_) => WireErrorCode::RustCodingPolicyViolation,
+            Self::OpenSourceReferenceViolation(_) => WireErrorCode::OpenSourceReferenceViolation,
         }
+    }
+
+    pub fn code(&self) -> &'static str {
+        self.wire_code().as_str()
     }
 
     pub fn retryable(&self) -> bool {
@@ -345,30 +350,6 @@ pub struct CommandEnvelope<T> {
     pub causation_id: EntityId,
     pub write_path: FormalWritePath,
     pub payload: T,
-}
-
-impl<T> CommandEnvelope<T> {
-    pub fn governed(payload: T, actor_role: ActorRole, mode: AuthorityMode) -> Self {
-        Self {
-            command_id: EntityId::new("command_001").expect("valid fixture command id"),
-            idempotency_key: "idem_001".to_owned(),
-            expected_version: 0,
-            actor: Actor::new("actor_001", actor_role).expect("valid fixture actor"),
-            authority_mode: mode,
-            authority_contract_version: 1,
-            visibility: Visibility::new(VisibilityLabel::SystemOnly),
-            fact_provenance: FactProvenance::new(
-                ProvenanceKind::RulesEngineDecision,
-                "fact_001",
-                "rules_001",
-            )
-            .expect("valid fixture provenance"),
-            correlation_id: EntityId::new("corr_001").expect("valid fixture correlation id"),
-            causation_id: EntityId::new("cause_001").expect("valid fixture causation id"),
-            write_path: FormalWritePath::WorkflowDecision,
-            payload,
-        }
-    }
 }
 
 pub fn validate_command_envelope<T>(command: &CommandEnvelope<T>) -> KernelResult<()> {

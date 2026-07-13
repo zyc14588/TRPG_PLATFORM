@@ -2,7 +2,6 @@ crate::define_extension_sdk_module!(
     RulesetPackSdkCommand,
     RulesetPackSdkService,
     append_ruleset_pack_sdk_event,
-    "CODEX-0106-12-EXTENSION-SDK-34e4277c8c",
     "ruleset_pack_sdk",
     "ExtensionRulesetPackSdkRecorded",
     crate::ExtensionOperation::RulesetPackSdk,
@@ -12,7 +11,7 @@ crate::define_extension_sdk_module!(
         crate::ExtensionCapability::EmitProposedDecision,
         crate::ExtensionCapability::ReadProjection,
     ],
-    "evidence/batches/BATCH-044/ruleset-pack-sdk.md"
+    "evidence/extensions/ruleset-pack-sdk.md"
 );
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

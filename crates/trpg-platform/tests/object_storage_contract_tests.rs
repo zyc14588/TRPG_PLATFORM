@@ -1,10 +1,10 @@
 use trpg_platform::object_storage::{public_object_descriptor, store_object, StoreObject};
 use trpg_platform::{PlatformEvent, PlatformEventStore};
-use trpg_shared_kernel::{ActorRole, AuthorityMode, CommandEnvelope, Visibility, VisibilityLabel};
+use trpg_shared_kernel::{ActorRole, AuthorityMode, Visibility, VisibilityLabel};
 
 #[test]
 fn restricted_object_descriptor_is_redacted() {
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command!(
         StoreObject {
             object_id: "object_001".to_owned(),
             display_name: "keeper clue handout".to_owned(),
@@ -22,7 +22,7 @@ fn restricted_object_descriptor_is_redacted() {
 
 #[test]
 fn object_store_event_uses_redacted_descriptor() {
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command!(
         StoreObject {
             object_id: "object_001".to_owned(),
             display_name: "private dossier".to_owned(),

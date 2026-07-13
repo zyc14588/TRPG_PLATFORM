@@ -3,7 +3,7 @@ use trpg_platform::local_dev_environment::{
     ValidateLocalDevEnvironment, LOCAL_DEV_ENVIRONMENT_VALIDATED_EVENT,
 };
 use trpg_platform::PlatformEventStore;
-use trpg_shared_kernel::{ActorRole, AuthorityMode, CommandEnvelope, TrpgError};
+use trpg_shared_kernel::{ActorRole, AuthorityMode, TrpgError};
 
 fn local_profile(url: &str) -> ValidateLocalDevEnvironment {
     ValidateLocalDevEnvironment {
@@ -39,7 +39,7 @@ fn local_dev_rejects_hostname_that_only_contains_loopback_text() {
 
 #[test]
 fn local_dev_validation_is_evented() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         local_profile("http://127.0.0.1:11434"),
         ActorRole::System,
         AuthorityMode::HumanKp,

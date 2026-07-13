@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     NatsSubjectContractsCommand,
     NatsSubjectContractsOperation,
     append_nats_subject_contracts_event,
-    "CODEX-0628-06-DATA-EVENTING-14e037cb2a",
     "nats_subject_contracts",
     "NatsSubjectContractRecorded",
     "data_eventing.nats_subject_contracts.event_schema",
@@ -11,8 +10,6 @@ crate::define_data_event_module!(
 );
 
 crate::define_data_event_artifacts!(
-    NatsSubjectContractsService,
-    NatsSubjectContractsRepository,
     NatsSubjectContractsEvent,
     NatsSubjectContractsError,
     EVENT_TYPE,

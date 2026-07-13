@@ -38,3 +38,16 @@ fn dependency_direction_blocks_lower_to_higher_dependency() {
         Err(TrpgError::DependencyViolation(_))
     ));
 }
+
+#[test]
+fn contracts_cannot_depend_on_shared_kernel() {
+    let edges = [DependencyEdge {
+        from: CrateLayer::Contracts,
+        to: CrateLayer::SharedKernel,
+    }];
+
+    assert!(matches!(
+        validate_dependency_direction(&edges),
+        Err(TrpgError::DependencyViolation(_))
+    ));
+}

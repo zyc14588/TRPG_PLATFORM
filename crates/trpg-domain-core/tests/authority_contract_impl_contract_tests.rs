@@ -3,8 +3,8 @@ use trpg_domain_core::authority_contract_impl::{
     append_authority_contract_decision, fork_locked_authority_contract,
 };
 use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, DomainError, EntityId, EventStore, FactProvenance,
-    PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, DomainError, EntityId, EventStore, FactProvenance, PrincipalScope,
+    ProvenanceKind, Visibility, VisibilityLabel,
 };
 
 #[test]
@@ -12,7 +12,7 @@ fn authority_contract_impl_rejects_authority_violation_without_event() {
     let contract =
         DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
             .unwrap();
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         "human override",
         ActorRole::HumanKeeper,
         AuthorityMode::AiKp,
@@ -36,8 +36,11 @@ fn authority_contract_impl_preserves_visibility_and_provenance_on_replay() {
         "rules_001",
     )
     .unwrap();
-    let mut command =
-        CommandEnvelope::governed("ruling", ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let mut command = trpg_test_support::governed_command!(
+        "ruling",
+        ActorRole::HumanKeeper,
+        AuthorityMode::HumanKp
+    );
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     command.fact_provenance = provenance.clone();
     let mut store = EventStore::default();

@@ -31,7 +31,7 @@ fn adr_0008_plugin_boundaries_forbid_internal_bypasses() {
             policy
                 .validate(capability)
                 .expect_err("boundary policy rejects forbidden capability")
-                .code(),
+                .wire_code(),
             capability.denial_code()
         );
     }

@@ -4,46 +4,24 @@ use std::collections::HashSet;
 
 use trpg_api::contract_core::{
     append_api_contract_event, build_openapi_contract_document, http_api_adapter_contract,
-    persistence_adapter_contract, realtime_adapter_contract, replay_visible_deltas,
-    tool_permission_gate_contract, validate_domain_nats_subject, validate_nats_subject,
-    validate_primary_adapter_boundaries, ApiRealtimeEventPayload, ProviderAccessPath,
-    COMMAND_ENDPOINT, HTTP_FRAMEWORK, OPENAPI_GENERATOR, REALTIME_DELTA_SUBJECT,
-    SQLX_EVENT_STORE_ADAPTER_BOUNDARY, STAGE_FIXTURE_NATS_SUBJECT, WEBSOCKET_SYNC_ENDPOINT,
+    persistence_adapter_contract, realtime_adapter_contract, rebuild_api_projection,
+    replay_visible_deltas, tool_permission_gate_contract,
+    validate_api_projection_realtime_event_type, validate_domain_nats_subject,
+    validate_nats_subject, validate_primary_adapter_boundaries, visible_realtime_delta,
+    ApiRealtimeEventPayload, ProviderAccessPath, COMMAND_ENDPOINT, HTTP_FRAMEWORK,
+    OPENAPI_GENERATOR, REALTIME_DELTA_SUBJECT, REALTIME_REPLAYABLE_EVENTS,
+    SQLX_EVENT_STORE_ADAPTER_BOUNDARY, WEBSOCKET_SYNC_ENDPOINT,
 };
 use trpg_api::{
-    api, api_and_transport, batch_029_api_realtime_contracts, nats_subject_contracts, provider,
-    request_idempotency_contract, AuthorityContract, AuthorityMode, EventStore, FormalWritePath,
-    PrincipalScope, TrpgError, Visibility,
+    api, api_and_transport, api_realtime_contracts, nats_subject_contracts, provider,
+    request_idempotency_contract, AuthorityContract, AuthorityMode, CanonicalEvent, EventStore,
+    FormalWritePath, PrincipalScope, TrpgError, Visibility,
 };
 
 #[test]
 fn batch_029_maps_all_primary_contracts_to_current_safe_modules() {
-    let contracts = batch_029_api_realtime_contracts();
+    let contracts = api_realtime_contracts();
     assert_eq!(contracts.len(), 15);
-
-    let prompt_ids: HashSet<_> = contracts
-        .iter()
-        .map(|contract| contract.prompt_id)
-        .collect();
-    for prompt_id in [
-        "CODEX-0066-07-API-REALTIME-CONTRACTS-831b0504c2",
-        "CODEX-0067-07-API-REALTIME-CONTRACTS-1ccbeea1df",
-        "CODEX-0068-07-API-REALTIME-CONTRACTS-2b78603401",
-        "CODEX-0069-07-API-REALTIME-CONTRACTS-3cc61a7d01",
-        "CODEX-0070-07-API-REALTIME-CONTRACTS-40bb6959f3",
-        "CODEX-0071-07-API-REALTIME-CONTRACTS-3277264d0e",
-        "CODEX-0072-07-API-REALTIME-CONTRACTS-513ac60dc8",
-        "CODEX-0685-07-API-REALTIME-CONTRACTS-5d2e1fa760",
-        "CODEX-0686-07-API-REALTIME-CONTRACTS-54d06d623d",
-        "CODEX-0687-07-API-REALTIME-CONTRACTS-1d88035bc8",
-        "CODEX-0688-07-API-REALTIME-CONTRACTS-991d938d5b",
-        "CODEX-0689-07-API-REALTIME-CONTRACTS-4b17a0fb09",
-        "CODEX-0695-07-API-REALTIME-CONTRACTS-f602cf5008",
-        "CODEX-0696-07-API-REALTIME-CONTRACTS-8bf63a87bb",
-        "CODEX-0698-07-API-REALTIME-CONTRACTS-a5b1a48fc3",
-    ] {
-        assert!(prompt_ids.contains(prompt_id));
-    }
 
     let module_names: HashSet<_> = contracts
         .iter()
@@ -133,16 +111,24 @@ fn realtime_visibility_and_fact_provenance_survive_replay() {
     let event = append_api_contract_event(&mut store, &authority, &command, &api_contract).unwrap();
     assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
     assert_eq!(
-        replay_visible_deltas(&store, &PrincipalScope::Player(player_a)).len(),
+        replay_visible_deltas(&store, &PrincipalScope::Player(player_a))
+            .unwrap()
+            .len(),
         1
     );
-    assert!(replay_visible_deltas(&store, &PrincipalScope::Player(player_b)).is_empty());
-    assert!(replay_visible_deltas(&store, &PrincipalScope::Public).is_empty());
+    assert!(
+        replay_visible_deltas(&store, &PrincipalScope::Player(player_b))
+            .unwrap()
+            .is_empty()
+    );
+    assert!(replay_visible_deltas(&store, &PrincipalScope::Public)
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
 fn openapi_and_nats_contracts_expose_governed_metadata() {
-    let contracts = batch_029_api_realtime_contracts();
+    let contracts = api_realtime_contracts();
     let document = build_openapi_contract_document(&contracts);
 
     assert_eq!(document.command_endpoint, COMMAND_ENDPOINT);
@@ -152,6 +138,36 @@ fn openapi_and_nats_contracts_expose_governed_metadata() {
     assert!(document.required_headers.contains(&"expected_version"));
     assert!(document.required_headers.contains(&"correlation_id"));
     assert!(document.schemas.contains(&"openapi_index.event_schema"));
+    let expected_canonical_events: Vec<_> = CanonicalEvent::ALL
+        .iter()
+        .copied()
+        .map(CanonicalEvent::descriptor)
+        .collect();
+    assert_eq!(document.canonical_events, expected_canonical_events);
+    assert_eq!(
+        document.schemas.len(),
+        document
+            .schemas
+            .iter()
+            .copied()
+            .collect::<HashSet<_>>()
+            .len()
+    );
+    assert_eq!(
+        document.canonical_events.len(),
+        document
+            .canonical_events
+            .iter()
+            .map(|event| event.schema_name())
+            .collect::<HashSet<_>>()
+            .len()
+    );
+    for event in &document.canonical_events {
+        assert_eq!(CanonicalEvent::lookup(event.name()), Ok(event.event()));
+        assert_eq!(event.version(), event.event().version());
+        assert_eq!(event.schema_name(), event.event().schema_name());
+        assert!(document.schemas.contains(&event.schema_name()));
+    }
     assert_eq!(document.websocket_delta_subject, REALTIME_DELTA_SUBJECT);
     assert!(document
         .policy_gates
@@ -201,8 +217,12 @@ fn primary_adapter_boundaries_cover_http_realtime_persistence_and_policy_gates()
     assert!(realtime.visibility_filtered);
     assert!(realtime.reconnect_supported);
     assert!(realtime.multi_room_supported);
-    assert!(realtime.nats_subjects.contains(&STAGE_FIXTURE_NATS_SUBJECT));
-    assert!(validate_domain_nats_subject(STAGE_FIXTURE_NATS_SUBJECT).is_ok());
+    assert_eq!(realtime.replayable_event_types, REALTIME_REPLAYABLE_EVENTS);
+    assert!(realtime
+        .replayable_event_types
+        .iter()
+        .all(|event| CanonicalEvent::lookup(event.name()) == Ok(*event)));
+    assert!(realtime.nats_subjects.contains(&REALTIME_DELTA_SUBJECT));
     assert!(validate_domain_nats_subject("campaign.*").is_err());
 
     let persistence = persistence_adapter_contract();
@@ -213,6 +233,53 @@ fn primary_adapter_boundaries_cover_http_realtime_persistence_and_policy_gates()
     assert_eq!(
         persistence.formal_state_write_boundary,
         "state_service_event_store_boundary"
+    );
+}
+
+#[test]
+fn projection_and_realtime_accept_registry_and_internal_events_but_reject_unknown_events() {
+    let api_contract = api_and_transport::contract();
+    let authority = common::human_contract();
+    let mut store: EventStore<ApiRealtimeEventPayload> = EventStore::default();
+    let command = common::command_for(&api_contract, 0, "idem_registry_validation");
+    let internal_event =
+        append_api_contract_event(&mut store, &authority, &command, &api_contract).unwrap();
+
+    assert!(
+        visible_realtime_delta(&internal_event, &PrincipalScope::System)
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(
+        rebuild_api_projection(&[internal_event.clone()])
+            .unwrap()
+            .event_count,
+        1
+    );
+
+    for canonical_event in REALTIME_REPLAYABLE_EVENTS {
+        let mut event = internal_event.clone();
+        event.event_type = canonical_event.name();
+        assert!(visible_realtime_delta(&event, &PrincipalScope::System)
+            .unwrap()
+            .is_some());
+        assert_eq!(rebuild_api_projection(&[event]).unwrap().event_count, 1);
+    }
+
+    let unknown_event_type = "UnknownCanonicalFixtureEvent";
+    assert_eq!(
+        validate_api_projection_realtime_event_type(unknown_event_type).unwrap_err(),
+        TrpgError::InvalidConfiguration("api_projection_realtime_event_type")
+    );
+    let mut unknown_event = internal_event;
+    unknown_event.event_type = unknown_event_type;
+    assert_eq!(
+        visible_realtime_delta(&unknown_event, &PrincipalScope::System).unwrap_err(),
+        TrpgError::InvalidConfiguration("api_projection_realtime_event_type")
+    );
+    assert_eq!(
+        rebuild_api_projection(&[unknown_event]).unwrap_err(),
+        TrpgError::InvalidConfiguration("api_projection_realtime_event_type")
     );
 }
 

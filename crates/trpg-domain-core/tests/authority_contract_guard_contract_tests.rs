@@ -1,6 +1,6 @@
 use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::authority_contract_guard::guard_authority_contract;
-use trpg_domain_core::ddd::{ActorRole, AuthorityMode, CommandEnvelope, DomainError};
+use trpg_domain_core::ddd::{ActorRole, AuthorityMode, DomainError};
 
 #[test]
 fn authority_contract_guard_allows_matching_workflow_command() {
@@ -11,7 +11,8 @@ fn authority_contract_guard_allows_matching_workflow_command() {
         1,
     )
     .unwrap();
-    let command = CommandEnvelope::governed("payload", ActorRole::Workflow, AuthorityMode::AiKp);
+    let command =
+        trpg_test_support::governed_command!("payload", ActorRole::Workflow, AuthorityMode::AiKp);
 
     let decision = guard_authority_contract(&contract, &command).unwrap();
 
@@ -27,7 +28,11 @@ fn authority_contract_guard_rejects_human_override_in_ai_kp_mode() {
         1,
     )
     .unwrap();
-    let command = CommandEnvelope::governed("payload", ActorRole::HumanKeeper, AuthorityMode::AiKp);
+    let command = trpg_test_support::governed_command!(
+        "payload",
+        ActorRole::HumanKeeper,
+        AuthorityMode::AiKp
+    );
 
     let error = guard_authority_contract(&contract, &command).unwrap_err();
 

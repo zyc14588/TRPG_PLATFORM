@@ -34,7 +34,7 @@
       "requested_tool": "reveal_clue",
       "expect": {
         "tool_executed": false,
-        "error": "ToolPermissionDenied"
+        "error": "TOOL_PERMISSION_DENIED"
       }
     },
     {

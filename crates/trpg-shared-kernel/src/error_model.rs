@@ -1,4 +1,5 @@
 use crate::shared_kernel::TrpgError;
+use trpg_contracts::WireErrorCode;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ErrorDescriptor {
@@ -15,9 +16,9 @@ pub fn describe_error(error: &TrpgError) -> ErrorDescriptor {
     }
 }
 
-pub fn compose_error(code: &'static str, retryable: bool) -> ErrorDescriptor {
+pub fn compose_error(code: WireErrorCode, retryable: bool) -> ErrorDescriptor {
     ErrorDescriptor {
-        code,
+        code: code.as_str(),
         retryable,
         visibility_safe: true,
     }

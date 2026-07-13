@@ -1,6 +1,7 @@
 use trpg_shared_kernel::{
     AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope, EventStore,
     FormalWritePath, KernelResult, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
+    WireErrorCode,
 };
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -14,13 +15,17 @@ pub enum RuntimeError {
 }
 
 impl RuntimeError {
-    pub fn code(&self) -> &'static str {
+    pub const fn wire_code(&self) -> WireErrorCode {
         match self {
-            Self::Core(error) => error.code(),
-            Self::AgentToolNotAllowed => "AGENT_TOOL_NOT_ALLOWED",
-            Self::HumanKpAiDraftOnly => "HUMAN_KP_AI_DRAFT_ONLY",
-            Self::AgentDirectStateWriteForbidden => "AGENT_DIRECT_STATE_WRITE_FORBIDDEN",
+            Self::Core(error) => error.wire_code(),
+            Self::AgentToolNotAllowed => WireErrorCode::AgentToolNotAllowed,
+            Self::HumanKpAiDraftOnly => WireErrorCode::HumanKpAiDraftOnly,
+            Self::AgentDirectStateWriteForbidden => WireErrorCode::AgentDirectStateWriteForbidden,
         }
+    }
+
+    pub fn code(&self) -> &'static str {
+        self.wire_code().as_str()
     }
 }
 
@@ -63,7 +68,7 @@ pub enum RuntimeModule {
     WorkflowEngineImpl,
 }
 
-pub const BATCH_012_PRIMARY_MODULES: &[RuntimeModule] = &[
+pub const RUNTIME_MODULES: &[RuntimeModule] = &[
     RuntimeModule::CapabilityToolGrant,
     RuntimeModule::PendingDecision,
     RuntimeModule::RealtimeRuntimeBinding,
@@ -78,16 +83,10 @@ pub const BATCH_012_PRIMARY_MODULES: &[RuntimeModule] = &[
     RuntimeModule::CapabilityLayer,
     RuntimeModule::RealtimeRoomSync,
     RuntimeModule::RuntimePendingDecision,
-];
-
-pub const BATCH_013_PRIMARY_MODULES: &[RuntimeModule] = &[
     RuntimeModule::Saga,
     RuntimeModule::CampaignSessionRuntimeService,
     RuntimeModule::Readme,
     RuntimeModule::Runtime,
-];
-
-pub const BATCH_014_PRIMARY_MODULES: &[RuntimeModule] = &[
     RuntimeModule::RuntimeWorkflowStateMachines,
     RuntimeModule::CapabilityLayerImpl,
     RuntimeModule::PendingDecisionImpl,

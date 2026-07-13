@@ -181,7 +181,7 @@ pub fn standard_contract(
 pub fn command_for_contract(
     contract: &TestingQualityModuleContract,
 ) -> CommandEnvelope<TestingQualityCommand> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command!(
         TestingQualityCommand::from_contract(contract),
         ActorRole::Workflow,
         AuthorityMode::HumanKp,

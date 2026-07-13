@@ -2,9 +2,7 @@ use trpg_shared_kernel::document_set::{
     append_document_set_reviewed, current_foundation_document_set, document_set_contract,
     document_set_review, validate_foundation_document_set, FoundationDocument,
 };
-use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, TrpgError,
-};
+use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 use trpg_shared_kernel::workspace_and_governance::{
     validate_governance_contract, GovernanceSurface,
 };
@@ -54,7 +52,7 @@ fn document_set_contract_rejects_missing_or_promoted_history() {
 
 #[test]
 fn document_set_review_is_recorded_as_a_governed_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command!(
         document_set_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,
