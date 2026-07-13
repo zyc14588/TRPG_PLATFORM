@@ -124,7 +124,7 @@ def main() -> int:
             raise SystemExit(baseline_output)
         path.write_bytes(injected)
     elif args.case == CASES[1]:
-        path = ROOT / "scripts/ci/test-all.sh"
+        path = ROOT / "scripts/ci/generate_evidence.py"
         before = path.read_bytes()
         baseline = validation = [sys.executable, "scripts/ci/validate_workflows.py"]
         restore = (path, before)

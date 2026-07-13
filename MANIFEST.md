@@ -2876,7 +2876,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `scripts/ci/generate_evidence.py` | 8382 | `01ce92067ac7d86932080a7bb1584cb98f60640f2c685399e11bad4311ee6f96` | `100644` |
 | `scripts/ci/init-smoke.sh` | 168 | `88b4439abb55f867eb91659f2f71a6db85625a4892a2411eac769cb683849684` | `100755` |
 | `scripts/ci/manifest.py` | 2485 | `e8f93e2f4c54f88274ad060b76544cab9f5d5d70d5e76be4a75922b8fc7e125a` | `100644` |
-| `scripts/ci/p00_negative_case.py` | 6634 | `2ab583ed8ffde687fea3ca35cdeed5b32a8cb5788d592bb8c2a1fdb442c3e27f` | `100644` |
+| `scripts/ci/p00_negative_case.py` | 6643 | `a0cc559b08a2876a53d02345e687d576b44bea27a8369e7aa9fa60500ee0e34d` | `100644` |
 | `scripts/ci/release_readiness.py` | 8040 | `13ec619d1fd8ff5488560ba98808c08037fc01fc466a2e07d8fbefdaef5e542f` | `100644` |
 | `scripts/ci/repo_truth.py` | 19693 | `2aa462105a4533941931a91055870f8153fc83ca53df92d3250283636f96d643` | `100644` |
 | `scripts/ci/test-all.sh` | 2699 | `f1eb7bd56b98a805dc03211788e24648e28b03f1b1340af0bf5028542e6dc3dc` | `100755` |
