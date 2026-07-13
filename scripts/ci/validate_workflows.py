@@ -6,7 +6,7 @@ import re
 import sys
 from pathlib import Path
 
-from repo_truth import ROOT, cargo_targets
+from repo_truth import ROOT, cargo_targets, decision_values
 
 
 ACTION = re.compile(r"uses:\s*([^\s@]+)@([^\s#]+)")
@@ -41,6 +41,12 @@ def validate(root: Path = ROOT) -> list[str]:
     errors = []
     if not workflows:
         return ["no .github/workflows/*.yml files"]
+    try:
+        decision = decision_values(root)
+        canonical_branch = decision["CANONICAL_BRANCH"]
+        non_canonical_branch = decision.get("NON_CANONICAL_BRANCH")
+    except (KeyError, ValueError) as error:
+        return [f"canonical branch decision unavailable: {error}"]
     gate = (root / "scripts/ci/test-all.sh").read_text(encoding="utf-8")
     for token in PINNED_GATE_TOKENS:
         if token not in gate:
@@ -78,7 +84,15 @@ def validate(root: Path = ROOT) -> list[str]:
             if "actions/upload-artifact@" not in text:
                 errors.append(f"{relative}: generated evidence must be uploaded")
         if "actions/upload-artifact@" in text:
-            for token in ("if: always()", "github.run_attempt", "if-no-files-found: error"):
+            for token in (
+                "if: always()",
+                "github.sha",
+                "github.run_id",
+                "github.run_attempt",
+                "if-no-files-found: error",
+                "retention-days:",
+                "evidence-manifest.json",
+            ):
                 if token not in text:
                     errors.append(f"{relative}: evidence upload missing {token}")
         if "runs-on: ubuntu-24.04" not in text or "ubuntu-latest" in text:
@@ -101,14 +115,24 @@ def validate(root: Path = ROOT) -> list[str]:
         for event, block in re.findall(
             r"(?ms)^  (push|pull_request):\s*\n((?:    .*\n?)*)", text
         ):
-            if not all(branch in block for branch in ("master", "main")):
-                errors.append(f"{relative}: {event} policy must name master and main")
-        template = root / "ci-cd/workflows-extractable" / f"target-{path.name}.md"
-        if template.is_file():
-            source = template.read_text(encoding="utf-8")
-            match = re.search(r"```yaml\s*(.*?)\s*```", source, re.S)
-            if not match or match.group(1).strip() != text.strip():
-                errors.append(f"{relative}: canonical extractable template drift")
+            if canonical_branch not in block:
+                errors.append(f"{relative}: {event} policy must name {canonical_branch}")
+            if non_canonical_branch and non_canonical_branch in block:
+                errors.append(f"{relative}: {event} policy includes non-canonical {non_canonical_branch}")
+    required_checks = {
+        "ci.yml": ("name: workspace-ci", "  workspace:"),
+        "contracts.yml": ("name: repository-truth", "  truth:"),
+        "golden-scenarios.yml": ("name: golden-scenarios", "  golden:"),
+    }
+    for name, tokens in required_checks.items():
+        path = root / ".github" / "workflows" / name
+        if not path.is_file():
+            errors.append(f"missing required-check workflow: {name}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        for token in tokens:
+            if token not in text:
+                errors.append(f"{name}: missing required-check identity {token.strip()}")
     return errors
 
 

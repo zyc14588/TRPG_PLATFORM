@@ -1,5 +1,5 @@
 {
-  "schema_version": "p00-2",
+  "schema_version": "p00-3",
   "required": [
     "base_commit",
     "worktree_diff_sha256",
@@ -12,6 +12,15 @@
     "exit_code",
     "artifact_sha256",
     "generated_artifact_sha256",
+    "report_files",
+    "repository",
+    "github_sha",
+    "github_run_id",
+    "github_run_attempt",
+    "workflow",
+    "job",
+    "runner_os",
+    "semantic_status",
     "status"
   ],
   "statuses": ["PASS", "FAIL"]

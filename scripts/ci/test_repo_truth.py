@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from manifest import render
-from release_readiness import assess, release_evidence_errors
+from release_readiness import assess, readiness_report_errors, release_evidence_errors
 from repo_truth import (
     ROOT,
     canonical_json_sha256,
@@ -51,9 +51,13 @@ class RepositoryTruthNegativeTests(unittest.TestCase):
         report = assess(ROOT)
         self.assertEqual(report["status"], "BLOCKED")
         ids = {blocker["id"] for blocker in report["blockers"]}
+        self.assertTrue({"AUD-001", "AUD-002", "AUD-006"}.issubset(ids))
         self.assertIn("NO_PRODUCT_BINARY", ids)
         self.assertIn("NO_PRODUCT_DOCKERFILE", ids)
         self.assertIn("PLACEHOLDER_SERVICE", ids)
+        self.assertEqual(readiness_report_errors(report), [])
+        del report["base_commit"]
+        self.assertIn("release readiness base_commit mismatch", readiness_report_errors(report))
 
     def test_missing_workflow_script_is_rejected_and_restored(self) -> None:
         path = ROOT / ".github/workflows/p00a-negative.yml"
@@ -122,6 +126,9 @@ jobs:\n  negative:\n    runs-on: ubuntu-latest\n    timeout-minutes: 1
             actual_argv = payload["command_argv"]
             self.assertEqual(payload["exit_code"], 7)
             self.assertEqual(payload["status"], "FAIL")
+            self.assertEqual(payload["semantic_status"], "FAIL")
+            self.assertEqual(payload["github_sha"], payload["base_commit"])
+            self.assertEqual(set(payload["report_files"]), set(payload["generated_artifact_sha256"]))
             self.assertEqual(validate_evidence(payload, artifact_base=report.parent), [])
             release_errors = release_evidence_errors(payload, ROOT, report.parent)
             self.assertIn("release evidence must record a passing command", release_errors)
@@ -143,7 +150,7 @@ jobs:\n  negative:\n    runs-on: ubuntu-latest\n    timeout-minutes: 1
             payload["command"] = "cargo test"
             payload["command_argv"] = ["cargo", "test"]
             self.assertIn(
-                "raw output command mismatch",
+                "expected exactly one raw output bound to command and exit_code",
                 validate_evidence(payload, artifact_base=report.parent),
             )
             payload["command"] = actual_command
@@ -161,7 +168,7 @@ jobs:\n  negative:\n    runs-on: ubuntu-latest\n    timeout-minutes: 1
             extra_log.write_text("forged\n", encoding="utf-8")
             payload["generated_artifact_sha256"][extra_log.name] = sha256_file(extra_log)
             self.assertIn(
-                "expected exactly one generated artifact: *.log",
+                "report_files do not match generated artifacts",
                 validate_evidence(payload, artifact_base=report.parent),
             )
             payload["generated_artifact_sha256"].pop(extra_log.name)

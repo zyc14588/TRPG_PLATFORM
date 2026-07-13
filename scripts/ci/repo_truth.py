@@ -10,6 +10,7 @@ import platform
 import re
 import shlex
 import subprocess
+import sys
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -22,8 +23,8 @@ MANIFEST_OUTPUTS = {
     "manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md",
 }
 PRODUCT_SERVICES = ("web", "api", "realtime", "agent-worker", "admin")
-EVIDENCE_SCHEMA_VERSION = "p00-2"
-EVIDENCE_GENERATOR_VERSION = "p00-2"
+EVIDENCE_SCHEMA_VERSION = "p00-3"
+EVIDENCE_GENERATOR_VERSION = "p00-3"
 EVIDENCE_REQUIRED = (
     "base_commit",
     "worktree_diff_sha256",
@@ -36,6 +37,15 @@ EVIDENCE_REQUIRED = (
     "exit_code",
     "artifact_sha256",
     "generated_artifact_sha256",
+    "report_files",
+    "repository",
+    "github_sha",
+    "github_run_id",
+    "github_run_attempt",
+    "workflow",
+    "job",
+    "runner_os",
+    "semantic_status",
     "status",
 )
 EVIDENCE_STATUSES = ("PASS", "FAIL")
@@ -172,6 +182,14 @@ def base_commit(root: Path = ROOT) -> str:
     return run("git", "rev-parse", "HEAD", root=root).stdout.strip()
 
 
+def repository_slug(root: Path = ROOT) -> str:
+    remote = run("git", "remote", "get-url", "origin", root=root).stdout.strip()
+    match = re.search(r"github\.com[/:]([^/]+/[^/]+?)(?:\.git)?$", remote)
+    if not match:
+        raise ValueError(f"origin is not a GitHub repository: {remote}")
+    return match.group(1)
+
+
 def worktree_diff_sha256(root: Path = ROOT) -> str:
     digest = hashlib.sha256()
     diff = subprocess.run(
@@ -244,6 +262,8 @@ def validate_evidence(
         errors.append("exit_code must be an integer")
     elif (data.get("status") == "PASS") != (exit_code == 0):
         errors.append("status does not match exit_code")
+    if data.get("semantic_status") != data.get("status"):
+        errors.append("semantic_status does not match derived status")
     if not isinstance(data.get("command"), str) or not data.get("command"):
         errors.append("command must be a non-empty string")
     argv = data.get("command_argv")
@@ -253,6 +273,21 @@ def validate_evidence(
         errors.append("command does not match command_argv")
     if data.get("base_commit") != base_commit(root):
         errors.append("base_commit mismatch")
+    if data.get("github_sha") != data.get("base_commit"):
+        errors.append("github_sha does not match base_commit")
+    try:
+        expected_repository = repository_slug(root)
+    except ValueError as error:
+        errors.append(str(error))
+    else:
+        if data.get("repository") != expected_repository:
+            errors.append("repository does not match origin")
+    for name in ("github_run_id", "github_run_attempt"):
+        if not re.fullmatch(r"LOCAL|[1-9][0-9]*", str(data.get(name, ""))):
+            errors.append(f"invalid {name}")
+    for name in ("workflow", "job", "runner_os"):
+        if not isinstance(data.get(name), str) or not data.get(name):
+            errors.append(f"{name} must be a non-empty string")
     if not re.fullmatch(r"[0-9a-f]{64}", str(data.get("worktree_diff_sha256", ""))):
         errors.append("invalid worktree_diff_sha256")
     elif data.get("worktree_diff_sha256") != worktree_diff_sha256(root):
@@ -320,8 +355,8 @@ def validate_evidence(
             for suffix in (".log", ".junit.xml", ".sarif")
         }
         for suffix, names in generated_by_suffix.items():
-            if len(names) != 1:
-                errors.append(f"expected exactly one generated artifact: *{suffix}")
+            if not names:
+                errors.append(f"missing generated artifact: *{suffix}")
         for name, expected in generated.items():
             candidate = artifact_base / name if artifact_base is not None else None
             if Path(name).name != name or artifact_base is None:
@@ -334,13 +369,88 @@ def validate_evidence(
                 errors.append(f"invalid generated artifact hash: {name}")
             elif not candidate.is_file() or sha256_file(candidate) != expected:
                 errors.append(f"generated artifact hash mismatch: {name}")
-        raw_names = generated_by_suffix[".log"]
-        if artifact_base is not None and len(raw_names) == 1:
-            raw_path = artifact_base / raw_names[0]
-            if raw_path.is_file():
-                raw = raw_path.read_text(encoding="utf-8")
-                if not raw.startswith(f"$ {data.get('command', '')}\n"):
-                    errors.append("raw output command mismatch")
-                if not raw.endswith(f"[exit_code]\n{data.get('exit_code')}\n"):
-                    errors.append("raw output exit_code mismatch")
+        if artifact_base is not None:
+            bound_logs = []
+            for name in generated_by_suffix[".log"]:
+                raw_path = artifact_base / name
+                if raw_path.is_file():
+                    raw = raw_path.read_text(encoding="utf-8")
+                    if raw.startswith(f"$ {data.get('command', '')}\n") and raw.endswith(
+                        f"[exit_code]\n{data.get('exit_code')}\n"
+                    ):
+                        bound_logs.append(name)
+            if len(bound_logs) != 1:
+                errors.append("expected exactly one raw output bound to command and exit_code")
+    reports = data.get("report_files")
+    if not isinstance(reports, dict) or not reports:
+        errors.append("report_files must be a non-empty object")
+    elif isinstance(generated, dict):
+        if set(reports) != set(generated):
+            errors.append("report_files do not match generated artifacts")
+        for name, metadata in reports.items():
+            if not isinstance(metadata, dict):
+                errors.append(f"invalid report metadata: {name}")
+                continue
+            if metadata.get("path") != name:
+                errors.append(f"report path mismatch: {name}")
+            candidate = artifact_base / name if artifact_base is not None else None
+            if candidate is None or not candidate.is_file():
+                errors.append(f"missing report file: {name}")
+            elif metadata.get("size_bytes") != candidate.stat().st_size:
+                errors.append(f"report size mismatch: {name}")
+            if metadata.get("sha256") != generated.get(name):
+                errors.append(f"report hash mismatch: {name}")
     return errors
+
+
+def decision_values(root: Path = ROOT) -> dict[str, str]:
+    path = root / "P00_REMOTE_CANONICALIZATION_DECISION.md"
+    if not path.is_file():
+        raise ValueError("missing P00_REMOTE_CANONICALIZATION_DECISION.md")
+    return dict(
+        match.groups()
+        for match in re.finditer(r"(?m)^([A-Z0-9_]+)\s*=\s*(.+?)\s*$", path.read_text(encoding="utf-8"))
+    )
+
+
+def repository_truth_errors(root: Path = ROOT) -> list[str]:
+    errors = []
+    try:
+        decision = decision_values(root)
+        if decision.get("OWNER_APPROVAL") != "APPROVED":
+            errors.append("canonical repository owner approval is not APPROVED")
+        if decision.get("CANONICAL_REPOSITORY") != repository_slug(root):
+            errors.append("canonical repository does not match origin")
+        branch = (
+            os.environ.get("GITHUB_BASE_REF")
+            or os.environ.get("GITHUB_REF_NAME")
+            or run("git", "branch", "--show-current", root=root).stdout.strip()
+        )
+        if decision.get("CANONICAL_BRANCH") != branch:
+            errors.append("canonical branch does not match current branch")
+    except (OSError, subprocess.SubprocessError, ValueError) as error:
+        errors.append(str(error))
+    diff = subprocess.run(
+        ["git", "diff", "--check"], cwd=root, text=True, encoding="utf-8", capture_output=True
+    )
+    if diff.returncode:
+        errors.append(diff.stdout.strip() or diff.stderr.strip() or "git diff --check failed")
+    if run("git", "status", "--porcelain=v1", root=root).stdout.strip():
+        errors.append("worktree is not clean")
+    return errors
+
+
+def main() -> int:
+    if sys.argv[1:] != ["--check"]:
+        print("usage: repo_truth.py --check", file=sys.stderr)
+        return 2
+    errors = repository_truth_errors()
+    if errors:
+        print("\n".join(errors), file=sys.stderr)
+        return 1
+    print(f"repository truth verified: {repository_slug()} {base_commit()}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

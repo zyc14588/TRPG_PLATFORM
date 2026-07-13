@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import platform
 import shlex
 import subprocess
 import sys
@@ -18,6 +20,7 @@ from repo_truth import (
     current_tool_versions,
     git_modes,
     repository_artifact_path,
+    repository_slug,
     sha256_file,
     worktree_diff_sha256,
 )
@@ -68,6 +71,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--artifact", action="append", required=True)
+    parser.add_argument("--generated-artifact", action="append", type=Path, default=[])
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
@@ -82,6 +86,17 @@ def main() -> int:
         pass
     else:
         parser.error("--report must be outside the repository")
+    artifact_root = args.report.parent.resolve()
+    generated_paths = []
+    for path in args.generated_artifact:
+        resolved = path.resolve()
+        try:
+            resolved.relative_to(artifact_root)
+        except ValueError:
+            parser.error("--generated-artifact must stay inside the report directory")
+        if resolved == args.report:
+            parser.error("--generated-artifact cannot be the evidence manifest itself")
+        generated_paths.append(resolved)
 
     commit_before = base_commit()
     diff_before = worktree_diff_sha256()
@@ -113,6 +128,9 @@ def main() -> int:
     except OSError as error:
         exit_code, stdout, stderr = 127, "", str(error) + "\n"
 
+    raw_path = args.report.with_suffix(".log")
+    junit_path = args.report.with_suffix(".junit.xml")
+    sarif_path = args.report.with_suffix(".sarif")
     integrity_errors = []
     try:
         commit_after = base_commit()
@@ -121,6 +139,9 @@ def main() -> int:
         integrity_errors.append(f"cannot read base commit after evidence command: {error}")
     if commit_after != commit_before:
         integrity_errors.append("base commit changed while the evidence command ran")
+    github_sha = os.environ.get("GITHUB_SHA", commit_before)
+    if github_sha != commit_before:
+        integrity_errors.append("GITHUB_SHA does not match the checked-out commit")
     try:
         diff_after = worktree_diff_sha256()
     except (OSError, subprocess.SubprocessError) as error:
@@ -132,14 +153,19 @@ def main() -> int:
         path = repository_artifact_path(name)
         if not path.is_file() or sha256_file(path) != expected:
             integrity_errors.append(f"artifact changed while the evidence command ran: {name}")
+    reserved_names = {raw_path.name, junit_path.name, sarif_path.name}
+    for path in generated_paths:
+        if not path.is_file():
+            integrity_errors.append(f"missing generated artifact: {path.name}")
+        elif path.name in reserved_names:
+            integrity_errors.append(f"duplicate generated artifact name: {path.name}")
+        else:
+            reserved_names.add(path.name)
     if integrity_errors:
         stderr += "\n".join(f"[evidence-integrity] {error}" for error in integrity_errors) + "\n"
         if exit_code == 0:
             exit_code = 86
 
-    raw_path = args.report.with_suffix(".log")
-    junit_path = args.report.with_suffix(".junit.xml")
-    sarif_path = args.report.with_suffix(".sarif")
     raw_path.write_text(
         f"$ {command_text}\n[stdout]\n{stdout}[stderr]\n{stderr}[exit_code]\n{exit_code}\n",
         encoding="utf-8",
@@ -149,9 +175,19 @@ def main() -> int:
     write_sarif(sarif_path, command_text, exit_code)
 
     tool_versions = current_tool_versions()
-    generated = {
-        path.name: sha256_file(path) for path in (raw_path, junit_path, sarif_path)
+    generated_files = [raw_path, junit_path, sarif_path]
+    generated_files.extend(path for path in generated_paths if path.is_file())
+    generated = {path.name: sha256_file(path) for path in generated_files if path.is_file()}
+    report_files = {
+        path.name: {
+            "path": path.name,
+            "size_bytes": path.stat().st_size,
+            "sha256": generated[path.name],
+        }
+        for path in generated_files
+        if path.is_file()
     }
+    status = "PASS" if exit_code == 0 else "FAIL"
     evidence = {
         "base_commit": commit_before,
         "worktree_diff_sha256": diff_before,
@@ -164,7 +200,16 @@ def main() -> int:
         "exit_code": exit_code,
         "artifact_sha256": artifacts,
         "generated_artifact_sha256": generated,
-        "status": "PASS" if exit_code == 0 else "FAIL",
+        "report_files": report_files,
+        "repository": os.environ.get("GITHUB_REPOSITORY", repository_slug()),
+        "github_sha": github_sha,
+        "github_run_id": os.environ.get("GITHUB_RUN_ID", "LOCAL"),
+        "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT", "LOCAL"),
+        "workflow": os.environ.get("GITHUB_WORKFLOW", "local"),
+        "job": os.environ.get("GITHUB_JOB", "local"),
+        "runner_os": os.environ.get("RUNNER_OS", platform.system()),
+        "semantic_status": status,
+        "status": status,
     }
     args.report.write_text(
         json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"

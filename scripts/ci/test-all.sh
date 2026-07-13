@@ -23,9 +23,11 @@ else
 fi
 test -z "$(git status --porcelain=v1)"
 
+python3 scripts/ci/repo_truth.py --check
 python3 scripts/ci/validate_workflows.py
+python3 scripts/ci/discover_tests.py --check
 python3 scripts/ci/verify_test_inventory.py --report "$tool_dir/test-inventory.json"
-python3 scripts/ci/verify_manifest.py
+python3 scripts/ci/manifest.py --check
 python3 scripts/ci/verify_evidence_schema.py
 
 bash -n scripts/ci/init-smoke.sh

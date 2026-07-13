@@ -2,9 +2,9 @@ name: repository-truth
 
 on:
   pull_request:
-    branches: [master, main]
+    branches: [master]
   push:
-    branches: [master, main]
+    branches: [master]
 
 permissions:
   contents: read
@@ -31,17 +31,14 @@ jobs:
         run: corepack enable && corepack prepare pnpm@11.9.0 --activate
       - name: Repository truth with evidence
         run: |
-          python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/repository-truth.json" --artifact MANIFEST.md -- bash scripts/ci/test-all.sh contracts
-          python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/repository-truth.json"
-      - name: Upload runtime evidence
+          mkdir -p "$RUNNER_TEMP/repository-truth"
+          python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/repository-truth/evidence-manifest.json" --artifact MANIFEST.md -- bash scripts/ci/test-all.sh contracts
+          python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/repository-truth/evidence-manifest.json"
+      - name: Upload repository truth evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: repository-truth-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/repository-truth.json
-            ${{ runner.temp }}/repository-truth.log
-            ${{ runner.temp }}/repository-truth.junit.xml
-            ${{ runner.temp }}/repository-truth.sarif
+          name: repository-truth-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/repository-truth
           if-no-files-found: error
           retention-days: 30

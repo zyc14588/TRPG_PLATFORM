@@ -1,16 +1,16 @@
-name: ci
+name: workspace-ci
 
 on:
   pull_request:
-    branches: [master, main]
+    branches: [master]
   push:
-    branches: [master, main]
+    branches: [master]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: workspace-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,17 +33,14 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Full CI with evidence
         run: |
-          python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/ci-evidence.json" --artifact MANIFEST.md -- bash scripts/ci/test-all.sh
-          python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/ci-evidence.json"
-      - name: Upload CI evidence
+          mkdir -p "$RUNNER_TEMP/workspace-ci"
+          python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/workspace-ci/evidence-manifest.json" --artifact MANIFEST.md -- bash scripts/ci/test-all.sh
+          python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/workspace-ci/evidence-manifest.json"
+      - name: Upload workspace evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ci-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/ci-evidence.json
-            ${{ runner.temp }}/ci-evidence.log
-            ${{ runner.temp }}/ci-evidence.junit.xml
-            ${{ runner.temp }}/ci-evidence.sarif
+          name: workspace-ci-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/workspace-ci
           if-no-files-found: error
           retention-days: 30

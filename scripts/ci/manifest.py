@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import sys
 from pathlib import Path
 
 from repo_truth import MANIFEST_OUTPUTS, ROOT, git_blob_bytes, git_modes
@@ -42,7 +43,9 @@ def render(root: Path = ROOT) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--write", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--write", action="store_true")
+    mode.add_argument("--check", action="store_true")
     args = parser.parse_args()
     content = render()
     if args.write:
@@ -50,6 +53,12 @@ def main() -> int:
             path = ROOT / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8", newline="\n")
+    elif args.check:
+        errors = [name for name in OUTPUTS if not (ROOT / name).is_file() or (ROOT / name).read_text(encoding="utf-8") != content]
+        if errors:
+            print("manifest drift: " + ", ".join(errors), file=sys.stderr)
+            return 1
+        print(f"manifest verified: {len(content.splitlines())} lines")
     else:
         print(content, end="")
     return 0

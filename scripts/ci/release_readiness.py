@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -33,6 +34,11 @@ REQUIRED_SCRIPTS = (
     "scripts/ci/verify_evidence_schema.py",
 )
 RELEASE_COMMAND = ["bash", "scripts/ci/test-all.sh"]
+REQUIRED_AUDIT_BLOCKERS = {
+    "AUD-001": "V1 product runtime binary is not implemented",
+    "AUD-002": "V1 product container image is not implemented",
+    "AUD-006": "V1 Compose services remain explicit placeholders",
+}
 
 
 def release_evidence_errors(data: dict, root: Path, artifact_base: Path) -> list[str]:
@@ -50,7 +56,10 @@ def release_evidence_errors(data: dict, root: Path, artifact_base: Path) -> list
 
 
 def assess(root: Path, evidence: Path | None = None) -> dict:
-    blockers: list[dict[str, str]] = []
+    blockers: list[dict[str, str]] = [
+        {"id": audit_id, "reason": reason}
+        for audit_id, reason in REQUIRED_AUDIT_BLOCKERS.items()
+    ]
     if not cargo_targets(root, "bin"):
         blockers.append({"id": "NO_PRODUCT_BINARY", "reason": "Cargo has no product binary target"})
 
@@ -112,9 +121,32 @@ def assess(root: Path, evidence: Path | None = None) -> dict:
         "status": "BLOCKED" if blockers else "READY",
         "base_commit": base_commit(root),
         "worktree_diff_sha256": worktree_diff_sha256(root),
-        "generator_version": "p00-2",
+        "generator_version": EVIDENCE_GENERATOR_VERSION,
         "blockers": blockers,
     }
+
+
+def readiness_report_errors(data: dict, root: Path = ROOT) -> list[str]:
+    errors = []
+    if data.get("status") != "BLOCKED":
+        errors.append("release readiness must remain BLOCKED")
+    if data.get("base_commit") != base_commit(root):
+        errors.append("release readiness base_commit mismatch")
+    if os.environ.get("GITHUB_SHA", data.get("base_commit")) != data.get("base_commit"):
+        errors.append("release readiness provenance does not match GITHUB_SHA")
+    if data.get("worktree_diff_sha256") != worktree_diff_sha256(root):
+        errors.append("release readiness worktree provenance mismatch")
+    if data.get("generator_version") != EVIDENCE_GENERATOR_VERSION:
+        errors.append("release readiness generator_version mismatch")
+    blockers = data.get("blockers")
+    if not isinstance(blockers, list) or not all(isinstance(item, dict) for item in blockers):
+        errors.append("release readiness blockers must be an object array")
+    else:
+        blocker_ids = {item.get("id") for item in blockers}
+        for audit_id in REQUIRED_AUDIT_BLOCKERS:
+            if audit_id not in blocker_ids:
+                errors.append(f"release readiness missing blocker: {audit_id}")
+    return errors
 
 
 def main() -> int:
@@ -122,7 +154,23 @@ def main() -> int:
     parser.add_argument("--report", type=Path)
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--require-ready", action="store_true")
+    parser.add_argument("--require-blocked", action="store_true")
+    parser.add_argument("--verify-report", type=Path)
     args = parser.parse_args()
+    if args.require_ready and args.require_blocked:
+        parser.error("--require-ready and --require-blocked are mutually exclusive")
+    if args.verify_report:
+        if any((args.report, args.evidence, args.require_ready, args.require_blocked)):
+            parser.error("--verify-report cannot be combined with assessment options")
+        try:
+            errors = readiness_report_errors(json.loads(args.verify_report.read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError) as error:
+            errors = [str(error)]
+        if errors:
+            print("\n".join(errors))
+            return 1
+        print("release readiness report verified: BLOCKED")
+        return 0
     if args.report:
         args.report = args.report.resolve()
         if args.report.is_relative_to(ROOT.resolve()):
@@ -133,6 +181,11 @@ def main() -> int:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(payload, encoding="utf-8")
     print(payload, end="")
+    if args.require_blocked:
+        errors = readiness_report_errors(report)
+        if errors:
+            print("\n".join(errors))
+            return 1
     return 1 if args.require_ready and report["status"] != "READY" else 0
 
 

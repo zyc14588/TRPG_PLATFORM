@@ -1,18 +1,19 @@
 # Repository Source Manifest v1
 
-Repository files: 3731
-Hashed files: 3728
+Repository files: 3736
+Hashed files: 3733
 
 All tracked paths are listed. The three generated outputs use a self-reference sentinel instead of an impossible self-hash.
 CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manifest.py` requires all three outputs to be byte-identical.
 
 | path | size_bytes | sha256 | git_mode |
 |---|---:|---|---|
-| `.github/workflows/ci.yml` | 1652 | `f113cf397b037cf316667f8363fd2e3a37cd1095999130a47f291eb8ce8dae23` | `100644` |
-| `.github/workflows/contracts.yml` | 1637 | `6c55854c0ac63a1c3ca0133af835838b634b36c62ea39d68bb8a95b22a74474b` | `100644` |
-| `.github/workflows/docker-compose-smoke.yml` | 986 | `92e119d62800f84896068679dd6e480228f8d134f714fd579b7da3fccf4a09f9` | `100644` |
-| `.github/workflows/golden-scenarios.yml` | 782 | `13ea4e058f986244fb4f53b00c7987125c2a8c37cbd4ce60adc18fd448413cd8` | `100644` |
-| `.github/workflows/release.yml` | 1939 | `45552dd194d86524bd9837ef7b690d49fdf9453468bbedec7ffe7c5fe6321c19` | `100644` |
+| `.github/workflows/ci.yml` | 1590 | `413efb2923995e063ea44f4786841a7b3cd3a199c6a947c418ef7c35268f7103` | `100644` |
+| `.github/workflows/contracts.yml` | 1556 | `350cb63b57803f4077a99a7985af56131c2a4c35ae6b789aea08b6e55377ece8` | `100644` |
+| `.github/workflows/docker-compose-smoke.yml` | 1731 | `4ca8e30ccdcc5ea0b3bb540fb104281167d07be56fad755a7b79d86812d66474` | `100644` |
+| `.github/workflows/golden-scenarios.yml` | 1742 | `9b403e6b416d95e6c63e96183d3a233fffa6e86ad0806553d9eb47e58ed64162` | `100644` |
+| `.github/workflows/p00-negative-matrix.yml` | 2432 | `9a29d3857c6c9661c5e72099532283b9b4b57cf2f3e0d25011f0086f3eee1594` | `100644` |
+| `.github/workflows/release.yml` | 2805 | `1b1cdd3467acaaa8ccf366b5543036bac0b4d1b83f15be0a0b82c36a80ae71ab` | `100644` |
 | `.gitignore` | 57 | `540fdaa2c06057dfdffa97c4881d1916c3ea2776abf6b1f01131f20629c77b09` | `100644` |
 | `.nvmrc` | 8 | `98182b41c9ce3357797985cf12dc3b0124490ef88bc918a905373e7688e6aec9` | `100644` |
 | `.python-version` | 7 | `3a55324cbeddc91df012407d051dad08c88624c95a82fbdb856728729fbd14ab` | `100644` |
@@ -33,6 +34,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `Cargo.toml` | 403 | `ccf1121ebec502af850d5d58aefa07cd2be8b449d045eef8f9e8fae40ab77494` | `100644` |
 | `DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md` | 3692 | `77f7e4acf141e50b7128dce020f266978824c23274c02250511da6157535c34d` | `100644` |
 | `MANIFEST.md` | self | `evidence-bound-self-reference` | `100644` |
+| `P00_REMOTE_CANONICALIZATION_DECISION.md` | 1654 | `7c798064692f7746de87120fc903cf595ed3d6114e3bd9e2057c4142e8200dc7` | `100644` |
 | `PER_STAGE_FIXTURE_EXPANSION_PLAN.md` | 3838 | `2a45897e80fd56b1266a2c5d63b9d71d8179db4f2db13271a16c22fd8f2b623e` | `100644` |
 | `README.md` | 7244 | `8055b6e40b0c53a21a70d8d4d59a829dcd7c789a8e0d2584fa574ccfc3526238` | `100644` |
 | `SOURCE_BUNDLE_INTEGRATION_GUIDE.md` | 4696 | `1da3d086e5084d0908780988ff89b809f69b4bcaffc19042c5398d027ddd7d26` | `100644` |
@@ -1824,6 +1826,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-testing/tests/visibility_leakage.rs` | 660 | `67d2d4c7cc32a7d72ccb73a26c95bd188b8921c2dc75ac024615164caee8740d` | `100644` |
 | `crates/trpg-testing/tests/visibility_leakage_tests_contract_tests.rs` | 1075 | `8446d7a2b159c1354d53256012691774fdaf7d0ae2355b8ddc8bfd986757da7f` | `100644` |
 | `docker-compose.ci.yml` | 3596 | `a2e915f49bd15d1ced49de4aa268c08d9b4f3a6d5f80c47535a4e3ee7a04d6d8` | `100644` |
+| `docs/audit/p00/P00_FINAL_STATUS.md` | 1282 | `fb4b691de097e39ae7a1893a0e78632ea2ec02ae1c5201d4a3ecf28352d021c0` | `100644` |
 | `docs/codex/00-index/AGENTS.md` | 4164 | `7a4b058f57d75097de15c3902560a3b4fbdf70a639bd0ca5ddbe2529d8ad0170` | `100644` |
 | `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` | `100644` |
 | `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` | `100644` |
@@ -2867,15 +2870,17 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `prompts/persistent/15_CURRENT_NORMALIZATION_PROMPT.md` | 688 | `e4f62b47e9ee06bdb4cf6e8396831fb588cfe905683ebe6b902093973607632b` | `100644` |
 | `rust-toolchain.toml` | 86 | `fa0addad5676243d360310f981a69528b0341d295cb5012253d9721aba4d30c0` | `100644` |
 | `scripts/backup_restore/smoke.sh` | 141 | `64d1fb3094d0ab680ddffb1de8c0ee6e8aa7b0f54024c9d390cf33c7bf95d2e1` | `100755` |
-| `scripts/ci/evidence.schema.json` | 349 | `3a9ecbeccbc3f7886676c7741b6becc9a009f38f41e756cc5a6af28947b5efc0` | `100644` |
-| `scripts/ci/generate_evidence.py` | 6139 | `017341e6808d38a020fb6afcd6911e74201b93a5692e97391332a668dbdc2011` | `100644` |
+| `scripts/ci/discover_tests.py` | 595 | `1748a5ecf19e70c9a7c1a050a0fc44e20dd642c9a71a864c2a97192d3c82b838` | `100644` |
+| `scripts/ci/evidence.schema.json` | 519 | `6a1a4bcc2c991490088a5d0fcf6ed03ddfe26cf8287a1b7fa5fdb730014d24d9` | `100644` |
+| `scripts/ci/generate_evidence.py` | 8243 | `d6b307a5c01b638f759e5ea393abcaccff593f4f219b5b769fa41593af37b932` | `100644` |
 | `scripts/ci/init-smoke.sh` | 168 | `88b4439abb55f867eb91659f2f71a6db85625a4892a2411eac769cb683849684` | `100755` |
-| `scripts/ci/manifest.py` | 1960 | `e3ed3148d834c7a23831c89af586b0e422444cf6a72e1fb2e673fb7ea64a8393` | `100644` |
-| `scripts/ci/release_readiness.py` | 5469 | `b15817a892ad6364ba9bf4ebfb17b8086fef07e7348b49aa493e1d73fd10a8f8` | `100644` |
-| `scripts/ci/repo_truth.py` | 14330 | `26af0c6789ed13d0cb3c0f6edc19de302e3dacce45d6b6e43fd498ce8fb0c520` | `100644` |
-| `scripts/ci/test-all.sh` | 2612 | `e5680d35988dbf2f6737076846812ff3f5d906aea3c19afb3a59b54e67ae1194` | `100755` |
-| `scripts/ci/test_repo_truth.py` | 9119 | `915726b9d61c7781ef4d53556863d288c3be845f7cf7cbde31eb971e5e682b75` | `100644` |
-| `scripts/ci/validate_workflows.py` | 6065 | `276945ad92be1af8cc1875d4d6beb5c16eb55545b9c93ba49450c00f7613eda4` | `100644` |
+| `scripts/ci/manifest.py` | 2410 | `3383c120c6b5a4f2cb539bfaee4558062208eab908067ad02e963fc1dab3dafe` | `100644` |
+| `scripts/ci/p00_negative_case.py` | 6634 | `2ab583ed8ffde687fea3ca35cdeed5b32a8cb5788d592bb8c2a1fdb442c3e27f` | `100644` |
+| `scripts/ci/release_readiness.py` | 8040 | `13ec619d1fd8ff5488560ba98808c08037fc01fc466a2e07d8fbefdaef5e542f` | `100644` |
+| `scripts/ci/repo_truth.py` | 18863 | `f96fab6673bb0dfa849c0eaf2c0b4d7836b90c409d2edf115ff323b6d5d5f981` | `100644` |
+| `scripts/ci/test-all.sh` | 2699 | `f1eb7bd56b98a805dc03211788e24648e28b03f1b1340af0bf5028542e6dc3dc` | `100755` |
+| `scripts/ci/test_repo_truth.py` | 9687 | `cd29ec93d81aaac383581286325a8f4757638878e92046cfa68a8e8ab12bb16a` | `100644` |
+| `scripts/ci/validate_workflows.py` | 6981 | `fc6e470f0ba195b2b792240a3337f90898eb400563d8405fd48baa5d268770ba` | `100644` |
 | `scripts/ci/verify_evidence_schema.py` | 1630 | `d78ca61b3aa2d805ba9250c78b4919b5b55309b74db8227363698a1502462c5f` | `100644` |
 | `scripts/ci/verify_manifest.py` | 1004 | `080307fce0ece3fcb183da6df33cbd6421344100aea738d7fe95704b428bff82` | `100644` |
 | `scripts/ci/verify_test_inventory.py` | 3911 | `03563b5d4a47e1c3147c5b52447dd0bda9a7327dd4313b7cc28d1b21d1068ae9` | `100644` |

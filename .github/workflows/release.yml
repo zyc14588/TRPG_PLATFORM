@@ -1,17 +1,23 @@
-name: release-readiness
+name: release-readiness-evidence
 
 on:
   workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/release.yml
+      - scripts/ci/**
+      - P00_REMOTE_CANONICALIZATION_DECISION.md
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-readiness-${{ github.ref }}
+  group: release-readiness-evidence-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  require-ready:
+  blocked-evidence:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -28,22 +34,31 @@ jobs:
         run: corepack enable && corepack prepare pnpm@11.9.0 --activate
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
-      - name: Generate full release evidence
+      - name: Generate release input evidence
         run: |
-          python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/release-evidence.json" --artifact MANIFEST.md -- bash scripts/ci/test-all.sh
-          python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/release-evidence.json"
-      - name: Fail closed until real product runtime exists
-        run: python3 scripts/ci/release_readiness.py --report "$RUNNER_TEMP/release-readiness.json" --evidence "$RUNNER_TEMP/release-evidence.json" --require-ready
-      - name: Upload release evidence
+          mkdir -p "$RUNNER_TEMP/release-readiness"
+          python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/release-readiness/release-input.json" --artifact MANIFEST.md -- bash scripts/ci/test-all.sh
+          python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/release-readiness/release-input.json"
+      - name: Verify the truthful BLOCKED state
+        run: |
+          python3 scripts/ci/generate_evidence.py \
+            --report "$RUNNER_TEMP/release-readiness/evidence-manifest.json" \
+            --artifact MANIFEST.md \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/release-input.json" \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/release-input.log" \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/release-input.junit.xml" \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/release-input.sarif" \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/release-readiness.json" \
+            -- python3 scripts/ci/release_readiness.py \
+              --report "$RUNNER_TEMP/release-readiness/release-readiness.json" \
+              --evidence "$RUNNER_TEMP/release-readiness/release-input.json" \
+              --require-blocked
+          python3 scripts/ci/verify_evidence_schema.py "$RUNNER_TEMP/release-readiness/evidence-manifest.json"
+      - name: Upload release readiness evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: release-readiness-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/release-evidence.json
-            ${{ runner.temp }}/release-evidence.log
-            ${{ runner.temp }}/release-evidence.junit.xml
-            ${{ runner.temp }}/release-evidence.sarif
-            ${{ runner.temp }}/release-readiness.json
+          name: release-readiness-evidence-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-readiness
           if-no-files-found: error
           retention-days: 30
