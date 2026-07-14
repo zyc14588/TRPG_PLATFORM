@@ -1,4 +1,5 @@
 use crate::{append_coc7_event, Coc7EventPayload};
+use trpg_contracts::EventType;
 use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError,
 };
@@ -126,7 +127,7 @@ pub fn record_dice_roll_contract<T>(
         contract,
         store,
         command,
-        "coc7.dice_roll_recorded",
+        EventType::DiceRolled.name(),
         "dice_roll_contract",
         format!(
             "roll={} target={} level={:?}",

@@ -4,7 +4,6 @@ crate::define_ops_runbook_module!(
     ImplementationPlanRepository,
     ImplementationPlanError,
     append_implementation_plan_event,
-    "CODEX-0921-11-OPS-MIGRATION-7457f82a14",
     "implementation_plan",
     "OpsImplementationPlanRecorded",
     crate::OpsRunbookOperation::ImplementationPlan,
@@ -13,5 +12,5 @@ crate::define_ops_runbook_module!(
         "test_responsibility",
         "handoff_note"
     ],
-    "evidence/batches/BATCH-042/implementation-plan.md"
+    "runbooks/implementation-plan"
 );

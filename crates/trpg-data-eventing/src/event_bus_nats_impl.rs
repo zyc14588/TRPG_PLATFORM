@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     EventBusNatsImplCommand,
     EventBusNatsImplOperation,
     append_event_bus_nats_impl_event,
-    "CODEX-0637-06-DATA-EVENTING-745a12af17",
     "event_bus_nats_impl",
     "EventBusNatsImplRecorded",
     "data_eventing.event_bus_nats_impl.event_schema",

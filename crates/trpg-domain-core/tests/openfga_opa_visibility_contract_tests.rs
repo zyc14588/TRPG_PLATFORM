@@ -1,6 +1,5 @@
 use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, DomainError, PrincipalScope, Visibility,
-    VisibilityLabel,
+    ActorRole, AuthorityMode, DomainError, PrincipalScope, Visibility, VisibilityLabel,
 };
 use trpg_domain_core::openfga_opa_visibility::{
     evaluate_openfga_opa_visibility, OpaContextDecision, OpenFgaOpaVisibilityContext,
@@ -9,7 +8,8 @@ use trpg_domain_core::openfga_opa_visibility::{
 
 #[test]
 fn openfga_opa_visibility_denies_by_default() {
-    let command = CommandEnvelope::governed("payload", ActorRole::Workflow, AuthorityMode::AiKp);
+    let command =
+        trpg_test_support::governed_command("payload", ActorRole::Workflow, AuthorityMode::AiKp);
     let context = OpenFgaOpaVisibilityContext {
         principal: PrincipalScope::Keeper,
         relation: OpenFgaRelationDecision::Deny,
@@ -25,7 +25,8 @@ fn openfga_opa_visibility_denies_by_default() {
 
 #[test]
 fn openfga_opa_visibility_requires_relation_policy_and_visibility() {
-    let command = CommandEnvelope::governed("payload", ActorRole::Workflow, AuthorityMode::AiKp);
+    let command =
+        trpg_test_support::governed_command("payload", ActorRole::Workflow, AuthorityMode::AiKp);
     let context = OpenFgaOpaVisibilityContext {
         principal: PrincipalScope::Keeper,
         relation: OpenFgaRelationDecision::Allow,

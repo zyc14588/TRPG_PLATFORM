@@ -28,12 +28,10 @@ pub mod working_memory_long_memory_rag;
 pub mod working_memory_rag_rag_snapshot;
 
 pub use agent_runtime::{
-    assemble_context, commit_agent_decision, evaluate_agent_tool_request,
-    evaluate_prompt_injection, replay_agent_events_for_principal, AgentDecision, AgentError,
-    AgentEventPayload, AgentKind, AgentModule, AgentResult, AgentTool, AssembledAgentContext,
-    ContextFact, PromptInjectionReport, ToolDecision, ToolRequest, BATCH_017_PRIMARY_MODULES,
-    BATCH_017_PROMPT_IDS, BATCH_019_PRIMARY_MODULES, BATCH_019_PROMPT_IDS,
-    BATCH_020_PRIMARY_MODULES, BATCH_020_PROMPT_IDS,
+    assemble_context, evaluate_agent_tool_request, evaluate_prompt_injection,
+    replay_agent_events_for_principal, AgentDecision, AgentDecisionCommitter, AgentError,
+    AgentEventPayload, AgentKind, AgentResult, AgentTool, AssembledAgentContext, ContextFact,
+    PromptInjectionReport, ToolDecision, ToolRequest,
 };
 pub use local_model_certification::{
     certify_local_model, ensure_ai_keeper_model, CertificationInput, LocalModelLevel,

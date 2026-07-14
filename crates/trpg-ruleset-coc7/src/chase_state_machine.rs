@@ -1,4 +1,5 @@
 use crate::{append_coc7_event, Coc7EventPayload};
+use trpg_contracts::EventType;
 use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError,
 };
@@ -65,7 +66,7 @@ pub fn record_chase_transition<T>(
         contract,
         store,
         command,
-        "coc7.chase_transition_recorded",
+        EventType::ChaseSegmentResolved.name(),
         "chase_state_machine",
         format!(
             "range {}->{} status={:?}",

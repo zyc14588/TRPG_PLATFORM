@@ -3,12 +3,9 @@ use crate::agent_runtime::{
 };
 use trpg_shared_kernel::{AuthorityMode, VisibilityLabel};
 
-pub const PROMPT_ID: &str = "CODEX-0477-04-AI-AGENT-SYSTEM-16d2bc3160";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentPackManifest {
     pub pack_id: &'static str,
-    pub prompt_id: &'static str,
     pub tool_schema_version: &'static str,
     pub allowed_tools: Vec<AgentTool>,
     pub allowed_visibility: Vec<VisibilityLabel>,
@@ -17,18 +14,17 @@ pub struct AgentPackManifest {
 impl AgentPackManifest {
     pub fn is_current_safe(&self) -> bool {
         !self.pack_id.trim().is_empty()
-            && !self.prompt_id.trim().is_empty()
             && !self.tool_schema_version.trim().is_empty()
             && !self.allowed_tools.is_empty()
             && !self.allowed_visibility.is_empty()
     }
 
     pub fn allows_tool_request(&self, request: &ToolRequest) -> bool {
-        self.allowed_tools.contains(&request.tool)
+        self.allowed_tools.contains(&request.tool())
             && self
                 .allowed_visibility
                 .iter()
-                .any(|label| label == request.visibility.label())
+                .any(|label| label == request.visibility().label())
     }
 }
 

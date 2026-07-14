@@ -3,8 +3,6 @@ use crate::runtime_state_machines::{
 };
 use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, EventStore};
 
-pub const PROMPT_ID: &str = "CODEX-0390-03-RUNTIME-ORCHESTRATION-12323c9bd9";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SchedulerServiceImplTask {
     pub task_id: EntityId,

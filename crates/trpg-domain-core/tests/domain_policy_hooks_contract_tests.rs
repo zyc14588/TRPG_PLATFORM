@@ -1,7 +1,5 @@
-use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, DomainError, EntityId, PrincipalScope, Visibility,
-    VisibilityLabel,
+    ActorRole, AuthorityMode, DomainError, EntityId, PrincipalScope, Visibility, VisibilityLabel,
 };
 use trpg_domain_core::domain_policy_hooks::{
     allow_governed_command, deny_by_default, PolicyContext, PolicyDecision,
@@ -14,15 +12,18 @@ fn policy_hooks_default_deny_and_allow_only_governed_visible_commands() {
         PolicyDecision::Deny(DomainError::PolicyDenied)
     );
 
-    let contract = DomainAuthorityContract::new_locked(
+    let contract = trpg_test_support::authority_contract_with_owner(
         "camp_human_archive",
         AuthorityMode::HumanKp,
         "user_human_kp",
         1,
     )
     .unwrap();
-    let command =
-        CommandEnvelope::governed("payload", ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let command = trpg_test_support::governed_command(
+        "payload",
+        ActorRole::HumanKeeper,
+        AuthorityMode::HumanKp,
+    );
 
     let denied = allow_governed_command(
         &contract,

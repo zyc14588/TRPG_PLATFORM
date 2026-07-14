@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     ApiWebsocketNatsContractsCommand,
     ApiWebsocketNatsContractsOperation,
     append_api_websocket_nats_contracts_event,
-    "CODEX-0626-06-DATA-EVENTING-59249231e5",
     "api_websocket_nats_contracts",
     "ApiWebsocketNatsContractRecorded",
     "data_eventing.api_websocket_nats_contracts.event_schema",

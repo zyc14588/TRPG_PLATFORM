@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     SchemaCommand,
     SchemaOperation,
     append_schema_event,
-    "CODEX-0609-06-DATA-EVENTING-6f17ea580b",
     "schema",
     "DataEventSchemaRegistered",
     "data_eventing.schema.event_schema",

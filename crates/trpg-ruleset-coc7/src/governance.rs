@@ -1,3 +1,4 @@
+use trpg_contracts::{CanonicalEventHeader, WireErrorCode};
 use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, ProvenanceKind,
     TrpgError,
@@ -12,21 +13,34 @@ pub struct Coc7EventPayload {
     pub summary: String,
     pub visibility_label: &'static str,
     pub provenance_kind: ProvenanceKind,
+    pub schema_version: u16,
+    pub schema_id: &'static str,
 }
 
 impl Coc7EventPayload {
     pub fn from_command<T>(
         command: &CommandEnvelope<T>,
+        event_type: &'static str,
         decision_type: &'static str,
         summary: impl Into<String>,
-    ) -> Self {
-        Self {
+    ) -> KernelResult<Self> {
+        let header =
+            CanonicalEventHeader::resolve(event_type).map_err(|error| match error.code {
+                WireErrorCode::EventContractUnknown => TrpgError::EventContractUnknown,
+                WireErrorCode::EventContractVersionMismatch => {
+                    TrpgError::EventContractVersionMismatch
+                }
+                _ => TrpgError::EventContractUnknown,
+            })?;
+        Ok(Self {
             ruleset_id: COC7_RULESET_ID,
             decision_type,
             summary: summary.into(),
             visibility_label: command.visibility.label().as_str(),
             provenance_kind: command.fact_provenance.kind.clone(),
-        }
+            schema_version: header.schema_version,
+            schema_id: header.schema_id,
+        })
     }
 }
 
@@ -47,9 +61,6 @@ pub fn append_coc7_event<T>(
     summary: impl Into<String>,
 ) -> KernelResult<EventEnvelope<Coc7EventPayload>> {
     contract.validate_command(command)?;
-    store.append(
-        command,
-        event_type,
-        Coc7EventPayload::from_command(command, decision_type, summary),
-    )
+    let payload = Coc7EventPayload::from_command(command, event_type, decision_type, summary)?;
+    store.append(command, event_type, payload)
 }

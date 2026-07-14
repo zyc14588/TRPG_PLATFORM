@@ -4,12 +4,11 @@ crate::define_ops_runbook_module!(
     MigrationUpgradeRollbackRepository,
     MigrationUpgradeRollbackError,
     append_migration_upgrade_rollback_event,
-    "CODEX-0099-11-OPS-MIGRATION-fde43a0ada",
     "migration_upgrade_rollback",
     "OpsMigrationUpgradeRollbackRecorded",
     crate::OpsRunbookOperation::MigrationUpgradeRollback,
     ["migration_ledger", "rollback_plan", "event_store_hash"],
-    "evidence/batches/BATCH-042/migration-upgrade-rollback.md"
+    "runbooks/migration-upgrade-rollback"
 );
 
 pub fn verify_rollback_runbook(

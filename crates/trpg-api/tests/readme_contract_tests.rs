@@ -5,8 +5,8 @@ use trpg_api::contract_core::{
     validate_api_contract, ApiRealtimeEventPayload, ProviderAccessPath,
 };
 use trpg_api::{
-    readme, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventStore,
-    FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
+    readme, ActorRole, AuthorityMode, EntityId, EventStore, FormalWritePath, PrincipalScope,
+    TrpgError, Visibility, VisibilityLabel,
 };
 
 #[test]
@@ -17,13 +17,15 @@ fn readme_contract_uses_current_safe_primary_metadata() {
         readme::CURRENT_SAFE_MODULE,
         "api_realtime_contracts::readme"
     );
-    assert_eq!(
-        readme::SUPPLEMENTAL_PROMPT_ID,
-        "CODEX-0719-07-API-REALTIME-CONTRACTS-ccf8b3c12e"
+    trpg_test_support::assert_normalized_prompt_binding(
+        "trpg-api",
+        contract.module_name,
+        "CODEX-0700-07-API-REALTIME-CONTRACTS-32445eadff",
     );
-    assert_eq!(
-        contract.prompt_id,
-        "CODEX-0700-07-API-REALTIME-CONTRACTS-32445eadff"
+    trpg_test_support::assert_normalized_prompt_binding(
+        "trpg-api",
+        contract.module_name,
+        "CODEX-0719-07-API-REALTIME-CONTRACTS-ccf8b3c12e",
     );
     assert_eq!(contract.module_name, "readme");
     assert_eq!(contract.event_type, "ReadmeContractRecorded");
@@ -71,12 +73,13 @@ fn readme_rejects_authority_and_formal_write_boundary_violations() {
         TrpgError::MissingIdempotencyKey
     );
 
-    let wrong_authority = AuthorityContract::new("camp_b029", AuthorityMode::AiKp, 1).unwrap();
+    let wrong_authority =
+        trpg_test_support::authority_contract("camp_b029", AuthorityMode::AiKp, 1).unwrap();
     let authority_mismatch = common::command_for(&contract, 0, "idem_readme_wrong_authority");
     assert_eq!(
         readme::append_contract_event(&mut store, &wrong_authority, &authority_mismatch)
             .unwrap_err(),
-        TrpgError::AuthorityContractMutation
+        TrpgError::AuthorityViolation
     );
 
     let mut direct_agent = common::command_for(&contract, 0, "idem_readme_direct_agent");
@@ -91,14 +94,15 @@ fn readme_rejects_authority_and_formal_write_boundary_violations() {
         operation: contract.operation,
         request_summary: "readme direct ai actor must not commit formal state",
     };
-    let mut ai_direct_actor = CommandEnvelope::governed(
+    let ai_authority =
+        trpg_test_support::authority_contract("camp_b029", AuthorityMode::AiKp, 1).unwrap();
+    let mut ai_direct_actor = trpg_test_support::governed_command_for_contract(
+        &ai_authority,
         ai_direct_actor_payload,
         ActorRole::AiKeeper,
-        AuthorityMode::AiKp,
     );
     ai_direct_actor.command_id = EntityId::new("command_readme_ai_direct").unwrap();
     ai_direct_actor.idempotency_key = "idem_readme_ai_direct".to_owned();
-    let ai_authority = AuthorityContract::new("camp_b029", AuthorityMode::AiKp, 1).unwrap();
     assert_eq!(
         readme::append_contract_event(&mut store, &ai_authority, &ai_direct_actor).unwrap_err(),
         TrpgError::AuthorityViolation
@@ -119,7 +123,6 @@ fn readme_commits_only_through_event_store_and_preserves_provenance() {
 
     assert_eq!(store.events().len(), 1);
     assert_eq!(event.event_type, "ReadmeContractRecorded");
-    assert_eq!(event.payload.prompt_id, readme::PROMPT_ID);
     assert_eq!(event.payload.module_name, "readme");
     assert_eq!(
         event.payload.endpoint,

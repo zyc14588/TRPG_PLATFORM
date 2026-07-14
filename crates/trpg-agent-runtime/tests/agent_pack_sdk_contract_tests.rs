@@ -4,7 +4,6 @@ use trpg_agent_runtime::{AgentKind, AgentTool, AuthorityMode, ToolRequest, Visib
 fn manifest() -> AgentPackManifest {
     AgentPackManifest {
         pack_id: "coc7_keeper_pack",
-        prompt_id: agent_pack_sdk::PROMPT_ID,
         tool_schema_version: "agent_tool_schema_current",
         allowed_tools: vec![
             AgentTool::RequestSkillCheck,
@@ -18,7 +17,7 @@ fn manifest() -> AgentPackManifest {
 #[test]
 fn agent_pack_sdk_requires_current_safe_manifest_and_tool_grant() {
     assert_eq!(
-        agent_pack_sdk::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-agent-runtime", "agent_pack_sdk"),
         "CODEX-0477-04-AI-AGENT-SYSTEM-16d2bc3160"
     );
 
@@ -32,7 +31,7 @@ fn agent_pack_sdk_requires_current_safe_manifest_and_tool_grant() {
         &manifest,
         &denied_request,
     );
-    assert_eq!(denied.error, Some("ToolPermissionDenied"));
+    assert_eq!(denied.error, Some("TOOL_PERMISSION_DENIED"));
 
     let allowed_request = ToolRequest::formal(
         AgentKind::AiKeeperOrchestrator,

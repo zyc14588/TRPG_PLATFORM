@@ -49,7 +49,7 @@ pub fn record_ruleset_pack_loaded<T>(
         contract,
         store,
         command,
-        "coc7.ruleset_pack_loaded",
+        trpg_contracts::EventType::Coc7RulesetPackLoaded.name(),
         "rule_runtime_coc7_ruleset_pack",
         format!("pack={} modules={}", pack.pack_version, pack.modules.len()),
     )

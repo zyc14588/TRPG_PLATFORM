@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     PostgreSqlSqLxPgvectorCommand,
     PostgreSqlSqLxPgvectorOperation,
     append_postgre_sql_sq_lx_pgvector_event,
-    "CODEX-0605-06-DATA-EVENTING-7aa50c4023",
     "postgre_sql_sq_lx_pgvector",
     "PostgreSqlPgvectorIndexed",
     "data_eventing.postgre_sql_sq_lx_pgvector.event_schema",

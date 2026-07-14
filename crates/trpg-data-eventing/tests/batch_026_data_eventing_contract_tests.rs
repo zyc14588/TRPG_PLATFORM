@@ -1,15 +1,15 @@
 use std::collections::HashSet;
 
 use trpg_data_eventing::{
-    api_websocket_nats_contracts, batch_026_data_event_contracts, cache_redis_impl,
-    domain_event_sourcing_projection, event_bus_nats_impl, is_current_safe_name,
-    nats_subject_contracts, nats_subjects, nats_subjects_source_contract,
-    persistence_postgresql_impl, rag_snapshot, rebuild_projection_from_events,
-    replay_visible_data_events, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope,
-    DataEventOperation, DataEventPayload, EventStore, FactProvenance, FormalWritePath,
-    OutboxMessage, PrincipalScope, ProvenanceKind, TrpgError, Visibility, VisibilityLabel,
-    COMMAND_ENVELOPE_REQUIRED_FIELDS, EVENT_ENVELOPE_REQUIRED_FIELDS, EVENT_STORE_TABLE,
-    NATS_EVENTS_APPENDED, NATS_PROJECTION_REBUILD_REQUESTED, OUTBOX_TABLE,
+    api_websocket_nats_contracts, cache_redis_impl, domain_event_sourcing_projection,
+    event_bus_nats_impl, is_current_safe_name, nats_subject_contracts, nats_subjects,
+    nats_subjects_source_contract, persistence_postgresql_impl, rag_snapshot,
+    rebuild_projection_from_events, replay_visible_data_events, transport_data_event_contracts,
+    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, DataEventOperation,
+    DataEventPayload, EventStore, FactProvenance, FormalWritePath, OutboxMessage, PrincipalScope,
+    ProvenanceKind, TrpgError, Visibility, VisibilityLabel, COMMAND_ENVELOPE_REQUIRED_FIELDS,
+    EVENT_ENVELOPE_REQUIRED_FIELDS, EVENT_STORE_TABLE, NATS_EVENTS_APPENDED,
+    NATS_PROJECTION_REBUILD_REQUESTED, OUTBOX_TABLE,
 };
 
 const API_WS_NATS_FIXTURE: &str =
@@ -22,7 +22,7 @@ const S03_DETAILED_FIXTURE: &str = include_str!(
 
 #[test]
 fn b026_primary_contracts_map_to_current_safe_outputs() {
-    let contracts = batch_026_data_event_contracts();
+    let contracts = transport_data_event_contracts();
     assert_eq!(contracts.len(), 9);
 
     let expected = [
@@ -82,10 +82,15 @@ fn b026_primary_contracts_map_to_current_safe_outputs() {
     for (prompt_id, module_name, operation) in expected {
         let contract = contracts
             .iter()
-            .find(|contract| contract.prompt_id == prompt_id)
+            .find(|contract| contract.module_name == module_name)
             .expect("B026 primary prompt has a contract");
 
         assert_eq!(contract.module_name, module_name);
+        trpg_test_support::assert_normalized_prompt_binding(
+            "trpg-data-eventing",
+            contract.module_name,
+            prompt_id,
+        );
         assert_eq!(contract.operation, operation);
         assert_eq!(contract.event_store_table, EVENT_STORE_TABLE);
         assert_eq!(contract.outbox_table, OUTBOX_TABLE);
@@ -279,7 +284,7 @@ fn b026_primary_surfaces_append_governed_events_and_bind_fixtures() {
         .iter()
         .map(|event| event.payload.module_name)
         .collect();
-    for contract in batch_026_data_event_contracts() {
+    for contract in transport_data_event_contracts() {
         assert!(modules.contains(contract.module_name));
     }
 
@@ -483,7 +488,7 @@ fn b026_visibility_provenance_and_projection_replay_are_preserved() {
 }
 
 fn authority_contract(mode: AuthorityMode) -> AuthorityContract {
-    AuthorityContract::new("campaign_batch_026", mode, 1).unwrap()
+    trpg_test_support::authority_contract("campaign_batch_026", mode, 1).unwrap()
 }
 
 fn governed_command<T>(
@@ -493,7 +498,8 @@ fn governed_command<T>(
     role: ActorRole,
     mode: AuthorityMode,
 ) -> CommandEnvelope<T> {
-    let mut command = CommandEnvelope::governed(payload, role, mode);
+    let authority = authority_contract(mode);
+    let mut command = trpg_test_support::governed_command_for_contract(&authority, payload, role);
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;
     command.fact_provenance =

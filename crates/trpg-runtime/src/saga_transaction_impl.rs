@@ -3,8 +3,6 @@ use crate::runtime_state_machines::{
 };
 use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, EventStore};
 
-pub const PROMPT_ID: &str = "CODEX-0389-03-RUNTIME-ORCHESTRATION-1b60a8b386";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SagaTransactionImplCompensation {
     pub saga_id: EntityId,

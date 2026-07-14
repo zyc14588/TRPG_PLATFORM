@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     RagSnapshotCommand,
     RagSnapshotOperation,
     append_rag_snapshot_event,
-    "CODEX-0635-06-DATA-EVENTING-e414d1cc2e",
     "rag_snapshot",
     "RagSnapshotRecorded",
     "data_eventing.rag_snapshot.event_schema",

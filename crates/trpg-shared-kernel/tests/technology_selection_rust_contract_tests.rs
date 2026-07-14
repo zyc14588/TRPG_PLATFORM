@@ -1,5 +1,5 @@
 use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath, TrpgError,
+    ActorRole, AuthorityMode, EventStore, FormalWritePath, TrpgError,
 };
 use trpg_shared_kernel::technology_selection_rust::{
     append_technology_selection_rust_reviewed, current_rust_technology_selections,
@@ -57,7 +57,7 @@ fn technology_selection_rust_rejects_missing_policy_or_direct_model_access() {
 
 #[test]
 fn technology_selection_rust_review_is_recorded_through_event_store() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         technology_selection_rust_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,
@@ -77,7 +77,7 @@ fn technology_selection_rust_review_is_recorded_through_event_store() {
 
 #[test]
 fn technology_selection_rust_blocks_direct_state_write_paths() {
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command(
         technology_selection_rust_review(),
         ActorRole::System,
         AuthorityMode::AiKp,

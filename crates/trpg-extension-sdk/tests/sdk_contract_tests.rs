@@ -16,9 +16,9 @@ fn sdk_records_governed_event() {
 #[test]
 fn sdk_registry_covers_batch_044_primary_contracts() {
     let manifest = ExtensionSdkManifest::current();
-    let contracts = trpg_extension_sdk::all_batch_044_contracts();
+    let contracts = trpg_extension_sdk::extension_contracts();
 
-    assert!(manifest.covers_batch_044());
+    assert!(manifest.supports_current_contract_set());
     assert_eq!(contracts.len(), 8);
     assert!(contracts
         .iter()

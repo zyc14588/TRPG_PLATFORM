@@ -1,6 +1,4 @@
-use trpg_domain_core::authority_contract::{
-    patch_locked_authority_contract, DomainAuthorityContract,
-};
+use trpg_domain_core::authority_contract::patch_locked_authority_contract;
 use trpg_domain_core::ddd::{
     AuthorityMode, EntityId, FactProvenance, FactSource, PrincipalScope, ProvenanceKind,
     Visibility, VisibilityLabel,
@@ -55,7 +53,7 @@ fn s02_detailed_fixture_maps_errors_events_and_records_to_domain_assertions() {
         ],
     );
 
-    let contract = DomainAuthorityContract::new_locked(
+    let contract = trpg_test_support::authority_contract_with_owner(
         "camp_ai_harbor",
         AuthorityMode::AiKp,
         "ai_kp_local_level4",
@@ -119,7 +117,7 @@ fn s02_authority_and_fork_fixtures_map_to_domain_fork_contract() {
         ],
     );
 
-    let parent = DomainAuthorityContract::new_locked(
+    let parent = trpg_test_support::authority_contract_with_owner(
         "camp_ai_harbor",
         AuthorityMode::AiKp,
         "ai_kp_local_level4",

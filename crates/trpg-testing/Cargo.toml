@@ -8,3 +8,4 @@ license = "UNLICENSED"
 [dependencies]
 trpg-agent-runtime = { path = "../trpg-agent-runtime" }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
+trpg-test-support = { path = "../trpg-contracts/test-support" }

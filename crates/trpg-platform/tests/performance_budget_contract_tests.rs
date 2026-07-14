@@ -3,7 +3,7 @@ use trpg_platform::performance_budget::{
     PERFORMANCE_BUDGET_EVALUATED_EVENT,
 };
 use trpg_platform::PlatformEventStore;
-use trpg_shared_kernel::{ActorRole, AuthorityMode, CommandEnvelope, TrpgError};
+use trpg_shared_kernel::{ActorRole, AuthorityMode, TrpgError};
 
 #[test]
 fn performance_sample_over_budget_fails_closed() {
@@ -22,7 +22,7 @@ fn performance_sample_over_budget_fails_closed() {
 
 #[test]
 fn performance_budget_event_is_recorded_under_limit() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         EvaluatePerformanceBudget {
             budget: PerformanceBudget {
                 budget_name: "api_health_latency".to_owned(),

@@ -1,10 +1,13 @@
 use trpg_runtime::campaign_session_runtime_service;
 use trpg_runtime::runtime_state_machines::RuntimeEventPayload;
-use trpg_runtime::{ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EventStore};
+use trpg_runtime::{ActorRole, AuthorityMode, CommandEnvelope, EventStore};
 
 fn command(payload: &str, expected_version: u64, idempotency_key: &str) -> CommandEnvelope<String> {
-    let mut command =
-        CommandEnvelope::governed(payload.to_owned(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        payload.to_owned(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     command.expected_version = expected_version;
     command.idempotency_key = idempotency_key.to_owned();
     command
@@ -12,7 +15,8 @@ fn command(payload: &str, expected_version: u64, idempotency_key: &str) -> Comma
 
 #[test]
 fn campaign_session_runtime_service_appends_session_and_workflow_events() {
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let session_event = campaign_session_runtime_service::start_campaign_session(
@@ -31,11 +35,15 @@ fn campaign_session_runtime_service_appends_session_and_workflow_events() {
     .unwrap();
 
     assert_eq!(
-        campaign_session_runtime_service::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "campaign_session_runtime_service"),
         "CODEX-0355-03-RUNTIME-ORCHESTRATION-bbee275591"
     );
-    assert!(campaign_session_runtime_service::SUPPLEMENTAL_PROMPT_IDS
-        .contains(&"CODEX-0371-03-RUNTIME-ORCHESTRATION-cc05673cc7"));
+    assert!(trpg_test_support::normalized_prompt_ids_for_module(
+        "trpg-runtime",
+        "campaign_session_runtime_service"
+    )
+    .iter()
+    .any(|prompt_id| prompt_id == "CODEX-0371-03-RUNTIME-ORCHESTRATION-cc05673cc7"));
     assert_eq!(session_event.event_type, "SessionStarted");
     assert_eq!(workflow_event.event_type, "WorkflowAdvanced");
     assert!(matches!(
@@ -50,7 +58,8 @@ fn campaign_session_runtime_service_appends_session_and_workflow_events() {
 
 #[test]
 fn campaign_session_runtime_service_enforces_expected_version() {
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let error = campaign_session_runtime_service::start_campaign_session(

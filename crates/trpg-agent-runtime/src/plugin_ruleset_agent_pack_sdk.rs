@@ -2,8 +2,6 @@ use crate::agent_pack_sdk::{evaluate_agent_pack_tool_request, AgentPackManifest}
 use crate::agent_runtime::{AgentError, ToolDecision, ToolRequest};
 use trpg_shared_kernel::AuthorityMode;
 
-pub const PROMPT_ID: &str = "CODEX-0479-04-AI-AGENT-SYSTEM-f4f075147a";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PluginRulesetAgentPackPolicy {
     pub plugin_id: &'static str,

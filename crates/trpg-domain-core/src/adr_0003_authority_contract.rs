@@ -38,7 +38,9 @@ pub fn fork_locked_authority_contract(
     child_mode: AuthorityMode,
     child_owner: impl Into<String>,
 ) -> DomainResult<DomainAuthorityContract> {
-    contract.fork_for_child(child_campaign_id, child_mode, child_owner)
+    contract
+        .fork_for_child(child_campaign_id, child_mode, child_owner)
+        .map_err(crate::ddd::DomainError::from)
 }
 
 pub fn record_authority_contract_decision<T>(

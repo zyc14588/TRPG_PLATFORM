@@ -3,9 +3,7 @@ use trpg_shared_kernel::constitution_impl::{
     append_constitution_impl_reviewed, constitution_impl_review, constitution_landing,
     validate_constitution_landing,
 };
-use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, TrpgError,
-};
+use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 
 #[test]
 fn constitution_impl_landing_accepts_current_constitution() {
@@ -31,7 +29,7 @@ fn constitution_impl_landing_rejects_incomplete_constitution() {
 
 #[test]
 fn constitution_impl_review_is_recorded_as_a_governed_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         constitution_impl_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,

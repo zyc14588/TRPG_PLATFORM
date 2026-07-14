@@ -1,7 +1,7 @@
 mod common;
 
 use trpg_api::contract_core::{
-    append_api_contract_event, replay_visible_deltas, s08_expected_fixture_contract,
+    append_api_contract_event, http_api_adapter_contract, replay_visible_deltas,
     validate_domain_nats_subject, validate_primary_adapter_boundaries, ApiRealtimeEventPayload,
 };
 use trpg_api::{api_and_transport, EntityId, EventStore, PrincipalScope, TrpgError, Visibility};
@@ -16,34 +16,32 @@ const VISIBILITY_LEAKAGE_CASES: &str =
 
 #[test]
 fn s08_detailed_fixture_is_bound_to_trpg_api_automated_assertions() {
-    let fixture = s08_expected_fixture_contract();
+    let http = http_api_adapter_contract();
 
     assert!(S08_STAGE_FIXTURE.contains("\"stage\": \"S08\""));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.api_method));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.api_path));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.idempotency_key));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.websocket_message_type));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.correlation_id));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.room));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.nats_subject));
-    assert!(S08_DETAILED_FIXTURE.contains(fixture.automation_target));
-
-    for event_type in fixture.expected_events {
-        assert!(S08_DETAILED_FIXTURE.contains(event_type));
-    }
-    for record in fixture.expected_records {
-        assert!(S08_DETAILED_FIXTURE.contains(record));
-    }
-    for error in fixture.expected_errors {
-        assert!(S08_DETAILED_FIXTURE.contains(error));
+    for expected in [
+        http.method,
+        http.route,
+        "idem_001",
+        "player_action",
+        "corr_001",
+        "campaign_001",
+        "campaign.campaign_001.event.created",
+        "ApiRequestAccepted",
+        "WebSocketStateSynced",
+        "NatsMessagePublished",
+        "ApiAuditRecord",
+        "RealtimeDeliveryRecord",
+        "IDEMPOTENCY_KEY_REQUIRED",
+        "REALTIME_VISIBILITY_VIOLATION",
+        "NATS_SUBJECT_CONTRACT_VIOLATION",
+        "IDEMPOTENCY_CONTRACT_BROKEN",
+    ] {
+        assert!(S08_DETAILED_FIXTURE.contains(expected));
     }
 
     validate_primary_adapter_boundaries().unwrap();
-    validate_domain_nats_subject(fixture.nats_subject).unwrap();
-    assert_eq!(
-        fixture.automation_target,
-        "cargo test -p trpg-api --test s08_fixture_acceptance_contract_tests --all-features"
-    );
+    validate_domain_nats_subject("campaign.campaign_001.event.created").unwrap();
 }
 
 #[test]

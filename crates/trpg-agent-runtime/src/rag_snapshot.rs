@@ -1,8 +1,6 @@
 use crate::agent_runtime::{AgentError, AgentResult};
 use trpg_shared_kernel::{EntityId, PrincipalScope, TrpgError, Visibility};
 
-pub const PROMPT_ID: &str = "CODEX-0450-04-AI-AGENT-SYSTEM-3e566913fa";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RagChunk {
     pub chunk_id: EntityId,

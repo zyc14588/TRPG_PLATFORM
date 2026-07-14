@@ -4,7 +4,6 @@ crate::define_ops_runbook_module!(
     BackupRestoreRunbookRepository,
     BackupRestoreRunbookError,
     append_backup_restore_runbook_event,
-    "CODEX-0097-11-OPS-MIGRATION-e7c0cc1d29",
     "backup_restore_runbook",
     "OpsBackupRestoreRunbookRecorded",
     crate::OpsRunbookOperation::BackupRestore,
@@ -13,5 +12,5 @@ crate::define_ops_runbook_module!(
         "restore_verification",
         "event_store_hash"
     ],
-    "evidence/batches/BATCH-042/backup-restore-runbook.md"
+    "runbooks/backup-restore"
 );

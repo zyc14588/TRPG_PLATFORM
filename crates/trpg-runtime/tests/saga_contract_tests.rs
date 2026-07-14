@@ -1,13 +1,12 @@
 use trpg_runtime::runtime_state_machines::RuntimeEventPayload;
 use trpg_runtime::saga::{self, SagaCompensationRequest};
-use trpg_runtime::{
-    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath,
-};
+use trpg_runtime::{ActorRole, AuthorityMode, EventStore, FormalWritePath};
 
 #[test]
 fn saga_compensation_uses_governed_event_append() {
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let command = CommandEnvelope::governed(
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let command = trpg_test_support::governed_command(
         "compensate".to_owned(),
         ActorRole::Workflow,
         AuthorityMode::AiKp,
@@ -23,11 +22,13 @@ fn saga_compensation_uses_governed_event_append() {
     .unwrap();
 
     assert_eq!(
-        saga::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "saga"),
         "CODEX-0353-03-RUNTIME-ORCHESTRATION-b1f275b36f"
     );
     assert!(
-        saga::SUPPLEMENTAL_PROMPT_IDS.contains(&"CODEX-0369-03-RUNTIME-ORCHESTRATION-0a78e83a1a")
+        trpg_test_support::normalized_prompt_ids_for_module("trpg-runtime", "saga")
+            .iter()
+            .any(|prompt_id| prompt_id == "CODEX-0369-03-RUNTIME-ORCHESTRATION-0a78e83a1a")
     );
     assert_eq!(event.event_type, "SagaCompensated");
     assert_eq!(event.idempotency_key, command.idempotency_key);
@@ -42,8 +43,9 @@ fn saga_compensation_uses_governed_event_append() {
 
 #[test]
 fn saga_rejects_direct_agent_state_write() {
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut command = CommandEnvelope::governed(
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let mut command = trpg_test_support::governed_command(
         "compensate".to_owned(),
         ActorRole::Workflow,
         AuthorityMode::AiKp,

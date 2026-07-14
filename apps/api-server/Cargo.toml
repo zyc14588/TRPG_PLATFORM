@@ -1,0 +1,18 @@
+[package]
+name = "api-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "UNLICENSED"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+trpg-api = { path = "../../crates/trpg-api" }
+trpg-contracts = { path = "../../crates/trpg-contracts" }
+trpg-identity = { path = "../../crates/trpg-identity" }
+trpg-security-governance = { path = "../../crates/trpg-security-governance" }
+trpg-shared-kernel = { path = "../../crates/trpg-shared-kernel" }
+
+[dev-dependencies]
+trpg-test-support = { path = "../../crates/trpg-contracts/test-support" }

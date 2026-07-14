@@ -4,7 +4,6 @@ crate::define_ops_runbook_module!(
     UpgradeBackupReplayRunbooksRepository,
     UpgradeBackupReplayRunbooksError,
     append_upgrade_backup_replay_runbooks_event,
-    "CODEX-0927-11-OPS-MIGRATION-5a238036dd",
     "upgrade_backup_replay_runbooks",
     "OpsUpgradeBackupReplayRunbooksRecorded",
     crate::OpsRunbookOperation::UpgradeBackupReplay,
@@ -14,5 +13,5 @@ crate::define_ops_runbook_module!(
         "projection_replay",
         "incident_response"
     ],
-    "evidence/batches/BATCH-042/upgrade-backup-replay-runbooks.md"
+    "runbooks/upgrade-backup-replay"
 );

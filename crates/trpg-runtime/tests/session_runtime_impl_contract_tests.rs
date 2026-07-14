@@ -1,11 +1,10 @@
 use trpg_runtime::runtime_state_machines::{
-    RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeModule, RuntimeTool, ToolRequest,
-    BATCH_014_PRIMARY_MODULES,
+    RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::session_runtime_impl;
 use trpg_runtime::{
-    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventStore,
-    FormalWritePath, PrincipalScope, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, EntityId, EventStore, FormalWritePath,
+    PrincipalScope, Visibility, VisibilityLabel,
 };
 
 fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
@@ -13,7 +12,7 @@ fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
 }
 
 fn command(payload: RuntimeDecision) -> CommandEnvelope<RuntimeDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 fn string_command(
@@ -21,8 +20,11 @@ fn string_command(
     expected_version: u64,
     idempotency_key: &str,
 ) -> CommandEnvelope<String> {
-    let mut command =
-        CommandEnvelope::governed(payload.to_owned(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        payload.to_owned(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     command.command_id =
         EntityId::new(format!("command_{idempotency_key}")).expect("valid command id");
     command.idempotency_key = idempotency_key.to_owned();
@@ -34,10 +36,10 @@ fn string_command(
 #[test]
 fn session_runtime_impl_preserves_governed_decision_event_contract() {
     assert_eq!(
-        session_runtime_impl::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "session_runtime_impl"),
         "CODEX-0391-03-RUNTIME-ORCHESTRATION-daba262944"
     );
-    assert!(BATCH_014_PRIMARY_MODULES.contains(&RuntimeModule::SessionRuntimeImpl));
+    trpg_test_support::assert_normalized_product_module("trpg-runtime", "session_runtime_impl");
 
     let request = ToolRequest::formal(
         RuntimeAgent::AiKeeperOrchestrator,
@@ -46,7 +48,8 @@ fn session_runtime_impl_preserves_governed_decision_event_contract() {
     let decision = decision("decision_b014_session", request);
     let mut command = command(decision.clone());
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let events = session_runtime_impl::commit_session_runtime_impl_decision(
@@ -86,7 +89,8 @@ fn session_runtime_impl_preserves_governed_decision_event_contract() {
 
 #[test]
 fn session_runtime_impl_denies_contract_tool_gate_and_direct_agent_write() {
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     assert_eq!(
         contract.fork(AuthorityMode::HumanKp, 1).unwrap_err().code(),
         "AUTHORITY_CONTRACT_MUTATION"
@@ -100,7 +104,7 @@ fn session_runtime_impl_denies_contract_tool_gate_and_direct_agent_write() {
         ),
     );
     let wrong_contract =
-        AuthorityContract::new("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
     let mut store = EventStore::default();
     assert_eq!(
         session_runtime_impl::commit_session_runtime_impl_decision(
@@ -111,7 +115,7 @@ fn session_runtime_impl_denies_contract_tool_gate_and_direct_agent_write() {
         )
         .unwrap_err()
         .code(),
-        "AUTHORITY_CONTRACT_MUTATION"
+        "AUTHORITY_VIOLATION"
     );
     assert!(store.events().is_empty());
 

@@ -6,8 +6,6 @@ use trpg_shared_kernel::{
     AuthorityContract, AuthorityMode, CommandEnvelope, EventEnvelope, EventStore,
 };
 
-pub const PROMPT_ID: &str = "CODEX-0386-03-RUNTIME-ORCHESTRATION-027bb089fe";
-
 pub fn evaluate_capability_layer_impl(
     authority_mode: &AuthorityMode,
     request: &ToolRequest,

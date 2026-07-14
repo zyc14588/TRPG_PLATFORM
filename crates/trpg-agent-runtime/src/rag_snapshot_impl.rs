@@ -2,8 +2,6 @@ use crate::agent_runtime::{AgentError, AgentResult};
 use crate::rag_snapshot::{query_visible_chunks, RagChunk};
 use trpg_shared_kernel::{EntityId, PrincipalScope, TrpgError};
 
-pub const PROMPT_ID: &str = "CODEX-0485-04-AI-AGENT-SYSTEM-962b774429";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RagSnapshotImpl {
     pub snapshot_id: EntityId,

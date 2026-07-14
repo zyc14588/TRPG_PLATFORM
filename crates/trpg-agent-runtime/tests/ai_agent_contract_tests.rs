@@ -1,17 +1,17 @@
 use trpg_agent_runtime::ai_agent;
 use trpg_agent_runtime::{
-    ActorRole, AgentDecision, AgentEventPayload, AgentKind, AgentTool, AuthorityContract,
+    ActorRole, AgentDecision, AgentDecisionCommitter, AgentEventPayload, AgentKind, AgentTool,
     AuthorityMode, CommandEnvelope, EventStore, ToolRequest,
 };
 
 fn ai_kp_command(payload: AgentDecision) -> CommandEnvelope<AgentDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 #[test]
 fn ai_agent_commits_only_through_event_store_with_provenance() {
     assert_eq!(
-        ai_agent::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-agent-runtime", "ai_agent"),
         "CODEX-0470-04-AI-AGENT-SYSTEM-01fd0c2f41"
     );
     let boundary = ai_agent::ai_agent_boundary();
@@ -24,14 +24,29 @@ fn ai_agent_commits_only_through_event_store_with_provenance() {
         AgentKind::AiKeeperOrchestrator,
         AgentTool::RequestSkillCheck,
     );
-    let decision = AgentDecision::new("decision_b018_ai_agent", request, "Spot Hidden").unwrap();
-    let command = ai_kp_command(decision.clone());
     let contract =
-        AuthorityContract::new("campaign_b018_ai_agent", AuthorityMode::AiKp, 1).unwrap();
+        trpg_test_support::authority_contract("campaign_b018_ai_agent", AuthorityMode::AiKp, 1)
+            .unwrap();
+    let authentication =
+        trpg_test_support::ai_keeper_authentication(contract.campaign_id().as_str());
+    let decision = AgentDecision::new(
+        "decision_b018_ai_agent",
+        request,
+        "Spot Hidden",
+        &authentication,
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
     let mut store = EventStore::default();
+    let committer =
+        AgentDecisionCommitter::new(trpg_test_support::identity_verifier(), [contract]).unwrap();
 
     let events =
-        ai_agent::submit_ai_agent_decision(&mut store, &contract, &command, decision).unwrap();
+        ai_agent::submit_ai_agent_decision(&committer, &mut store, &command, decision, 2).unwrap();
 
     assert_eq!(events.len(), 2);
     assert_eq!(store.events().len(), 2);
@@ -59,16 +74,25 @@ fn ai_agent_rejects_authority_contract_mismatch_without_event_write() {
         AgentKind::AiKeeperOrchestrator,
         AgentTool::RequestSkillCheck,
     );
-    let decision =
-        AgentDecision::new("decision_b018_ai_agent_mismatch", request, "Listen").unwrap();
+    let authentication = trpg_test_support::ai_keeper_authentication("camp_ai_harbor");
+    let decision = AgentDecision::new(
+        "decision_b018_ai_agent_mismatch",
+        request,
+        "Listen",
+        &authentication,
+    )
+    .unwrap();
     let command = ai_kp_command(decision.clone());
     let contract =
-        AuthorityContract::new("campaign_b018_ai_agent", AuthorityMode::HumanKp, 1).unwrap();
+        trpg_test_support::authority_contract("campaign_b018_ai_agent", AuthorityMode::HumanKp, 1)
+            .unwrap();
     let mut store = EventStore::default();
+    let committer =
+        AgentDecisionCommitter::new(trpg_test_support::identity_verifier(), [contract]).unwrap();
 
-    let error =
-        ai_agent::submit_ai_agent_decision(&mut store, &contract, &command, decision).unwrap_err();
+    let error = ai_agent::submit_ai_agent_decision(&committer, &mut store, &command, decision, 2)
+        .unwrap_err();
 
-    assert_eq!(error.code(), "AUTHORITY_CONTRACT_MUTATION");
+    assert_eq!(error.code(), "AUTHORITY_VIOLATION");
     assert!(store.events().is_empty());
 }

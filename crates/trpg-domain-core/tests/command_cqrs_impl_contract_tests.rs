@@ -1,17 +1,24 @@
-use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::command_cqrs::DomainCommandKind;
 use trpg_domain_core::command_cqrs_impl::{command_accepted_decision, commit_governed_command};
 use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, DomainError, EntityId, EventStore, FactProvenance,
-    FactSource, PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, DomainError, EntityId, EventStore, FactProvenance, FactSource,
+    PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
 };
 
 #[test]
 fn command_cqrs_impl_rejects_authority_violation_without_event() {
-    let contract =
-        DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
-            .unwrap();
-    let command = CommandEnvelope::governed("command", ActorRole::HumanKeeper, AuthorityMode::AiKp);
+    let contract = trpg_test_support::authority_contract_with_owner(
+        "campaign_001",
+        AuthorityMode::AiKp,
+        "ai_kp",
+        1,
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        "command",
+        ActorRole::HumanKeeper,
+    );
     let decision = command_accepted_decision(
         DomainCommandKind::RecordDecision,
         FactSource::DecisionRecord,
@@ -26,17 +33,24 @@ fn command_cqrs_impl_rejects_authority_violation_without_event() {
 
 #[test]
 fn command_cqrs_impl_preserves_visibility_and_provenance_on_replay() {
-    let contract =
-        DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::HumanKp, "keeper", 1)
-            .unwrap();
+    let contract = trpg_test_support::authority_contract_with_owner(
+        "campaign_001",
+        AuthorityMode::HumanKp,
+        "keeper",
+        1,
+    )
+    .unwrap();
     let provenance = FactProvenance::new(
         ProvenanceKind::RulesEngineDecision,
         "event_001",
         "rules_001",
     )
     .unwrap();
-    let mut command =
-        CommandEnvelope::governed("command", ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let mut command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        "command",
+        ActorRole::HumanKeeper,
+    );
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     command.fact_provenance = provenance.clone();
     let decision = command_accepted_decision(

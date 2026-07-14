@@ -6,8 +6,6 @@ use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, EventStore, PrincipalScope,
 };
 
-pub const PROMPT_ID: &str = "CODEX-0388-03-RUNTIME-ORCHESTRATION-705a854eb2";
-
 pub fn publish_realtime_room_sync_impl_delta<T: Clone>(
     store: &mut EventStore<RuntimeEventPayload>,
     contract: &AuthorityContract,

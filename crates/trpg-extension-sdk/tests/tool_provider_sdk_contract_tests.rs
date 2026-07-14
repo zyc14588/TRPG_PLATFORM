@@ -17,7 +17,8 @@ fn tool_provider_sdk_records_governed_event() {
 
 #[test]
 fn tool_provider_sdk_requires_visibility_and_provenance_results() {
-    let manifest = ToolProviderManifest::fixture();
+    let manifest =
+        ToolProviderManifest::new("coc7_sample_tool_provider", "tool_schema.v1", true, true);
 
     assert!(manifest.is_governed_tool_provider());
 }

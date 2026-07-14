@@ -1,11 +1,9 @@
-use trpg_domain_core::authority_contract::{
-    patch_locked_authority_contract, ChangePolicy, DomainAuthorityContract,
-};
+use trpg_domain_core::authority_contract::{patch_locked_authority_contract, ChangePolicy};
 use trpg_domain_core::ddd::{AuthorityMode, DomainError};
 
 #[test]
 fn authority_contract_rejects_in_place_mode_or_owner_change() {
-    let contract = DomainAuthorityContract::new_locked(
+    let contract = trpg_test_support::authority_contract_with_owner(
         "camp_human_archive",
         AuthorityMode::HumanKp,
         "user_human_kp",
@@ -23,7 +21,7 @@ fn authority_contract_rejects_in_place_mode_or_owner_change() {
 
 #[test]
 fn authority_contract_fork_creates_locked_child_without_mutating_parent() {
-    let parent = DomainAuthorityContract::new_locked(
+    let parent = trpg_test_support::authority_contract_with_owner(
         "camp_ai_harbor",
         AuthorityMode::AiKp,
         "ai_kp_local_level4",
@@ -50,7 +48,7 @@ fn authority_contract_fork_creates_locked_child_without_mutating_parent() {
 
 #[test]
 fn authority_contract_exposes_only_read_only_accessors() {
-    let contract = DomainAuthorityContract::new_locked(
+    let contract = trpg_test_support::authority_contract_with_owner(
         "camp_ai_harbor",
         AuthorityMode::AiKp,
         "ai_kp_local_level4",

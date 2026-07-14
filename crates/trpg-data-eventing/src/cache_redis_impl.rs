@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     CacheRedisImplCommand,
     CacheRedisImplOperation,
     append_cache_redis_impl_event,
-    "CODEX-0636-06-DATA-EVENTING-2e55e84997",
     "cache_redis_impl",
     "CacheRedisImplRecorded",
     "data_eventing.cache_redis_impl.event_schema",

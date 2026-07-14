@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     NatsJetStreamCommand,
     NatsJetStreamOperation,
     append_nats_jet_stream_event,
-    "CODEX-0604-06-DATA-EVENTING-2cd43712b5",
     "nats_jet_stream",
     "NatsJetStreamOutboxPublished",
     "data_eventing.nats_jet_stream.event_schema",

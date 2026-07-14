@@ -1,11 +1,10 @@
 use trpg_runtime::capability_layer_impl;
 use trpg_runtime::runtime_state_machines::{
-    RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeModule, RuntimeTool, ToolRequest,
-    BATCH_014_PRIMARY_MODULES,
+    RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::{
-    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath,
-    PrincipalScope, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath, PrincipalScope,
+    Visibility, VisibilityLabel,
 };
 
 fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
@@ -13,16 +12,16 @@ fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
 }
 
 fn command(payload: RuntimeDecision) -> CommandEnvelope<RuntimeDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 #[test]
 fn capability_layer_impl_preserves_governed_decision_event_contract() {
     assert_eq!(
-        capability_layer_impl::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "capability_layer_impl"),
         "CODEX-0386-03-RUNTIME-ORCHESTRATION-027bb089fe"
     );
-    assert!(BATCH_014_PRIMARY_MODULES.contains(&RuntimeModule::CapabilityLayerImpl));
+    trpg_test_support::assert_normalized_product_module("trpg-runtime", "capability_layer_impl");
 
     let request = ToolRequest::formal(
         RuntimeAgent::AiKeeperOrchestrator,
@@ -36,7 +35,8 @@ fn capability_layer_impl_preserves_governed_decision_event_contract() {
     let decision = decision("decision_b014_capability", request);
     let mut command = command(decision.clone());
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let events = capability_layer_impl::commit_capability_layer_impl_decision(
@@ -69,7 +69,8 @@ fn capability_layer_impl_preserves_governed_decision_event_contract() {
 
 #[test]
 fn capability_layer_impl_denies_contract_tool_gate_and_direct_agent_write() {
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     assert_eq!(
         contract.fork(AuthorityMode::HumanKp, 1).unwrap_err().code(),
         "AUTHORITY_CONTRACT_MUTATION"
@@ -83,7 +84,7 @@ fn capability_layer_impl_denies_contract_tool_gate_and_direct_agent_write() {
         ),
     );
     let wrong_contract =
-        AuthorityContract::new("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
     let mut store = EventStore::default();
     assert_eq!(
         capability_layer_impl::commit_capability_layer_impl_decision(
@@ -94,7 +95,7 @@ fn capability_layer_impl_denies_contract_tool_gate_and_direct_agent_write() {
         )
         .unwrap_err()
         .code(),
-        "AUTHORITY_CONTRACT_MUTATION"
+        "AUTHORITY_VIOLATION"
     );
     assert!(store.events().is_empty());
 

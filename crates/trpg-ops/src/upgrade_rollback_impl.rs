@@ -1,4 +1,3 @@
-pub const PROMPT_ID: &str = "CODEX-0929-11-OPS-MIGRATION-02f99d0dd9";
 pub const MODULE_NAME: &str = "upgrade_rollback_impl";
 pub const EVENT_TYPE: &str = "OpsUpgradeRollbackImplRecorded";
 pub const READ_MODELS: &[&str] = &[
@@ -7,7 +6,7 @@ pub const READ_MODELS: &[&str] = &[
     "event_store_hash",
     "projection_replay",
 ];
-pub const EVIDENCE_PATH: &str = "evidence/batches/BATCH-043/upgrade-rollback-impl.md";
+pub const RUNBOOK_PATH: &str = "runbooks/upgrade-rollback-implementation";
 pub const OPENAPI_OPERATION_ID: &str = "ops_upgrade_rollback_impl_record";
 pub const EVENT_SCHEMA_NAME: &str = "trpg.ops.upgrade_rollback_impl.event_schema";
 pub const NATS_SUBJECT: &str = "trpg.ops.upgrade_rollback_impl.recorded";
@@ -31,7 +30,7 @@ impl UpgradeRollbackImplCommand {
         Self {
             operation: crate::OpsRunbookOperation::UpgradeRollbackImpl,
             reason,
-            evidence_path: EVIDENCE_PATH,
+            evidence_path: RUNBOOK_PATH,
         }
     }
 }
@@ -232,12 +231,11 @@ pub fn append_upgrade_rollback_impl_event<T>(
     authority: &crate::AuthorityContract,
     command: &crate::CommandEnvelope<T>,
 ) -> crate::KernelResult<crate::OpsEventEnvelope> {
-    crate::append_ops_event(store, authority, command, contract(), EVIDENCE_PATH)
+    crate::append_ops_event(store, authority, command, contract(), RUNBOOK_PATH)
 }
 
 pub fn contract() -> crate::OpsRunbookContract {
     crate::OpsRunbookContract::new(
-        PROMPT_ID,
         MODULE_NAME,
         EVENT_TYPE,
         crate::OpsRunbookOperation::UpgradeRollbackImpl,

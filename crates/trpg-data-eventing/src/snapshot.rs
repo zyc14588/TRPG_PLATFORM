@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     SnapshotCommand,
     SnapshotOperation,
     append_snapshot_event,
-    "CODEX-0616-06-DATA-EVENTING-0b28c2b885",
     "snapshot",
     "SnapshotRecorded",
     "data_eventing.snapshot.event_schema",

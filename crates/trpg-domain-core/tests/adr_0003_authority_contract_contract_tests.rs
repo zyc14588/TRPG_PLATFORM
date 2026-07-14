@@ -2,21 +2,24 @@ use trpg_domain_core::adr_0003_authority_contract::{
     fork_locked_authority_contract, record_authority_contract_decision,
     reject_authority_contract_update, validate_adr_0003_contract, ADR_0003_INVARIANTS,
 };
-use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, DomainError, EntityId, EventStore, FactProvenance,
-    FormalWritePath, PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, DomainError, EntityId, EventStore, FactProvenance, FormalWritePath,
+    PrincipalScope, ProvenanceKind, TrpgError, Visibility, VisibilityLabel,
 };
 
 #[test]
 fn adr_0003_authority_contract_rejects_authority_violation_without_event() {
-    let contract =
-        DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
-            .unwrap();
-    let command = CommandEnvelope::governed(
+    let contract = trpg_test_support::authority_contract_with_owner(
+        "campaign_001",
+        AuthorityMode::AiKp,
+        "ai_kp",
+        1,
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
         "human override",
         ActorRole::HumanKeeper,
-        AuthorityMode::AiKp,
     );
     let mut store = EventStore::default();
 
@@ -28,11 +31,18 @@ fn adr_0003_authority_contract_rejects_authority_violation_without_event() {
 
 #[test]
 fn adr_0003_authority_contract_blocks_direct_agent_write_without_event() {
-    let contract =
-        DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
-            .unwrap();
-    let mut command =
-        CommandEnvelope::governed("direct write", ActorRole::Workflow, AuthorityMode::AiKp);
+    let contract = trpg_test_support::authority_contract_with_owner(
+        "campaign_001",
+        AuthorityMode::AiKp,
+        "ai_kp",
+        1,
+    )
+    .unwrap();
+    let mut command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        "direct write",
+        ActorRole::Workflow,
+    );
     command.write_path = FormalWritePath::DirectAgent;
     let mut store = EventStore::default();
 
@@ -44,17 +54,24 @@ fn adr_0003_authority_contract_blocks_direct_agent_write_without_event() {
 
 #[test]
 fn adr_0003_authority_contract_keeps_visibility_and_fact_provenance_on_replay() {
-    let contract =
-        DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::HumanKp, "keeper", 1)
-            .unwrap();
+    let contract = trpg_test_support::authority_contract_with_owner(
+        "campaign_001",
+        AuthorityMode::HumanKp,
+        "keeper",
+        1,
+    )
+    .unwrap();
     let provenance = FactProvenance::new(
         ProvenanceKind::RulesEngineDecision,
         "event_001",
         "rules_001",
     )
     .unwrap();
-    let mut command =
-        CommandEnvelope::governed("ruling", ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let mut command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        "ruling",
+        ActorRole::HumanKeeper,
+    );
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     command.fact_provenance = provenance.clone();
     let mut store = EventStore::default();
@@ -76,9 +93,13 @@ fn adr_0003_authority_contract_keeps_visibility_and_fact_provenance_on_replay() 
 
 #[test]
 fn adr_0003_authority_contract_requires_locked_fork_only_policy() {
-    let contract =
-        DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::AiKp, "ai_kp", 1)
-            .unwrap();
+    let contract = trpg_test_support::authority_contract_with_owner(
+        "campaign_001",
+        AuthorityMode::AiKp,
+        "ai_kp",
+        1,
+    )
+    .unwrap();
 
     assert!(ADR_0003_INVARIANTS.contains(&"change_policy_fork_only"));
     validate_adr_0003_contract(&contract).unwrap();
@@ -88,8 +109,13 @@ fn adr_0003_authority_contract_requires_locked_fork_only_policy() {
     );
 
     assert_eq!(
-        DomainAuthorityContract::new_locked("campaign_bad", AuthorityMode::AiKp, "ai_kp", 0)
-            .unwrap_err(),
-        DomainError::AuthorityContractImmutable
+        trpg_test_support::authority_contract_with_owner(
+            "campaign_bad",
+            AuthorityMode::AiKp,
+            "ai_kp",
+            0
+        )
+        .unwrap_err(),
+        TrpgError::AuthorityContractMutation
     );
 }

@@ -18,8 +18,9 @@ fn projection_replay_hash_is_stable_and_event_store_derived() {
     assert!(EVENT_STREAM_CASES.contains("\"SessionSummaryCreated\""));
     let expected_hash = fixture_string_after("\"hash\": \"");
 
-    let contract = AuthorityContract::new("campaign_projection_001", AuthorityMode::AiKp, 1)
-        .expect("valid authority contract");
+    let contract =
+        trpg_test_support::authority_contract("campaign_projection_001", AuthorityMode::AiKp, 1)
+            .expect("valid authority contract");
     let mut store: EventStore<DataEventPayload> = EventStore::default();
 
     for (index, event_type) in ["CampaignCreated", "AuthorityContractLocked", "SceneStarted"]
@@ -29,7 +30,7 @@ fn projection_replay_hash_is_stable_and_event_store_derived() {
         append_data_event(
             &mut store,
             &contract,
-            &governed_command(index as u64, format!("idem_projection_{index}")),
+            &governed_command(&contract, index as u64, format!("idem_projection_{index}")),
             DataEventWrite::new(
                 "projection_replay",
                 event_type,
@@ -61,7 +62,7 @@ fn projection_replay_hash_is_stable_and_event_store_derived() {
     let wrong_version = append_data_event(
         &mut store,
         &contract,
-        &governed_command(2, "idem_wrong_expected_version"),
+        &governed_command(&contract, 2, "idem_wrong_expected_version"),
         DataEventWrite::new(
             "projection_replay",
             "EventsAppended",
@@ -78,7 +79,7 @@ fn projection_replay_hash_is_stable_and_event_store_derived() {
     let duplicate = append_data_event(
         &mut store,
         &contract,
-        &governed_command(3, "idem_projection_0"),
+        &governed_command(&contract, 3, "idem_projection_0"),
         DataEventWrite::new(
             "projection_replay",
             "EventsAppended",
@@ -92,7 +93,7 @@ fn projection_replay_hash_is_stable_and_event_store_derived() {
         fixture_case_error("duplicate_idempotency_key")
     );
 
-    let mut mutable_update = governed_command(3, "idem_mutable_event_update");
+    let mut mutable_update = governed_command(&contract, 3, "idem_mutable_event_update");
     mutable_update.write_path = FormalWritePath::DirectBusiness;
     let append_only_error = append_data_event(
         &mut store,
@@ -115,7 +116,7 @@ fn projection_replay_hash_is_stable_and_event_store_derived() {
     append_data_event(
         &mut store,
         &contract,
-        &governed_command(3, "idem_projection_3"),
+        &governed_command(&contract, 3, "idem_projection_3"),
         DataEventWrite::new(
             "projection_replay",
             "EventsAppended",
@@ -181,8 +182,9 @@ fn s03_fixture_error_code(error: &TrpgError) -> &'static str {
 
 #[test]
 fn projection_replay_redacts_private_keeper_and_ai_internal_events() {
-    let contract = AuthorityContract::new("campaign_visibility_001", AuthorityMode::AiKp, 1)
-        .expect("valid authority contract");
+    let contract =
+        trpg_test_support::authority_contract("campaign_visibility_001", AuthorityMode::AiKp, 1)
+            .expect("valid authority contract");
     let mut store: EventStore<DataEventPayload> = EventStore::default();
     let player_a = EntityId::new("player_a").unwrap();
     let player_b = EntityId::new("player_b").unwrap();
@@ -239,7 +241,7 @@ fn append_visible_event(
     append_data_event(
         store,
         contract,
-        &governed_command_with_visibility(expected_version, idempotency_key, visibility),
+        &governed_command_with_visibility(contract, expected_version, idempotency_key, visibility),
         DataEventWrite::new(
             "projection_replay",
             event_type,
@@ -251,10 +253,12 @@ fn append_visible_event(
 }
 
 fn governed_command(
+    contract: &AuthorityContract,
     expected_version: u64,
     idempotency_key: impl Into<String>,
 ) -> CommandEnvelope<()> {
     governed_command_with_visibility(
+        contract,
         expected_version,
         idempotency_key,
         Visibility::new(VisibilityLabel::SystemOnly),
@@ -262,12 +266,14 @@ fn governed_command(
 }
 
 fn governed_command_with_visibility(
+    contract: &AuthorityContract,
     expected_version: u64,
     idempotency_key: impl Into<String>,
     visibility: Visibility,
 ) -> CommandEnvelope<()> {
     let idempotency_key = idempotency_key.into();
-    let mut command = CommandEnvelope::governed((), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command =
+        trpg_test_support::governed_command_for_contract(contract, (), ActorRole::Workflow);
     command.command_id = EntityId::new(format!("command_{idempotency_key}")).unwrap();
     command.idempotency_key = idempotency_key.clone();
     command.expected_version = expected_version;

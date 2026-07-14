@@ -1,0 +1,10 @@
+[package]
+name = "realtime-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "UNLICENSED"
+
+[dependencies]
+trpg-api = { path = "../../crates/trpg-api" }
+trpg-contracts = { path = "../../crates/trpg-contracts" }

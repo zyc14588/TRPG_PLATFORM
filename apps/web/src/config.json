@@ -1,0 +1,11 @@
+{
+  "environment": "Local environment",
+  "version": "0.1.0",
+  "services": [
+    { "name": "API Server", "url": "http://127.0.0.1:8080" },
+    { "name": "Realtime Server", "url": "http://127.0.0.1:8081" },
+    { "name": "Agent Worker", "url": "http://127.0.0.1:8082" },
+    { "name": "Admin Server", "url": "http://127.0.0.1:8083" },
+    { "name": "Migration Runner", "url": "http://127.0.0.1:8084" }
+  ]
+}

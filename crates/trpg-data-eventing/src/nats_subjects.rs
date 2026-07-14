@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     NatsSubjectsCommand,
     NatsSubjectsOperation,
     append_nats_subjects_event,
-    "CODEX-0627-06-DATA-EVENTING-e54d49d1d8",
     "nats_subjects",
     "NatsSubjectsRegistered",
     "data_eventing.nats_subjects.event_schema",

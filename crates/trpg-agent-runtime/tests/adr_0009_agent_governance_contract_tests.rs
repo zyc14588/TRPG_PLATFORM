@@ -1,13 +1,12 @@
 use trpg_agent_runtime::adr_0009_agent_governance;
 use trpg_agent_runtime::{
-    ActorRole, AgentKind, AgentTool, AuthorityContract, AuthorityMode, CommandEnvelope,
-    FormalWritePath, ToolRequest,
+    ActorRole, AgentKind, AgentTool, AuthorityMode, FormalWritePath, ToolRequest,
 };
 
 #[test]
 fn adr_0009_agent_governance_keeps_gateway_and_default_deny() {
     assert_eq!(
-        adr_0009_agent_governance::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-agent-runtime", "adr_0009_agent_governance"),
         "CODEX-0507-04-AI-AGENT-SYSTEM-a1e5d3d499"
     );
     let snapshot = adr_0009_agent_governance::current_agent_governance_snapshot();
@@ -23,10 +22,12 @@ fn adr_0009_agent_governance_blocks_direct_agent_write_before_tool_gate() {
         AgentKind::AiKeeperOrchestrator,
         AgentTool::RequestSkillCheck,
     );
-    let mut command = CommandEnvelope::governed((), ActorRole::Workflow, AuthorityMode::AiKp);
-    command.write_path = FormalWritePath::DirectAgent;
     let contract =
-        AuthorityContract::new("campaign_b019_governance", AuthorityMode::AiKp, 1).unwrap();
+        trpg_test_support::authority_contract("campaign_b019_governance", AuthorityMode::AiKp, 1)
+            .unwrap();
+    let mut command =
+        trpg_test_support::governed_command_for_contract(&contract, (), ActorRole::Workflow);
+    command.write_path = FormalWritePath::DirectAgent;
 
     let error =
         adr_0009_agent_governance::validate_governed_tool_request(&contract, &command, &request)
@@ -38,24 +39,30 @@ fn adr_0009_agent_governance_blocks_direct_agent_write_before_tool_gate() {
 #[test]
 fn adr_0009_agent_governance_keeps_expression_agents_from_formal_tools() {
     let request = ToolRequest::formal(AgentKind::AtmosphereWriter, AgentTool::RevealClue);
-    let command = CommandEnvelope::governed((), ActorRole::Workflow, AuthorityMode::AiKp);
     let contract =
-        AuthorityContract::new("campaign_b019_governance", AuthorityMode::AiKp, 1).unwrap();
+        trpg_test_support::authority_contract("campaign_b019_governance", AuthorityMode::AiKp, 1)
+            .unwrap();
+    let command =
+        trpg_test_support::governed_command_for_contract(&contract, (), ActorRole::Workflow);
 
     let error =
         adr_0009_agent_governance::validate_governed_tool_request(&contract, &command, &request)
             .unwrap_err();
 
-    assert_eq!(error.code(), "ToolPermissionDenied");
+    assert_eq!(error.code(), "TOOL_PERMISSION_DENIED");
 }
 
 #[test]
 fn adr_0009_agent_governance_downgrades_human_kp_ai_formal_tool_to_draft() {
     let request = ToolRequest::formal(AgentKind::KeeperCopilot, AgentTool::ApplySanLoss);
-    let command = CommandEnvelope::governed((), ActorRole::Workflow, AuthorityMode::HumanKp);
-    let contract =
-        AuthorityContract::new("campaign_b019_human_governance", AuthorityMode::HumanKp, 1)
-            .unwrap();
+    let contract = trpg_test_support::authority_contract(
+        "campaign_b019_human_governance",
+        AuthorityMode::HumanKp,
+        1,
+    )
+    .unwrap();
+    let command =
+        trpg_test_support::governed_command_for_contract(&contract, (), ActorRole::Workflow);
 
     let decision =
         adr_0009_agent_governance::validate_governed_tool_request(&contract, &command, &request)

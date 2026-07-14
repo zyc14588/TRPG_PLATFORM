@@ -1,7 +1,6 @@
 use trpg_shared_kernel::shared_kernel::{
-    kernel_contract_snapshot, validate_command_envelope, ActorRole, AuthorityContract,
-    AuthorityMode, CommandEnvelope, EntityId, EventStore, FormalWritePath, PrincipalScope,
-    TrpgError, Visibility, VisibilityLabel,
+    kernel_contract_snapshot, validate_command_envelope, ActorRole, AuthorityMode, EntityId,
+    EventStore, FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
 };
 
 #[test]
@@ -34,7 +33,7 @@ fn shared_kernel_enforces_typed_ids_and_visibility_fixture_contract() {
 #[test]
 fn shared_kernel_blocks_direct_agent_state_writes() {
     let mut command =
-        CommandEnvelope::governed("payload", ActorRole::AiKeeper, AuthorityMode::AiKp);
+        trpg_test_support::governed_command("payload", ActorRole::AiKeeper, AuthorityMode::AiKp);
     command.write_path = FormalWritePath::DirectAgent;
 
     assert_eq!(
@@ -45,27 +44,42 @@ fn shared_kernel_blocks_direct_agent_state_writes() {
 
 #[test]
 fn shared_kernel_keeps_authority_contract_immutable() {
-    let contract = AuthorityContract::new("campaign_001", AuthorityMode::HumanKp, 1).unwrap();
-    let command =
-        CommandEnvelope::governed("payload", ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let contract =
+        trpg_test_support::authority_contract("campaign_001", AuthorityMode::HumanKp, 1).unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        "payload",
+        ActorRole::HumanKeeper,
+    );
 
     contract.validate_command(&command).unwrap();
 
-    let forked = contract.fork(AuthorityMode::AiKp, 2).unwrap();
-    assert_eq!(forked.version(), 2);
+    let forked = contract
+        .fork_for_child(
+            "campaign_001_fork",
+            AuthorityMode::AiKp,
+            "ai_kp_profile_001",
+        )
+        .unwrap();
+    assert_eq!(forked.version(), 1);
     assert_eq!(forked.mode(), &AuthorityMode::AiKp);
-    assert_eq!(forked.campaign_id().as_str(), "campaign_001");
+    assert_eq!(forked.campaign_id().as_str(), "campaign_001_fork");
     assert_eq!(
-        contract.fork(AuthorityMode::AiKp, 1).unwrap_err(),
+        contract.fork(AuthorityMode::AiKp, 2).unwrap_err(),
         TrpgError::AuthorityContractMutation
     );
+    assert_eq!(contract.version(), 1);
+    assert_eq!(contract.mode(), &AuthorityMode::HumanKp);
 }
 
 #[test]
 fn shared_kernel_replay_redacts_visibility_restricted_events() {
     let player = EntityId::new("character_001").unwrap();
-    let mut command =
-        CommandEnvelope::governed("secret", ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let mut command = trpg_test_support::governed_command(
+        "secret",
+        ActorRole::HumanKeeper,
+        AuthorityMode::HumanKp,
+    );
     command.visibility = Visibility::private_to_player(player.clone());
 
     let mut store = EventStore::default();
@@ -87,7 +101,8 @@ fn shared_kernel_replay_redacts_visibility_restricted_events() {
 
 #[test]
 fn shared_kernel_replay_never_exposes_ai_internal_to_players() {
-    let mut command = CommandEnvelope::governed("internal", ActorRole::System, AuthorityMode::AiKp);
+    let mut command =
+        trpg_test_support::governed_command("internal", ActorRole::System, AuthorityMode::AiKp);
     command.visibility = Visibility::new(VisibilityLabel::AiInternal);
 
     let mut store = EventStore::default();

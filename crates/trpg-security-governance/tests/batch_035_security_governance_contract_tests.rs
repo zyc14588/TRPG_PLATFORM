@@ -1,3 +1,8 @@
+use std::path::PathBuf;
+
+use trpg_security_governance::tamper_evident_audit::{
+    AuditDecision, AuditRecordDraft, AuditSink, FileAuditLog,
+};
 use trpg_security_governance::{
     adr_0006_openfga_opa, audit_log_contract, copyright_allows, copyright_boundary,
     data_retention_deletion, evaluate_cloud_fallback, evaluate_visibility_derivation,
@@ -6,10 +11,10 @@ use trpg_security_governance::{
     security_privacy, security_privacy_copyright, validate_provider_boundary,
     visibility_enforcement_points, CloudFallbackDecision, CloudFallbackRequest, ContentLicense,
     ContentUse, DeploymentEnvironment, DerivedObject, LocalModelCertificationInput,
-    LocalModelCertificationLevel, PermissionPrincipalRole, PolicyGateDecision, ProviderEndpoint,
-    RedactionOutcome, SecurityGovernanceAction, SecurityGovernanceCommand,
-    SecurityGovernanceRepository, SECURITY_GOVERNANCE_DECISION_RECORDED_EVENT,
-    SECURITY_GOVERNANCE_METRIC_MODULE, SECURITY_GOVERNANCE_REQUIRED_METRICS,
+    LocalModelCertificationLevel, PermissionPrincipalRole, ProviderEndpoint, RedactionOutcome,
+    SecurityGovernanceAction, SecurityGovernanceCommand, SecurityGovernanceRepository,
+    SECURITY_GOVERNANCE_DECISION_RECORDED_EVENT, SECURITY_GOVERNANCE_METRIC_MODULE,
+    SECURITY_GOVERNANCE_REQUIRED_METRICS,
 };
 use trpg_shared_kernel::{
     ActorRole, AuthorityMode, CommandEnvelope, EntityId, FormalWritePath, PrincipalScope,
@@ -22,18 +27,29 @@ const S04_PERMISSION_MATRIX_FIXTURE: &str =
     include_str!("../../../fixtures/security/permission_matrix.v1.json.md");
 const S04_OPENFGA_SECURITY_GOVERNANCE_MODEL: &str =
     include_str!("../../../policy/openfga/security_governance.fga");
+const S04_OPENFGA_SECURITY_GOVERNANCE_JSON_MODEL: &str =
+    include_str!("../../../policy/openfga/security_governance.model.json");
 const S04_VISIBILITY_REDACTION_FIXTURE: &str =
     include_str!("../../../fixtures/visibility/visibility_redaction_matrix.v1.json.md");
+const AUDIT_KEY: [u8; 32] = [0x42; 32];
 
 fn command(
-    role: PermissionPrincipalRole,
+    _role: PermissionPrincipalRole,
     action: SecurityGovernanceAction,
 ) -> CommandEnvelope<SecurityGovernanceCommand> {
-    CommandEnvelope::governed(
-        SecurityGovernanceCommand::new(role, action),
+    trpg_test_support::governed_command(
+        SecurityGovernanceCommand::new(action),
         ActorRole::Workflow,
         AuthorityMode::HumanKp,
     )
+}
+
+fn audit_path(name: &str) -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "trpg-security-{name}-{}-{}.jsonl",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("test")
+    ))
 }
 
 #[test]
@@ -54,24 +70,17 @@ fn data_retention_deletion_rejects_legal_hold() {
 
 #[test]
 fn policy_openfga_opa_fails_closed() {
-    for (openfga_decision, opa_decision) in [
-        (PolicyGateDecision::Deny, PolicyGateDecision::Permit),
-        (PolicyGateDecision::Permit, PolicyGateDecision::Deny),
-    ] {
-        let mut command = command(
-            PermissionPrincipalRole::Workflow,
-            SecurityGovernanceAction::RecordAudit,
-        );
-        command.payload.openfga_decision = openfga_decision;
-        command.payload.opa_decision = opa_decision;
-        let mut repository = SecurityGovernanceRepository::default();
+    let command = command(
+        PermissionPrincipalRole::Workflow,
+        SecurityGovernanceAction::RecordAudit,
+    );
+    let mut repository = SecurityGovernanceRepository::default();
 
-        let err = policy_openfga_opa::evaluate(&mut repository, &command)
-            .expect_err("any policy deny fails closed");
+    let err = policy_openfga_opa::evaluate(&mut repository, &command)
+        .expect_err("a policy adapter is mandatory");
 
-        assert_eq!(err, TrpgError::PolicyDenied);
-        assert!(repository.events().is_empty());
-    }
+    assert_eq!(err, TrpgError::PolicyUnavailable);
+    assert!(repository.events().is_empty());
 }
 
 #[test]
@@ -79,6 +88,9 @@ fn openfga_security_governance_model_matches_permission_matrix_fixture() {
     assert!(S04_OPENFGA_SECURITY_GOVERNANCE_MODEL.contains("model"));
     assert!(S04_OPENFGA_SECURITY_GOVERNANCE_MODEL.contains("schema 1.1"));
     assert!(S04_OPENFGA_SECURITY_GOVERNANCE_MODEL.contains("type campaign"));
+    let json_model: serde_json::Value =
+        serde_json::from_str(S04_OPENFGA_SECURITY_GOVERNANCE_JSON_MODEL).unwrap();
+    assert_eq!(json_model["schema_version"], "1.1");
 
     for (fixture_action, relation, role) in [
         ("pause_room", "can_pause_room", "server_owner"),
@@ -94,6 +106,14 @@ fn openfga_security_governance_model_matches_permission_matrix_fixture() {
         assert!(
             S04_OPENFGA_SECURITY_GOVERNANCE_MODEL.contains(&format!("define {relation}: {role}"))
         );
+    }
+    for relation in [
+        "can_record_audit",
+        "can_export_player_report",
+        "can_manage_campaign_membership",
+    ] {
+        assert!(S04_OPENFGA_SECURITY_GOVERNANCE_MODEL.contains(relation));
+        assert!(S04_OPENFGA_SECURITY_GOVERNANCE_JSON_MODEL.contains(relation));
     }
 
     for (fixture_action, relation, denied_role) in [
@@ -213,21 +233,38 @@ fn audit_log_contract_persists_audit_metadata() {
         SecurityGovernanceAction::RecordAudit,
     );
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
-    let mut repository = SecurityGovernanceRepository::default();
+    let path = audit_path("audit-contract");
+    let _ = std::fs::remove_file(&path);
+    let mut audit = FileAuditLog::open(&path, "test-audit-key-v1", &AUDIT_KEY).unwrap();
 
-    let event = audit_log_contract::evaluate(&mut repository, &command)
-        .expect("audit decision is recorded through the event store");
+    audit
+        .append(AuditRecordDraft {
+            actor_id: command.actor.id().to_string(),
+            actor_origin: "workload".to_owned(),
+            authentication_reference: "workflow_001".to_owned(),
+            campaign_id: "camp_human_archive".to_owned(),
+            resource_type: "campaign".to_owned(),
+            resource_id: "camp_human_archive".to_owned(),
+            action: "record_audit".to_owned(),
+            decision: AuditDecision::Permit,
+            openfga_decision_id: "openfga_batch_035".to_owned(),
+            openfga_policy_revision: "openfga_model_035".to_owned(),
+            opa_decision_id: "opa_batch_035".to_owned(),
+            opa_policy_revision: "opa_bundle_035".to_owned(),
+            trace_id: "trace_001".to_owned(),
+        })
+        .unwrap();
 
     assert_eq!(
-        event.event_type,
-        SECURITY_GOVERNANCE_DECISION_RECORDED_EVENT
+        audit_log_contract::MODULE,
+        "security_governance::audit_log_contract"
     );
-    assert_eq!(event.visibility, command.visibility);
-    assert_eq!(event.fact_provenance, command.fact_provenance);
-    assert!(repository
-        .replay_visible(&PrincipalScope::Public)
-        .is_empty());
-    assert_eq!(repository.replay_visible(&PrincipalScope::System).len(), 1);
+    let records = audit.verify().unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].actor_id, command.actor.id().as_str());
+    assert_eq!(records[0].authentication_reference, "workflow_001");
+    assert_eq!(records[0].openfga_policy_revision, "openfga_model_035");
+    std::fs::remove_file(path).unwrap();
 }
 
 #[test]
@@ -321,6 +358,20 @@ fn policy_authz_matches_permission_matrix_fixture() {
             SecurityGovernanceAction::OverrideAiDecision,
             false,
         ),
+        (
+            "change_game_decision",
+            PermissionPrincipalRole::CampaignOwner,
+            Some(AuthorityMode::HumanKp),
+            SecurityGovernanceAction::ChangeGameDecision,
+            false,
+        ),
+        (
+            "override_ai_decision",
+            PermissionPrincipalRole::Spectator,
+            Some(AuthorityMode::AiKp),
+            SecurityGovernanceAction::OverrideAiDecision,
+            false,
+        ),
     ] {
         assert!(S04_PERMISSION_MATRIX_FIXTURE.contains(fixture_action));
         assert_eq!(
@@ -371,21 +422,10 @@ fn privacy_copyright_blocks_ai_internal_export() {
 
 #[test]
 fn readme_contract_lists_required_governance_metrics() {
-    let mut repository = SecurityGovernanceRepository::default();
-    let command = command(
-        PermissionPrincipalRole::Workflow,
-        SecurityGovernanceAction::RecordAudit,
-    );
-
-    let event = readme::evaluate(&mut repository, &command).expect("readme contract recorded");
-
     assert_eq!(SECURITY_GOVERNANCE_METRIC_MODULE, "security_governance");
     assert!(SECURITY_GOVERNANCE_REQUIRED_METRICS.contains(&"trpg_policy_deny_total"));
     assert!(SECURITY_GOVERNANCE_REQUIRED_METRICS.contains(&"trpg_visibility_redaction_total"));
-    assert_eq!(
-        event.event_type,
-        SECURITY_GOVERNANCE_DECISION_RECORDED_EVENT
-    );
+    assert_eq!(readme::MODULE, "security_governance::readme");
 }
 
 #[test]

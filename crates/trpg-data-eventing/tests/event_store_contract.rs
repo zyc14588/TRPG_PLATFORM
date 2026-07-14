@@ -3,7 +3,7 @@ use trpg_data_eventing::{
     DataEventWrite, EventStore, FactProvenance, PrincipalScope, ProvenanceKind, TrpgError,
     Visibility, VisibilityLabel,
 };
-use trpg_data_eventing::{ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId};
+use trpg_data_eventing::{ActorRole, AuthorityMode, CommandEnvelope, EntityId};
 
 const S03_STAGE_FIXTURE: &str =
     include_str!("../../../fixtures/stages/S03_stage_acceptance_fixture.v1.json.md");
@@ -49,8 +49,9 @@ fn s03_fixtures_are_bound_to_event_store_contract_assertions() {
 
 #[test]
 fn event_store_contract_enforces_version_idempotency_and_visibility() {
-    let contract = AuthorityContract::new("campaign_camp_ai_harbor", AuthorityMode::AiKp, 1)
-        .expect("valid authority contract");
+    let contract =
+        trpg_test_support::authority_contract("campaign_camp_ai_harbor", AuthorityMode::AiKp, 1)
+            .expect("valid authority contract");
     let mut store: EventStore<DataEventPayload> = EventStore::default();
     let player_a = EntityId::new("user_player_a").unwrap();
     let player_b = EntityId::new("user_player_b").unwrap();
@@ -233,7 +234,11 @@ fn governed_command(
     visibility: Visibility,
 ) -> CommandEnvelope<()> {
     let idempotency_key = idempotency_key.into();
-    let mut command = CommandEnvelope::governed((), ActorRole::Workflow, AuthorityMode::AiKp);
+    let authority =
+        trpg_test_support::authority_contract("campaign_camp_ai_harbor", AuthorityMode::AiKp, 1)
+            .expect("valid authority contract");
+    let mut command =
+        trpg_test_support::governed_command_for_contract(&authority, (), ActorRole::Workflow);
     command.command_id = EntityId::new(format!("command_{idempotency_key}")).unwrap();
     command.idempotency_key = idempotency_key.clone();
     command.expected_version = expected_version;

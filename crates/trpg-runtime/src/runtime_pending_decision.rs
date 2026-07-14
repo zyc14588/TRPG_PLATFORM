@@ -6,8 +6,6 @@ use trpg_shared_kernel::{
     AuthorityContract, AuthorityMode, CommandEnvelope, EventEnvelope, EventStore,
 };
 
-pub const PROMPT_ID: &str = "CODEX-0349-03-RUNTIME-ORCHESTRATION-0b68fe8e4e";
-
 pub fn open_runtime_pending_decision(
     authority_mode: &AuthorityMode,
     decision: RuntimeDecision,

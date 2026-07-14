@@ -9,7 +9,7 @@ use trpg_shared_kernel::{
 };
 
 fn command() -> CommandEnvelope<RecordPlatformObservation> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command(
         RecordPlatformObservation {
             metric_name: "trpg_platform_command_total".to_owned(),
             value: 1,
@@ -22,7 +22,7 @@ fn command() -> CommandEnvelope<RecordPlatformObservation> {
 
 #[test]
 fn observability_impl_rejects_authority_contract_violation() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         command().payload,
         ActorRole::AiKeeper,
         AuthorityMode::HumanKp,

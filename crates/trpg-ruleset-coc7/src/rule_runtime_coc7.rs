@@ -32,7 +32,7 @@ pub fn record_rule_runtime_coc7_decision<T>(
         contract,
         store,
         command,
-        "coc7.rule_runtime_decision_recorded",
+        trpg_contracts::EventType::Coc7RuleRuntimeDecisionRecorded.name(),
         "rule_runtime_coc7",
         format!("subject={}", rule_runtime_coc7_subject(call)),
     )

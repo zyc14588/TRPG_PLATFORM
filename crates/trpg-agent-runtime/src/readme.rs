@@ -1,7 +1,5 @@
 use crate::model_provider::provider_boundary_snapshot;
 
-pub const PROMPT_ID: &str = "CODEX-0475-04-AI-AGENT-SYSTEM-2a3840db15";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentRuntimeReadmeSnapshot {
     pub ai_entrypoint: &'static str,

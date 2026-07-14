@@ -9,7 +9,7 @@ use trpg_shared_kernel::{
 };
 
 fn command() -> CommandEnvelope<ReviewSecurityPrivacyCopyrightPolicy> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command(
         ReviewSecurityPrivacyCopyrightPolicy {
             asset_id: "handout_001".to_owned(),
             license_tag: "original_campaign_asset".to_owned(),
@@ -24,7 +24,7 @@ fn command() -> CommandEnvelope<ReviewSecurityPrivacyCopyrightPolicy> {
 
 #[test]
 fn security_privacy_copyrightmpl_rejects_authority_contract_violation() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         command().payload,
         ActorRole::AiKeeper,
         AuthorityMode::HumanKp,

@@ -2,7 +2,6 @@ crate::define_extension_sdk_module!(
     ExtensionCompatibilityMatrixCommand,
     ExtensionCompatibilityMatrixService,
     append_extension_compatibility_matrix_event,
-    "CODEX-0947-12-EXTENSION-SDK-f162f72984",
     "extension_compatibility_matrix",
     "ExtensionCompatibilityMatrixRecorded",
     crate::ExtensionOperation::ExtensionCompatibilityMatrix,
@@ -11,7 +10,7 @@ crate::define_extension_sdk_module!(
         crate::ExtensionCapability::ReadProjection,
         crate::ExtensionCapability::InvokeGrantedTool,
     ],
-    "evidence/batches/BATCH-044/extension-compatibility-matrix.md"
+    "extensions/compatibility-matrix"
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,7 +33,7 @@ impl CompatibilityMatrix {
     ) -> crate::ExtensionSdkResult<()> {
         if !report.has_required_fields() {
             return Err(crate::ExtensionSdkError::CompatibilityRejected(
-                "EXTENSION_COMPATIBILITY_FIELDS_MISSING",
+                trpg_shared_kernel::WireErrorCode::ExtensionCompatibilityFieldsMissing,
             ));
         }
 
@@ -43,7 +42,7 @@ impl CompatibilityMatrix {
             || report.compatibility_result != crate::CompatibilityResult::Compatible
         {
             return Err(crate::ExtensionSdkError::CompatibilityRejected(
-                "EXTENSION_COMPATIBILITY_REJECTED",
+                trpg_shared_kernel::WireErrorCode::ExtensionCompatibilityRejected,
             ));
         }
 

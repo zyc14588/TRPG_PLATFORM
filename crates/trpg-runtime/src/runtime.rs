@@ -6,8 +6,6 @@ use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, PrincipalScope,
 };
 
-pub const PROMPT_ID: &str = "CODEX-0363-03-RUNTIME-ORCHESTRATION-2b19458f57";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeBoundarySnapshot {
     pub formal_write_path: &'static str,

@@ -1,6 +1,4 @@
-use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, TrpgError,
-};
+use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 use trpg_shared_kernel::system_context::{
     current_system_context_policy, ContextPropagationChannel,
 };
@@ -48,7 +46,7 @@ fn system_context_impl_rejects_missing_metric_channel() {
 
 #[test]
 fn system_context_impl_review_is_recorded_as_a_governed_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         system_context_impl_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,

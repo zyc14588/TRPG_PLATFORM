@@ -1,22 +1,24 @@
 use trpg_runtime::runtime;
 use trpg_runtime::runtime_state_machines::{
-    RuntimeAgent, RuntimeDecision, RuntimeModule, RuntimeTool, ToolRequest,
-    BATCH_013_PRIMARY_MODULES,
+    RuntimeAgent, RuntimeDecision, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::{
-    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath,
-    PrincipalScope, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, EventStore, FormalWritePath, PrincipalScope, Visibility,
+    VisibilityLabel,
 };
 
 #[test]
 fn runtime_indexes_current_batch_primary_modules() {
-    assert_eq!(BATCH_013_PRIMARY_MODULES.len(), 4);
-    assert!(BATCH_013_PRIMARY_MODULES.contains(&RuntimeModule::Saga));
-    assert!(BATCH_013_PRIMARY_MODULES.contains(&RuntimeModule::CampaignSessionRuntimeService));
-    assert!(BATCH_013_PRIMARY_MODULES.contains(&RuntimeModule::Runtime));
-    assert!(BATCH_013_PRIMARY_MODULES.contains(&RuntimeModule::Readme));
+    for module in [
+        "saga",
+        "campaign_session_runtime_service",
+        "runtime",
+        "readme",
+    ] {
+        trpg_test_support::assert_normalized_product_module("trpg-runtime", module);
+    }
     assert_eq!(
-        runtime::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "runtime"),
         "CODEX-0363-03-RUNTIME-ORCHESTRATION-2b19458f57"
     );
 }
@@ -50,9 +52,13 @@ fn runtime_commits_ai_kp_decision_through_evented_pipeline() {
         RuntimeTool::RequestSkillCheck,
     );
     let decision = RuntimeDecision::new("decision_b013", "Spot Hidden check", request).unwrap();
-    let command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let events =
@@ -70,10 +76,14 @@ fn runtime_replay_does_not_expose_keeper_only_events_to_public() {
         RuntimeTool::RequestSkillCheck,
     );
     let decision = RuntimeDecision::new("decision_keeper_only", "hidden check", request).unwrap();
-    let mut command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     runtime::commit_runtime_decision(&mut store, &contract, &command, decision).unwrap();
@@ -92,10 +102,14 @@ fn runtime_rejects_agent_direct_write_before_append() {
         RuntimeTool::RequestSkillCheck,
     );
     let decision = RuntimeDecision::new("decision_direct", "bad write", request).unwrap();
-    let mut command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     command.write_path = FormalWritePath::DirectAgent;
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let error =

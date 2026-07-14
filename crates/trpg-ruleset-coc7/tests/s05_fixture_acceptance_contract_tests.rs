@@ -135,7 +135,8 @@ fn s05_character_and_dice_fixtures_map_to_ruleset_assertions() {
     let command = common::rules_command("dice");
     let event = record_dice_roll_contract(&contract, &mut store, &command, &outcome).unwrap();
 
-    assert_eq!(event.event_type, "coc7.dice_roll_recorded");
+    assert_eq!(event.event_type, "DiceRolled");
+    assert_eq!(event.payload.schema_version, 1);
     assert_eq!(event.payload.visibility_label, "system_only");
     assert_eq!(
         event.payload.provenance_kind,
@@ -162,7 +163,7 @@ fn s05_san_combat_chase_and_clue_fixtures_map_to_evented_assertions() {
     let mut store = common::event_store();
     let san_command = common::rules_command("san");
     let san_event = record_san_decision(&contract, &mut store, &san_command, &san_failure).unwrap();
-    assert_eq!(san_event.event_type, "coc7.san_decision_recorded");
+    assert_eq!(san_event.event_type, "SanityLossApplied");
 
     let combat = apply_damage(12, 12, 5).unwrap();
     assert_eq!(combat.damage, 5);
@@ -172,7 +173,7 @@ fn s05_san_combat_chase_and_clue_fixtures_map_to_evented_assertions() {
     combat_command.idempotency_key = "idem_combat".to_owned();
     let combat_event =
         record_combat_transition(&contract, &mut store, &combat_command, &combat).unwrap();
-    assert_eq!(combat_event.event_type, "coc7.combat_transition_recorded");
+    assert_eq!(combat_event.event_type, "CombatStateUpdated");
 
     let lead_increases = advance_chase(2, true, false, 0).unwrap();
     assert_eq!(lead_increases.after_range, 3);
@@ -184,7 +185,7 @@ fn s05_san_combat_chase_and_clue_fixtures_map_to_evented_assertions() {
     chase_command.idempotency_key = "idem_chase".to_owned();
     let chase_event =
         record_chase_transition(&contract, &mut store, &chase_command, &caught).unwrap();
-    assert_eq!(chase_event.event_type, "coc7.chase_transition_recorded");
+    assert_eq!(chase_event.event_type, "ChaseSegmentResolved");
 
     let clue = resolve_clue_check(ClueImportance::Core, false);
     assert_eq!(clue.outcome, ClueOutcome::RevealedWithCost);
@@ -195,10 +196,7 @@ fn s05_san_combat_chase_and_clue_fixtures_map_to_evented_assertions() {
     let clue_event =
         record_investigation_clue_npc_time_decision(&contract, &mut store, &clue_command, &clue)
             .unwrap();
-    assert_eq!(
-        clue_event.event_type,
-        "coc7.investigation_clue_npc_time_recorded"
-    );
+    assert_eq!(clue_event.event_type, "ClueRevealed");
 
     assert_eq!(store.events().len(), 4);
 }

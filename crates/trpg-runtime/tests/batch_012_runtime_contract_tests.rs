@@ -8,7 +8,7 @@ use trpg_runtime::realtime_runtime_binding;
 use trpg_runtime::runtime_pending_decision;
 use trpg_runtime::runtime_state_machines::{
     PendingDecisionStatus, RuntimeAgent, RuntimeDecision, RuntimeError, RuntimeEventPayload,
-    RuntimeModule, RuntimeTool, ToolRequest, BATCH_012_PRIMARY_MODULES,
+    RuntimeTool, ToolRequest,
 };
 use trpg_runtime::runtime_workflow_engine;
 use trpg_runtime::saga_transaction::{self, SagaCompensation};
@@ -16,8 +16,8 @@ use trpg_runtime::scheduler_service::{self, ScheduledRuntimeTask};
 use trpg_runtime::session_runtime;
 use trpg_runtime::workflow_engine;
 use trpg_runtime::{
-    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventStore,
-    FormalWritePath, PrincipalScope, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, EntityId, EventStore, FormalWritePath,
+    PrincipalScope, Visibility, VisibilityLabel,
 };
 
 const S06_STAGE_FIXTURE: &str =
@@ -31,8 +31,11 @@ fn runtime_command(
     expected_version: u64,
     idempotency_key: &str,
 ) -> CommandEnvelope<String> {
-    let mut command =
-        CommandEnvelope::governed(payload.to_owned(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        payload.to_owned(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     command.command_id =
         EntityId::new(format!("command_{idempotency_key}")).expect("valid command id");
     command.idempotency_key = idempotency_key.to_owned();
@@ -42,10 +45,24 @@ fn runtime_command(
 
 #[test]
 fn batch_012_maps_primary_modules_to_current_safe_outputs() {
-    assert_eq!(BATCH_012_PRIMARY_MODULES.len(), 14);
-    assert!(BATCH_012_PRIMARY_MODULES.contains(&RuntimeModule::CapabilityToolGrant));
-    assert!(BATCH_012_PRIMARY_MODULES.contains(&RuntimeModule::RuntimeWorkflowEngine));
-    assert!(BATCH_012_PRIMARY_MODULES.contains(&RuntimeModule::RuntimePendingDecision));
+    for module in [
+        "capability_tool_grant",
+        "pending_decision",
+        "realtime_runtime_binding",
+        "runtime_state_machines",
+        "saga_transaction",
+        "scheduler_service",
+        "session_runtime",
+        "workflow_engine",
+        "adr_0007_internal_workflow_vs_temporal",
+        "capability_layer_tool_grant",
+        "runtime_workflow_engine",
+        "capability_layer",
+        "realtime_room_sync",
+        "runtime_pending_decision",
+    ] {
+        trpg_test_support::assert_normalized_product_module("trpg-runtime", module);
+    }
 }
 
 #[test]
@@ -69,55 +86,58 @@ fn s06_stage_fixtures_are_bound_to_runtime_assertions() {
 #[test]
 fn primary_prompt_outputs_expose_current_safe_prompt_ids() {
     assert_eq!(
-        capability_tool_grant::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "capability_tool_grant"),
         "CODEX-0032-03-RUNTIME-ORCHESTRATION-20830a72ac"
     );
     assert_eq!(
-        pending_decision::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "pending_decision"),
         "CODEX-0033-03-RUNTIME-ORCHESTRATION-0d6882e9c6"
     );
     assert_eq!(
-        realtime_runtime_binding::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "realtime_runtime_binding"),
         "CODEX-0034-03-RUNTIME-ORCHESTRATION-20e1521d8e"
     );
     assert_eq!(
-        adr_0007_internal_workflow_vs_temporal::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id(
+            "trpg-runtime",
+            "adr_0007_internal_workflow_vs_temporal"
+        ),
         "CODEX-0335-03-RUNTIME-ORCHESTRATION-0ca4a1c995"
     );
     assert_eq!(
-        capability_layer_tool_grant::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "capability_layer_tool_grant"),
         "CODEX-0338-03-RUNTIME-ORCHESTRATION-d0fdce8770"
     );
     assert_eq!(
-        runtime_workflow_engine::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "runtime_workflow_engine"),
         "CODEX-0344-03-RUNTIME-ORCHESTRATION-22393092aa"
     );
     assert_eq!(
-        capability_layer::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "capability_layer"),
         "CODEX-0346-03-RUNTIME-ORCHESTRATION-fc8679858e"
     );
     assert_eq!(
-        realtime_room_sync::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "realtime_room_sync"),
         "CODEX-0347-03-RUNTIME-ORCHESTRATION-b0e055d98c"
     );
     assert_eq!(
-        runtime_pending_decision::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "runtime_pending_decision"),
         "CODEX-0349-03-RUNTIME-ORCHESTRATION-0b68fe8e4e"
     );
     assert_eq!(
-        saga_transaction::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "saga_transaction"),
         "CODEX-0036-03-RUNTIME-ORCHESTRATION-12a9414c48"
     );
     assert_eq!(
-        scheduler_service::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "scheduler_service"),
         "CODEX-0037-03-RUNTIME-ORCHESTRATION-c9bd0a0635"
     );
     assert_eq!(
-        session_runtime::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "session_runtime"),
         "CODEX-0038-03-RUNTIME-ORCHESTRATION-ec0e699332"
     );
     assert_eq!(
-        workflow_engine::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "workflow_engine"),
         "CODEX-0039-03-RUNTIME-ORCHESTRATION-99d8270e66"
     );
 }
@@ -130,9 +150,13 @@ fn ai_kp_orchestrator_commits_decision_through_tool_and_event_log() {
     );
     let decision =
         RuntimeDecision::new("decision_001", "Spot Hidden normal check", request).unwrap();
-    let command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let events = runtime_workflow_engine::commit_runtime_workflow_decision(
@@ -167,9 +191,13 @@ fn decision_pipeline_fixture_expected_records_are_asserted() {
     );
     let decision =
         RuntimeDecision::new("decision_fixture", "Spot Hidden normal check", request).unwrap();
-    let command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let events =
@@ -258,9 +286,13 @@ fn runtime_pending_decision_wrapper_opens_and_commits_governed_decisions() {
     );
     assert_eq!(pending.status, PendingDecisionStatus::ReadyToCommit);
 
-    let command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let events = runtime_pending_decision::commit_runtime_pending_decision(
@@ -291,10 +323,14 @@ fn direct_agent_state_write_is_rejected_before_event_append() {
         RuntimeTool::RequestSkillCheck,
     );
     let decision = RuntimeDecision::new("decision_003", "bad direct write", request).unwrap();
-    let mut command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     command.write_path = FormalWritePath::DirectAgent;
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let error = runtime_workflow_engine::commit_runtime_workflow_decision(
@@ -308,7 +344,8 @@ fn direct_agent_state_write_is_rejected_before_event_append() {
 
 #[test]
 fn session_workflow_saga_and_scheduler_use_governed_runtime_paths() {
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     let session_event = session_runtime::start_session(
@@ -366,10 +403,14 @@ fn keeper_only_runtime_events_do_not_sync_to_public_room() {
         RuntimeTool::RequestSkillCheck,
     );
     let decision = RuntimeDecision::new("decision_004", "keeper-only check", request).unwrap();
-    let mut command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     runtime_workflow_engine::commit_runtime_workflow_decision(
@@ -394,12 +435,16 @@ fn realtime_runtime_binding_respects_private_player_visibility() {
         RuntimeTool::RequestSkillCheck,
     );
     let decision = RuntimeDecision::new("decision_private", "private visibility", request).unwrap();
-    let mut command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     let player_a = EntityId::new("user_player_a").unwrap();
     let player_b = EntityId::new("user_player_b").unwrap();
     command.visibility = Visibility::private_to_player(player_a.clone());
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     runtime_workflow_engine::commit_runtime_workflow_decision(
@@ -436,10 +481,14 @@ fn expected_version_and_idempotency_are_enforced() {
         RuntimeTool::RequestSkillCheck,
     );
     let decision = RuntimeDecision::new("decision_005", "version guard", request).unwrap();
-    let mut command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     command.expected_version = 1;
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let mut store = EventStore::default();
 
     assert_eq!(

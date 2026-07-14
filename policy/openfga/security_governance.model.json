@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.1",
+  "type_definitions": [
+    {
+      "type": "principal",
+      "relations": {},
+      "metadata": { "relations": {} }
+    },
+    {
+      "type": "denied_principal",
+      "relations": {},
+      "metadata": { "relations": {} }
+    },
+    {
+      "type": "campaign",
+      "relations": {
+        "server_owner": { "this": {} },
+        "campaign_owner": { "this": {} },
+        "moderator": { "this": {} },
+        "human_kp": { "this": {} },
+        "player": { "this": {} },
+        "workflow": { "this": {} },
+        "rules_engine": { "this": {} },
+        "system": { "this": {} },
+        "no_grant": { "this": {} },
+        "can_pause_room": { "computedUserset": { "relation": "server_owner" } },
+        "can_mute_player": { "computedUserset": { "relation": "moderator" } },
+        "can_confirm_agent_draft": { "computedUserset": { "relation": "human_kp" } },
+        "can_request_reconsideration": { "computedUserset": { "relation": "player" } },
+        "can_manage_campaign_membership": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "server_owner" } },
+              { "computedUserset": { "relation": "campaign_owner" } }
+            ]
+          }
+        },
+        "can_write_official_state": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "workflow" } },
+              { "computedUserset": { "relation": "rules_engine" } },
+              { "computedUserset": { "relation": "system" } }
+            ]
+          }
+        },
+        "can_export_player_report": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "workflow" } },
+              { "computedUserset": { "relation": "system" } }
+            ]
+          }
+        },
+        "can_generate_party_summary": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "workflow" } },
+              { "computedUserset": { "relation": "system" } }
+            ]
+          }
+        },
+        "can_index_rag_chunk": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "workflow" } },
+              { "computedUserset": { "relation": "system" } }
+            ]
+          }
+        },
+        "can_connect_provider": { "computedUserset": { "relation": "system" } },
+        "can_delete_retained_data": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "workflow" } },
+              { "computedUserset": { "relation": "system" } }
+            ]
+          }
+        },
+        "can_record_audit": {
+          "union": {
+            "child": [
+              { "computedUserset": { "relation": "workflow" } },
+              { "computedUserset": { "relation": "rules_engine" } },
+              { "computedUserset": { "relation": "system" } }
+            ]
+          }
+        },
+        "can_override_dice_roll": { "computedUserset": { "relation": "no_grant" } },
+        "can_change_game_decision": { "computedUserset": { "relation": "no_grant" } },
+        "can_override_ai_decision": { "computedUserset": { "relation": "no_grant" } },
+        "can_import_copyrighted_full_text": { "computedUserset": { "relation": "no_grant" } }
+      },
+      "metadata": {
+        "relations": {
+          "server_owner": { "directly_related_user_types": [{ "type": "principal" }] },
+          "campaign_owner": { "directly_related_user_types": [{ "type": "principal" }] },
+          "moderator": { "directly_related_user_types": [{ "type": "principal" }] },
+          "human_kp": { "directly_related_user_types": [{ "type": "principal" }] },
+          "player": { "directly_related_user_types": [{ "type": "principal" }] },
+          "workflow": { "directly_related_user_types": [{ "type": "principal" }] },
+          "rules_engine": { "directly_related_user_types": [{ "type": "principal" }] },
+          "system": { "directly_related_user_types": [{ "type": "principal" }] },
+          "no_grant": { "directly_related_user_types": [{ "type": "denied_principal" }] }
+        }
+      }
+    }
+  ]
+}

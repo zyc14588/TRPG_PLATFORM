@@ -1,21 +1,21 @@
-use crate::shared_kernel::TrpgError;
+use crate::{shared_kernel::TrpgError, WireErrorCode};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ErrorDescriptor {
-    pub code: &'static str,
+    pub code: WireErrorCode,
     pub retryable: bool,
     pub visibility_safe: bool,
 }
 
 pub fn describe_error(error: &TrpgError) -> ErrorDescriptor {
     ErrorDescriptor {
-        code: error.code(),
+        code: error.wire_code(),
         retryable: error.retryable(),
         visibility_safe: true,
     }
 }
 
-pub fn compose_error(code: &'static str, retryable: bool) -> ErrorDescriptor {
+pub fn compose_error(code: WireErrorCode, retryable: bool) -> ErrorDescriptor {
     ErrorDescriptor {
         code,
         retryable,

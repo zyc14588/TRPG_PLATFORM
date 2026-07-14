@@ -1,18 +1,19 @@
 use std::collections::HashSet;
 
 use trpg_data_eventing::{
-    batch_025_data_event_contracts, event_command_json_schema, event_sourcing_snapshot_projection,
-    is_current_safe_name, nats_jet_stream, persistence_migrations, persistence_postgresql,
-    postgre_sql_sq_lx_pgvector, rebuild_projection_from_events, schema, snapshot, sqlx_migrations,
-    sqlx_migrations_contract, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope,
-    DataEventOperation, DataEventPayload, EventStore, FactProvenance, FormalWritePath,
-    ProvenanceKind, TrpgError, COMMAND_ENVELOPE_REQUIRED_FIELDS, EVENT_ENVELOPE_REQUIRED_FIELDS,
-    EVENT_STORE_TABLE, NATS_EVENTS_APPENDED, NATS_PROJECTION_REBUILD_REQUESTED, OUTBOX_TABLE,
+    event_command_json_schema, event_sourcing_snapshot_projection, is_current_safe_name,
+    nats_jet_stream, persistence_data_event_contracts, persistence_migrations,
+    persistence_postgresql, postgre_sql_sq_lx_pgvector, rebuild_projection_from_events, schema,
+    snapshot, sqlx_migrations, sqlx_migrations_contract, ActorRole, AuthorityContract,
+    AuthorityMode, CommandEnvelope, DataEventOperation, DataEventPayload, EventStore,
+    FactProvenance, FormalWritePath, ProvenanceKind, TrpgError, COMMAND_ENVELOPE_REQUIRED_FIELDS,
+    EVENT_ENVELOPE_REQUIRED_FIELDS, EVENT_STORE_TABLE, NATS_EVENTS_APPENDED,
+    NATS_PROJECTION_REBUILD_REQUESTED, OUTBOX_TABLE,
 };
 
 #[test]
 fn b025_primary_contracts_map_to_current_safe_outputs() {
-    let contracts = batch_025_data_event_contracts();
+    let contracts = persistence_data_event_contracts();
     assert_eq!(contracts.len(), 11);
 
     let expected = [
@@ -82,10 +83,15 @@ fn b025_primary_contracts_map_to_current_safe_outputs() {
     for (prompt_id, module_name, operation) in expected {
         let contract = contracts
             .iter()
-            .find(|contract| contract.prompt_id == prompt_id)
+            .find(|contract| contract.module_name == module_name)
             .expect("B025 primary prompt has a contract");
 
         assert_eq!(contract.module_name, module_name);
+        trpg_test_support::assert_normalized_prompt_binding(
+            "trpg-data-eventing",
+            contract.module_name,
+            prompt_id,
+        );
         assert_eq!(contract.operation, operation);
         assert_eq!(contract.event_store_table, EVENT_STORE_TABLE);
         assert_eq!(contract.outbox_table, OUTBOX_TABLE);
@@ -324,7 +330,7 @@ fn b025_domain_artifacts_are_named_and_schema_bound() {
 }
 
 fn authority_contract(mode: AuthorityMode) -> AuthorityContract {
-    AuthorityContract::new("campaign_batch_025", mode, 1).unwrap()
+    trpg_test_support::authority_contract("campaign_batch_025", mode, 1).unwrap()
 }
 
 fn governed_command<T>(
@@ -334,7 +340,8 @@ fn governed_command<T>(
     role: ActorRole,
     mode: AuthorityMode,
 ) -> CommandEnvelope<T> {
-    let mut command = CommandEnvelope::governed(payload, role, mode);
+    let authority = authority_contract(mode);
+    let mut command = trpg_test_support::governed_command_for_contract(&authority, payload, role);
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;
     command.fact_provenance =

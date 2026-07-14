@@ -4,8 +4,6 @@ use crate::agent_runtime::{
 };
 use trpg_shared_kernel::AuthorityMode;
 
-pub const PROMPT_ID: &str = "CODEX-0510-04-AI-AGENT-SYSTEM-c10997b277";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GoldenScenarioGate {
     pub prompt_report: PromptInjectionReport,

@@ -42,7 +42,7 @@ pub fn record_coc7_runtime_governance<T>(
         contract,
         store,
         command,
-        "coc7.runtime_governance_recorded",
+        trpg_contracts::EventType::Coc7RuntimeGovernanceRecorded.name(),
         "coc7_rule_runtime",
         "gateway_required=true direct_llm_allowed=false",
     )

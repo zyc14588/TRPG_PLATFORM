@@ -4,31 +4,50 @@ default allow := false
 
 allow if {
 	input.openfga_decision == "PERMIT"
-	input.opa_decision == "PERMIT"
 	permission_allowed
 	not visibility_forbidden
 }
 
 permission_allowed if {
-	input.actor_role == "ServerOwner"
+	input.principal_role == "server_owner"
 	input.action == "pause_room"
 }
 
 permission_allowed if {
-	input.actor_role == "Moderator"
+	input.principal_role == "moderator"
 	input.action == "mute_player"
 }
 
 permission_allowed if {
-	input.actor_role == "HumanKP"
-	input.authority_mode == "HUMAN_KP"
+	input.principal_role == "human_kp"
+	input.authority_mode == "human_kp"
 	input.action == "confirm_agent_draft"
 }
 
 permission_allowed if {
-	input.actor_role == "Player"
-	input.authority_mode == "AI_KP"
+	input.principal_role == "player"
+	input.authority_mode == "ai_kp"
 	input.action == "request_reconsideration"
+}
+
+permission_allowed if {
+	input.principal_role in {"workflow", "rules_engine", "system"}
+	input.action in {"write_official_state", "record_audit"}
+}
+
+permission_allowed if {
+	input.principal_role in {"workflow", "system"}
+	input.action in {"delete_retained_data", "export_player_report", "generate_party_summary", "index_rag_chunk"}
+}
+
+permission_allowed if {
+	input.principal_role == "system"
+	input.action == "connect_provider"
+}
+
+permission_allowed if {
+	input.principal_role in {"server_owner", "campaign_owner"}
+	input.action == "manage_campaign_membership"
 }
 
 visibility_forbidden if {

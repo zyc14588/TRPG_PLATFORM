@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#181818" />
+    <title>COC AI TRPG</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <span class="brand-mark" aria-hidden="true">C7</span>
+          <div>
+            <h1>COC AI TRPG</h1>
+            <p id="environment-label">Local environment</p>
+          </div>
+        </div>
+        <div class="release-block" aria-label="Web release">
+          <span>Web</span>
+          <strong id="web-version">0.1.0</strong>
+        </div>
+      </header>
+
+      <main>
+        <section class="status-heading" aria-labelledby="runtime-heading">
+          <div>
+            <p class="section-label">Runtime</p>
+            <h2 id="runtime-heading">Process health</h2>
+          </div>
+          <button id="refresh-button" type="button">Refresh</button>
+        </section>
+
+        <section class="service-panel" aria-live="polite">
+          <div class="service-header" aria-hidden="true">
+            <span>Process</span>
+            <span>State</span>
+            <span>Version</span>
+            <span>Endpoint</span>
+          </div>
+          <div id="service-list" class="service-list"></div>
+        </section>
+      </main>
+
+      <footer>
+        <span id="summary">Checking 5 processes</span>
+        <time id="checked-at"></time>
+      </footer>
+    </div>
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>

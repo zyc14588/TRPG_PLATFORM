@@ -58,7 +58,7 @@ pub fn record_ruleset_pack_sdk_registered<T>(
         authority,
         store,
         command,
-        "coc7.ruleset_pack_sdk_registered",
+        trpg_contracts::EventType::Coc7RulesetPackSdkRegistered.name(),
         "ruleset_pack_sdk",
         format!(
             "sdk={} modules={}",

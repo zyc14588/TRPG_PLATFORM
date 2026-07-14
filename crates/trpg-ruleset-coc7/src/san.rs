@@ -1,6 +1,7 @@
 use crate::dice_roll_contract::{success_level, SuccessLevel};
 use crate::sanity_madness_state_machine::{apply_sanity_loss, SanityTransition};
 use crate::{append_coc7_event, Coc7EventPayload};
+use trpg_contracts::EventType;
 use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult,
 };
@@ -38,7 +39,7 @@ pub fn record_san_decision<T>(
         contract,
         store,
         command,
-        "coc7.san_decision_recorded",
+        EventType::SanityLossApplied.name(),
         "san",
         format!(
             "san decision after={} state={:?}",

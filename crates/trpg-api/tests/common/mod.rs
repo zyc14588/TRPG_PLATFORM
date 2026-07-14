@@ -9,7 +9,7 @@ use trpg_api::{
 };
 
 pub fn human_contract() -> AuthorityContract {
-    AuthorityContract::new("camp_b029", AuthorityMode::HumanKp, 1).unwrap()
+    trpg_test_support::authority_contract("camp_b029", AuthorityMode::HumanKp, 1).unwrap()
 }
 
 pub fn command_for(
@@ -22,8 +22,9 @@ pub fn command_for(
         operation: api_contract.operation,
         request_summary: "B029 governed API realtime contract check",
     };
+    let authority = human_contract();
     let mut command =
-        CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::HumanKp);
+        trpg_test_support::governed_command_for_contract(&authority, payload, ActorRole::Workflow);
     command.command_id = EntityId::new(format!("command_{}", api_contract.module_name)).unwrap();
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;
@@ -32,7 +33,11 @@ pub fn command_for(
 
 #[allow(dead_code)]
 pub fn assert_contract_governance(api_contract: ApiRealtimeContract, expected_prompt_id: &str) {
-    assert_eq!(api_contract.prompt_id, expected_prompt_id);
+    trpg_test_support::assert_normalized_prompt_binding(
+        "trpg-api",
+        api_contract.module_name,
+        expected_prompt_id,
+    );
     validate_api_contract(&api_contract).unwrap();
     assert!(api_contract.uses_current_safe_names());
 
@@ -45,7 +50,6 @@ pub fn assert_contract_governance(api_contract: ApiRealtimeContract, expected_pr
 
     assert_eq!(event.event_type, api_contract.event_type);
     assert_eq!(event.payload.module_name, api_contract.module_name);
-    assert_eq!(event.payload.prompt_id, expected_prompt_id);
     assert_eq!(event_visibility_label(&event), &VisibilityLabel::KeeperOnly);
     assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
     assert_eq!(event.fact_provenance.recorded_by.as_str(), "rules_001");

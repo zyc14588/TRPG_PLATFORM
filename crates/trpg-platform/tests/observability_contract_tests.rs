@@ -2,13 +2,11 @@ use trpg_platform::observability::{
     observed_metric, record_metric, RecordMetric, METRIC_RECORDED_EVENT,
 };
 use trpg_platform::{PlatformEvent, PlatformEventStore};
-use trpg_shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, TrpgError, Visibility, VisibilityLabel,
-};
+use trpg_shared_kernel::{ActorRole, AuthorityMode, TrpgError, Visibility, VisibilityLabel};
 
 #[test]
 fn metric_detail_is_redacted_for_restricted_visibility() {
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command(
         RecordMetric {
             metric_name: "trpg_platform_worker_lag_ms".to_owned(),
             value: 42,
@@ -26,7 +24,7 @@ fn metric_detail_is_redacted_for_restricted_visibility() {
 
 #[test]
 fn previous_metric_names_are_not_accepted() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         RecordMetric {
             metric_name: "worker_lag_ms".to_owned(),
             value: 1,
@@ -46,7 +44,7 @@ fn previous_metric_names_are_not_accepted() {
 
 #[test]
 fn metric_recording_appends_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         RecordMetric {
             metric_name: "trpg_platform_health_state".to_owned(),
             value: 1,

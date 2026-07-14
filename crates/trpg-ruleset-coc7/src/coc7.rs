@@ -52,7 +52,7 @@ pub fn record_coc7_governance_profile<T>(
         contract,
         store,
         command,
-        "coc7.governance_profile_recorded",
+        trpg_contracts::EventType::Coc7GovernanceProfileRecorded.name(),
         "coc7",
         format!("modules={}", profile.modules.len()),
     )

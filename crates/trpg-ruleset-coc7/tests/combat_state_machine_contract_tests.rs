@@ -21,5 +21,5 @@ fn combat_transition_records_formal_event() {
 
     let event = record_combat_transition(&contract, &mut store, &command, &transition).unwrap();
 
-    assert_eq!(event.event_type, "coc7.combat_transition_recorded");
+    assert_eq!(event.event_type, "CombatStateUpdated");
 }

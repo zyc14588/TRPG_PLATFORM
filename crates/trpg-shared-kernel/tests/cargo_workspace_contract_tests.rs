@@ -2,9 +2,7 @@ use trpg_shared_kernel::cargo_workspace::{
     append_workspace_validated, validate_workspace, CrateRole, CrateSpec, ValidateWorkspacePayload,
     WorkspaceTopology,
 };
-use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, TrpgError,
-};
+use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 
 fn valid_topology() -> WorkspaceTopology {
     WorkspaceTopology {
@@ -37,8 +35,11 @@ fn cargo_workspace_appends_events_with_idempotency_and_expected_version() {
     let payload = ValidateWorkspacePayload {
         topology: valid_topology(),
     };
-    let command =
-        CommandEnvelope::governed(payload, ActorRole::HumanKeeper, AuthorityMode::HumanKp);
+    let command = trpg_test_support::governed_command(
+        payload,
+        ActorRole::HumanKeeper,
+        AuthorityMode::HumanKp,
+    );
     let mut store = EventStore::default();
 
     let event = append_workspace_validated(&mut store, &command).unwrap();

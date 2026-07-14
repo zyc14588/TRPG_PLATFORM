@@ -11,7 +11,7 @@ use trpg_shared_kernel::{
 };
 
 fn review_command() -> CommandEnvelope<ReviewSecurityPrivacyCopyrightPolicy> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command(
         ReviewSecurityPrivacyCopyrightPolicy {
             asset_id: "handout_001".to_owned(),
             license_tag: "original_campaign_asset".to_owned(),
@@ -26,7 +26,7 @@ fn review_command() -> CommandEnvelope<ReviewSecurityPrivacyCopyrightPolicy> {
 }
 
 fn deletion_command() -> CommandEnvelope<RequestDataDeletion> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command(
         RequestDataDeletion {
             subject_id: "player_001".to_owned(),
             retention_policy: "audit_log_retained_private_payload_removed".to_owned(),
@@ -40,7 +40,7 @@ fn deletion_command() -> CommandEnvelope<RequestDataDeletion> {
 
 #[test]
 fn security_privacy_copyright_rejects_authority_contract_violation() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         review_command().payload,
         ActorRole::AiKeeper,
         AuthorityMode::HumanKp,

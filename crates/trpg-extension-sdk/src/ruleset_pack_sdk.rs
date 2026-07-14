@@ -2,7 +2,6 @@ crate::define_extension_sdk_module!(
     RulesetPackSdkCommand,
     RulesetPackSdkService,
     append_ruleset_pack_sdk_event,
-    "CODEX-0106-12-EXTENSION-SDK-34e4277c8c",
     "ruleset_pack_sdk",
     "ExtensionRulesetPackSdkRecorded",
     crate::ExtensionOperation::RulesetPackSdk,
@@ -12,7 +11,7 @@ crate::define_extension_sdk_module!(
         crate::ExtensionCapability::EmitProposedDecision,
         crate::ExtensionCapability::ReadProjection,
     ],
-    "evidence/batches/BATCH-044/ruleset-pack-sdk.md"
+    "extensions/ruleset-pack"
 );
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,10 +27,10 @@ pub struct RulesetPackManifest {
 }
 
 impl RulesetPackManifest {
-    pub fn coc7_fixture() -> Self {
+    pub fn new(ruleset_id: impl Into<String>, ruleset_version: impl Into<String>) -> Self {
         Self {
-            ruleset_id: "coc7".to_owned(),
-            ruleset_version: "7e".to_owned(),
+            ruleset_id: ruleset_id.into(),
+            ruleset_version: ruleset_version.into(),
             dice_authority: DiceAuthority::ServerOnly,
         }
     }
