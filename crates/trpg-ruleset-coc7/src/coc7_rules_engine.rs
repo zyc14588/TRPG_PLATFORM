@@ -1,4 +1,5 @@
 use crate::{append_coc7_event, Coc7EventPayload};
+use trpg_contracts::EventType;
 use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult,
 };
@@ -24,6 +25,18 @@ pub fn engine_decision_route(decision: Coc7EngineDecision) -> &'static str {
     }
 }
 
+pub const fn canonical_event_for_decision(decision: Coc7EngineDecision) -> EventType {
+    match decision {
+        Coc7EngineDecision::SkillCheck | Coc7EngineDecision::OpposedRoll => {
+            EventType::SkillCheckResolved
+        }
+        Coc7EngineDecision::SanityCheck => EventType::SanityLossApplied,
+        Coc7EngineDecision::CombatRound => EventType::CombatStateUpdated,
+        Coc7EngineDecision::ChaseRound => EventType::ChaseSegmentResolved,
+        Coc7EngineDecision::InvestigationStep => EventType::ClueRevealed,
+    }
+}
+
 pub fn record_coc7_rules_engine_decision<T>(
     contract: &AuthorityContract,
     store: &mut EventStore<Coc7EventPayload>,
@@ -34,7 +47,7 @@ pub fn record_coc7_rules_engine_decision<T>(
         contract,
         store,
         command,
-        "coc7.rules_engine_decision_recorded",
+        canonical_event_for_decision(decision).name(),
         "coc7_rules_engine",
         format!("decision={}", engine_decision_route(decision)),
     )

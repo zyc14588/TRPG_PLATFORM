@@ -6,5 +6,7 @@ publish = false
 license = "UNLICENSED"
 
 [dependencies]
+serde = { version = "1.0", features = ["derive"] }
 trpg-agent-runtime = { path = "../trpg-agent-runtime" }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
+trpg-test-support = { path = "../trpg-contracts/test-support" }

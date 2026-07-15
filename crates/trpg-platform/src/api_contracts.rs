@@ -18,7 +18,7 @@ pub struct RegisterApiCommandContract {
     pub schema_version: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum ApiContractsEvent {
     ApiCommandContractRegistered {
         contract_id: String,

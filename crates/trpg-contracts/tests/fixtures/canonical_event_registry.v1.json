@@ -1,0 +1,25 @@
+{
+  "events": [
+    {"name":"CampaignCreated","schema_version":1,"schema_id":"trpg.events.campaign_created.v1","projection":"campaign_projection"},
+    {"name":"AuthorityContractLocked","schema_version":1,"schema_id":"trpg.events.authority_contract_locked.v1","projection":"campaign_projection"},
+    {"name":"CharacterSheetSubmitted","schema_version":1,"schema_id":"trpg.events.character_sheet_submitted.v1","projection":"character_projection"},
+    {"name":"CharacterSheetVersionLocked","schema_version":1,"schema_id":"trpg.events.character_sheet_version_locked.v1","projection":"character_projection"},
+    {"name":"DiceRolled","schema_version":1,"schema_id":"trpg.events.dice_rolled.v1","projection":"dice_projection"},
+    {"name":"ClueRevealed","schema_version":1,"schema_id":"trpg.events.clue_revealed.v1","projection":"clue_projection"},
+    {"name":"SessionSummaryCreated","schema_version":1,"schema_id":"trpg.events.session_summary_created.v1","projection":"session_projection"},
+    {"name":"SkillCheckResolved","schema_version":1,"schema_id":"trpg.events.skill_check_resolved.v1","projection":"rules_projection"},
+    {"name":"SanityLossApplied","schema_version":1,"schema_id":"trpg.events.sanity_loss_applied.v1","projection":"character_projection"},
+    {"name":"CombatStateUpdated","schema_version":1,"schema_id":"trpg.events.combat_state_updated.v1","projection":"combat_projection"},
+    {"name":"ChaseSegmentResolved","schema_version":1,"schema_id":"trpg.events.chase_segment_resolved.v1","projection":"chase_projection"},
+    {"name":"coc7.character_combat_san_chase_recorded","schema_version":1,"schema_id":"trpg.events.coc7_character_track_recorded.v1","projection":"rules_projection"},
+    {"name":"coc7.governance_profile_recorded","schema_version":1,"schema_id":"trpg.events.coc7_governance_profile_recorded.v1","projection":"rules_projection"},
+    {"name":"coc7.runtime_governance_recorded","schema_version":1,"schema_id":"trpg.events.coc7_runtime_governance_recorded.v1","projection":"rules_projection"},
+    {"name":"coc7.npc_decision_recorded","schema_version":1,"schema_id":"trpg.events.coc7_npc_decision_recorded.v1","projection":"npc_projection"},
+    {"name":"coc7.readme_contract_recorded","schema_version":1,"schema_id":"trpg.events.coc7_readme_contract_recorded.v1","projection":"rules_projection"},
+    {"name":"coc7.rule_runtime_decision_recorded","schema_version":1,"schema_id":"trpg.events.coc7_rule_runtime_decision_recorded.v1","projection":"rules_projection"},
+    {"name":"coc7.ruleset_pack_loaded","schema_version":1,"schema_id":"trpg.events.coc7_ruleset_pack_loaded.v1","projection":"rules_projection"},
+    {"name":"coc7.rules_dispatch_recorded","schema_version":1,"schema_id":"trpg.events.coc7_rules_dispatch_recorded.v1","projection":"rules_projection"},
+    {"name":"coc7.ruleset_pack_sdk_registered","schema_version":1,"schema_id":"trpg.events.coc7_ruleset_pack_sdk_registered.v1","projection":"rules_projection"},
+    {"name":"coc7.sanity_transition_recorded","schema_version":1,"schema_id":"trpg.events.coc7_sanity_transition_recorded.v1","projection":"character_projection"}
+  ]
+}

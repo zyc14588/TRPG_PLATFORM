@@ -1,7 +1,13 @@
 use trpg_ops::{
     verify_projection_rebuild, verify_restore_hash, BackupManifest, OpsRunbookError,
-    RunbookExecutionRecord, S10_BACKUP_EVENT_HASH, S10_PROJECTION_HASH, S10_RESTORE_EVENT_HASH,
+    RunbookExecutionRecord,
 };
+
+const BACKUP_EVENT_HASH: &str =
+    "sha256:ea4d9a5f8aa58929b9514a881c876e66557ee9706e82a2e251cdb247c6f4141b";
+const RESTORE_EVENT_HASH: &str = BACKUP_EVENT_HASH;
+const PROJECTION_HASH: &str =
+    "sha256:15d1765619e2e0b512f21a2a1ccfb56b727efecbeadccbbd919ee88199e747e2";
 
 const S10_STAGE_FIXTURE: &str =
     include_str!("../../../fixtures/stages/S10_stage_acceptance_fixture.v1.json.md");
@@ -17,8 +23,8 @@ fn s10_fixtures_are_bound_to_ops_runbook_contracts() {
     assert!(S10_STAGE_FIXTURE.contains("\"stage_dir\": \"s10-ops-migration-runbooks\""));
     assert!(S10_DETAILED_FIXTURE.contains("\"BackupManifest\""));
     assert!(S10_DETAILED_FIXTURE.contains("\"RunbookExecutionRecord\""));
-    assert!(OPS_FIXTURE.contains(S10_BACKUP_EVENT_HASH));
-    assert!(OPS_FIXTURE.contains(S10_PROJECTION_HASH));
+    assert!(OPS_FIXTURE.contains(BACKUP_EVENT_HASH));
+    assert!(OPS_FIXTURE.contains(PROJECTION_HASH));
 
     for criterion in [
         "migrations_idempotent",
@@ -32,13 +38,18 @@ fn s10_fixtures_are_bound_to_ops_runbook_contracts() {
 
 #[test]
 fn backup_restore_smoke_checks_are_executable() {
-    let manifest = BackupManifest::fixture();
+    let manifest = BackupManifest {
+        object_key: "backups/campaign_001.snapshot".to_owned(),
+        sha256: BACKUP_EVENT_HASH.to_owned(),
+        created_at: "2026-07-02T00:00:00Z".to_owned(),
+        schema_version: "s10.v1".to_owned(),
+    };
     assert!(manifest.has_required_fields());
-    assert_eq!(manifest.sha256, S10_BACKUP_EVENT_HASH);
+    assert_eq!(manifest.sha256, BACKUP_EVENT_HASH);
 
-    verify_restore_hash(S10_BACKUP_EVENT_HASH, S10_RESTORE_EVENT_HASH)
+    verify_restore_hash(BACKUP_EVENT_HASH, RESTORE_EVENT_HASH)
         .expect("fixture restore hash matches");
-    let restore_error = verify_restore_hash(S10_BACKUP_EVENT_HASH, "sha256:wrong")
+    let restore_error = verify_restore_hash(BACKUP_EVENT_HASH, "sha256:wrong")
         .expect_err("hash mismatch is rejected");
     assert_eq!(restore_error.code(), "RESTORE_HASH_MISMATCH");
 
@@ -52,11 +63,11 @@ fn backup_restore_smoke_checks_are_executable() {
 
 #[test]
 fn projection_rebuild_verify_checks_are_executable() {
-    let report = verify_projection_rebuild(3, 3, S10_PROJECTION_HASH, S10_PROJECTION_HASH)
+    let report = verify_projection_rebuild(3, 3, PROJECTION_HASH, PROJECTION_HASH)
         .expect("projection rebuild is deterministic");
     assert_eq!(report.new_canon_events, 0);
 
-    let projection_error = verify_projection_rebuild(3, 4, "sha256:changed", S10_PROJECTION_HASH)
+    let projection_error = verify_projection_rebuild(3, 4, "sha256:changed", PROJECTION_HASH)
         .expect_err("projection rebuild must not append canon events");
     assert_eq!(
         projection_error,

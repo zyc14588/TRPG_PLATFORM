@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     PersistenceMigrationsCommand,
     PersistenceMigrationsOperation,
     append_persistence_migrations_event,
-    "CODEX-0063-06-DATA-EVENTING-f6f824261f",
     "persistence_migrations",
     "PersistenceMigrationRecorded",
     "data_eventing.persistence_migrations.event_schema",
@@ -13,6 +12,7 @@ crate::define_data_event_module!(
 pub const EVENT_STORE_MIGRATION_NAME: &str = "create_event_store";
 pub const EVENT_OUTBOX_MIGRATION_NAME: &str = "create_event_outbox";
 pub const PROJECTION_CHECKPOINT_MIGRATION_NAME: &str = "create_projection_checkpoint";
+pub const CANONICAL_COMMIT_PROTOCOL_MIGRATION_NAME: &str = "create_canonical_commit_protocol";
 
 pub const EVENT_STORE_MIGRATION_SQL: &str = "\
 CREATE TABLE event_store (
@@ -58,12 +58,21 @@ CREATE TABLE projection_checkpoint (
     rebuilt_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );";
 
+pub const CANONICAL_COMMIT_PROTOCOL_MIGRATION_SQL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../migrations/20260715000400_create_canonical_commit_protocol.up.sql"
+));
+
 pub const MIGRATION_STATEMENTS: &[(&str, &str)] = &[
     (EVENT_STORE_MIGRATION_NAME, EVENT_STORE_MIGRATION_SQL),
     (EVENT_OUTBOX_MIGRATION_NAME, EVENT_OUTBOX_MIGRATION_SQL),
     (
         PROJECTION_CHECKPOINT_MIGRATION_NAME,
         PROJECTION_CHECKPOINT_MIGRATION_SQL,
+    ),
+    (
+        CANONICAL_COMMIT_PROTOCOL_MIGRATION_NAME,
+        CANONICAL_COMMIT_PROTOCOL_MIGRATION_SQL,
     ),
 ];
 

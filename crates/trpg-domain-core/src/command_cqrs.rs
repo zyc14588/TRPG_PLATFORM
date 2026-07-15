@@ -2,7 +2,7 @@ use crate::authority_contract::DomainAuthorityContract;
 use crate::command_cqrs_idempotency::append_idempotent_event;
 use crate::ddd::{CommandEnvelope, DomainResult, EventEnvelope, EventStore, FactSource};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum DomainCommandKind {
     SubmitPlayerAction,
     RecordDecision,
@@ -10,7 +10,7 @@ pub enum DomainCommandKind {
     PromoteFact,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct CommandAcceptedPayload {
     pub kind: DomainCommandKind,
     pub fact_source: FactSource,

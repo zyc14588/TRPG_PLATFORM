@@ -17,7 +17,10 @@ fn local_dev_config() -> ProviderConfig {
 #[test]
 fn model_provider_local_cloud_impl_requires_level4_for_ai_keeper() {
     assert_eq!(
-        model_provider_local_cloud_impl::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id(
+            "trpg-agent-runtime",
+            "model_provider_local_cloud_impl"
+        ),
         "CODEX-0484-04-AI-AGENT-SYSTEM-e96dc3868d"
     );
     let error = model_provider_local_cloud_impl::evaluate_provider_route_for_ai_keeper(

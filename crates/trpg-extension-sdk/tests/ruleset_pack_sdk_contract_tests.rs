@@ -16,7 +16,7 @@ fn ruleset_pack_sdk_records_governed_event() {
 
 #[test]
 fn ruleset_pack_sdk_keeps_official_dice_server_side() {
-    let manifest = RulesetPackManifest::coc7_fixture();
+    let manifest = RulesetPackManifest::new("coc7", "7e");
 
     assert!(manifest.official_dice_must_be_server_generated());
     assert!(!manifest.pack_can_forge_dice());

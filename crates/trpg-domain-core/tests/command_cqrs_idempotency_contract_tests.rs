@@ -1,10 +1,11 @@
 use trpg_domain_core::command_cqrs_idempotency::append_idempotent_event;
-use trpg_domain_core::ddd::{ActorRole, AuthorityMode, CommandEnvelope, DomainError, EventStore};
+use trpg_domain_core::ddd::{ActorRole, AuthorityMode, DomainError, EventStore};
 
 #[test]
 fn command_cqrs_idempotency_rejects_duplicate_key_and_bad_version() {
     let mut store = EventStore::default();
-    let command = CommandEnvelope::governed("payload", ActorRole::Workflow, AuthorityMode::AiKp);
+    let command =
+        trpg_test_support::governed_command("payload", ActorRole::Workflow, AuthorityMode::AiKp);
 
     append_idempotent_event(&mut store, &command, "CommandAccepted", "payload").unwrap();
 

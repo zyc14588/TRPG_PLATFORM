@@ -1,12 +1,9 @@
 use crate::runtime_state_machines::{
-    commit_decision, create_pending_decision, PendingDecision, RuntimeDecision,
+    commit_decision, create_pending_decision, EventStore, PendingDecision, RuntimeDecision,
     RuntimeEventPayload, RuntimeResult,
 };
-use trpg_shared_kernel::{
-    AuthorityContract, AuthorityMode, CommandEnvelope, EventEnvelope, EventStore,
-};
-
-pub const PROMPT_ID: &str = "CODEX-0387-03-RUNTIME-ORCHESTRATION-ff36c2cdcf";
+use trpg_identity::AuthenticationContext;
+use trpg_shared_kernel::{AuthorityContract, AuthorityMode, CommandEnvelope, EventEnvelope};
 
 pub fn open_pending_decision_impl(
     authority_mode: &AuthorityMode,
@@ -19,7 +16,16 @@ pub fn commit_pending_decision_impl(
     store: &mut EventStore<RuntimeEventPayload>,
     contract: &AuthorityContract,
     command: &CommandEnvelope<RuntimeDecision>,
+    workflow_authentication: &AuthenticationContext,
     decision: RuntimeDecision,
+    now_unix_ms: u64,
 ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
-    commit_decision(store, contract, command, decision)
+    commit_decision(
+        store,
+        contract,
+        command,
+        workflow_authentication,
+        decision,
+        now_unix_ms,
+    )
 }

@@ -5,8 +5,6 @@ use crate::model_provider::{
     FallbackDecision, FallbackPolicy, ModelProviderBoundarySnapshot, ProviderConfig, ProviderType,
 };
 
-pub const PROMPT_ID: &str = "CODEX-0484-04-AI-AGENT-SYSTEM-e96dc3868d";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProviderRouteEvaluation {
     pub boundary: ModelProviderBoundarySnapshot,

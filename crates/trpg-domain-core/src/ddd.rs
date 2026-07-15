@@ -2,10 +2,14 @@ use std::error::Error;
 use std::fmt;
 
 pub use trpg_shared_kernel::shared_kernel::{
-    Actor, ActorRole, AuthorityContract as KernelAuthorityContract, AuthorityMode, CommandEnvelope,
-    EntityId, EventEnvelope, EventStore, FactProvenance, FormalWritePath, PrincipalScope,
-    ProvenanceKind, TrpgError, Visibility, VisibilityLabel,
+    Actor, ActorOrigin, ActorRole, AgentClass, AuthenticatedCommandContext, AuthorityBinding,
+    AuthorityContract as KernelAuthorityContract, AuthorityContractDraft, AuthorityMode,
+    AuthorityVersionSnapshot, AuthorityVersionSnapshotDraft, ChangePolicy, CommandEnvelope,
+    CommandMetadata, EntityId, EventEnvelope, EventStore, FactProvenance, FormalWritePath,
+    PrincipalScope, ProvenanceKind, ResourceRef, TrpgError, Visibility, VisibilityLabel,
+    WorkloadRole,
 };
+pub use trpg_shared_kernel::WireErrorCode;
 
 pub type DomainResult<T> = Result<T, DomainError>;
 
@@ -13,28 +17,40 @@ pub type DomainResult<T> = Result<T, DomainError>;
 pub enum DomainError {
     AuthorityContractImmutable,
     AuthorityViolation,
+    AuthorityOwnerMismatch,
+    CampaignScopeMismatch,
+    AuthorityContractVersionConflict,
     InvalidConfirmedFactSource,
     MissingCommandMetadata,
     DuplicateCommand,
     ExpectedVersionConflict { expected: u64, actual: u64 },
     VisibilityDenied,
     PolicyDenied,
-    SharedKernel(&'static str),
+    SharedKernel(WireErrorCode),
 }
 
 impl DomainError {
-    pub fn code(&self) -> &'static str {
+    pub const fn wire_code(&self) -> WireErrorCode {
         match self {
-            Self::AuthorityContractImmutable => "AUTHORITY_CONTRACT_IMMUTABLE",
-            Self::AuthorityViolation => "AUTHORITY_VIOLATION",
-            Self::InvalidConfirmedFactSource => "INVALID_CONFIRMED_FACT_SOURCE",
-            Self::MissingCommandMetadata => "MISSING_COMMAND_METADATA",
-            Self::DuplicateCommand => "DUPLICATE_COMMAND",
-            Self::ExpectedVersionConflict { .. } => "EXPECTED_VERSION_CONFLICT",
-            Self::VisibilityDenied => "VISIBILITY_DENIED",
-            Self::PolicyDenied => "POLICY_DENIED",
-            Self::SharedKernel(code) => code,
+            Self::AuthorityContractImmutable => WireErrorCode::AuthorityContractImmutable,
+            Self::AuthorityViolation => WireErrorCode::AuthorityViolation,
+            Self::AuthorityOwnerMismatch => WireErrorCode::AuthorityOwnerMismatch,
+            Self::CampaignScopeMismatch => WireErrorCode::CampaignScopeMismatch,
+            Self::AuthorityContractVersionConflict => {
+                WireErrorCode::AuthorityContractVersionConflict
+            }
+            Self::InvalidConfirmedFactSource => WireErrorCode::InvalidConfirmedFactSource,
+            Self::MissingCommandMetadata => WireErrorCode::MissingCommandMetadata,
+            Self::DuplicateCommand => WireErrorCode::DuplicateCommand,
+            Self::ExpectedVersionConflict { .. } => WireErrorCode::ExpectedVersionConflict,
+            Self::VisibilityDenied => WireErrorCode::VisibilityDenied,
+            Self::PolicyDenied => WireErrorCode::PolicyDenied,
+            Self::SharedKernel(code) => *code,
         }
+    }
+
+    pub fn code(&self) -> &'static str {
+        self.wire_code().as_str()
     }
 }
 
@@ -51,18 +67,21 @@ impl From<TrpgError> for DomainError {
         match error {
             TrpgError::AuthorityContractMutation => Self::AuthorityContractImmutable,
             TrpgError::AuthorityViolation => Self::AuthorityViolation,
+            TrpgError::AuthorityOwnerMismatch => Self::AuthorityOwnerMismatch,
+            TrpgError::CampaignScopeMismatch => Self::CampaignScopeMismatch,
+            TrpgError::AuthorityContractVersionConflict => Self::AuthorityContractVersionConflict,
             TrpgError::DirectAgentStateWrite | TrpgError::PolicyDenied => Self::PolicyDenied,
             TrpgError::DuplicateCommand => Self::DuplicateCommand,
             TrpgError::ExpectedVersionConflict { expected, actual } => {
                 Self::ExpectedVersionConflict { expected, actual }
             }
             TrpgError::VisibilityDenied => Self::VisibilityDenied,
-            other => Self::SharedKernel(other.code()),
+            other => Self::SharedKernel(other.wire_code()),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum FactSource {
     GameEvent,
     DecisionRecord,

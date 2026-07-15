@@ -2,7 +2,7 @@ use crate::{
     evaluate_testing_quality, standard_contract, TestingQualityAction, TestingQualityCommand,
     TestingQualityEventEnvelope, TestingQualityModuleContract, TestingQualityRepository,
 };
-use trpg_shared_kernel::{AuthorityContract, AuthorityMode, CommandEnvelope, KernelResult};
+use trpg_shared_kernel::{AuthorityMode, CommandEnvelope, KernelResult};
 
 pub const PROMPT_ID: &str = "CODEX-0848-10-TESTING-QUALITY-85ad4a2b62";
 pub const MODULE: &str = "testing_quality::implementation_acceptance_checklist";
@@ -54,9 +54,17 @@ pub fn required_items() -> Vec<AcceptanceItem> {
 }
 
 pub fn authority_contract_requires_fork() -> bool {
-    let contract = AuthorityContract::new("campaign_testing", AuthorityMode::HumanKp, 1)
-        .expect("valid contract");
-    contract.fork(AuthorityMode::AiKp, 2).is_ok() && contract.fork(AuthorityMode::AiKp, 1).is_err()
+    let contract =
+        trpg_test_support::authority_contract("campaign_testing", AuthorityMode::HumanKp, 1)
+            .expect("valid contract");
+    contract
+        .fork_for_child(
+            "campaign_testing_fork",
+            AuthorityMode::AiKp,
+            "ai_kp_local_level4",
+        )
+        .is_ok()
+        && contract.mode() == &AuthorityMode::HumanKp
 }
 
 pub fn evaluate(

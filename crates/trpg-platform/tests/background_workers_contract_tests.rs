@@ -2,11 +2,11 @@ use trpg_platform::background_workers::{
     start_background_worker, StartBackgroundWorker, BACKGROUND_WORKER_STARTED_EVENT,
 };
 use trpg_platform::{PlatformEvent, PlatformEventStore};
-use trpg_shared_kernel::{ActorRole, AuthorityMode, CommandEnvelope, FormalWritePath, TrpgError};
+use trpg_shared_kernel::{ActorRole, AuthorityMode, FormalWritePath, TrpgError};
 
 #[test]
 fn worker_start_appends_governed_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         StartBackgroundWorker {
             worker_id: "worker_001".to_owned(),
             worker_kind: "projection".to_owned(),
@@ -28,7 +28,7 @@ fn worker_start_appends_governed_event() {
 
 #[test]
 fn direct_agent_worker_write_is_rejected() {
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command(
         StartBackgroundWorker {
             worker_id: "worker_001".to_owned(),
             worker_kind: "projection".to_owned(),

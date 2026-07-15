@@ -7,6 +7,8 @@
     "node": "24.17.0"
   },
   "scripts": {
+    "web:build": "pnpm --filter ./apps/web... build",
+    "web:dev": "pnpm --filter ./apps/web... dev",
     "test": "node scripts/s12_ui_boundary_test.mjs && python scripts/ci/test_repo_truth.py",
     "test:inventory": "python scripts/ci/verify_test_inventory.py"
   }

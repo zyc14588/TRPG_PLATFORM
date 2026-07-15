@@ -8,23 +8,19 @@ use trpg_api::contract_core::{
     tool_permission_gate_contract, validate_domain_nats_subject, validate_nats_subject,
     validate_primary_adapter_boundaries, ApiRealtimeEventPayload, ProviderAccessPath,
     COMMAND_ENDPOINT, HTTP_FRAMEWORK, OPENAPI_GENERATOR, REALTIME_DELTA_SUBJECT,
-    SQLX_EVENT_STORE_ADAPTER_BOUNDARY, STAGE_FIXTURE_NATS_SUBJECT, WEBSOCKET_SYNC_ENDPOINT,
+    SQLX_EVENT_STORE_ADAPTER_BOUNDARY, WEBSOCKET_SYNC_ENDPOINT,
 };
 use trpg_api::{
-    api, api_and_transport, batch_029_api_realtime_contracts, nats_subject_contracts, provider,
-    request_idempotency_contract, AuthorityContract, AuthorityMode, EventStore, FormalWritePath,
-    PrincipalScope, TrpgError, Visibility,
+    api, api_and_transport, api_realtime_contracts, nats_subject_contracts, provider,
+    request_idempotency_contract, AuthorityMode, EventStore, FormalWritePath, PrincipalScope,
+    TrpgError, Visibility,
 };
 
 #[test]
 fn batch_029_maps_all_primary_contracts_to_current_safe_modules() {
-    let contracts = batch_029_api_realtime_contracts();
+    let contracts = api_realtime_contracts();
     assert_eq!(contracts.len(), 15);
 
-    let prompt_ids: HashSet<_> = contracts
-        .iter()
-        .map(|contract| contract.prompt_id)
-        .collect();
     for prompt_id in [
         "CODEX-0066-07-API-REALTIME-CONTRACTS-831b0504c2",
         "CODEX-0067-07-API-REALTIME-CONTRACTS-1ccbeea1df",
@@ -42,7 +38,7 @@ fn batch_029_maps_all_primary_contracts_to_current_safe_modules() {
         "CODEX-0696-07-API-REALTIME-CONTRACTS-8bf63a87bb",
         "CODEX-0698-07-API-REALTIME-CONTRACTS-a5b1a48fc3",
     ] {
-        assert!(prompt_ids.contains(prompt_id));
+        trpg_test_support::assert_normalized_prompt_id_exists(prompt_id);
     }
 
     let module_names: HashSet<_> = contracts
@@ -71,7 +67,8 @@ fn command_envelope_authority_and_direct_write_guards_are_enforced() {
     );
     assert!(store.events().is_empty());
 
-    let wrong_authority = AuthorityContract::new("camp_b029", AuthorityMode::AiKp, 1).unwrap();
+    let wrong_authority =
+        trpg_test_support::authority_contract("camp_b029", AuthorityMode::AiKp, 1).unwrap();
     missing_idempotency.idempotency_key = "idem_wrong_authority".to_owned();
     assert_eq!(
         append_api_contract_event(
@@ -81,7 +78,7 @@ fn command_envelope_authority_and_direct_write_guards_are_enforced() {
             &api_contract
         )
         .unwrap_err(),
-        TrpgError::AuthorityContractMutation
+        TrpgError::AuthorityViolation
     );
     assert!(store.events().is_empty());
 
@@ -142,7 +139,7 @@ fn realtime_visibility_and_fact_provenance_survive_replay() {
 
 #[test]
 fn openapi_and_nats_contracts_expose_governed_metadata() {
-    let contracts = batch_029_api_realtime_contracts();
+    let contracts = api_realtime_contracts();
     let document = build_openapi_contract_document(&contracts);
 
     assert_eq!(document.command_endpoint, COMMAND_ENDPOINT);
@@ -201,8 +198,11 @@ fn primary_adapter_boundaries_cover_http_realtime_persistence_and_policy_gates()
     assert!(realtime.visibility_filtered);
     assert!(realtime.reconnect_supported);
     assert!(realtime.multi_room_supported);
-    assert!(realtime.nats_subjects.contains(&STAGE_FIXTURE_NATS_SUBJECT));
-    assert!(validate_domain_nats_subject(STAGE_FIXTURE_NATS_SUBJECT).is_ok());
+    assert_eq!(
+        realtime.replayable_events,
+        trpg_contracts::canonical_event_registry()
+    );
+    assert!(validate_domain_nats_subject("campaign.campaign_001.event.created").is_ok());
     assert!(validate_domain_nats_subject("campaign.*").is_err());
 
     let persistence = persistence_adapter_contract();

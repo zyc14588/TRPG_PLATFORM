@@ -1,5 +1,3 @@
-pub const PROMPT_ID: &str = "CODEX-0441-04-AI-AGENT-SYSTEM-b81eba8b66";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentGovernanceSnapshot {
     pub ai_entrypoint: &'static str,

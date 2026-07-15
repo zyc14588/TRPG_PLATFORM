@@ -1,8 +1,10 @@
+mod common;
+
 use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::workflow_engine;
-use trpg_runtime::{ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EventStore};
+use trpg_runtime::{ActorRole, AuthorityMode};
 
 #[test]
 fn workflow_engine_contract_commits_decision_event_chain() {
@@ -11,14 +13,24 @@ fn workflow_engine_contract_commits_decision_event_chain() {
         RuntimeTool::RequestSkillCheck,
     );
     let decision = RuntimeDecision::new("decision_workflow", "workflow contract", request).unwrap();
-    let command =
-        CommandEnvelope::governed(decision.clone(), ActorRole::Workflow, AuthorityMode::AiKp);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let command = trpg_test_support::governed_command(
+        decision.clone(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let mut store = common::audited_store(&contract);
 
-    let events =
-        workflow_engine::commit_workflow_decision(&mut store, &contract, &command, decision)
-            .unwrap();
+    let events = workflow_engine::commit_workflow_decision(
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .unwrap();
 
     assert_eq!(events[0].event_type, "ToolRequestApproved");
     assert_eq!(events[1].event_type, "DecisionCommitted");

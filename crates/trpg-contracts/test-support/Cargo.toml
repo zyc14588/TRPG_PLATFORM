@@ -1,0 +1,10 @@
+[package]
+name = "trpg-test-support"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "UNLICENSED"
+
+[dependencies]
+trpg-identity = { path = "../../trpg-identity" }
+trpg-shared-kernel = { path = "../../trpg-shared-kernel" }

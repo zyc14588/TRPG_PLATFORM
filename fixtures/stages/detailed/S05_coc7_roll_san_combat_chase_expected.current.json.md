@@ -47,22 +47,27 @@
   "expected_events": [
     {
       "type": "DiceRolled",
+      "schema_version": 1,
       "raw_result": 37,
       "visibility": "public"
     },
     {
       "type": "SkillCheckResolved",
+      "schema_version": 1,
       "success_level": "hard_success"
     },
     {
       "type": "SanityLossApplied",
+      "schema_version": 1,
       "loss": 3
     },
     {
-      "type": "CombatStateUpdated"
+      "type": "CombatStateUpdated",
+      "schema_version": 1
     },
     {
-      "type": "ChaseSegmentResolved"
+      "type": "ChaseSegmentResolved",
+      "schema_version": 1
     }
   ],
   "expected_records": [

@@ -1,9 +1,9 @@
 use crate::runtime_state_machines::{
-    append_runtime_event, commit_decision, RuntimeDecision, RuntimeEventPayload, RuntimeResult,
+    append_runtime_event, commit_decision, EventStore, RuntimeDecision, RuntimeEventPayload,
+    RuntimeResult,
 };
-use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, EventStore};
-
-pub const PROMPT_ID: &str = "CODEX-0389-03-RUNTIME-ORCHESTRATION-1b60a8b386";
+use trpg_identity::AuthenticationContext;
+use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SagaTransactionImplCompensation {
@@ -39,7 +39,16 @@ pub fn commit_saga_transaction_impl_decision(
     store: &mut EventStore<RuntimeEventPayload>,
     contract: &AuthorityContract,
     command: &CommandEnvelope<RuntimeDecision>,
+    workflow_authentication: &AuthenticationContext,
     decision: RuntimeDecision,
+    now_unix_ms: u64,
 ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
-    commit_decision(store, contract, command, decision)
+    commit_decision(
+        store,
+        contract,
+        command,
+        workflow_authentication,
+        decision,
+        now_unix_ms,
+    )
 }

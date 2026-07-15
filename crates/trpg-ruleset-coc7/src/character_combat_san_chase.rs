@@ -99,7 +99,7 @@ pub fn record_character_combat_san_chase_decision<T>(
         contract,
         store,
         command,
-        "coc7.character_combat_san_chase_recorded",
+        trpg_contracts::EventType::Coc7CharacterTrackRecorded.name(),
         "character_combat_san_chase",
         format!("track={:?}", track),
     )

@@ -35,10 +35,17 @@ REQUIRED_SCRIPTS = (
 )
 RELEASE_COMMAND = ["bash", "scripts/ci/test-all.sh"]
 REQUIRED_AUDIT_BLOCKERS = {
-    "AUD-001": "V1 product runtime binary is not implemented",
     "AUD-002": "V1 product container image is not implemented",
     "AUD-006": "V1 Compose services remain explicit placeholders",
 }
+REQUIRED_PRODUCT_BINARIES = {
+    "api-server",
+    "realtime-server",
+    "agent-worker",
+    "admin-server",
+    "migration-runner",
+}
+REQUIRED_WEB_SCRIPTS = {"build", "dev", "preview"}
 
 
 def release_evidence_errors(data: dict, root: Path, artifact_base: Path) -> list[str]:
@@ -60,8 +67,23 @@ def assess(root: Path, evidence: Path | None = None) -> dict:
         {"id": audit_id, "reason": reason}
         for audit_id, reason in REQUIRED_AUDIT_BLOCKERS.items()
     ]
-    if not cargo_targets(root, "bin"):
-        blockers.append({"id": "NO_PRODUCT_BINARY", "reason": "Cargo has no product binary target"})
+    missing_binaries = REQUIRED_PRODUCT_BINARIES - cargo_targets(root, "bin")
+    blockers.extend(
+        {"id": "MISSING_PRODUCT_BINARY", "reason": binary}
+        for binary in sorted(missing_binaries)
+    )
+
+    web_package_path = root / "apps/web/package.json"
+    try:
+        web_package = json.loads(web_package_path.read_text(encoding="utf-8"))
+        web_scripts = set(web_package.get("scripts", {}))
+    except (OSError, json.JSONDecodeError):
+        web_scripts = set()
+    for path in ("apps/web/index.html", "apps/web/src/app.js"):
+        if not (root / path).is_file():
+            blockers.append({"id": "MISSING_WEB_ENTRYPOINT", "reason": path})
+    for script in sorted(REQUIRED_WEB_SCRIPTS - web_scripts):
+        blockers.append({"id": "MISSING_WEB_SCRIPT", "reason": script})
 
     dockerfiles = [path for path in git_files(root) if Path(path).name.startswith("Dockerfile")]
     if not dockerfiles:

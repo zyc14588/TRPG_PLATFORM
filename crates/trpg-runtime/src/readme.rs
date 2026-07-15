@@ -1,6 +1,3 @@
-pub const PROMPT_ID: &str = "CODEX-0358-03-RUNTIME-ORCHESTRATION-5626fcbd5c";
-pub const SUPPLEMENTAL_PROMPT_IDS: &[&str] = &["CODEX-0374-03-RUNTIME-ORCHESTRATION-989f2ac19c"];
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeReadmeContract {
     pub module_prefix: &'static str,

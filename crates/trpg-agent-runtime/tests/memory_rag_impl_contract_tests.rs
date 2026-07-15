@@ -1,10 +1,10 @@
 use trpg_agent_runtime::memory_rag_impl;
 use trpg_agent_runtime::rag_snapshot::RagChunk;
 use trpg_agent_runtime::{
-    ActorRole, AgentDecision, AgentKind, AgentTool, CommandEnvelope, ContextFact, EventStore,
-    PrincipalScope, ToolRequest, Visibility, VisibilityLabel, BATCH_019_PRIMARY_MODULES,
-    BATCH_019_PROMPT_IDS,
+    ActorRole, AgentDecision, AgentKind, AgentTool, ContextFact, PrincipalScope, ToolRequest,
+    Visibility, VisibilityLabel,
 };
+use trpg_shared_kernel::EventStore;
 
 fn chunks() -> Vec<RagChunk> {
     vec![
@@ -30,12 +30,18 @@ fn chunks() -> Vec<RagChunk> {
 #[test]
 fn memory_rag_impl_maps_batch_019_primary_contract() {
     assert_eq!(
-        memory_rag_impl::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-agent-runtime", "memory_rag_impl"),
         "CODEX-0483-04-AI-AGENT-SYSTEM-a577767984"
     );
-    assert_eq!(BATCH_019_PROMPT_IDS.len(), 25);
-    assert_eq!(BATCH_019_PRIMARY_MODULES.len(), 4);
-    assert!(BATCH_019_PROMPT_IDS.contains(&memory_rag_impl::PROMPT_ID));
+    let modules = trpg_test_support::normalized_product_modules("trpg-agent-runtime");
+    for module in [
+        "agent_runtime::memory_rag_impl",
+        "agent_runtime::model_provider_local_cloud_impl",
+        "agent_runtime::rag_snapshot_impl",
+        "agent_runtime::adr_0009_agent_governance",
+    ] {
+        assert!(modules.iter().any(|candidate| candidate == module));
+    }
 }
 
 #[test]
@@ -57,15 +63,26 @@ fn memory_rag_impl_filters_context_chunks_and_replay_by_visibility() {
         AgentKind::AiKeeperOrchestrator,
         AgentTool::RequestSkillCheck,
     );
-    let decision = AgentDecision::new("decision_memory_rag_b019", request, "check").unwrap();
-    let mut command = CommandEnvelope::governed(
+    let authentication = trpg_test_support::ai_keeper_authentication("camp_ai_harbor");
+    let decision = AgentDecision::new(
+        "decision_memory_rag_b019",
+        request,
+        "check",
+        &authentication,
+    )
+    .unwrap();
+    let mut command = trpg_test_support::governed_command(
         decision.clone(),
         ActorRole::Workflow,
         trpg_agent_runtime::AuthorityMode::AiKp,
     );
     command.visibility = Visibility::new(VisibilityLabel::Public);
     store
-        .append(&command, "MemoryRagSourceEvent", decision)
+        .append(
+            &command,
+            "MemoryRagSourceEvent",
+            "memory_rag_source".to_owned(),
+        )
         .unwrap();
 
     let view = memory_rag_impl::assemble_memory_rag_view(

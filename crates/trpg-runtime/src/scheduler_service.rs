@@ -1,7 +1,5 @@
 use trpg_shared_kernel::EntityId;
 
-pub const PROMPT_ID: &str = "CODEX-0037-03-RUNTIME-ORCHESTRATION-c9bd0a0635";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScheduledRuntimeTask {
     pub task_id: EntityId,

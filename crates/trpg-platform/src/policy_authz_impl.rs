@@ -25,7 +25,7 @@ pub struct EvaluatePlatformAuthorization {
     pub decision: AuthorizationDecision,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum PolicyAuthzEvent {
     PlatformAuthorizationGranted {
         principal: String,

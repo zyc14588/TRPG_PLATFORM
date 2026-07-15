@@ -1,0 +1,10 @@
+[package]
+name = "admin-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "UNLICENSED"
+
+[dependencies]
+trpg-contracts = { path = "../../crates/trpg-contracts" }
+trpg-platform = { path = "../../crates/trpg-platform" }

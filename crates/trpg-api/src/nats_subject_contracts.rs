@@ -1,5 +1,4 @@
 crate::define_api_realtime_contract_module!(
-    "CODEX-0068-07-API-REALTIME-CONTRACTS-2b78603401",
     "nats_subject_contracts",
     "NatsSubjectContractRecorded",
     "nats_subject_contracts.event_schema",

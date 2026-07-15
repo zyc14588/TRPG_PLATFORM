@@ -3,7 +3,7 @@ use trpg_data_eventing::{
     DataEventWrite, EventStore, FactProvenance, PrincipalScope, ProvenanceKind, TrpgError,
     Visibility, VisibilityLabel,
 };
-use trpg_data_eventing::{ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId};
+use trpg_data_eventing::{ActorRole, AuthorityMode, CommandEnvelope, EntityId};
 
 const S03_STAGE_FIXTURE: &str =
     include_str!("../../../fixtures/stages/S03_stage_acceptance_fixture.v1.json.md");
@@ -49,8 +49,9 @@ fn s03_fixtures_are_bound_to_event_store_contract_assertions() {
 
 #[test]
 fn event_store_contract_enforces_version_idempotency_and_visibility() {
-    let contract = AuthorityContract::new("campaign_camp_ai_harbor", AuthorityMode::AiKp, 1)
-        .expect("valid authority contract");
+    let contract =
+        trpg_test_support::authority_contract("campaign_camp_ai_harbor", AuthorityMode::AiKp, 1)
+            .expect("valid authority contract");
     let mut store: EventStore<DataEventPayload> = EventStore::default();
     let player_a = EntityId::new("user_player_a").unwrap();
     let player_b = EntityId::new("user_player_b").unwrap();
@@ -197,11 +198,28 @@ fn migration_entry_is_repeatable_sqlx_evidence() {
     assert!(!DATA_EVENTING_MIGRATION.contains("v5"));
 
     let statements = persistence_migrations::migration_statements();
-    assert_eq!(statements.len(), 3);
+    assert_eq!(
+        statements.iter().map(|(name, _)| *name).collect::<Vec<_>>(),
+        vec![
+            persistence_migrations::EVENT_STORE_MIGRATION_NAME,
+            persistence_migrations::EVENT_OUTBOX_MIGRATION_NAME,
+            persistence_migrations::PROJECTION_CHECKPOINT_MIGRATION_NAME,
+            persistence_migrations::CANONICAL_COMMIT_PROTOCOL_MIGRATION_NAME,
+        ]
+    );
     for (name, sql) in statements {
         assert!(trpg_data_eventing::is_current_safe_name(name));
         assert!(sql.contains("CREATE TABLE"));
     }
+    assert_contains_all(
+        persistence_migrations::CANONICAL_COMMIT_PROTOCOL_MIGRATION_SQL,
+        &[
+            "CREATE TABLE IF NOT EXISTS canonical_audit_log",
+            "CREATE TABLE IF NOT EXISTS formal_commits",
+            "ALTER TABLE event_store",
+            "ALTER TABLE event_outbox",
+        ],
+    );
 }
 
 #[test]
@@ -233,7 +251,11 @@ fn governed_command(
     visibility: Visibility,
 ) -> CommandEnvelope<()> {
     let idempotency_key = idempotency_key.into();
-    let mut command = CommandEnvelope::governed((), ActorRole::Workflow, AuthorityMode::AiKp);
+    let authority =
+        trpg_test_support::authority_contract("campaign_camp_ai_harbor", AuthorityMode::AiKp, 1)
+            .expect("valid authority contract");
+    let mut command =
+        trpg_test_support::governed_command_for_contract(&authority, (), ActorRole::Workflow);
     command.command_id = EntityId::new(format!("command_{idempotency_key}")).unwrap();
     command.idempotency_key = idempotency_key.clone();
     command.expected_version = expected_version;

@@ -27,8 +27,5 @@ fn time_and_clue_decision_are_governed_events() {
         record_investigation_clue_npc_time_decision(&contract, &mut store, &command, &resolution)
             .unwrap();
 
-    assert_eq!(
-        event.event_type,
-        "coc7.investigation_clue_npc_time_recorded"
-    );
+    assert_eq!(event.event_type, "ClueRevealed");
 }

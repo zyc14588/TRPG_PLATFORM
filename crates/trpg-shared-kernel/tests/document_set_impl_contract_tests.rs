@@ -3,9 +3,7 @@ use trpg_shared_kernel::document_set_impl::{
     append_document_set_impl_reviewed, document_set_impl_review, document_set_landing,
     validate_document_set_landing,
 };
-use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, TrpgError,
-};
+use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 
 #[test]
 fn document_set_impl_landing_accepts_current_document_set() {
@@ -31,7 +29,7 @@ fn document_set_impl_landing_rejects_incomplete_document_set() {
 
 #[test]
 fn document_set_impl_review_is_recorded_as_a_governed_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         document_set_impl_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,

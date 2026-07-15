@@ -26,5 +26,13 @@ fn engine_decision_is_event_logged() {
     )
     .unwrap();
 
-    assert_eq!(event.event_type, "coc7.rules_engine_decision_recorded");
+    assert_eq!(event.event_type, "CombatStateUpdated");
+    assert_eq!(event.payload.schema_version, 1);
+}
+
+#[test]
+fn unregistered_event_is_rejected_before_event_store_append() {
+    let error = trpg_ruleset_coc7::validate_coc7_event_contract("UnregisteredEvent").unwrap_err();
+
+    assert_eq!(error.code(), "EVENT_CONTRACT_UNKNOWN");
 }

@@ -4,11 +4,15 @@ use trpg_shared_kernel::{
 };
 
 pub fn human_contract() -> AuthorityContract {
-    AuthorityContract::new("camp_b021", AuthorityMode::HumanKp, 1).unwrap()
+    trpg_test_support::authority_contract("camp_b021", AuthorityMode::HumanKp, 1).unwrap()
 }
 
 pub fn rules_command<T>(payload: T) -> CommandEnvelope<T> {
-    CommandEnvelope::governed(payload, ActorRole::RulesEngine, AuthorityMode::HumanKp)
+    trpg_test_support::governed_command_for_contract(
+        &human_contract(),
+        payload,
+        ActorRole::RulesEngine,
+    )
 }
 
 pub fn event_store() -> EventStore<Coc7EventPayload> {

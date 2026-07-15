@@ -16,7 +16,7 @@ fn agent_pack_sdk_records_governed_event() {
 
 #[test]
 fn agent_pack_sdk_requires_gateway_and_level_four_provider_for_keeper() {
-    let manifest = AgentPackManifest::fixture();
+    let manifest = AgentPackManifest::new("coc7_sample_agent_pack", "agent_pack.v1", 4);
 
     assert!(manifest.can_run_keeper_orchestrator());
     assert!(!manifest.direct_model_access_allowed());

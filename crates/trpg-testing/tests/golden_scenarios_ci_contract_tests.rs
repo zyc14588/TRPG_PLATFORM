@@ -76,10 +76,14 @@ fn golden_scenarios_ci_rejects_direct_agent_and_authority_bypass() {
 
     let mut authority_command = command_for_contract(&contract);
     authority_command.authority_mode = AuthorityMode::AiKp;
-    authority_command.actor =
-        Actor::new("actor_human_keeper", ActorRole::HumanKeeper).expect("valid actor");
+    authority_command.actor = Actor::authenticated_user(
+        "actor_human_keeper",
+        ActorRole::HumanKeeper,
+        "session_human_keeper",
+    )
+    .expect("valid actor");
     let authority_error = golden_scenarios_ci::evaluate(&mut repository, &authority_command)
         .expect_err("authority mismatch rejected");
-    assert_eq!(authority_error.code(), "AUTHORITY_VIOLATION");
+    assert_eq!(authority_error.code(), "INTERNAL_IDENTITY_INVALID");
     assert!(repository.events().is_empty());
 }

@@ -2,7 +2,6 @@ crate::define_extension_sdk_module!(
     ToolProviderSdkCommand,
     ToolProviderSdkService,
     append_tool_provider_sdk_event,
-    "CODEX-0107-12-EXTENSION-SDK-18948e0a9e",
     "tool_provider_sdk",
     "ExtensionToolProviderSdkRecorded",
     crate::ExtensionOperation::ToolProviderSdk,
@@ -16,7 +15,7 @@ crate::define_extension_sdk_module!(
         crate::ExtensionCapability::InvokeGrantedTool,
         crate::ExtensionCapability::ReadProjection,
     ],
-    "evidence/batches/BATCH-044/tool-provider-sdk.md"
+    "extensions/tool-provider"
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,12 +27,17 @@ pub struct ToolProviderManifest {
 }
 
 impl ToolProviderManifest {
-    pub fn fixture() -> Self {
+    pub fn new(
+        provider_id: impl Into<String>,
+        tool_schema_version: impl Into<String>,
+        returns_visibility_labels: bool,
+        returns_fact_provenance: bool,
+    ) -> Self {
         Self {
-            provider_id: "coc7_sample_tool_provider".to_owned(),
-            tool_schema_version: "tool_schema.v1".to_owned(),
-            returns_visibility_labels: true,
-            returns_fact_provenance: true,
+            provider_id: provider_id.into(),
+            tool_schema_version: tool_schema_version.into(),
+            returns_visibility_labels,
+            returns_fact_provenance,
         }
     }
 

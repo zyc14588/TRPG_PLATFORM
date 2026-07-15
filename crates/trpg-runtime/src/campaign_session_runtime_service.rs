@@ -1,8 +1,7 @@
-use crate::runtime_state_machines::{append_runtime_event, RuntimeEventPayload, RuntimeResult};
-use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, EventStore};
-
-pub const PROMPT_ID: &str = "CODEX-0355-03-RUNTIME-ORCHESTRATION-bbee275591";
-pub const SUPPLEMENTAL_PROMPT_IDS: &[&str] = &["CODEX-0371-03-RUNTIME-ORCHESTRATION-cc05673cc7"];
+use crate::runtime_state_machines::{
+    append_runtime_event, EventStore, RuntimeEventPayload, RuntimeResult,
+};
+use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope};
 
 pub fn start_campaign_session<T: Clone>(
     store: &mut EventStore<RuntimeEventPayload>,

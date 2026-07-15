@@ -21,7 +21,7 @@ pub struct RecordReliabilityPerformanceGuard {
     pub projection_lag_events: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum ReliabilityPerformanceEvent {
     ReliabilityPerformanceGuardRecorded {
         operation: String,

@@ -2,13 +2,11 @@ use trpg_platform::observability_audit_trace::{
     record_audit_trace, RecordAuditTrace, AUDIT_TRACE_RECORDED_EVENT,
 };
 use trpg_platform::{PlatformEvent, PlatformEventStore};
-use trpg_shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, TrpgError, Visibility, VisibilityLabel,
-};
+use trpg_shared_kernel::{ActorRole, AuthorityMode, TrpgError, Visibility, VisibilityLabel};
 
 #[test]
 fn audit_trace_redacts_restricted_detail() {
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command(
         RecordAuditTrace {
             action: "inspect_health".to_owned(),
             detail: "system_private_value".to_owned(),
@@ -30,7 +28,7 @@ fn audit_trace_redacts_restricted_detail() {
 
 #[test]
 fn audit_trace_requires_idempotency_key() {
-    let mut command = CommandEnvelope::governed(
+    let mut command = trpg_test_support::governed_command(
         RecordAuditTrace {
             action: "inspect_health".to_owned(),
             detail: "ok".to_owned(),

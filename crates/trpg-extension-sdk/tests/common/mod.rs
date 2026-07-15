@@ -25,10 +25,9 @@ where
     assert!(contract
         .required_command_fields
         .contains(&"expected_version"));
-    assert!(contract
-        .forbidden_capabilities
-        .iter()
-        .any(|capability| capability.denial_code() == "EXTENSION_DIRECT_LLM_FORBIDDEN"));
+    assert!(contract.forbidden_capabilities.iter().any(|capability| {
+        capability.denial_code().as_str() == "EXTENSION_DIRECT_LLM_FORBIDDEN"
+    }));
 
     let authority = authority_contract();
     let mut store = ExtensionEventStore::default();
@@ -46,9 +45,7 @@ where
         ExtensionEvent::ContractRecorded(record) => {
             assert_eq!(record.module_name, contract.module_name);
             assert_eq!(record.operation, contract.operation);
-            assert!(record
-                .evidence_path
-                .starts_with("evidence/batches/BATCH-044/"));
+            assert!(record.evidence_path.starts_with("extensions/"));
             assert!(record
                 .capabilities
                 .iter()
@@ -95,10 +92,11 @@ where
         "idem_wrong_authority",
         Visibility::new(VisibilityLabel::SystemOnly),
     );
-    wrong_authority.actor = Actor::new("human_keeper", ActorRole::HumanKeeper).unwrap();
+    wrong_authority.actor =
+        Actor::authenticated_user("human_keeper", ActorRole::HumanKeeper, "session_wrong").unwrap();
     let authority_error = append(&mut store, &authority, &wrong_authority)
         .expect_err("AI_KP command path cannot accept human KP formal writes");
-    assert_eq!(authority_error, TrpgError::AuthorityViolation);
+    assert_eq!(authority_error, TrpgError::AuthorityOwnerMismatch);
 
     let mut direct_agent = governed_command(
         payload,
@@ -200,7 +198,7 @@ where
 }
 
 pub fn authority_contract() -> AuthorityContract {
-    AuthorityContract::new("campaign_extension_001", AuthorityMode::AiKp, 1).unwrap()
+    trpg_test_support::authority_contract("campaign_extension_001", AuthorityMode::AiKp, 1).unwrap()
 }
 
 pub fn governed_command<T>(
@@ -209,7 +207,9 @@ pub fn governed_command<T>(
     idempotency_key: &'static str,
     visibility: Visibility,
 ) -> CommandEnvelope<T> {
-    let mut command = CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp);
+    let authority = authority_contract();
+    let mut command =
+        trpg_test_support::governed_command_for_contract(&authority, payload, ActorRole::Workflow);
     command.command_id = EntityId::new(format!("command_{idempotency_key}")).unwrap();
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;

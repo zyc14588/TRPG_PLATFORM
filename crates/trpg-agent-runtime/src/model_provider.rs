@@ -1,7 +1,5 @@
 use crate::agent_runtime::{AgentError, AgentResult};
 
-pub const PROMPT_ID: &str = "CODEX-0046-04-AI-AGENT-SYSTEM-6468c9be5b";
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProviderType {
     Cloud,

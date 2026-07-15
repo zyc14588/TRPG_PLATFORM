@@ -32,6 +32,8 @@ jobs:
         run: corepack enable && corepack prepare pnpm@11.9.0 --activate
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
+      - name: Start pinned P02 integration services
+        run: bash scripts/ci/p02-integration-services.sh "$GITHUB_ENV"
       - name: Full CI with evidence
         run: |
           mkdir -p "$RUNNER_TEMP/workspace-ci"

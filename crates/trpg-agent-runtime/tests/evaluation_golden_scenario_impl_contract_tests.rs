@@ -4,7 +4,10 @@ use trpg_agent_runtime::{AgentKind, AgentTool, AuthorityMode, ToolRequest};
 #[test]
 fn evaluation_golden_scenario_impl_rejects_prompt_injection_and_redacts_output() {
     assert_eq!(
-        evaluation_golden_scenario_impl::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id(
+            "trpg-agent-runtime",
+            "evaluation_golden_scenario_impl"
+        ),
         "CODEX-0482-04-AI-AGENT-SYSTEM-412537829d"
     );
     let request = ToolRequest::formal(
@@ -51,6 +54,9 @@ fn evaluation_golden_scenario_impl_keeps_tool_permission_gate() {
     );
 
     assert!(!evaluation.accepted);
-    assert_eq!(evaluation.rejection_error, Some("ToolPermissionDenied"));
-    assert_eq!(evaluation.tool_decision.error, Some("ToolPermissionDenied"));
+    assert_eq!(evaluation.rejection_error, Some("TOOL_PERMISSION_DENIED"));
+    assert_eq!(
+        evaluation.tool_decision.error,
+        Some("TOOL_PERMISSION_DENIED")
+    );
 }

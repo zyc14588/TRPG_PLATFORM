@@ -21,7 +21,7 @@ pub struct ReviewSecurityPrivacyCopyrightPolicy {
     pub export_allowed: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum SecurityPrivacyCopyrightEvent {
     SecurityPrivacyCopyrightReviewed {
         asset_id: String,

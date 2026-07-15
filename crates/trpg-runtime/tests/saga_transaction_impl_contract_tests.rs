@@ -1,11 +1,12 @@
+mod common;
+
 use trpg_runtime::runtime_state_machines::{
-    RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeModule, RuntimeTool, ToolRequest,
-    BATCH_014_PRIMARY_MODULES,
+    RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::saga_transaction_impl::{self, SagaTransactionImplCompensation};
 use trpg_runtime::{
-    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventStore,
-    FormalWritePath, PrincipalScope, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, EntityId, FormalWritePath, Visibility,
+    VisibilityLabel,
 };
 
 fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
@@ -13,7 +14,7 @@ fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
 }
 
 fn command(payload: RuntimeDecision) -> CommandEnvelope<RuntimeDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 fn string_command(
@@ -21,8 +22,11 @@ fn string_command(
     expected_version: u64,
     idempotency_key: &str,
 ) -> CommandEnvelope<String> {
-    let mut command =
-        CommandEnvelope::governed(payload.to_owned(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        payload.to_owned(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     command.command_id =
         EntityId::new(format!("command_{idempotency_key}")).expect("valid command id");
     command.idempotency_key = idempotency_key.to_owned();
@@ -34,10 +38,10 @@ fn string_command(
 #[test]
 fn saga_transaction_impl_preserves_governed_decision_event_contract() {
     assert_eq!(
-        saga_transaction_impl::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "saga_transaction_impl"),
         "CODEX-0389-03-RUNTIME-ORCHESTRATION-1b60a8b386"
     );
-    assert!(BATCH_014_PRIMARY_MODULES.contains(&RuntimeModule::SagaTransactionImpl));
+    trpg_test_support::assert_normalized_product_module("trpg-runtime", "saga_transaction_impl");
 
     let request = ToolRequest::formal(
         RuntimeAgent::AiKeeperOrchestrator,
@@ -46,11 +50,17 @@ fn saga_transaction_impl_preserves_governed_decision_event_contract() {
     let decision = decision("decision_b014_saga", request);
     let mut command = command(decision.clone());
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let mut store = common::audited_store(&contract);
 
     let events = saga_transaction_impl::commit_saga_transaction_impl_decision(
-        &mut store, &contract, &command, decision,
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap();
 
@@ -65,8 +75,10 @@ fn saga_transaction_impl_preserves_governed_decision_event_contract() {
     )
     .unwrap();
     assert_eq!(saga_event.event_type, "SagaCompensated");
-    assert!(store.replay_visible(&PrincipalScope::Public).is_empty());
-    assert_eq!(store.replay_visible(&PrincipalScope::Keeper).len(), 3);
+    let player = trpg_test_support::player_replay_authorization(&contract);
+    let system = trpg_test_support::system_replay_authorization(&contract);
+    assert!(store.replay_visible(&player, 206).unwrap().is_empty());
+    assert_eq!(store.replay_visible(&system, 206).unwrap().len(), 3);
     for event in store.events() {
         assert_eq!(event.visibility.label(), &VisibilityLabel::KeeperOnly);
         assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
@@ -87,7 +99,8 @@ fn saga_transaction_impl_preserves_governed_decision_event_contract() {
 
 #[test]
 fn saga_transaction_impl_denies_contract_tool_gate_and_direct_agent_write() {
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     assert_eq!(
         contract.fork(AuthorityMode::HumanKp, 1).unwrap_err().code(),
         "AUTHORITY_CONTRACT_MUTATION"
@@ -101,18 +114,20 @@ fn saga_transaction_impl_denies_contract_tool_gate_and_direct_agent_write() {
         ),
     );
     let wrong_contract =
-        AuthorityContract::new("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
-    let mut store = EventStore::default();
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         saga_transaction_impl::commit_saga_transaction_impl_decision(
             &mut store,
             &wrong_contract,
             &command(allowed.clone()),
+            &trpg_test_support::workflow_authentication(),
             allowed,
+            2,
         )
         .unwrap_err()
         .code(),
-        "AUTHORITY_CONTRACT_MUTATION"
+        "AUTHORITY_VIOLATION"
     );
     assert!(store.events().is_empty());
 
@@ -120,13 +135,15 @@ fn saga_transaction_impl_denies_contract_tool_gate_and_direct_agent_write() {
         "decision_b014_saga_tool",
         ToolRequest::formal(RuntimeAgent::AtmosphereWriter, RuntimeTool::ChangeScene),
     );
-    let mut store = EventStore::default();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         saga_transaction_impl::commit_saga_transaction_impl_decision(
             &mut store,
             &contract,
             &command(denied.clone()),
+            &trpg_test_support::workflow_authentication(),
             denied,
+            2,
         )
         .unwrap_err()
         .code(),
@@ -143,13 +160,15 @@ fn saga_transaction_impl_denies_contract_tool_gate_and_direct_agent_write() {
     );
     let mut direct_command = command(direct.clone());
     direct_command.write_path = FormalWritePath::DirectAgent;
-    let mut store = EventStore::default();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         saga_transaction_impl::commit_saga_transaction_impl_decision(
             &mut store,
             &contract,
             &direct_command,
+            &trpg_test_support::workflow_authentication(),
             direct,
+            2,
         )
         .unwrap_err()
         .code(),

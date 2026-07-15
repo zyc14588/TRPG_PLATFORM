@@ -18,7 +18,7 @@ fn endpoint() -> ProviderEndpoint {
 }
 
 fn command() -> CommandEnvelope<ApplyDeploymentOperation> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command(
         ApplyDeploymentOperation {
             deployment_id: "deployment_001".to_owned(),
             environment: DeploymentEnvironment::Production,
@@ -31,7 +31,7 @@ fn command() -> CommandEnvelope<ApplyDeploymentOperation> {
 
 #[test]
 fn deployment_ops_impl_rejects_authority_contract_violation() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         command().payload,
         ActorRole::AiKeeper,
         AuthorityMode::HumanKp,

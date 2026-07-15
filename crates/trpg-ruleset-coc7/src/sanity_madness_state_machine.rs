@@ -58,7 +58,7 @@ pub fn record_sanity_madness_transition<T>(
         contract,
         store,
         command,
-        "coc7.sanity_transition_recorded",
+        trpg_contracts::EventType::Coc7SanityTransitionRecorded.name(),
         "sanity_madness_state_machine",
         format!(
             "sanity {}->{} loss={} state={:?}",

@@ -9,8 +9,12 @@ use trpg_data_eventing::{
 fn adr_0002_contract_uses_b027_current_safe_owner_and_module() {
     let contract = adr_0002_event_sourcing_cqrs::contract();
 
-    assert_eq!(contract.prompt_id, "CODEX-0661-06-DATA-EVENTING-d4c088ceeb");
     assert_eq!(contract.module_name, "adr_0002_event_sourcing_cqrs");
+    trpg_test_support::assert_normalized_prompt_binding(
+        "trpg-data-eventing",
+        contract.module_name,
+        "CODEX-0661-06-DATA-EVENTING-d4c088ceeb",
+    );
     assert_eq!(contract.event_store_table, EVENT_STORE_TABLE);
     assert_eq!(contract.outbox_table, OUTBOX_TABLE);
     assert!(contract.uses_current_safe_names());
@@ -26,7 +30,7 @@ fn adr_0002_contract_uses_b027_current_safe_owner_and_module() {
     let all = all_data_event_contracts();
     let b027 = all
         .iter()
-        .find(|contract| contract.prompt_id == "CODEX-0661-06-DATA-EVENTING-d4c088ceeb")
+        .find(|contract| contract.module_name == "adr_0002_event_sourcing_cqrs")
         .expect("B027 ADR-0002 primary contract is registered");
     assert_eq!(b027.module_name, "adr_0002_event_sourcing_cqrs");
 }
@@ -109,17 +113,18 @@ fn adr_0002_rejects_authority_version_idempotency_and_bypass_failures() {
 }
 
 fn authority_contract() -> AuthorityContract {
-    AuthorityContract::new("campaign_b027_adr0002", AuthorityMode::AiKp, 1).unwrap()
+    trpg_test_support::authority_contract("campaign_b027_adr0002", AuthorityMode::AiKp, 1).unwrap()
 }
 
 fn governed_command(
     expected_version: u64,
     idempotency_key: &str,
 ) -> CommandEnvelope<adr_0002_event_sourcing_cqrs::Adr0002EventSourcingCqrsCommand> {
-    let mut command = CommandEnvelope::governed(
+    let authority = authority_contract();
+    let mut command = trpg_test_support::governed_command_for_contract(
+        &authority,
         adr_0002_event_sourcing_cqrs::Adr0002EventSourcingCqrsCommand::record("B027 ADR-0002"),
         ActorRole::Workflow,
-        AuthorityMode::AiKp,
     );
     command.command_id =
         trpg_data_eventing::EntityId::new(format!("command_{idempotency_key}")).unwrap();

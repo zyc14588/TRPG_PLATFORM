@@ -5,11 +5,13 @@ fn readme_contract_records_runtime_governance_invariants() {
     let contract = readme::runtime_readme_contract();
 
     assert_eq!(
-        readme::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "readme"),
         "CODEX-0358-03-RUNTIME-ORCHESTRATION-5626fcbd5c"
     );
     assert!(
-        readme::SUPPLEMENTAL_PROMPT_IDS.contains(&"CODEX-0374-03-RUNTIME-ORCHESTRATION-989f2ac19c")
+        trpg_test_support::normalized_prompt_ids_for_module("trpg-runtime", "readme")
+            .iter()
+            .any(|prompt_id| prompt_id == "CODEX-0374-03-RUNTIME-ORCHESTRATION-989f2ac19c")
     );
     assert_eq!(contract.crate_name, "trpg-runtime");
     assert_eq!(contract.module_prefix, "runtime_orchestration");

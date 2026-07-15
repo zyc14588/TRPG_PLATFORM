@@ -4,6 +4,7 @@ pub mod capability_layer;
 pub mod capability_layer_impl;
 pub mod capability_layer_tool_grant;
 pub mod capability_tool_grant;
+pub mod durable_workflow;
 pub mod pending_decision;
 pub mod pending_decision_impl;
 pub mod readme;
@@ -25,7 +26,12 @@ pub mod session_runtime_impl;
 pub mod workflow_engine;
 pub mod workflow_engine_impl;
 
+pub use runtime_state_machines::{EventStore, RuntimeEventPayload};
+pub use trpg_identity::ReplayAuthorization;
+pub use trpg_security_governance::formal_commit_audit::{
+    FormalCommitAudit, FormalCommitAuthorizer,
+};
 pub use trpg_shared_kernel::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
-    EventStore, FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
+    FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
 };

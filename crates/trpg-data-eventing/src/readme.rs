@@ -2,7 +2,6 @@ crate::define_data_event_module!(
     ReadmeCommand,
     ReadmeOperation,
     append_readme_event,
-    "CODEX-0615-06-DATA-EVENTING-58af1867fc",
     "readme",
     "DataEventingReadmeTraceRecorded",
     "data_eventing.readme.event_schema",

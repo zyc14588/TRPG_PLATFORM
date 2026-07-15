@@ -7,8 +7,6 @@ use crate::agent_runtime::{
 };
 use trpg_shared_kernel::{AuthorityContract, CommandEnvelope};
 
-pub const PROMPT_ID: &str = "CODEX-0507-04-AI-AGENT-SYSTEM-a1e5d3d499";
-
 pub fn current_agent_governance_snapshot() -> AgentGovernanceSnapshot {
     agent_governance_snapshot()
 }

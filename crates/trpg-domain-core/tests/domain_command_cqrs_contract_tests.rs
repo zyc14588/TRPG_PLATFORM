@@ -1,20 +1,18 @@
-use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::command_cqrs::{CommandAcceptedPayload, DomainCommandKind};
-use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, DomainError, EventStore, FactSource,
-};
+use trpg_domain_core::ddd::{ActorRole, AuthorityMode, DomainError, EventStore, FactSource};
 use trpg_domain_core::domain_command_cqrs::{decide_and_append, DomainCommandDecision};
 
 #[test]
 fn domain_command_cqrs_preserves_idempotency_and_expected_version() {
-    let contract = DomainAuthorityContract::new_locked(
+    let contract = trpg_test_support::authority_contract_with_owner(
         "campaign_001",
         AuthorityMode::AiKp,
         "ai_keeper_001",
         1,
     )
     .unwrap();
-    let command = CommandEnvelope::governed("rule", ActorRole::Workflow, AuthorityMode::AiKp);
+    let command =
+        trpg_test_support::governed_command_for_contract(&contract, "rule", ActorRole::Workflow);
     let decision = DomainCommandDecision::command_accepted(
         DomainCommandKind::RecordDecision,
         FactSource::GameEvent,
@@ -35,14 +33,15 @@ fn domain_command_cqrs_preserves_idempotency_and_expected_version() {
 
 #[test]
 fn domain_command_cqrs_blocks_ai_keeper_actor_from_formal_ai_kp_write() {
-    let contract = DomainAuthorityContract::new_locked(
+    let contract = trpg_test_support::authority_contract_with_owner(
         "campaign_001",
         AuthorityMode::AiKp,
         "ai_keeper_001",
         1,
     )
     .unwrap();
-    let command = CommandEnvelope::governed("ruling", ActorRole::AiKeeper, AuthorityMode::AiKp);
+    let command =
+        trpg_test_support::governed_command_for_contract(&contract, "ruling", ActorRole::AiKeeper);
     let decision = DomainCommandDecision::command_accepted(
         DomainCommandKind::RecordDecision,
         FactSource::GameEvent,

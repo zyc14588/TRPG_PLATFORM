@@ -81,10 +81,15 @@ fn b024_contracts_map_all_primary_prompts_to_current_safe_outputs() {
     for (prompt_id, module_name) in expected {
         let contract = contracts
             .iter()
-            .find(|contract| contract.prompt_id == prompt_id)
+            .find(|contract| contract.module_name == module_name)
             .expect("B024 primary prompt has a contract");
 
         assert_eq!(contract.module_name, module_name);
+        trpg_test_support::assert_normalized_prompt_binding(
+            "trpg-data-eventing",
+            contract.module_name,
+            prompt_id,
+        );
         assert_eq!(contract.event_store_table, EVENT_STORE_TABLE);
         assert_eq!(contract.outbox_table, OUTBOX_TABLE);
         assert!(contract.uses_current_safe_names());
@@ -235,7 +240,7 @@ fn b024_blocks_direct_agent_business_and_authority_contract_bypass() {
     let error =
         cache_redis::append_cache_redis_event(&mut store, &contract, &mutated_contract_version)
             .unwrap_err();
-    assert_eq!(error.code(), "AUTHORITY_CONTRACT_MUTATION");
+    assert_eq!(error.code(), "AUTHORITY_CONTRACT_VERSION_CONFLICT");
     assert!(store.events().is_empty());
 }
 
@@ -377,7 +382,7 @@ fn b024_declares_required_command_event_schema_fields() {
 #[test]
 fn b024_declares_current_safe_sqlx_migration_contract() {
     let statements = persistence_migrations::migration_statements();
-    assert_eq!(statements.len(), 3);
+    assert_eq!(statements.len(), 4);
 
     for (name, sql) in statements {
         assert!(is_current_safe_name(name));
@@ -413,10 +418,21 @@ fn b024_declares_current_safe_sqlx_migration_contract() {
     ] {
         assert!(outbox_sql.contains(required));
     }
+
+    let canonical_sql = persistence_migrations::CANONICAL_COMMIT_PROTOCOL_MIGRATION_SQL;
+    for required in [
+        "canonical_audit_log",
+        "formal_commits",
+        "workflow_instances",
+        "event_integrity_hash",
+        "reject_canonical_append_mutation",
+    ] {
+        assert!(canonical_sql.contains(required));
+    }
 }
 
 fn authority_contract(mode: AuthorityMode) -> AuthorityContract {
-    AuthorityContract::new("campaign_data_eventing_001", mode, 1).unwrap()
+    trpg_test_support::authority_contract("campaign_data_eventing_001", mode, 1).unwrap()
 }
 
 fn governed_command<T>(
@@ -426,7 +442,8 @@ fn governed_command<T>(
     role: ActorRole,
     mode: AuthorityMode,
 ) -> CommandEnvelope<T> {
-    let mut command = CommandEnvelope::governed(payload, role, mode);
+    let authority = authority_contract(mode);
+    let mut command = trpg_test_support::governed_command_for_contract(&authority, payload, role);
     command.command_id = EntityId::new(format!("command_{idempotency_key}")).unwrap();
     command.idempotency_key = idempotency_key.to_owned();
     command.expected_version = expected_version;

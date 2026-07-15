@@ -2,7 +2,6 @@ crate::define_extension_sdk_module!(
     PluginSdkCommand,
     PluginSdkService,
     append_plugin_sdk_event,
-    "CODEX-0105-12-EXTENSION-SDK-914ad16fbe",
     "plugin_sdk",
     "ExtensionPluginSdkRecorded",
     crate::ExtensionOperation::PluginSdk,
@@ -12,7 +11,7 @@ crate::define_extension_sdk_module!(
         crate::ExtensionCapability::InvokeGrantedTool,
         crate::ExtensionCapability::ReadProjection,
     ],
-    "evidence/batches/BATCH-044/plugin-sdk.md"
+    "extensions/plugin"
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]

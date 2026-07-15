@@ -48,12 +48,15 @@ class RepositoryTruthNegativeTests(unittest.TestCase):
             )
             self.assertTrue(compose_services(compose)["api"]["placeholder"])
 
-    def test_release_readiness_is_blocked_without_product_runtime(self) -> None:
+    def test_release_readiness_recognizes_product_entries_but_keeps_later_blockers(self) -> None:
         report = assess(ROOT)
         self.assertEqual(report["status"], "BLOCKED")
         ids = {blocker["id"] for blocker in report["blockers"]}
-        self.assertTrue({"AUD-001", "AUD-002", "AUD-006"}.issubset(ids))
-        self.assertIn("NO_PRODUCT_BINARY", ids)
+        self.assertTrue({"AUD-002", "AUD-006"}.issubset(ids))
+        self.assertNotIn("AUD-001", ids)
+        self.assertNotIn("MISSING_PRODUCT_BINARY", ids)
+        self.assertNotIn("MISSING_WEB_ENTRYPOINT", ids)
+        self.assertNotIn("MISSING_WEB_SCRIPT", ids)
         self.assertIn("NO_PRODUCT_DOCKERFILE", ids)
         self.assertIn("PLACEHOLDER_SERVICE", ids)
         self.assertEqual(readiness_report_errors(report), [])

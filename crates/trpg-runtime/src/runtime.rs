@@ -1,12 +1,9 @@
 use crate::runtime_state_machines::{
-    commit_decision, replay_visible_runtime_events, RuntimeDecision, RuntimeEventPayload,
-    RuntimeResult,
+    commit_decision, replay_visible_runtime_events, EventStore, RuntimeDecision,
+    RuntimeEventPayload, RuntimeResult,
 };
-use trpg_shared_kernel::{
-    AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, PrincipalScope,
-};
-
-pub const PROMPT_ID: &str = "CODEX-0363-03-RUNTIME-ORCHESTRATION-2b19458f57";
+use trpg_identity::{AuthenticationContext, ReplayAuthorization};
+use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EventEnvelope};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeBoundarySnapshot {
@@ -39,14 +36,24 @@ pub fn commit_runtime_decision(
     store: &mut EventStore<RuntimeEventPayload>,
     contract: &AuthorityContract,
     command: &CommandEnvelope<RuntimeDecision>,
+    workflow_authentication: &AuthenticationContext,
     decision: RuntimeDecision,
+    now_unix_ms: u64,
 ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
-    commit_decision(store, contract, command, decision)
+    commit_decision(
+        store,
+        contract,
+        command,
+        workflow_authentication,
+        decision,
+        now_unix_ms,
+    )
 }
 
 pub fn replay_runtime_for_principal(
     store: &EventStore<RuntimeEventPayload>,
-    principal: &PrincipalScope,
-) -> Vec<EventEnvelope<RuntimeEventPayload>> {
-    replay_visible_runtime_events(store, principal)
+    authorization: &ReplayAuthorization,
+    now_unix_ms: u64,
+) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
+    replay_visible_runtime_events(store, authorization, now_unix_ms)
 }

@@ -1,5 +1,8 @@
 [workspace]
 members = [
+    "crates/trpg-contracts",
+    "crates/trpg-contracts/test-support",
+    "crates/trpg-identity",
     "crates/trpg-shared-kernel",
     "crates/trpg-domain-core",
     "crates/trpg-runtime",
@@ -12,5 +15,10 @@ members = [
     "crates/trpg-testing",
     "crates/trpg-ops",
     "crates/trpg-extension-sdk",
+    "apps/api-server",
+    "apps/realtime-server",
+    "apps/agent-worker",
+    "apps/admin-server",
+    "apps/migration-runner",
 ]
 resolver = "2"

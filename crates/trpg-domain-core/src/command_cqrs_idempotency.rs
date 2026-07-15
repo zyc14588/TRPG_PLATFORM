@@ -19,7 +19,7 @@ pub fn check_command_metadata<T>(command: &CommandEnvelope<T>) -> DomainResult<I
     })
 }
 
-pub fn append_idempotent_event<T, P: Clone>(
+pub fn append_idempotent_event<T, P: Clone + PartialEq + serde::Serialize>(
     store: &mut EventStore<P>,
     command: &CommandEnvelope<T>,
     event_type: &'static str,

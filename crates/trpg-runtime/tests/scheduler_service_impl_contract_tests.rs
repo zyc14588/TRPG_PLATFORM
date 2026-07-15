@@ -1,11 +1,12 @@
+mod common;
+
 use trpg_runtime::runtime_state_machines::{
-    RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeModule, RuntimeTool, ToolRequest,
-    BATCH_014_PRIMARY_MODULES,
+    RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::scheduler_service_impl::{self, SchedulerServiceImplTask};
 use trpg_runtime::{
-    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventStore,
-    FormalWritePath, PrincipalScope, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, EntityId, FormalWritePath, Visibility,
+    VisibilityLabel,
 };
 
 fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
@@ -13,7 +14,7 @@ fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
 }
 
 fn command(payload: RuntimeDecision) -> CommandEnvelope<RuntimeDecision> {
-    CommandEnvelope::governed(payload, ActorRole::Workflow, AuthorityMode::AiKp)
+    trpg_test_support::governed_command(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
 fn string_command(
@@ -21,8 +22,11 @@ fn string_command(
     expected_version: u64,
     idempotency_key: &str,
 ) -> CommandEnvelope<String> {
-    let mut command =
-        CommandEnvelope::governed(payload.to_owned(), ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command = trpg_test_support::governed_command(
+        payload.to_owned(),
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
     command.command_id =
         EntityId::new(format!("command_{idempotency_key}")).expect("valid command id");
     command.idempotency_key = idempotency_key.to_owned();
@@ -34,10 +38,10 @@ fn string_command(
 #[test]
 fn scheduler_service_impl_preserves_governed_decision_event_contract() {
     assert_eq!(
-        scheduler_service_impl::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-runtime", "scheduler_service_impl"),
         "CODEX-0390-03-RUNTIME-ORCHESTRATION-12323c9bd9"
     );
-    assert!(BATCH_014_PRIMARY_MODULES.contains(&RuntimeModule::SchedulerServiceImpl));
+    trpg_test_support::assert_normalized_product_module("trpg-runtime", "scheduler_service_impl");
 
     let due = SchedulerServiceImplTask::new("task_b014_due", 7).unwrap();
     let later = SchedulerServiceImplTask::new("task_b014_later", 9).unwrap();
@@ -53,11 +57,17 @@ fn scheduler_service_impl_preserves_governed_decision_event_contract() {
     let decision = decision("decision_b014_scheduler", request);
     let mut command = command(decision.clone());
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let mut store = common::audited_store(&contract);
 
     let events = scheduler_service_impl::commit_scheduler_service_impl_decision(
-        &mut store, &contract, &command, decision,
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap();
     let task_event = scheduler_service_impl::record_scheduler_service_impl_due_task(
@@ -71,8 +81,10 @@ fn scheduler_service_impl_preserves_governed_decision_event_contract() {
     assert_eq!(events[0].event_type, "ToolRequestApproved");
     assert_eq!(events[1].event_type, "DecisionCommitted");
     assert_eq!(task_event.event_type, "ScheduledTaskDue");
-    assert!(store.replay_visible(&PrincipalScope::Public).is_empty());
-    assert_eq!(store.replay_visible(&PrincipalScope::Keeper).len(), 3);
+    let player = trpg_test_support::player_replay_authorization(&contract);
+    let system = trpg_test_support::system_replay_authorization(&contract);
+    assert!(store.replay_visible(&player, 206).unwrap().is_empty());
+    assert_eq!(store.replay_visible(&system, 206).unwrap().len(), 3);
     for event in store.events() {
         assert_eq!(event.visibility.label(), &VisibilityLabel::KeeperOnly);
         assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
@@ -93,7 +105,8 @@ fn scheduler_service_impl_preserves_governed_decision_event_contract() {
 
 #[test]
 fn scheduler_service_impl_denies_contract_tool_gate_and_direct_agent_write() {
-    let contract = AuthorityContract::new("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     assert_eq!(
         contract.fork(AuthorityMode::HumanKp, 1).unwrap_err().code(),
         "AUTHORITY_CONTRACT_MUTATION"
@@ -107,18 +120,20 @@ fn scheduler_service_impl_denies_contract_tool_gate_and_direct_agent_write() {
         ),
     );
     let wrong_contract =
-        AuthorityContract::new("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
-    let mut store = EventStore::default();
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         scheduler_service_impl::commit_scheduler_service_impl_decision(
             &mut store,
             &wrong_contract,
             &command(allowed.clone()),
+            &trpg_test_support::workflow_authentication(),
             allowed,
+            2,
         )
         .unwrap_err()
         .code(),
-        "AUTHORITY_CONTRACT_MUTATION"
+        "AUTHORITY_VIOLATION"
     );
     assert!(store.events().is_empty());
 
@@ -126,13 +141,15 @@ fn scheduler_service_impl_denies_contract_tool_gate_and_direct_agent_write() {
         "decision_b014_scheduler_tool",
         ToolRequest::formal(RuntimeAgent::AtmosphereWriter, RuntimeTool::ChangeScene),
     );
-    let mut store = EventStore::default();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         scheduler_service_impl::commit_scheduler_service_impl_decision(
             &mut store,
             &contract,
             &command(denied.clone()),
+            &trpg_test_support::workflow_authentication(),
             denied,
+            2,
         )
         .unwrap_err()
         .code(),
@@ -149,13 +166,15 @@ fn scheduler_service_impl_denies_contract_tool_gate_and_direct_agent_write() {
     );
     let mut direct_command = command(direct.clone());
     direct_command.write_path = FormalWritePath::DirectAgent;
-    let mut store = EventStore::default();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         scheduler_service_impl::commit_scheduler_service_impl_decision(
             &mut store,
             &contract,
             &direct_command,
+            &trpg_test_support::workflow_authentication(),
             direct,
+            2,
         )
         .unwrap_err()
         .code(),

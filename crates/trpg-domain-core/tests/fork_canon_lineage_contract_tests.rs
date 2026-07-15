@@ -1,4 +1,3 @@
-use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::ddd::AuthorityMode;
 use trpg_domain_core::fork_canon_lineage::{
     fork_campaign, CampaignForkRequest, CanonStatus, CopyScope,
@@ -6,7 +5,7 @@ use trpg_domain_core::fork_canon_lineage::{
 
 #[test]
 fn fork_canon_lineage_copies_public_state_and_locks_child_contract() {
-    let parent = DomainAuthorityContract::new_locked(
+    let parent = trpg_test_support::authority_contract_with_owner(
         "camp_ai_harbor",
         AuthorityMode::AiKp,
         "ai_kp_local_level4",

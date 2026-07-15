@@ -48,7 +48,7 @@ pub const REQUIRED_COMMAND_FIELDS: &[&str] = &[
     "causation_id",
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum TestingQualityAction {
     ValidateBenchmarkPlan,
     ValidateContractTestMatrix,
@@ -130,7 +130,7 @@ impl TestingQualityCommand {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum TestingQualityEvent {
     ContractValidated {
         module: &'static str,
@@ -181,7 +181,7 @@ pub fn standard_contract(
 pub fn command_for_contract(
     contract: &TestingQualityModuleContract,
 ) -> CommandEnvelope<TestingQualityCommand> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command(
         TestingQualityCommand::from_contract(contract),
         ActorRole::Workflow,
         AuthorityMode::HumanKp,

@@ -1,8 +1,7 @@
-use crate::runtime_state_machines::{append_runtime_event, RuntimeEventPayload, RuntimeResult};
-use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, EventStore};
-
-pub const PROMPT_ID: &str = "CODEX-0353-03-RUNTIME-ORCHESTRATION-b1f275b36f";
-pub const SUPPLEMENTAL_PROMPT_IDS: &[&str] = &["CODEX-0369-03-RUNTIME-ORCHESTRATION-0a78e83a1a"];
+use crate::runtime_state_machines::{
+    append_runtime_event, EventStore, RuntimeEventPayload, RuntimeResult,
+};
+use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SagaCompensationRequest {

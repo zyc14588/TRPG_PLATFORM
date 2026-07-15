@@ -3,9 +3,7 @@ use trpg_shared_kernel::cargo_workspace_impl::{
     validate_cargo_workspace_landing,
 };
 use trpg_shared_kernel::rust_cargo_workspace::{WorkspaceManifest, WorkspaceMember};
-use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, TrpgError,
-};
+use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 
 fn valid_manifest() -> WorkspaceManifest {
     WorkspaceManifest {
@@ -42,7 +40,7 @@ fn cargo_workspace_impl_rejects_invalid_workspace_manifest() {
 
 #[test]
 fn cargo_workspace_impl_review_is_recorded_as_a_governed_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         cargo_workspace_impl_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,

@@ -1,4 +1,5 @@
 use crate::{append_coc7_event, Coc7EventPayload};
+use trpg_contracts::EventType;
 use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError,
 };
@@ -54,7 +55,7 @@ pub fn record_combat_transition<T>(
         contract,
         store,
         command,
-        "coc7.combat_transition_recorded",
+        EventType::CombatStateUpdated.name(),
         "combat_state_machine",
         format!(
             "hp {}->{} damage={} condition={:?}",

@@ -49,7 +49,7 @@ pub fn record_coc7_readme_contract<T>(
         authority,
         store,
         command,
-        "coc7.readme_contract_recorded",
+        trpg_contracts::EventType::Coc7ReadmeContractRecorded.name(),
         "readme",
         format!("subjects={}", readme_contract.realtime_subjects.len()),
     )

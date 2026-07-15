@@ -1,4 +1,5 @@
 use crate::{append_coc7_event, Coc7EventPayload};
+use trpg_contracts::EventType;
 use trpg_shared_kernel::{
     AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError,
 };
@@ -75,7 +76,7 @@ pub fn record_investigation_clue_npc_time_decision<T>(
         contract,
         store,
         command,
-        "coc7.investigation_clue_npc_time_recorded",
+        EventType::ClueRevealed.name(),
         "investigation_clue_npc_time",
         format!("clue={:?} cost={:?}", resolution.outcome, resolution.cost),
     )

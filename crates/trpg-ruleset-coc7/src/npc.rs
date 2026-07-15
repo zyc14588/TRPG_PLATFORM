@@ -47,7 +47,7 @@ pub fn record_npc_decision<T>(
         contract,
         store,
         command,
-        "coc7.npc_decision_recorded",
+        trpg_contracts::EventType::Coc7NpcDecisionRecorded.name(),
         "npc",
         format!(
             "npc={} visibility={}",

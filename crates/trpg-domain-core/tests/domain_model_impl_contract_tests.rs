@@ -1,8 +1,7 @@
-use trpg_domain_core::authority_contract::DomainAuthorityContract;
 use trpg_domain_core::command_cqrs::DomainCommandKind;
 use trpg_domain_core::ddd::{
-    ActorRole, AuthorityMode, CommandEnvelope, DomainError, EntityId, EventStore, FactProvenance,
-    FactSource, FormalWritePath, PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, DomainError, EntityId, EventStore, FactProvenance, FactSource,
+    FormalWritePath, PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
 };
 use trpg_domain_core::domain_model::DomainModelCommand;
 use trpg_domain_core::domain_model_impl::{
@@ -11,7 +10,8 @@ use trpg_domain_core::domain_model_impl::{
 
 #[test]
 fn domain_model_impl_rejects_direct_agent_write_without_event() {
-    let mut command = CommandEnvelope::governed("draft", ActorRole::Workflow, AuthorityMode::AiKp);
+    let mut command =
+        trpg_test_support::governed_command("draft", ActorRole::Workflow, AuthorityMode::AiKp);
     command.write_path = FormalWritePath::DirectAgent;
 
     assert_eq!(
@@ -22,19 +22,23 @@ fn domain_model_impl_rejects_direct_agent_write_without_event() {
 
 #[test]
 fn domain_model_impl_preserves_visibility_and_provenance_on_replay() {
-    let contract =
-        DomainAuthorityContract::new_locked("campaign_001", AuthorityMode::HumanKp, "keeper", 1)
-            .unwrap();
+    let contract = trpg_test_support::authority_contract_with_owner(
+        "campaign_001",
+        AuthorityMode::HumanKp,
+        "keeper",
+        1,
+    )
+    .unwrap();
     let provenance = FactProvenance::new(
         ProvenanceKind::RulesEngineDecision,
         "event_001",
         "rules_001",
     )
     .unwrap();
-    let mut envelope = CommandEnvelope::governed(
+    let mut envelope = trpg_test_support::governed_command_for_contract(
+        &contract,
         "domain action",
         ActorRole::HumanKeeper,
-        AuthorityMode::HumanKp,
     );
     envelope.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     envelope.fact_provenance = provenance.clone();

@@ -3,7 +3,7 @@ use trpg_agent_runtime::readme;
 #[test]
 fn readme_snapshot_keeps_gateway_runtime_provider_boundary() {
     assert_eq!(
-        readme::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-agent-runtime", "readme"),
         "CODEX-0475-04-AI-AGENT-SYSTEM-2a3840db15"
     );
 

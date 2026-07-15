@@ -6,4 +6,10 @@ publish = false
 license = "UNLICENSED"
 
 [dependencies]
+rand_core = { version = "0.6.4", features = ["getrandom"] }
+serde = { version = "1.0", features = ["derive"] }
+trpg-contracts = { path = "../trpg-contracts" }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
+
+[dev-dependencies]
+trpg-test-support = { path = "../trpg-contracts/test-support" }

@@ -1,11 +1,11 @@
 use crate::authority_contract::{
     patch_locked_authority_contract, ChangePolicy, DomainAuthorityContract,
 };
-use crate::command_cqrs::{submit_domain_command, CommandAcceptedPayload, DomainCommandKind};
+use crate::command_cqrs::CommandAcceptedPayload;
 use crate::ddd::{
     AuthorityMode, CommandEnvelope, DomainError, DomainResult, EventEnvelope, EventStore,
-    FactSource,
 };
+use crate::decision_record_model::{DecisionEvidenceCatalog, DecisionRecord};
 
 pub const ADR_0003_AUTHORITY_CONTRACT: &str = "ADR-0003 authority contract immutable";
 
@@ -38,20 +38,19 @@ pub fn fork_locked_authority_contract(
     child_mode: AuthorityMode,
     child_owner: impl Into<String>,
 ) -> DomainResult<DomainAuthorityContract> {
-    contract.fork_for_child(child_campaign_id, child_mode, child_owner)
+    contract
+        .fork_for_child(child_campaign_id, child_mode, child_owner)
+        .map_err(crate::ddd::DomainError::from)
 }
 
-pub fn record_authority_contract_decision<T>(
+pub fn record_authority_contract_decision(
     contract: &DomainAuthorityContract,
+    evidence: &DecisionEvidenceCatalog,
     store: &mut EventStore<CommandAcceptedPayload>,
-    command: &CommandEnvelope<T>,
+    command: &CommandEnvelope<DecisionRecord>,
 ) -> DomainResult<EventEnvelope<CommandAcceptedPayload>> {
     validate_adr_0003_contract(contract)?;
-    submit_domain_command(
-        contract,
-        store,
-        command,
-        DomainCommandKind::RecordDecision,
-        FactSource::DecisionRecord,
+    crate::authority_contract_impl::append_authority_contract_decision(
+        contract, evidence, store, command,
     )
 }

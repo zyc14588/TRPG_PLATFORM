@@ -1,12 +1,9 @@
 use crate::agent_runtime::{
-    assemble_context, commit_agent_decision, AgentDecision, AgentEventPayload, AgentResult,
-    AssembledAgentContext, ContextFact,
+    assemble_context, AgentDecision, AgentDecisionCommitter, AgentEventPayload, AgentResult,
+    AssembledAgentContext, ContextFact, EventStore,
 };
-use trpg_shared_kernel::{
-    AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, PrincipalScope,
-};
-
-pub const PROMPT_ID: &str = "CODEX-0481-04-AI-AGENT-SYSTEM-b5f1e3af9c";
+use trpg_identity::AuthenticationContext;
+use trpg_shared_kernel::{CommandEnvelope, EventEnvelope, PrincipalScope};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentRuntimeImplBoundary {
@@ -26,12 +23,20 @@ pub fn agent_runtime_impl_boundary() -> AgentRuntimeImplBoundary {
 }
 
 pub fn run_agent_runtime_decision(
+    committer: &AgentDecisionCommitter,
     store: &mut EventStore<AgentEventPayload>,
-    contract: &AuthorityContract,
     command: &CommandEnvelope<AgentDecision>,
+    workflow_authentication: &AuthenticationContext,
     decision: AgentDecision,
+    now_unix_ms: u64,
 ) -> AgentResult<Vec<EventEnvelope<AgentEventPayload>>> {
-    commit_agent_decision(store, contract, command, decision)
+    committer.commit(
+        store,
+        command,
+        workflow_authentication,
+        decision,
+        now_unix_ms,
+    )
 }
 
 pub fn assemble_runtime_context(

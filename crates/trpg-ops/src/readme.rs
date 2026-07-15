@@ -3,11 +3,6 @@ use trpg_shared_kernel::{
     TrpgError, Visibility, VisibilityLabel,
 };
 
-pub const S10_BACKUP_EVENT_HASH: &str =
-    "sha256:ea4d9a5f8aa58929b9514a881c876e66557ee9706e82a2e251cdb247c6f4141b";
-pub const S10_RESTORE_EVENT_HASH: &str = S10_BACKUP_EVENT_HASH;
-pub const S10_PROJECTION_HASH: &str =
-    "sha256:15d1765619e2e0b512f21a2a1ccfb56b727efecbeadccbbd919ee88199e747e2";
 pub const VISIBILITY_REDACTED: &str = "[redacted]";
 
 pub const OPS_REQUIRED_COMMAND_FIELDS: &[&str] = &[
@@ -25,7 +20,7 @@ pub const OPS_METRIC: &str = "trpg_ops_runbook_total";
 pub const OPS_NATS_SUBJECT: &str = "trpg.ops.runbook.recorded";
 pub const OPS_CANON_BOUNDARY: &str = "command_workflow_decision_event_store_projection";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum OpsRunbookOperation {
     BackupRestore,
     IncidentResponse,
@@ -79,7 +74,7 @@ impl OpsRunbookCommand {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct BackupManifest {
     pub object_key: String,
     pub sha256: String,
@@ -88,15 +83,6 @@ pub struct BackupManifest {
 }
 
 impl BackupManifest {
-    pub fn fixture() -> Self {
-        Self {
-            object_key: "backups/campaign_001.snapshot".to_owned(),
-            sha256: S10_BACKUP_EVENT_HASH.to_owned(),
-            created_at: "2026-07-02T00:00:00Z".to_owned(),
-            schema_version: "s10.v1".to_owned(),
-        }
-    }
-
     pub fn has_required_fields(&self) -> bool {
         !self.object_key.trim().is_empty()
             && self.sha256.starts_with("sha256:")
@@ -130,14 +116,14 @@ impl RunbookExecutionRecord {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct OpsRunbookEventRecord {
     pub module_name: &'static str,
     pub operation: OpsRunbookOperation,
     pub evidence_path: &'static str,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum OpsEvent {
     RunbookStepRecorded(OpsRunbookEventRecord),
     BackupCompleted(BackupManifest),
@@ -159,18 +145,23 @@ pub enum OpsRunbookError {
 }
 
 impl OpsRunbookError {
-    pub fn code(&self) -> &'static str {
+    pub const fn wire_code(&self) -> trpg_contracts::WireErrorCode {
         match self {
-            Self::RestoreHashMismatch => "RESTORE_HASH_MISMATCH",
-            Self::RollbackRunbookRequired => "ROLLBACK_RUNBOOK_REQUIRED",
-            Self::ProjectionRebuildHashMismatch => "PROJECTION_REBUILD_HASH_MISMATCH",
+            Self::RestoreHashMismatch => trpg_contracts::WireErrorCode::RestoreHashMismatch,
+            Self::RollbackRunbookRequired => trpg_contracts::WireErrorCode::RollbackRunbookRequired,
+            Self::ProjectionRebuildHashMismatch => {
+                trpg_contracts::WireErrorCode::ProjectionRebuildHashMismatch
+            }
         }
+    }
+
+    pub fn code(&self) -> &'static str {
+        self.wire_code().as_str()
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OpsRunbookContract {
-    pub prompt_id: &'static str,
     pub module_name: &'static str,
     pub event_type: &'static str,
     pub operation: OpsRunbookOperation,
@@ -183,14 +174,12 @@ pub struct OpsRunbookContract {
 
 impl OpsRunbookContract {
     pub const fn new(
-        prompt_id: &'static str,
         module_name: &'static str,
         event_type: &'static str,
         operation: OpsRunbookOperation,
         read_models: &'static [&'static str],
     ) -> Self {
         Self {
-            prompt_id,
             module_name,
             event_type,
             operation,
@@ -216,7 +205,7 @@ impl OpsRunbookContract {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct OpsProjectionReport {
     pub source_event_count: usize,
     pub new_canon_events: usize,
@@ -297,7 +286,7 @@ pub fn replay_visible_ops_events(
     store.replay_visible(principal)
 }
 
-pub fn all_batch_042_contracts() -> Vec<OpsRunbookContract> {
+pub fn ops_runbook_contracts() -> Vec<OpsRunbookContract> {
     vec![
         crate::backup_restore_runbook::contract(),
         crate::incident_response_runbook::contract(),
@@ -311,7 +300,7 @@ pub fn all_batch_042_contracts() -> Vec<OpsRunbookContract> {
     ]
 }
 
-pub fn all_batch_043_contracts() -> Vec<OpsRunbookContract> {
+pub fn upgrade_runbook_contracts() -> Vec<OpsRunbookContract> {
     vec![
         crate::upgrade_rollback_impl::contract(),
         crate::upgrade_rollback::contract(),
@@ -320,7 +309,6 @@ pub fn all_batch_043_contracts() -> Vec<OpsRunbookContract> {
 
 pub fn contract() -> OpsRunbookContract {
     OpsRunbookContract::new(
-        "CODEX-0917-11-OPS-MIGRATION-9f27ade2d3",
         "readme",
         "OpsReadmeRecorded",
         OpsRunbookOperation::ReadmeRecord,
@@ -432,18 +420,16 @@ macro_rules! define_ops_runbook_module {
         $repository:ident,
         $error:ident,
         $append_fn:ident,
-        $prompt_id:literal,
         $module_name:literal,
         $event_type:literal,
         $operation:expr,
         [$($read_model:literal),* $(,)?],
-        $evidence_path:literal
+        $runbook_path:literal
     ) => {
-        pub const PROMPT_ID: &str = $prompt_id;
         pub const MODULE_NAME: &str = $module_name;
         pub const EVENT_TYPE: &str = $event_type;
         pub const READ_MODELS: &[&str] = &[$($read_model),*];
-        pub const EVIDENCE_PATH: &str = $evidence_path;
+        pub const RUNBOOK_PATH: &str = $runbook_path;
 
         #[derive(Clone, Debug, PartialEq, Eq)]
         pub struct $command {
@@ -457,16 +443,10 @@ macro_rules! define_ops_runbook_module {
                 Self {
                     operation: $operation,
                     reason,
-                    evidence_path: EVIDENCE_PATH,
+                    evidence_path: RUNBOOK_PATH,
                 }
             }
         }
-
-        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-        pub struct $service;
-
-        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-        pub struct $repository;
 
         #[derive(Clone, Debug, PartialEq, Eq)]
         pub enum $error {
@@ -478,12 +458,11 @@ macro_rules! define_ops_runbook_module {
             authority: &$crate::AuthorityContract,
             command: &$crate::CommandEnvelope<T>,
         ) -> $crate::KernelResult<$crate::OpsEventEnvelope> {
-            $crate::append_ops_event(store, authority, command, contract(), EVIDENCE_PATH)
+            $crate::append_ops_event(store, authority, command, contract(), RUNBOOK_PATH)
         }
 
         pub fn contract() -> $crate::OpsRunbookContract {
             $crate::OpsRunbookContract::new(
-                PROMPT_ID,
                 MODULE_NAME,
                 EVENT_TYPE,
                 $operation,

@@ -9,7 +9,7 @@ use trpg_shared_kernel::{
 };
 
 fn command() -> CommandEnvelope<RegisterApiCommandContract> {
-    CommandEnvelope::governed(
+    trpg_test_support::governed_command(
         RegisterApiCommandContract {
             contract_id: "platform_commands".to_owned(),
             route: "/api/v1/internal/platform/commands".to_owned(),
@@ -22,7 +22,7 @@ fn command() -> CommandEnvelope<RegisterApiCommandContract> {
 
 #[test]
 fn api_contracts_impl_rejects_authority_contract_violation() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         command().payload,
         ActorRole::AiKeeper,
         AuthorityMode::HumanKp,

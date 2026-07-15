@@ -1,4 +1,4 @@
-use trpg_agent_runtime::adr_0010_rag_snapshot::{self, FrozenRagSnapshot};
+use trpg_agent_runtime::adr_0010_rag_snapshot::FrozenRagSnapshot;
 use trpg_agent_runtime::{PrincipalScope, RagChunk, Visibility, VisibilityLabel};
 
 fn chunks() -> Vec<RagChunk> {
@@ -25,7 +25,7 @@ fn chunks() -> Vec<RagChunk> {
 #[test]
 fn adr_0010_rag_snapshot_freezes_source_events_and_metadata() {
     assert_eq!(
-        adr_0010_rag_snapshot::PROMPT_ID,
+        trpg_test_support::normalized_prompt_id("trpg-agent-runtime", "adr_0010_rag_snapshot"),
         "CODEX-0508-04-AI-AGENT-SYSTEM-f2ee9f2b79"
     );
     let snapshot = FrozenRagSnapshot::new("snapshot_b020", "embedding-local", 2, chunks()).unwrap();

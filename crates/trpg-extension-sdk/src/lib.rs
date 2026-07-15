@@ -1,6 +1,7 @@
 pub mod adr_0008_plugin_boundaries;
 pub mod agent_pack_sdk;
 pub mod extension_compatibility_matrix;
+pub mod plugin_host;
 pub mod plugin_sdk;
 pub mod readme;
 pub mod ruleset_pack_sdk;
@@ -8,7 +9,7 @@ pub mod sdk;
 pub mod tool_provider_sdk;
 
 pub use readme::{
-    all_batch_044_contracts, append_extension_event, contract, is_current_safe_name,
+    append_extension_event, contract, extension_contracts, is_current_safe_name,
     redact_extension_output, replay_visible_extension_events, CompatibilityResult,
     ExtensionCapability, ExtensionCapabilityGrantSet, ExtensionCommand, ExtensionContract,
     ExtensionEvent, ExtensionEventEnvelope, ExtensionEventRecord, ExtensionEventStore,

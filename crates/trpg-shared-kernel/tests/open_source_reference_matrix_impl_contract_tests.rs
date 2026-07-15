@@ -5,9 +5,7 @@ use trpg_shared_kernel::open_source_reference_matrix_impl::{
     append_open_source_reference_matrix_impl_reviewed, open_source_reference_matrix_impl_review,
     open_source_reference_matrix_landing, validate_open_source_reference_matrix_landing,
 };
-use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, TrpgError,
-};
+use trpg_shared_kernel::shared_kernel::{ActorRole, AuthorityMode, EventStore, TrpgError};
 
 fn reviewed_reference() -> ReferenceEntry {
     ReferenceEntry {
@@ -55,7 +53,7 @@ fn open_source_reference_matrix_impl_rejects_empty_matrix() {
 
 #[test]
 fn open_source_reference_matrix_impl_review_is_recorded_as_a_governed_event() {
-    let command = CommandEnvelope::governed(
+    let command = trpg_test_support::governed_command(
         open_source_reference_matrix_impl_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,

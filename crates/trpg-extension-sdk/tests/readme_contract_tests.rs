@@ -10,7 +10,7 @@ fn readme_records_governed_event() {
         ExtensionCommand::record(
             ExtensionOperation::Readme,
             "readme contract",
-            "evidence/batches/BATCH-044/readme.md",
+            "extensions/readme",
             vec![trpg_extension_sdk::ExtensionCapability::ReadProjection],
         ),
         append_readme_event,
@@ -19,7 +19,7 @@ fn readme_records_governed_event() {
 
 #[test]
 fn readme_registry_keeps_all_batch_044_names_current_safe() {
-    let contracts = trpg_extension_sdk::all_batch_044_contracts();
+    let contracts = trpg_extension_sdk::extension_contracts();
 
     assert_eq!(contracts.len(), 8);
     assert!(contracts
@@ -33,7 +33,7 @@ fn readme_redacts_restricted_visibility_on_replay_outputs() {
         ExtensionCommand::record(
             ExtensionOperation::Readme,
             "visibility replay",
-            "evidence/batches/BATCH-044/readme.md",
+            "extensions/readme",
             vec![trpg_extension_sdk::ExtensionCapability::ReadProjection],
         ),
         append_readme_event,

@@ -19,7 +19,7 @@ pub struct ApplyDeploymentOperation {
     pub endpoint: ProviderEndpoint,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum DeploymentOpsEvent {
     DeploymentOperationApplied {
         deployment_id: String,

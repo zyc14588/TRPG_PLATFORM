@@ -36,7 +36,7 @@ pub fn record_rules_coc7_dispatch<T>(
         contract,
         store,
         command,
-        "coc7.rules_dispatch_recorded",
+        trpg_contracts::EventType::Coc7RulesDispatchRecorded.name(),
         "rules_coc7",
         format!("route={route}"),
     )
