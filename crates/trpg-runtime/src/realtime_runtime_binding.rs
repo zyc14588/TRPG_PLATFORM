@@ -1,5 +1,7 @@
-use crate::runtime_state_machines::{replay_visible_runtime_events, RuntimeEventPayload};
-use trpg_shared_kernel::{EventEnvelope, EventStore, PrincipalScope};
+use crate::runtime_state_machines::{
+    replay_visible_runtime_events, EventStore, RuntimeEventPayload,
+};
+use trpg_shared_kernel::{EventEnvelope, PrincipalScope};
 
 pub fn visible_runtime_deltas(
     store: &EventStore<RuntimeEventPayload>,

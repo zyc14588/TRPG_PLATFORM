@@ -68,13 +68,25 @@ fn postgres_persists_sessions_memberships_and_canonical_authority_across_restart
         .authenticate_session(Some(owner_session.token.expose()), 10_001)
         .unwrap();
     identity
-        .grant_membership(&owner, &campaign_id, &owner_id, CampaignRole::HumanKeeper)
+        .grant_membership(
+            &owner,
+            &campaign_id,
+            &owner_id,
+            CampaignRole::HumanKeeper,
+            10_002,
+        )
         .unwrap();
     identity
-        .grant_membership(&owner, &campaign_id, &player_id, CampaignRole::Player)
+        .grant_membership(
+            &owner,
+            &campaign_id,
+            &player_id,
+            CampaignRole::Player,
+            10_002,
+        )
         .unwrap();
     identity
-        .register_authority_contract(contract(&campaign_id, &owner_id))
+        .register_authority_contract(&owner, contract(&campaign_id, &owner_id), 10_002)
         .unwrap();
     let player_session = identity
         .login(&player_login, "player password long enough", 10_000)
@@ -92,18 +104,29 @@ fn postgres_persists_sessions_memberships_and_canonical_authority_across_restart
             &player,
             &EntityId::new(&campaign_id).unwrap(),
             &[CampaignRole::Player],
+            10_002,
         )
         .unwrap();
     let authority = restarted
         .authority_contract(&EntityId::new(&campaign_id).unwrap())
+        .unwrap()
         .unwrap();
     assert_eq!(authority.authority_owner().as_str(), owner_id);
     assert_eq!(
         restarted
-            .register_authority_contract(contract(&campaign_id, "different_owner"))
+            .register_authority_contract(&owner, contract(&campaign_id, "different_owner"), 10_002,)
             .unwrap_err(),
         IdentityError::AuthorityContractConflict
     );
+
+    let replacement = restarted.refresh_session(&persisted_token, 10_003).unwrap();
+    let replacement_token = replacement.token.expose().to_owned();
+    let mut competing = IdentityService::from_postgres(&database_url, &KEY, 60_000).unwrap();
+    assert_eq!(
+        competing.refresh_session(&persisted_token, 10_004),
+        Err(IdentityError::SessionRevoked)
+    );
+    let mut stale_reader = IdentityService::from_postgres(&database_url, &KEY, 60_000).unwrap();
 
     let mut database = Client::connect(&database_url, NoTls).unwrap();
     let raw_token_column = database
@@ -131,6 +154,31 @@ fn postgres_persists_sessions_memberships_and_canonical_authority_across_restart
             &[&campaign_id],
         )
         .is_err());
+    assert!(database
+        .execute(
+            "UPDATE campaign_memberships SET revoked_at = now() \
+             WHERE campaign_id = $1 AND user_id = $2",
+            &[&campaign_id, &owner_id],
+        )
+        .is_err());
+    assert!(database
+        .execute(
+            "DELETE FROM campaign_memberships \
+             WHERE campaign_id = $1 AND user_id = $2",
+            &[&campaign_id, &owner_id],
+        )
+        .is_err());
+    database
+        .execute(
+            "UPDATE sessions SET revoked_at = now() \
+             WHERE user_id = $1 AND revoked_at IS NULL",
+            &[&player_id],
+        )
+        .unwrap();
+    assert_eq!(
+        stale_reader.authenticate_session(Some(&replacement_token), 10_005),
+        Err(IdentityError::SessionRevoked)
+    );
     assert!(database
         .execute(
             "UPDATE campaign_memberships SET role = 'HUMAN_KEEPER' \

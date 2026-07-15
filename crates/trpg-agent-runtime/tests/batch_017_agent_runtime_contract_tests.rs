@@ -1,3 +1,5 @@
+mod common;
+
 use trpg_agent_runtime::adr_0009_agent_governance_agent_governance;
 use trpg_agent_runtime::agent_context_assembler;
 use trpg_agent_runtime::agent_evaluation_golden_scenario;
@@ -23,8 +25,8 @@ use trpg_agent_runtime::tool_protocol;
 use trpg_agent_runtime::working_memory_long_memory_rag;
 use trpg_agent_runtime::working_memory_rag_rag_snapshot;
 use trpg_agent_runtime::{
-    ActorRole, AuthorityMode, CommandEnvelope, EventStore, FormalWritePath, PrincipalScope,
-    Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, FormalWritePath, PrincipalScope, Visibility,
+    VisibilityLabel,
 };
 
 const RESTRICTED_PLAYER_VISIBLE_TOKENS: &[&str] = &[
@@ -41,7 +43,8 @@ fn ai_kp_command(payload: AgentDecision) -> CommandEnvelope<AgentDecision> {
 }
 
 fn committer(contract: trpg_agent_runtime::AuthorityContract) -> AgentDecisionCommitter {
-    AgentDecisionCommitter::new(trpg_test_support::identity_verifier(), [contract]).unwrap()
+    AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
+        .unwrap()
 }
 
 fn assert_no_restricted_player_visible_tokens(text: &str) {
@@ -166,10 +169,16 @@ fn ai_kp_orchestrator_tool_request_commits_through_event_store() {
     let command = ai_kp_command(decision.clone());
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
     let events = committer(contract)
-        .commit(&mut store, &command, decision, 2)
+        .commit(
+            &mut store,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            decision,
+            2,
+        )
         .unwrap();
 
     assert_eq!(events.len(), 2);
@@ -213,10 +222,16 @@ fn commit_agent_decision_redacts_restricted_fixture_tokens() {
     let command = ai_kp_command(decision.clone());
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
     let events = committer(contract)
-        .commit(&mut store, &command, decision, 2)
+        .commit(
+            &mut store,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            decision,
+            2,
+        )
         .unwrap();
 
     match &events[1].payload {
@@ -253,10 +268,16 @@ fn expression_agent_cannot_reveal_clue_or_write_directly() {
     command.write_path = FormalWritePath::DirectAgent;
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
     let error = committer(contract)
-        .commit(&mut store, &command, decision, 2)
+        .commit(
+            &mut store,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            decision,
+            2,
+        )
         .unwrap_err();
 
     assert_eq!(error.code(), "AGENT_DIRECT_STATE_WRITE_FORBIDDEN");

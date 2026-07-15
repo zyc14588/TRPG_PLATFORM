@@ -3,16 +3,18 @@ pub mod schema;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
+use std::sync::{Arc, RwLock};
 
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
 use hmac::{Hmac, Mac};
-use postgres::{Client, NoTls};
+use postgres::{Client, GenericClient, NoTls};
 use rand_core::{OsRng, RngCore};
 use sha2::{Digest, Sha256};
 use trpg_shared_kernel::{
-    Actor, ActorRole, AgentClass as KernelAgentClass, AuthorityContract, AuthorityContractDraft,
-    AuthorityMode, AuthorityVersionSnapshotDraft, EntityId, WorkloadRole as KernelWorkloadRole,
+    Actor, ActorOrigin, ActorRole, AgentClass as KernelAgentClass, AuthorityContract,
+    AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft, EntityId,
+    WorkloadRole as KernelWorkloadRole,
 };
 
 type HmacSha256 = Hmac<Sha256>;
@@ -38,6 +40,7 @@ pub enum IdentityError {
     SessionNotFound,
     DuplicateLogin,
     AuthorityContractConflict,
+    AuthorityContractRequired,
     MembershipRequired,
     MembershipDenied,
     CampaignScopeMismatch,
@@ -59,6 +62,7 @@ impl IdentityError {
             Self::SessionNotFound => "SESSION_NOT_FOUND",
             Self::DuplicateLogin => "DUPLICATE_LOGIN",
             Self::AuthorityContractConflict => "AUTHORITY_CONTRACT_VERSION_CONFLICT",
+            Self::AuthorityContractRequired => "AUTHORITY_CONTRACT_REQUIRED",
             Self::MembershipRequired => "CAMPAIGN_MEMBERSHIP_REQUIRED",
             Self::MembershipDenied => "CAMPAIGN_MEMBERSHIP_DENIED",
             Self::CampaignScopeMismatch => "CAMPAIGN_SCOPE_MISMATCH",
@@ -80,9 +84,10 @@ impl IdentityError {
             | Self::SessionNotFound
             | Self::InvalidInternalCredential
             | Self::InternalCredentialExpired => HttpAuthStatus::Unauthorized401,
-            Self::MembershipRequired | Self::MembershipDenied | Self::CampaignScopeMismatch => {
-                HttpAuthStatus::Forbidden403
-            }
+            Self::AuthorityContractRequired
+            | Self::MembershipRequired
+            | Self::MembershipDenied
+            | Self::CampaignScopeMismatch => HttpAuthStatus::Forbidden403,
             Self::DuplicateLogin | Self::AuthorityContractConflict => HttpAuthStatus::Conflict409,
             Self::InvalidSigningKey
             | Self::InvalidIdentityData
@@ -292,9 +297,20 @@ impl AuthenticationContext {
 /// identities. The fingerprint is not a signing secret; contexts remain
 /// constructible only by `IdentityService` and are accepted only from the
 /// configured issuer.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct IdentityVerifier {
     issuer_fingerprint: [u8; 32],
+    state: Arc<RwLock<VerificationState>>,
+}
+
+impl fmt::Debug for IdentityVerifier {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("IdentityVerifier")
+            .field("issuer_fingerprint", &hex_encode(&self.issuer_fingerprint))
+            .field("state", &"[LIVE IDENTITY STATE]")
+            .finish()
+    }
 }
 
 impl IdentityVerifier {
@@ -311,12 +327,146 @@ impl IdentityVerifier {
         {
             return Err(IdentityError::InternalCredentialExpired);
         }
+        if let PrincipalKind::UserSession { session_id, .. } = authentication.kind() {
+            let state = self
+                .state
+                .read()
+                .map_err(|_| IdentityError::PersistenceUnavailable)?;
+            let session = state
+                .sessions_by_id
+                .get(session_id)
+                .ok_or(IdentityError::SessionNotFound)?;
+            if session.user_id != authentication.subject_id
+                || session.issued_at_unix_ms != authentication.authenticated_at_unix_ms
+                || session.expires_at_unix_ms != authentication.expires_at_unix_ms
+            {
+                return Err(IdentityError::InvalidInternalCredential);
+            }
+            if session.revoked {
+                return Err(IdentityError::SessionRevoked);
+            }
+        }
         Ok(())
     }
 
-    fn verify_issuer(&self, authentication: &AuthenticationContext) -> Result<(), IdentityError> {
-        if authentication.issuer_fingerprint != self.issuer_fingerprint {
+    pub fn authority_contract(
+        &self,
+        campaign_id: &EntityId,
+    ) -> Result<AuthorityContract, IdentityError> {
+        self.state
+            .read()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?
+            .authorities
+            .get(campaign_id)
+            .cloned()
+            .ok_or(IdentityError::AuthorityContractRequired)
+    }
+
+    pub fn verify_actor(
+        &self,
+        authentication: &AuthenticationContext,
+        actor: &Actor,
+        campaign_id: &EntityId,
+        now_unix_ms: u64,
+    ) -> Result<(), IdentityError> {
+        self.verify(authentication, now_unix_ms)?;
+        authentication.require_campaign(campaign_id)?;
+        if actor.id() != authentication.subject_id() {
             return Err(IdentityError::InvalidInternalCredential);
+        }
+        match (authentication.kind(), actor.origin()) {
+            (
+                PrincipalKind::UserSession {
+                    session_id,
+                    global_role,
+                },
+                ActorOrigin::UserSession {
+                    session_id: actor_session_id,
+                },
+            ) if session_id == actor_session_id => {
+                let expected_role = match global_role {
+                    GlobalRole::ServerOwner => ActorRole::ServerOwner,
+                    GlobalRole::Moderator => ActorRole::Moderator,
+                    GlobalRole::User => {
+                        let state = self
+                            .state
+                            .read()
+                            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+                        match state
+                            .memberships
+                            .get(&(campaign_id.clone(), authentication.subject_id().clone()))
+                            .ok_or(IdentityError::MembershipRequired)?
+                        {
+                            CampaignRole::CampaignOwner => ActorRole::CampaignOwner,
+                            CampaignRole::HumanKeeper => ActorRole::HumanKeeper,
+                            CampaignRole::Player => ActorRole::Investigator,
+                            CampaignRole::Spectator => ActorRole::Spectator,
+                        }
+                    }
+                };
+                if actor.role() != &expected_role {
+                    return Err(IdentityError::InvalidInternalCredential);
+                }
+            }
+            (PrincipalKind::Workload { role }, ActorOrigin::Workload { role: actor_role }) => {
+                let (expected_origin, expected_role) = match role {
+                    WorkloadRole::ApiServer => (KernelWorkloadRole::ApiServer, ActorRole::System),
+                    WorkloadRole::RealtimeServer => {
+                        (KernelWorkloadRole::RealtimeServer, ActorRole::System)
+                    }
+                    WorkloadRole::AgentWorker => {
+                        (KernelWorkloadRole::AgentWorker, ActorRole::System)
+                    }
+                    WorkloadRole::WorkflowEngine => {
+                        (KernelWorkloadRole::WorkflowEngine, ActorRole::Workflow)
+                    }
+                    WorkloadRole::RulesEngine => {
+                        (KernelWorkloadRole::RulesEngine, ActorRole::RulesEngine)
+                    }
+                    WorkloadRole::AuditWriter => {
+                        (KernelWorkloadRole::AuditWriter, ActorRole::System)
+                    }
+                };
+                if actor_role != &expected_origin || actor.role() != &expected_role {
+                    return Err(IdentityError::InvalidInternalCredential);
+                }
+            }
+            (
+                PrincipalKind::AgentRun {
+                    run_id,
+                    class,
+                    campaign_id: bound_campaign,
+                },
+                ActorOrigin::AgentRun {
+                    run_id: actor_run_id,
+                    class: actor_class,
+                    campaign_id: actor_campaign,
+                },
+            ) => {
+                let (expected_class, expected_role) = match class {
+                    AgentClass::AiKeeperOrchestrator => {
+                        (KernelAgentClass::AiKeeperOrchestrator, ActorRole::AiKeeper)
+                    }
+                    AgentClass::KeeperCopilot => {
+                        (KernelAgentClass::KeeperCopilot, ActorRole::Investigator)
+                    }
+                    AgentClass::AtmosphereWriter => {
+                        (KernelAgentClass::AtmosphereWriter, ActorRole::Investigator)
+                    }
+                    AgentClass::MemoryCurator => {
+                        (KernelAgentClass::MemoryCurator, ActorRole::Investigator)
+                    }
+                };
+                if run_id != actor_run_id
+                    || bound_campaign != campaign_id
+                    || actor_campaign != campaign_id
+                    || actor_class != &expected_class
+                    || actor.role() != &expected_role
+                {
+                    return Err(IdentityError::InvalidInternalCredential);
+                }
+            }
+            _ => return Err(IdentityError::InvalidInternalCredential),
         }
         Ok(())
     }
@@ -359,6 +509,21 @@ struct SessionRecord {
     revoked: bool,
 }
 
+#[derive(Clone, Debug)]
+struct SessionVerificationRecord {
+    user_id: EntityId,
+    issued_at_unix_ms: u64,
+    expires_at_unix_ms: u64,
+    revoked: bool,
+}
+
+#[derive(Debug, Default)]
+struct VerificationState {
+    sessions_by_id: HashMap<EntityId, SessionVerificationRecord>,
+    memberships: HashMap<(EntityId, EntityId), CampaignRole>,
+    authorities: HashMap<EntityId, AuthorityContract>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CampaignMembership {
     campaign_id: EntityId,
@@ -387,6 +552,7 @@ pub struct IdentityService {
     memberships: HashMap<(EntityId, EntityId), CampaignMembership>,
     authorities: HashMap<EntityId, AuthorityContract>,
     database: Option<Client>,
+    verification_state: Arc<RwLock<VerificationState>>,
     signing_key: [u8; SIGNING_KEY_BYTES],
     session_ttl_ms: u64,
 }
@@ -405,6 +571,7 @@ impl IdentityService {
             memberships: HashMap::new(),
             authorities: HashMap::new(),
             database: None,
+            verification_state: Arc::new(RwLock::new(VerificationState::default())),
             signing_key: key,
             session_ttl_ms,
         })
@@ -422,6 +589,9 @@ impl IdentityService {
             .map_err(|_| IdentityError::PersistenceUnavailable)?;
         client
             .batch_execute(schema::IDENTITY_AUTHORIZATION_MIGRATION_SQL)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        client
+            .batch_execute(schema::IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL)
             .map_err(|_| IdentityError::PersistenceUnavailable)?;
         let mut service = Self::new(signing_key, session_ttl_ms)?;
         service.database = Some(client);
@@ -446,7 +616,38 @@ impl IdentityService {
     pub fn verifier(&self) -> IdentityVerifier {
         IdentityVerifier {
             issuer_fingerprint: Sha256::digest(self.signing_key).into(),
+            state: Arc::clone(&self.verification_state),
         }
+    }
+
+    fn publish_verification_state(&self) -> Result<(), IdentityError> {
+        let sessions_by_id = self
+            .sessions_by_hash
+            .values()
+            .map(|session| {
+                (
+                    session.session_id.clone(),
+                    SessionVerificationRecord {
+                        user_id: session.user_id.clone(),
+                        issued_at_unix_ms: session.issued_at_unix_ms,
+                        expires_at_unix_ms: session.expires_at_unix_ms,
+                        revoked: session.revoked,
+                    },
+                )
+            })
+            .collect();
+        let mut state = self
+            .verification_state
+            .write()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        state.sessions_by_id = sessions_by_id;
+        state.memberships = self
+            .memberships
+            .iter()
+            .map(|(key, membership)| (key.clone(), membership.role))
+            .collect();
+        state.authorities = self.authorities.clone();
+        Ok(())
     }
 
     fn reload_from_database(&mut self) -> Result<(), IdentityError> {
@@ -572,6 +773,13 @@ impl IdentityService {
         self.sessions_by_hash = sessions_by_hash;
         self.memberships = memberships;
         self.authorities = authorities;
+        self.publish_verification_state()
+    }
+
+    fn sync_if_persistent(&mut self) -> Result<(), IdentityError> {
+        if self.database.is_some() {
+            self.reload_from_database()?;
+        }
         Ok(())
     }
 
@@ -582,6 +790,7 @@ impl IdentityService {
         password: &str,
         global_role: GlobalRole,
     ) -> Result<(), IdentityError> {
+        self.sync_if_persistent()?;
         let normalized_login = normalize_login(login)?;
         if self.users_by_login.contains_key(&normalized_login) {
             return Err(IdentityError::DuplicateLogin);
@@ -624,6 +833,7 @@ impl IdentityService {
         password: &str,
         now_unix_ms: u64,
     ) -> Result<LoginSession, IdentityError> {
+        self.sync_if_persistent()?;
         let normalized_login =
             normalize_login(login).map_err(|_| IdentityError::InvalidCredentials)?;
         let user = self
@@ -640,10 +850,11 @@ impl IdentityService {
     }
 
     pub fn authenticate_session(
-        &self,
+        &mut self,
         token: Option<&str>,
         now_unix_ms: u64,
     ) -> Result<AuthenticationContext, IdentityError> {
+        self.sync_if_persistent()?;
         let token = token.ok_or(IdentityError::AuthenticationRequired)?;
         let token_hash = hash_token(token);
         let session = self
@@ -677,50 +888,88 @@ impl IdentityService {
         token: &str,
         now_unix_ms: u64,
     ) -> Result<LoginSession, IdentityError> {
-        let token_hash = hash_token(token);
-        let user_id = {
-            let session = self
-                .sessions_by_hash
-                .get_mut(&token_hash)
-                .ok_or(IdentityError::SessionNotFound)?;
-            if session.revoked {
-                return Err(IdentityError::SessionRevoked);
-            }
-            if now_unix_ms >= session.expires_at_unix_ms {
-                return Err(IdentityError::SessionExpired);
-            }
-            session.revoked = true;
-            session.user_id.clone()
-        };
-        if let Some(database) = self.database.as_mut() {
-            database
-                .execute(
-                    "UPDATE sessions SET revoked_at = now() \
-                     WHERE token_hash = $1 AND revoked_at IS NULL",
-                    &[&&token_hash[..]],
-                )
-                .map_err(|_| IdentityError::PersistenceUnavailable)?;
-        }
-        self.issue_session(user_id, now_unix_ms)
-    }
-
-    pub fn logout(&mut self, token: &str) -> Result<(), IdentityError> {
+        self.sync_if_persistent()?;
         let token_hash = hash_token(token);
         let session = self
             .sessions_by_hash
-            .get_mut(&token_hash)
+            .get(&token_hash)
             .ok_or(IdentityError::SessionNotFound)?;
+        if session.revoked {
+            return Err(IdentityError::SessionRevoked);
+        }
+        if now_unix_ms >= session.expires_at_unix_ms {
+            return Err(IdentityError::SessionExpired);
+        }
+        let user_id = session.user_id.clone();
+        let rotated_from_session_id = session.session_id.clone();
+        let (replacement_hash, replacement_record, replacement) =
+            self.generate_session(user_id, now_unix_ms)?;
         if let Some(database) = self.database.as_mut() {
-            database
+            let mut transaction = database
+                .transaction()
+                .map_err(|_| IdentityError::PersistenceUnavailable)?;
+            let updated = transaction
+                .execute(
+                    "UPDATE sessions SET revoked_at = now() \
+                     WHERE token_hash = $1 AND revoked_at IS NULL \
+                       AND expires_at > to_timestamp($2::bigint / 1000.0)",
+                    &[
+                        &&token_hash[..],
+                        &i64::try_from(now_unix_ms)
+                            .map_err(|_| IdentityError::InvalidIdentityData)?,
+                    ],
+                )
+                .map_err(|_| IdentityError::PersistenceUnavailable)?;
+            if updated != 1 {
+                return Err(IdentityError::SessionRevoked);
+            }
+            persist_session(
+                &mut transaction,
+                replacement_hash,
+                &replacement_record,
+                Some(&rotated_from_session_id),
+            )?;
+            transaction
+                .commit()
+                .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        }
+        self.sessions_by_hash
+            .get_mut(&token_hash)
+            .ok_or(IdentityError::SessionNotFound)?
+            .revoked = true;
+        self.sessions_by_hash
+            .insert(replacement_hash, replacement_record);
+        self.publish_verification_state()?;
+        Ok(replacement)
+    }
+
+    pub fn logout(&mut self, token: &str) -> Result<(), IdentityError> {
+        self.sync_if_persistent()?;
+        let token_hash = hash_token(token);
+        let session = self
+            .sessions_by_hash
+            .get(&token_hash)
+            .ok_or(IdentityError::SessionNotFound)?;
+        if session.revoked {
+            return Err(IdentityError::SessionRevoked);
+        }
+        if let Some(database) = self.database.as_mut() {
+            let updated = database
                 .execute(
                     "UPDATE sessions SET revoked_at = now() \
                      WHERE token_hash = $1 AND revoked_at IS NULL",
                     &[&&token_hash[..]],
                 )
                 .map_err(|_| IdentityError::PersistenceUnavailable)?;
+            if updated != 1 {
+                return Err(IdentityError::SessionRevoked);
+            }
         }
-        session.revoked = true;
-        Ok(())
+        self.sessions_by_hash
+            .get_mut(&token_hash)
+            .ok_or(IdentityError::SessionNotFound)?
+            .revoked = true;
+        self.publish_verification_state()
     }
 
     pub fn grant_membership(
@@ -729,8 +978,10 @@ impl IdentityService {
         campaign_id: impl Into<String>,
         user_id: impl Into<String>,
         role: CampaignRole,
+        now_unix_ms: u64,
     ) -> Result<CampaignMembership, IdentityError> {
-        self.verifier().verify_issuer(actor)?;
+        self.sync_if_persistent()?;
+        self.verifier().verify(actor, now_unix_ms)?;
         let campaign_id =
             EntityId::new(campaign_id).map_err(|_| IdentityError::InvalidIdentityData)?;
         let user_id = EntityId::new(user_id).map_err(|_| IdentityError::InvalidIdentityData)?;
@@ -749,6 +1000,23 @@ impl IdentityService {
             .get(&(campaign_id.clone(), actor.subject_id.clone()))
             .is_some_and(|membership| membership.role == CampaignRole::CampaignOwner);
         if !server_owner && !campaign_owner {
+            return Err(IdentityError::MembershipDenied);
+        }
+        if !server_owner
+            && matches!(
+                role,
+                CampaignRole::CampaignOwner | CampaignRole::HumanKeeper
+            )
+        {
+            return Err(IdentityError::MembershipDenied);
+        }
+        if role == CampaignRole::HumanKeeper
+            && self.memberships.values().any(|membership| {
+                membership.campaign_id == campaign_id
+                    && membership.user_id != user_id
+                    && membership.role == CampaignRole::HumanKeeper
+            })
+        {
             return Err(IdentityError::MembershipDenied);
         }
         if let Some(contract) = self.authorities.get(&campaign_id) {
@@ -791,12 +1059,14 @@ impl IdentityService {
     }
 
     pub fn require_membership(
-        &self,
+        &mut self,
         actor: &AuthenticationContext,
         campaign_id: &EntityId,
         allowed: &[CampaignRole],
+        now_unix_ms: u64,
     ) -> Result<CampaignMembership, IdentityError> {
-        self.verifier().verify_issuer(actor)?;
+        self.sync_if_persistent()?;
+        self.verifier().verify(actor, now_unix_ms)?;
         actor.require_campaign(campaign_id)?;
         let membership = self
             .memberships
@@ -809,11 +1079,13 @@ impl IdentityService {
     }
 
     pub fn membership_for(
-        &self,
+        &mut self,
         actor: &AuthenticationContext,
         campaign_id: &EntityId,
+        now_unix_ms: u64,
     ) -> Result<Option<CampaignMembership>, IdentityError> {
-        self.verifier().verify_issuer(actor)?;
+        self.sync_if_persistent()?;
+        self.verifier().verify(actor, now_unix_ms)?;
         actor.require_campaign(campaign_id)?;
         Ok(self
             .memberships
@@ -822,11 +1094,13 @@ impl IdentityService {
     }
 
     pub fn require_membership_manager(
-        &self,
+        &mut self,
         actor: &AuthenticationContext,
         campaign_id: &EntityId,
+        now_unix_ms: u64,
     ) -> Result<Option<CampaignMembership>, IdentityError> {
-        self.verifier().verify_issuer(actor)?;
+        self.sync_if_persistent()?;
+        self.verifier().verify(actor, now_unix_ms)?;
         if matches!(
             actor.kind,
             PrincipalKind::UserSession {
@@ -846,11 +1120,13 @@ impl IdentityService {
     }
 
     pub fn command_actor(
-        &self,
+        &mut self,
         authentication: &AuthenticationContext,
         campaign_id: &EntityId,
+        now_unix_ms: u64,
     ) -> Result<Actor, IdentityError> {
-        self.verifier().verify_issuer(authentication)?;
+        self.sync_if_persistent()?;
+        self.verifier().verify(authentication, now_unix_ms)?;
         authentication.require_campaign(campaign_id)?;
         let membership = match authentication.kind() {
             PrincipalKind::UserSession {
@@ -870,8 +1146,26 @@ impl IdentityService {
 
     pub fn register_authority_contract(
         &mut self,
+        actor: &AuthenticationContext,
         contract: AuthorityContract,
+        now_unix_ms: u64,
     ) -> Result<(), IdentityError> {
+        self.sync_if_persistent()?;
+        self.verifier().verify(actor, now_unix_ms)?;
+        let server_owner = matches!(
+            actor.kind,
+            PrincipalKind::UserSession {
+                global_role: GlobalRole::ServerOwner,
+                ..
+            }
+        );
+        let campaign_owner = self
+            .memberships
+            .get(&(contract.campaign_id().clone(), actor.subject_id.clone()))
+            .is_some_and(|membership| membership.role == CampaignRole::CampaignOwner);
+        if !server_owner && !campaign_owner {
+            return Err(IdentityError::MembershipDenied);
+        }
         if self.authorities.contains_key(contract.campaign_id()) {
             return Err(IdentityError::AuthorityContractConflict);
         }
@@ -885,6 +1179,18 @@ impl IdentityService {
             {
                 return Err(IdentityError::MembershipDenied);
             }
+            if self.memberships.values().any(|membership| {
+                membership.campaign_id == *contract.campaign_id()
+                    && membership.user_id != *contract.authority_owner()
+                    && membership.role == CampaignRole::HumanKeeper
+            }) {
+                return Err(IdentityError::MembershipDenied);
+            }
+        } else if self.memberships.values().any(|membership| {
+            membership.campaign_id == *contract.campaign_id()
+                && membership.role == CampaignRole::HumanKeeper
+        }) {
+            return Err(IdentityError::MembershipDenied);
         }
 
         if let Some(database) = self.database.as_mut() {
@@ -928,11 +1234,15 @@ impl IdentityService {
         }
         self.authorities
             .insert(contract.campaign_id().clone(), contract);
-        Ok(())
+        self.publish_verification_state()
     }
 
-    pub fn authority_contract(&self, campaign_id: &EntityId) -> Option<AuthorityContract> {
-        self.authorities.get(campaign_id).cloned()
+    pub fn authority_contract(
+        &mut self,
+        campaign_id: &EntityId,
+    ) -> Result<Option<AuthorityContract>, IdentityError> {
+        self.sync_if_persistent()?;
+        Ok(self.authorities.get(campaign_id).cloned())
     }
 
     pub fn issue_workload_credential(
@@ -1050,6 +1360,20 @@ impl IdentityService {
         user_id: EntityId,
         now_unix_ms: u64,
     ) -> Result<LoginSession, IdentityError> {
+        let (token_hash, record, session) = self.generate_session(user_id, now_unix_ms)?;
+        if let Some(database) = self.database.as_mut() {
+            persist_session(database, token_hash, &record, None)?;
+        }
+        self.sessions_by_hash.insert(token_hash, record);
+        self.publish_verification_state()?;
+        Ok(session)
+    }
+
+    fn generate_session(
+        &self,
+        user_id: EntityId,
+        now_unix_ms: u64,
+    ) -> Result<([u8; 32], SessionRecord, LoginSession), IdentityError> {
         let mut raw_token = [0_u8; SESSION_TOKEN_BYTES];
         OsRng.fill_bytes(&mut raw_token);
         let token = SessionToken(hex_encode(&raw_token));
@@ -1061,43 +1385,18 @@ impl IdentityService {
         let expires_at_unix_ms = now_unix_ms
             .checked_add(self.session_ttl_ms)
             .ok_or(IdentityError::InvalidIdentityData)?;
-        if let Some(database) = self.database.as_mut() {
-            let issued_at =
-                i64::try_from(now_unix_ms).map_err(|_| IdentityError::InvalidIdentityData)?;
-            let expires_at = i64::try_from(expires_at_unix_ms)
-                .map_err(|_| IdentityError::InvalidIdentityData)?;
-            database
-                .execute(
-                    "INSERT INTO sessions (\
-                        session_id, user_id, token_hash, issued_at, expires_at\
-                     ) VALUES (\
-                        $1, $2, $3, to_timestamp($4::bigint / 1000.0), \
-                        to_timestamp($5::bigint / 1000.0)\
-                     )",
-                    &[
-                        &session_id.as_str(),
-                        &user_id.as_str(),
-                        &&token_hash[..],
-                        &issued_at,
-                        &expires_at,
-                    ],
-                )
-                .map_err(map_postgres_error)?;
-        }
-        self.sessions_by_hash.insert(
-            token_hash,
-            SessionRecord {
-                session_id,
-                user_id,
-                issued_at_unix_ms: now_unix_ms,
-                expires_at_unix_ms,
-                revoked: false,
-            },
-        );
-        Ok(LoginSession {
+        let record = SessionRecord {
+            session_id,
+            user_id,
+            issued_at_unix_ms: now_unix_ms,
+            expires_at_unix_ms,
+            revoked: false,
+        };
+        let session = LoginSession {
             token,
             expires_at_unix_ms,
-        })
+        };
+        Ok((token_hash, record, session))
     }
 
     fn sign_claims(&self, claims: &str) -> String {
@@ -1191,6 +1490,38 @@ fn timestamp_from_i64(value: i64) -> Result<u64, IdentityError> {
 
 fn map_postgres_error(_error: postgres::Error) -> IdentityError {
     IdentityError::PersistenceUnavailable
+}
+
+fn persist_session(
+    database: &mut impl GenericClient,
+    token_hash: [u8; 32],
+    record: &SessionRecord,
+    rotated_from: Option<&EntityId>,
+) -> Result<(), IdentityError> {
+    let issued_at =
+        i64::try_from(record.issued_at_unix_ms).map_err(|_| IdentityError::InvalidIdentityData)?;
+    let expires_at =
+        i64::try_from(record.expires_at_unix_ms).map_err(|_| IdentityError::InvalidIdentityData)?;
+    let rotated_from = rotated_from.map(EntityId::as_str);
+    database
+        .execute(
+            "INSERT INTO sessions (\
+                session_id, user_id, token_hash, issued_at, expires_at, rotated_from_session_id\
+             ) VALUES (\
+                $1, $2, $3, to_timestamp($4::bigint / 1000.0), \
+                to_timestamp($5::bigint / 1000.0), $6\
+             )",
+            &[
+                &record.session_id.as_str(),
+                &record.user_id.as_str(),
+                &&token_hash[..],
+                &issued_at,
+                &expires_at,
+                &rotated_from,
+            ],
+        )
+        .map_err(map_postgres_error)?;
+    Ok(())
 }
 
 fn validate_password(password: &str) -> Result<(), IdentityError> {
@@ -1299,6 +1630,152 @@ mod tests {
     }
 
     #[test]
+    fn verifier_rejects_a_context_after_its_session_is_logged_out() {
+        let mut service = service();
+        service
+            .create_user(
+                "user_owner",
+                "owner@example.test",
+                "correct horse battery staple",
+                GlobalRole::ServerOwner,
+            )
+            .unwrap();
+        let session = service
+            .login("owner@example.test", "correct horse battery staple", 1_000)
+            .unwrap();
+        let context = service
+            .authenticate_session(Some(session.token.expose()), 1_001)
+            .unwrap();
+        let verifier = service.verifier();
+        verifier.verify(&context, 1_002).unwrap();
+
+        service.logout(session.token.expose()).unwrap();
+
+        assert_eq!(
+            verifier.verify(&context, 1_003),
+            Err(IdentityError::SessionRevoked)
+        );
+    }
+
+    #[test]
+    fn logged_out_context_cannot_manage_memberships() {
+        let mut service = service();
+        service
+            .create_user(
+                "user_owner",
+                "owner@example.test",
+                "correct horse battery staple",
+                GlobalRole::ServerOwner,
+            )
+            .unwrap();
+        service
+            .create_user(
+                "user_player",
+                "player@example.test",
+                "another correct horse battery",
+                GlobalRole::User,
+            )
+            .unwrap();
+        let session = service
+            .login("owner@example.test", "correct horse battery staple", 1_000)
+            .unwrap();
+        let context = service
+            .authenticate_session(Some(session.token.expose()), 1_001)
+            .unwrap();
+        service.logout(session.token.expose()).unwrap();
+
+        assert_eq!(
+            service.grant_membership(
+                &context,
+                "campaign_a",
+                "user_player",
+                CampaignRole::Player,
+                1_002,
+            ),
+            Err(IdentityError::SessionRevoked)
+        );
+    }
+
+    #[test]
+    fn campaign_owner_cannot_grant_privileged_roles_and_human_keeper_is_unique() {
+        let mut service = service();
+        for (id, login, role) in [
+            (
+                "server_owner",
+                "server@example.test",
+                GlobalRole::ServerOwner,
+            ),
+            ("campaign_owner", "campaign@example.test", GlobalRole::User),
+            ("keeper_a", "keeper-a@example.test", GlobalRole::User),
+            ("keeper_b", "keeper-b@example.test", GlobalRole::User),
+        ] {
+            service
+                .create_user(id, login, "correct horse battery staple", role)
+                .unwrap();
+        }
+        let server_session = service
+            .login("server@example.test", "correct horse battery staple", 1_000)
+            .unwrap();
+        let server = service
+            .authenticate_session(Some(server_session.token.expose()), 1_001)
+            .unwrap();
+        service
+            .grant_membership(
+                &server,
+                "campaign_a",
+                "campaign_owner",
+                CampaignRole::CampaignOwner,
+                1_002,
+            )
+            .unwrap();
+        service
+            .grant_membership(
+                &server,
+                "campaign_a",
+                "keeper_a",
+                CampaignRole::HumanKeeper,
+                1_002,
+            )
+            .unwrap();
+        assert_eq!(
+            service.grant_membership(
+                &server,
+                "campaign_a",
+                "keeper_b",
+                CampaignRole::HumanKeeper,
+                1_003,
+            ),
+            Err(IdentityError::MembershipDenied)
+        );
+
+        let owner_session = service
+            .login(
+                "campaign@example.test",
+                "correct horse battery staple",
+                1_000,
+            )
+            .unwrap();
+        let owner = service
+            .authenticate_session(Some(owner_session.token.expose()), 1_001)
+            .unwrap();
+        for privileged_role in [CampaignRole::CampaignOwner, CampaignRole::HumanKeeper] {
+            assert_eq!(
+                service.grant_membership(&owner, "campaign_a", "keeper_b", privileged_role, 1_003,),
+                Err(IdentityError::MembershipDenied)
+            );
+        }
+        service
+            .grant_membership(
+                &owner,
+                "campaign_a",
+                "keeper_b",
+                CampaignRole::Player,
+                1_003,
+            )
+            .unwrap();
+    }
+
+    #[test]
     fn membership_is_resource_scoped_and_fail_closed() {
         let mut service = service();
         service
@@ -1324,7 +1801,13 @@ mod tests {
             .authenticate_session(Some(owner_session.token.expose()), 1_001)
             .unwrap();
         service
-            .grant_membership(&owner, "campaign_a", "user_player", CampaignRole::Player)
+            .grant_membership(
+                &owner,
+                "campaign_a",
+                "user_player",
+                CampaignRole::Player,
+                1_002,
+            )
             .unwrap();
 
         let player_session = service
@@ -1342,21 +1825,23 @@ mod tests {
                 &player,
                 &EntityId::new("campaign_a").unwrap(),
                 &[CampaignRole::Player],
+                1_002,
             )
             .unwrap();
         let campaign_a = EntityId::new("campaign_a").unwrap();
-        let command_actor = service.command_actor(&player, &campaign_a).unwrap();
+        let command_actor = service.command_actor(&player, &campaign_a, 1_002).unwrap();
         assert_eq!(command_actor.role(), &ActorRole::Investigator);
         assert_eq!(
             service.require_membership(
                 &player,
                 &EntityId::new("campaign_b").unwrap(),
                 &[CampaignRole::Player],
+                1_002,
             ),
             Err(IdentityError::MembershipRequired)
         );
         assert_eq!(
-            service.command_actor(&player, &EntityId::new("campaign_b").unwrap()),
+            service.command_actor(&player, &EntityId::new("campaign_b").unwrap(), 1_002),
             Err(IdentityError::MembershipRequired)
         );
     }
@@ -1374,6 +1859,27 @@ mod tests {
             Err(IdentityError::InvalidInternalCredential)
         );
         assert!(service.authenticate_workload(&workload, 1_500).is_ok());
+        let workload_context = service.authenticate_workload(&workload, 1_500).unwrap();
+        let campaign = EntityId::new("campaign_a").unwrap();
+        let verifier = service.verifier();
+        verifier
+            .verify_actor(
+                &workload_context,
+                &Actor::verified_workload("workflow_1", KernelWorkloadRole::WorkflowEngine)
+                    .unwrap(),
+                &campaign,
+                1_500,
+            )
+            .unwrap();
+        assert_eq!(
+            verifier.verify_actor(
+                &workload_context,
+                &Actor::verified_workload("workflow_1", KernelWorkloadRole::RulesEngine).unwrap(),
+                &campaign,
+                1_500,
+            ),
+            Err(IdentityError::InvalidInternalCredential)
+        );
 
         let agent = service
             .issue_agent_run_credential(

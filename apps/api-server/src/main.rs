@@ -100,7 +100,7 @@ fn policy_and_audit_from_environment(
         .map_err(|_| "OPENFGA_POLICY_CONFIGURATION_INVALID")?,
         HttpPolicyEndpoint::new(
             opa_address,
-            "/v1/data/security_governance/allow",
+            "/v1/data/security_governance/decision",
             PolicyBackend::Opa,
             opa_revision,
         )

@@ -25,7 +25,9 @@ pub mod session_runtime_impl;
 pub mod workflow_engine;
 pub mod workflow_engine_impl;
 
+pub use runtime_state_machines::EventStore;
+pub use trpg_security_governance::formal_commit_audit::FormalCommitAudit;
 pub use trpg_shared_kernel::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
-    EventStore, FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
+    FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
 };

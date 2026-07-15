@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 use trpg_shared_kernel::{KernelResult, TrpgError};
 
 const MAX_POLICY_RESPONSE_BYTES: u64 = 1_048_576;
@@ -18,7 +17,9 @@ pub struct PolicyAuthorizationRequest {
     pub resource_id: String,
     pub action: String,
     pub authority_mode: String,
+    pub requested_role: Option<String>,
     pub target_visibility: String,
+    pub target_visibility_subject: Option<String>,
     pub trace_id: String,
 }
 
@@ -111,9 +112,14 @@ impl HttpPolicyEndpoint {
                     "relation": format!("can_{}", request.action),
                     "object": format!("campaign:{}", request.campaign_id),
                 },
+                "contextual_tuples": {
+                    "tuple_keys": contextual_tuples(request),
+                },
                 "context": {
                     "campaign_id": request.campaign_id,
+                    "requested_role": request.requested_role,
                     "target_visibility": request.target_visibility,
+                    "target_visibility_subject": request.target_visibility_subject,
                     "trace_id": request.trace_id,
                 }
             }),
@@ -125,7 +131,9 @@ impl HttpPolicyEndpoint {
                 "resource_id": request.resource_id,
                 "action": request.action,
                 "authority_mode": request.authority_mode,
+                "requested_role": request.requested_role,
                 "source_visibility": request.target_visibility,
+                "source_visibility_subject": request.target_visibility_subject,
                 "target_output": target_output(&request.action),
                 "trace_id": request.trace_id,
                 "openfga_decision": if openfga_allowed == Some(true) { "PERMIT" } else { "DENY" },
@@ -145,15 +153,23 @@ impl HttpPolicyEndpoint {
         }
         .ok_or(TrpgError::PolicyEvidenceUntrusted)?;
 
-        let decision_id = decision_id(&value, &response.headers).unwrap_or_else(|| {
-            response_decision_id(self.backend, &response.body, &request.trace_id)
-        });
+        let decision_id =
+            decision_id(&value, &response.headers).ok_or(TrpgError::PolicyEvidenceUntrusted)?;
         let response_revision = response_policy_revision(&value);
-        if response_revision
-            .as_deref()
-            .is_some_and(|revision| revision != self.policy_revision)
-        {
-            return Err(TrpgError::PolicyEvidenceUntrusted);
+        match self.backend {
+            PolicyBackend::OpenFga => {
+                if response_revision
+                    .as_deref()
+                    .is_some_and(|revision| revision != self.policy_revision)
+                {
+                    return Err(TrpgError::PolicyEvidenceUntrusted);
+                }
+            }
+            PolicyBackend::Opa => {
+                if response_revision.as_deref() != Some(self.policy_revision.as_str()) {
+                    return Err(TrpgError::PolicyEvidenceUntrusted);
+                }
+            }
         }
 
         Ok(PolicyDecisionEvidence {
@@ -306,13 +322,27 @@ fn target_output(action: &str) -> &'static str {
     }
 }
 
-fn response_decision_id(backend: PolicyBackend, body: &[u8], trace_id: &str) -> String {
-    let mut digest = Sha256::new();
-    digest.update(match backend {
-        PolicyBackend::OpenFga => b"openfga".as_slice(),
-        PolicyBackend::Opa => b"opa".as_slice(),
-    });
-    digest.update(trace_id.as_bytes());
-    digest.update(body);
-    format!("response-sha256:{:x}", digest.finalize())
+fn contextual_tuples(request: &PolicyAuthorizationRequest) -> Vec<Value> {
+    let Some(relation) = contextual_relation(&request.principal_role) else {
+        return Vec::new();
+    };
+    vec![json!({
+        "user": format!("principal:{}", request.actor_id),
+        "relation": relation,
+        "object": format!("campaign:{}", request.campaign_id),
+    })]
+}
+
+fn contextual_relation(principal_role: &str) -> Option<&'static str> {
+    match principal_role {
+        "server_owner" => Some("server_owner"),
+        "campaign_owner" => Some("campaign_owner"),
+        "moderator" => Some("moderator"),
+        "human_kp" => Some("human_kp"),
+        "player" => Some("player"),
+        "workflow" => Some("workflow"),
+        "rules_engine" => Some("rules_engine"),
+        "system" => Some("system"),
+        _ => None,
+    }
 }

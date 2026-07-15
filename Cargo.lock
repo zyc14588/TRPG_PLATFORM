@@ -811,6 +811,7 @@ version = "0.1.0"
 dependencies = [
  "trpg-contracts",
  "trpg-identity",
+ "trpg-security-governance",
  "trpg-shared-kernel",
  "trpg-test-support",
 ]
@@ -902,6 +903,7 @@ dependencies = [
  "sha2 0.10.9",
  "trpg-contracts",
  "trpg-identity",
+ "trpg-security-governance",
  "trpg-shared-kernel",
  "trpg-test-support",
 ]
@@ -923,6 +925,7 @@ dependencies = [
 name = "trpg-shared-kernel"
 version = "0.1.0"
 dependencies = [
+ "sha2 0.10.9",
  "trpg-contracts",
  "trpg-test-support",
 ]

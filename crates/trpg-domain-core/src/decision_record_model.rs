@@ -79,6 +79,15 @@ impl DecisionEvidenceCatalog {
         event: &EventEnvelope<P>,
         source_context_hash: impl Into<String>,
     ) -> DomainResult<()> {
+        event
+            .verify_recorded_integrity()
+            .map_err(|_| DomainError::InvalidConfirmedFactSource)?;
+        if !matches!(
+            event.event_type,
+            "GameEvent" | "DecisionCommitted" | "DiceRoll" | "RulesDecision"
+        ) {
+            return Err(DomainError::InvalidConfirmedFactSource);
+        }
         self.register(
             event.fact_provenance.reference.clone(),
             event.campaign_id.clone(),
@@ -94,6 +103,9 @@ impl DecisionEvidenceCatalog {
         event: &EventEnvelope<P>,
         source_context_hash: impl Into<String>,
     ) -> DomainResult<()> {
+        event
+            .verify_recorded_integrity()
+            .map_err(|_| DomainError::InvalidConfirmedFactSource)?;
         if !matches!(event.event_type, "ToolResult" | "ToolResultRecorded") {
             return Err(DomainError::InvalidConfirmedFactSource);
         }

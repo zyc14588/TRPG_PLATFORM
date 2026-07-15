@@ -149,3 +149,28 @@ fn context_or_visibility_mismatch_cannot_be_laundered_into_a_decision_record() {
         DomainError::InvalidConfirmedFactSource
     );
 }
+
+#[test]
+fn command_acceptance_is_not_decision_evidence() {
+    let contract = trpg_test_support::authority_contract_with_owner(
+        "camp_human_archive",
+        AuthorityMode::HumanKp,
+        "keeper",
+        1,
+    )
+    .unwrap();
+    let mut command =
+        trpg_test_support::governed_command_for_contract(&contract, (), ActorRole::HumanKeeper);
+    command.fact_provenance =
+        FactProvenance::new(ProvenanceKind::HumanKeeperStatement, "event_001", "keeper").unwrap();
+    let mut store = EventStore::default();
+    let event = store.append(&command, "CommandAccepted", ()).unwrap();
+    let mut evidence = DecisionEvidenceCatalog::default();
+
+    assert_eq!(
+        evidence
+            .register_event(&event, format!("sha256:{}", "a".repeat(64)))
+            .unwrap_err(),
+        DomainError::InvalidConfirmedFactSource
+    );
+}

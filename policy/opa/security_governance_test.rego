@@ -19,7 +19,8 @@ test_visibility_private_to_player_party_summary_denied if {
 		"principal_role": "server_owner",
 		"action": "pause_room",
 		"openfga_decision": "PERMIT",
-		"source_visibility": "private_to_player:user_player_a",
+		"source_visibility": "private_to_player",
+		"source_visibility_subject": "user_player_a",
 		"target_output": "party_summary",
 	}
 }
@@ -112,8 +113,56 @@ test_permission_server_owner_manage_membership_allowed if {
 		"principal_role": "server_owner",
 		"authority_mode": "human_kp",
 		"action": "manage_campaign_membership",
+		"requested_role": "spectator",
 		"openfga_decision": "PERMIT",
 		"source_visibility": "system_only",
 		"target_output": "debug_log",
+	}
+}
+
+test_permission_campaign_owner_cannot_grant_campaign_owner if {
+	not allow with input as {
+		"principal_role": "campaign_owner",
+		"authority_mode": "human_kp",
+		"action": "manage_campaign_membership",
+		"requested_role": "campaign_owner",
+		"openfga_decision": "PERMIT",
+		"source_visibility": "system_only",
+		"target_output": "debug_log",
+	}
+}
+
+test_private_visibility_requires_subject if {
+	not allow with input as {
+		"principal_role": "workflow",
+		"action": "generate_party_summary",
+		"openfga_decision": "PERMIT",
+		"source_visibility": "private_to_player",
+		"source_visibility_subject": null,
+		"target_output": "party_summary",
+	}
+}
+
+test_private_player_export_rejects_a_different_recipient if {
+	not allow with input as {
+		"principal_role": "workflow",
+		"action": "export_player_report",
+		"resource_id": "player_b",
+		"openfga_decision": "PERMIT",
+		"source_visibility": "private_to_player",
+		"source_visibility_subject": "player_a",
+		"target_output": "player_export",
+	}
+}
+
+test_private_player_export_allows_the_bound_recipient if {
+	allow with input as {
+		"principal_role": "workflow",
+		"action": "export_player_report",
+		"resource_id": "player_a",
+		"openfga_decision": "PERMIT",
+		"source_visibility": "private_to_player",
+		"source_visibility_subject": "player_a",
+		"target_output": "player_export",
 	}
 }

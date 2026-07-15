@@ -27,6 +27,7 @@ pub mod tool_protocol;
 pub mod working_memory_long_memory_rag;
 pub mod working_memory_rag_rag_snapshot;
 
+pub use agent_runtime::EventStore as AgentEventStore;
 pub use agent_runtime::{
     assemble_context, evaluate_agent_tool_request, evaluate_prompt_injection,
     replay_agent_events_for_principal, AgentDecision, AgentDecisionCommitter, AgentError,
@@ -42,6 +43,7 @@ pub use model_provider::{
     ProviderConfig, ProviderType,
 };
 pub use rag_snapshot::{query_visible_chunks, require_visible_chunk, RagChunk};
+pub use trpg_security_governance::formal_commit_audit::FormalCommitAudit;
 pub use trpg_shared_kernel::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
     EventStore, FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,

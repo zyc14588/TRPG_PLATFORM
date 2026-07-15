@@ -44,14 +44,26 @@ fn application() -> ApiApplication {
         .authenticate_session(Some(owner_session.token.expose()), now + 1)
         .unwrap();
     identity
-        .grant_membership(&owner, "campaign_a", "owner_a", CampaignRole::HumanKeeper)
+        .grant_membership(
+            &owner,
+            "campaign_a",
+            "owner_a",
+            CampaignRole::HumanKeeper,
+            now + 1,
+        )
         .unwrap();
     identity
-        .grant_membership(&owner, "campaign_a", "player_a", CampaignRole::Player)
+        .grant_membership(
+            &owner,
+            "campaign_a",
+            "player_a",
+            CampaignRole::Player,
+            now + 1,
+        )
         .unwrap();
-    let application = ApiApplication::new(identity);
-    application
-        .register_authority(
+    identity
+        .register_authority_contract(
+            &owner,
             trpg_test_support::authority_contract_with_owner(
                 "campaign_a",
                 AuthorityMode::HumanKp,
@@ -59,9 +71,10 @@ fn application() -> ApiApplication {
                 1,
             )
             .unwrap(),
+            now + 1,
         )
         .unwrap();
-    application
+    ApiApplication::new(identity)
 }
 
 fn governed_application() -> Option<(ApiApplication, PathBuf)> {
@@ -79,9 +92,9 @@ fn governed_application() -> Option<(ApiApplication, PathBuf)> {
         .unwrap(),
         HttpPolicyEndpoint::new(
             opa_address,
-            "/v1/data/security_governance/allow",
+            "/v1/data/security_governance/decision",
             PolicyBackend::Opa,
-            "opa-security-governance-v1",
+            "opa-security-governance-v2",
         )
         .unwrap(),
     )
@@ -119,13 +132,26 @@ fn governed_application() -> Option<(ApiApplication, PathBuf)> {
         .authenticate_session(Some(owner_session.token.expose()), now + 1)
         .unwrap();
     identity
-        .grant_membership(&owner, "campaign_a", "owner_a", CampaignRole::HumanKeeper)
+        .grant_membership(
+            &owner,
+            "campaign_a",
+            "owner_a",
+            CampaignRole::HumanKeeper,
+            now + 1,
+        )
         .unwrap();
     identity
-        .grant_membership(&owner, "campaign_a", "player_a", CampaignRole::Player)
+        .grant_membership(
+            &owner,
+            "campaign_a",
+            "player_a",
+            CampaignRole::Player,
+            now + 1,
+        )
         .unwrap();
     identity
         .register_authority_contract(
+            &owner,
             trpg_test_support::authority_contract_with_owner(
                 "campaign_a",
                 AuthorityMode::HumanKp,
@@ -133,6 +159,7 @@ fn governed_application() -> Option<(ApiApplication, PathBuf)> {
                 1,
             )
             .unwrap(),
+            now + 1,
         )
         .unwrap();
     Some((ApiApplication::new_governed(identity, policy, audit), path))
@@ -414,5 +441,9 @@ fn authorized_membership_mutation_requires_real_policy_and_is_audited() {
     assert_eq!(records[0].decision, AuditDecision::Permit);
     assert_eq!(records[0].actor_id, "owner_a");
     assert_eq!(records[0].action, "manage_campaign_membership");
+    assert_eq!(records[0].requested_role, "spectator");
+    let mut anchor_name = audit_path.as_os_str().to_os_string();
+    anchor_name.push(".head");
     std::fs::remove_file(audit_path).unwrap();
+    std::fs::remove_file(PathBuf::from(anchor_name)).unwrap();
 }

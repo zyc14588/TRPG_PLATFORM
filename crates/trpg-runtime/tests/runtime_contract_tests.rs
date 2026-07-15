@@ -1,10 +1,11 @@
+mod common;
+
 use trpg_runtime::runtime;
 use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::{
-    ActorRole, AuthorityMode, EventStore, FormalWritePath, PrincipalScope, Visibility,
-    VisibilityLabel,
+    ActorRole, AuthorityMode, FormalWritePath, PrincipalScope, Visibility, VisibilityLabel,
 };
 
 #[test]
@@ -59,7 +60,7 @@ fn runtime_commits_ai_kp_decision_through_evented_pipeline() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
     let events =
         runtime::commit_runtime_decision(&mut store, &contract, &command, decision).unwrap();
@@ -84,7 +85,7 @@ fn runtime_replay_does_not_expose_keeper_only_events_to_public() {
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
     runtime::commit_runtime_decision(&mut store, &contract, &command, decision).unwrap();
 
@@ -110,7 +111,7 @@ fn runtime_rejects_agent_direct_write_before_append() {
     command.write_path = FormalWritePath::DirectAgent;
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
     let error =
         runtime::commit_runtime_decision(&mut store, &contract, &command, decision).unwrap_err();

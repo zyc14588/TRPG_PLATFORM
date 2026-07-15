@@ -2,6 +2,14 @@ package security_governance
 
 default allow := false
 
+policy_revision := "opa-security-governance-v2"
+
+decision := {
+	"allow": allow,
+	"decision_id": uuid.rfc4122("p02-security-governance"),
+	"policy_revision": policy_revision,
+}
+
 allow if {
 	input.openfga_decision == "PERMIT"
 	permission_allowed
@@ -46,8 +54,15 @@ permission_allowed if {
 }
 
 permission_allowed if {
-	input.principal_role in {"server_owner", "campaign_owner"}
+	input.principal_role == "server_owner"
 	input.action == "manage_campaign_membership"
+	input.requested_role in {"campaign_owner", "human_keeper", "player", "spectator"}
+}
+
+permission_allowed if {
+	input.principal_role == "campaign_owner"
+	input.action == "manage_campaign_membership"
+	input.requested_role in {"player", "spectator"}
 }
 
 visibility_forbidden if {
@@ -56,8 +71,19 @@ visibility_forbidden if {
 }
 
 visibility_forbidden if {
-	startswith(input.source_visibility, "private_to_player")
+	input.source_visibility in {"private_to_player", "investigator_private"}
 	input.target_output == "party_summary"
+}
+
+visibility_forbidden if {
+	input.source_visibility in {"private_to_player", "investigator_private"}
+	input.source_visibility_subject == null
+}
+
+visibility_forbidden if {
+	input.source_visibility in {"private_to_player", "investigator_private"}
+	input.target_output == "player_export"
+	input.source_visibility_subject != input.resource_id
 }
 
 visibility_forbidden if {

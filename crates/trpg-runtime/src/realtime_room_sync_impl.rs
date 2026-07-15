@@ -1,9 +1,9 @@
 use crate::runtime_state_machines::{
-    append_runtime_event, commit_decision, replay_visible_runtime_events, RuntimeDecision,
-    RuntimeEventPayload, RuntimeResult,
+    append_runtime_event, commit_decision, replay_visible_runtime_events, EventStore,
+    RuntimeDecision, RuntimeEventPayload, RuntimeResult,
 };
 use trpg_shared_kernel::{
-    AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, EventStore, PrincipalScope,
+    AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, PrincipalScope,
 };
 
 pub fn publish_realtime_room_sync_impl_delta<T: Clone>(

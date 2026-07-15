@@ -1,8 +1,10 @@
+mod common;
+
 use trpg_agent_runtime::agent_runtime_impl;
 use trpg_agent_runtime::{
     ActorRole, AgentDecision, AgentDecisionCommitter, AgentKind, AgentTool, AuthorityMode,
-    CommandEnvelope, ContextFact, EventStore, FormalWritePath, PrincipalScope, ToolRequest,
-    Visibility, VisibilityLabel,
+    CommandEnvelope, ContextFact, FormalWritePath, PrincipalScope, ToolRequest, Visibility,
+    VisibilityLabel,
 };
 
 fn ai_kp_command(payload: AgentDecision) -> CommandEnvelope<AgentDecision> {
@@ -35,11 +37,17 @@ fn agent_runtime_impl_rejects_direct_agent_state_write() {
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let committer =
-        AgentDecisionCommitter::new(trpg_test_support::identity_verifier(), [contract]).unwrap();
-    let mut store = EventStore::default();
+        AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
+            .unwrap();
+    let mut store = common::audited_store();
 
     let error = agent_runtime_impl::run_agent_runtime_decision(
-        &committer, &mut store, &command, decision, 2,
+        &committer,
+        &mut store,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap_err();
 

@@ -1,7 +1,7 @@
 use crate::runtime_state_machines::{
-    commit_decision, RuntimeDecision, RuntimeEventPayload, RuntimeResult,
+    commit_decision, EventStore, RuntimeDecision, RuntimeEventPayload, RuntimeResult,
 };
-use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EventEnvelope, EventStore};
+use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EventEnvelope};
 
 pub fn commit_runtime_workflow_decision(
     store: &mut EventStore<RuntimeEventPayload>,

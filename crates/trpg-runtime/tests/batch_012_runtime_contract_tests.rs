@@ -16,9 +16,21 @@ use trpg_runtime::scheduler_service::{self, ScheduledRuntimeTask};
 use trpg_runtime::session_runtime;
 use trpg_runtime::workflow_engine;
 use trpg_runtime::{
-    ActorRole, AuthorityMode, CommandEnvelope, EntityId, EventStore, FormalWritePath,
-    PrincipalScope, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, EntityId, EventStore, FormalCommitAudit,
+    FormalWritePath, PrincipalScope, Visibility, VisibilityLabel,
 };
+
+static NEXT_AUDIT_ID: AtomicU64 = AtomicU64::new(1);
+
+fn audited_store() -> EventStore<RuntimeEventPayload> {
+    let audit_id = NEXT_AUDIT_ID.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!(
+        "p02-runtime-batch-audit-{}-{audit_id}.jsonl",
+        std::process::id()
+    ));
+    let audit = FormalCommitAudit::open(path, "runtime-batch-test-v1", &[0x83; 32]).unwrap();
+    EventStore::with_formal_audit(audit)
+}
 
 const S06_STAGE_FIXTURE: &str =
     include_str!("../../../fixtures/stages/S06_stage_acceptance_fixture.v1.json.md");
@@ -157,7 +169,7 @@ fn ai_kp_orchestrator_commits_decision_through_tool_and_event_log() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = audited_store();
 
     let events = runtime_workflow_engine::commit_runtime_workflow_decision(
         &mut store, &contract, &command, decision,
@@ -198,7 +210,7 @@ fn decision_pipeline_fixture_expected_records_are_asserted() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = audited_store();
 
     let events =
         workflow_engine::commit_workflow_decision(&mut store, &contract, &command, decision)
@@ -293,7 +305,7 @@ fn runtime_pending_decision_wrapper_opens_and_commits_governed_decisions() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = audited_store();
 
     let events = runtime_pending_decision::commit_runtime_pending_decision(
         &mut store, &contract, &command, decision,
@@ -411,7 +423,7 @@ fn keeper_only_runtime_events_do_not_sync_to_public_room() {
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = audited_store();
 
     runtime_workflow_engine::commit_runtime_workflow_decision(
         &mut store, &contract, &command, decision,
@@ -445,7 +457,7 @@ fn realtime_runtime_binding_respects_private_player_visibility() {
     command.visibility = Visibility::private_to_player(player_a.clone());
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = audited_store();
 
     runtime_workflow_engine::commit_runtime_workflow_decision(
         &mut store, &contract, &command, decision,
@@ -489,7 +501,7 @@ fn expected_version_and_idempotency_are_enforced() {
     command.expected_version = 1;
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = audited_store();
 
     assert_eq!(
         runtime_workflow_engine::commit_runtime_workflow_decision(
@@ -521,3 +533,4 @@ fn expected_version_and_idempotency_are_enforced() {
         "DUPLICATE_COMMAND"
     );
 }
+use std::sync::atomic::{AtomicU64, Ordering};

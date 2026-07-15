@@ -1,5 +1,8 @@
-use crate::agent_runtime::{AgentDecision, AgentDecisionCommitter, AgentEventPayload, AgentResult};
-use trpg_shared_kernel::{CommandEnvelope, EventEnvelope, EventStore};
+use crate::agent_runtime::{
+    AgentDecision, AgentDecisionCommitter, AgentEventPayload, AgentResult, EventStore,
+};
+use trpg_identity::AuthenticationContext;
+use trpg_shared_kernel::{CommandEnvelope, EventEnvelope};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AiAgentBoundary {
@@ -22,8 +25,15 @@ pub fn submit_ai_agent_decision(
     committer: &AgentDecisionCommitter,
     store: &mut EventStore<AgentEventPayload>,
     command: &CommandEnvelope<AgentDecision>,
+    workflow_authentication: &AuthenticationContext,
     decision: AgentDecision,
     now_unix_ms: u64,
 ) -> AgentResult<Vec<EventEnvelope<AgentEventPayload>>> {
-    committer.commit(store, command, decision, now_unix_ms)
+    committer.commit(
+        store,
+        command,
+        workflow_authentication,
+        decision,
+        now_unix_ms,
+    )
 }

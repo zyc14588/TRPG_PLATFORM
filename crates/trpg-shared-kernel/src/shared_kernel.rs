@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
+use sha2::{Digest, Sha256};
+
 use trpg_contracts::WireErrorCode;
 
 pub type KernelResult<T> = Result<T, TrpgError>;
@@ -224,8 +226,37 @@ impl Visibility {
         }
     }
 
+    pub fn investigator_private(player_id: EntityId) -> Self {
+        Self {
+            label: VisibilityLabel::InvestigatorPrivate,
+            player_id: Some(player_id),
+        }
+    }
+
     pub fn label(&self) -> &VisibilityLabel {
         &self.label
+    }
+
+    pub fn player_id(&self) -> Option<&EntityId> {
+        self.player_id.as_ref()
+    }
+
+    pub fn is_well_formed(&self) -> bool {
+        matches!(
+            (&self.label, &self.player_id),
+            (
+                VisibilityLabel::PrivateToPlayer | VisibilityLabel::InvestigatorPrivate,
+                Some(_)
+            ) | (
+                VisibilityLabel::Public
+                    | VisibilityLabel::PartyVisible
+                    | VisibilityLabel::KeeperOnly
+                    | VisibilityLabel::AiInternal
+                    | VisibilityLabel::SystemOnly
+                    | VisibilityLabel::SystemPrivate,
+                None
+            )
+        )
     }
 
     pub fn can_view(&self, principal: &PrincipalScope) -> bool {
@@ -998,6 +1029,16 @@ pub struct EventEnvelope<P> {
     pub trace_id: EntityId,
     pub occurred_at_unix_ms: u64,
     pub payload: P,
+    integrity_hash: [u8; 32],
+}
+
+impl<P> EventEnvelope<P> {
+    pub fn verify_recorded_integrity(&self) -> KernelResult<()> {
+        if self.integrity_hash != event_integrity_hash(self) {
+            return Err(TrpgError::PolicyEvidenceUntrusted);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1039,7 +1080,7 @@ impl<P: Clone> EventStore<P> {
             return Err(TrpgError::DuplicateCommand);
         }
 
-        let event = EventEnvelope {
+        let mut event = EventEnvelope {
             sequence: actual_version + 1,
             event_type,
             campaign_id: command
@@ -1069,7 +1110,9 @@ impl<P: Clone> EventStore<P> {
             trace_id: command.authenticated_context().trace_id().clone(),
             occurred_at_unix_ms: unix_time_ms(),
             payload,
+            integrity_hash: [0_u8; 32],
         };
+        event.integrity_hash = event_integrity_hash(&event);
 
         self.idempotency_index
             .insert(command.idempotency_key.clone(), event.sequence);
@@ -1089,6 +1132,27 @@ impl<P: Clone> EventStore<P> {
             .cloned()
             .collect()
     }
+}
+
+fn event_integrity_hash<P>(event: &EventEnvelope<P>) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(event.sequence.to_be_bytes());
+    digest.update(event.event_type.as_bytes());
+    digest.update(event.campaign_id.as_str().as_bytes());
+    digest.update(format!("{:?}", event.authenticated_actor).as_bytes());
+    digest.update(format!("{:?}", event.resource).as_bytes());
+    digest.update(event.authority_contract_id.as_str().as_bytes());
+    digest.update(event.authority_owner.as_str().as_bytes());
+    digest.update(event.command_id.as_str().as_bytes());
+    digest.update(event.idempotency_key.as_bytes());
+    digest.update(event.authority_contract_version.to_be_bytes());
+    digest.update(format!("{:?}", event.visibility).as_bytes());
+    digest.update(format!("{:?}", event.fact_provenance).as_bytes());
+    digest.update(event.correlation_id.as_str().as_bytes());
+    digest.update(event.causation_id.as_str().as_bytes());
+    digest.update(event.trace_id.as_str().as_bytes());
+    digest.update(event.occurred_at_unix_ms.to_be_bytes());
+    digest.finalize().into()
 }
 
 fn unix_time_ms() -> u64 {

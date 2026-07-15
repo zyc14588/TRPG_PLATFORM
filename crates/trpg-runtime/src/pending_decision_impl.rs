@@ -1,10 +1,8 @@
 use crate::runtime_state_machines::{
-    commit_decision, create_pending_decision, PendingDecision, RuntimeDecision,
+    commit_decision, create_pending_decision, EventStore, PendingDecision, RuntimeDecision,
     RuntimeEventPayload, RuntimeResult,
 };
-use trpg_shared_kernel::{
-    AuthorityContract, AuthorityMode, CommandEnvelope, EventEnvelope, EventStore,
-};
+use trpg_shared_kernel::{AuthorityContract, AuthorityMode, CommandEnvelope, EventEnvelope};
 
 pub fn open_pending_decision_impl(
     authority_mode: &AuthorityMode,

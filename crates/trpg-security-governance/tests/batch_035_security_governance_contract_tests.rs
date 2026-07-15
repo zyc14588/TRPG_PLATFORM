@@ -234,7 +234,11 @@ fn audit_log_contract_persists_audit_metadata() {
     );
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     let path = audit_path("audit-contract");
+    let mut anchor_name = path.as_os_str().to_os_string();
+    anchor_name.push(".head");
+    let anchor_path = PathBuf::from(anchor_name);
     let _ = std::fs::remove_file(&path);
+    let _ = std::fs::remove_file(&anchor_path);
     let mut audit = FileAuditLog::open(&path, "test-audit-key-v1", &AUDIT_KEY).unwrap();
 
     audit
@@ -246,6 +250,7 @@ fn audit_log_contract_persists_audit_metadata() {
             resource_type: "campaign".to_owned(),
             resource_id: "camp_human_archive".to_owned(),
             action: "record_audit".to_owned(),
+            requested_role: "not_applicable".to_owned(),
             decision: AuditDecision::Permit,
             openfga_decision_id: "openfga_batch_035".to_owned(),
             openfga_policy_revision: "openfga_model_035".to_owned(),
@@ -265,6 +270,7 @@ fn audit_log_contract_persists_audit_metadata() {
     assert_eq!(records[0].authentication_reference, "workflow_001");
     assert_eq!(records[0].openfga_policy_revision, "openfga_model_035");
     std::fs::remove_file(path).unwrap();
+    std::fs::remove_file(anchor_path).unwrap();
 }
 
 #[test]

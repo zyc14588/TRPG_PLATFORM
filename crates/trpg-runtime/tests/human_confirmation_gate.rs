@@ -1,15 +1,13 @@
 use std::sync::{Arc, Barrier};
 use std::thread;
 
-use trpg_identity::{AuthenticationContext, GlobalRole, IdentityService, IdentityVerifier};
+use trpg_identity::{AuthenticationContext, GlobalRole, IdentityError, IdentityService};
 use trpg_runtime::runtime_state_machines::{
     commit_decision, HumanConfirmationGate, PendingDecisionStatus, RuntimeAgent, RuntimeDecision,
     RuntimeError, RuntimeTool, ToolRequest,
 };
-use trpg_runtime::{ActorRole, AuthorityMode, EventStore, TrpgError};
+use trpg_runtime::{ActorRole, AuthorityMode, EventStore, FormalCommitAudit, TrpgError};
 use trpg_shared_kernel::AuthorityContract;
-
-const TRUSTED_KEY: [u8; 32] = [0x45; 32];
 
 fn contract() -> AuthorityContract {
     trpg_test_support::authority_contract_with_owner(
@@ -30,35 +28,64 @@ fn decision() -> RuntimeDecision {
     .unwrap()
 }
 
-fn authentication(subject: &str, key: &[u8; 32]) -> (IdentityVerifier, AuthenticationContext) {
-    let mut identity = IdentityService::new(key, 60_000).unwrap();
+fn authentication(identity: &mut IdentityService, subject: &str) -> AuthenticationContext {
     let login = format!("{subject}@example.test");
+    let password = match identity.create_user(
+        subject,
+        &login,
+        "confirmation password long enough",
+        GlobalRole::User,
+    ) {
+        Ok(()) => "confirmation password long enough",
+        Err(IdentityError::DuplicateLogin) => "test authority password long enough",
+        Err(error) => panic!("failed to create confirmation identity: {error}"),
+    };
+    let session = identity.login(&login, password, 100).unwrap();
     identity
-        .create_user(
-            subject,
-            &login,
-            "confirmation password long enough",
-            GlobalRole::User,
-        )
-        .unwrap();
-    let session = identity
-        .login(&login, "confirmation password long enough", 100)
-        .unwrap();
-    let context = identity
         .authenticate_session(Some(session.token.expose()), 101)
-        .unwrap();
-    (identity.verifier(), context)
+        .unwrap()
 }
 
-fn gate(contract: &AuthorityContract) -> HumanConfirmationGate {
-    let identity = IdentityService::new(&TRUSTED_KEY, 60_000).unwrap();
-    HumanConfirmationGate::new(identity.verifier(), [contract.clone()]).unwrap()
+fn rogue_authentication(subject: &str) -> AuthenticationContext {
+    let mut identity = IdentityService::new(&[0x99; 32], 60_000).unwrap();
+    authentication(&mut identity, subject)
+}
+
+fn rogue_workflow_authentication() -> AuthenticationContext {
+    let identity = IdentityService::new(&[0x99; 32], 60_000).unwrap();
+    let credential = identity
+        .issue_workload_credential(
+            "workflow_001",
+            trpg_identity::WorkloadRole::WorkflowEngine,
+            1,
+            10_000,
+        )
+        .unwrap();
+    identity.authenticate_workload(&credential, 2).unwrap()
+}
+
+fn gate(contract: &AuthorityContract) -> (HumanConfirmationGate, IdentityService) {
+    let identity = trpg_test_support::identity_service_for_contract(contract);
+    let gate = HumanConfirmationGate::new(identity.verifier()).unwrap();
+    (gate, identity)
+}
+
+fn formal_audit(name: &str) -> FormalCommitAudit {
+    let path = std::env::temp_dir().join(format!(
+        "p02-runtime-formal-audit-{}-{name}.jsonl",
+        std::process::id()
+    ));
+    let mut anchor_name = path.as_os_str().to_os_string();
+    anchor_name.push(".head");
+    let _ = std::fs::remove_file(&path);
+    let _ = std::fs::remove_file(std::path::PathBuf::from(anchor_name));
+    FormalCommitAudit::open(path, "runtime-test-key-v1", &[0x82; 32]).unwrap()
 }
 
 #[test]
 fn unconfirmed_non_owner_changed_and_expired_drafts_are_rejected() {
     let contract = contract();
-    let gate = gate(&contract);
+    let (gate, mut identity) = gate(&contract);
     let decision = decision();
     let command = trpg_test_support::governed_command_for_contract(
         &contract,
@@ -80,14 +107,14 @@ fn unconfirmed_non_owner_changed_and_expired_drafts_are_rejected() {
         pending.status,
         PendingDecisionStatus::AwaitingHumanConfirmation
     );
-    let (_, attacker) = authentication("keeper_attacker", &TRUSTED_KEY);
+    let attacker = authentication(&mut identity, "keeper_attacker");
     assert_eq!(
         gate.confirm(&pending, &attacker, &decision, 150)
             .unwrap_err(),
         RuntimeError::Core(TrpgError::AuthorityOwnerMismatch)
     );
 
-    let (_, owner) = authentication("keeper_owner", &TRUSTED_KEY);
+    let owner = authentication(&mut identity, "keeper_owner");
     let mut changed = decision.clone();
     changed.decision_summary.push_str(" after confirmation");
     assert_eq!(
@@ -103,12 +130,12 @@ fn unconfirmed_non_owner_changed_and_expired_drafts_are_rejected() {
 #[test]
 fn owner_confirmation_commits_exact_draft_once() {
     let contract = contract();
-    let gate = gate(&contract);
+    let (gate, mut identity) = gate(&contract);
     let decision = decision();
     let pending = gate
         .create_pending(contract.campaign_id(), decision.clone(), 100, 200)
         .unwrap();
-    let (_, owner) = authentication("keeper_owner", &TRUSTED_KEY);
+    let owner = authentication(&mut identity, "keeper_owner");
     let mut confirmed = gate.confirm(&pending, &owner, &decision, 150).unwrap();
     assert_eq!(confirmed.status(), PendingDecisionStatus::ReadyToCommit);
     assert_eq!(confirmed.confirmed_by().id().as_str(), "keeper_owner");
@@ -118,31 +145,98 @@ fn owner_confirmation_commits_exact_draft_once() {
         decision.clone(),
         ActorRole::Workflow,
     );
-    let mut store = EventStore::default();
+    let audit = formal_audit("owner-confirmation");
+    let mut store = EventStore::with_formal_audit(audit.clone());
+    assert_eq!(
+        gate.commit(
+            &mut store,
+            &command,
+            &rogue_workflow_authentication(),
+            &mut confirmed,
+            decision.clone(),
+            160,
+        )
+        .unwrap_err(),
+        RuntimeError::Core(TrpgError::InternalIdentityInvalid)
+    );
+    assert!(store.events().is_empty());
     let events = gate
-        .commit(&mut store, &command, &mut confirmed, decision.clone(), 160)
+        .commit(
+            &mut store,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            &mut confirmed,
+            decision.clone(),
+            160,
+        )
         .unwrap();
     assert_eq!(events.len(), 2);
     assert!(confirmed.is_committed());
     assert_eq!(confirmed.status(), PendingDecisionStatus::Committed);
 
     assert_eq!(
-        gate.commit(&mut store, &command, &mut confirmed, decision, 170)
-            .unwrap_err(),
+        gate.commit(
+            &mut store,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            &mut confirmed,
+            decision,
+            170,
+        )
+        .unwrap_err(),
         RuntimeError::Core(TrpgError::DecisionAlreadyCommitted)
     );
     assert_eq!(store.events().len(), 2);
+    let records = audit.verify().unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].actor_id, "keeper_owner");
+    assert_eq!(records[0].action, "authorize_runtime_formal_commit");
+    assert_eq!(records[0].requested_role, "human_keeper");
+    assert_eq!(records[0].campaign_id, "campaign_human");
+}
+
+#[test]
+fn formal_commit_fails_closed_without_external_audit() {
+    let contract = contract();
+    let (gate, mut identity) = gate(&contract);
+    let decision = decision();
+    let pending = gate
+        .create_pending(contract.campaign_id(), decision.clone(), 100, 200)
+        .unwrap();
+    let owner = authentication(&mut identity, "keeper_owner");
+    let mut confirmed = gate.confirm(&pending, &owner, &decision, 150).unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
+    let mut store = EventStore::default();
+
+    assert_eq!(
+        gate.commit(
+            &mut store,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            &mut confirmed,
+            decision,
+            160,
+        )
+        .unwrap_err(),
+        RuntimeError::Core(TrpgError::AuditIntegrityViolation)
+    );
+    assert!(store.events().is_empty());
+    assert!(!confirmed.is_committed());
 }
 
 #[test]
 fn one_pending_issues_one_confirmation_even_concurrently_and_not_after_restart() {
     let contract = contract();
-    let confirmation_gate = gate(&contract);
+    let (confirmation_gate, mut identity) = gate(&contract);
     let decision = decision();
     let pending = confirmation_gate
         .create_pending(contract.campaign_id(), decision.clone(), 100, 200)
         .unwrap();
-    let (_, owner) = authentication("keeper_owner", &TRUSTED_KEY);
+    let owner = authentication(&mut identity, "keeper_owner");
     let barrier = Arc::new(Barrier::new(3));
     let mut workers = Vec::new();
     for _ in 0..2 {
@@ -170,7 +264,7 @@ fn one_pending_issues_one_confirmation_even_concurrently_and_not_after_restart()
     assert_eq!(issued, 1);
     assert_eq!(rejected, 1);
 
-    let restarted_gate = gate(&contract);
+    let restarted_gate = HumanConfirmationGate::new(identity.verifier()).unwrap();
     assert_eq!(
         restarted_gate
             .confirm(&pending, &owner, &decision, 150)
@@ -182,12 +276,12 @@ fn one_pending_issues_one_confirmation_even_concurrently_and_not_after_restart()
 #[test]
 fn same_subject_from_a_rogue_identity_issuer_cannot_confirm() {
     let contract = contract();
-    let gate = gate(&contract);
+    let (gate, _identity) = gate(&contract);
     let decision = decision();
     let pending = gate
         .create_pending(contract.campaign_id(), decision.clone(), 100, 200)
         .unwrap();
-    let (_, rogue_owner) = authentication("keeper_owner", &[0x99; 32]);
+    let rogue_owner = rogue_authentication("keeper_owner");
 
     assert_eq!(
         gate.confirm(&pending, &rogue_owner, &decision, 150)
@@ -197,7 +291,7 @@ fn same_subject_from_a_rogue_identity_issuer_cannot_confirm() {
 }
 
 #[test]
-fn conflicting_authority_contracts_cannot_initialize_the_gate() {
+fn caller_contract_cannot_replace_the_identity_roots_canonical_contract() {
     let canonical = contract();
     let conflicting = trpg_test_support::authority_contract_with_owner(
         canonical.campaign_id().as_str(),
@@ -206,11 +300,30 @@ fn conflicting_authority_contracts_cannot_initialize_the_gate() {
         canonical.version(),
     )
     .unwrap();
-    let identity = IdentityService::new(&TRUSTED_KEY, 60_000).unwrap();
+    let (gate, mut identity) = gate(&canonical);
+    let decision = decision();
+    let pending = gate
+        .create_pending(canonical.campaign_id(), decision.clone(), 100, 200)
+        .unwrap();
+    let owner = authentication(&mut identity, "keeper_owner");
+    let mut confirmed = gate.confirm(&pending, &owner, &decision, 150).unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &conflicting,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
 
     assert_eq!(
-        HumanConfirmationGate::new(identity.verifier(), [canonical, conflicting]).unwrap_err(),
-        RuntimeError::Core(TrpgError::AuthorityContractMutation)
+        gate.commit(
+            &mut EventStore::default(),
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            &mut confirmed,
+            decision,
+            160,
+        )
+        .unwrap_err(),
+        RuntimeError::Core(TrpgError::AuthorityOwnerMismatch)
     );
 }
 

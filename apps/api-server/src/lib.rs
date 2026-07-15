@@ -10,7 +10,7 @@ use trpg_identity::{CampaignRole, IdentityError, IdentityService};
 use trpg_security_governance::authorize_campaign_membership_change;
 use trpg_security_governance::policy_adapter::OpenFgaOpaPolicyAdapter;
 use trpg_security_governance::tamper_evident_audit::FileAuditLog;
-use trpg_shared_kernel::{AuthorityContract, AuthorityMode, EntityId};
+use trpg_shared_kernel::{AuthorityMode, EntityId};
 
 use middleware::{ApiAuthError, AuthenticationMiddleware};
 
@@ -50,22 +50,6 @@ impl ApiApplication {
                 audit,
             }))),
         }
-    }
-
-    pub fn authentication(&self) -> &AuthenticationMiddleware {
-        &self.authentication
-    }
-
-    pub fn register_authority(&self, contract: AuthorityContract) -> Result<(), ApiAuthError> {
-        self.authentication
-            .identity()
-            .lock()
-            .map_err(|_| ApiAuthError {
-                status: 500,
-                code: "IDENTITY_DATA_INVALID",
-            })?
-            .register_authority_contract(contract)
-            .map_err(ApiAuthError::from)
     }
 
     pub fn readiness(&self) -> Result<String, String> {
@@ -190,7 +174,10 @@ impl ApiApplication {
             Err(_) => return HttpResponse::json(400, json!({"error": "INVALID_ENTITY_ID"})),
         };
         let contract = match self.authentication.identity().lock() {
-            Ok(identity) => identity.authority_contract(&campaign_id),
+            Ok(mut identity) => match identity.authority_contract(&campaign_id) {
+                Ok(contract) => contract,
+                Err(error) => return identity_error(error),
+            },
             Err(_) => return internal_error(),
         };
         let Some(contract) = contract else {
@@ -219,13 +206,14 @@ impl ApiApplication {
         campaign_id: &str,
         user_id: &str,
     ) -> HttpResponse {
-        let authentication = match self.authentication.authenticate_bearer(
-            request.header("authorization"),
-            match now_unix_ms() {
-                Ok(now) => now,
-                Err(response) => return response,
-            },
-        ) {
+        let now = match now_unix_ms() {
+            Ok(now) => now,
+            Err(response) => return response,
+        };
+        let authentication = match self
+            .authentication
+            .authenticate_bearer(request.header("authorization"), now)
+        {
             Ok(authentication) => authentication,
             Err(error) => return auth_error(error),
         };
@@ -242,21 +230,24 @@ impl ApiApplication {
             Err(_) => return HttpResponse::json(400, json!({"error": "INVALID_ENTITY_ID"})),
         };
         let (acting_membership, authority) = match self.authentication.identity().lock() {
-            Ok(identity) => {
-                let membership = match identity
-                    .require_membership_manager(&authentication, &campaign_entity_id)
-                {
+            Ok(mut identity) => {
+                let membership = match identity.require_membership_manager(
+                    &authentication,
+                    &campaign_entity_id,
+                    now,
+                ) {
                     Ok(membership) => membership,
                     Err(error) => return identity_error(error),
                 };
                 let authority = match identity.authority_contract(&campaign_entity_id) {
-                    Some(authority) => authority,
-                    None => {
+                    Ok(Some(authority)) => authority,
+                    Ok(None) => {
                         return HttpResponse::json(
                             404,
                             json!({"error": "AUTHORITY_CONTRACT_NOT_FOUND"}),
                         )
                     }
+                    Err(error) => return identity_error(error),
                 };
                 (membership, authority)
             }
@@ -275,15 +266,8 @@ impl ApiApplication {
         let trace_id = format!(
             "membership_{}_{}",
             authentication.subject_id().as_str(),
-            match now_unix_ms() {
-                Ok(now) => now,
-                Err(response) => return response,
-            }
+            now
         );
-        let now = match now_unix_ms() {
-            Ok(now) => now,
-            Err(response) => return response,
-        };
         let policy = governance.policy.clone();
         if let Err(error) = authorize_campaign_membership_change(
             &policy,
@@ -294,6 +278,7 @@ impl ApiApplication {
             authority.mode(),
             &campaign_entity_id,
             user_id,
+            role,
             &trace_id,
             now,
         ) {
@@ -301,7 +286,7 @@ impl ApiApplication {
         }
         match self.authentication.identity().lock() {
             Ok(mut identity) => {
-                match identity.grant_membership(&authentication, campaign_id, user_id, role) {
+                match identity.grant_membership(&authentication, campaign_id, user_id, role, now) {
                     Ok(membership) => HttpResponse::json(
                         200,
                         json!({

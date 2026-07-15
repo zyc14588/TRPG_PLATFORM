@@ -6,6 +6,7 @@ publish = false
 license = "UNLICENSED"
 
 [dependencies]
+sha2 = "0.10.9"
 trpg-contracts = { path = "../trpg-contracts" }
 
 [dev-dependencies]

@@ -1,8 +1,10 @@
+mod common;
+
 use trpg_runtime::runtime_pending_decision;
 use trpg_runtime::runtime_state_machines::{
     PendingDecisionStatus, RuntimeAgent, RuntimeDecision, RuntimeTool, ToolRequest,
 };
-use trpg_runtime::{ActorRole, AuthorityMode, EventStore};
+use trpg_runtime::{ActorRole, AuthorityMode};
 
 #[test]
 fn runtime_pending_decision_target_commits_ready_decision() {
@@ -25,7 +27,7 @@ fn runtime_pending_decision_target_commits_ready_decision() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
     let events = runtime_pending_decision::commit_runtime_pending_decision(
         &mut store, &contract, &command, decision,

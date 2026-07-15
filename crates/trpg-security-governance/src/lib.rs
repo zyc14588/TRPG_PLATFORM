@@ -2,6 +2,7 @@ pub mod adr_0006_openfga_opa;
 pub mod audit_log_contract;
 pub mod copyright_boundary;
 pub mod data_retention_deletion;
+pub mod formal_commit_audit;
 pub mod permission_matrix;
 pub mod policy_adapter;
 pub mod policy_authorization;
@@ -108,6 +109,27 @@ pub enum SecurityGovernanceEvent {
 pub type SecurityGovernanceEventEnvelope = EventEnvelope<SecurityGovernanceEvent>;
 pub type SecurityGovernanceRepository = EventStore<SecurityGovernanceEvent>;
 
+#[derive(Clone, Copy)]
+pub struct PolicyIdentityContext<'a> {
+    verifier: &'a IdentityVerifier,
+    authentication: &'a AuthenticationContext,
+    now_unix_ms: u64,
+}
+
+impl<'a> PolicyIdentityContext<'a> {
+    pub const fn new(
+        verifier: &'a IdentityVerifier,
+        authentication: &'a AuthenticationContext,
+        now_unix_ms: u64,
+    ) -> Self {
+        Self {
+            verifier,
+            authentication,
+            now_unix_ms,
+        }
+    }
+}
+
 pub fn evaluate_security_governance(
     module: &'static str,
     _repository: &mut SecurityGovernanceRepository,
@@ -123,8 +145,18 @@ pub fn evaluate_security_governance_with_policy(
     command: &CommandEnvelope<SecurityGovernanceCommand>,
     policy: &OpenFgaOpaPolicyAdapter,
     audit: &mut FileAuditLog,
+    identity: PolicyIdentityContext<'_>,
 ) -> KernelResult<SecurityGovernanceEventEnvelope> {
     validate_security_governance_preflight(module, command)?;
+    identity
+        .verifier
+        .verify_actor(
+            identity.authentication,
+            &command.actor,
+            command.authenticated_context().resource().campaign_id(),
+            identity.now_unix_ms,
+        )
+        .map_err(|_| TrpgError::InternalIdentityInvalid)?;
     let principal_role = principal_role_from_authenticated_actor(command)?;
     let context = command.authenticated_context();
     let request = PolicyAuthorizationRequest {
@@ -135,7 +167,13 @@ pub fn evaluate_security_governance_with_policy(
         resource_id: context.resource().resource_id().as_str().to_owned(),
         action: command.payload.action.as_str().to_owned(),
         authority_mode: authority_mode_name(&command.authority_mode).to_owned(),
+        requested_role: None,
         target_visibility: visibility_name(command.payload.target_visibility.label()).to_owned(),
+        target_visibility_subject: command
+            .payload
+            .target_visibility
+            .player_id()
+            .map(ToString::to_string),
         trace_id: context.trace_id().as_str().to_owned(),
     };
     if !permission_allows(
@@ -221,6 +259,7 @@ pub fn authorize_campaign_membership_change(
     authority_mode: &trpg_shared_kernel::AuthorityMode,
     campaign_id: &trpg_shared_kernel::EntityId,
     target_user_id: &str,
+    requested_role: CampaignRole,
     trace_id: &str,
     now_unix_ms: u64,
 ) -> KernelResult<()> {
@@ -273,7 +312,9 @@ pub fn authorize_campaign_membership_change(
             .as_str()
             .to_owned(),
         authority_mode: authority_mode_name(authority_mode).to_owned(),
+        requested_role: Some(campaign_role_name(requested_role).to_owned()),
         target_visibility: "system_only".to_owned(),
+        target_visibility_subject: None,
         trace_id: trace_id.to_owned(),
     };
     if !permission_allows(
@@ -357,6 +398,10 @@ fn append_identity_policy_audit(
         resource_type: request.resource_type.clone(),
         resource_id: request.resource_id.clone(),
         action: request.action.clone(),
+        requested_role: request
+            .requested_role
+            .clone()
+            .unwrap_or_else(|| "not_applicable".to_owned()),
         decision,
         openfga_decision_id: openfga_decision_id.to_owned(),
         openfga_policy_revision: openfga_policy_revision.to_owned(),
@@ -386,6 +431,10 @@ fn append_policy_audit(
         resource_type: request.resource_type.clone(),
         resource_id: request.resource_id.clone(),
         action: request.action.clone(),
+        requested_role: request
+            .requested_role
+            .clone()
+            .unwrap_or_else(|| "not_applicable".to_owned()),
         decision,
         openfga_decision_id: openfga_decision_id.to_owned(),
         openfga_policy_revision: openfga_policy_revision.to_owned(),
@@ -404,6 +453,9 @@ fn validate_security_governance_preflight(
         return Err(TrpgError::InvalidConfiguration("module_required"));
     }
     validate_command_envelope(command)?;
+    if !command.payload.target_visibility.is_well_formed() {
+        return Err(TrpgError::VisibilityDenied);
+    }
     if command.payload.legal_hold
         && command.payload.action == SecurityGovernanceAction::DeleteRetainedData
     {
@@ -500,6 +552,15 @@ fn visibility_name(label: &VisibilityLabel) -> &'static str {
         VisibilityLabel::AiInternal => "ai_internal",
         VisibilityLabel::SystemOnly => "system_only",
         VisibilityLabel::SystemPrivate => "system_private",
+    }
+}
+
+fn campaign_role_name(role: CampaignRole) -> &'static str {
+    match role {
+        CampaignRole::CampaignOwner => "campaign_owner",
+        CampaignRole::HumanKeeper => "human_keeper",
+        CampaignRole::Player => "player",
+        CampaignRole::Spectator => "spectator",
     }
 }
 

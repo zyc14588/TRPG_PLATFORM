@@ -1,14 +1,16 @@
+mod common;
+
 use trpg_agent_runtime::agent_runtime::{AgentDecision, AgentDecisionCommitter};
 use trpg_agent_runtime::{
-    ActorRole, AgentError, AgentKind, AgentTool, AuthorityMode, EventStore, ToolRequest, TrpgError,
+    ActorRole, AgentError, AgentKind, AgentTool, AuthorityMode, ToolRequest, TrpgError,
 };
 use trpg_identity::{AgentClass, IdentityService};
 
 const TRUSTED_KEY: [u8; 32] = [0x5a; 32];
 
 fn committer_for(contract: trpg_agent_runtime::AuthorityContract) -> AgentDecisionCommitter {
-    let identity = IdentityService::new(&TRUSTED_KEY, 60_000).unwrap();
-    AgentDecisionCommitter::new(identity.verifier(), [contract]).unwrap()
+    AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
+        .unwrap()
 }
 
 #[test]
@@ -49,12 +51,18 @@ fn verified_agent_run_is_scoped_to_its_campaign() {
         decision.clone(),
         ActorRole::Workflow,
     );
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
     let committer = committer_for(contract);
 
     assert_eq!(
         committer
-            .commit(&mut store, &command, decision, 2)
+            .commit(
+                &mut store,
+                &command,
+                &trpg_test_support::workflow_authentication(),
+                decision,
+                2,
+            )
             .unwrap_err(),
         AgentError::Core(TrpgError::CampaignScopeMismatch)
     );
@@ -96,11 +104,17 @@ fn rogue_identity_issuer_cannot_authorize_a_formal_agent_commit() {
         ActorRole::Workflow,
     );
     let committer = committer_for(contract);
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
     assert_eq!(
         committer
-            .commit(&mut store, &command, decision, 2)
+            .commit(
+                &mut store,
+                &command,
+                &trpg_test_support::workflow_authentication(),
+                decision,
+                2,
+            )
             .unwrap_err(),
         AgentError::Core(TrpgError::InternalIdentityInvalid)
     );
@@ -142,11 +156,17 @@ fn trusted_but_non_owner_ai_cannot_commit_in_ai_kp_mode() {
         ActorRole::Workflow,
     );
     let committer = committer_for(contract);
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
     assert_eq!(
         committer
-            .commit(&mut store, &command, decision, 2)
+            .commit(
+                &mut store,
+                &command,
+                &trpg_test_support::workflow_authentication(),
+                decision,
+                2,
+            )
             .unwrap_err(),
         AgentError::Core(TrpgError::AuthorityOwnerMismatch)
     );
@@ -154,8 +174,7 @@ fn trusted_but_non_owner_ai_cannot_commit_in_ai_kp_mode() {
 }
 
 #[test]
-fn conflicting_authority_contracts_cannot_enter_one_committer() {
-    let identity = IdentityService::new(&TRUSTED_KEY, 60_000).unwrap();
+fn caller_supplied_contract_cannot_replace_the_identity_roots_canonical_contract() {
     let canonical = trpg_test_support::authority_contract_with_owner(
         "campaign_a",
         AuthorityMode::AiKp,
@@ -170,10 +189,38 @@ fn conflicting_authority_contracts_cannot_enter_one_committer() {
         1,
     )
     .unwrap();
+    let committer = AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(
+        &canonical,
+    ))
+    .unwrap();
+    let authentication = trpg_test_support::ai_keeper_authentication("campaign_a");
+    let decision = AgentDecision::new(
+        "decision_conflicting_authority",
+        ToolRequest::formal(
+            AgentKind::AiKeeperOrchestrator,
+            AgentTool::RequestSkillCheck,
+        ),
+        "conflicting authority",
+        &authentication,
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &conflict,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
 
     assert_eq!(
-        AgentDecisionCommitter::new(identity.verifier(), [canonical, conflict]).unwrap_err(),
-        AgentError::Core(TrpgError::AuthorityContractMutation)
+        committer
+            .commit(
+                &mut common::audited_store(),
+                &command,
+                &trpg_test_support::workflow_authentication(),
+                decision,
+                2,
+            )
+            .unwrap_err(),
+        AgentError::Core(TrpgError::AuthorityOwnerMismatch)
     );
 }
 
@@ -220,9 +267,17 @@ fn explicit_draft_never_emits_a_formal_decision_committed_event() {
         ActorRole::Workflow,
     );
     let committer = committer_for(contract);
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
-    let events = committer.commit(&mut store, &command, decision, 2).unwrap();
+    let events = committer
+        .commit(
+            &mut store,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            decision,
+            2,
+        )
+        .unwrap();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].event_type, "DraftDecisionCreated");
     assert!(store

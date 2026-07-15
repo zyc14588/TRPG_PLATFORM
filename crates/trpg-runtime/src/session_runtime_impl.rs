@@ -1,7 +1,8 @@
 use crate::runtime_state_machines::{
-    append_runtime_event, commit_decision, RuntimeDecision, RuntimeEventPayload, RuntimeResult,
+    append_runtime_event, commit_decision, EventStore, RuntimeDecision, RuntimeEventPayload,
+    RuntimeResult,
 };
-use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope, EventStore};
+use trpg_shared_kernel::{AuthorityContract, CommandEnvelope, EntityId, EventEnvelope};
 
 pub fn start_session_runtime_impl<T: Clone>(
     store: &mut EventStore<RuntimeEventPayload>,

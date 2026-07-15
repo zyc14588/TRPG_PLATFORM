@@ -1,8 +1,10 @@
+mod common;
+
 use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::workflow_engine;
-use trpg_runtime::{ActorRole, AuthorityMode, EventStore};
+use trpg_runtime::{ActorRole, AuthorityMode};
 
 #[test]
 fn workflow_engine_contract_commits_decision_event_chain() {
@@ -18,7 +20,7 @@ fn workflow_engine_contract_commits_decision_event_chain() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = EventStore::default();
+    let mut store = common::audited_store();
 
     let events =
         workflow_engine::commit_workflow_decision(&mut store, &contract, &command, decision)

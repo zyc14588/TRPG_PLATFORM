@@ -1,10 +1,8 @@
 use crate::runtime_state_machines::{
-    approve_tool_request, commit_decision, evaluate_tool_grant, RuntimeDecision,
+    approve_tool_request, commit_decision, evaluate_tool_grant, EventStore, RuntimeDecision,
     RuntimeEventPayload, RuntimeResult, ToolGrantDecision, ToolRequest,
 };
-use trpg_shared_kernel::{
-    AuthorityContract, AuthorityMode, CommandEnvelope, EventEnvelope, EventStore,
-};
+use trpg_shared_kernel::{AuthorityContract, AuthorityMode, CommandEnvelope, EventEnvelope};
 
 pub fn evaluate_capability_layer_impl(
     authority_mode: &AuthorityMode,

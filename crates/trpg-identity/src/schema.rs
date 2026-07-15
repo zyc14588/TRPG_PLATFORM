@@ -2,6 +2,9 @@ pub const IDENTITY_AUTHORIZATION_MIGRATION_NAME: &str = "create_identity_authori
 
 pub const IDENTITY_AUTHORIZATION_MIGRATION_SQL: &str =
     include_str!("../../../migrations/20260714000100_create_identity_authorization.up.sql");
+pub const IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_NAME: &str = "harden_identity_authorization";
+pub const IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL: &str =
+    include_str!("../../../migrations/20260715000100_harden_identity_authorization.up.sql");
 
 pub const IDENTITY_AUTHORIZATION_TABLES: &[&str] = &[
     "users",
@@ -16,6 +19,16 @@ pub fn migration_statement() -> (&'static str, &'static str) {
         IDENTITY_AUTHORIZATION_MIGRATION_NAME,
         IDENTITY_AUTHORIZATION_MIGRATION_SQL,
     )
+}
+
+pub fn migration_statements() -> [(&'static str, &'static str); 2] {
+    [
+        migration_statement(),
+        (
+            IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_NAME,
+            IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL,
+        ),
+    ]
 }
 
 #[cfg(test)]
@@ -43,5 +56,11 @@ mod tests {
         assert!(IDENTITY_AUTHORIZATION_MIGRATION_SQL.contains("authentication_reference"));
         assert!(IDENTITY_AUTHORIZATION_MIGRATION_SQL.contains("openfga_policy_revision"));
         assert!(IDENTITY_AUTHORIZATION_MIGRATION_SQL.contains("opa_policy_revision"));
+        assert!(IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL
+            .contains("BEFORE INSERT OR UPDATE OR DELETE ON campaign_memberships"));
+        assert!(IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL
+            .contains("canonical HUMAN_KP owner membership cannot be revoked"));
+        assert!(IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL
+            .contains("sessions_single_rotation_child_idx"));
     }
 }

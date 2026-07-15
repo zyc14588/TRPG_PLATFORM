@@ -2,12 +2,63 @@ use trpg_contracts::WireErrorCode;
 use trpg_identity::{
     AgentClass as IdentityAgentClass, AuthenticationContext, IdentityVerifier, PrincipalKind,
 };
+use trpg_security_governance::formal_commit_audit::FormalCommitAudit;
 use trpg_shared_kernel::{
-    AuthorityContract, AuthorityMode, AuthorityRegistry, CommandEnvelope, EntityId, EventEnvelope,
-    EventStore, FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
+    AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
+    EventStore as KernelEventStore, FormalWritePath, PrincipalScope, TrpgError, Visibility,
+    VisibilityLabel,
 };
 
 pub type AgentResult<T> = Result<T, AgentError>;
+
+/// Agent event storage exposes replay but keeps append authority inside the
+/// authenticated decision committer.
+#[derive(Clone, Debug)]
+pub struct EventStore<P> {
+    inner: KernelEventStore<P>,
+    formal_audit: Option<FormalCommitAudit>,
+}
+
+impl<P> Default for EventStore<P> {
+    fn default() -> Self {
+        Self {
+            inner: KernelEventStore::default(),
+            formal_audit: None,
+        }
+    }
+}
+
+impl<P: Clone> EventStore<P> {
+    pub fn with_formal_audit(formal_audit: FormalCommitAudit) -> Self {
+        Self {
+            inner: KernelEventStore::default(),
+            formal_audit: Some(formal_audit),
+        }
+    }
+
+    pub fn events(&self) -> &[EventEnvelope<P>] {
+        self.inner.events()
+    }
+
+    pub fn replay_visible(&self, principal: &PrincipalScope) -> Vec<EventEnvelope<P>> {
+        self.inner.replay_visible(principal)
+    }
+
+    fn append<T>(
+        &mut self,
+        command: &CommandEnvelope<T>,
+        event_type: &'static str,
+        payload: P,
+    ) -> Result<EventEnvelope<P>, TrpgError> {
+        self.inner.append(command, event_type, payload)
+    }
+
+    fn formal_audit(&self) -> Result<&FormalCommitAudit, TrpgError> {
+        self.formal_audit
+            .as_ref()
+            .ok_or(TrpgError::AuditIntegrityViolation)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgentError {
@@ -315,12 +366,14 @@ pub enum AgentEventPayload {
     ToolRequestApproved {
         tool: &'static str,
         decision: ToolDecision,
+        seal: AgentFormalEventSeal,
     },
     DecisionCommitted {
         decision_id: EntityId,
         player_visible_text: String,
         linked_records: Vec<&'static str>,
         audit_fields: Vec<&'static str>,
+        seal: AgentFormalEventSeal,
     },
     DraftDecisionCreated {
         downgraded_to: &'static str,
@@ -328,6 +381,19 @@ pub enum AgentEventPayload {
     AgentContextAssembled {
         visible_fact_count: usize,
     },
+}
+
+/// Opaque constructor token carried by formal agent events.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AgentFormalEventSeal {
+    _private: (),
+}
+
+impl AgentFormalEventSeal {
+    fn new() -> Self {
+        Self { _private: () }
+    }
 }
 
 pub fn validate_agent_command<T>(
@@ -355,32 +421,36 @@ fn derived_command<T: Clone>(
 #[derive(Clone, Debug)]
 pub struct AgentDecisionCommitter {
     identity_verifier: IdentityVerifier,
-    authority_registry: AuthorityRegistry,
 }
 
 impl AgentDecisionCommitter {
-    pub fn new(
-        identity_verifier: IdentityVerifier,
-        contracts: impl IntoIterator<Item = AuthorityContract>,
-    ) -> AgentResult<Self> {
-        Ok(Self {
-            identity_verifier,
-            authority_registry: AuthorityRegistry::from_contracts(contracts)
-                .map_err(AgentError::from)?,
-        })
+    pub fn new(identity_verifier: IdentityVerifier) -> AgentResult<Self> {
+        Ok(Self { identity_verifier })
     }
 
     pub fn commit(
         &self,
         store: &mut EventStore<AgentEventPayload>,
         command: &CommandEnvelope<AgentDecision>,
+        workflow_authentication: &AuthenticationContext,
         decision: AgentDecision,
         now_unix_ms: u64,
     ) -> AgentResult<Vec<EventEnvelope<AgentEventPayload>>> {
         let contract = self
-            .authority_registry
+            .identity_verifier
+            .authority_contract(command.authenticated_context().resource().campaign_id())
+            .map_err(|_| AgentError::Core(TrpgError::AuthorityViolation))?;
+        contract
             .validate_command(command)
             .map_err(AgentError::from)?;
+        self.identity_verifier
+            .verify_actor(
+                workflow_authentication,
+                &command.actor,
+                command.authenticated_context().resource().campaign_id(),
+                now_unix_ms,
+            )
+            .map_err(|_| AgentError::Core(TrpgError::InternalIdentityInvalid))?;
         if command.write_path == FormalWritePath::DirectAgent {
             return Err(AgentError::AgentDirectStateWriteForbidden);
         }
@@ -442,17 +512,41 @@ impl AgentDecisionCommitter {
         }
 
         // Identity, authority, and tool checks must complete before the event-store capability is used.
-        let tool_command = derived_command(command, "tool", store.events().len() as u64)?;
+        let next_version = store.events().len() as u64;
+        let tool_command = derived_command(command, "tool", next_version)?;
+        let decision_command = derived_command(command, "decision", next_version + 1)?;
+        if store.events().iter().any(|event| {
+            event.idempotency_key == tool_command.idempotency_key
+                || event.idempotency_key == decision_command.idempotency_key
+        }) {
+            return Err(AgentError::Core(TrpgError::DuplicateCommand));
+        }
+        let requested_role = match decision.authentication.kind() {
+            PrincipalKind::AgentRun { class, .. } => match class {
+                IdentityAgentClass::AiKeeperOrchestrator => "ai_keeper_orchestrator",
+                IdentityAgentClass::KeeperCopilot => "keeper_copilot",
+                IdentityAgentClass::AtmosphereWriter => "atmosphere_writer",
+                IdentityAgentClass::MemoryCurator => "memory_curator",
+            },
+            _ => return Err(AgentError::Core(TrpgError::InternalIdentityInvalid)),
+        };
+        store.formal_audit()?.record_authorized_commit(
+            &decision.authentication,
+            command,
+            &contract,
+            "authorize_agent_formal_commit",
+            requested_role,
+        )?;
         let tool_event = store.append(
             &tool_command,
             "ToolRequestApproved",
             AgentEventPayload::ToolRequestApproved {
                 tool: decision.tool_request.tool().as_str(),
                 decision: tool_decision,
+                seal: AgentFormalEventSeal::new(),
             },
         )?;
 
-        let decision_command = derived_command(command, "decision", store.events().len() as u64)?;
         let decision_event = store.append(
             &decision_command,
             "DecisionCommitted",
@@ -461,6 +555,7 @@ impl AgentDecisionCommitter {
                 player_visible_text: redact_player_visible_text(&decision.player_visible_text),
                 linked_records: decision.linked_records,
                 audit_fields: decision.audit_fields,
+                seal: AgentFormalEventSeal::new(),
             },
         )?;
 

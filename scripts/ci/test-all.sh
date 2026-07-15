@@ -69,6 +69,7 @@ fi
 cargo fmt --all -- --check
 cargo check --workspace --all-targets --all-features --locked
 cargo test --workspace --all-features --locked
+python3 scripts/ci/p02_boundary_regression.py
 npm test
 cargo build --workspace --all-targets --release --locked
 pnpm --filter ./apps/web... build

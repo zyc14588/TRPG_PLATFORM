@@ -73,14 +73,14 @@ impl AuthenticationMiddleware {
             .identity
             .lock()
             .map_err(|_| IdentityError::InvalidIdentityData)?
-            .require_membership(&authentication, &campaign_id, allowed_roles)?;
+            .require_membership(&authentication, &campaign_id, allowed_roles, now_unix_ms)?;
         Ok(AuthenticatedCampaignRequest {
             authentication,
             membership,
         })
     }
 
-    pub fn identity(&self) -> &Arc<Mutex<IdentityService>> {
+    pub(crate) fn identity(&self) -> &Arc<Mutex<IdentityService>> {
         &self.identity
     }
 }
@@ -117,7 +117,13 @@ mod tests {
             .authenticate_session(Some(owner_session.token.expose()), 1_001)
             .unwrap();
         identity
-            .grant_membership(&owner, "campaign_a", "user_player", CampaignRole::Player)
+            .grant_membership(
+                &owner,
+                "campaign_a",
+                "user_player",
+                CampaignRole::Player,
+                1_002,
+            )
             .unwrap();
         let player_session = identity
             .login(

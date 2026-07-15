@@ -10,6 +10,7 @@ rand_core = { version = "0.6.4", features = ["getrandom"] }
 sha2 = "0.10.9"
 trpg-contracts = { path = "../trpg-contracts" }
 trpg-identity = { path = "../trpg-identity" }
+trpg-security-governance = { path = "../trpg-security-governance" }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
 
 [dev-dependencies]

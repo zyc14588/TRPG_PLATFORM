@@ -5,13 +5,64 @@ use rand_core::{OsRng, RngCore};
 use sha2::{Digest, Sha256};
 use trpg_contracts::WireErrorCode;
 use trpg_identity::{AuthenticationContext, IdentityVerifier, PrincipalKind};
+use trpg_security_governance::formal_commit_audit::FormalCommitAudit;
 use trpg_shared_kernel::{
-    Actor, ActorRole, AuthorityContract, AuthorityMode, AuthorityRegistry, CommandEnvelope,
-    EntityId, EventEnvelope, EventStore, FormalWritePath, KernelResult, PrincipalScope, TrpgError,
+    Actor, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
+    EventStore as KernelEventStore, FormalWritePath, KernelResult, PrincipalScope, TrpgError,
     Visibility, VisibilityLabel,
 };
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
+
+/// Runtime event storage deliberately exposes replay but not a generic append
+/// capability. Formal decisions can therefore only be written by the
+/// authority and confirmation gates in this crate.
+#[derive(Clone, Debug)]
+pub struct EventStore<P> {
+    inner: KernelEventStore<P>,
+    formal_audit: Option<FormalCommitAudit>,
+}
+
+impl<P> Default for EventStore<P> {
+    fn default() -> Self {
+        Self {
+            inner: KernelEventStore::default(),
+            formal_audit: None,
+        }
+    }
+}
+
+impl<P: Clone> EventStore<P> {
+    pub fn with_formal_audit(formal_audit: FormalCommitAudit) -> Self {
+        Self {
+            inner: KernelEventStore::default(),
+            formal_audit: Some(formal_audit),
+        }
+    }
+
+    pub fn events(&self) -> &[EventEnvelope<P>] {
+        self.inner.events()
+    }
+
+    pub fn replay_visible(&self, principal: &PrincipalScope) -> Vec<EventEnvelope<P>> {
+        self.inner.replay_visible(principal)
+    }
+
+    fn append<T>(
+        &mut self,
+        command: &CommandEnvelope<T>,
+        event_type: &'static str,
+        payload: P,
+    ) -> KernelResult<EventEnvelope<P>> {
+        self.inner.append(command, event_type, payload)
+    }
+
+    fn formal_audit(&self) -> KernelResult<&FormalCommitAudit> {
+        self.formal_audit
+            .as_ref()
+            .ok_or(TrpgError::AuditIntegrityViolation)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeError {
@@ -259,6 +310,7 @@ struct GovernedPendingBinding {
 pub struct ConfirmedPendingDecision {
     pending: PendingDecision,
     confirmed_by: Actor,
+    confirmation_authentication: AuthenticationContext,
     confirmed_at_unix_ms: u64,
     committed: bool,
 }
@@ -284,7 +336,6 @@ impl ConfirmedPendingDecision {
 #[derive(Clone)]
 pub struct HumanConfirmationGate {
     identity_verifier: IdentityVerifier,
-    authority_registry: AuthorityRegistry,
     confirmation_state: Arc<Mutex<HumanConfirmationState>>,
 }
 
@@ -307,17 +358,13 @@ impl std::fmt::Debug for HumanConfirmationGate {
         formatter
             .debug_struct("HumanConfirmationGate")
             .field("identity_verifier", &self.identity_verifier)
-            .field("authority_registry", &self.authority_registry)
             .field("confirmation_state", &"[REDACTED]")
             .finish()
     }
 }
 
 impl HumanConfirmationGate {
-    pub fn new(
-        identity_verifier: IdentityVerifier,
-        contracts: impl IntoIterator<Item = AuthorityContract>,
-    ) -> RuntimeResult<Self> {
+    pub fn new(identity_verifier: IdentityVerifier) -> RuntimeResult<Self> {
         let mut instance_nonce = [0_u8; 32];
         OsRng.try_fill_bytes(&mut instance_nonce).map_err(|_| {
             RuntimeError::Core(TrpgError::InvalidConfiguration(
@@ -326,7 +373,6 @@ impl HumanConfirmationGate {
         })?;
         Ok(Self {
             identity_verifier,
-            authority_registry: AuthorityRegistry::from_contracts(contracts)?,
             confirmation_state: Arc::new(Mutex::new(HumanConfirmationState {
                 instance_nonce,
                 next_sequence: 0,
@@ -342,7 +388,7 @@ impl HumanConfirmationGate {
         created_at_unix_ms: u64,
         expires_at_unix_ms: u64,
     ) -> RuntimeResult<PendingDecision> {
-        let contract = self.authority_registry.contract_for(campaign_id)?;
+        let contract = canonical_contract(&self.identity_verifier, campaign_id)?;
         let draft_hash = decision_hash(&decision);
         let mut state = self.confirmation_state.lock().map_err(|_| {
             RuntimeError::Core(TrpgError::InvalidConfiguration(
@@ -358,13 +404,13 @@ impl HumanConfirmationGate {
         let confirmation_id = confirmation_id(
             &state.instance_nonce,
             state.next_sequence,
-            contract,
+            &contract,
             &draft_hash,
             created_at_unix_ms,
             expires_at_unix_ms,
         );
         let pending = create_governed_pending_decision(
-            contract,
+            &contract,
             decision,
             created_at_unix_ms,
             expires_at_unix_ms,
@@ -389,10 +435,10 @@ impl HumanConfirmationGate {
             .ok_or(RuntimeError::Core(TrpgError::DecisionConfirmationRequired))?;
         let campaign_id = binding.campaign_id.clone();
         let confirmation_id = binding.confirmation_id;
-        let contract = self.authority_registry.contract_for(&campaign_id)?;
+        let contract = canonical_contract(&self.identity_verifier, &campaign_id)?;
         let confirmed = confirm_pending_decision(
             pending,
-            contract,
+            &contract,
             &self.identity_verifier,
             authentication,
             submitted_decision,
@@ -418,11 +464,27 @@ impl HumanConfirmationGate {
         &self,
         store: &mut EventStore<RuntimeEventPayload>,
         command: &CommandEnvelope<RuntimeDecision>,
+        workflow_authentication: &AuthenticationContext,
         confirmed: &mut ConfirmedPendingDecision,
         submitted_decision: RuntimeDecision,
         now_unix_ms: u64,
     ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
-        let contract = self.authority_registry.validate_command(command)?;
+        let contract = canonical_contract(
+            &self.identity_verifier,
+            command.authenticated_context().resource().campaign_id(),
+        )?;
+        contract.validate_command(command)?;
+        self.identity_verifier
+            .verify_actor(
+                workflow_authentication,
+                &command.actor,
+                command.authenticated_context().resource().campaign_id(),
+                now_unix_ms,
+            )
+            .map_err(|_| RuntimeError::Core(TrpgError::InternalIdentityInvalid))?;
+        self.identity_verifier
+            .verify(&confirmed.confirmation_authentication, now_unix_ms)
+            .map_err(|_| RuntimeError::Core(TrpgError::InternalIdentityInvalid))?;
         let confirmation_id = confirmed
             .pending
             .governed
@@ -449,7 +511,7 @@ impl HumanConfirmationGate {
         }
         let events = commit_confirmed_decision(
             store,
-            contract,
+            &contract,
             command,
             confirmed,
             submitted_decision,
@@ -458,6 +520,15 @@ impl HumanConfirmationGate {
         *lifecycle = ConfirmationLifecycle::Committed;
         Ok(events)
     }
+}
+
+fn canonical_contract(
+    identity_verifier: &IdentityVerifier,
+    campaign_id: &EntityId,
+) -> RuntimeResult<AuthorityContract> {
+    identity_verifier
+        .authority_contract(campaign_id)
+        .map_err(|_| RuntimeError::Core(TrpgError::AuthorityViolation))
 }
 
 pub fn create_pending_decision(
@@ -563,6 +634,7 @@ fn confirm_pending_decision(
     Ok(ConfirmedPendingDecision {
         pending: confirmed_pending,
         confirmed_by: confirmer,
+        confirmation_authentication: authentication.clone(),
         confirmed_at_unix_ms: now_unix_ms,
         committed: false,
     })
@@ -592,7 +664,14 @@ fn commit_confirmed_decision(
     }
     validate_runtime_command(contract, command)?;
     ensure_expected_version(store, command)?;
-    let events = append_committed_decision_events(store, command, submitted_decision, true)?;
+    let events = append_committed_decision_events(
+        store,
+        contract,
+        command,
+        submitted_decision,
+        true,
+        Some(&confirmed.confirmation_authentication),
+    )?;
     confirmed.pending.status = PendingDecisionStatus::Committed;
     confirmed.committed = true;
     Ok(events)
@@ -687,12 +766,14 @@ pub enum RuntimeEventPayload {
     ToolRequestApproved {
         tool: &'static str,
         grant: ToolGrantDecision,
+        seal: RuntimeFormalEventSeal,
     },
     DecisionCommitted {
         decision_id: EntityId,
         linked_records: Vec<&'static str>,
         player_visible_explanation: String,
         audit_fields: Vec<&'static str>,
+        seal: RuntimeFormalEventSeal,
     },
     PendingDecisionCreated {
         decision_id: EntityId,
@@ -713,6 +794,20 @@ pub enum RuntimeEventPayload {
     RealtimeDeltaPublished {
         delta_id: EntityId,
     },
+}
+
+/// Opaque constructor token carried by formal runtime events. External crates
+/// may inspect a payload but cannot mint a formal event payload themselves.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeFormalEventSeal {
+    _private: (),
+}
+
+impl RuntimeFormalEventSeal {
+    fn new() -> Self {
+        Self { _private: () }
+    }
 }
 
 pub fn validate_runtime_command<T>(
@@ -803,14 +898,16 @@ pub fn commit_decision(
     if command.authority_mode == AuthorityMode::HumanKp {
         return Err(RuntimeError::Core(TrpgError::DecisionConfirmationRequired));
     }
-    append_committed_decision_events(store, command, decision, false)
+    append_committed_decision_events(store, contract, command, decision, false, None)
 }
 
 fn append_committed_decision_events(
     store: &mut EventStore<RuntimeEventPayload>,
+    contract: &AuthorityContract,
     command: &CommandEnvelope<RuntimeDecision>,
     decision: RuntimeDecision,
     human_confirmed: bool,
+    authorizing_authentication: Option<&AuthenticationContext>,
 ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
     let grant = if human_confirmed {
         ToolGrantDecision::allow()
@@ -818,17 +915,43 @@ fn append_committed_decision_events(
         approve_tool_request(&command.authority_mode, &decision.tool_request)?
     };
 
-    let tool_command = derived_command(command, "tool", store.events().len() as u64)?;
+    let next_version = store.events().len() as u64;
+    let tool_command = derived_command(command, "tool", next_version)?;
+    let decision_command = derived_command(command, "decision", next_version + 1)?;
+    if store.events().iter().any(|event| {
+        event.idempotency_key == tool_command.idempotency_key
+            || event.idempotency_key == decision_command.idempotency_key
+    }) {
+        return Err(RuntimeError::Core(TrpgError::DuplicateCommand));
+    }
+    let audit = store.formal_audit()?;
+    if let Some(authentication) = authorizing_authentication {
+        audit.record_authorized_commit(
+            authentication,
+            command,
+            contract,
+            "authorize_runtime_formal_commit",
+            "human_keeper",
+        )?;
+    } else {
+        audit.record_actor_authorized_commit(
+            &command.actor,
+            command,
+            contract,
+            "authorize_runtime_formal_commit",
+            actor_role_name(command.actor.role()),
+        )?;
+    }
     let tool_event = store.append(
         &tool_command,
         "ToolRequestApproved",
         RuntimeEventPayload::ToolRequestApproved {
             tool: decision.tool_request.tool().as_str(),
             grant: grant.clone(),
+            seal: RuntimeFormalEventSeal::new(),
         },
     )?;
 
-    let decision_command = derived_command(command, "decision", store.events().len() as u64)?;
     let decision_event = store.append(
         &decision_command,
         "DecisionCommitted",
@@ -837,10 +960,26 @@ fn append_committed_decision_events(
             linked_records: decision.linked_records,
             player_visible_explanation: decision.player_visible_explanation,
             audit_fields: decision.audit_fields,
+            seal: RuntimeFormalEventSeal::new(),
         },
     )?;
 
     Ok(vec![tool_event, decision_event])
+}
+
+fn actor_role_name(role: &ActorRole) -> &'static str {
+    match role {
+        ActorRole::ServerOwner => "server_owner",
+        ActorRole::CampaignOwner => "campaign_owner",
+        ActorRole::HumanKeeper => "human_keeper",
+        ActorRole::AiKeeper => "ai_keeper",
+        ActorRole::Investigator => "investigator",
+        ActorRole::Moderator => "moderator",
+        ActorRole::Spectator => "spectator",
+        ActorRole::Workflow => "workflow",
+        ActorRole::RulesEngine => "rules_engine",
+        ActorRole::System => "system",
+    }
 }
 
 pub fn replay_visible_runtime_events(
@@ -880,6 +1019,7 @@ mod security_regression_tests {
             linked_records: vec!["DecisionRecord"],
             player_visible_explanation: "forged".to_owned(),
             audit_fields: vec!["context_hash"],
+            seal: RuntimeFormalEventSeal::new(),
         };
 
         assert_eq!(

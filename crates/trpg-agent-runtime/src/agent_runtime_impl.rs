@@ -1,8 +1,9 @@
 use crate::agent_runtime::{
     assemble_context, AgentDecision, AgentDecisionCommitter, AgentEventPayload, AgentResult,
-    AssembledAgentContext, ContextFact,
+    AssembledAgentContext, ContextFact, EventStore,
 };
-use trpg_shared_kernel::{CommandEnvelope, EventEnvelope, EventStore, PrincipalScope};
+use trpg_identity::AuthenticationContext;
+use trpg_shared_kernel::{CommandEnvelope, EventEnvelope, PrincipalScope};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentRuntimeImplBoundary {
@@ -25,10 +26,17 @@ pub fn run_agent_runtime_decision(
     committer: &AgentDecisionCommitter,
     store: &mut EventStore<AgentEventPayload>,
     command: &CommandEnvelope<AgentDecision>,
+    workflow_authentication: &AuthenticationContext,
     decision: AgentDecision,
     now_unix_ms: u64,
 ) -> AgentResult<Vec<EventEnvelope<AgentEventPayload>>> {
-    committer.commit(store, command, decision, now_unix_ms)
+    committer.commit(
+        store,
+        command,
+        workflow_authentication,
+        decision,
+        now_unix_ms,
+    )
 }
 
 pub fn assemble_runtime_context(

@@ -18,6 +18,32 @@ cleanup() {
 }
 trap cleanup EXIT
 
+require_configuration() {
+  local description="$1"
+  local value="$2"
+  if [[ -z "$value" ]]; then
+    printf 'service process smoke requires %s\n' "$description" >&2
+    exit 1
+  fi
+}
+
+api_database_url="${TRPG_DATABASE_URL:-${P02_DATABASE_URL:-}}"
+api_openfga_address="${TRPG_OPENFGA_ADDRESS:-${P02_OPENFGA_ADDRESS:-}}"
+api_openfga_store_id="${TRPG_OPENFGA_STORE_ID:-${P02_OPENFGA_STORE_ID:-}}"
+api_openfga_model_id="${TRPG_OPENFGA_MODEL_ID:-${P02_OPENFGA_MODEL_ID:-}}"
+api_opa_address="${TRPG_OPA_ADDRESS:-${P02_OPA_ADDRESS:-}}"
+api_opa_revision="${TRPG_OPA_POLICY_REVISION:-${P02_OPA_REVISION:-}}"
+
+require_configuration "TRPG_DATABASE_URL or P02_DATABASE_URL" "$api_database_url"
+require_configuration "TRPG_OPENFGA_ADDRESS or P02_OPENFGA_ADDRESS" "$api_openfga_address"
+require_configuration "TRPG_OPENFGA_STORE_ID or P02_OPENFGA_STORE_ID" "$api_openfga_store_id"
+require_configuration "TRPG_OPENFGA_MODEL_ID or P02_OPENFGA_MODEL_ID" "$api_openfga_model_id"
+require_configuration "TRPG_OPA_ADDRESS or P02_OPA_ADDRESS" "$api_opa_address"
+require_configuration "TRPG_OPA_POLICY_REVISION or P02_OPA_REVISION" "$api_opa_revision"
+
+identity_signing_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+audit_hmac_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+
 services=(api-server realtime-server agent-worker admin-server migration-runner)
 environment_keys=(
   TRPG_API_SERVER_BIND
@@ -39,7 +65,22 @@ for index in "${!services[@]}"; do
   service="${services[$index]}"
   binary="$release_dir/$service"
   test -x "$binary"
-  env "${environment_keys[$index]}=127.0.0.1:${ports[$index]}" \
+  command_environment=("${environment_keys[$index]}=127.0.0.1:${ports[$index]}")
+  if [[ "$service" == api-server ]]; then
+    command_environment+=(
+      "TRPG_DATABASE_URL=$api_database_url"
+      "TRPG_IDENTITY_SIGNING_KEY_HEX=$identity_signing_key"
+      "TRPG_OPENFGA_ADDRESS=$api_openfga_address"
+      "TRPG_OPENFGA_STORE_ID=$api_openfga_store_id"
+      "TRPG_OPENFGA_MODEL_ID=$api_openfga_model_id"
+      "TRPG_OPA_ADDRESS=$api_opa_address"
+      "TRPG_OPA_POLICY_REVISION=$api_opa_revision"
+      "TRPG_AUDIT_LOG_PATH=$temporary_directory/api-audit.jsonl"
+      "TRPG_AUDIT_HMAC_KEY_ID=service-process-smoke-v1"
+      "TRPG_AUDIT_HMAC_KEY_HEX=$audit_hmac_key"
+    )
+  fi
+  env "${command_environment[@]}" \
     "$binary" >"$temporary_directory/$service.log" 2>&1 &
   pids+=("$!")
 done

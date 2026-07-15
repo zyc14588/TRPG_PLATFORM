@@ -234,10 +234,87 @@ pub fn ai_keeper_authentication(campaign_id: &str) -> trpg_identity::Authenticat
         .expect("valid test agent authentication")
 }
 
+pub fn workflow_authentication() -> trpg_identity::AuthenticationContext {
+    let identity = trpg_identity::IdentityService::new(&TEST_IDENTITY_SIGNING_KEY, 60_000)
+        .expect("valid test identity service");
+    let credential = identity
+        .issue_workload_credential(
+            "workflow_001",
+            trpg_identity::WorkloadRole::WorkflowEngine,
+            1,
+            10_000,
+        )
+        .expect("valid signed workflow credential");
+    identity
+        .authenticate_workload(&credential, 2)
+        .expect("valid workflow authentication")
+}
+
 pub fn identity_verifier() -> trpg_identity::IdentityVerifier {
     trpg_identity::IdentityService::new(&TEST_IDENTITY_SIGNING_KEY, 60_000)
         .expect("valid test identity service")
         .verifier()
+}
+
+pub fn identity_verifier_for_contract(
+    contract: &AuthorityContract,
+) -> trpg_identity::IdentityVerifier {
+    identity_service_for_contract(contract).verifier()
+}
+
+pub fn identity_service_for_contract(
+    contract: &AuthorityContract,
+) -> trpg_identity::IdentityService {
+    use trpg_identity::{CampaignRole, GlobalRole, IdentityService};
+
+    const REGISTRAR_ID: &str = "test_authority_registrar";
+    const REGISTRAR_LOGIN: &str = "test-authority-registrar@example.test";
+    const PASSWORD: &str = "test authority password long enough";
+
+    let mut identity =
+        IdentityService::new(&TEST_IDENTITY_SIGNING_KEY, 60_000).expect("valid identity root");
+    identity
+        .create_user(
+            REGISTRAR_ID,
+            REGISTRAR_LOGIN,
+            PASSWORD,
+            GlobalRole::ServerOwner,
+        )
+        .expect("valid authority registrar");
+    if contract.mode() == &AuthorityMode::HumanKp
+        && contract.authority_owner().as_str() != REGISTRAR_ID
+    {
+        let owner_login = format!("{}@example.test", contract.authority_owner().as_str());
+        identity
+            .create_user(
+                contract.authority_owner().as_str(),
+                &owner_login,
+                PASSWORD,
+                GlobalRole::User,
+            )
+            .expect("valid human authority owner");
+    }
+    let session = identity
+        .login(REGISTRAR_LOGIN, PASSWORD, 100)
+        .expect("authority registrar can authenticate");
+    let registrar = identity
+        .authenticate_session(Some(session.token.expose()), 101)
+        .expect("valid authority registrar context");
+    if contract.mode() == &AuthorityMode::HumanKp {
+        identity
+            .grant_membership(
+                &registrar,
+                contract.campaign_id().as_str(),
+                contract.authority_owner().as_str(),
+                CampaignRole::HumanKeeper,
+                102,
+            )
+            .expect("canonical human keeper membership");
+    }
+    identity
+        .register_authority_contract(&registrar, contract.clone(), 103)
+        .expect("canonical authority registration");
+    identity
 }
 
 pub fn actor_for_role(role: ActorRole, campaign_id: &str, authority_owner: &str) -> Actor {

@@ -166,7 +166,8 @@ impl HttpResponse {
     }
 }
 
-pub type ServiceRequestHandler = Box<dyn Fn(&HttpRequest) -> Option<HttpResponse> + Send + Sync>;
+pub type ServiceRequestHandlerFn = dyn Fn(&HttpRequest) -> Option<HttpResponse> + Send + Sync;
+pub type ServiceRequestHandler = Box<ServiceRequestHandlerFn>;
 
 impl fmt::Display for ServiceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -270,7 +271,7 @@ fn current_health(
 fn handle_connection(
     stream: &mut TcpStream,
     health: &HealthState,
-    handler: Option<&(dyn Fn(&HttpRequest) -> Option<HttpResponse> + Send + Sync)>,
+    handler: Option<&ServiceRequestHandlerFn>,
 ) -> Result<(), ServiceError> {
     stream
         .set_read_timeout(Some(Duration::from_secs(2)))
