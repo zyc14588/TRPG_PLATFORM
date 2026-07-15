@@ -1890,12 +1890,12 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `docker-compose.ci.yml` | 3596 | `a2e915f49bd15d1ced49de4aa268c08d9b4f3a6d5f80c47535a4e3ee7a04d6d8` | `100644` |
 | `docs/audit/p00/P00_FINAL_STATUS.md` | 8016 | `de63f054580598206460aa861966be0aa128fff64726e24f51dfeab371f9c5fa` | `100644` |
 | `docs/audit/p01/P01_FINAL_STATUS.md` | 5928 | `02012cf20c2ccbcfe0540174ec072d8b7bcac57b8573556107c4c8b69fbd1b2a` | `100644` |
-| `docs/audit/p02/P02_ACCEPTANCE.md` | 935 | `8e4105ebf2e9ef2a28d451e7d7646a47690359721d4facbb7ce59d6dc4d7c553` | `100644` |
-| `docs/audit/p02/P02_FINAL_STATUS.md` | 961 | `3ac12c8a01cc2a5d2cb60a106adac53767599f023ca434d8e43ba6bdfcc1bd98` | `100644` |
+| `docs/audit/p02/P02_ACCEPTANCE.md` | 1192 | `7af9ef688d43d436269fc16f5b5ae8a5a99c68ae84840e9d75fda6f8baeb0daa` | `100644` |
+| `docs/audit/p02/P02_FINAL_STATUS.md` | 1226 | `bf57011745cd4c816e2c8b69f1fea6c3dc7581626e04a8c76850e5d9b86393ce` | `100644` |
 | `docs/audit/p02/P02_IMPLEMENTATION.md` | 4046 | `1641a6b0e70a3045a159b795b01d876c68ccdb9716ca139c347be41f53576386` | `100644` |
-| `docs/audit/p02/P02_READINESS.md` | 1427 | `7efe0e13974348dab80a909a894d9a8357721b60cc2c82fb0b14dab6002ba310` | `100644` |
-| `docs/audit/p02/P02_REPAIR.md` | 2785 | `1db7ddb98d20ca7b1a500845d621aa29e100ef59334fb59439c69c937594be76` | `100644` |
-| `docs/audit/p02/P02_TEST_RESULTS.md` | 3855 | `b7f26e5d675320a6d7463ae651851003fa0bf5d6924a170fa7671799466bcf15` | `100644` |
+| `docs/audit/p02/P02_READINESS.md` | 1673 | `3b7c080d20246812fbe0a11cbb8a139450b50eb5c5137c81a9fbb24a699694ee` | `100644` |
+| `docs/audit/p02/P02_REPAIR.md` | 2863 | `163abfb0be0cfd5b33765c3609c2ac8b40c6d7b19afe6b4ee32fd4c8ae637dc3` | `100644` |
+| `docs/audit/p02/P02_TEST_RESULTS.md` | 4349 | `1c6dfc18d841b764c839670d5e6ae3e30833c89d7349cd4d1c53ef1863b78899` | `100644` |
 | `docs/codex/00-index/AGENTS.md` | 4164 | `7a4b058f57d75097de15c3902560a3b4fbdf70a639bd0ca5ddbe2529d8ad0170` | `100644` |
 | `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` | `100644` |
 | `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` | `100644` |
@@ -2850,7 +2850,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `evidence/stages/S12/developer-boundary.txt` | 1223 | `4eff5b22b95e181a66320426923c706a2a9d85f27b8ef1d4a382070ee643a5a9` | `100644` |
 | `evidence/stages/S12/sdk-contract.txt` | 519 | `6c614fa057ca3f966b471aa3527aeb4f622e3a8805513d99d719670c7a9d0d44` | `100644` |
 | `evidence/stages/S12/ui-role-snapshots.txt` | 1833 | `61e25ef724fe04ef4c08525023f92e92ae34d2a69783ca56b8c1e359b6bd611f` | `100644` |
-| `evidence/strict/OPERATION_CHECKLIST.md` | 2454 | `a7b846d4864d89d23d0ca3e8d6cb8678fc81297d62c22eab86108fb0c058f18e` | `100644` |
+| `evidence/strict/OPERATION_CHECKLIST.md` | 2574 | `67ddcbdf1dab6e2aea9f3973643c8814c4f2a7e1735960ec59ce228643a6eb1e` | `100644` |
 | `fixtures/README.md` | 2970 | `ec04885ec68f6f373a3e3993e465d8237818fffe4fce30a22f51e72b95077bed` | `100644` |
 | `fixtures/actions/golden_salt_bell_action_sequence.v1.json.md` | 1968 | `0e692ab7ad42fe7c8c954033bd4e00c40ac7cf7dc8705bad926a25459a576e0b` | `100644` |
 | `fixtures/agent/agent_tool_gate_cases.v1.json.md` | 1514 | `4863ddb05734fd56b645172ec76f06ff66f6072c5eee41962ed472b329b64af9` | `100644` |
