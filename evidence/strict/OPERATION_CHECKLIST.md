@@ -4,7 +4,7 @@ Base: `0f52f27493f6737d0a82974f0f402520ad4b23d9`
 
 ```text
 P02_LOCAL_TECHNICAL_REPAIR = PASS
-P02_HOSTED_CURRENT_SHA = PENDING
+P02_HOSTED_CURRENT_SHA = PASS
 V1_RELEASE = FAIL
 ```
 
@@ -20,10 +20,10 @@ V1_RELEASE = FAIL
 | Complete playable COC7 V1 loop | FAIL P0 | COC7 rule contracts pass | complete backend-driven gameplay loop is outside P02 and remains open |
 | Provider security / Level 4 | FAIL P1 | no-placeholder/no-silent-fallback and certification contracts pass | production provider certification custody remains open |
 | No silent local-to-cloud fallback | PASS | provider fallback negative tests | — |
-| CI/CD current repaired SHA | PENDING P1 | all equivalent local gates pass | normal commit and current-head hosted run required |
+| CI/CD current repaired SHA | PASS | head `baa3a0241cd1607b010acbf3d3a4206ff37fee84`; PR merge `909f66a6edeb808cb1a916b3914ac04082857edc`; current-head runs `29434692578`, `29434692684`, `29434692568` all succeeded | — |
 | Docker/service deployment | FAIL P1 | five release services plus Web process smoke pass | S09 production topology/placeholders remain open |
 | Golden scenario | FAIL P1 | golden fixture tests pass | complete backend-driven execution remains open |
 | Export privacy | P02 PASS / V1 OPEN | authenticated replay and visibility/export negatives | final production export consumer remains a later gate |
-| V1 acceptance closure | FAIL P0 | P02 technical repair complete locally | non-P02 P0/P1 gates above remain open |
+| V1 acceptance closure | FAIL P0 | P02 technical repair accepted locally and by current-head hosted CI | non-P02 P0/P1 gates above remain open |
 
 No password was modified. No test or policy gate was removed or weakened. No reset, rebase, amend, history rewrite, or force push was performed. Failed intermediate runs are recorded in `docs/audit/p02/P02_TEST_RESULTS.md` rather than reclassified as PASS.

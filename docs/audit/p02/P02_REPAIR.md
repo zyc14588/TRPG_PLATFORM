@@ -12,7 +12,7 @@
 | 6 | No verified remote PostgreSQL TLS | CA/hostname-verified remote client plus fail-closed tests |
 | 7 | No durable workflow production wiring | PostgreSQL workflow store and agent-worker readiness/background wiring |
 | 8 | No real SQLx/JetStream/Redis/backup/plugin host | Real adapters and integration tests for every listed surface |
-| 9 | No committed SHA/current hosted CI | Local implementation complete; commit and current-head CI are the remaining procedural gate |
+| 9 | No committed SHA/current hosted CI | Normal head `baa3a0241cd1607b010acbf3d3a4206ff37fee84` pushed; PR #5 current-head `golden-scenarios`, `repository-truth`, and `workspace-ci` runs all succeeded |
 
 ## Negative controls
 
@@ -22,7 +22,7 @@ Runtime/security integrations additionally reject changed decisions, stale versi
 
 ## Remaining boundary
 
-There is no known unresolved local blocker among the nine P02 repair items. P02 cannot be finally accepted until these changes have a normal commit and a successful GitHub Actions run for that commit.
+There is no known unresolved local or hosted-CI blocker among the nine P02 repair items. The implementation has a normal pushed commit and successful PR current-head GitHub Actions evidence, so P02 is accepted.
 
 This does **not** make the whole product release-ready. The S09 deployment placeholders, complete backend-driven COC7 V1 gameplay/golden-scenario closure, provider certification custody, and other non-P02 hard gates remain governed by their own stages.
 

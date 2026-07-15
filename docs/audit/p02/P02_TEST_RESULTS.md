@@ -18,6 +18,8 @@ All rows marked PASS completed with exit code `0` on 2026-07-15. Conditional int
 | PostgreSQL 18 backup/restore | PASS; custom archive restored into an independent fresh PG18 database, table counts matched, tampered manifest rejected |
 | `cargo build --workspace --all-targets --release --locked` | PASS |
 | Release `service-process-smoke.sh` on fresh databases | PASS; migration-runner first, five services plus Web ready/live, EOF survival, clean SIGTERM |
+| PR #5 current-head GitHub Actions | PASS; head `baa3a0241cd1607b010acbf3d3a4206ff37fee84`, generated merge `909f66a6edeb808cb1a916b3914ac04082857edc`, runs `29434692578`, `29434692684`, and `29434692568` all completed successfully |
+| Hosted workspace evidence artifact | PASS; `workspace-ci-909f66a6edeb808cb1a916b3914ac04082857edc-29434692568-1`, non-expired, 27,865 bytes |
 
 ## Static, policy, boundary, and frontend gates
 
@@ -39,4 +41,4 @@ All rows marked PASS completed with exit code `0` on 2026-07-15. Conditional int
 4. An initial PowerShell run failed before script execution because its default cache/data locations were read-only. The same scripts passed after redirecting only XDG runtime state to `/tmp`.
 5. A ShellCheck invocation initially used the wrong binary path and exited `127`; the actual checksum-verified binary was run afterward and returned `0`.
 
-No failed or skipped attempt above is reported as a PASS. Hosted CI for the new commit remains a separate gate until the repair is committed and pushed.
+No failed or skipped attempt above is reported as a PASS. Hosted CI was checked only after the normal implementation commit was pushed; the PR-generated merge SHA is recorded separately from the implementation head rather than being misrepresented as the same commit.
