@@ -61,7 +61,7 @@ pub struct RequestDataDeletion {
     pub policy_gate: SecurityPolicyGate,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum SecurityPrivacyCopyrightEvent {
     SecurityPrivacyCopyrightReviewed {
         asset_id: String,

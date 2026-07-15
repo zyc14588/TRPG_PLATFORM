@@ -51,7 +51,7 @@ fn verified_agent_run_is_scoped_to_its_campaign() {
         decision.clone(),
         ActorRole::Workflow,
     );
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     let committer = committer_for(contract);
 
     assert_eq!(
@@ -103,8 +103,8 @@ fn rogue_identity_issuer_cannot_authorize_a_formal_agent_commit() {
         decision.clone(),
         ActorRole::Workflow,
     );
+    let mut store = common::audited_store(&contract);
     let committer = committer_for(contract);
-    let mut store = common::audited_store();
 
     assert_eq!(
         committer
@@ -155,8 +155,8 @@ fn trusted_but_non_owner_ai_cannot_commit_in_ai_kp_mode() {
         decision.clone(),
         ActorRole::Workflow,
     );
+    let mut store = common::audited_store(&contract);
     let committer = committer_for(contract);
-    let mut store = common::audited_store();
 
     assert_eq!(
         committer
@@ -213,7 +213,7 @@ fn caller_supplied_contract_cannot_replace_the_identity_roots_canonical_contract
     assert_eq!(
         committer
             .commit(
-                &mut common::audited_store(),
+                &mut common::audited_store(&canonical),
                 &command,
                 &trpg_test_support::workflow_authentication(),
                 decision,
@@ -266,8 +266,8 @@ fn explicit_draft_never_emits_a_formal_decision_committed_event() {
         decision.clone(),
         ActorRole::Workflow,
     );
+    let mut store = common::audited_store(&contract);
     let committer = committer_for(contract);
-    let mut store = common::audited_store();
 
     let events = committer
         .commit(

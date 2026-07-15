@@ -5,8 +5,8 @@ use trpg_runtime::runtime_state_machines::{
 };
 use trpg_runtime::scheduler_service_impl::{self, SchedulerServiceImplTask};
 use trpg_runtime::{
-    ActorRole, AuthorityMode, CommandEnvelope, EntityId, FormalWritePath, PrincipalScope,
-    Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, EntityId, FormalWritePath, Visibility,
+    VisibilityLabel,
 };
 
 fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
@@ -59,10 +59,15 @@ fn scheduler_service_impl_preserves_governed_decision_event_contract() {
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
     let events = scheduler_service_impl::commit_scheduler_service_impl_decision(
-        &mut store, &contract, &command, decision,
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap();
     let task_event = scheduler_service_impl::record_scheduler_service_impl_due_task(
@@ -76,8 +81,10 @@ fn scheduler_service_impl_preserves_governed_decision_event_contract() {
     assert_eq!(events[0].event_type, "ToolRequestApproved");
     assert_eq!(events[1].event_type, "DecisionCommitted");
     assert_eq!(task_event.event_type, "ScheduledTaskDue");
-    assert!(store.replay_visible(&PrincipalScope::Public).is_empty());
-    assert_eq!(store.replay_visible(&PrincipalScope::Keeper).len(), 3);
+    let player = trpg_test_support::player_replay_authorization(&contract);
+    let system = trpg_test_support::system_replay_authorization(&contract);
+    assert!(store.replay_visible(&player, 206).unwrap().is_empty());
+    assert_eq!(store.replay_visible(&system, 206).unwrap().len(), 3);
     for event in store.events() {
         assert_eq!(event.visibility.label(), &VisibilityLabel::KeeperOnly);
         assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
@@ -114,13 +121,15 @@ fn scheduler_service_impl_denies_contract_tool_gate_and_direct_agent_write() {
     );
     let wrong_contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         scheduler_service_impl::commit_scheduler_service_impl_decision(
             &mut store,
             &wrong_contract,
             &command(allowed.clone()),
+            &trpg_test_support::workflow_authentication(),
             allowed,
+            2,
         )
         .unwrap_err()
         .code(),
@@ -132,13 +141,15 @@ fn scheduler_service_impl_denies_contract_tool_gate_and_direct_agent_write() {
         "decision_b014_scheduler_tool",
         ToolRequest::formal(RuntimeAgent::AtmosphereWriter, RuntimeTool::ChangeScene),
     );
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         scheduler_service_impl::commit_scheduler_service_impl_decision(
             &mut store,
             &contract,
             &command(denied.clone()),
+            &trpg_test_support::workflow_authentication(),
             denied,
+            2,
         )
         .unwrap_err()
         .code(),
@@ -155,13 +166,15 @@ fn scheduler_service_impl_denies_contract_tool_gate_and_direct_agent_write() {
     );
     let mut direct_command = command(direct.clone());
     direct_command.write_path = FormalWritePath::DirectAgent;
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         scheduler_service_impl::commit_scheduler_service_impl_decision(
             &mut store,
             &contract,
             &direct_command,
+            &trpg_test_support::workflow_authentication(),
             direct,
+            2,
         )
         .unwrap_err()
         .code(),

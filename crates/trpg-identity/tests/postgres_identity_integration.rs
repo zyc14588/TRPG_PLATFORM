@@ -168,6 +168,13 @@ fn postgres_persists_sessions_memberships_and_canonical_authority_across_restart
             &[&campaign_id, &owner_id],
         )
         .is_err());
+    assert!(database
+        .execute(
+            "UPDATE campaign_memberships SET campaign_id = $3 \
+             WHERE campaign_id = $1 AND user_id = $2",
+            &[&campaign_id, &owner_id, &format!("{campaign_id}_moved")],
+        )
+        .is_err());
     database
         .execute(
             "UPDATE sessions SET revoked_at = now() \

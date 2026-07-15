@@ -1,11 +1,78 @@
+use std::collections::{HashMap, HashSet};
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread;
+
 use trpg_shared_kernel::{
     Actor, ActorRole, AgentClass, AuthenticatedCommandContext, AuthorityContract,
-    AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft, CommandEnvelope,
-    CommandMetadata, EntityId, FactProvenance, FormalWritePath, ProvenanceKind, ResourceRef,
+    AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft, CanonicalCommitPort,
+    CanonicalCommitReceipt, CanonicalCommitRequest, CommandEnvelope, CommandMetadata, EntityId,
+    FactProvenance, FormalWritePath, KernelResult, ProvenanceKind, ResourceRef, TrpgError,
     Visibility, VisibilityLabel, WorkloadRole,
 };
 
 const TEST_IDENTITY_SIGNING_KEY: [u8; 32] = [0x5a; 32];
+
+#[derive(Debug, Default)]
+struct TestCanonicalCommitPort {
+    state: Mutex<TestCanonicalState>,
+}
+
+#[derive(Debug, Default)]
+struct TestCanonicalState {
+    stream_versions: HashMap<String, u64>,
+    idempotency_keys: HashSet<(String, String)>,
+}
+
+impl CanonicalCommitPort for TestCanonicalCommitPort {
+    fn commit(&self, request: &CanonicalCommitRequest) -> KernelResult<CanonicalCommitReceipt> {
+        if request.events.is_empty() {
+            return Err(TrpgError::AuditIntegrityViolation);
+        }
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let actual_version = state
+            .stream_versions
+            .get(&request.campaign_id)
+            .copied()
+            .unwrap_or(0);
+        if request.expected_version != actual_version {
+            return Err(TrpgError::ExpectedVersionConflict {
+                expected: request.expected_version,
+                actual: actual_version,
+            });
+        }
+        let idempotency = (request.campaign_id.clone(), request.idempotency_key.clone());
+        if state.idempotency_keys.contains(&idempotency) {
+            return Err(TrpgError::DuplicateCommand);
+        }
+        let event_count =
+            u64::try_from(request.events.len()).map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let first_stream_version = request
+            .expected_version
+            .checked_add(1)
+            .ok_or(TrpgError::AuditIntegrityViolation)?;
+        let last_stream_version = request
+            .expected_version
+            .checked_add(event_count)
+            .ok_or(TrpgError::AuditIntegrityViolation)?;
+        state.idempotency_keys.insert(idempotency);
+        state
+            .stream_versions
+            .insert(request.campaign_id.clone(), last_stream_version);
+        Ok(CanonicalCommitReceipt {
+            first_stream_version,
+            last_stream_version,
+        })
+    }
+}
+
+pub fn test_canonical_commit_port() -> Arc<dyn CanonicalCommitPort> {
+    Arc::new(TestCanonicalCommitPort::default())
+}
 
 const NORMALIZED_PROMPT_MAP: &str =
     include_str!("../../../../docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md");
@@ -340,4 +407,176 @@ pub fn actor_for_role(role: ActorRole, campaign_id: &str, authority_owner: &str)
         | ActorRole::Spectator => Actor::authenticated_user("user_001", role, "session_user_001"),
     }
     .expect("valid fixture actor")
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct TestPolicyEndpoints {
+    pub openfga: SocketAddr,
+    pub opa: SocketAddr,
+    pub openfga_model: &'static str,
+    pub opa_revision: &'static str,
+}
+
+pub fn formal_commit_policy_endpoints() -> TestPolicyEndpoints {
+    static ENDPOINTS: OnceLock<TestPolicyEndpoints> = OnceLock::new();
+    *ENDPOINTS.get_or_init(|| TestPolicyEndpoints {
+        openfga: spawn_test_policy_server(
+            r#"{"allowed":true,"decision_id":"test-openfga-permit"}"#,
+            "X-Request-Id: test-openfga-permit\r\n",
+        ),
+        opa: spawn_test_policy_server(
+            r#"{"result":{"allow":true,"decision_id":"test-opa-permit","policy_revision":"test-opa-v1"}}"#,
+            "",
+        ),
+        openfga_model: "test-openfga-model-v1",
+        opa_revision: "test-opa-v1",
+    })
+}
+
+pub fn formal_commit_identity_for_contract(
+    contract: &AuthorityContract,
+) -> (
+    trpg_identity::IdentityVerifier,
+    trpg_identity::AuthenticationContext,
+) {
+    let identity = identity_service_for_contract(contract);
+    let credential = identity
+        .issue_workload_credential(
+            "workflow_001",
+            trpg_identity::WorkloadRole::WorkflowEngine,
+            1,
+            u64::MAX,
+        )
+        .expect("valid long-lived test workflow credential");
+    let authentication = identity
+        .authenticate_workload(&credential, 2)
+        .expect("valid test workflow authentication");
+    (identity.verifier(), authentication)
+}
+
+pub fn system_replay_authorization(
+    contract: &AuthorityContract,
+) -> trpg_identity::ReplayAuthorization {
+    let identity = identity_service_for_contract(contract);
+    let credential = identity
+        .issue_workload_credential(
+            "realtime_replay_test",
+            trpg_identity::WorkloadRole::RealtimeServer,
+            1,
+            u64::MAX,
+        )
+        .expect("valid replay workload credential");
+    let authentication = identity
+        .authenticate_workload(&credential, 2)
+        .expect("valid replay workload authentication");
+    identity
+        .verifier()
+        .authorize_replay(&authentication, contract.campaign_id(), 2)
+        .expect("campaign-bound replay authorization")
+}
+
+pub fn player_replay_authorization(
+    contract: &AuthorityContract,
+) -> trpg_identity::ReplayAuthorization {
+    player_replay_authorization_for(contract, "replay_player")
+}
+
+pub fn player_replay_authorization_for(
+    contract: &AuthorityContract,
+    player_id: &str,
+) -> trpg_identity::ReplayAuthorization {
+    use trpg_identity::{CampaignRole, GlobalRole};
+
+    const PASSWORD: &str = "test replay password long enough";
+    let mut identity = identity_service_for_contract(contract);
+    identity
+        .create_user(
+            "replay_registrar",
+            "replay-registrar@example.test",
+            PASSWORD,
+            GlobalRole::ServerOwner,
+        )
+        .expect("valid replay registrar");
+    identity
+        .create_user(
+            player_id,
+            &format!("{player_id}@example.test"),
+            PASSWORD,
+            GlobalRole::User,
+        )
+        .expect("valid replay player");
+    let registrar_session = identity
+        .login("replay-registrar@example.test", PASSWORD, 200)
+        .expect("replay registrar login");
+    let registrar = identity
+        .authenticate_session(Some(registrar_session.token.expose()), 201)
+        .expect("replay registrar authentication");
+    identity
+        .grant_membership(
+            &registrar,
+            contract.campaign_id().as_str(),
+            player_id,
+            CampaignRole::Player,
+            202,
+        )
+        .expect("replay player membership");
+    let player_session = identity
+        .login(&format!("{player_id}@example.test"), PASSWORD, 203)
+        .expect("replay player login");
+    let player = identity
+        .authenticate_session(Some(player_session.token.expose()), 204)
+        .expect("replay player authentication");
+    identity
+        .verifier()
+        .authorize_replay(&player, contract.campaign_id(), 205)
+        .expect("player replay authorization")
+}
+
+fn spawn_test_policy_server(body: &'static str, extra_headers: &'static str) -> SocketAddr {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind test policy server");
+    let address = listener.local_addr().expect("test policy server address");
+    thread::Builder::new()
+        .name("formal-commit-test-policy".to_owned())
+        .spawn(move || {
+            for connection in listener.incoming() {
+                let Ok(mut stream) = connection else {
+                    break;
+                };
+                if read_complete_http_request(&mut stream).is_err() {
+                    continue;
+                }
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n{extra_headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+            }
+        })
+        .expect("spawn test policy server");
+    address
+}
+
+fn read_complete_http_request(stream: &mut TcpStream) -> std::io::Result<()> {
+    let mut request = Vec::new();
+    let mut buffer = [0_u8; 4096];
+    loop {
+        let count = stream.read(&mut buffer)?;
+        if count == 0 {
+            return Ok(());
+        }
+        request.extend_from_slice(&buffer[..count]);
+        let Some(boundary) = request.windows(4).position(|window| window == b"\r\n\r\n") else {
+            continue;
+        };
+        let headers = String::from_utf8_lossy(&request[..boundary]);
+        let content_length = headers
+            .lines()
+            .filter_map(|line| line.split_once(':'))
+            .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+            .and_then(|(_, value)| value.trim().parse::<usize>().ok())
+            .unwrap_or(0);
+        if request.len() >= boundary + 4 + content_length {
+            return Ok(());
+        }
+    }
 }

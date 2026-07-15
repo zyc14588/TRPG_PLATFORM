@@ -19,7 +19,7 @@ pub struct RegisterPluginToolGrant {
     pub granted_write_path: FormalWritePath,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum PluginSdkEvent {
     PluginToolGrantRegistered {
         plugin_id: String,

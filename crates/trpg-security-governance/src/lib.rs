@@ -39,7 +39,7 @@ pub const SECURITY_GOVERNANCE_REQUIRED_METRICS: &[&str] = &[
     "trpg_audit_event_total",
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum PermissionPrincipalRole {
     ServerOwner,
     CampaignOwner,
@@ -55,7 +55,7 @@ pub enum PermissionPrincipalRole {
     Spectator,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum SecurityGovernanceAction {
     PauseRoom,
     OverrideDiceRoll,
@@ -92,7 +92,7 @@ impl SecurityGovernanceCommand {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum SecurityGovernanceEvent {
     DecisionRecorded {
         module: &'static str,
@@ -252,7 +252,7 @@ pub fn evaluate_security_governance_with_policy(
 #[allow(clippy::too_many_arguments)]
 pub fn authorize_campaign_membership_change(
     policy: &OpenFgaOpaPolicyAdapter,
-    audit: &mut FileAuditLog,
+    audit: &mut impl AuditSink,
     identity_verifier: &IdentityVerifier,
     authentication: &AuthenticationContext,
     acting_membership: Option<&CampaignMembership>,
@@ -380,7 +380,7 @@ pub fn authorize_campaign_membership_change(
 
 #[allow(clippy::too_many_arguments)]
 fn append_identity_policy_audit(
-    audit: &mut FileAuditLog,
+    audit: &mut impl AuditSink,
     authentication: &AuthenticationContext,
     authentication_reference: &str,
     request: &PolicyAuthorizationRequest,
@@ -402,6 +402,14 @@ fn append_identity_policy_audit(
             .requested_role
             .clone()
             .unwrap_or_else(|| "not_applicable".to_owned()),
+        visibility_label: request.target_visibility.clone(),
+        visibility_subject: request
+            .target_visibility_subject
+            .clone()
+            .unwrap_or_else(|| "not_applicable".to_owned()),
+        provenance_kind: "tool_result".to_owned(),
+        provenance_reference: request.trace_id.clone(),
+        provenance_recorded_by: "policy_adapter".to_owned(),
         decision,
         openfga_decision_id: openfga_decision_id.to_owned(),
         openfga_policy_revision: openfga_policy_revision.to_owned(),
@@ -435,6 +443,15 @@ fn append_policy_audit(
             .requested_role
             .clone()
             .unwrap_or_else(|| "not_applicable".to_owned()),
+        visibility_label: visibility_name(command.visibility.label()).to_owned(),
+        visibility_subject: command
+            .visibility
+            .player_id()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "not_applicable".to_owned()),
+        provenance_kind: provenance_kind_name(&command.fact_provenance.kind).to_owned(),
+        provenance_reference: command.fact_provenance.reference.to_string(),
+        provenance_recorded_by: command.fact_provenance.recorded_by.to_string(),
         decision,
         openfga_decision_id: openfga_decision_id.to_owned(),
         openfga_policy_revision: openfga_policy_revision.to_owned(),
@@ -552,6 +569,17 @@ fn visibility_name(label: &VisibilityLabel) -> &'static str {
         VisibilityLabel::AiInternal => "ai_internal",
         VisibilityLabel::SystemOnly => "system_only",
         VisibilityLabel::SystemPrivate => "system_private",
+    }
+}
+
+fn provenance_kind_name(kind: &trpg_shared_kernel::ProvenanceKind) -> &'static str {
+    match kind {
+        trpg_shared_kernel::ProvenanceKind::HumanKeeperStatement => "human_keeper_statement",
+        trpg_shared_kernel::ProvenanceKind::RulesEngineDecision => "rules_engine_decision",
+        trpg_shared_kernel::ProvenanceKind::ToolResult => "tool_result",
+        trpg_shared_kernel::ProvenanceKind::AgentProposal => "agent_proposal",
+        trpg_shared_kernel::ProvenanceKind::ImportedSource => "imported_source",
+        trpg_shared_kernel::ProvenanceKind::SystemFixture => "system_fixture",
     }
 }
 

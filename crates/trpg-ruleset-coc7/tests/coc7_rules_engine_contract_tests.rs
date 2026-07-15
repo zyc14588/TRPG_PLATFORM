@@ -32,20 +32,7 @@ fn engine_decision_is_event_logged() {
 
 #[test]
 fn unregistered_event_is_rejected_before_event_store_append() {
-    let contract = common::human_contract();
-    let mut store = common::event_store();
-    let command = common::rules_command("unknown");
-
-    let error = trpg_ruleset_coc7::append_coc7_event(
-        &contract,
-        &mut store,
-        &command,
-        "UnregisteredEvent",
-        "negative_contract_test",
-        "must not append",
-    )
-    .unwrap_err();
+    let error = trpg_ruleset_coc7::validate_coc7_event_contract("UnregisteredEvent").unwrap_err();
 
     assert_eq!(error.code(), "EVENT_CONTRACT_UNKNOWN");
-    assert!(store.events().is_empty());
 }

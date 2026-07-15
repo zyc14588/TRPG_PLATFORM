@@ -19,7 +19,7 @@ pub struct RecordPlatformObservation {
     pub detail: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum ObservabilityEvent {
     PlatformObservationRecorded {
         metric_name: String,

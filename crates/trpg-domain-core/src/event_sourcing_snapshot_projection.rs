@@ -1,7 +1,7 @@
 use crate::command_cqrs_idempotency::append_idempotent_event;
 use crate::ddd::{CommandEnvelope, DomainResult, EntityId, EventEnvelope, EventStore};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct DomainEventPayload {
     pub event_id: EntityId,
     pub event_name: &'static str,

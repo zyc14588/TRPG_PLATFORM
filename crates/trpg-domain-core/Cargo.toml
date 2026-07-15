@@ -6,6 +6,7 @@ publish = false
 license = "UNLICENSED"
 
 [dependencies]
+serde = { version = "1.0", features = ["derive"] }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
 
 [dev-dependencies]

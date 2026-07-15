@@ -24,9 +24,10 @@ pub mod workspace_and_governance;
 pub use shared_kernel::{
     Actor, ActorOrigin, ActorRole, AgentClass, AuthenticatedCommandContext, AuthorityBinding,
     AuthorityContract, AuthorityContractDraft, AuthorityMode, AuthorityRegistry,
-    AuthorityVersionSnapshot, AuthorityVersionSnapshotDraft, ChangePolicy, CommandEnvelope,
-    CommandMetadata, EntityId, EventEnvelope, EventStore, FactProvenance, FormalWritePath,
-    KernelContractSnapshot, KernelResult, PrincipalScope, ProvenanceKind, ResourceRef, TrpgError,
-    Visibility, VisibilityLabel, WorkloadRole,
+    AuthorityVersionSnapshot, AuthorityVersionSnapshotDraft, CanonicalCommitEvent,
+    CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest, CanonicalPolicyAudit,
+    ChangePolicy, CommandEnvelope, CommandMetadata, EntityId, EventEnvelope, EventStore,
+    FactProvenance, FormalWritePath, KernelContractSnapshot, KernelResult, PrincipalScope,
+    ProvenanceKind, ResourceRef, TrpgError, Visibility, VisibilityLabel, WorkloadRole,
 };
 pub use trpg_contracts::WireErrorCode;

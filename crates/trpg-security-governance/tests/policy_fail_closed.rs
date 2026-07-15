@@ -1,10 +1,12 @@
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::Duration;
 
 use trpg_identity::{IdentityService, WorkloadRole};
+use trpg_security_governance::formal_commit_audit::{FormalCommitAudit, FormalCommitAuthorizer};
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
 };
@@ -43,6 +45,11 @@ fn open_audit(path: &Path) -> FileAuditLog {
     FileAuditLog::open(path, "test-audit-key-v1", &AUDIT_KEY).unwrap()
 }
 
+fn open_formal_audit(path: &Path) -> FormalCommitAudit {
+    cleanup_audit(path);
+    FormalCommitAudit::open(path, "test-formal-audit-key-v1", &AUDIT_KEY).unwrap()
+}
+
 fn audit_anchor_path(path: &Path) -> PathBuf {
     let mut name = path.as_os_str().to_os_string();
     name.push(".head");
@@ -76,8 +83,16 @@ fn adapter(
 }
 
 fn one_shot_policy_response(body: &'static str, extra_headers: &'static str) -> SocketAddr {
+    one_shot_policy_response_with_capture(body, extra_headers).0
+}
+
+fn one_shot_policy_response_with_capture(
+    body: &'static str,
+    extra_headers: &'static str,
+) -> (SocketAddr, Receiver<Vec<u8>>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
+    let (request_sender, request_receiver) = mpsc::channel();
     thread::spawn(move || {
         let (mut stream, _) = listener.accept().unwrap();
         stream
@@ -102,6 +117,7 @@ fn one_shot_policy_response(body: &'static str, extra_headers: &'static str) -> 
                 break;
             }
         }
+        let _ = request_sender.send(request);
         write!(
             stream,
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n{extra_headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -109,7 +125,7 @@ fn one_shot_policy_response(body: &'static str, extra_headers: &'static str) -> 
         )
         .unwrap();
     });
-    address
+    (address, request_receiver)
 }
 
 fn real_policy_adapter() -> Option<OpenFgaOpaPolicyAdapter> {
@@ -344,6 +360,129 @@ fn policy_evidence_without_server_decision_id_or_exact_revision_is_rejected() {
 }
 
 #[test]
+fn openfga_request_does_not_recreate_the_callers_role_as_a_contextual_tuple() {
+    let (openfga, captured_request) = one_shot_policy_response_with_capture(
+        r#"{"allowed":true}"#,
+        "X-Request-Id: openfga-decision-no-self-grant\r\n",
+    );
+    let opa = one_shot_policy_response(
+        r#"{"result":{"allow":true,"decision_id":"opa-decision-no-self-grant","policy_revision":"opa-security-governance-v2"}}"#,
+        "",
+    );
+    let policy = adapter(
+        openfga,
+        "/stores/test/check".to_owned(),
+        "model-test".to_owned(),
+        opa,
+        "opa-security-governance-v2".to_owned(),
+    );
+    let path = audit_path("no-contextual-self-grant");
+    let mut audit = open_audit(&path);
+    evaluate_with_trusted_workload(
+        "policy_test",
+        &mut SecurityGovernanceRepository::default(),
+        &command(SecurityGovernanceAction::RecordAudit),
+        &policy,
+        &mut audit,
+    )
+    .unwrap();
+
+    let request = captured_request
+        .recv_timeout(Duration::from_secs(2))
+        .expect("capture OpenFGA request");
+    let body_start = request
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .expect("HTTP request boundary")
+        + 4;
+    let body: serde_json::Value = serde_json::from_slice(&request[body_start..]).unwrap();
+    assert!(body.get("contextual_tuples").is_none());
+    assert_eq!(
+        body["tuple_key"]["relation"],
+        serde_json::Value::String("can_record_audit".to_owned())
+    );
+    cleanup_audit(&path);
+}
+
+#[test]
+fn formal_commit_authorizer_records_real_deny_and_never_synthesizes_a_permit() {
+    let openfga = one_shot_policy_response(
+        r#"{"allowed":false}"#,
+        "X-Request-Id: openfga-formal-deny\r\n",
+    );
+    let opa = one_shot_policy_response(
+        r#"{"result":{"allow":false,"decision_id":"opa-formal-deny","policy_revision":"opa-formal-v1"}}"#,
+        "",
+    );
+    let policy = adapter(
+        openfga,
+        "/stores/test/check".to_owned(),
+        "openfga-formal-v1".to_owned(),
+        opa,
+        "opa-formal-v1".to_owned(),
+    );
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let (verifier, authentication) =
+        trpg_test_support::formal_commit_identity_for_contract(&contract);
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        "formal decision",
+        ActorRole::Workflow,
+    );
+    let path = audit_path("formal-deny");
+    let audit = open_formal_audit(&path);
+    let authorizer = FormalCommitAuthorizer::new(verifier, policy, audit.clone());
+
+    assert_eq!(
+        authorizer.authorize(&authentication, None, &command, "workflow", 2),
+        Err(TrpgError::PolicyDenied)
+    );
+    let records = audit.verify().unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].decision, AuditDecision::Deny);
+    assert_eq!(records[0].action, "write_official_state");
+    assert_eq!(records[0].openfga_decision_id, "openfga-formal-deny");
+    assert_eq!(records[0].opa_decision_id, "opa-formal-deny");
+    cleanup_audit(&path);
+}
+
+#[test]
+fn formal_commit_authorizer_fails_closed_when_policy_is_unavailable() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let unavailable = listener.local_addr().unwrap();
+    drop(listener);
+    let policy = adapter(
+        unavailable,
+        "/stores/unavailable/check".to_owned(),
+        "openfga-formal-unavailable".to_owned(),
+        unavailable,
+        "opa-formal-unavailable".to_owned(),
+    );
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let (verifier, authentication) =
+        trpg_test_support::formal_commit_identity_for_contract(&contract);
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        "formal decision",
+        ActorRole::Workflow,
+    );
+    let path = audit_path("formal-unavailable");
+    let audit = open_formal_audit(&path);
+    let authorizer = FormalCommitAuthorizer::new(verifier, policy, audit.clone());
+
+    assert_eq!(
+        authorizer.authorize(&authentication, None, &command, "workflow", 2),
+        Err(TrpgError::PolicyUnavailable)
+    );
+    let records = audit.verify().unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].decision, AuditDecision::Unavailable);
+    cleanup_audit(&path);
+}
+
+#[test]
 fn real_openfga_and_opa_enforce_permit_and_visibility_deny() {
     let policy = real_policy_adapter()
         .expect("P02_OPENFGA_* and P02_OPA_ADDRESS must identify real policy services");
@@ -402,6 +541,11 @@ fn audit_draft(index: usize) -> AuditRecordDraft {
         resource_id: "campaign_a".to_owned(),
         action: "record_audit".to_owned(),
         requested_role: "not_applicable".to_owned(),
+        visibility_label: "system_only".to_owned(),
+        visibility_subject: "not_applicable".to_owned(),
+        provenance_kind: "system_fixture".to_owned(),
+        provenance_reference: format!("audit_fact_{index}"),
+        provenance_recorded_by: "policy_test".to_owned(),
         decision: AuditDecision::Permit,
         openfga_decision_id: format!("openfga_{index}"),
         openfga_policy_revision: "openfga_model_1".to_owned(),

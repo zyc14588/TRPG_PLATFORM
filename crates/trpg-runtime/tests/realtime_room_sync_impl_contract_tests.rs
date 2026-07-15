@@ -5,8 +5,7 @@ use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::{
-    ActorRole, AuthorityMode, CommandEnvelope, FormalWritePath, PrincipalScope, Visibility,
-    VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, FormalWritePath, Visibility, VisibilityLabel,
 };
 
 fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
@@ -34,29 +33,32 @@ fn realtime_room_sync_impl_preserves_governed_decision_event_contract() {
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
     let events = realtime_room_sync_impl::commit_realtime_room_sync_impl_decision(
-        &mut store, &contract, &command, decision,
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap();
 
     assert_eq!(store.events().len(), 2);
     assert_eq!(events[0].event_type, "ToolRequestApproved");
     assert_eq!(events[1].event_type, "DecisionCommitted");
+    let player = trpg_test_support::player_replay_authorization(&contract);
+    let system = trpg_test_support::system_replay_authorization(&contract);
     assert!(
-        realtime_room_sync_impl::sync_realtime_room_sync_impl_events(
-            &store,
-            &PrincipalScope::Public,
-        )
-        .is_empty()
+        realtime_room_sync_impl::sync_realtime_room_sync_impl_events(&store, &player, 206,)
+            .unwrap()
+            .is_empty()
     );
     assert_eq!(
-        realtime_room_sync_impl::sync_realtime_room_sync_impl_events(
-            &store,
-            &PrincipalScope::Keeper,
-        )
-        .len(),
+        realtime_room_sync_impl::sync_realtime_room_sync_impl_events(&store, &system, 206,)
+            .unwrap()
+            .len(),
         2
     );
     for event in &events {
@@ -95,13 +97,15 @@ fn realtime_room_sync_impl_denies_contract_tool_gate_and_direct_agent_write() {
     );
     let wrong_contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         realtime_room_sync_impl::commit_realtime_room_sync_impl_decision(
             &mut store,
             &wrong_contract,
             &command(allowed.clone()),
+            &trpg_test_support::workflow_authentication(),
             allowed,
+            2,
         )
         .unwrap_err()
         .code(),
@@ -113,13 +117,15 @@ fn realtime_room_sync_impl_denies_contract_tool_gate_and_direct_agent_write() {
         "decision_b014_realtime_tool",
         ToolRequest::formal(RuntimeAgent::AtmosphereWriter, RuntimeTool::ChangeScene),
     );
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         realtime_room_sync_impl::commit_realtime_room_sync_impl_decision(
             &mut store,
             &contract,
             &command(denied.clone()),
+            &trpg_test_support::workflow_authentication(),
             denied,
+            2,
         )
         .unwrap_err()
         .code(),
@@ -136,13 +142,15 @@ fn realtime_room_sync_impl_denies_contract_tool_gate_and_direct_agent_write() {
     );
     let mut direct_command = command(direct.clone());
     direct_command.write_path = FormalWritePath::DirectAgent;
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         realtime_room_sync_impl::commit_realtime_room_sync_impl_decision(
             &mut store,
             &contract,
             &direct_command,
+            &trpg_test_support::workflow_authentication(),
             direct,
+            2,
         )
         .unwrap_err()
         .code(),

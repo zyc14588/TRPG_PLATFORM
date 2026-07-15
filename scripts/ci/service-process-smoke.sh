@@ -33,6 +33,9 @@ api_openfga_store_id="${TRPG_OPENFGA_STORE_ID:-${P02_OPENFGA_STORE_ID:-}}"
 api_openfga_model_id="${TRPG_OPENFGA_MODEL_ID:-${P02_OPENFGA_MODEL_ID:-}}"
 api_opa_address="${TRPG_OPA_ADDRESS:-${P02_OPA_ADDRESS:-}}"
 api_opa_revision="${TRPG_OPA_POLICY_REVISION:-${P02_OPA_REVISION:-}}"
+canonical_witness_url="${TRPG_WITNESS_DATABASE_URL:-${P02_WITNESS_DATABASE_URL:-}}"
+nats_url="${TRPG_NATS_URL:-${P02_NATS_URL:-}}"
+redis_url="${TRPG_REDIS_URL:-${P02_REDIS_URL:-}}"
 
 require_configuration "TRPG_DATABASE_URL or P02_DATABASE_URL" "$api_database_url"
 require_configuration "TRPG_OPENFGA_ADDRESS or P02_OPENFGA_ADDRESS" "$api_openfga_address"
@@ -40,9 +43,15 @@ require_configuration "TRPG_OPENFGA_STORE_ID or P02_OPENFGA_STORE_ID" "$api_open
 require_configuration "TRPG_OPENFGA_MODEL_ID or P02_OPENFGA_MODEL_ID" "$api_openfga_model_id"
 require_configuration "TRPG_OPA_ADDRESS or P02_OPA_ADDRESS" "$api_opa_address"
 require_configuration "TRPG_OPA_POLICY_REVISION or P02_OPA_REVISION" "$api_opa_revision"
+require_configuration "TRPG_WITNESS_DATABASE_URL or P02_WITNESS_DATABASE_URL" "$canonical_witness_url"
+require_configuration "TRPG_NATS_URL or P02_NATS_URL" "$nats_url"
+require_configuration "TRPG_REDIS_URL or P02_REDIS_URL" "$redis_url"
 
 identity_signing_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 audit_hmac_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+canonical_hmac_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+plugin_registry="$temporary_directory/plugin-registry.json"
+printf '%s\n' '{"fuel_limit":100000,"memory_limit_bytes":1048576,"plugins":[]}' >"$plugin_registry"
 
 services=(api-server realtime-server agent-worker admin-server migration-runner)
 environment_keys=(
@@ -61,15 +70,37 @@ component_checks=(
 )
 ports=(18100 18101 18102 18103 18104)
 
-for index in "${!services[@]}"; do
-  service="${services[$index]}"
+start_service() {
+  local index="$1"
+  local service="${services[$index]}"
+  local binary
+  local -a command_environment
   binary="$release_dir/$service"
   test -x "$binary"
   command_environment=("${environment_keys[$index]}=127.0.0.1:${ports[$index]}")
+  if [[ "$service" == api-server || "$service" == realtime-server || "$service" == agent-worker || "$service" == migration-runner ]]; then
+    command_environment+=("TRPG_DATABASE_URL=$api_database_url")
+  fi
+  if [[ "$service" == api-server || "$service" == migration-runner ]]; then
+    command_environment+=(
+      "TRPG_WITNESS_DATABASE_URL=$canonical_witness_url"
+      "TRPG_CANONICAL_HMAC_KEY_ID=service-process-smoke-v1"
+      "TRPG_CANONICAL_HMAC_KEY_HEX=$canonical_hmac_key"
+    )
+  fi
+  if [[ "$service" == realtime-server || "$service" == agent-worker ]]; then
+    command_environment+=(
+      "TRPG_NATS_URL=$nats_url"
+      "TRPG_REDIS_URL=$redis_url"
+    )
+  fi
+  if [[ "$service" == agent-worker ]]; then
+    command_environment+=("TRPG_PLUGIN_REGISTRY_PATH=$plugin_registry")
+  fi
   if [[ "$service" == api-server ]]; then
     command_environment+=(
-      "TRPG_DATABASE_URL=$api_database_url"
       "TRPG_IDENTITY_SIGNING_KEY_HEX=$identity_signing_key"
+      "TRPG_REDIS_URL=$redis_url"
       "TRPG_OPENFGA_ADDRESS=$api_openfga_address"
       "TRPG_OPENFGA_STORE_ID=$api_openfga_store_id"
       "TRPG_OPENFGA_MODEL_ID=$api_openfga_model_id"
@@ -83,6 +114,31 @@ for index in "${!services[@]}"; do
   env "${command_environment[@]}" \
     "$binary" >"$temporary_directory/$service.log" 2>&1 &
   pids+=("$!")
+}
+
+# Schema ownership is explicit: the migration runner must finish its startup
+# migration/recovery gate before traffic-serving processes initialize their
+# own persistent adapters.
+migration_index=4
+start_service "$migration_index"
+migration_bootstrap_ready=false
+for _ in $(seq 1 100); do
+  if curl -fsS "http://127.0.0.1:${ports[$migration_index]}/health/ready" >/dev/null; then
+    migration_bootstrap_ready=true
+    break
+  fi
+  sleep 0.05
+done
+if [[ "$migration_bootstrap_ready" != true ]]; then
+  cat "$temporary_directory/${services[$migration_index]}.log" >&2
+  exit 1
+fi
+
+for index in "${!services[@]}"; do
+  if [[ "$index" == "$migration_index" ]]; then
+    continue
+  fi
+  start_service "$index"
 done
 
 for index in "${!services[@]}"; do
@@ -103,6 +159,27 @@ for index in "${!services[@]}"; do
     exit 1
   fi
   curl -fsS "http://127.0.0.1:$port/health/live" -o "$live_document"
+
+  python3 - "$port" <<'PY'
+import socket
+import sys
+
+with socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=2) as connection:
+    connection.shutdown(socket.SHUT_WR)
+PY
+
+  survived_eof=false
+  for _ in $(seq 1 40); do
+    if curl -fsS "http://127.0.0.1:$port/health/live" -o "$live_document"; then
+      survived_eof=true
+      break
+    fi
+    sleep 0.05
+  done
+  if [[ "$survived_eof" != true ]]; then
+    cat "$temporary_directory/$service.log" >&2
+    exit 1
+  fi
 
   python3 - "$service" "${component_checks[$index]}" "$ready_document" "$live_document" <<'PY'
 import json

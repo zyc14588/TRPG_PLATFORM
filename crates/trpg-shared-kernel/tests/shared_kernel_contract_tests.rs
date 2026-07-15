@@ -122,3 +122,28 @@ fn shared_kernel_replay_never_exposes_ai_internal_to_players() {
         ))
         .is_empty());
 }
+
+#[test]
+fn event_integrity_binds_the_recorded_payload() {
+    let command = trpg_test_support::governed_command(
+        "recorded payload".to_owned(),
+        ActorRole::System,
+        AuthorityMode::AiKp,
+    );
+    let mut store = EventStore::default();
+    let mut event = store
+        .append(
+            &command,
+            "SharedKernelTypesValidated",
+            "recorded payload".to_owned(),
+        )
+        .unwrap();
+
+    event.verify_recorded_integrity().unwrap();
+    event.payload = "substituted payload".to_owned();
+
+    assert_eq!(
+        event.verify_recorded_integrity().unwrap_err(),
+        TrpgError::PolicyEvidenceUntrusted
+    );
+}

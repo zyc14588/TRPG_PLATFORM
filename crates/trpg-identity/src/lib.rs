@@ -3,18 +3,21 @@ pub mod schema;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
 use hmac::{Hmac, Mac};
-use postgres::{Client, GenericClient, NoTls};
+use native_tls::{Certificate, Protocol, TlsConnector};
+use postgres::config::{Host as PostgresHost, SslMode as PostgresSslMode};
+use postgres::{Client, Config as PostgresConfig, GenericClient, NoTls};
+use postgres_native_tls::MakeTlsConnector;
 use rand_core::{OsRng, RngCore};
 use sha2::{Digest, Sha256};
 use trpg_shared_kernel::{
     Actor, ActorOrigin, ActorRole, AgentClass as KernelAgentClass, AuthorityContract,
-    AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft, EntityId,
-    WorkloadRole as KernelWorkloadRole,
+    AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft, EntityId, PrincipalScope,
+    Visibility, WorkloadRole as KernelWorkloadRole,
 };
 
 type HmacSha256 = Hmac<Sha256>;
@@ -22,18 +25,42 @@ type HmacSha256 = Hmac<Sha256>;
 const SESSION_TOKEN_BYTES: usize = 32;
 const SIGNING_KEY_BYTES: usize = 32;
 const INTERNAL_TOKEN_VERSION: &str = "v1";
+const LOGIN_FAILURE_LIMIT: u32 = 5;
+const LOGIN_FAILURE_WINDOW_MS: u64 = 60_000;
+const LOGIN_BLOCK_MS: u64 = 60_000;
+const DUMMY_PASSWORD: &str = "identity timing equalization password";
+const DEFAULT_ARGON2_CONCURRENCY: usize = 2;
+const DISTRIBUTED_LOGIN_SCRIPT: &str = r#"
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+local limit = tonumber(ARGV[1])
+local window_ms = tonumber(ARGV[2])
+local block_ms = tonumber(ARGV[3])
+if current >= limit then
+    return 0
+end
+current = redis.call('INCR', KEYS[1])
+if current == 1 then
+    redis.call('PEXPIRE', KEYS[1], window_ms)
+end
+if current >= limit then
+    redis.call('PEXPIRE', KEYS[1], block_ms)
+end
+return 1
+"#;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HttpAuthStatus {
     Unauthorized401,
     Forbidden403,
     Conflict409,
+    TooManyRequests429,
     Internal500,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IdentityError {
     InvalidCredentials,
+    LoginRateLimited,
     AuthenticationRequired,
     SessionExpired,
     SessionRevoked,
@@ -56,6 +83,7 @@ impl IdentityError {
     pub const fn code(&self) -> &'static str {
         match self {
             Self::InvalidCredentials => "INVALID_CREDENTIALS",
+            Self::LoginRateLimited => "LOGIN_RATE_LIMITED",
             Self::AuthenticationRequired => "AUTHENTICATION_REQUIRED",
             Self::SessionExpired => "SESSION_EXPIRED",
             Self::SessionRevoked => "SESSION_REVOKED",
@@ -84,6 +112,7 @@ impl IdentityError {
             | Self::SessionNotFound
             | Self::InvalidInternalCredential
             | Self::InternalCredentialExpired => HttpAuthStatus::Unauthorized401,
+            Self::LoginRateLimited => HttpAuthStatus::TooManyRequests429,
             Self::AuthorityContractRequired
             | Self::MembershipRequired
             | Self::MembershipDenied
@@ -207,6 +236,96 @@ pub struct AuthenticationContext {
     authenticated_at_unix_ms: u64,
     expires_at_unix_ms: u64,
     issuer_fingerprint: [u8; 32],
+}
+
+/// Opaque, live replay capability minted from an authenticated user session.
+///
+/// The capability is campaign-bound and rechecks session revocation and the
+/// current campaign membership on every visibility decision. Callers cannot
+/// manufacture Keeper or System replay authority from a public enum value.
+#[derive(Clone)]
+pub struct ReplayAuthorization {
+    subject_id: EntityId,
+    binding: ReplayBinding,
+    campaign_id: EntityId,
+    authenticated_at_unix_ms: u64,
+    expires_at_unix_ms: u64,
+    state: Arc<RwLock<VerificationState>>,
+}
+
+#[derive(Clone, Debug)]
+enum ReplayBinding {
+    UserSession { session_id: EntityId },
+    Workload,
+}
+
+impl fmt::Debug for ReplayAuthorization {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ReplayAuthorization")
+            .field("subject_id", &self.subject_id)
+            .field("campaign_id", &self.campaign_id)
+            .field("expires_at_unix_ms", &self.expires_at_unix_ms)
+            .field("state", &"[LIVE IDENTITY STATE]")
+            .finish()
+    }
+}
+
+impl ReplayAuthorization {
+    pub fn campaign_id(&self) -> &EntityId {
+        &self.campaign_id
+    }
+
+    pub fn subject_id(&self) -> &EntityId {
+        &self.subject_id
+    }
+
+    pub fn can_view(
+        &self,
+        event_campaign_id: &EntityId,
+        visibility: &Visibility,
+        now_unix_ms: u64,
+    ) -> Result<bool, IdentityError> {
+        if event_campaign_id != &self.campaign_id {
+            return Ok(false);
+        }
+        if now_unix_ms < self.authenticated_at_unix_ms || now_unix_ms >= self.expires_at_unix_ms {
+            return Err(IdentityError::SessionExpired);
+        }
+        let state = self
+            .state
+            .read()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        let principal = match &self.binding {
+            ReplayBinding::Workload => PrincipalScope::System,
+            ReplayBinding::UserSession { session_id } => {
+                let session = state
+                    .sessions_by_id
+                    .get(session_id)
+                    .ok_or(IdentityError::SessionNotFound)?;
+                if session.revoked {
+                    return Err(IdentityError::SessionRevoked);
+                }
+                if session.user_id != self.subject_id
+                    || session.issued_at_unix_ms != self.authenticated_at_unix_ms
+                    || session.expires_at_unix_ms != self.expires_at_unix_ms
+                {
+                    return Err(IdentityError::InvalidInternalCredential);
+                }
+                match state
+                    .memberships
+                    .get(&(self.campaign_id.clone(), self.subject_id.clone()))
+                    .ok_or(IdentityError::MembershipRequired)?
+                {
+                    CampaignRole::HumanKeeper => PrincipalScope::Keeper,
+                    CampaignRole::Player => PrincipalScope::Player(self.subject_id.clone()),
+                    CampaignRole::CampaignOwner => PrincipalScope::PartyMember,
+                    CampaignRole::Spectator => PrincipalScope::Public,
+                }
+            }
+        };
+        Ok(visibility.can_view(&principal))
+    }
 }
 
 impl AuthenticationContext {
@@ -360,6 +479,43 @@ impl IdentityVerifier {
             .get(campaign_id)
             .cloned()
             .ok_or(IdentityError::AuthorityContractRequired)
+    }
+
+    pub fn authorize_replay(
+        &self,
+        authentication: &AuthenticationContext,
+        campaign_id: &EntityId,
+        now_unix_ms: u64,
+    ) -> Result<ReplayAuthorization, IdentityError> {
+        self.verify(authentication, now_unix_ms)?;
+        authentication.require_campaign(campaign_id)?;
+        let binding = match authentication.kind() {
+            PrincipalKind::UserSession { session_id, .. } => {
+                let state = self
+                    .state
+                    .read()
+                    .map_err(|_| IdentityError::PersistenceUnavailable)?;
+                if !state
+                    .memberships
+                    .contains_key(&(campaign_id.clone(), authentication.subject_id.clone()))
+                {
+                    return Err(IdentityError::MembershipRequired);
+                }
+                ReplayBinding::UserSession {
+                    session_id: session_id.clone(),
+                }
+            }
+            PrincipalKind::Workload { .. } => ReplayBinding::Workload,
+            PrincipalKind::AgentRun { .. } => return Err(IdentityError::MembershipDenied),
+        };
+        Ok(ReplayAuthorization {
+            subject_id: authentication.subject_id.clone(),
+            binding,
+            campaign_id: campaign_id.clone(),
+            authenticated_at_unix_ms: authentication.authenticated_at_unix_ms,
+            expires_at_unix_ms: authentication.expires_at_unix_ms,
+            state: Arc::clone(&self.state),
+        })
     }
 
     pub fn verify_actor(
@@ -555,6 +711,151 @@ pub struct IdentityService {
     verification_state: Arc<RwLock<VerificationState>>,
     signing_key: [u8; SIGNING_KEY_BYTES],
     session_ttl_ms: u64,
+    dummy_password_hash: String,
+    login_attempts: HashMap<String, LoginAttemptState>,
+    distributed_login_security: Option<DistributedLoginSecurity>,
+    password_verification_gate: PasswordVerificationGate,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LoginAttemptState {
+    window_started_at_unix_ms: u64,
+    failures: u32,
+    blocked_until_unix_ms: u64,
+}
+
+#[derive(Clone)]
+struct DistributedLoginSecurity {
+    client: redis::Client,
+    namespace: String,
+}
+
+impl fmt::Debug for DistributedLoginSecurity {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DistributedLoginSecurity")
+            .field("client", &"[REDIS CLIENT]")
+            .field("namespace", &self.namespace)
+            .finish()
+    }
+}
+
+impl DistributedLoginSecurity {
+    fn connect(redis_url: &str, namespace: &str) -> Result<Self, IdentityError> {
+        if redis_url.trim().is_empty()
+            || namespace.trim().is_empty()
+            || namespace.len() > 128
+            || !namespace
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'_' | b'-'))
+        {
+            return Err(IdentityError::PersistenceUnavailable);
+        }
+        let security = Self {
+            client: redis::Client::open(redis_url)
+                .map_err(|_| IdentityError::PersistenceUnavailable)?,
+            namespace: namespace.to_owned(),
+        };
+        security.check_readiness()?;
+        Ok(security)
+    }
+
+    fn key(&self, login_key: &str) -> String {
+        format!("{}:login:{}", self.namespace, login_key)
+    }
+
+    fn reserve(&self, login_key: &str) -> Result<(), IdentityError> {
+        let mut connection = self
+            .client
+            .get_connection()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        let allowed: i64 = redis::Script::new(DISTRIBUTED_LOGIN_SCRIPT)
+            .key(self.key(login_key))
+            .arg(LOGIN_FAILURE_LIMIT)
+            .arg(LOGIN_FAILURE_WINDOW_MS)
+            .arg(LOGIN_BLOCK_MS)
+            .invoke(&mut connection)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        if allowed == 1 {
+            Ok(())
+        } else {
+            Err(IdentityError::LoginRateLimited)
+        }
+    }
+
+    fn clear(&self, login_key: &str) -> Result<(), IdentityError> {
+        let mut connection = self
+            .client
+            .get_connection()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        redis::cmd("DEL")
+            .arg(self.key(login_key))
+            .query::<i64>(&mut connection)
+            .map(|_| ())
+            .map_err(|_| IdentityError::PersistenceUnavailable)
+    }
+
+    fn check_readiness(&self) -> Result<(), IdentityError> {
+        let mut connection = self
+            .client
+            .get_connection()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        let response: String = redis::cmd("PING")
+            .query(&mut connection)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        if response == "PONG" {
+            Ok(())
+        } else {
+            Err(IdentityError::PersistenceUnavailable)
+        }
+    }
+}
+
+#[derive(Debug)]
+struct PasswordVerificationState {
+    active: usize,
+}
+
+#[derive(Debug)]
+struct PasswordVerificationGate {
+    limit: usize,
+    state: Mutex<PasswordVerificationState>,
+}
+
+impl PasswordVerificationGate {
+    fn new(limit: usize) -> Result<Self, IdentityError> {
+        if limit == 0 || limit > 64 {
+            return Err(IdentityError::InvalidIdentityData);
+        }
+        Ok(Self {
+            limit,
+            state: Mutex::new(PasswordVerificationState { active: 0 }),
+        })
+    }
+
+    fn try_acquire(&self) -> Result<PasswordVerificationPermit<'_>, IdentityError> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        if state.active >= self.limit {
+            return Err(IdentityError::LoginRateLimited);
+        }
+        state.active += 1;
+        Ok(PasswordVerificationPermit { gate: self })
+    }
+}
+
+struct PasswordVerificationPermit<'a> {
+    gate: &'a PasswordVerificationGate,
+}
+
+impl Drop for PasswordVerificationPermit<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.gate.state.lock() {
+            state.active = state.active.saturating_sub(1);
+        }
+    }
 }
 
 impl IdentityService {
@@ -564,6 +865,10 @@ impl IdentityService {
         }
         let mut key = [0_u8; SIGNING_KEY_BYTES];
         key.copy_from_slice(signing_key);
+        let dummy_password_hash = Argon2::default()
+            .hash_password(DUMMY_PASSWORD.as_bytes(), &SaltString::generate(&mut OsRng))
+            .map_err(|_| IdentityError::PasswordHashFailure)?
+            .to_string();
         Ok(Self {
             users_by_login: HashMap::new(),
             users_by_id: HashMap::new(),
@@ -574,6 +879,10 @@ impl IdentityService {
             verification_state: Arc::new(RwLock::new(VerificationState::default())),
             signing_key: key,
             session_ttl_ms,
+            dummy_password_hash,
+            login_attempts: HashMap::new(),
+            distributed_login_security: None,
+            password_verification_gate: PasswordVerificationGate::new(DEFAULT_ARGON2_CONCURRENCY)?,
         })
     }
 
@@ -585,13 +894,18 @@ impl IdentityService {
         if database_url.trim().is_empty() {
             return Err(IdentityError::PersistenceUnavailable);
         }
-        let mut client = Client::connect(database_url, NoTls)
-            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        let mut client = connect_postgres(database_url, None)?;
         client
             .batch_execute(schema::IDENTITY_AUTHORIZATION_MIGRATION_SQL)
             .map_err(|_| IdentityError::PersistenceUnavailable)?;
         client
             .batch_execute(schema::IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        client
+            .batch_execute(schema::MEMBERSHIP_CAMPAIGN_MOVE_GUARD_MIGRATION_SQL)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        client
+            .batch_execute(schema::AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL)
             .map_err(|_| IdentityError::PersistenceUnavailable)?;
         let mut service = Self::new(signing_key, session_ttl_ms)?;
         service.database = Some(client);
@@ -599,8 +913,68 @@ impl IdentityService {
         Ok(service)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_postgres_with_distributed_login_security(
+        database_url: &str,
+        redis_url: &str,
+        redis_namespace: &str,
+        signing_key: &[u8],
+        session_ttl_ms: u64,
+        argon2_concurrency: usize,
+    ) -> Result<Self, IdentityError> {
+        Self::from_postgres_with_security(
+            database_url,
+            None,
+            redis_url,
+            redis_namespace,
+            signing_key,
+            session_ttl_ms,
+            argon2_concurrency,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_postgres_with_security(
+        database_url: &str,
+        postgres_ca_certificate_pem: Option<&[u8]>,
+        redis_url: &str,
+        redis_namespace: &str,
+        signing_key: &[u8],
+        session_ttl_ms: u64,
+        argon2_concurrency: usize,
+    ) -> Result<Self, IdentityError> {
+        if database_url.trim().is_empty() {
+            return Err(IdentityError::PersistenceUnavailable);
+        }
+        let distributed_login_security =
+            DistributedLoginSecurity::connect(redis_url, redis_namespace)?;
+        let mut client = connect_postgres(database_url, postgres_ca_certificate_pem)?;
+        client
+            .batch_execute(schema::IDENTITY_AUTHORIZATION_MIGRATION_SQL)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        client
+            .batch_execute(schema::IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        client
+            .batch_execute(schema::MEMBERSHIP_CAMPAIGN_MOVE_GUARD_MIGRATION_SQL)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        client
+            .batch_execute(schema::AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        let mut service = Self::new(signing_key, session_ttl_ms)?;
+        service.database = Some(client);
+        service.distributed_login_security = Some(distributed_login_security);
+        service.password_verification_gate = PasswordVerificationGate::new(argon2_concurrency)?;
+        service.reload_from_database()?;
+        Ok(service)
+    }
+
     pub const fn is_persistent(&self) -> bool {
         self.database.is_some()
+    }
+
+    pub const fn is_distributed_login_protected(&self) -> bool {
+        self.distributed_login_security.is_some()
     }
 
     pub fn check_readiness(&mut self) -> Result<(), IdentityError> {
@@ -610,7 +984,11 @@ impl IdentityService {
             .ok_or(IdentityError::PersistenceUnavailable)?;
         database
             .check_connection()
-            .map_err(|_| IdentityError::PersistenceUnavailable)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        match &self.distributed_login_security {
+            Some(security) => security.check_readiness(),
+            None => Ok(()),
+        }
     }
 
     pub fn verifier(&self) -> IdentityVerifier {
@@ -834,19 +1212,86 @@ impl IdentityService {
         now_unix_ms: u64,
     ) -> Result<LoginSession, IdentityError> {
         self.sync_if_persistent()?;
-        let normalized_login =
-            normalize_login(login).map_err(|_| IdentityError::InvalidCredentials)?;
-        let user = self
-            .users_by_login
-            .get(&normalized_login)
-            .ok_or(IdentityError::InvalidCredentials)?;
-        let parsed_hash = PasswordHash::new(&user.password_hash)
-            .map_err(|_| IdentityError::PasswordHashFailure)?;
-        Argon2::default()
-            .verify_password(password.as_bytes(), &parsed_hash)
-            .map_err(|_| IdentityError::InvalidCredentials)?;
+        let normalized_login = normalize_login(login).ok();
+        let rate_limit_key = login_rate_limit_key(normalized_login.as_deref().unwrap_or(login));
+        self.reserve_login_attempt(&rate_limit_key, now_unix_ms)?;
 
-        self.issue_session(user.user_id.clone(), now_unix_ms)
+        let user = normalized_login
+            .as_ref()
+            .and_then(|normalized| self.users_by_login.get(normalized));
+        let password_hash = user
+            .map(|record| record.password_hash.as_str())
+            .unwrap_or(self.dummy_password_hash.as_str());
+        let password_matches = {
+            let _permit = self.password_verification_gate.try_acquire()?;
+            verify_password(password, password_hash)?
+        };
+        let user_id = match (user, password_matches) {
+            (Some(user), true) => user.user_id.clone(),
+            _ => {
+                self.record_login_failure(rate_limit_key, now_unix_ms);
+                return Err(IdentityError::InvalidCredentials);
+            }
+        };
+
+        self.clear_login_attempts(&rate_limit_key)?;
+        self.issue_session(user_id, now_unix_ms)
+    }
+
+    fn reserve_login_attempt(&mut self, key: &str, now_unix_ms: u64) -> Result<(), IdentityError> {
+        if let Some(security) = &self.distributed_login_security {
+            security.reserve(key)
+        } else {
+            self.ensure_login_not_rate_limited(key, now_unix_ms)
+        }
+    }
+
+    fn clear_login_attempts(&mut self, key: &str) -> Result<(), IdentityError> {
+        if let Some(security) = &self.distributed_login_security {
+            security.clear(key)
+        } else {
+            self.login_attempts.remove(key);
+            Ok(())
+        }
+    }
+
+    fn ensure_login_not_rate_limited(
+        &mut self,
+        key: &str,
+        now_unix_ms: u64,
+    ) -> Result<(), IdentityError> {
+        let Some(attempt) = self.login_attempts.get_mut(key) else {
+            return Ok(());
+        };
+        if now_unix_ms < attempt.blocked_until_unix_ms {
+            return Err(IdentityError::LoginRateLimited);
+        }
+        if now_unix_ms.saturating_sub(attempt.window_started_at_unix_ms) >= LOGIN_FAILURE_WINDOW_MS
+        {
+            self.login_attempts.remove(key);
+        }
+        Ok(())
+    }
+
+    fn record_login_failure(&mut self, key: String, now_unix_ms: u64) {
+        if self.distributed_login_security.is_some() {
+            return;
+        }
+        let attempt = self.login_attempts.entry(key).or_insert(LoginAttemptState {
+            window_started_at_unix_ms: now_unix_ms,
+            failures: 0,
+            blocked_until_unix_ms: 0,
+        });
+        if now_unix_ms.saturating_sub(attempt.window_started_at_unix_ms) >= LOGIN_FAILURE_WINDOW_MS
+        {
+            attempt.window_started_at_unix_ms = now_unix_ms;
+            attempt.failures = 0;
+            attempt.blocked_until_unix_ms = 0;
+        }
+        attempt.failures = attempt.failures.saturating_add(1);
+        if attempt.failures >= LOGIN_FAILURE_LIMIT {
+            attempt.blocked_until_unix_ms = now_unix_ms.saturating_add(LOGIN_BLOCK_MS);
+        }
     }
 
     pub fn authenticate_session(
@@ -1055,6 +1500,7 @@ impl IdentityService {
         }
         self.memberships
             .insert((campaign_id, user_id), membership.clone());
+        self.publish_verification_state()?;
         Ok(membership)
     }
 
@@ -1531,8 +1977,68 @@ fn validate_password(password: &str) -> Result<(), IdentityError> {
     Ok(())
 }
 
+fn validate_postgres_transport(config: &PostgresConfig) -> Result<bool, IdentityError> {
+    let local = config.get_hosts().iter().all(|host| match host {
+        PostgresHost::Tcp(host) => matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1"),
+        #[cfg(unix)]
+        PostgresHost::Unix(_) => true,
+    });
+    if !local && !matches!(config.get_ssl_mode(), PostgresSslMode::Require) {
+        return Err(IdentityError::PersistenceUnavailable);
+    }
+    Ok(local)
+}
+
+fn connect_postgres(
+    database_url: &str,
+    ca_certificate_pem: Option<&[u8]>,
+) -> Result<Client, IdentityError> {
+    let config = database_url
+        .parse::<PostgresConfig>()
+        .map_err(|_| IdentityError::PersistenceUnavailable)?;
+    if validate_postgres_transport(&config)? {
+        return config
+            .connect(NoTls)
+            .map_err(|_| IdentityError::PersistenceUnavailable);
+    }
+
+    let mut connector = TlsConnector::builder();
+    connector.min_protocol_version(Some(Protocol::Tlsv12));
+    if let Some(certificate) = ca_certificate_pem {
+        connector.add_root_certificate(
+            Certificate::from_pem(certificate)
+                .map_err(|_| IdentityError::PersistenceUnavailable)?,
+        );
+    }
+    let connector = connector
+        .build()
+        .map_err(|_| IdentityError::PersistenceUnavailable)?;
+    config
+        .connect(MakeTlsConnector::new(connector))
+        .map_err(|_| IdentityError::PersistenceUnavailable)
+}
+
+#[cfg(test)]
+fn connect_local_postgres(database_url: &str) -> Result<Client, IdentityError> {
+    connect_postgres(database_url, None)
+}
+
 fn hash_token(token: &str) -> [u8; 32] {
     Sha256::digest(token.as_bytes()).into()
+}
+
+fn login_rate_limit_key(login: &str) -> String {
+    hex_encode(&Sha256::digest(
+        login.trim().to_ascii_lowercase().as_bytes(),
+    ))
+}
+
+fn verify_password(password: &str, encoded_hash: &str) -> Result<bool, IdentityError> {
+    let parsed_hash =
+        PasswordHash::new(encoded_hash).map_err(|_| IdentityError::PasswordHashFailure)?;
+    Ok(Argon2::default()
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .is_ok())
 }
 
 fn parse_timestamp(value: &str) -> Result<u64, IdentityError> {
@@ -1630,6 +2136,100 @@ mod tests {
     }
 
     #[test]
+    fn unknown_login_executes_the_dummy_argon2_verification_path() {
+        let mut service = service();
+        service.dummy_password_hash = "not-an-argon2-hash".to_owned();
+
+        assert_eq!(
+            service.login("missing@example.test", "incorrect password", 1_000),
+            Err(IdentityError::PasswordHashFailure)
+        );
+        assert_eq!(
+            service.login("!", "incorrect password", 1_001),
+            Err(IdentityError::PasswordHashFailure)
+        );
+    }
+
+    #[test]
+    fn repeated_login_failures_are_rate_limited_without_blocking_later_recovery() {
+        let mut service = service();
+        service
+            .create_user(
+                "user_rate_limit",
+                "rate-limit@example.test",
+                "correct horse battery staple",
+                GlobalRole::User,
+            )
+            .unwrap();
+        for attempt in 0..LOGIN_FAILURE_LIMIT {
+            assert_eq!(
+                service.login(
+                    "rate-limit@example.test",
+                    "incorrect password",
+                    1_000 + u64::from(attempt),
+                ),
+                Err(IdentityError::InvalidCredentials)
+            );
+        }
+        assert_eq!(
+            service.login(
+                "rate-limit@example.test",
+                "correct horse battery staple",
+                1_010,
+            ),
+            Err(IdentityError::LoginRateLimited)
+        );
+        service
+            .login(
+                "rate-limit@example.test",
+                "correct horse battery staple",
+                61_010,
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn plaintext_postgres_transport_is_restricted_to_local_endpoints() {
+        assert!("postgresql://postgres@db.example.test/trpg"
+            .parse::<PostgresConfig>()
+            .unwrap()
+            .get_hosts()
+            .iter()
+            .any(|host| matches!(host, PostgresHost::Tcp(value) if value == "db.example.test")));
+        assert_eq!(
+            connect_local_postgres("postgresql://postgres@db.example.test/trpg").err(),
+            Some(IdentityError::PersistenceUnavailable)
+        );
+    }
+
+    #[test]
+    fn password_verification_gate_rejects_work_above_the_configured_bound() {
+        let gate = PasswordVerificationGate::new(1).unwrap();
+        let first = gate.try_acquire().unwrap();
+        assert_eq!(
+            gate.try_acquire().err(),
+            Some(IdentityError::LoginRateLimited)
+        );
+        drop(first);
+        assert!(gate.try_acquire().is_ok());
+    }
+
+    #[test]
+    fn remote_postgres_requires_verified_tls_configuration() {
+        let remote_without_tls = "postgresql://app@db.example.test/trpg?sslmode=disable"
+            .parse::<PostgresConfig>()
+            .unwrap();
+        assert_eq!(
+            validate_postgres_transport(&remote_without_tls),
+            Err(IdentityError::PersistenceUnavailable)
+        );
+        let remote_verified = "postgresql://app@db.example.test/trpg?sslmode=require"
+            .parse::<PostgresConfig>()
+            .unwrap();
+        assert!(validate_postgres_transport(&remote_verified).is_ok());
+    }
+
+    #[test]
     fn verifier_rejects_a_context_after_its_session_is_logged_out() {
         let mut service = service();
         service
@@ -1653,6 +2253,58 @@ mod tests {
 
         assert_eq!(
             verifier.verify(&context, 1_003),
+            Err(IdentityError::SessionRevoked)
+        );
+    }
+
+    #[test]
+    fn replay_authorization_is_campaign_bound_and_tracks_session_revocation() {
+        let mut service = service();
+        service
+            .create_user(
+                "replay_user",
+                "replay-user@example.test",
+                "correct horse battery staple",
+                GlobalRole::ServerOwner,
+            )
+            .unwrap();
+        let session = service
+            .login(
+                "replay-user@example.test",
+                "correct horse battery staple",
+                1_000,
+            )
+            .unwrap();
+        let authentication = service
+            .authenticate_session(Some(session.token.expose()), 1_001)
+            .unwrap();
+        service
+            .grant_membership(
+                &authentication,
+                "campaign_replay_a",
+                "replay_user",
+                CampaignRole::Player,
+                1_002,
+            )
+            .unwrap();
+        let campaign_a = EntityId::new("campaign_replay_a").unwrap();
+        let campaign_b = EntityId::new("campaign_replay_b").unwrap();
+        let authorization = service
+            .verifier()
+            .authorize_replay(&authentication, &campaign_a, 1_003)
+            .unwrap();
+        let private = Visibility::private_to_player(EntityId::new("replay_user").unwrap());
+
+        assert!(authorization
+            .can_view(&campaign_a, &private, 1_004)
+            .unwrap());
+        assert!(!authorization
+            .can_view(&campaign_b, &private, 1_004)
+            .unwrap());
+
+        service.logout(session.token.expose()).unwrap();
+        assert_eq!(
+            authorization.can_view(&campaign_a, &private, 1_005),
             Err(IdentityError::SessionRevoked)
         );
     }

@@ -20,7 +20,7 @@ pub const OPS_METRIC: &str = "trpg_ops_runbook_total";
 pub const OPS_NATS_SUBJECT: &str = "trpg.ops.runbook.recorded";
 pub const OPS_CANON_BOUNDARY: &str = "command_workflow_decision_event_store_projection";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum OpsRunbookOperation {
     BackupRestore,
     IncidentResponse,
@@ -74,7 +74,7 @@ impl OpsRunbookCommand {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct BackupManifest {
     pub object_key: String,
     pub sha256: String,
@@ -116,14 +116,14 @@ impl RunbookExecutionRecord {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct OpsRunbookEventRecord {
     pub module_name: &'static str,
     pub operation: OpsRunbookOperation,
     pub evidence_path: &'static str,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum OpsEvent {
     RunbookStepRecorded(OpsRunbookEventRecord),
     BackupCompleted(BackupManifest),
@@ -205,7 +205,7 @@ impl OpsRunbookContract {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct OpsProjectionReport {
     pub source_event_count: usize,
     pub new_canon_events: usize,

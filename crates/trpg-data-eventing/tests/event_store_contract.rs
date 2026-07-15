@@ -198,11 +198,28 @@ fn migration_entry_is_repeatable_sqlx_evidence() {
     assert!(!DATA_EVENTING_MIGRATION.contains("v5"));
 
     let statements = persistence_migrations::migration_statements();
-    assert_eq!(statements.len(), 3);
+    assert_eq!(
+        statements.iter().map(|(name, _)| *name).collect::<Vec<_>>(),
+        vec![
+            persistence_migrations::EVENT_STORE_MIGRATION_NAME,
+            persistence_migrations::EVENT_OUTBOX_MIGRATION_NAME,
+            persistence_migrations::PROJECTION_CHECKPOINT_MIGRATION_NAME,
+            persistence_migrations::CANONICAL_COMMIT_PROTOCOL_MIGRATION_NAME,
+        ]
+    );
     for (name, sql) in statements {
         assert!(trpg_data_eventing::is_current_safe_name(name));
         assert!(sql.contains("CREATE TABLE"));
     }
+    assert_contains_all(
+        persistence_migrations::CANONICAL_COMMIT_PROTOCOL_MIGRATION_SQL,
+        &[
+            "CREATE TABLE IF NOT EXISTS canonical_audit_log",
+            "CREATE TABLE IF NOT EXISTS formal_commits",
+            "ALTER TABLE event_store",
+            "ALTER TABLE event_outbox",
+        ],
+    );
 }
 
 #[test]

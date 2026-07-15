@@ -1,9 +1,10 @@
 use trpg_agent_runtime::memory_rag_impl;
 use trpg_agent_runtime::rag_snapshot::RagChunk;
 use trpg_agent_runtime::{
-    ActorRole, AgentDecision, AgentKind, AgentTool, ContextFact, EventStore, PrincipalScope,
-    ToolRequest, Visibility, VisibilityLabel,
+    ActorRole, AgentDecision, AgentKind, AgentTool, ContextFact, PrincipalScope, ToolRequest,
+    Visibility, VisibilityLabel,
 };
+use trpg_shared_kernel::EventStore;
 
 fn chunks() -> Vec<RagChunk> {
     vec![
@@ -77,7 +78,11 @@ fn memory_rag_impl_filters_context_chunks_and_replay_by_visibility() {
     );
     command.visibility = Visibility::new(VisibilityLabel::Public);
     store
-        .append(&command, "MemoryRagSourceEvent", decision)
+        .append(
+            &command,
+            "MemoryRagSourceEvent",
+            "memory_rag_source".to_owned(),
+        )
         .unwrap();
 
     let view = memory_rag_impl::assemble_memory_rag_view(

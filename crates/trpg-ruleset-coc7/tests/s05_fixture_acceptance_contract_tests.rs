@@ -6,8 +6,8 @@ use trpg_ruleset_coc7::character_combat_san_chase::{
 use trpg_ruleset_coc7::chase_state_machine::{advance_chase, record_chase_transition, ChaseStatus};
 use trpg_ruleset_coc7::combat_state_machine::{apply_damage, record_combat_transition};
 use trpg_ruleset_coc7::dice_roll_contract::{
-    adjusted_percentile_roll, record_dice_roll_contract, success_level, DiceAdjustment,
-    SuccessLevel,
+    adjusted_percentile_roll, record_dice_roll_contract, server_roll_skill_check, success_level,
+    DiceAdjustment, SuccessLevel,
 };
 use trpg_ruleset_coc7::investigation_clue_npc_time::{
     record_investigation_clue_npc_time_decision, resolve_clue_check, ClueImportance, ClueOutcome,
@@ -124,14 +124,7 @@ fn s05_character_and_dice_fixtures_map_to_ruleset_assertions() {
 
     let contract = common::human_contract();
     let mut store = common::event_store();
-    let outcome = trpg_ruleset_coc7::dice_roll_contract::adjudicate_skill_check(
-        60,
-        3,
-        7,
-        &[],
-        DiceAdjustment::None,
-    )
-    .unwrap();
+    let outcome = server_roll_skill_check(60, DiceAdjustment::None).unwrap();
     let command = common::rules_command("dice");
     let event = record_dice_roll_contract(&contract, &mut store, &command, &outcome).unwrap();
 

@@ -251,6 +251,11 @@ fn audit_log_contract_persists_audit_metadata() {
             resource_id: "camp_human_archive".to_owned(),
             action: "record_audit".to_owned(),
             requested_role: "not_applicable".to_owned(),
+            visibility_label: "keeper_only".to_owned(),
+            visibility_subject: "not_applicable".to_owned(),
+            provenance_kind: "rules_engine_decision".to_owned(),
+            provenance_reference: command.fact_provenance.reference.to_string(),
+            provenance_recorded_by: command.fact_provenance.recorded_by.to_string(),
             decision: AuditDecision::Permit,
             openfga_decision_id: "openfga_batch_035".to_owned(),
             openfga_policy_revision: "openfga_model_035".to_owned(),
@@ -268,6 +273,8 @@ fn audit_log_contract_persists_audit_metadata() {
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].actor_id, command.actor.id().as_str());
     assert_eq!(records[0].authentication_reference, "workflow_001");
+    assert_eq!(records[0].visibility_label, "keeper_only");
+    assert_eq!(records[0].provenance_reference, "fact_001");
     assert_eq!(records[0].openfga_policy_revision, "openfga_model_035");
     std::fs::remove_file(path).unwrap();
     std::fs::remove_file(anchor_path).unwrap();

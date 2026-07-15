@@ -32,23 +32,8 @@ jobs:
         run: corepack enable && corepack prepare pnpm@11.9.0 --activate
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
-      - name: Start and bootstrap pinned P02 policy services
-        run: |
-          docker run -d --name p02-postgres \
-            -e POSTGRES_HOST_AUTH_METHOD=trust \
-            -e POSTGRES_DB=p02_identity \
-            -p 127.0.0.1:15432:5432 \
-            postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
-          docker run -d --name p02-openfga \
-            -p 127.0.0.1:18080:8080 \
-            openfga/openfga@sha256:8543200bf85878c968d73da46c4f0e31ba1f63ed3675b71122f1133b0e9d97eb \
-            run --datastore-engine memory --playground-enabled=false
-          docker run -d --name p02-opa \
-            -p 127.0.0.1:18082:8181 \
-            -v "$GITHUB_WORKSPACE/policy/opa:/policy:ro" \
-            openpolicyagent/opa@sha256:cba27d3c6af2feba1e4d6e6b5e24df5b53db332420d4148a90acccd12efae6ed \
-            run --server --addr=0.0.0.0:8181 /policy
-          python3 scripts/ci/p02_policy_bootstrap.py --github-env "$GITHUB_ENV"
+      - name: Start pinned P02 integration services
+        run: bash scripts/ci/p02-integration-services.sh "$GITHUB_ENV"
       - name: Full CI with evidence
         run: |
           mkdir -p "$RUNNER_TEMP/workspace-ci"

@@ -18,6 +18,7 @@ impl From<IdentityError> for ApiAuthError {
             HttpAuthStatus::Unauthorized401 => 401,
             HttpAuthStatus::Forbidden403 => 403,
             HttpAuthStatus::Conflict409 => 409,
+            HttpAuthStatus::TooManyRequests429 => 429,
             HttpAuthStatus::Internal500 => 500,
         };
         Self {

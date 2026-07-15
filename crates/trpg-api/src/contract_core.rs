@@ -93,7 +93,7 @@ pub const OBSERVABILITY_FIELDS: &[&str] = &[
     "authority_contract_version",
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum ApiRealtimeOperation {
     ValidateTransportCommand,
     DispatchCommand,
@@ -176,7 +176,7 @@ pub struct ApiCommandPayload {
     pub request_summary: &'static str,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct ApiRealtimeEventPayload {
     pub module_name: &'static str,
     pub operation: ApiRealtimeOperation,

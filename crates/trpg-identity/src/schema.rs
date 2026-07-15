@@ -5,6 +5,12 @@ pub const IDENTITY_AUTHORIZATION_MIGRATION_SQL: &str =
 pub const IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_NAME: &str = "harden_identity_authorization";
 pub const IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL: &str =
     include_str!("../../../migrations/20260715000100_harden_identity_authorization.up.sql");
+pub const MEMBERSHIP_CAMPAIGN_MOVE_GUARD_MIGRATION_NAME: &str = "guard_membership_campaign_moves";
+pub const MEMBERSHIP_CAMPAIGN_MOVE_GUARD_MIGRATION_SQL: &str =
+    include_str!("../../../migrations/20260715000200_guard_membership_campaign_moves.up.sql");
+pub const AUDIT_VISIBILITY_PROVENANCE_MIGRATION_NAME: &str = "add_audit_visibility_provenance";
+pub const AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL: &str =
+    include_str!("../../../migrations/20260715000300_add_audit_visibility_provenance.up.sql");
 
 pub const IDENTITY_AUTHORIZATION_TABLES: &[&str] = &[
     "users",
@@ -21,12 +27,20 @@ pub fn migration_statement() -> (&'static str, &'static str) {
     )
 }
 
-pub fn migration_statements() -> [(&'static str, &'static str); 2] {
+pub fn migration_statements() -> [(&'static str, &'static str); 4] {
     [
         migration_statement(),
         (
             IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_NAME,
             IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL,
+        ),
+        (
+            MEMBERSHIP_CAMPAIGN_MOVE_GUARD_MIGRATION_NAME,
+            MEMBERSHIP_CAMPAIGN_MOVE_GUARD_MIGRATION_SQL,
+        ),
+        (
+            AUDIT_VISIBILITY_PROVENANCE_MIGRATION_NAME,
+            AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL,
         ),
     ]
 }
@@ -62,5 +76,9 @@ mod tests {
             .contains("canonical HUMAN_KP owner membership cannot be revoked"));
         assert!(IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL
             .contains("sessions_single_rotation_child_idx"));
+        assert!(MEMBERSHIP_CAMPAIGN_MOVE_GUARD_MIGRATION_SQL
+            .contains("NEW.campaign_id <> OLD.campaign_id"));
+        assert!(AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL.contains("visibility_label"));
+        assert!(AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL.contains("provenance_reference"));
     }
 }

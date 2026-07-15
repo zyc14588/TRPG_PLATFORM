@@ -169,7 +169,7 @@ fn ai_kp_orchestrator_tool_request_commits_through_event_store() {
     let command = ai_kp_command(decision.clone());
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
     let events = committer(contract)
         .commit(
@@ -222,7 +222,7 @@ fn commit_agent_decision_redacts_restricted_fixture_tokens() {
     let command = ai_kp_command(decision.clone());
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
     let events = committer(contract)
         .commit(
@@ -268,7 +268,7 @@ fn expression_agent_cannot_reveal_clue_or_write_directly() {
     command.write_path = FormalWritePath::DirectAgent;
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
     let error = committer(contract)
         .commit(

@@ -33,7 +33,7 @@ pub struct ValidateWorkspacePayload {
     pub topology: WorkspaceTopology,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct WorkspaceValidatedPayload {
     pub workspace_name: String,
     pub crate_count: usize,

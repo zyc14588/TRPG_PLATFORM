@@ -18,7 +18,12 @@ use crate::{
 static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
 static SERVING: AtomicBool = AtomicBool::new(false);
 
-const READINESS_TIMEOUT: Duration = Duration::from_millis(500);
+// Real policy, PostgreSQL/witness, Redis, and JetStream probes can legitimately
+// require more than a scheduler tick even on loopback. The probe functions
+// retain their own shorter dependency timeouts, while the service gives the
+// runtime thread enough time to return the actual result instead of reporting
+// a fabricated generic timeout.
+const READINESS_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_HTTP_REQUEST_BYTES: usize = 65_536;
 
 type ReadinessResult = Result<String, String>;
@@ -234,9 +239,17 @@ fn run_service_internal(
 
     while !SHUTDOWN_REQUESTED.load(Ordering::SeqCst) {
         match listener.accept() {
-            Ok((mut stream, _)) => {
+            Ok((mut stream, peer)) => {
                 let health = current_health(&spec, &component_checks, &runtime_probes);
-                handle_connection(&mut stream, &health, handler.as_deref())?;
+                if let Err(error) = handle_connection(&mut stream, &health, handler.as_deref()) {
+                    eprintln!(
+                        "service={} peer={} connection_error={} detail={}",
+                        spec.kind.as_str(),
+                        peer,
+                        error.code,
+                        error.detail
+                    );
+                }
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                 thread::sleep(Duration::from_millis(20));

@@ -12,9 +12,16 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "scripts/ci/fixtures/p02-boundary"
 
 CASES = {
+    "canonical_store_custody.rs": "field `canonical_custody` of struct `ApiApplication` is private",
     "runtime_append.rs": "method `append` is private",
-    "event_envelope_forge.rs": "field `integrity_hash` of struct `EventEnvelope` is private",
+    "event_envelope_forge.rs": "fields `recorded_payload` and `integrity_hash` of struct `EventEnvelope` are private",
     "caller_authority_root.rs": "this function takes 1 argument but 2 arguments were supplied",
+    "runtime_commit_without_auth.rs": "this function takes 6 arguments but 4 arguments were supplied",
+    "runtime_replay_untrusted_scope.rs": "expected `&ReplayAuthorization`, found `&PrincipalScope`",
+    "synthetic_formal_permit.rs": "no associated function or constant named `record_authorized_commit`",
+    "caller_supplied_dice.rs": "expected `&ServerDiceRoll`, found `&DiceRollOutcome`",
+    "agent_generic_store.rs": "no `EventStore` in the root",
+    "caller_selected_canonical_event.rs": "function `append_coc7_event` is private",
 }
 
 
@@ -29,8 +36,11 @@ publish = false
 [workspace]
 
 [dependencies]
+api-server = {{ path = {str(ROOT / 'apps/api-server')!r} }}
 trpg-agent-runtime = {{ path = {str(ROOT / 'crates/trpg-agent-runtime')!r} }}
 trpg-runtime = {{ path = {str(ROOT / 'crates/trpg-runtime')!r} }}
+trpg-ruleset-coc7 = {{ path = {str(ROOT / 'crates/trpg-ruleset-coc7')!r} }}
+trpg-security-governance = {{ path = {str(ROOT / 'crates/trpg-security-governance')!r} }}
 trpg-shared-kernel = {{ path = {str(ROOT / 'crates/trpg-shared-kernel')!r} }}
 trpg-test-support = {{ path = {str(ROOT / 'crates/trpg-contracts/test-support')!r} }}
 """

@@ -20,11 +20,17 @@ fn workflow_engine_contract_commits_decision_event_chain() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
-    let events =
-        workflow_engine::commit_workflow_decision(&mut store, &contract, &command, decision)
-            .unwrap();
+    let events = workflow_engine::commit_workflow_decision(
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .unwrap();
 
     assert_eq!(events[0].event_type, "ToolRequestApproved");
     assert_eq!(events[1].event_type, "DecisionCommitted");

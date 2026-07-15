@@ -4,11 +4,12 @@ use std::sync::{Arc, Mutex};
 use rand_core::{OsRng, RngCore};
 use sha2::{Digest, Sha256};
 use trpg_contracts::WireErrorCode;
-use trpg_identity::{AuthenticationContext, IdentityVerifier, PrincipalKind};
-use trpg_security_governance::formal_commit_audit::FormalCommitAudit;
+use trpg_identity::{AuthenticationContext, IdentityVerifier, PrincipalKind, ReplayAuthorization};
+use trpg_security_governance::formal_commit_audit::{FormalAuthorization, FormalCommitAuthorizer};
 use trpg_shared_kernel::{
-    Actor, ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
-    EventStore as KernelEventStore, FormalWritePath, KernelResult, PrincipalScope, TrpgError,
+    Actor, ActorRole, AuthorityContract, AuthorityMode, CanonicalCommitEvent, CanonicalCommitPort,
+    CanonicalCommitRequest, CommandEnvelope, EntityId, EventEnvelope,
+    EventStore as KernelEventStore, FormalWritePath, KernelResult, ProvenanceKind, TrpgError,
     Visibility, VisibilityLabel,
 };
 
@@ -20,32 +21,68 @@ pub type RuntimeResult<T> = Result<T, RuntimeError>;
 #[derive(Clone, Debug)]
 pub struct EventStore<P> {
     inner: KernelEventStore<P>,
-    formal_audit: Option<FormalCommitAudit>,
+    formal_custody: Option<FormalCommitCustody>,
+}
+
+#[derive(Clone, Debug)]
+struct FormalCommitCustody {
+    authorizer: FormalCommitAuthorizer,
+    canonical: Arc<dyn CanonicalCommitPort>,
 }
 
 impl<P> Default for EventStore<P> {
     fn default() -> Self {
         Self {
             inner: KernelEventStore::default(),
-            formal_audit: None,
+            formal_custody: None,
         }
     }
 }
 
-impl<P: Clone> EventStore<P> {
-    pub fn with_formal_audit(formal_audit: FormalCommitAudit) -> Self {
+impl<P: Clone + PartialEq + serde::Serialize> EventStore<P> {
+    pub fn with_formal_custody(
+        formal_authorizer: FormalCommitAuthorizer,
+        canonical: Arc<dyn CanonicalCommitPort>,
+    ) -> Self {
         Self {
             inner: KernelEventStore::default(),
-            formal_audit: Some(formal_audit),
+            formal_custody: Some(FormalCommitCustody {
+                authorizer: formal_authorizer,
+                canonical,
+            }),
         }
+    }
+
+    pub const fn has_canonical_custody(&self) -> bool {
+        self.formal_custody.is_some()
     }
 
     pub fn events(&self) -> &[EventEnvelope<P>] {
         self.inner.events()
     }
 
-    pub fn replay_visible(&self, principal: &PrincipalScope) -> Vec<EventEnvelope<P>> {
-        self.inner.replay_visible(principal)
+    pub fn replay_visible(
+        &self,
+        authorization: &ReplayAuthorization,
+        now_unix_ms: u64,
+    ) -> RuntimeResult<Vec<EventEnvelope<P>>> {
+        let mut visible = Vec::new();
+        for event in self.inner.events() {
+            let allowed = authorization
+                .can_view(&event.campaign_id, &event.visibility, now_unix_ms)
+                .map_err(|error| match error {
+                    trpg_identity::IdentityError::MembershipRequired
+                    | trpg_identity::IdentityError::MembershipDenied
+                    | trpg_identity::IdentityError::CampaignScopeMismatch => {
+                        RuntimeError::Core(TrpgError::AuthorizationDenied)
+                    }
+                    _ => RuntimeError::Core(TrpgError::AuthenticationRequired),
+                })?;
+            if allowed {
+                visible.push(event.clone());
+            }
+        }
+        Ok(visible)
     }
 
     fn append<T>(
@@ -57,8 +94,8 @@ impl<P: Clone> EventStore<P> {
         self.inner.append(command, event_type, payload)
     }
 
-    fn formal_audit(&self) -> KernelResult<&FormalCommitAudit> {
-        self.formal_audit
+    fn formal_custody(&self) -> KernelResult<&FormalCommitCustody> {
+        self.formal_custody
             .as_ref()
             .ok_or(TrpgError::AuditIntegrityViolation)
     }
@@ -174,7 +211,7 @@ impl ToolRequest {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct ToolGrantDecision {
     pub allowed: bool,
     pub requires_human_confirmation: bool,
@@ -278,7 +315,7 @@ impl RuntimeDecision {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum PendingDecisionStatus {
     DraftOnly,
     AwaitingHumanConfirmation,
@@ -513,6 +550,7 @@ impl HumanConfirmationGate {
             store,
             &contract,
             command,
+            workflow_authentication,
             confirmed,
             submitted_decision,
             now_unix_ms,
@@ -644,6 +682,7 @@ fn commit_confirmed_decision(
     store: &mut EventStore<RuntimeEventPayload>,
     contract: &AuthorityContract,
     command: &CommandEnvelope<RuntimeDecision>,
+    workflow_authentication: &AuthenticationContext,
     confirmed: &mut ConfirmedPendingDecision,
     submitted_decision: RuntimeDecision,
     now_unix_ms: u64,
@@ -666,11 +705,12 @@ fn commit_confirmed_decision(
     ensure_expected_version(store, command)?;
     let events = append_committed_decision_events(
         store,
-        contract,
         command,
+        workflow_authentication,
         submitted_decision,
         true,
         Some(&confirmed.confirmation_authentication),
+        now_unix_ms,
     )?;
     confirmed.pending.status = PendingDecisionStatus::Committed;
     confirmed.committed = true;
@@ -761,7 +801,7 @@ fn visibility_name(label: &VisibilityLabel) -> &'static str {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum RuntimeEventPayload {
     ToolRequestApproved {
         tool: &'static str,
@@ -799,7 +839,7 @@ pub enum RuntimeEventPayload {
 /// Opaque constructor token carried by formal runtime events. External crates
 /// may inspect a payload but cannot mint a formal event payload themselves.
 #[doc(hidden)]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct RuntimeFormalEventSeal {
     _private: (),
 }
@@ -827,7 +867,10 @@ fn ensure_expected_version<T>(
     store: &EventStore<RuntimeEventPayload>,
     command: &CommandEnvelope<T>,
 ) -> RuntimeResult<()> {
-    let actual = store.events().len() as u64;
+    let actual = store.inner.current_stream_version();
+    if store.has_canonical_custody() && store.events().is_empty() {
+        return Ok(());
+    }
     if command.expected_version != actual {
         return Err(RuntimeError::Core(TrpgError::ExpectedVersionConflict {
             expected: command.expected_version,
@@ -888,26 +931,40 @@ pub fn commit_decision(
     store: &mut EventStore<RuntimeEventPayload>,
     contract: &AuthorityContract,
     command: &CommandEnvelope<RuntimeDecision>,
+    workflow_authentication: &AuthenticationContext,
     decision: RuntimeDecision,
+    now_unix_ms: u64,
 ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
     validate_runtime_command(contract, command)?;
     ensure_expected_version(store, command)?;
+    if command.payload != decision {
+        return Err(RuntimeError::Core(TrpgError::DecisionDraftChanged));
+    }
     if !decision.tool_request.is_formal_state_change() {
         return Err(RuntimeError::Core(TrpgError::PolicyDenied));
     }
     if command.authority_mode == AuthorityMode::HumanKp {
         return Err(RuntimeError::Core(TrpgError::DecisionConfirmationRequired));
     }
-    append_committed_decision_events(store, contract, command, decision, false, None)
+    append_committed_decision_events(
+        store,
+        command,
+        workflow_authentication,
+        decision,
+        false,
+        None,
+        now_unix_ms,
+    )
 }
 
 fn append_committed_decision_events(
     store: &mut EventStore<RuntimeEventPayload>,
-    contract: &AuthorityContract,
     command: &CommandEnvelope<RuntimeDecision>,
+    workflow_authentication: &AuthenticationContext,
     decision: RuntimeDecision,
     human_confirmed: bool,
     authorizing_authentication: Option<&AuthenticationContext>,
+    now_unix_ms: u64,
 ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
     let grant = if human_confirmed {
         ToolGrantDecision::allow()
@@ -915,7 +972,11 @@ fn append_committed_decision_events(
         approve_tool_request(&command.authority_mode, &decision.tool_request)?
     };
 
-    let next_version = store.events().len() as u64;
+    let next_version = if store.has_canonical_custody() && store.events().is_empty() {
+        command.expected_version
+    } else {
+        store.inner.current_stream_version()
+    };
     let tool_command = derived_command(command, "tool", next_version)?;
     let decision_command = derived_command(command, "decision", next_version + 1)?;
     if store.events().iter().any(|event| {
@@ -924,47 +985,148 @@ fn append_committed_decision_events(
     }) {
         return Err(RuntimeError::Core(TrpgError::DuplicateCommand));
     }
-    let audit = store.formal_audit()?;
-    if let Some(authentication) = authorizing_authentication {
-        audit.record_authorized_commit(
-            authentication,
-            command,
-            contract,
-            "authorize_runtime_formal_commit",
-            "human_keeper",
-        )?;
+    let requested_role = if human_confirmed {
+        "human_keeper"
     } else {
-        audit.record_actor_authorized_commit(
-            &command.actor,
-            command,
-            contract,
-            "authorize_runtime_formal_commit",
-            actor_role_name(command.actor.role()),
-        )?;
+        actor_role_name(command.actor.role())
+    };
+    let (authorization, canonical) = {
+        let custody = store.formal_custody()?;
+        (
+            custody.authorizer.authorize(
+                workflow_authentication,
+                authorizing_authentication,
+                command,
+                requested_role,
+                now_unix_ms,
+            )?,
+            Arc::clone(&custody.canonical),
+        )
+    };
+    persist_runtime_formal_batch(
+        store,
+        command,
+        &authorization,
+        &canonical,
+        [
+            (
+                tool_command,
+                "ToolRequestApproved",
+                RuntimeEventPayload::ToolRequestApproved {
+                    tool: decision.tool_request.tool().as_str(),
+                    grant: grant.clone(),
+                    seal: RuntimeFormalEventSeal::new(),
+                },
+            ),
+            (
+                decision_command,
+                "DecisionCommitted",
+                RuntimeEventPayload::DecisionCommitted {
+                    decision_id: decision.decision_id,
+                    linked_records: decision.linked_records,
+                    player_visible_explanation: decision.player_visible_explanation,
+                    audit_fields: decision.audit_fields,
+                    seal: RuntimeFormalEventSeal::new(),
+                },
+            ),
+        ],
+    )
+}
+
+fn persist_runtime_formal_batch(
+    store: &mut EventStore<RuntimeEventPayload>,
+    command: &CommandEnvelope<RuntimeDecision>,
+    authorization: &FormalAuthorization,
+    canonical: &Arc<dyn CanonicalCommitPort>,
+    events: [(
+        CommandEnvelope<RuntimeDecision>,
+        &'static str,
+        RuntimeEventPayload,
+    ); 2],
+) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
+    let mut candidate = if store.events().is_empty() && command.expected_version > 0 {
+        KernelEventStore::with_stream_base_version(command.expected_version)
+    } else {
+        store.inner.clone()
+    };
+    let mut appended = Vec::with_capacity(events.len());
+    for (event_command, event_type, payload) in events {
+        appended.push(candidate.append(&event_command, event_type, payload)?);
     }
-    let tool_event = store.append(
-        &tool_command,
-        "ToolRequestApproved",
-        RuntimeEventPayload::ToolRequestApproved {
-            tool: decision.tool_request.tool().as_str(),
-            grant: grant.clone(),
-            seal: RuntimeFormalEventSeal::new(),
-        },
-    )?;
+    let contract = authorization.contract();
+    let request = CanonicalCommitRequest {
+        commit_id: format!(
+            "{}_{}",
+            contract.campaign_id().as_str(),
+            command.command_id.as_str()
+        ),
+        campaign_id: contract.campaign_id().to_string(),
+        idempotency_key: command.idempotency_key.clone(),
+        expected_version: command.expected_version,
+        command_id: command.command_id.to_string(),
+        authenticated_actor_id: command.actor.id().to_string(),
+        authority_mode: authority_mode_name(&command.authority_mode).to_owned(),
+        authority_contract_version: contract.version(),
+        authority_contract_id: contract.contract_id().to_string(),
+        authority_owner: contract.authority_owner().to_string(),
+        visibility_label: command.visibility.label().as_str().to_owned(),
+        visibility_subject: command
+            .visibility
+            .player_id()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "not_applicable".to_owned()),
+        provenance_kind: provenance_kind_name(&command.fact_provenance.kind).to_owned(),
+        provenance_reference: command.fact_provenance.reference.to_string(),
+        provenance_recorded_by: command.fact_provenance.recorded_by.to_string(),
+        correlation_id: command.correlation_id.to_string(),
+        causation_id: command.causation_id.to_string(),
+        trace_id: command.authenticated_context().trace_id().to_string(),
+        events: appended
+            .iter()
+            .map(|event| {
+                Ok(CanonicalCommitEvent {
+                    event_type: event.event_type.to_owned(),
+                    payload_json: serde_json::to_string(&event.payload)
+                        .map_err(|_| TrpgError::AuditIntegrityViolation)?,
+                })
+            })
+            .collect::<KernelResult<Vec<_>>>()?,
+        audit: authorization.canonical_audit().clone(),
+    };
+    let receipt = canonical.commit(&request)?;
+    let expected_first = command
+        .expected_version
+        .checked_add(1)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let expected_last = command
+        .expected_version
+        .checked_add(appended.len() as u64)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    if receipt.first_stream_version != expected_first
+        || receipt.last_stream_version != expected_last
+    {
+        return Err(RuntimeError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    store.inner = candidate;
+    Ok(appended)
+}
 
-    let decision_event = store.append(
-        &decision_command,
-        "DecisionCommitted",
-        RuntimeEventPayload::DecisionCommitted {
-            decision_id: decision.decision_id,
-            linked_records: decision.linked_records,
-            player_visible_explanation: decision.player_visible_explanation,
-            audit_fields: decision.audit_fields,
-            seal: RuntimeFormalEventSeal::new(),
-        },
-    )?;
+fn authority_mode_name(mode: &AuthorityMode) -> &'static str {
+    match mode {
+        AuthorityMode::HumanKp => "human_kp",
+        AuthorityMode::AiKp => "ai_kp",
+    }
+}
 
-    Ok(vec![tool_event, decision_event])
+fn provenance_kind_name(kind: &ProvenanceKind) -> &'static str {
+    match kind {
+        ProvenanceKind::HumanKeeperStatement => "human_keeper_statement",
+        ProvenanceKind::RulesEngineDecision => "rules_engine_decision",
+        ProvenanceKind::ToolResult => "tool_result",
+        ProvenanceKind::AgentProposal => "agent_proposal",
+        ProvenanceKind::ImportedSource => "imported_source",
+        ProvenanceKind::SystemFixture => "system_fixture",
+    }
 }
 
 fn actor_role_name(role: &ActorRole) -> &'static str {
@@ -984,9 +1146,10 @@ fn actor_role_name(role: &ActorRole) -> &'static str {
 
 pub fn replay_visible_runtime_events(
     store: &EventStore<RuntimeEventPayload>,
-    principal: &PrincipalScope,
-) -> Vec<EventEnvelope<RuntimeEventPayload>> {
-    store.replay_visible(principal)
+    authorization: &ReplayAuthorization,
+    now_unix_ms: u64,
+) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
+    store.replay_visible(authorization, now_unix_ms)
 }
 
 #[cfg(test)]

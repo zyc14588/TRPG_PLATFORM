@@ -6,7 +6,12 @@ publish = false
 license = "UNLICENSED"
 
 [dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10.9"
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
+wasmi = "1.1.0"
 
 [dev-dependencies]
 trpg-test-support = { path = "../trpg-contracts/test-support" }
+wat = "1.245"

@@ -6,7 +6,12 @@ use trpg_runtime::runtime_state_machines::{
     commit_decision, HumanConfirmationGate, PendingDecisionStatus, RuntimeAgent, RuntimeDecision,
     RuntimeError, RuntimeTool, ToolRequest,
 };
-use trpg_runtime::{ActorRole, AuthorityMode, EventStore, FormalCommitAudit, TrpgError};
+use trpg_runtime::{
+    ActorRole, AuthorityMode, EventStore, FormalCommitAudit, FormalCommitAuthorizer, TrpgError,
+};
+use trpg_security_governance::policy_adapter::{
+    HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
+};
 use trpg_shared_kernel::AuthorityContract;
 
 fn contract() -> AuthorityContract {
@@ -82,6 +87,31 @@ fn formal_audit(name: &str) -> FormalCommitAudit {
     FormalCommitAudit::open(path, "runtime-test-key-v1", &[0x82; 32]).unwrap()
 }
 
+fn formal_authorizer(
+    identity_verifier: trpg_identity::IdentityVerifier,
+    audit: FormalCommitAudit,
+) -> FormalCommitAuthorizer {
+    let endpoints = trpg_test_support::formal_commit_policy_endpoints();
+    let policy = OpenFgaOpaPolicyAdapter::new(
+        HttpPolicyEndpoint::new(
+            endpoints.openfga,
+            "/stores/test/check",
+            PolicyBackend::OpenFga,
+            endpoints.openfga_model,
+        )
+        .unwrap(),
+        HttpPolicyEndpoint::new(
+            endpoints.opa,
+            "/v1/data/security_governance/decision",
+            PolicyBackend::Opa,
+            endpoints.opa_revision,
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    FormalCommitAuthorizer::new(identity_verifier, policy, audit)
+}
+
 #[test]
 fn unconfirmed_non_owner_changed_and_expired_drafts_are_rejected() {
     let contract = contract();
@@ -95,7 +125,15 @@ fn unconfirmed_non_owner_changed_and_expired_drafts_are_rejected() {
     let mut store = EventStore::default();
 
     assert_eq!(
-        commit_decision(&mut store, &contract, &command, decision.clone()).unwrap_err(),
+        commit_decision(
+            &mut store,
+            &contract,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            decision.clone(),
+            160,
+        )
+        .unwrap_err(),
         RuntimeError::Core(TrpgError::DecisionConfirmationRequired)
     );
     assert!(store.events().is_empty());
@@ -146,7 +184,11 @@ fn owner_confirmation_commits_exact_draft_once() {
         ActorRole::Workflow,
     );
     let audit = formal_audit("owner-confirmation");
-    let mut store = EventStore::with_formal_audit(audit.clone());
+    let workflow_authentication = trpg_test_support::workflow_authentication();
+    let mut store = EventStore::with_formal_custody(
+        formal_authorizer(identity.verifier(), audit.clone()),
+        trpg_test_support::test_canonical_commit_port(),
+    );
     assert_eq!(
         gate.commit(
             &mut store,
@@ -164,7 +206,7 @@ fn owner_confirmation_commits_exact_draft_once() {
         .commit(
             &mut store,
             &command,
-            &trpg_test_support::workflow_authentication(),
+            &workflow_authentication,
             &mut confirmed,
             decision.clone(),
             160,
@@ -190,7 +232,7 @@ fn owner_confirmation_commits_exact_draft_once() {
     let records = audit.verify().unwrap();
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].actor_id, "keeper_owner");
-    assert_eq!(records[0].action, "authorize_runtime_formal_commit");
+    assert_eq!(records[0].action, "write_official_state");
     assert_eq!(records[0].requested_role, "human_keeper");
     assert_eq!(records[0].campaign_id, "campaign_human");
 }
@@ -342,7 +384,15 @@ fn draft_label_cannot_disguise_or_commit_an_adjudicating_tool() {
     let mut store = EventStore::default();
 
     assert_eq!(
-        commit_decision(&mut store, &contract, &command, decision).unwrap_err(),
+        commit_decision(
+            &mut store,
+            &contract,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            decision,
+            160,
+        )
+        .unwrap_err(),
         RuntimeError::Core(TrpgError::PolicyDenied)
     );
     assert!(store.events().is_empty());

@@ -16,20 +16,45 @@ use trpg_runtime::scheduler_service::{self, ScheduledRuntimeTask};
 use trpg_runtime::session_runtime;
 use trpg_runtime::workflow_engine;
 use trpg_runtime::{
-    ActorRole, AuthorityMode, CommandEnvelope, EntityId, EventStore, FormalCommitAudit,
-    FormalWritePath, PrincipalScope, Visibility, VisibilityLabel,
+    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventStore,
+    FormalCommitAudit, FormalCommitAuthorizer, FormalWritePath, Visibility, VisibilityLabel,
+};
+use trpg_security_governance::policy_adapter::{
+    HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
 };
 
 static NEXT_AUDIT_ID: AtomicU64 = AtomicU64::new(1);
 
-fn audited_store() -> EventStore<RuntimeEventPayload> {
+fn audited_store(contract: &AuthorityContract) -> EventStore<RuntimeEventPayload> {
     let audit_id = NEXT_AUDIT_ID.fetch_add(1, Ordering::Relaxed);
     let path = std::env::temp_dir().join(format!(
         "p02-runtime-batch-audit-{}-{audit_id}.jsonl",
         std::process::id()
     ));
     let audit = FormalCommitAudit::open(path, "runtime-batch-test-v1", &[0x83; 32]).unwrap();
-    EventStore::with_formal_audit(audit)
+    let endpoints = trpg_test_support::formal_commit_policy_endpoints();
+    let policy = OpenFgaOpaPolicyAdapter::new(
+        HttpPolicyEndpoint::new(
+            endpoints.openfga,
+            "/stores/test/check",
+            PolicyBackend::OpenFga,
+            endpoints.openfga_model,
+        )
+        .unwrap(),
+        HttpPolicyEndpoint::new(
+            endpoints.opa,
+            "/v1/data/security_governance/decision",
+            PolicyBackend::Opa,
+            endpoints.opa_revision,
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let (identity_verifier, _) = trpg_test_support::formal_commit_identity_for_contract(contract);
+    EventStore::with_formal_custody(
+        FormalCommitAuthorizer::new(identity_verifier, policy, audit),
+        trpg_test_support::test_canonical_commit_port(),
+    )
 }
 
 const S06_STAGE_FIXTURE: &str =
@@ -169,10 +194,15 @@ fn ai_kp_orchestrator_commits_decision_through_tool_and_event_log() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = audited_store();
+    let mut store = audited_store(&contract);
 
     let events = runtime_workflow_engine::commit_runtime_workflow_decision(
-        &mut store, &contract, &command, decision,
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap();
 
@@ -210,11 +240,17 @@ fn decision_pipeline_fixture_expected_records_are_asserted() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = audited_store();
+    let mut store = audited_store(&contract);
 
-    let events =
-        workflow_engine::commit_workflow_decision(&mut store, &contract, &command, decision)
-            .unwrap();
+    let events = workflow_engine::commit_workflow_decision(
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .unwrap();
 
     assert_eq!(events[0].event_type, "ToolRequestApproved");
     assert_eq!(events[1].event_type, "DecisionCommitted");
@@ -305,10 +341,15 @@ fn runtime_pending_decision_wrapper_opens_and_commits_governed_decisions() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = audited_store();
+    let mut store = audited_store(&contract);
 
     let events = runtime_pending_decision::commit_runtime_pending_decision(
-        &mut store, &contract, &command, decision,
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap();
 
@@ -346,7 +387,12 @@ fn direct_agent_state_write_is_rejected_before_event_append() {
     let mut store = EventStore::default();
 
     let error = runtime_workflow_engine::commit_runtime_workflow_decision(
-        &mut store, &contract, &command, decision,
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap_err();
 
@@ -423,19 +469,29 @@ fn keeper_only_runtime_events_do_not_sync_to_public_room() {
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = audited_store();
+    let mut store = audited_store(&contract);
 
     runtime_workflow_engine::commit_runtime_workflow_decision(
-        &mut store, &contract, &command, decision,
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap();
 
-    assert_eq!(
-        realtime_room_sync::sync_visible_room_events(&store, &PrincipalScope::Public).len(),
-        0
+    let player = trpg_test_support::player_replay_authorization(&contract);
+    let system = trpg_test_support::system_replay_authorization(&contract);
+    assert!(
+        realtime_room_sync::sync_visible_room_events(&store, &player, 206)
+            .unwrap()
+            .is_empty()
     );
     assert_eq!(
-        realtime_room_sync::sync_visible_room_events(&store, &PrincipalScope::Keeper).len(),
+        realtime_room_sync::sync_visible_room_events(&store, &system, 206)
+            .unwrap()
+            .len(),
         2
     );
 }
@@ -453,36 +509,35 @@ fn realtime_runtime_binding_respects_private_player_visibility() {
         AuthorityMode::AiKp,
     );
     let player_a = EntityId::new("user_player_a").unwrap();
-    let player_b = EntityId::new("user_player_b").unwrap();
     command.visibility = Visibility::private_to_player(player_a.clone());
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = audited_store();
+    let mut store = audited_store(&contract);
 
     runtime_workflow_engine::commit_runtime_workflow_decision(
-        &mut store, &contract, &command, decision,
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap();
 
+    let player_a_authorization =
+        trpg_test_support::player_replay_authorization_for(&contract, "user_player_a");
+    let player_b_authorization =
+        trpg_test_support::player_replay_authorization_for(&contract, "user_player_b");
     assert_eq!(
-        realtime_runtime_binding::visible_runtime_deltas(
-            &store,
-            &PrincipalScope::Player(player_a),
-        )
-        .len(),
+        realtime_runtime_binding::visible_runtime_deltas(&store, &player_a_authorization, 206)
+            .unwrap()
+            .len(),
         2
     );
-    assert_eq!(
-        realtime_runtime_binding::visible_runtime_deltas(
-            &store,
-            &PrincipalScope::Player(player_b),
-        )
-        .len(),
-        0
-    );
-    assert_eq!(
-        realtime_runtime_binding::visible_runtime_deltas(&store, &PrincipalScope::Public).len(),
-        0
+    assert!(
+        realtime_runtime_binding::visible_runtime_deltas(&store, &player_b_authorization, 206,)
+            .unwrap()
+            .is_empty()
     );
 }
 
@@ -501,14 +556,16 @@ fn expected_version_and_idempotency_are_enforced() {
     command.expected_version = 1;
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = audited_store();
+    let mut store = audited_store(&contract);
 
     assert_eq!(
         runtime_workflow_engine::commit_runtime_workflow_decision(
             &mut store,
             &contract,
             &command,
+            &trpg_test_support::workflow_authentication(),
             decision.clone(),
+            2,
         )
         .unwrap_err()
         .code(),
@@ -520,13 +577,20 @@ fn expected_version_and_idempotency_are_enforced() {
         &mut store,
         &contract,
         &command,
+        &trpg_test_support::workflow_authentication(),
         decision.clone(),
+        2,
     )
     .unwrap();
     command.expected_version = 2;
     assert_eq!(
         runtime_workflow_engine::commit_runtime_workflow_decision(
-            &mut store, &contract, &command, decision,
+            &mut store,
+            &contract,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            decision,
+            2,
         )
         .unwrap_err()
         .code(),

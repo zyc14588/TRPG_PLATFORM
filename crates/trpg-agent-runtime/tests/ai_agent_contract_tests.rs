@@ -43,7 +43,7 @@ fn ai_agent_commits_only_through_event_store_with_provenance() {
         decision.clone(),
         ActorRole::Workflow,
     );
-    let (mut store, audit) = common::audited_store_with_handle();
+    let (mut store, audit) = common::audited_store_with_handle(&contract);
     let committer =
         AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
             .unwrap();
@@ -92,7 +92,7 @@ fn ai_agent_commits_only_through_event_store_with_provenance() {
     let audit_records = audit.verify().unwrap();
     assert_eq!(audit_records.len(), 1);
     assert_eq!(audit_records[0].actor_id, "ai_kp_local_level4");
-    assert_eq!(audit_records[0].action, "authorize_agent_formal_commit");
+    assert_eq!(audit_records[0].action, "write_official_state");
     assert_eq!(audit_records[0].requested_role, "ai_keeper_orchestrator");
 }
 
@@ -114,7 +114,7 @@ fn ai_agent_rejects_authority_contract_mismatch_without_event_write() {
     let contract =
         trpg_test_support::authority_contract("campaign_b018_ai_agent", AuthorityMode::HumanKp, 1)
             .unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     let committer =
         AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
             .unwrap();

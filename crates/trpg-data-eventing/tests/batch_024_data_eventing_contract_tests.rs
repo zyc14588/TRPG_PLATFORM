@@ -382,7 +382,7 @@ fn b024_declares_required_command_event_schema_fields() {
 #[test]
 fn b024_declares_current_safe_sqlx_migration_contract() {
     let statements = persistence_migrations::migration_statements();
-    assert_eq!(statements.len(), 3);
+    assert_eq!(statements.len(), 4);
 
     for (name, sql) in statements {
         assert!(is_current_safe_name(name));
@@ -417,6 +417,17 @@ fn b024_declares_current_safe_sqlx_migration_contract() {
         "retry_count",
     ] {
         assert!(outbox_sql.contains(required));
+    }
+
+    let canonical_sql = persistence_migrations::CANONICAL_COMMIT_PROTOCOL_MIGRATION_SQL;
+    for required in [
+        "canonical_audit_log",
+        "formal_commits",
+        "workflow_instances",
+        "event_integrity_hash",
+        "reject_canonical_append_mutation",
+    ] {
+        assert!(canonical_sql.contains(required));
     }
 }
 

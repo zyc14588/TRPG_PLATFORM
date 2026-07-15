@@ -112,9 +112,6 @@ impl HttpPolicyEndpoint {
                     "relation": format!("can_{}", request.action),
                     "object": format!("campaign:{}", request.campaign_id),
                 },
-                "contextual_tuples": {
-                    "tuple_keys": contextual_tuples(request),
-                },
                 "context": {
                     "campaign_id": request.campaign_id,
                     "requested_role": request.requested_role,
@@ -207,6 +204,26 @@ impl OpenFgaOpaPolicyAdapter {
 
     pub(crate) fn revision_snapshot(&self) -> (&str, &str) {
         (&self.openfga.policy_revision, &self.opa.policy_revision)
+    }
+
+    /// Proves both configured policy engines can return validated evidence.
+    /// The probe names an unbound workflow principal, so it cannot grant a
+    /// product permission even if it is accidentally reused outside health.
+    pub fn check_readiness(&self) -> KernelResult<()> {
+        self.evaluate(&PolicyAuthorizationRequest {
+            actor_id: "policy_readiness_probe".to_owned(),
+            principal_role: "workflow".to_owned(),
+            campaign_id: "policy_readiness_probe".to_owned(),
+            resource_type: "campaign".to_owned(),
+            resource_id: "policy_readiness_probe".to_owned(),
+            action: "write_official_state".to_owned(),
+            authority_mode: "human_kp".to_owned(),
+            requested_role: None,
+            target_visibility: "public".to_owned(),
+            target_visibility_subject: None,
+            trace_id: "policy_readiness_probe".to_owned(),
+        })
+        .and_then(|evidence| evidence.validate())
     }
 }
 
@@ -319,30 +336,5 @@ fn target_output(action: &str) -> &'static str {
         "generate_party_summary" => "party_summary",
         "index_rag_chunk" => "rag_chunk",
         _ => "debug_log",
-    }
-}
-
-fn contextual_tuples(request: &PolicyAuthorizationRequest) -> Vec<Value> {
-    let Some(relation) = contextual_relation(&request.principal_role) else {
-        return Vec::new();
-    };
-    vec![json!({
-        "user": format!("principal:{}", request.actor_id),
-        "relation": relation,
-        "object": format!("campaign:{}", request.campaign_id),
-    })]
-}
-
-fn contextual_relation(principal_role: &str) -> Option<&'static str> {
-    match principal_role {
-        "server_owner" => Some("server_owner"),
-        "campaign_owner" => Some("campaign_owner"),
-        "moderator" => Some("moderator"),
-        "human_kp" => Some("human_kp"),
-        "player" => Some("player"),
-        "workflow" => Some("workflow"),
-        "rules_engine" => Some("rules_engine"),
-        "system" => Some("system"),
-        _ => None,
     }
 }

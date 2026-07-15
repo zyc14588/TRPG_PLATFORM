@@ -1,11 +1,13 @@
 use crate::runtime_state_machines::{
-    replay_visible_runtime_events, EventStore, RuntimeEventPayload,
+    replay_visible_runtime_events, EventStore, RuntimeEventPayload, RuntimeResult,
 };
-use trpg_shared_kernel::{EventEnvelope, PrincipalScope};
+use trpg_identity::ReplayAuthorization;
+use trpg_shared_kernel::EventEnvelope;
 
 pub fn visible_runtime_deltas(
     store: &EventStore<RuntimeEventPayload>,
-    principal: &PrincipalScope,
-) -> Vec<EventEnvelope<RuntimeEventPayload>> {
-    replay_visible_runtime_events(store, principal)
+    authorization: &ReplayAuthorization,
+    now_unix_ms: u64,
+) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
+    replay_visible_runtime_events(store, authorization, now_unix_ms)
 }

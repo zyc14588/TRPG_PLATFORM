@@ -43,8 +43,11 @@ pub use model_provider::{
     ProviderConfig, ProviderType,
 };
 pub use rag_snapshot::{query_visible_chunks, require_visible_chunk, RagChunk};
-pub use trpg_security_governance::formal_commit_audit::FormalCommitAudit;
+pub use trpg_identity::ReplayAuthorization;
+pub use trpg_security_governance::formal_commit_audit::{
+    FormalCommitAudit, FormalCommitAuthorizer,
+};
 pub use trpg_shared_kernel::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
-    EventStore, FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
+    FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
 };

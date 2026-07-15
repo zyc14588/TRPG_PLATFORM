@@ -74,7 +74,7 @@ pub struct DecisionEvidenceCatalog {
 }
 
 impl DecisionEvidenceCatalog {
-    pub fn register_event<P>(
+    pub fn register_event<P: PartialEq + serde::Serialize>(
         &mut self,
         event: &EventEnvelope<P>,
         source_context_hash: impl Into<String>,
@@ -98,7 +98,7 @@ impl DecisionEvidenceCatalog {
         )
     }
 
-    pub fn register_tool_result<P>(
+    pub fn register_tool_result<P: PartialEq + serde::Serialize>(
         &mut self,
         event: &EventEnvelope<P>,
         source_context_hash: impl Into<String>,

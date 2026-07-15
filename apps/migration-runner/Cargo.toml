@@ -6,5 +6,6 @@ publish = false
 license = "UNLICENSED"
 
 [dependencies]
+tokio = { version = "1.48", features = ["rt-multi-thread"] }
 trpg-contracts = { path = "../../crates/trpg-contracts" }
 trpg-data-eventing = { path = "../../crates/trpg-data-eventing" }

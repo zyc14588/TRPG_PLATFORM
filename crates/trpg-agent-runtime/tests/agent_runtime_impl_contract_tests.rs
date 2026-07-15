@@ -39,7 +39,7 @@ fn agent_runtime_impl_rejects_direct_agent_state_write() {
     let committer =
         AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
             .unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
     let error = agent_runtime_impl::run_agent_runtime_decision(
         &committer,

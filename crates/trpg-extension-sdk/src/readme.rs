@@ -67,7 +67,7 @@ impl fmt::Display for ExtensionSdkError {
 
 impl Error for ExtensionSdkError {}
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum ExtensionCapability {
     RegisterPlugin,
     RegisterAgentPack,
@@ -264,7 +264,7 @@ impl ExtensionPolicyGate {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum ExtensionOperation {
     AgentPackSdk,
     PluginSdk,
@@ -315,7 +315,7 @@ impl ExtensionCommand {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct ExtensionEventRecord {
     pub module_name: &'static str,
     pub operation: ExtensionOperation,
@@ -323,7 +323,7 @@ pub struct ExtensionEventRecord {
     pub capabilities: Vec<ExtensionCapability>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum ExtensionEvent {
     ContractRecorded(ExtensionEventRecord),
     CompatibilityChecked(SdkCompatibilityReport),
@@ -332,7 +332,7 @@ pub enum ExtensionEvent {
 pub type ExtensionEventEnvelope = EventEnvelope<ExtensionEvent>;
 pub type ExtensionEventStore = EventStore<ExtensionEvent>;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum CompatibilityResult {
     Compatible,
     Incompatible,
@@ -347,7 +347,7 @@ impl CompatibilityResult {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct SdkCompatibilityReport {
     pub extension_id: String,
     pub ruleset_version: String,

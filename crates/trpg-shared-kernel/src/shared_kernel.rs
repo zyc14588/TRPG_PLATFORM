@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use trpg_contracts::WireErrorCode;
@@ -131,7 +132,7 @@ impl fmt::Display for TrpgError {
 
 impl Error for TrpgError {}
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct EntityId(String);
 
 impl EntityId {
@@ -294,7 +295,7 @@ pub enum PrincipalScope {
     System,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum ProvenanceKind {
     HumanKeeperStatement,
     RulesEngineDecision,
@@ -586,7 +587,7 @@ impl AuthenticatedCommandContext {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum FormalWritePath {
     WorkflowDecision,
     RulesDecision,
@@ -1010,6 +1011,67 @@ pub fn validate_command_envelope<T>(command: &CommandEnvelope<T>) -> KernelResul
     Ok(())
 }
 
+/// Persistence-neutral request used by runtime and agent layers to hand a
+/// fully authorized formal event batch to the canonical Event Store adapter.
+/// The port lives in the shared kernel so production composition roots can
+/// inject a durable adapter without reversing crate dependency direction.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonicalCommitEvent {
+    pub event_type: String,
+    pub payload_json: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonicalPolicyAudit {
+    pub actor_id: String,
+    pub actor_origin: String,
+    pub authentication_reference: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub action: String,
+    pub requested_role: String,
+    pub openfga_decision_id: String,
+    pub openfga_policy_revision: String,
+    pub opa_decision_id: String,
+    pub opa_policy_revision: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonicalCommitRequest {
+    pub commit_id: String,
+    pub campaign_id: String,
+    pub idempotency_key: String,
+    pub expected_version: u64,
+    pub command_id: String,
+    pub authenticated_actor_id: String,
+    pub authority_mode: String,
+    pub authority_contract_version: u64,
+    pub authority_contract_id: String,
+    pub authority_owner: String,
+    pub visibility_label: String,
+    pub visibility_subject: String,
+    pub provenance_kind: String,
+    pub provenance_reference: String,
+    pub provenance_recorded_by: String,
+    pub correlation_id: String,
+    pub causation_id: String,
+    pub trace_id: String,
+    pub events: Vec<CanonicalCommitEvent>,
+    pub audit: CanonicalPolicyAudit,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CanonicalCommitReceipt {
+    pub first_stream_version: u64,
+    pub last_stream_version: u64,
+}
+
+pub trait CanonicalCommitPort: fmt::Debug + Send + Sync {
+    /// Atomically validates the campaign stream version and idempotency key,
+    /// persists the complete formal batch, and returns its durable range.
+    fn commit(&self, request: &CanonicalCommitRequest) -> KernelResult<CanonicalCommitReceipt>;
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventEnvelope<P> {
     pub sequence: u64,
@@ -1029,12 +1091,15 @@ pub struct EventEnvelope<P> {
     pub trace_id: EntityId,
     pub occurred_at_unix_ms: u64,
     pub payload: P,
+    recorded_payload: P,
     integrity_hash: [u8; 32],
 }
 
-impl<P> EventEnvelope<P> {
+impl<P: PartialEq + Serialize> EventEnvelope<P> {
     pub fn verify_recorded_integrity(&self) -> KernelResult<()> {
-        if self.integrity_hash != event_integrity_hash(self) {
+        if self.payload != self.recorded_payload
+            || self.integrity_hash != event_integrity_hash(self)?
+        {
             return Err(TrpgError::PolicyEvidenceUntrusted);
         }
         Ok(())
@@ -1043,6 +1108,7 @@ impl<P> EventEnvelope<P> {
 
 #[derive(Clone, Debug)]
 pub struct EventStore<P> {
+    stream_base_version: u64,
     events: Vec<EventEnvelope<P>>,
     idempotency_index: HashMap<String, u64>,
 }
@@ -1050,13 +1116,14 @@ pub struct EventStore<P> {
 impl<P> Default for EventStore<P> {
     fn default() -> Self {
         Self {
+            stream_base_version: 0,
             events: Vec::new(),
             idempotency_index: HashMap::new(),
         }
     }
 }
 
-impl<P: Clone> EventStore<P> {
+impl<P: Clone + PartialEq + Serialize> EventStore<P> {
     pub fn append<T>(
         &mut self,
         command: &CommandEnvelope<T>,
@@ -1065,7 +1132,7 @@ impl<P: Clone> EventStore<P> {
     ) -> KernelResult<EventEnvelope<P>> {
         validate_command_envelope(command)?;
 
-        let actual_version = self.events.len() as u64;
+        let actual_version = self.stream_base_version + self.events.len() as u64;
         if command.expected_version != actual_version {
             return Err(TrpgError::ExpectedVersionConflict {
                 expected: command.expected_version,
@@ -1109,10 +1176,11 @@ impl<P: Clone> EventStore<P> {
             causation_id: command.causation_id.clone(),
             trace_id: command.authenticated_context().trace_id().clone(),
             occurred_at_unix_ms: unix_time_ms(),
-            payload,
+            payload: payload.clone(),
+            recorded_payload: payload,
             integrity_hash: [0_u8; 32],
         };
-        event.integrity_hash = event_integrity_hash(&event);
+        event.integrity_hash = event_integrity_hash(&event)?;
 
         self.idempotency_index
             .insert(command.idempotency_key.clone(), event.sequence);
@@ -1120,11 +1188,27 @@ impl<P: Clone> EventStore<P> {
 
         Ok(event)
     }
+}
+
+impl<P> EventStore<P> {
+    pub fn with_stream_base_version(stream_base_version: u64) -> Self {
+        Self {
+            stream_base_version,
+            events: Vec::new(),
+            idempotency_index: HashMap::new(),
+        }
+    }
 
     pub fn events(&self) -> &[EventEnvelope<P>] {
         &self.events
     }
 
+    pub fn current_stream_version(&self) -> u64 {
+        self.stream_base_version + self.events.len() as u64
+    }
+}
+
+impl<P: Clone> EventStore<P> {
     pub fn replay_visible(&self, principal: &PrincipalScope) -> Vec<EventEnvelope<P>> {
         self.events
             .iter()
@@ -1134,25 +1218,185 @@ impl<P: Clone> EventStore<P> {
     }
 }
 
-fn event_integrity_hash<P>(event: &EventEnvelope<P>) -> [u8; 32] {
+fn event_integrity_hash<P: Serialize>(event: &EventEnvelope<P>) -> KernelResult<[u8; 32]> {
     let mut digest = Sha256::new();
-    digest.update(event.sequence.to_be_bytes());
-    digest.update(event.event_type.as_bytes());
-    digest.update(event.campaign_id.as_str().as_bytes());
-    digest.update(format!("{:?}", event.authenticated_actor).as_bytes());
-    digest.update(format!("{:?}", event.resource).as_bytes());
-    digest.update(event.authority_contract_id.as_str().as_bytes());
-    digest.update(event.authority_owner.as_str().as_bytes());
-    digest.update(event.command_id.as_str().as_bytes());
-    digest.update(event.idempotency_key.as_bytes());
-    digest.update(event.authority_contract_version.to_be_bytes());
-    digest.update(format!("{:?}", event.visibility).as_bytes());
-    digest.update(format!("{:?}", event.fact_provenance).as_bytes());
-    digest.update(event.correlation_id.as_str().as_bytes());
-    digest.update(event.causation_id.as_str().as_bytes());
-    digest.update(event.trace_id.as_str().as_bytes());
-    digest.update(event.occurred_at_unix_ms.to_be_bytes());
-    digest.finalize().into()
+    hash_integrity_field(&mut digest, 1, b"trpg-event-integrity-v3");
+    hash_integrity_field(&mut digest, 2, &event.sequence.to_be_bytes());
+    hash_integrity_field(&mut digest, 3, event.event_type.as_bytes());
+    hash_integrity_field(&mut digest, 4, event.campaign_id.as_str().as_bytes());
+    hash_integrity_field(
+        &mut digest,
+        5,
+        event.authenticated_actor.id().as_str().as_bytes(),
+    );
+    hash_integrity_field(
+        &mut digest,
+        6,
+        actor_role_integrity_name(event.authenticated_actor.role()).as_bytes(),
+    );
+    hash_actor_origin(&mut digest, event.authenticated_actor.origin());
+    hash_integrity_field(
+        &mut digest,
+        11,
+        event.resource.campaign_id().as_str().as_bytes(),
+    );
+    hash_integrity_field(
+        &mut digest,
+        12,
+        event.resource.resource_type().as_str().as_bytes(),
+    );
+    hash_integrity_field(
+        &mut digest,
+        13,
+        event.resource.resource_id().as_str().as_bytes(),
+    );
+    hash_integrity_field(
+        &mut digest,
+        14,
+        event.authority_contract_id.as_str().as_bytes(),
+    );
+    hash_integrity_field(&mut digest, 15, event.authority_owner.as_str().as_bytes());
+    hash_integrity_field(&mut digest, 16, event.command_id.as_str().as_bytes());
+    hash_integrity_field(&mut digest, 17, event.idempotency_key.as_bytes());
+    hash_integrity_field(
+        &mut digest,
+        18,
+        &event.authority_contract_version.to_be_bytes(),
+    );
+    hash_integrity_field(
+        &mut digest,
+        19,
+        event.visibility.label().as_str().as_bytes(),
+    );
+    hash_integrity_field(
+        &mut digest,
+        20,
+        event
+            .visibility
+            .player_id()
+            .map(EntityId::as_str)
+            .unwrap_or_default()
+            .as_bytes(),
+    );
+    hash_integrity_field(
+        &mut digest,
+        21,
+        provenance_kind_integrity_name(&event.fact_provenance.kind).as_bytes(),
+    );
+    hash_integrity_field(
+        &mut digest,
+        22,
+        event.fact_provenance.reference.as_str().as_bytes(),
+    );
+    hash_integrity_field(
+        &mut digest,
+        23,
+        event.fact_provenance.recorded_by.as_str().as_bytes(),
+    );
+    hash_integrity_field(&mut digest, 24, event.correlation_id.as_str().as_bytes());
+    hash_integrity_field(&mut digest, 25, event.causation_id.as_str().as_bytes());
+    hash_integrity_field(&mut digest, 26, event.trace_id.as_str().as_bytes());
+    hash_integrity_field(&mut digest, 27, &event.occurred_at_unix_ms.to_be_bytes());
+    hash_integrity_field(&mut digest, 28, &canonical_json_bytes(&event.payload)?);
+    Ok(digest.finalize().into())
+}
+
+fn canonical_json_bytes<T: Serialize>(value: &T) -> KernelResult<Vec<u8>> {
+    let mut value = serde_json::to_value(value).map_err(|_| TrpgError::PolicyEvidenceUntrusted)?;
+    canonicalize_json_value(&mut value);
+    serde_json::to_vec(&value).map_err(|_| TrpgError::PolicyEvidenceUntrusted)
+}
+
+fn canonicalize_json_value(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Array(values) => {
+            for value in values {
+                canonicalize_json_value(value);
+            }
+        }
+        serde_json::Value::Object(fields) => {
+            for value in fields.values_mut() {
+                canonicalize_json_value(value);
+            }
+            fields.sort_keys();
+        }
+        _ => {}
+    }
+}
+
+fn hash_integrity_field(digest: &mut Sha256, tag: u16, bytes: &[u8]) {
+    digest.update(tag.to_be_bytes());
+    digest.update((bytes.len() as u64).to_be_bytes());
+    digest.update(bytes);
+}
+
+fn hash_actor_origin(digest: &mut Sha256, origin: &ActorOrigin) {
+    match origin {
+        ActorOrigin::UserSession { session_id } => {
+            hash_integrity_field(digest, 7, b"user_session");
+            hash_integrity_field(digest, 8, session_id.as_str().as_bytes());
+        }
+        ActorOrigin::Workload { role } => {
+            hash_integrity_field(digest, 7, b"workload");
+            hash_integrity_field(digest, 8, workload_role_integrity_name(*role).as_bytes());
+        }
+        ActorOrigin::AgentRun {
+            run_id,
+            class,
+            campaign_id,
+        } => {
+            hash_integrity_field(digest, 7, b"agent_run");
+            hash_integrity_field(digest, 8, run_id.as_str().as_bytes());
+            hash_integrity_field(digest, 9, agent_class_integrity_name(*class).as_bytes());
+            hash_integrity_field(digest, 10, campaign_id.as_str().as_bytes());
+        }
+    }
+}
+
+fn actor_role_integrity_name(role: &ActorRole) -> &'static str {
+    match role {
+        ActorRole::ServerOwner => "server_owner",
+        ActorRole::CampaignOwner => "campaign_owner",
+        ActorRole::HumanKeeper => "human_keeper",
+        ActorRole::AiKeeper => "ai_keeper",
+        ActorRole::Investigator => "investigator",
+        ActorRole::Moderator => "moderator",
+        ActorRole::Spectator => "spectator",
+        ActorRole::Workflow => "workflow",
+        ActorRole::RulesEngine => "rules_engine",
+        ActorRole::System => "system",
+    }
+}
+
+fn workload_role_integrity_name(role: WorkloadRole) -> &'static str {
+    match role {
+        WorkloadRole::ApiServer => "api_server",
+        WorkloadRole::RealtimeServer => "realtime_server",
+        WorkloadRole::AgentWorker => "agent_worker",
+        WorkloadRole::WorkflowEngine => "workflow_engine",
+        WorkloadRole::RulesEngine => "rules_engine",
+        WorkloadRole::AuditWriter => "audit_writer",
+    }
+}
+
+fn agent_class_integrity_name(class: AgentClass) -> &'static str {
+    match class {
+        AgentClass::AiKeeperOrchestrator => "ai_keeper_orchestrator",
+        AgentClass::KeeperCopilot => "keeper_copilot",
+        AgentClass::AtmosphereWriter => "atmosphere_writer",
+        AgentClass::MemoryCurator => "memory_curator",
+    }
+}
+
+fn provenance_kind_integrity_name(kind: &ProvenanceKind) -> &'static str {
+    match kind {
+        ProvenanceKind::HumanKeeperStatement => "human_keeper_statement",
+        ProvenanceKind::RulesEngineDecision => "rules_engine_decision",
+        ProvenanceKind::ToolResult => "tool_result",
+        ProvenanceKind::AgentProposal => "agent_proposal",
+        ProvenanceKind::ImportedSource => "imported_source",
+        ProvenanceKind::SystemFixture => "system_fixture",
+    }
 }
 
 fn unix_time_ms() -> u64 {

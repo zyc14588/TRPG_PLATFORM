@@ -5,7 +5,7 @@ use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::{
-    ActorRole, AuthorityMode, FormalWritePath, PrincipalScope, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, FormalWritePath, TrpgError, Visibility, VisibilityLabel,
 };
 
 #[test]
@@ -60,14 +60,64 @@ fn runtime_commits_ai_kp_decision_through_evented_pipeline() {
     );
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
-    let events =
-        runtime::commit_runtime_decision(&mut store, &contract, &command, decision).unwrap();
+    let events = runtime::commit_runtime_decision(
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .unwrap();
 
     assert_eq!(events.len(), 2);
     assert_eq!(events[0].event_type, "ToolRequestApproved");
     assert_eq!(events[1].event_type, "DecisionCommitted");
+}
+
+#[test]
+fn runtime_rejects_a_decision_not_bound_to_the_validated_command() {
+    let command_decision = RuntimeDecision::new(
+        "decision_bound_a",
+        "validated command intent",
+        ToolRequest::formal(
+            RuntimeAgent::AiKeeperOrchestrator,
+            RuntimeTool::RequestSkillCheck,
+        ),
+    )
+    .unwrap();
+    let substituted_decision = RuntimeDecision::new(
+        "decision_substituted_b",
+        "substituted intent",
+        ToolRequest::formal(RuntimeAgent::AiKeeperOrchestrator, RuntimeTool::ApplyDamage),
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command(
+        command_decision,
+        ActorRole::Workflow,
+        AuthorityMode::AiKp,
+    );
+    let contract =
+        trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
+    let mut store = common::audited_store(&contract);
+
+    let error = runtime::commit_runtime_decision(
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        substituted_decision,
+        2,
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        error,
+        trpg_runtime::runtime_state_machines::RuntimeError::Core(TrpgError::DecisionDraftChanged)
+    );
+    assert!(store.events().is_empty());
 }
 
 #[test]
@@ -85,13 +135,27 @@ fn runtime_replay_does_not_expose_keeper_only_events_to_public() {
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
-    runtime::commit_runtime_decision(&mut store, &contract, &command, decision).unwrap();
+    runtime::commit_runtime_decision(
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .unwrap();
 
-    assert!(runtime::replay_runtime_for_principal(&store, &PrincipalScope::Public).is_empty());
+    let player = trpg_test_support::player_replay_authorization(&contract);
+    let system = trpg_test_support::system_replay_authorization(&contract);
+    assert!(runtime::replay_runtime_for_principal(&store, &player, 206)
+        .unwrap()
+        .is_empty());
     assert_eq!(
-        runtime::replay_runtime_for_principal(&store, &PrincipalScope::Keeper).len(),
+        runtime::replay_runtime_for_principal(&store, &system, 206)
+            .unwrap()
+            .len(),
         2
     );
 }
@@ -111,10 +175,17 @@ fn runtime_rejects_agent_direct_write_before_append() {
     command.write_path = FormalWritePath::DirectAgent;
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
-    let error =
-        runtime::commit_runtime_decision(&mut store, &contract, &command, decision).unwrap_err();
+    let error = runtime::commit_runtime_decision(
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .unwrap_err();
 
     assert_eq!(error.code(), "AGENT_DIRECT_STATE_WRITE_FORBIDDEN");
     assert!(store.events().is_empty());

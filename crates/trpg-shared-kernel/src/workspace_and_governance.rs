@@ -17,7 +17,7 @@ pub const REQUIRED_COMMAND_FIELDS: &[&str] = &[
     "causation_id",
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum GovernanceSurface {
     Adr0001RustFirst,
     Constitution,
@@ -64,7 +64,7 @@ pub struct GovernanceReview {
     pub checked_requirements: Vec<&'static str>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct GovernanceReviewedPayload {
     pub module_name: &'static str,
     pub surface: GovernanceSurface,

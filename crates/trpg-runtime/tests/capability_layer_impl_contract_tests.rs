@@ -5,8 +5,7 @@ use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeEventPayload, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::{
-    ActorRole, AuthorityMode, CommandEnvelope, FormalWritePath, PrincipalScope, Visibility,
-    VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, FormalWritePath, Visibility, VisibilityLabel,
 };
 
 fn decision(decision_id: &str, request: ToolRequest) -> RuntimeDecision {
@@ -39,18 +38,25 @@ fn capability_layer_impl_preserves_governed_decision_event_contract() {
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
 
     let events = capability_layer_impl::commit_capability_layer_impl_decision(
-        &mut store, &contract, &command, decision,
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
     )
     .unwrap();
 
     assert_eq!(store.events().len(), 2);
     assert_eq!(events[0].event_type, "ToolRequestApproved");
     assert_eq!(events[1].event_type, "DecisionCommitted");
-    assert!(store.replay_visible(&PrincipalScope::Public).is_empty());
-    assert_eq!(store.replay_visible(&PrincipalScope::Keeper).len(), 2);
+    let player = trpg_test_support::player_replay_authorization(&contract);
+    let system = trpg_test_support::system_replay_authorization(&contract);
+    assert!(store.replay_visible(&player, 206).unwrap().is_empty());
+    assert_eq!(store.replay_visible(&system, 206).unwrap().len(), 2);
     for event in &events {
         assert_eq!(event.visibility.label(), &VisibilityLabel::KeeperOnly);
         assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
@@ -87,13 +93,15 @@ fn capability_layer_impl_denies_contract_tool_gate_and_direct_agent_write() {
     );
     let wrong_contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::HumanKp, 1).unwrap();
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         capability_layer_impl::commit_capability_layer_impl_decision(
             &mut store,
             &wrong_contract,
             &command(allowed.clone()),
+            &trpg_test_support::workflow_authentication(),
             allowed,
+            2,
         )
         .unwrap_err()
         .code(),
@@ -113,13 +121,15 @@ fn capability_layer_impl_denies_contract_tool_gate_and_direct_agent_write() {
         "AGENT_TOOL_NOT_ALLOWED"
     );
     let denied = decision("decision_b014_capability_tool", denied_request);
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         capability_layer_impl::commit_capability_layer_impl_decision(
             &mut store,
             &contract,
             &command(denied.clone()),
+            &trpg_test_support::workflow_authentication(),
             denied,
+            2,
         )
         .unwrap_err()
         .code(),
@@ -136,13 +146,15 @@ fn capability_layer_impl_denies_contract_tool_gate_and_direct_agent_write() {
     );
     let mut direct_command = command(direct.clone());
     direct_command.write_path = FormalWritePath::DirectAgent;
-    let mut store = common::audited_store();
+    let mut store = common::audited_store(&contract);
     assert_eq!(
         capability_layer_impl::commit_capability_layer_impl_decision(
             &mut store,
             &contract,
             &direct_command,
+            &trpg_test_support::workflow_authentication(),
             direct,
+            2,
         )
         .unwrap_err()
         .code(),

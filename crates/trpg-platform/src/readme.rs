@@ -12,7 +12,7 @@ pub const PLATFORM_INFRASTRUCTURE_INVARIANTS: &[&str] = &[
     "formal_decisions_go_through_tool_rules_state_event_log",
 ];
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum PlatformEvent {
     BackgroundWorkerStarted {
         worker_id: String,

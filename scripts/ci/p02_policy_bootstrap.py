@@ -85,6 +85,11 @@ def bootstrap(openfga_address: str, opa_address: str, model_path: Path) -> dict[
                         "object": "campaign:camp_human_archive",
                     },
                     {
+                        "user": "principal:workflow_001",
+                        "relation": "workflow",
+                        "object": "campaign:camp_ai_harbor",
+                    },
+                    {
                         "user": "principal:owner_a",
                         "relation": "server_owner",
                         "object": "campaign:campaign_a",

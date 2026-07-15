@@ -84,7 +84,7 @@ pub const DATA_EVENT_METRICS: &[&str] = &[
     "trpg_visibility_redaction_total",
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum DataEventOperation {
     EventStoreAppend,
     OutboxPublish,
@@ -111,7 +111,7 @@ impl DataEventOperation {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct DataEventPayload {
     pub module_name: &'static str,
     pub event_name: &'static str,

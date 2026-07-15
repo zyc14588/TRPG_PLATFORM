@@ -1,6 +1,7 @@
 pub mod adr_0008_plugin_boundaries;
 pub mod agent_pack_sdk;
 pub mod extension_compatibility_matrix;
+pub mod plugin_host;
 pub mod plugin_sdk;
 pub mod readme;
 pub mod ruleset_pack_sdk;

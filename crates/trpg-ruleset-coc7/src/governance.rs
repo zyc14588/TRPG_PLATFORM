@@ -6,7 +6,7 @@ use trpg_shared_kernel::{
 
 pub const COC7_RULESET_ID: &str = "coc7";
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Coc7EventPayload {
     pub ruleset_id: &'static str,
     pub decision_type: &'static str,
@@ -18,7 +18,7 @@ pub struct Coc7EventPayload {
 }
 
 impl Coc7EventPayload {
-    pub fn from_command<T>(
+    fn from_command<T>(
         command: &CommandEnvelope<T>,
         event_type: &'static str,
         decision_type: &'static str,
@@ -52,7 +52,17 @@ pub fn validate_coc7_ruleset_id(ruleset_id: &str) -> KernelResult<()> {
     }
 }
 
-pub fn append_coc7_event<T>(
+pub fn validate_coc7_event_contract(event_type: &'static str) -> KernelResult<()> {
+    CanonicalEventHeader::resolve(event_type)
+        .map(|_| ())
+        .map_err(|error| match error.code {
+            WireErrorCode::EventContractUnknown => TrpgError::EventContractUnknown,
+            WireErrorCode::EventContractVersionMismatch => TrpgError::EventContractVersionMismatch,
+            _ => TrpgError::EventContractUnknown,
+        })
+}
+
+pub(crate) fn append_coc7_event<T>(
     contract: &AuthorityContract,
     store: &mut EventStore<Coc7EventPayload>,
     command: &CommandEnvelope<T>,

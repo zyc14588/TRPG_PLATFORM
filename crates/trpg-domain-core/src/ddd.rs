@@ -81,7 +81,7 @@ impl From<TrpgError> for DomainError {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum FactSource {
     GameEvent,
     DecisionRecord,
