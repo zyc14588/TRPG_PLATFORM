@@ -50,13 +50,13 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `apps/agent-worker/Cargo.toml` | 563 | `a68e08ab5a7396b611a379cb517019bed49c6282b8fa942f15c42b173412f161` | `100644` |
 | `apps/agent-worker/src/main.rs` | 12269 | `0250ef82eaa07fd199863be4ddea753c048fcbcd8af3b9fe3fa533c914a754ee` | `100644` |
 | `apps/api-server/Cargo.toml` | 835 | `403572b4126add9b8915cd5fbc75b3609d9007da535f5593bc59f576e02bb2c1` | `100644` |
-| `apps/api-server/src/lib.rs` | 25199 | `2ab528f12334447d2276ef2c6d57a24800eab340f75cd6c10617d99c9dc8a7a2` | `100644` |
+| `apps/api-server/src/lib.rs` | 25309 | `0b203d63fbb967aa1300e4c2255e0cd140d194314500a2eeb9ed5057b0fef99f` | `100644` |
 | `apps/api-server/src/main.rs` | 8560 | `237701c0df8a36f6bc3e30298a046f42a00079e73258246200355a900a64a661` | `100644` |
 | `apps/api-server/src/middleware/authentication.rs` | 5235 | `6457462a18eec9366374b9b8bc7f3992e5b474e7a9e78311cbd937db52e46493` | `100644` |
 | `apps/api-server/src/middleware/mod.rs` | 117 | `c0c4839a4653f2f095db6b0be9a74bacd3c69d1d8716ec5042eee5f16f2bf607` | `100644` |
 | `apps/api-server/src/production_custody_tests.rs` | 8758 | `17cf90382545852e3e7de515f2de6e622a56239805ff18d20f88169c1c81a449` | `100644` |
 | `apps/api-server/tests/auth_http_integration.rs` | 14147 | `e1e34b375d246ddda19db925781c059db668022ce67da73c9b9ee71131ab68e2` | `100644` |
-| `apps/api-server/tests/canonical_replay_integration.rs` | 9063 | `60c7688482462eee0e17a999c4100862211378ce59a23f77b4f25751d0a97275` | `100644` |
+| `apps/api-server/tests/canonical_replay_integration.rs` | 9208 | `4d5a28db85ef25321f6bd1396cd945a422bb89ccc49beb16e4851ad11ae65320` | `100644` |
 | `apps/migration-runner/Cargo.toml` | 311 | `e378ed41ba536cabb984eba3219c2d3254d2ac6a163f154ee7d0aba253988482` | `100644` |
 | `apps/migration-runner/src/main.rs` | 4000 | `a7f72cd6dd6ddd5a12f26aab46b3874f9fe73ca0a012cc885aed4ffb554b978b` | `100644` |
 | `apps/realtime-server/Cargo.toml` | 356 | `b3870d5df0184cc0308696a45d81f15173fea9387931a645a65f1f7286fb1059` | `100644` |

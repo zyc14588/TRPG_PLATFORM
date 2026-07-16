@@ -163,6 +163,8 @@ fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership(
     let player_events = player_response.body["events"].as_array().unwrap();
     assert_eq!(player_events.len(), 2);
     assert_eq!(player_events[0]["stream_id"], "campaign_api_replay");
+    assert_eq!(player_events[0]["request_hash_source"], "formal_commit");
+    assert_eq!(player_events[0]["integrity_status"], "verified_hmac");
     assert_eq!(player_events[0]["visibility_label"], "public");
     assert_eq!(player_events[1]["visibility_label"], "private_to_player");
 

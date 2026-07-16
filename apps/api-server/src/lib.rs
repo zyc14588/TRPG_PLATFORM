@@ -546,6 +546,8 @@ fn canonical_event_json(event: CanonicalReplayEvent) -> serde_json::Value {
         "trace_id": event.trace_id,
         "payload": event.payload,
         "event_integrity_hash": event.event_integrity_hash,
+        "request_hash_source": event.request_hash_source,
+        "integrity_status": event.integrity_status,
     })
 }
 
