@@ -53,7 +53,10 @@ impl MigrationRuntime {
             .map_err(|_| "canonical primary/witness integrity verification failed".to_owned())?;
         Ok(format!(
             "canonical primary and independent witness migrations applied; registry_statements={}",
-            trpg_data_eventing::persistence_migrations::migration_statements().len()
+            trpg_data_eventing::persistence_migrations::migrator()
+                .iter()
+                .filter(|migration| migration.migration_type.is_up_migration())
+                .count()
         ))
     }
 }

@@ -1,7 +1,7 @@
 # Repository Source Manifest v1
 
-Repository files: 3836
-Hashed files: 3833
+Repository files: 3846
+Hashed files: 3843
 
 All tracked paths are listed. The three generated outputs use a self-reference sentinel instead of an impossible self-hash.
 CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manifest.py` requires all three outputs to be byte-identical.
@@ -9,12 +9,12 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | path | size_bytes | sha256 | git_mode |
 |---|---:|---|---|
 | `.gitattributes` | 134 | `f7aac1365f4a60f0db78a43719a1ed0b754a952c79d4cd79aaa016dde285723f` | `100644` |
-| `.github/workflows/ci.yml` | 1763 | `3a11228ef8e43ff561688201f1e58b251d780af9d11959ee0a9d5bc854fd4532` | `100644` |
+| `.github/workflows/ci.yml` | 1771 | `9f018e4e30b8653944c5dd8843b8518443cb20d559c59075703a0c71e4a8bee1` | `100644` |
 | `.github/workflows/contracts.yml` | 1606 | `db3c629f8b1398505d67b3722a7de107da137df1c6a8194e07ebb6f574652a69` | `100644` |
 | `.github/workflows/docker-compose-smoke.yml` | 1746 | `053220fe1bc7639bac638749aadb858cebfecfb02e7936f0baf4771206ff7c77` | `100644` |
 | `.github/workflows/golden-scenarios.yml` | 1793 | `782e127eacd8aa632fc2184f87f1d95d8650893e52c5d3c7ff565f42f1018dce` | `100644` |
 | `.github/workflows/p00-negative-matrix.yml` | 2447 | `1a538eee7d1250de6265a90faa575b540a1bf88489f080a3ed2d51d277420de0` | `100644` |
-| `.github/workflows/release.yml` | 2958 | `64f4b99f6d85844d98ce7358ce5b6cba1962803af1260751c22011ab3adf6b31` | `100644` |
+| `.github/workflows/release.yml` | 2966 | `afedf8fbee200feae8f505a47e5a358ea7f2f26f55e011680f1bcc3a034967ee` | `100644` |
 | `.gitignore` | 72 | `a6d870833a310ebd996c638c38dd5b33938db529240ad6c25bb2e91efb4fe946` | `100644` |
 | `.nvmrc` | 8 | `98182b41c9ce3357797985cf12dc3b0124490ef88bc918a905373e7688e6aec9` | `100644` |
 | `.python-version` | 7 | `3a55324cbeddc91df012407d051dad08c88624c95a82fbdb856728729fbd14ab` | `100644` |
@@ -31,7 +31,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md` | 4197 | `875b7156f0bc76685586dae8ac115a67ec4f8fc414f1d56c81788e5fcfe96e44` | `100644` |
 | `CODEX_START_ACCEPT_TEST_RELEASE_GUIDE.md` | 2669 | `fb25a91cead52611fcf5e3b95c93ee6f442d1344c3e0057bfbf858e49f3be247` | `100644` |
 | `CODEX_STRICT_OPERATION_CHECKLIST.md` | 2493 | `a90c0b23a22d8c2772c551baa7c4805a5c90f130e51068346c43f1fa0e452a18` | `100644` |
-| `Cargo.lock` | 73710 | `7a3b3769393cbdfb9b6568f425f299e49409e51769e6dadc23bc02cff9e5ccad` | `100644` |
+| `Cargo.lock` | 79545 | `23ccbed11949f514555b711f1855447876e4c6b4b1b99618e25a72892d0c4d8a` | `100644` |
 | `Cargo.toml` | 632 | `084f98afa88b92e16c1dba2730964acbd1608924e5a7cef21357dea76f751c59` | `100644` |
 | `DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md` | 3692 | `77f7e4acf141e50b7128dce020f266978824c23274c02250511da6157535c34d` | `100644` |
 | `MANIFEST.md` | self | `evidence-bound-self-reference` | `100644` |
@@ -50,15 +50,15 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `apps/agent-worker/Cargo.toml` | 563 | `a68e08ab5a7396b611a379cb517019bed49c6282b8fa942f15c42b173412f161` | `100644` |
 | `apps/agent-worker/src/main.rs` | 12269 | `0250ef82eaa07fd199863be4ddea753c048fcbcd8af3b9fe3fa533c914a754ee` | `100644` |
 | `apps/api-server/Cargo.toml` | 835 | `403572b4126add9b8915cd5fbc75b3609d9007da535f5593bc59f576e02bb2c1` | `100644` |
-| `apps/api-server/src/lib.rs` | 25161 | `870a4da0dc148528197a9472894c9381e95540b1915f48b9db045f0915cba891` | `100644` |
+| `apps/api-server/src/lib.rs` | 25199 | `2ab528f12334447d2276ef2c6d57a24800eab340f75cd6c10617d99c9dc8a7a2` | `100644` |
 | `apps/api-server/src/main.rs` | 8560 | `237701c0df8a36f6bc3e30298a046f42a00079e73258246200355a900a64a661` | `100644` |
 | `apps/api-server/src/middleware/authentication.rs` | 5235 | `6457462a18eec9366374b9b8bc7f3992e5b474e7a9e78311cbd937db52e46493` | `100644` |
 | `apps/api-server/src/middleware/mod.rs` | 117 | `c0c4839a4653f2f095db6b0be9a74bacd3c69d1d8716ec5042eee5f16f2bf607` | `100644` |
 | `apps/api-server/src/production_custody_tests.rs` | 8758 | `17cf90382545852e3e7de515f2de6e622a56239805ff18d20f88169c1c81a449` | `100644` |
 | `apps/api-server/tests/auth_http_integration.rs` | 14147 | `e1e34b375d246ddda19db925781c059db668022ce67da73c9b9ee71131ab68e2` | `100644` |
-| `apps/api-server/tests/canonical_replay_integration.rs` | 8940 | `3c056e1a48b23438149aa2153a51da1a3e0ef2b4fb39af96ec6f266f17161fc5` | `100644` |
+| `apps/api-server/tests/canonical_replay_integration.rs` | 9063 | `60c7688482462eee0e17a999c4100862211378ce59a23f77b4f25751d0a97275` | `100644` |
 | `apps/migration-runner/Cargo.toml` | 311 | `e378ed41ba536cabb984eba3219c2d3254d2ac6a163f154ee7d0aba253988482` | `100644` |
-| `apps/migration-runner/src/main.rs` | 3889 | `2900e620f6a16fff84cccbf04be7193e5d6010143f68faab0335c4112b73d367` | `100644` |
+| `apps/migration-runner/src/main.rs` | 4000 | `a7f72cd6dd6ddd5a12f26aab46b3874f9fe73ca0a012cc885aed4ffb554b978b` | `100644` |
 | `apps/realtime-server/Cargo.toml` | 356 | `b3870d5df0184cc0308696a45d81f15173fea9387931a645a65f1f7286fb1059` | `100644` |
 | `apps/realtime-server/src/main.rs` | 4931 | `1c4cb93487a05657a904241dc2e1c4925e6f61ac303369b0d9882f2afa66175f` | `100644` |
 | `apps/web/index.html` | 1651 | `5231106ae6374720a522885ee94499eb704f506385f893adf5ca5a0a7c4ee1d8` | `100644` |
@@ -1462,7 +1462,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-contracts/tests/fixtures/canonical_event_registry.v1.json` | 3135 | `0e2a18a743b740fc83163d586f94b24e6b481cf99212632f16e16fb8d263251e` | `100644` |
 | `crates/trpg-contracts/tests/health_contract.rs` | 1461 | `09bb2757e5cbd2e8afc1f7306f8b528cd3b1c21f401e14adabdf94a0f86a6f41` | `100644` |
 | `crates/trpg-contracts/tests/registry_contract.rs` | 4881 | `7056fd80e06da31d2a7159ffaacdc8e2b1612e27453437be9c6cf0debeea384c` | `100644` |
-| `crates/trpg-data-eventing/Cargo.toml` | 848 | `2c9564f56b2892b632fb674c5658428eb6880bbed8410024ff23f8be6cb87e97` | `100644` |
+| `crates/trpg-data-eventing/Cargo.toml` | 973 | `da7e7906545851769a6d9efed267076ac4c68b6cc8c172880312de580482011f` | `100644` |
 | `crates/trpg-data-eventing/src/adr_0002_event_sourcing_cqrs.rs` | 411 | `aaefcd810f41f8a7b23f4637b17eefa31e33d896c8fea2b9e5de7d4c154b7cf1` | `100644` |
 | `crates/trpg-data-eventing/src/adr_0002_event_sourcing_cqrs_event_sourcing_cqrs.rs` | 392 | `e300fbbd8e54e3ddc786ad823a405d41865e8ea5c49121fdf13d8219eee76218` | `100644` |
 | `crates/trpg-data-eventing/src/adr_0004_nats_jetstream.rs` | 372 | `b8aacfbe7e87596e01be304ecea6322ff9452c7cc67aefd600f4f3a60f43ea7f` | `100644` |
@@ -1475,21 +1475,24 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-data-eventing/src/database_schema_index.rs` | 347 | `6d6e8654b3fbe029e588d1fbb9c4939df73a0ef74ad1876bd5406a7f4c74c59b` | `100644` |
 | `crates/trpg-data-eventing/src/domain_event_sourcing_projection.rs` | 737 | `3a89995b074174ea522e4aec7481cf56b8bad6dd88fef2176503ebce9e5992e1` | `100644` |
 | `crates/trpg-data-eventing/src/event_bus_nats.rs` | 320 | `582c6cb94a3d53d381f8a147ffcffd0cc29cfb4ed190d64684844456abaeef97` | `100644` |
-| `crates/trpg-data-eventing/src/event_bus_nats_impl.rs` | 17916 | `87bb064bd6668e655c6990b7edefc7015575111a49e2eea9b699e369d6439b43` | `100644` |
+| `crates/trpg-data-eventing/src/event_bus_nats_impl.rs` | 26038 | `14db4818a29fc547d85bec67f36d24f65cc404227c99a65f4ccac4740ff87fd3` | `100644` |
 | `crates/trpg-data-eventing/src/event_command_json_schema.rs` | 800 | `aebd8f7fc3633c428ed7411b6302b0a00ae211323cd8a44f28570180c9af4a3d` | `100644` |
 | `crates/trpg-data-eventing/src/event_json_schema.rs` | 2565 | `f85d2bd28ae14ef87f00d9d2acd94e08c8954acd564e8ffa3453ce9ae5ddf406` | `100644` |
 | `crates/trpg-data-eventing/src/event_json_schema_source_contract.rs` | 431 | `23f60ae090ee03b912a5374232457cf8529b8571c97b83eef45c7b286da23313` | `100644` |
 | `crates/trpg-data-eventing/src/event_schema_index.rs` | 326 | `9286e35805701a9e034e2280acc3eb2da441298f19bb41208ea5f1f24a6bd97d` | `100644` |
 | `crates/trpg-data-eventing/src/event_sourcing_snapshot_projection.rs` | 792 | `4cede221cdae542b2d9fe8c14cabca8373ec9e2a7d308d057a770333f8d04060` | `100644` |
 | `crates/trpg-data-eventing/src/event_store_projections.rs` | 962 | `b3d16b92e5273de35ea8c4cccb5844ed98a03164b7aee39c35d84434479c3eb0` | `100644` |
-| `crates/trpg-data-eventing/src/event_store_sqlx_outbox_projection.rs` | 73504 | `52dbcbd77fae80a050a83aebde3f10a4d40c7bf0a18c4fa568827eca4d6be83e` | `100644` |
-| `crates/trpg-data-eventing/src/lib.rs` | 19118 | `b82372715a3202f77c741dbc64fe6eaba0dccc1487ed9a46153d16f964243683` | `100644` |
+| `crates/trpg-data-eventing/src/event_store_sqlx_outbox_projection.rs` | 90307 | `0a1794315d2bafa3abf289f90877e71505059192437b7fddbb254415b8c5947f` | `100644` |
+| `crates/trpg-data-eventing/src/lib.rs` | 19139 | `018a647f0157d0af1d7289f7710365b798a9c5f650756ccc64be4d25232eada1` | `100644` |
 | `crates/trpg-data-eventing/src/nats_jet_stream.rs` | 606 | `bdedf2cf3273f9ff243ca0dce03898dcb1a39b913c4b378acabe0943d2cc919e` | `100644` |
 | `crates/trpg-data-eventing/src/nats_subject_contracts.rs` | 757 | `1ad38df2bd47f4e312c6a529b70ed5d210106a79f8df1d3c4e662170dcc1e7af` | `100644` |
 | `crates/trpg-data-eventing/src/nats_subjects.rs` | 699 | `031e0a9d6a92315d41eaa0917c6a3443211f7bc6badd245d3e217eedd562fe3a` | `100644` |
 | `crates/trpg-data-eventing/src/nats_subjects_source_contract.rs` | 805 | `cf5f134c0e232f9ed8e712600f2bd4fc142cdbf3f9426eed7096161a8e046d87` | `100644` |
 | `crates/trpg-data-eventing/src/outbox_projection_workers.rs` | 385 | `83c148979e786e1b963a608710a53cc62a59388cc6581495e521de833d00c303` | `100644` |
-| `crates/trpg-data-eventing/src/persistence_migrations.rs` | 2791 | `354b785038a582d5022bde0dae78cbca3408f1c95628d3c7e3e962232c17cea0` | `100644` |
+| `crates/trpg-data-eventing/src/persistence/dto.rs` | 3172 | `e0558aacfe31f397df172b79ffc7664c48cfbae74534cb40069c749aabe66597` | `100644` |
+| `crates/trpg-data-eventing/src/persistence/mod.rs` | 547 | `6c7df6c02ef9dc4d1e1e4e736ce8011d594857699845274c7992aa83a047a762` | `100644` |
+| `crates/trpg-data-eventing/src/persistence/upcaster.rs` | 4217 | `1614a6442bb88c041913cac73f3f9f02d70d7bc28005e1a8cf624ad0be470506` | `100644` |
+| `crates/trpg-data-eventing/src/persistence_migrations.rs` | 1051 | `c8977fe58eaedc31fc2fd980c1dcb18eae514ad0efcbdbce694647fd52d02d56` | `100644` |
 | `crates/trpg-data-eventing/src/persistence_postgresql.rs` | 776 | `9061c39ebf4f558102900696109bfa91132520541dfd1a41a6894e217d9a7120` | `100644` |
 | `crates/trpg-data-eventing/src/persistence_postgresql_impl.rs` | 772 | `8b93aa1d18f489beefd36f1cb20df76bf1228a7e7b7fcb4c3a23739a6c8576d3` | `100644` |
 | `crates/trpg-data-eventing/src/postgre_sql_sq_lx_pgvector.rs` | 701 | `924979321d9a86a05bfca0405dfdec6199aac6cb9b28b553c87b8b6bd9424937` | `100644` |
@@ -1500,18 +1503,21 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-data-eventing/src/schema.rs` | 644 | `2c2d6a86d01d30c5153af12d5fe2469ea64b866e1c9415d517ad85c43447a29b` | `100644` |
 | `crates/trpg-data-eventing/src/snapshot.rs` | 496 | `9c855e1fe0c30c73a3bd2ed337491130272fce07b4418dda9c7e0e4a431c4ac3` | `100644` |
 | `crates/trpg-data-eventing/src/snapshot_strategy.rs` | 317 | `3b23bb486eba609c75da7b1be1dbd98a095f844b8830c92698d5cb20ba558f12` | `100644` |
-| `crates/trpg-data-eventing/src/sqlx_migrations.rs` | 655 | `fab9c5f51190904ee100c2615449c7eb0bc3099de387d9373334e7d11ca20960` | `100644` |
-| `crates/trpg-data-eventing/src/sqlx_migrations_contract.rs` | 926 | `aa517d73a79998196392a508a77d8e64444c57ea022b3f1c41f683b96b1627aa` | `100644` |
+| `crates/trpg-data-eventing/src/sqlx_migrations.rs` | 741 | `0206a45acb27e632831714da16f7f85a3db32205ad294d1ccd22b1141244f507` | `100644` |
+| `crates/trpg-data-eventing/src/sqlx_migrations_contract.rs` | 1438 | `07fbb2e0b7d57588fa346fa41ce964704e0a71befc63fe637cb903451bc07c09` | `100644` |
 | `crates/trpg-data-eventing/tests/adr_0002_event_sourcing_cqrs_contract_tests.rs` | 5252 | `4f77429e174060a054a4095e8ad4ca8a7912239b10fc365b3f18a1d3a5244cff` | `100644` |
 | `crates/trpg-data-eventing/tests/adr_0005_postgres_pgvector_contract_tests.rs` | 5312 | `692ebe297112d1e01f8a450abf5044139e6128dd34f8288af7947b63c8478f8a` | `100644` |
-| `crates/trpg-data-eventing/tests/batch_024_data_eventing_contract_tests.rs` | 15214 | `58c10fb01f7b260f5fd94b614d101cb4de691bff6a72bfaa39b54fa1ec560d24` | `100644` |
-| `crates/trpg-data-eventing/tests/batch_025_data_eventing_contract_tests.rs` | 11704 | `6250426c7dc9405184d1f1aad66279d6204af2210d40026f2b3a7d1c10350407` | `100644` |
+| `crates/trpg-data-eventing/tests/batch_024_data_eventing_contract_tests.rs` | 16033 | `fa63d109d0818acb48d1b6daac8c1ac016988b6280a3d51228a8b670ccae1d88` | `100644` |
+| `crates/trpg-data-eventing/tests/batch_025_data_eventing_contract_tests.rs` | 11659 | `3dd9402e7485b2d7db77c79795f883d6918e86ec15279b02d62d1e1de70a0857` | `100644` |
 | `crates/trpg-data-eventing/tests/batch_026_data_eventing_contract_tests.rs` | 17795 | `87674c85191a86c343eaeaeff100e11ebe18b7aa27807eb8c442d0d27d76255c` | `100644` |
-| `crates/trpg-data-eventing/tests/canonical_commit_postgres.rs` | 9388 | `2f90674ef7a729d6508b2e834196f4327f6ed3681d1d1ceb9e8bbee99ef995d5` | `100644` |
+| `crates/trpg-data-eventing/tests/canonical_commit_postgres.rs` | 19866 | `a9ccb3fee5c53c5ea6c97786f8174cbe55592a0b0847597b33eccd04a3de1319` | `100644` |
 | `crates/trpg-data-eventing/tests/canonical_event_projection_contract_tests.rs` | 622 | `d25cb67af0defeead6711e13a13865453366f4498bd8d5d8c6bd2a7ba2be7722` | `100644` |
 | `crates/trpg-data-eventing/tests/event_json_schema_contract_tests.rs` | 10771 | `bbd2c173324ecec0dd60273ac19a756e826e04ff4dc1299a37560e7b926ca315` | `100644` |
-| `crates/trpg-data-eventing/tests/event_store_contract.rs` | 9087 | `e9e3e146be5451c32dffc0d7a0325dc3c1886bd4916cc0429a7e81a0c77ded78` | `100644` |
-| `crates/trpg-data-eventing/tests/jetstream_redis_integration.rs` | 5118 | `113593a2ca44cb5a8c6361dac661135997b0d5ee7adbc8d6c04bd0313fa2755d` | `100644` |
+| `crates/trpg-data-eventing/tests/event_store_contract.rs` | 9125 | `a6f79a798d0216e329340e12002f5e375db2082bc9c1d6a4f0ce0ba716b24756` | `100644` |
+| `crates/trpg-data-eventing/tests/fixtures/b24/20260705000100_create_data_eventing_event_store.sql` | 1260 | `89166284272c7b5e5603178362501dd484c4e536ffdfd2ba4e281e1e5785d7f7` | `100644` |
+| `crates/trpg-data-eventing/tests/fixtures/b25/20260705000100_create_data_eventing_event_store.sql` | 1381 | `d2d9a58a0a24613935c5a91772fd209e5b18434692488e80bbedd2890bedba70` | `100644` |
+| `crates/trpg-data-eventing/tests/jetstream_redis_integration.rs` | 17446 | `91070531ede6eeb85f6a2c73681de11fa79b7a2cb77c2e0a9c7ba00e7c83a1df` | `100644` |
+| `crates/trpg-data-eventing/tests/migration_upgrade.rs` | 49296 | `52a86e1c24384d56ae7f64b32a57c8b8699abcc1ff98bb6c4de0c524fccfe22c` | `100644` |
 | `crates/trpg-data-eventing/tests/projection_replay.rs` | 9991 | `a6fcb7a18627af2ccda00329d73bb64a6e974ee392bcfb7fe6ffa2d7f9233112` | `100644` |
 | `crates/trpg-domain-core/Cargo.toml` | 317 | `a01c96a7b666d1f591e3b273ee52261b2914df000d1fdcbeda9bc79a99570e9c` | `100644` |
 | `crates/trpg-domain-core/src/adr_0003_authority_contract.rs` | 1976 | `f9678e8a109e7685f9dd718dc75e124905c1298c8cccaf0ec75359cb00a26983` | `100644` |
@@ -1896,6 +1902,8 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `docs/audit/p02/P02_READINESS.md` | 1673 | `3b7c080d20246812fbe0a11cbb8a139450b50eb5c5137c81a9fbb24a699694ee` | `100644` |
 | `docs/audit/p02/P02_REPAIR.md` | 2863 | `163abfb0be0cfd5b33765c3609c2ac8b40c6d7b19afe6b4ee32fd4c8ae637dc3` | `100644` |
 | `docs/audit/p02/P02_TEST_RESULTS.md` | 4349 | `1c6dfc18d841b764c839670d5e6ae3e30833c89d7349cd4d1c53ef1863b78899` | `100644` |
+| `docs/audit/p03/P03_FINAL_STATUS.md` | 10990 | `361a9fff4aa9a7ac5d90095e2e793bdc69504c4fcd7f297c9a1ba8fb3d7e87bc` | `100644` |
+| `docs/audit/p03/P03_TEST_RESULTS.md` | 12769 | `58f1a66e64a72b1b8681969c3ec755dce37093d9290256ba682e4bb4846011da` | `100644` |
 | `docs/codex/00-index/AGENTS.md` | 4164 | `7a4b058f57d75097de15c3902560a3b4fbdf70a639bd0ca5ddbe2529d8ad0170` | `100644` |
 | `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` | `100644` |
 | `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` | `100644` |
@@ -2916,13 +2924,14 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `manifests/V221_BUILD_SUMMARY.json.md` | 218 | `e751edc1561449786c558b0ae754a426e04f6cf7b66547164e0d9aa80a76f1a7` | `100644` |
 | `manifests/V221_STRICT_VALIDATION_REPORT.md` | 273 | `af861c475f257ad9f28ff2f69f1d1a8c5c03db179939913ae103ec722329bfed` | `100644` |
 | `migrations/20260705000100_create_data_eventing_event_store.down.sql` | 113 | `3b058e599237b8ab932903b295f74fa8275b6754da1404c8c72ff5894300c5a3` | `100644` |
-| `migrations/20260705000100_create_data_eventing_event_store.up.sql` | 1381 | `d2d9a58a0a24613935c5a91772fd209e5b18434692488e80bbedd2890bedba70` | `100644` |
+| `migrations/20260705000100_create_data_eventing_event_store.up.sql` | 1260 | `89166284272c7b5e5603178362501dd484c4e536ffdfd2ba4e281e1e5785d7f7` | `100644` |
 | `migrations/20260714000100_create_identity_authorization.up.sql` | 9195 | `750a6013ac4c25dee3ad1398847305f3d44c9139a21a8bef605a11f567c48bd3` | `100644` |
 | `migrations/20260715000100_harden_identity_authorization.up.sql` | 2300 | `b876776835a77b1247a4a58372007bd20e06c0a4ca7e41f58d6e618464b2f743` | `100644` |
 | `migrations/20260715000200_guard_membership_campaign_moves.up.sql` | 1820 | `5bd47a540186537a915acaa0fe9a36e20780253ca65d4eed866e577a8e96d0cd` | `100644` |
 | `migrations/20260715000300_add_audit_visibility_provenance.up.sql` | 585 | `d9a692bada92ac4fd988f029850cf0e0ff5de7fd07bdee4139c6238720c6be30` | `100644` |
 | `migrations/20260715000400_create_canonical_commit_protocol.down.sql` | 1337 | `d4b4dd2f7365ae24ad07c11463cea6e4f08a8180c52cfa0b7de3058b5ec6cccd` | `100644` |
 | `migrations/20260715000400_create_canonical_commit_protocol.up.sql` | 8021 | `a76b5b856c7f2522ad8d694e1de40333f49652d4797a242cec2e51f40de4031d` | `100644` |
+| `migrations/20260716000100_harden_event_persistence_schema.sql` | 53180 | `ce19818ad077189edd5ed222e38f10911ecddb032d9321eaf0cd83e481222ed3` | `100644` |
 | `migrations/witness/20260715000100_create_external_audit_witness.down.sql` | 163 | `b883d3e3248eb7be7badd0d427b86268b3d83d81550a85fa97a45613abd97058` | `100644` |
 | `migrations/witness/20260715000100_create_external_audit_witness.up.sql` | 2866 | `5009aab875b335e95e6e131a1903bf92fccbdc34142095408a6e5c3f5c1c81fb` | `100644` |
 | `package.json` | 445 | `7545f260ca0de0f28af75daedab423725264341e20a92651a0f87f36604fef44` | `100644` |
@@ -2951,6 +2960,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `prompts/persistent/15_CURRENT_NORMALIZATION_PROMPT.md` | 688 | `e4f62b47e9ee06bdb4cf6e8396831fb588cfe905683ebe6b902093973607632b` | `100644` |
 | `rust-toolchain.toml` | 86 | `fa0addad5676243d360310f981a69528b0341d295cb5012253d9721aba4d30c0` | `100644` |
 | `scripts/backup_restore/smoke.sh` | 141 | `64d1fb3094d0ab680ddffb1de8c0ee6e8aa7b0f54024c9d390cf33c7bf95d2e1` | `100755` |
+| `scripts/ci/assert-schema.sql` | 26695 | `85d95e03f64af35672612256d3b33f40313191a681d79f4e472220f548fca281` | `100644` |
 | `scripts/ci/check_dependency_directions.py` | 7721 | `e57f014ebbf3fea4867d603d72e86685f9e6ffccf3f990a097a9f2d2de80fb1d` | `100644` |
 | `scripts/ci/check_product_boundaries.py` | 5989 | `c4cf9bdb02a872d1ee43552e0c3b1e54a39617ed476feb3a0020ce300a0b6188` | `100755` |
 | `scripts/ci/discover_tests.py` | 595 | `1748a5ecf19e70c9a7c1a050a0fc44e20dd642c9a71a864c2a97192d3c82b838` | `100644` |
@@ -2970,13 +2980,13 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `scripts/ci/init-smoke.sh` | 168 | `88b4439abb55f867eb91659f2f71a6db85625a4892a2411eac769cb683849684` | `100755` |
 | `scripts/ci/manifest.py` | 2485 | `e8f93e2f4c54f88274ad060b76544cab9f5d5d70d5e76be4a75922b8fc7e125a` | `100644` |
 | `scripts/ci/p00_negative_case.py` | 6643 | `a0cc559b08a2876a53d02345e687d576b44bea27a8369e7aa9fa60500ee0e34d` | `100644` |
-| `scripts/ci/p02-integration-services.sh` | 3953 | `ffdf4ad538e2ff8058c7f9fd1916187b69ab50eff5d37796e50642b244272ca5` | `100755` |
+| `scripts/ci/p02-integration-services.sh` | 4324 | `b721a46fa035c3d5a993521ee596c9c03513733bb4d6dcf272c2f17968a3b537` | `100755` |
 | `scripts/ci/p02_boundary_regression.py` | 3376 | `026d5c444a59c37445ab206a7a7871aeb38a80e337e9e6de4aa80a2101e5c6e4` | `100644` |
 | `scripts/ci/p02_policy_bootstrap.py` | 4414 | `65d30d4a40d38a4e35f8cbe0f6673617ab083353af811e4570f880277e7bad69` | `100644` |
 | `scripts/ci/release_readiness.py` | 8825 | `297625891530f30f36590b2ccc4c63b831ff06d2a17ad8e94afb6216316ec378` | `100644` |
 | `scripts/ci/repo_truth.py` | 19693 | `2aa462105a4533941931a91055870f8153fc83ca53df92d3250283636f96d643` | `100644` |
 | `scripts/ci/service-process-smoke.sh` | 8586 | `ad2752fe4450e004b188ec6ab2c7a1692e905b119ac13ec3ebd706755c617d18` | `100755` |
-| `scripts/ci/test-all.sh` | 3143 | `6abc9d17d08f5310d5c69aee8d63baec45b613d80e5c55b1fba20d7da53df084` | `100755` |
+| `scripts/ci/test-all.sh` | 4408 | `60c0068fbeca183ae7af75bb546f4deea19ecc51f38cbd2dc913645e89132014` | `100755` |
 | `scripts/ci/test_dependency_directions.py` | 3585 | `9415e655efcd1438620bc97446396448298c6538758bf70f2546cd72f6d0bfac` | `100644` |
 | `scripts/ci/test_product_boundaries.py` | 3033 | `4cc23ff94d0f343b9ad6ce35dd5bd2c3e5a51dfe30dddc346af6a0c147c33444` | `100755` |
 | `scripts/ci/test_repo_truth.py` | 11082 | `dd35935299104a462e722b7a3a4aa7824d394155b228cc67f65474a3cf348f98` | `100644` |

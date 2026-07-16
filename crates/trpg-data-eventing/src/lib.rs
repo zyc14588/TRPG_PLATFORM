@@ -23,6 +23,7 @@ pub mod nats_subject_contracts;
 pub mod nats_subjects;
 pub mod nats_subjects_source_contract;
 pub mod outbox_projection_workers;
+pub mod persistence;
 pub mod persistence_migrations;
 pub mod persistence_postgresql;
 pub mod persistence_postgresql_impl;

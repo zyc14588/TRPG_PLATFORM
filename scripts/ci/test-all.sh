@@ -68,7 +68,20 @@ fi
 
 cargo fmt --all -- --check
 cargo check --workspace --all-targets --all-features --locked
+: "${P02_CANONICAL_DATABASE_URL:?P02_CANONICAL_DATABASE_URL is required for the real PostgreSQL gate}"
+: "${P02_CANONICAL_WITNESS_DATABASE_URL:?P02_CANONICAL_WITNESS_DATABASE_URL is required for the real PostgreSQL gate}"
+: "${P02_EVENTING_DATABASE_URL:?P02_EVENTING_DATABASE_URL is required for the real PostgreSQL/JetStream gate}"
+: "${P02_EVENTING_WITNESS_DATABASE_URL:?P02_EVENTING_WITNESS_DATABASE_URL is required for the real PostgreSQL/JetStream gate}"
+: "${P02_EVENTING_ALLOW_DATABASE_RESET:?P02_EVENTING_ALLOW_DATABASE_RESET is required for the destructive eventing upgrade gate}"
+: "${P02_EVENTING_RESET_DATABASE:?P02_EVENTING_RESET_DATABASE is required for the destructive eventing upgrade gate}"
+: "${P02_EVENTING_WITNESS_RESET_DATABASE:?P02_EVENTING_WITNESS_RESET_DATABASE is required for the destructive eventing witness gate}"
+: "${P02_NATS_URL:?P02_NATS_URL is required for the real JetStream gate}"
+: "${P02_REDIS_URL:?P02_REDIS_URL is required for the real Redis gate}"
+: "${P03_DATABASE_URL:?P03_DATABASE_URL is required for the destructive migration gate}"
+: "${P03_ALLOW_DATABASE_RESET:?P03_ALLOW_DATABASE_RESET is required for the destructive migration gate}"
 cargo test --workspace --all-features --locked
+psql "$P03_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
+  -f scripts/ci/assert-schema.sql
 python3 scripts/ci/p02_boundary_regression.py
 npm test
 cargo build --workspace --all-targets --release --locked

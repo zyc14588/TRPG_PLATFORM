@@ -18,6 +18,10 @@ crate::define_data_event_artifacts!(
     EVENT_SCHEMA_NAME
 );
 
-pub fn migration_statements() -> &'static [(&'static str, &'static str)] {
-    crate::persistence_migrations::migration_statements()
+pub fn migrator() -> &'static sqlx::migrate::Migrator {
+    crate::persistence_migrations::migrator()
+}
+
+pub async fn run(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
+    migrator().run(pool).await
 }

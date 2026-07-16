@@ -9,73 +9,23 @@ crate::define_data_event_module!(
     ["migration_ledger"]
 );
 
-pub const EVENT_STORE_MIGRATION_NAME: &str = "create_event_store";
-pub const EVENT_OUTBOX_MIGRATION_NAME: &str = "create_event_outbox";
-pub const PROJECTION_CHECKPOINT_MIGRATION_NAME: &str = "create_projection_checkpoint";
-pub const CANONICAL_COMMIT_PROTOCOL_MIGRATION_NAME: &str = "create_canonical_commit_protocol";
+use sqlx::migrate::Migrator;
 
-pub const EVENT_STORE_MIGRATION_SQL: &str = "\
-CREATE TABLE event_store (
-    sequence BIGSERIAL PRIMARY KEY,
-    event_type TEXT NOT NULL,
-    command_id TEXT NOT NULL,
-    idempotency_key TEXT NOT NULL UNIQUE,
-    expected_version BIGINT NOT NULL,
-    authority_mode TEXT NOT NULL,
-    authority_contract_version BIGINT NOT NULL,
-    visibility_label TEXT NOT NULL,
-    fact_provenance_kind TEXT NOT NULL,
-    fact_provenance_reference TEXT NOT NULL,
-    fact_recorded_by TEXT NOT NULL,
-    correlation_id TEXT NOT NULL,
-    causation_id TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);";
+/// The only executable source for the primary PostgreSQL schema.
+///
+/// `sqlx::migrate!` embeds the bytes and SHA-384 checksums resolved directly
+/// from the repository `migrations/` directory.  No Rust-owned SQL copy is
+/// maintained alongside it.
+pub static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 
-pub const EVENT_OUTBOX_MIGRATION_SQL: &str = "\
-CREATE TABLE event_outbox (
-    outbox_id BIGSERIAL PRIMARY KEY,
-    event_id BIGINT NOT NULL,
-    event_sequence BIGINT NOT NULL,
-    nats_subject TEXT NOT NULL,
-    idempotency_key TEXT NOT NULL UNIQUE,
-    visibility_label TEXT NOT NULL,
-    correlation_id TEXT NOT NULL,
-    causation_id TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    published_at TIMESTAMPTZ,
-    retry_count INTEGER NOT NULL DEFAULT 0
-);";
+/// The external audit witness has its own database and ledger, but its SQL is
+/// still sourced exclusively from the `migrations/` tree.
+pub static WITNESS_MIGRATOR: Migrator = sqlx::migrate!("../../migrations/witness");
 
-pub const PROJECTION_CHECKPOINT_MIGRATION_SQL: &str = "\
-CREATE TABLE projection_checkpoint (
-    projection_name TEXT PRIMARY KEY,
-    stream_id TEXT NOT NULL,
-    version BIGINT NOT NULL,
-    last_event_sequence BIGINT NOT NULL,
-    projection_hash TEXT NOT NULL,
-    rebuilt_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);";
+pub fn migrator() -> &'static Migrator {
+    &MIGRATOR
+}
 
-pub const CANONICAL_COMMIT_PROTOCOL_MIGRATION_SQL: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../migrations/20260715000400_create_canonical_commit_protocol.up.sql"
-));
-
-pub const MIGRATION_STATEMENTS: &[(&str, &str)] = &[
-    (EVENT_STORE_MIGRATION_NAME, EVENT_STORE_MIGRATION_SQL),
-    (EVENT_OUTBOX_MIGRATION_NAME, EVENT_OUTBOX_MIGRATION_SQL),
-    (
-        PROJECTION_CHECKPOINT_MIGRATION_NAME,
-        PROJECTION_CHECKPOINT_MIGRATION_SQL,
-    ),
-    (
-        CANONICAL_COMMIT_PROTOCOL_MIGRATION_NAME,
-        CANONICAL_COMMIT_PROTOCOL_MIGRATION_SQL,
-    ),
-];
-
-pub fn migration_statements() -> &'static [(&'static str, &'static str)] {
-    MIGRATION_STATEMENTS
+pub fn witness_migrator() -> &'static Migrator {
+    &WITNESS_MIGRATOR
 }
