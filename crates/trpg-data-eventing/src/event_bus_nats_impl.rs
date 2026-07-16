@@ -31,8 +31,9 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use async_nats::jetstream::stream::{Config as StreamConfig, StorageType};
-use async_nats::{ConnectOptions, HeaderMap};
+use async_nats::{ConnectOptions, HeaderMap, HeaderValue};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{PgPool, Row};
 use url::Url;
@@ -95,7 +96,7 @@ impl fmt::Debug for JetStreamOutboxPublisher {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct ClaimedOutboxRow {
     outbox_id: i64,
     event_sequence: i64,
@@ -105,16 +106,35 @@ struct ClaimedOutboxRow {
     correlation_id: String,
     causation_id: String,
     payload_json: String,
-    commit_id: String,
+    commit_id: Option<String>,
     event_type: String,
     campaign_id: String,
+    stream_id: String,
     stream_version: i64,
+    idempotency_operation: String,
     visibility_subject: String,
     provenance_kind: String,
     provenance_reference: String,
     provenance_recorded_by: String,
-    event_integrity_hash: String,
+    event_integrity_hash: Option<String>,
+    request_hash_source: String,
+    integrity_status: String,
     retry_count: i32,
+}
+
+impl ClaimedOutboxRow {
+    fn validate_for_publish(&self) -> Result<(), JetStreamOutboxError> {
+        if outbox_integrity_metadata_is_valid(
+            &self.integrity_status,
+            &self.request_hash_source,
+            self.event_integrity_hash.is_some(),
+            self.commit_id.is_some(),
+        ) {
+            Ok(())
+        } else {
+            Err(JetStreamOutboxError::InvalidOutboxPayload)
+        }
+    }
 }
 
 impl JetStreamOutboxPublisher {
@@ -284,7 +304,8 @@ impl JetStreamOutboxPublisher {
                 SELECT outbox.outbox_id, event.event_type, event.campaign_id,
                        event.stream_version, event.visibility_subject,
                        event.fact_provenance_kind, event.fact_provenance_reference,
-                       event.fact_recorded_by, event.event_integrity_hash
+                       event.fact_recorded_by, event.event_integrity_hash,
+                       outbox.request_hash_source, outbox.integrity_status
                   FROM event_outbox outbox
                   JOIN event_store event ON event.sequence = outbox.event_sequence
                  WHERE outbox.published_at IS NULL
@@ -303,12 +324,15 @@ impl JetStreamOutboxPublisher {
              WHERE outbox.outbox_id = candidates.outbox_id
             RETURNING outbox.outbox_id, outbox.event_sequence, outbox.nats_subject,
                       outbox.idempotency_key, outbox.visibility_label,
-                      outbox.correlation_id, outbox.causation_id, outbox.payload_json,
-                      outbox.commit_id, outbox.retry_count,
+                      outbox.correlation_id, outbox.causation_id,
+                      outbox.payload_json::text AS payload_json,
+                      outbox.commit_id, outbox.retry_count, outbox.stream_id,
+                      outbox.idempotency_operation,
                       candidates.event_type, candidates.campaign_id,
                       candidates.stream_version, candidates.visibility_subject,
                       candidates.fact_provenance_kind, candidates.fact_provenance_reference,
-                      candidates.fact_recorded_by, candidates.event_integrity_hash
+                      candidates.fact_recorded_by, candidates.event_integrity_hash,
+                      candidates.request_hash_source, candidates.integrity_status
             "#,
         )
         .bind(&self.worker_id)
@@ -316,11 +340,14 @@ impl JetStreamOutboxPublisher {
         .fetch_all(&self.pool)
         .await
         .map_err(|_| JetStreamOutboxError::Database("claim_batch"))?;
-        rows.iter()
+        Ok(rows
+            .iter()
             .map(|row| {
                 let event_integrity_hash: Option<String> = row.get("event_integrity_hash");
                 let commit_id: Option<String> = row.get("commit_id");
-                Ok(ClaimedOutboxRow {
+                let request_hash_source: String = row.get("request_hash_source");
+                let integrity_status: String = row.get("integrity_status");
+                ClaimedOutboxRow {
                     outbox_id: row.get("outbox_id"),
                     event_sequence: row.get("event_sequence"),
                     subject: row.get("nats_subject"),
@@ -329,23 +356,30 @@ impl JetStreamOutboxPublisher {
                     correlation_id: row.get("correlation_id"),
                     causation_id: row.get("causation_id"),
                     payload_json: row.get("payload_json"),
-                    commit_id: commit_id.ok_or(JetStreamOutboxError::InvalidOutboxPayload)?,
+                    commit_id,
                     event_type: row.get("event_type"),
                     campaign_id: row.get("campaign_id"),
+                    stream_id: row.get("stream_id"),
                     stream_version: row.get("stream_version"),
+                    idempotency_operation: row.get("idempotency_operation"),
                     visibility_subject: row.get("visibility_subject"),
                     provenance_kind: row.get("fact_provenance_kind"),
                     provenance_reference: row.get("fact_provenance_reference"),
                     provenance_recorded_by: row.get("fact_recorded_by"),
-                    event_integrity_hash: event_integrity_hash
-                        .ok_or(JetStreamOutboxError::InvalidOutboxPayload)?,
+                    event_integrity_hash,
+                    request_hash_source,
+                    integrity_status,
                     retry_count: row.get("retry_count"),
-                })
+                }
             })
-            .collect()
+            .collect())
     }
 
     async fn publish_one(&self, row: &ClaimedOutboxRow) -> Result<(), JetStreamOutboxError> {
+        // Validate after claiming so one corrupt row follows the ordinary
+        // per-row failure/dead-letter path without retaining every other
+        // claim in the batch until the lease expires.
+        row.validate_for_publish()?;
         let payload: Value = serde_json::from_str(&row.payload_json)
             .map_err(|_| JetStreamOutboxError::InvalidOutboxPayload)?;
         let envelope = serde_json::to_vec(&json!({
@@ -354,6 +388,9 @@ impl JetStreamOutboxPublisher {
             "event_type": row.event_type,
             "commit_id": row.commit_id,
             "campaign_id": row.campaign_id,
+            "stream_id": row.stream_id,
+            "idempotency_operation": row.idempotency_operation,
+            "idempotency_key": row.idempotency_key,
             "visibility_label": row.visibility_label,
             "visibility_subject": row.visibility_subject,
             "provenance_kind": row.provenance_kind,
@@ -362,14 +399,12 @@ impl JetStreamOutboxPublisher {
             "correlation_id": row.correlation_id,
             "causation_id": row.causation_id,
             "event_integrity_hash": row.event_integrity_hash,
+            "request_hash_source": row.request_hash_source,
+            "integrity_status": row.integrity_status,
             "payload": payload,
         }))
         .map_err(|_| JetStreamOutboxError::InvalidOutboxPayload)?;
-        let mut headers = HeaderMap::new();
-        headers.insert("Nats-Msg-Id", row.idempotency_key.as_str());
-        headers.insert("Trpg-Commit-Id", row.commit_id.as_str());
-        headers.insert("Trpg-Correlation-Id", row.correlation_id.as_str());
-        headers.insert("Trpg-Visibility", row.visibility_label.as_str());
+        let headers = outbox_headers(row)?;
         self.jetstream
             .publish_with_headers(row.subject.clone(), headers, envelope.into())
             .await
@@ -461,9 +496,105 @@ fn validate_nats_url(nats_url: &str) -> Result<(bool, bool), JetStreamOutboxErro
     Ok((local, tls))
 }
 
+fn outbox_integrity_metadata_is_valid(
+    integrity_status: &str,
+    request_hash_source: &str,
+    has_integrity_hash: bool,
+    has_commit_id: bool,
+) -> bool {
+    match (integrity_status, request_hash_source) {
+        ("verified_hmac", "formal_commit") => has_integrity_hash && has_commit_id,
+        ("historical_unverified_hmac", "formal_commit") => has_integrity_hash && has_commit_id,
+        ("historical_unsigned", "historical_unavailable") => !has_integrity_hash && !has_commit_id,
+        _ => false,
+    }
+}
+
+fn insert_outbox_header(
+    headers: &mut HeaderMap,
+    name: &'static str,
+    value: &str,
+) -> Result<(), JetStreamOutboxError> {
+    // async-nats' infallible `From<&str>` implementation asserts on CR/LF.
+    // Historical rows can predate today's database validators, so parse every
+    // dynamic value through the fallible API and keep failure row-scoped.
+    let value =
+        HeaderValue::from_str(value).map_err(|_| JetStreamOutboxError::InvalidOutboxPayload)?;
+    headers.insert(name, value);
+    Ok(())
+}
+
+fn outbox_headers(row: &ClaimedOutboxRow) -> Result<HeaderMap, JetStreamOutboxError> {
+    let mut headers = HeaderMap::new();
+    // JetStream duplicate detection is global to the NATS stream. Bind its
+    // message id to the complete persisted idempotency scope so equal client
+    // keys in distinct campaign/resource streams cannot suppress one another.
+    insert_outbox_header(&mut headers, "Nats-Msg-Id", &nats_message_id(row))?;
+    insert_outbox_header(&mut headers, "Trpg-Idempotency-Key", &row.idempotency_key)?;
+    insert_outbox_header(&mut headers, "Trpg-Stream-Id", &row.stream_id)?;
+    insert_outbox_header(
+        &mut headers,
+        "Trpg-Idempotency-Operation",
+        &row.idempotency_operation,
+    )?;
+    if let Some(commit_id) = &row.commit_id {
+        insert_outbox_header(&mut headers, "Trpg-Commit-Id", commit_id)?;
+    }
+    insert_outbox_header(&mut headers, "Trpg-Correlation-Id", &row.correlation_id)?;
+    insert_outbox_header(&mut headers, "Trpg-Visibility", &row.visibility_label)?;
+    insert_outbox_header(&mut headers, "Trpg-Integrity-Status", &row.integrity_status)?;
+    insert_outbox_header(
+        &mut headers,
+        "Trpg-Request-Hash-Source",
+        &row.request_hash_source,
+    )?;
+    Ok(headers)
+}
+
+fn nats_message_id(row: &ClaimedOutboxRow) -> String {
+    let mut digest = Sha256::new();
+    for field in [
+        row.campaign_id.as_str(),
+        row.stream_id.as_str(),
+        row.idempotency_operation.as_str(),
+        row.idempotency_key.as_str(),
+    ] {
+        digest.update((field.len() as u64).to_be_bytes());
+        digest.update(field.as_bytes());
+    }
+    format!("trpg-outbox-sha256:{:x}", digest.finalize())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn claimed_row(integrity_status: &str, request_hash_source: &str) -> ClaimedOutboxRow {
+        ClaimedOutboxRow {
+            outbox_id: 1,
+            event_sequence: 1,
+            subject: "trpg.events.appended".to_owned(),
+            idempotency_key: "claimed_row".to_owned(),
+            visibility_label: "party_visible".to_owned(),
+            correlation_id: "correlation".to_owned(),
+            causation_id: "causation".to_owned(),
+            payload_json: "{}".to_owned(),
+            commit_id: None,
+            event_type: "ClaimedRowProbe".to_owned(),
+            campaign_id: "campaign".to_owned(),
+            stream_id: "campaign".to_owned(),
+            stream_version: 1,
+            idempotency_operation: "canonical_commit".to_owned(),
+            visibility_subject: "not_applicable".to_owned(),
+            provenance_kind: "rules_engine_decision".to_owned(),
+            provenance_reference: "decision".to_owned(),
+            provenance_recorded_by: "rules_engine".to_owned(),
+            event_integrity_hash: None,
+            request_hash_source: request_hash_source.to_owned(),
+            integrity_status: integrity_status.to_owned(),
+            retry_count: 0,
+        }
+    }
 
     #[test]
     fn remote_plaintext_nats_is_rejected() {
@@ -477,5 +608,87 @@ mod tests {
             validate_nats_url("tls://nats.example.invalid:4222"),
             Ok((false, true))
         );
+    }
+
+    #[test]
+    fn outbox_integrity_metadata_rejects_mixed_states() {
+        assert!(outbox_integrity_metadata_is_valid(
+            "verified_hmac",
+            "formal_commit",
+            true,
+            true,
+        ));
+        assert!(outbox_integrity_metadata_is_valid(
+            "historical_unsigned",
+            "historical_unavailable",
+            false,
+            false,
+        ));
+        assert!(outbox_integrity_metadata_is_valid(
+            "historical_unverified_hmac",
+            "formal_commit",
+            true,
+            true,
+        ));
+        assert!(!outbox_integrity_metadata_is_valid(
+            "verified_hmac",
+            "historical_unavailable",
+            true,
+            false,
+        ));
+        assert!(!outbox_integrity_metadata_is_valid(
+            "historical_unsigned",
+            "formal_commit",
+            false,
+            true,
+        ));
+    }
+
+    #[test]
+    fn claimed_row_integrity_failure_is_scoped_to_its_delivery_attempt() {
+        let invalid = claimed_row("verified_hmac", "historical_unavailable");
+        assert_eq!(
+            invalid.validate_for_publish(),
+            Err(JetStreamOutboxError::InvalidOutboxPayload)
+        );
+
+        let historical = claimed_row("historical_unsigned", "historical_unavailable");
+        assert_eq!(historical.validate_for_publish(), Ok(()));
+    }
+
+    #[test]
+    fn malformed_historical_header_values_return_errors_instead_of_panicking() {
+        let valid = claimed_row("historical_unsigned", "historical_unavailable");
+        assert!(outbox_headers(&valid).is_ok());
+
+        let mut bad_idempotency = valid.clone();
+        bad_idempotency.idempotency_key = "historic\r\nmessage-id".to_owned();
+        assert!(matches!(
+            outbox_headers(&bad_idempotency),
+            Err(JetStreamOutboxError::InvalidOutboxPayload)
+        ));
+
+        let mut bad_correlation = valid.clone();
+        bad_correlation.correlation_id = "historic\ncorrelation".to_owned();
+        assert!(matches!(
+            outbox_headers(&bad_correlation),
+            Err(JetStreamOutboxError::InvalidOutboxPayload)
+        ));
+
+        let mut bad_commit = valid;
+        bad_commit.commit_id = Some("historic\rcommit".to_owned());
+        assert!(matches!(
+            outbox_headers(&bad_commit),
+            Err(JetStreamOutboxError::InvalidOutboxPayload)
+        ));
+    }
+
+    #[test]
+    fn jetstream_message_id_binds_the_complete_idempotency_scope() {
+        let first = claimed_row("historical_unsigned", "historical_unavailable");
+        let mut other_stream = first.clone();
+        other_stream.stream_id = "other_stream".to_owned();
+        assert_ne!(nats_message_id(&first), nats_message_id(&other_stream));
+        assert_eq!(nats_message_id(&first), nats_message_id(&first.clone()));
     }
 }

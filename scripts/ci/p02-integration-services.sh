@@ -9,6 +9,7 @@ if [[ -z "$github_env" ]]; then
 fi
 
 postgres_image="postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+pgvector_image="pgvector/pgvector@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb"
 redis_image="redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"
 nats_image="nats@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0"
 openfga_image="openfga/openfga@sha256:8543200bf85878c968d73da46c4f0e31ba1f63ed3675b71122f1133b0e9d97eb"
@@ -18,7 +19,7 @@ docker run -d --name p02-primary-postgres \
   -e POSTGRES_HOST_AUTH_METHOD=trust \
   -e POSTGRES_DB=p02_identity \
   -p 127.0.0.1:15432:5432 \
-  "$postgres_image"
+  "$pgvector_image"
 docker run -d --name p02-witness-postgres \
   -e POSTGRES_HOST_AUTH_METHOD=trust \
   -p 127.0.0.1:15433:5432 \
@@ -65,7 +66,8 @@ for database in \
   p02_eventing \
   p02_workflow \
   p02_api_replay \
-  p02_formal_commit; do
+  p02_formal_commit \
+  p03_migration_upgrade; do
   docker exec p02-primary-postgres createdb -U postgres "$database"
 done
 for database in \
@@ -109,6 +111,9 @@ P02_CANONICAL_DATABASE_URL=postgresql://postgres@127.0.0.1:15432/p02_canonical
 P02_CANONICAL_WITNESS_DATABASE_URL=postgresql://postgres@127.0.0.1:15433/p02_canonical_witness
 P02_EVENTING_DATABASE_URL=postgresql://postgres@127.0.0.1:15432/p02_eventing
 P02_EVENTING_WITNESS_DATABASE_URL=postgresql://postgres@127.0.0.1:15433/p02_eventing_witness
+P02_EVENTING_ALLOW_DATABASE_RESET=1
+P02_EVENTING_RESET_DATABASE=p02_eventing
+P02_EVENTING_WITNESS_RESET_DATABASE=p02_eventing_witness
 P02_WORKFLOW_DATABASE_URL=postgresql://postgres@127.0.0.1:15432/p02_workflow
 P02_API_CANONICAL_DATABASE_URL=postgresql://postgres@127.0.0.1:15432/p02_api_replay
 P02_API_CANONICAL_WITNESS_DATABASE_URL=postgresql://postgres@127.0.0.1:15433/p02_api_replay_witness
@@ -116,6 +121,8 @@ P02_FORMAL_COMMIT_DATABASE_URL=postgresql://postgres@127.0.0.1:15432/p02_formal_
 P02_FORMAL_COMMIT_WITNESS_DATABASE_URL=postgresql://postgres@127.0.0.1:15433/p02_formal_commit_witness
 P02_WITNESS_DATABASE_URL=postgresql://postgres@127.0.0.1:15433/p02_service_witness
 P02_NATS_URL=nats://127.0.0.1:14222
+P03_DATABASE_URL=postgresql://postgres@127.0.0.1:15432/p03_migration_upgrade
+P03_ALLOW_DATABASE_RESET=1
 ENVIRONMENT
 
 python3 "$root/scripts/ci/p02_policy_bootstrap.py" --github-env "$github_env"

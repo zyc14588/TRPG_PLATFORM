@@ -7,12 +7,13 @@ license = "UNLICENSED"
 
 [dependencies]
 async-nats = { version = "0.49.1", default-features = false, features = ["jetstream", "nkeys", "ring"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 hmac = "0.12"
 redis = { version = "1.0", default-features = false, features = ["aio", "connection-manager", "script", "tokio-comp"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10.9"
-sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres"] }
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "chrono", "json", "macros", "migrate"] }
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "time"] }
 trpg-contracts = { path = "../trpg-contracts" }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }

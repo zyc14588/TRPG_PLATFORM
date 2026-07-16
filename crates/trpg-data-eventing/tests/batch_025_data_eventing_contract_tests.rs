@@ -284,25 +284,24 @@ fn b025_schema_and_migration_contracts_preserve_required_metadata() {
         assert!(EVENT_ENVELOPE_REQUIRED_FIELDS.contains(&required));
     }
 
-    let migration_text = sqlx_migrations::migration_statements()
+    let migration_text = sqlx_migrations::migrator()
         .iter()
-        .map(|(_, sql)| *sql)
+        .map(|migration| migration.sql.as_ref())
         .collect::<Vec<_>>()
         .join("\n");
-    assert_eq!(
-        sqlx_migrations::migration_statements(),
-        persistence_migrations::migration_statements()
-    );
+    assert!(std::ptr::eq(
+        sqlx_migrations::migrator(),
+        persistence_migrations::migrator()
+    ));
     for column in sqlx_migrations_contract::required_event_store_columns() {
         assert!(migration_text.contains(column));
         assert!(is_current_safe_name(column));
     }
 
-    for (name, sql) in sqlx_migrations::migration_statements() {
-        assert!(is_current_safe_name(name));
-        assert!(sql.contains("CREATE TABLE"));
-        assert!(!sql.contains("generated-from-source"));
-        assert!(!sql.contains("v6"));
+    for migration in sqlx_migrations::migrator().iter() {
+        assert!(migration.version > 0);
+        assert!(!migration.sql.contains("generated-from-source"));
+        assert!(!migration.sql.contains("v6"));
     }
 }
 

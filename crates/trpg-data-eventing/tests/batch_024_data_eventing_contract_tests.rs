@@ -381,17 +381,28 @@ fn b024_declares_required_command_event_schema_fields() {
 
 #[test]
 fn b024_declares_current_safe_sqlx_migration_contract() {
-    let statements = persistence_migrations::migration_statements();
-    assert_eq!(statements.len(), 4);
+    let migrations = persistence_migrations::migrator()
+        .iter()
+        .filter(|migration| migration.migration_type.is_up_migration())
+        .collect::<Vec<_>>();
+    assert!(migrations.len() >= 7);
+    assert_eq!(
+        migrations
+            .iter()
+            .map(|migration| migration.version)
+            .collect::<HashSet<_>>()
+            .len(),
+        migrations.len()
+    );
 
-    for (name, sql) in statements {
-        assert!(is_current_safe_name(name));
-        assert!(!sql.contains("generated-from-source"));
-        assert!(!sql.contains("v4"));
-        assert!(!sql.contains("v5"));
-    }
-
-    let event_store_sql = persistence_migrations::EVENT_STORE_MIGRATION_SQL;
+    let event_store = migrations
+        .iter()
+        .find(|migration| {
+            migration.version
+                == trpg_data_eventing::sqlx_migrations_contract::FROZEN_EVENT_STORE_MIGRATION_VERSION
+        })
+        .expect("frozen event-store migration is compiled from migrations/");
+    let event_store_sql = event_store.sql.as_ref();
     for required in [
         "event_store",
         "idempotency_key",
@@ -405,30 +416,42 @@ fn b024_declares_current_safe_sqlx_migration_contract() {
     ] {
         assert!(event_store_sql.contains(required));
     }
+    assert_eq!(
+        event_store
+            .checksum
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+        trpg_data_eventing::sqlx_migrations_contract::FROZEN_EVENT_STORE_MIGRATION_SHA384
+    );
 
-    let outbox_sql = persistence_migrations::EVENT_OUTBOX_MIGRATION_SQL;
+    let hardening_sql = migrations
+        .iter()
+        .find(|migration| migration.version == 20_260_716_000_100)
+        .expect("forward-only event persistence hardening migration")
+        .sql
+        .as_ref();
     for required in [
         "event_outbox",
         "event_sequence",
         "nats_subject",
         "idempotency_key",
         "visibility_label",
-        "published_at",
         "retry_count",
+        "event_outbox_idempotency_scope_uq",
+        "event_store_stream_version_uq",
+        "event_schema_version",
+        "request_hash",
+        "request_hash_source",
+        "integrity_status",
+        "payload_integrity_source",
+        "payload_json TYPE JSONB",
+        "enforce_event_outbox_binding",
+        "nats_subject = 'trpg.events.appended'",
     ] {
-        assert!(outbox_sql.contains(required));
+        assert!(hardening_sql.contains(required));
     }
-
-    let canonical_sql = persistence_migrations::CANONICAL_COMMIT_PROTOCOL_MIGRATION_SQL;
-    for required in [
-        "canonical_audit_log",
-        "formal_commits",
-        "workflow_instances",
-        "event_integrity_hash",
-        "reject_canonical_append_mutation",
-    ] {
-        assert!(canonical_sql.contains(required));
-    }
+    assert!(!hardening_sql.contains("CREATE TABLE IF NOT EXISTS"));
 }
 
 fn authority_contract(mode: AuthorityMode) -> AuthorityContract {

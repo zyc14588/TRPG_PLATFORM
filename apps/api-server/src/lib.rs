@@ -525,6 +525,7 @@ fn canonical_event_json(event: CanonicalReplayEvent) -> serde_json::Value {
     json!({
         "sequence": event.sequence,
         "stream_version": event.stream_version,
+        "stream_id": event.stream_id,
         "event_type": event.event_type,
         "campaign_id": event.campaign_id,
         "authenticated_actor_id": event.authenticated_actor_id,
@@ -545,6 +546,8 @@ fn canonical_event_json(event: CanonicalReplayEvent) -> serde_json::Value {
         "trace_id": event.trace_id,
         "payload": event.payload,
         "event_integrity_hash": event.event_integrity_hash,
+        "request_hash_source": event.request_hash_source,
+        "integrity_status": event.integrity_status,
     })
 }
 

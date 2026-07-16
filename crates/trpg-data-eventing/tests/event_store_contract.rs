@@ -15,6 +15,8 @@ const RAG_SNAPSHOT_CASES: &str = include_str!("../../../test-data/rag_snapshot_c
 const API_WS_CONTRACT_CASES: &str = include_str!("../../../test-data/api_ws_contract_samples.md");
 const DATA_EVENTING_MIGRATION: &str =
     include_str!("../../../migrations/20260705000100_create_data_eventing_event_store.up.sql");
+const EVENT_PERSISTENCE_HARDENING_MIGRATION: &str =
+    include_str!("../../../migrations/20260716000100_harden_event_persistence_schema.sql");
 
 #[test]
 fn s03_fixtures_are_bound_to_event_store_contract_assertions() {
@@ -188,38 +190,38 @@ fn migration_entry_is_repeatable_sqlx_evidence() {
             "fact_provenance_kind TEXT NOT NULL",
             "correlation_id TEXT NOT NULL",
             "causation_id TEXT NOT NULL",
-            "event_id BIGINT NOT NULL",
-            "stream_id TEXT NOT NULL",
-            "version BIGINT NOT NULL",
             "REFERENCES event_store(sequence)",
         ],
     );
     assert!(!DATA_EVENTING_MIGRATION.contains("v4"));
     assert!(!DATA_EVENTING_MIGRATION.contains("v5"));
 
-    let statements = persistence_migrations::migration_statements();
-    assert_eq!(
-        statements.iter().map(|(name, _)| *name).collect::<Vec<_>>(),
-        vec![
-            persistence_migrations::EVENT_STORE_MIGRATION_NAME,
-            persistence_migrations::EVENT_OUTBOX_MIGRATION_NAME,
-            persistence_migrations::PROJECTION_CHECKPOINT_MIGRATION_NAME,
-            persistence_migrations::CANONICAL_COMMIT_PROTOCOL_MIGRATION_NAME,
-        ]
-    );
-    for (name, sql) in statements {
-        assert!(trpg_data_eventing::is_current_safe_name(name));
-        assert!(sql.contains("CREATE TABLE"));
-    }
+    let migrations = persistence_migrations::migrator()
+        .iter()
+        .collect::<Vec<_>>();
+    assert!(migrations
+        .iter()
+        .any(|migration| migration.version == 20_260_705_000_100));
+    assert!(migrations
+        .iter()
+        .any(|migration| migration.version == 20_260_716_000_100));
     assert_contains_all(
-        persistence_migrations::CANONICAL_COMMIT_PROTOCOL_MIGRATION_SQL,
+        EVENT_PERSISTENCE_HARDENING_MIGRATION,
         &[
-            "CREATE TABLE IF NOT EXISTS canonical_audit_log",
-            "CREATE TABLE IF NOT EXISTS formal_commits",
-            "ALTER TABLE event_store",
-            "ALTER TABLE event_outbox",
+            "event_store_stream_version_uq",
+            "event_store_idempotency_scope_uq",
+            "event_outbox_idempotency_scope_uq",
+            "event_schema_version",
+            "request_hash",
+            "request_hash_source",
+            "integrity_status",
+            "payload_integrity_source",
+            "payload_json TYPE JSONB",
+            "enforce_event_outbox_binding",
+            "nats_subject = 'trpg.events.appended'",
         ],
     );
+    assert!(!EVENT_PERSISTENCE_HARDENING_MIGRATION.contains("CREATE TABLE IF NOT EXISTS"));
 }
 
 #[test]

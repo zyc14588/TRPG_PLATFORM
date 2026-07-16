@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS event_store (
 
 CREATE TABLE IF NOT EXISTS event_outbox (
     outbox_id BIGSERIAL PRIMARY KEY,
+    event_id BIGINT NOT NULL REFERENCES event_store(sequence),
     event_sequence BIGINT NOT NULL REFERENCES event_store(sequence),
     nats_subject TEXT NOT NULL,
     idempotency_key TEXT NOT NULL UNIQUE,
@@ -31,6 +32,8 @@ CREATE TABLE IF NOT EXISTS event_outbox (
 
 CREATE TABLE IF NOT EXISTS projection_checkpoint (
     projection_name TEXT PRIMARY KEY,
+    stream_id TEXT NOT NULL,
+    version BIGINT NOT NULL,
     last_event_sequence BIGINT NOT NULL,
     projection_hash TEXT NOT NULL,
     rebuilt_at TIMESTAMPTZ NOT NULL DEFAULT now()
