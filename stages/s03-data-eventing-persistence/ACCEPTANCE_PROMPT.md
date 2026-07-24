@@ -19,7 +19,7 @@
 - [ ] Event Store 是唯一正史；Projection/Cache/RAG 均可重建
 - [ ] 所有正式写入在 transaction 内完成 event append 与 outbox
 - [ ] NATS 只发布 Event Store 派生事件，不替代正史
-- [ ] RAG chunk 携带 source_type、visibility、version、owner、allowed_use
+- [ ] RAG chunk 携带 source_type、visibility、copyright_status、version、owner、allowed_use
 
 ## 通用红线
 

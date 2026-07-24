@@ -1,6 +1,7 @@
 use trpg_shared_kernel::shared_kernel::{
     kernel_contract_snapshot, validate_command_envelope, ActorRole, AuthorityMode, EntityId,
-    EventStore, FormalWritePath, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
+    EventStore, FormalWritePath, PrincipalCapability, PrincipalClaims, PrincipalScope, TrpgError,
+    Visibility, VisibilityLabel,
 };
 
 #[test]
@@ -26,8 +27,117 @@ fn shared_kernel_enforces_typed_ids_and_visibility_fixture_contract() {
     );
     assert!(snapshot.visibility_enum.contains(&"system_only"));
     assert!(snapshot.visibility_enum.contains(&"party_visible"));
+    assert!(snapshot.visibility_enum.contains(&"private_to_group"));
     assert!(snapshot.visibility_enum.contains(&"ai_internal"));
+    assert!(snapshot.visibility_enum.contains(&"spectator_visible"));
+    assert!(snapshot.visibility_enum.contains(&"spectator_hidden"));
     assert!(snapshot.error_codes.contains(&"INVALID_ENTITY_ID"));
+}
+
+#[test]
+fn shared_kernel_enforces_the_authoritative_audience_matrix() {
+    let player = EntityId::new("player_a").unwrap();
+    let group_a = EntityId::new("group_a").unwrap();
+    let group_b = EntityId::new("group_b").unwrap();
+
+    let party = Visibility::new(VisibilityLabel::PartyVisible);
+    assert!(party.can_view(&PrincipalScope::Player(player.clone())));
+    assert!(party.can_view(&PrincipalScope::GroupMember(group_a.clone())));
+    assert!(!party.can_view(&PrincipalScope::Spectator));
+    assert!(!party.can_view(&PrincipalScope::Public));
+
+    let private_group = Visibility::private_to_group(group_a.clone());
+    assert!(private_group.is_well_formed());
+    assert_eq!(private_group.group_id(), Some(&group_a));
+    assert!(private_group.can_view(&PrincipalScope::GroupMember(group_a)));
+    assert!(!private_group.can_view(&PrincipalScope::GroupMember(group_b)));
+    assert!(!private_group.can_view(&PrincipalScope::Player(player.clone())));
+    assert!(private_group.can_view(&PrincipalScope::Keeper));
+
+    let spectator_visible = Visibility::new(VisibilityLabel::SpectatorVisible);
+    assert!(spectator_visible.can_view(&PrincipalScope::Spectator));
+    assert!(spectator_visible.can_view(&PrincipalScope::Player(player.clone())));
+    assert!(!spectator_visible.can_view(&PrincipalScope::Public));
+
+    let spectator_hidden = Visibility::new(VisibilityLabel::SpectatorHidden);
+    assert!(!spectator_hidden.can_view(&PrincipalScope::Spectator));
+    assert!(spectator_hidden.can_view(&PrincipalScope::Player(player)));
+    assert!(spectator_hidden.can_view(&PrincipalScope::Keeper));
+
+    let private_player = Visibility::private_to_player(EntityId::new("player_a").unwrap());
+    let private_group = Visibility::private_to_group(EntityId::new("group_a").unwrap());
+    assert_eq!(
+        private_player
+            .label()
+            .conservative_merge(private_group.label()),
+        VisibilityLabel::KeeperOnly
+    );
+    assert_eq!(
+        private_group
+            .label()
+            .conservative_merge(private_player.label()),
+        VisibilityLabel::KeeperOnly
+    );
+}
+
+#[test]
+fn visibility_wire_values_reject_targetless_or_spuriously_targeted_labels() {
+    assert_eq!(
+        serde_json::from_str::<Visibility>(r#"{"label":"private_to_player"}"#)
+            .unwrap_err()
+            .to_string(),
+        "VISIBILITY_DENIED"
+    );
+    assert_eq!(
+        serde_json::from_str::<Visibility>(r#"{"label":"public","subject_id":"player_a"}"#)
+            .unwrap_err()
+            .to_string(),
+        "VISIBILITY_DENIED"
+    );
+
+    let targeted = Visibility::private_to_player(EntityId::new("player_a").unwrap());
+    assert_eq!(
+        serde_json::to_value(&targeted).unwrap(),
+        serde_json::json!({"label": "private_to_player", "subject_id": "player_a"})
+    );
+    assert_eq!(
+        serde_json::from_value::<Visibility>(serde_json::to_value(targeted).unwrap()).unwrap(),
+        Visibility::private_to_player(EntityId::new("player_a").unwrap())
+    );
+}
+
+#[test]
+fn authenticated_principal_claims_preserve_composite_audiences() {
+    let claims = PrincipalClaims::new("user_a")
+        .unwrap()
+        .with_player("player_a")
+        .unwrap()
+        .with_group("group_a")
+        .unwrap()
+        .with_group("group_b")
+        .unwrap()
+        .with_character("investigator_a")
+        .unwrap()
+        .with_capability(PrincipalCapability::PartyMember)
+        .with_capability(PrincipalCapability::Spectator);
+    let principal = PrincipalScope::Claims(claims);
+
+    assert!(Visibility::private_to_player(EntityId::new("player_a").unwrap()).can_view(&principal));
+    assert!(Visibility::private_to_group(EntityId::new("group_b").unwrap()).can_view(&principal));
+    assert!(
+        !Visibility::private_to_player(EntityId::new("player_b").unwrap()).can_view(&principal)
+    );
+    assert!(Visibility::new(VisibilityLabel::SpectatorVisible).can_view(&principal));
+    assert!(Visibility::new(VisibilityLabel::SpectatorHidden).can_view(&principal));
+}
+
+#[test]
+fn user_identity_alone_does_not_impersonate_a_private_player_target() {
+    let principal = PrincipalScope::Claims(PrincipalClaims::new("player_a").unwrap());
+
+    assert!(
+        !Visibility::private_to_player(EntityId::new("player_a").unwrap()).can_view(&principal)
+    );
 }
 
 #[test]
@@ -97,6 +207,44 @@ fn shared_kernel_replay_redacts_visibility_restricted_events() {
         ))
         .is_empty());
     assert!(store.replay_visible(&PrincipalScope::Public).is_empty());
+}
+
+#[test]
+fn unscoped_replay_fails_closed_for_multi_campaign_stores() {
+    let contract_a =
+        trpg_test_support::authority_contract("campaign_replay_a", AuthorityMode::HumanKp, 1)
+            .unwrap();
+    let contract_b =
+        trpg_test_support::authority_contract("campaign_replay_b", AuthorityMode::HumanKp, 1)
+            .unwrap();
+    let mut command_a = trpg_test_support::governed_command_for_contract(
+        &contract_a,
+        "secret-a",
+        ActorRole::HumanKeeper,
+    );
+    command_a.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
+    let mut command_b = trpg_test_support::governed_command_for_contract(
+        &contract_b,
+        "secret-b",
+        ActorRole::HumanKeeper,
+    );
+    command_b.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
+
+    let mut store = EventStore::default();
+    store
+        .append(&command_a, "CampaignASecret", "secret-a")
+        .unwrap();
+    store
+        .append(&command_b, "CampaignBSecret", "secret-b")
+        .unwrap();
+
+    assert!(store.replay_visible(&PrincipalScope::Keeper).is_empty());
+    assert_eq!(
+        store
+            .replay_visible_in_campaign(contract_a.campaign_id(), &PrincipalScope::Keeper)
+            .len(),
+        1
+    );
 }
 
 #[test]

@@ -1,11 +1,11 @@
-mod common;
+pub mod common;
 
 use trpg_agent_runtime::adr_0009_agent_governance_agent_governance;
 use trpg_agent_runtime::agent_context_assembler;
 use trpg_agent_runtime::agent_evaluation_golden_scenario;
 use trpg_agent_runtime::agent_runtime::{
     self, AgentDecision, AgentDecisionCommitter, AgentEventPayload, AgentKind, AgentTool,
-    ContextFact, ToolRequest,
+    ToolRequest,
 };
 use trpg_agent_runtime::agent_runtime_tool_protocol;
 use trpg_agent_runtime::ai_evaluation_golden_scenario;
@@ -17,7 +17,7 @@ use trpg_agent_runtime::memory_rag;
 use trpg_agent_runtime::memory_rag_rag_snapshot;
 use trpg_agent_runtime::model_provider::{
     evaluate_cloud_fallback, provider_boundary_snapshot, validate_provider_config, Environment,
-    FallbackDecision, FallbackPolicy, ModelRouteSnapshot, ProviderConfig, ProviderType,
+    FallbackDecision, ModelRouteSnapshot, ProviderConfig, ProviderType, SecretReference,
 };
 use trpg_agent_runtime::model_provider_local_cloud;
 use trpg_agent_runtime::rag_snapshot::{query_visible_chunks, require_visible_chunk, RagChunk};
@@ -25,8 +25,8 @@ use trpg_agent_runtime::tool_protocol;
 use trpg_agent_runtime::working_memory_long_memory_rag;
 use trpg_agent_runtime::working_memory_rag_rag_snapshot;
 use trpg_agent_runtime::{
-    ActorRole, AuthorityMode, CommandEnvelope, FormalWritePath, PrincipalScope, Visibility,
-    VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, EntityId, FormalWritePath, PrincipalScope,
+    Visibility, VisibilityLabel,
 };
 
 const RESTRICTED_PLAYER_VISIBLE_TOKENS: &[&str] = &[
@@ -37,6 +37,39 @@ const RESTRICTED_PLAYER_VISIBLE_TOKENS: &[&str] = &[
     "private_to_player",
     "ai_internal",
 ];
+
+fn fallback_local_provider() -> ProviderConfig {
+    ProviderConfig {
+        provider_id: EntityId::new("ollama").unwrap(),
+        provider_type: ProviderType::Ollama,
+        model_id: "local-model".to_owned(),
+        model_artifact_sha256: format!("sha256:{}", "1".repeat(64)),
+        base_url: "http://127.0.0.1:11434/v1".to_owned(),
+        credential: SecretReference::development("fallback_ollama", 1).unwrap(),
+        environment: Environment::Dev,
+    }
+}
+
+fn fallback_cloud_provider() -> ProviderConfig {
+    ProviderConfig {
+        provider_id: EntityId::new("cloud").unwrap(),
+        provider_type: ProviderType::Cloud,
+        model_id: "cloud-model-v1".to_owned(),
+        model_artifact_sha256: format!("sha256:{}", "2".repeat(64)),
+        base_url: "https://cloud.example.test/v1".to_owned(),
+        credential: SecretReference::development("fallback_cloud", 1).unwrap(),
+        environment: Environment::Dev,
+    }
+}
+
+fn fallback_cloud_route() -> ModelRouteSnapshot {
+    ModelRouteSnapshot {
+        provider_type: ProviderType::Cloud,
+        model_id: "cloud-model-v1".to_owned(),
+        fallback_policy: "explicit_audited_only",
+        privacy_boundary: "explicit_consent_no_silent_fallback",
+    }
+}
 
 fn ai_kp_command(payload: AgentDecision) -> CommandEnvelope<AgentDecision> {
     trpg_test_support::governed_command(payload, ActorRole::Workflow, AuthorityMode::AiKp)
@@ -286,13 +319,13 @@ fn expression_agent_cannot_reveal_clue_or_write_directly() {
 
 #[test]
 fn context_and_rag_do_not_expose_keeper_only_facts_to_players() {
-    let public_fact = ContextFact::new(
+    let public_fact = common::context_fact(
         "fact_public",
         "The clock tower is locked.",
         Visibility::new(VisibilityLabel::Public),
     )
     .unwrap();
-    let keeper_fact = ContextFact::new(
+    let keeper_fact = common::context_fact(
         "fact_keeper",
         "secret_operator",
         Visibility::new(VisibilityLabel::KeeperOnly),
@@ -301,6 +334,7 @@ fn context_and_rag_do_not_expose_keeper_only_facts_to_players() {
 
     let public_context = agent_context_assembler::assemble_agent_context(
         &[public_fact.clone(), keeper_fact.clone()],
+        &PrincipalScope::System,
         &PrincipalScope::Public,
     );
     assert_eq!(public_context.facts, vec![public_fact]);
@@ -359,13 +393,13 @@ fn prompt_injection_is_flagged_and_redacted() {
 
 #[test]
 fn primary_wrapper_modules_call_entrypoints_and_cover_prompt_ids() {
-    let public_fact = ContextFact::new(
+    let public_fact = common::context_fact(
         "fact_public_wrapper",
         "The public clue is safe.",
         Visibility::new(VisibilityLabel::Public),
     )
     .unwrap();
-    let keeper_fact = ContextFact::new(
+    let keeper_fact = common::context_fact(
         "fact_keeper_wrapper",
         "keeper_truth",
         Visibility::new(VisibilityLabel::KeeperOnly),
@@ -373,6 +407,7 @@ fn primary_wrapper_modules_call_entrypoints_and_cover_prompt_ids() {
     .unwrap();
     let context = agent_context_assembler::assemble_agent_context(
         &[public_fact.clone(), keeper_fact],
+        &PrincipalScope::System,
         &PrincipalScope::Public,
     );
     assert_eq!(
@@ -426,20 +461,18 @@ fn primary_wrapper_modules_call_entrypoints_and_cover_prompt_ids() {
     assert!(working_memory_rag_rag_snapshot::validate_working_memory_snapshot(&chunks));
 
     let denied = model_provider_local_cloud::enforce_no_silent_cloud_fallback(
-        ProviderType::Ollama,
-        ProviderType::Cloud,
-        FallbackPolicy {
-            cloud_fallback_enabled: false,
-            user_notice: false,
-            snapshot_recorded: false,
-        },
+        &fallback_local_provider(),
+        &fallback_cloud_provider(),
+        &fallback_cloud_route(),
+        None,
+        &[],
     );
     assert_eq!(denied.unwrap_err().code(), "SILENT_FALLBACK_FORBIDDEN");
 }
 
 #[test]
 fn local_model_certification_requires_level4_for_ai_keeper() {
-    let level3 = certify_local_model(&CertificationInput {
+    let level3_input = CertificationInput {
         model_id: "qwen-coc-local".to_owned(),
         json_schema_support: true,
         tool_call_support: true,
@@ -447,11 +480,23 @@ fn local_model_certification_requires_level4_for_ai_keeper() {
         prompt_injection_tests_pass: false,
         rules_eval_pass: true,
         latency_ms: 1800,
-    });
+    };
+    let level3 = certify_local_model(&level3_input);
     assert_eq!(level3, LocalModelLevel::Level3);
     assert_eq!(level3.as_str(), "LOCAL_MODEL_LEVEL_3");
+    let fixture =
+        common::level4_certification("json-tool-stable", &format!("sha256:{}", "1".repeat(64)));
     assert_eq!(
-        ensure_ai_keeper_model(level3).unwrap_err().code(),
+        fixture
+            .authority
+            .issue_level4(
+                &level3_input,
+                &format!("sha256:{}", "1".repeat(64)),
+                "p05-level4-suite-v1",
+                std::time::Duration::from_secs(60),
+            )
+            .unwrap_err()
+            .code(),
         "LOCAL_MODEL_NOT_CERTIFIED_FOR_AI_KP"
     );
 
@@ -465,11 +510,17 @@ fn local_model_certification_requires_level4_for_ai_keeper() {
         latency_ms: 1800,
     });
     assert_eq!(level4, LocalModelLevel::Level4);
-    assert!(ensure_ai_keeper_model(level4).is_ok());
+    assert!(ensure_ai_keeper_model(
+        &fixture.authority,
+        &fixture.certificate,
+        "json-tool-stable",
+        &format!("sha256:{}", "1".repeat(64)),
+    )
+    .is_ok());
 }
 
-#[test]
-fn provider_boundary_blocks_prod_exposure_and_silent_cloud_fallback() {
+#[tokio::test]
+async fn provider_boundary_blocks_prod_exposure_and_silent_cloud_fallback() {
     let boundary = provider_boundary_snapshot();
     assert_eq!(boundary.gateway, "Agent Gateway");
     assert_eq!(
@@ -478,11 +529,13 @@ fn provider_boundary_blocks_prod_exposure_and_silent_cloud_fallback() {
     );
 
     let exposed = ProviderConfig {
+        provider_id: EntityId::new("local-openai").unwrap(),
         provider_type: ProviderType::LocalOpenAiCompatible,
+        model_id: "local-model".to_owned(),
+        model_artifact_sha256: format!("sha256:{}", "1".repeat(64)),
         base_url: "http://0.0.0.0:11434/v1".to_owned(),
-        api_key: "ollama".to_owned(),
+        credential: SecretReference::mounted("ollama_credential", 1).unwrap(),
         environment: Environment::Prod,
-        reverse_proxy_auth: false,
     };
     assert_eq!(
         validate_provider_config(&exposed).unwrap_err().code(),
@@ -490,24 +543,26 @@ fn provider_boundary_blocks_prod_exposure_and_silent_cloud_fallback() {
     );
 
     let denied = evaluate_cloud_fallback(
-        ProviderType::Ollama,
-        ProviderType::Cloud,
-        FallbackPolicy {
-            cloud_fallback_enabled: false,
-            user_notice: false,
-            snapshot_recorded: false,
-        },
+        &fallback_local_provider(),
+        &fallback_cloud_provider(),
+        &fallback_cloud_route(),
+        None,
+        &[],
     );
     assert_eq!(denied.unwrap_err().code(), "SILENT_FALLBACK_FORBIDDEN");
 
+    let authorization = common::cloud_egress_authorization_for(
+        fallback_local_provider().credential,
+        fallback_cloud_provider().credential,
+    )
+    .await;
+    let context = common::cloud_egress_context();
     let allowed = evaluate_cloud_fallback(
-        ProviderType::Ollama,
-        ProviderType::Cloud,
-        FallbackPolicy {
-            cloud_fallback_enabled: true,
-            user_notice: true,
-            snapshot_recorded: true,
-        },
+        &fallback_local_provider(),
+        &fallback_cloud_provider(),
+        &fallback_cloud_route(),
+        Some(authorization),
+        &context,
     );
     assert_eq!(allowed.unwrap(), FallbackDecision::Allow);
 }
@@ -595,27 +650,33 @@ fn s07_fixtures_drive_provider_model_rag_assertions() {
     assert_no_restricted_player_visible_tokens(&injection.player_visible_text);
 
     let dev_ollama = ProviderConfig {
+        provider_id: EntityId::new("ollama").unwrap(),
         provider_type: ProviderType::Ollama,
+        model_id: "ollama-model".to_owned(),
+        model_artifact_sha256: format!("sha256:{}", "3".repeat(64)),
         base_url: "http://127.0.0.1:11434".to_owned(),
-        api_key: "ollama-dev".to_owned(),
+        credential: SecretReference::development("ollama_dev", 1).unwrap(),
         environment: Environment::Dev,
-        reverse_proxy_auth: false,
     };
     assert!(validate_provider_config(&dev_ollama).is_ok());
     let dev_llama_cpp = ProviderConfig {
+        provider_id: EntityId::new("llama-cpp").unwrap(),
         provider_type: ProviderType::LlamaCpp,
+        model_id: "llama-model".to_owned(),
+        model_artifact_sha256: format!("sha256:{}", "4".repeat(64)),
         base_url: "http://127.0.0.1:8080".to_owned(),
-        api_key: "llama-cpp-dev".to_owned(),
+        credential: SecretReference::development("llama_cpp_dev", 1).unwrap(),
         environment: Environment::Dev,
-        reverse_proxy_auth: false,
     };
     assert!(validate_provider_config(&dev_llama_cpp).is_ok());
     let prod_exposed = ProviderConfig {
+        provider_id: EntityId::new("local-openai").unwrap(),
         provider_type: ProviderType::LocalOpenAiCompatible,
+        model_id: "local-model".to_owned(),
+        model_artifact_sha256: format!("sha256:{}", "1".repeat(64)),
         base_url: "http://0.0.0.0:11434/v1".to_owned(),
-        api_key: "local".to_owned(),
+        credential: SecretReference::mounted("local_provider", 1).unwrap(),
         environment: Environment::Prod,
-        reverse_proxy_auth: false,
     };
     assert_eq!(
         validate_provider_config(&prod_exposed).unwrap_err().code(),
@@ -642,10 +703,6 @@ fn s07_fixtures_drive_provider_model_rag_assertions() {
         latency_ms: 1800,
     });
     assert_eq!(level3, LocalModelLevel::Level3);
-    assert_eq!(
-        ensure_ai_keeper_model(level3).unwrap_err().code(),
-        "LOCAL_MODEL_NOT_CERTIFIED_FOR_AI_KP"
-    );
     let json_tool_stable = certify_local_model(&CertificationInput {
         model_id: "json-tool-stable".to_owned(),
         json_schema_support: true,
@@ -656,7 +713,15 @@ fn s07_fixtures_drive_provider_model_rag_assertions() {
         latency_ms: 1800,
     });
     assert_eq!(json_tool_stable, LocalModelLevel::Level4);
-    assert!(ensure_ai_keeper_model(json_tool_stable).is_ok());
+    let certification =
+        common::level4_certification("json-tool-stable", &format!("sha256:{}", "1".repeat(64)));
+    assert!(ensure_ai_keeper_model(
+        &certification.authority,
+        &certification.certificate,
+        "json-tool-stable",
+        &format!("sha256:{}", "1".repeat(64)),
+    )
+    .is_ok());
 
     let route_snapshot = ModelRouteSnapshot {
         provider_type: ProviderType::Ollama,
@@ -692,13 +757,11 @@ fn s07_fixtures_drive_provider_model_rag_assertions() {
     );
 
     let fallback = evaluate_cloud_fallback(
-        ProviderType::Ollama,
-        ProviderType::Cloud,
-        FallbackPolicy {
-            cloud_fallback_enabled: false,
-            user_notice: false,
-            snapshot_recorded: false,
-        },
+        &fallback_local_provider(),
+        &fallback_cloud_provider(),
+        &fallback_cloud_route(),
+        None,
+        &[],
     );
     assert_eq!(fallback.unwrap_err().code(), "SILENT_FALLBACK_FORBIDDEN");
     let boundary = provider_boundary_snapshot();

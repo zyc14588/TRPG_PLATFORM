@@ -70,6 +70,9 @@ cargo fmt --all -- --check
 cargo check --workspace --all-targets --all-features --locked
 : "${P02_CANONICAL_DATABASE_URL:?P02_CANONICAL_DATABASE_URL is required for the real PostgreSQL gate}"
 : "${P02_CANONICAL_WITNESS_DATABASE_URL:?P02_CANONICAL_WITNESS_DATABASE_URL is required for the real PostgreSQL gate}"
+: "${P02_CANONICAL_ALLOW_DATABASE_RESET:?P02_CANONICAL_ALLOW_DATABASE_RESET is required for the destructive canonical gate}"
+: "${P02_CANONICAL_RESET_DATABASE:?P02_CANONICAL_RESET_DATABASE is required for the destructive canonical gate}"
+: "${P02_CANONICAL_WITNESS_RESET_DATABASE:?P02_CANONICAL_WITNESS_RESET_DATABASE is required for the destructive canonical witness gate}"
 : "${P02_EVENTING_DATABASE_URL:?P02_EVENTING_DATABASE_URL is required for the real PostgreSQL/JetStream gate}"
 : "${P02_EVENTING_WITNESS_DATABASE_URL:?P02_EVENTING_WITNESS_DATABASE_URL is required for the real PostgreSQL/JetStream gate}"
 : "${P02_EVENTING_ALLOW_DATABASE_RESET:?P02_EVENTING_ALLOW_DATABASE_RESET is required for the destructive eventing upgrade gate}"

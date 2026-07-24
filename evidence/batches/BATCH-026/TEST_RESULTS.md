@@ -111,7 +111,7 @@ Temporary PostgreSQL was started only for the S03 SQLx migration gate.
 | P0059 / CODEX-0635 | `rag_snapshot` | RAG snapshot metadata is event-derived and fixture-bound; player context remains redacted. | `b026_primary_surfaces_append_governed_events_and_bind_fixtures`; `event_store_contract` command 5 |
 | P0061 / CODEX-0636 | `cache_redis_impl` | Cache is asserted as a derived read model, not canonical state; the clippy constant assertion uses `std::hint::black_box` while still checking `!CACHE_IS_CANONICAL`. | `b026_appends_only_through_governed_event_store_path`; `b026_primary_surfaces_append_governed_events_and_bind_fixtures` |
 | P0062 / CODEX-0637 | `event_bus_nats_impl` | Event bus publish surface is converted to `OutboxMessage` from the governed event and checks `OutboxPublish` plus `OUTBOX_TABLE`. | `b026_primary_surfaces_append_governed_events_and_bind_fixtures` |
-| P0063 / CODEX-0638 | `persistence_postgresql_impl` | Persistence surface is tied to Event Store/outbox/projection checkpoint metadata and live SQLx run/revert/run migration evidence. | `b026_primary_surfaces_append_governed_events_and_bind_fixtures`; SQLx commands 8, 10, 11, 12 |
+| P0063 / CODEX-0638 | `persistence_postgresql_impl` | Historical B026 persistence evidence; current P04 verification is forward-only and supersedes the old run/revert/run procedure. | `b026_primary_surfaces_append_governed_events_and_bind_fixtures`; current `docs/audit/p04/P04_TEST_RESULTS.md` |
 
 ## Stage Check
 

@@ -364,15 +364,7 @@ pub fn is_current_safe_name(value: &str) -> bool {
 }
 
 fn restricted_visibility(label: &VisibilityLabel) -> bool {
-    matches!(
-        label,
-        VisibilityLabel::KeeperOnly
-            | VisibilityLabel::PrivateToPlayer
-            | VisibilityLabel::InvestigatorPrivate
-            | VisibilityLabel::AiInternal
-            | VisibilityLabel::SystemOnly
-            | VisibilityLabel::SystemPrivate
-    )
+    label.is_restricted()
 }
 
 fn has_long_hex_run(value: &str) -> bool {

@@ -71,15 +71,15 @@ impl FormalCommitAudit {
             actor_id: authentication.subject_id().to_string(),
             actor_origin: actor_origin.to_owned(),
             authentication_reference: authentication_reference.to_owned(),
-            campaign_id: context.resource().campaign_id().to_string(),
-            resource_type: context.resource().resource_type().to_string(),
-            resource_id: context.resource().resource_id().to_string(),
+            campaign_id: request.campaign_id.clone(),
+            resource_type: request.resource_type.clone(),
+            resource_id: request.resource_id.clone(),
             action: request.action.clone(),
             requested_role: requested_role.to_owned(),
             visibility_label: visibility_name(command.visibility.label()).to_owned(),
             visibility_subject: command
                 .visibility
-                .player_id()
+                .subject_id()
                 .map(ToString::to_string)
                 .unwrap_or_else(|| "not_applicable".to_owned()),
             provenance_kind: provenance_kind_name(&command.fact_provenance.kind).to_owned(),
@@ -173,9 +173,46 @@ impl FormalCommitAuthorizer {
         requested_role: &str,
         now_unix_ms: u64,
     ) -> KernelResult<FormalAuthorization> {
+        let resource = command.authenticated_context().resource();
+        self.authorize_scoped_action(
+            workflow_authentication,
+            authorizing_authentication,
+            command,
+            "write_official_state",
+            resource.resource_type().as_str(),
+            resource.resource_id().as_str(),
+            requested_role,
+            now_unix_ms,
+        )
+    }
+
+    /// Authorizes a domain-specific formal action while retaining the command's
+    /// authenticated campaign/authority binding. The exact action and target
+    /// resource are sent to both policy engines and written to the canonical
+    /// audit record; they cannot be smuggled only in application metadata.
+    #[allow(clippy::too_many_arguments)]
+    pub fn authorize_scoped_action<T>(
+        &self,
+        workflow_authentication: &AuthenticationContext,
+        authorizing_authentication: Option<&AuthenticationContext>,
+        command: &CommandEnvelope<T>,
+        action: &str,
+        resource_type: &str,
+        resource_id: &str,
+        requested_role: &str,
+        now_unix_ms: u64,
+    ) -> KernelResult<FormalAuthorization> {
         if requested_role.trim().is_empty() {
             return Err(TrpgError::InvalidConfiguration(
                 "formal_commit_requested_role_required",
+            ));
+        }
+        if action.trim().is_empty()
+            || resource_type.trim().is_empty()
+            || resource_id.trim().is_empty()
+        {
+            return Err(TrpgError::InvalidConfiguration(
+                "formal_commit_policy_scope_required",
             ));
         }
         let campaign_id = command.authenticated_context().resource().campaign_id();
@@ -207,21 +244,13 @@ impl FormalCommitAuthorizer {
             actor_id: command.actor.id().to_string(),
             principal_role: principal_role.to_owned(),
             campaign_id: campaign_id.to_string(),
-            resource_type: command
-                .authenticated_context()
-                .resource()
-                .resource_type()
-                .to_string(),
-            resource_id: command
-                .authenticated_context()
-                .resource()
-                .resource_id()
-                .to_string(),
-            action: "write_official_state".to_owned(),
+            resource_type: resource_type.to_owned(),
+            resource_id: resource_id.to_owned(),
+            action: action.to_owned(),
             authority_mode: authority_mode_name(&command.authority_mode).to_owned(),
             requested_role: None,
             target_visibility: visibility_name(command.visibility.label()).to_owned(),
-            target_visibility_subject: command.visibility.player_id().map(ToString::to_string),
+            target_visibility_subject: command.visibility.subject_id().map(ToString::to_string),
             trace_id: command.authenticated_context().trace_id().to_string(),
         };
 
@@ -287,6 +316,39 @@ impl FormalCommitAuthorizer {
         })
     }
 
+    /// Authorizes an action whose requesting user must be a current member of
+    /// the exact campaign carried by the command. Merely presenting a session
+    /// that is scoped to a campaign is insufficient: the live membership is
+    /// rechecked through the identity trust anchor before policy evaluation.
+    #[allow(clippy::too_many_arguments)]
+    pub fn authorize_campaign_member_scoped_action<T>(
+        &self,
+        workflow_authentication: &AuthenticationContext,
+        authorizing_authentication: Option<&AuthenticationContext>,
+        command: &CommandEnvelope<T>,
+        action: &str,
+        resource_type: &str,
+        resource_id: &str,
+        requested_role: &str,
+        now_unix_ms: u64,
+    ) -> KernelResult<FormalAuthorization> {
+        let authentication = authorizing_authentication.ok_or(TrpgError::AuthorizationDenied)?;
+        let campaign_id = command.authenticated_context().resource().campaign_id();
+        self.identity_verifier
+            .authorize_replay(authentication, campaign_id, now_unix_ms)
+            .map_err(|_| TrpgError::AuthorizationDenied)?;
+        self.authorize_scoped_action(
+            workflow_authentication,
+            Some(authentication),
+            command,
+            action,
+            resource_type,
+            resource_id,
+            requested_role,
+            now_unix_ms,
+        )
+    }
+
     fn record_evidence<T>(
         &self,
         authentication: &AuthenticationContext,
@@ -338,20 +400,12 @@ fn authority_mode_name(mode: &AuthorityMode) -> &'static str {
 }
 
 fn visibility_name(label: &VisibilityLabel) -> &'static str {
-    match label {
-        VisibilityLabel::Public => "public",
-        VisibilityLabel::PartyVisible => "party_visible",
-        VisibilityLabel::KeeperOnly => "keeper_only",
-        VisibilityLabel::PrivateToPlayer => "private_to_player",
-        VisibilityLabel::InvestigatorPrivate => "investigator_private",
-        VisibilityLabel::AiInternal => "ai_internal",
-        VisibilityLabel::SystemOnly => "system_only",
-        VisibilityLabel::SystemPrivate => "system_private",
-    }
+    label.as_str()
 }
 
 fn provenance_kind_name(kind: &trpg_shared_kernel::ProvenanceKind) -> &'static str {
     match kind {
+        trpg_shared_kernel::ProvenanceKind::UserStatement => "user_statement",
         trpg_shared_kernel::ProvenanceKind::HumanKeeperStatement => "human_keeper_statement",
         trpg_shared_kernel::ProvenanceKind::RulesEngineDecision => "rules_engine_decision",
         trpg_shared_kernel::ProvenanceKind::ToolResult => "tool_result",

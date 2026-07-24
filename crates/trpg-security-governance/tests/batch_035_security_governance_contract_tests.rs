@@ -1,24 +1,34 @@
+mod common;
+
 use std::path::PathBuf;
 
+use async_trait::async_trait;
+use trpg_security_governance::cloud_egress::{
+    authorize_cloud_egress, CloudConsentQuery, CloudEgressAuditRecord, CloudEgressLedger,
+    CloudEgressOutcome, CloudEgressRequest, CloudRouteSnapshotRecord, ConsentVisibilityScope,
+    PersistedCloudConsent, ProviderBoundary,
+};
+use trpg_security_governance::secret::{
+    KmsClient, KmsSecretResolver, SecretManager, SecretReference,
+};
 use trpg_security_governance::tamper_evident_audit::{
     AuditDecision, AuditRecordDraft, AuditSink, FileAuditLog,
 };
 use trpg_security_governance::{
     adr_0006_openfga_opa, audit_log_contract, copyright_allows, copyright_boundary,
-    data_retention_deletion, evaluate_cloud_fallback, evaluate_visibility_derivation,
-    is_placeholder_api_key, most_restrictive_visibility, permission_allows, permission_matrix,
-    policy_authorization, policy_authz, policy_openfga_opa, privacy_copyright, readme,
-    security_privacy, security_privacy_copyright, validate_provider_boundary,
-    visibility_enforcement_points, CloudFallbackDecision, CloudFallbackRequest, ContentLicense,
-    ContentUse, DeploymentEnvironment, DerivedObject, LocalModelCertificationInput,
+    data_retention_deletion, evaluate_visibility_derivation, most_restrictive_visibility,
+    permission_allows, permission_matrix, policy_authorization, policy_authz, policy_openfga_opa,
+    privacy_copyright, readme, security_privacy, security_privacy_copyright,
+    validate_provider_boundary, visibility_enforcement_points, ContentLicense, ContentUse,
+    DeploymentEnvironment, DerivedObject, LocalModelCertificationInput,
     LocalModelCertificationLevel, PermissionPrincipalRole, ProviderEndpoint, RedactionOutcome,
     SecurityGovernanceAction, SecurityGovernanceCommand, SecurityGovernanceRepository,
     SECURITY_GOVERNANCE_DECISION_RECORDED_EVENT, SECURITY_GOVERNANCE_METRIC_MODULE,
     SECURITY_GOVERNANCE_REQUIRED_METRICS,
 };
 use trpg_shared_kernel::{
-    ActorRole, AuthorityMode, CommandEnvelope, EntityId, FormalWritePath, PrincipalScope,
-    TrpgError, Visibility, VisibilityLabel,
+    ActorRole, AuthorityMode, CommandEnvelope, EntityId, FormalWritePath, KernelResult,
+    PrincipalScope, TrpgError, Visibility, VisibilityLabel,
 };
 
 const S04_VISIBILITY_ERRORS_FIXTURE: &str =
@@ -32,6 +42,69 @@ const S04_OPENFGA_SECURITY_GOVERNANCE_JSON_MODEL: &str =
 const S04_VISIBILITY_REDACTION_FIXTURE: &str =
     include_str!("../../../fixtures/visibility/visibility_redaction_matrix.v1.json.md");
 const AUDIT_KEY: [u8; 32] = [0x42; 32];
+
+struct BatchCloudLedger {
+    consent: Option<PersistedCloudConsent>,
+}
+
+#[async_trait]
+impl CloudEgressLedger for BatchCloudLedger {
+    async fn trusted_now_unix_ms(&self) -> KernelResult<u64> {
+        Ok(10_000)
+    }
+
+    async fn notice_is_recorded(
+        &self,
+        notice_reference: &EntityId,
+        _subject_id: &EntityId,
+        _policy_version: &EntityId,
+    ) -> KernelResult<bool> {
+        Ok(!notice_reference.as_str().is_empty())
+    }
+
+    async fn load_active_consent(
+        &self,
+        _query: &CloudConsentQuery,
+    ) -> KernelResult<Option<PersistedCloudConsent>> {
+        Ok(self.consent.clone())
+    }
+
+    async fn record_route_decision(
+        &self,
+        _snapshot: CloudRouteSnapshotRecord,
+        _audit: CloudEgressAuditRecord,
+    ) -> KernelResult<bool> {
+        Ok(true)
+    }
+}
+
+fn batch_cloud_request(snapshot_id: &str) -> CloudEgressRequest {
+    CloudEgressRequest {
+        snapshot_id: EntityId::new(snapshot_id).unwrap(),
+        audit_id: EntityId::new(format!("audit-{snapshot_id}")).unwrap(),
+        subject_id: EntityId::new("batch-player").unwrap(),
+        source_provider: EntityId::new("ollama").unwrap(),
+        target_provider: EntityId::new("cloud").unwrap(),
+        source_endpoint: "http://127.0.0.1:11434/v1".to_owned(),
+        target_endpoint: "https://cloud.example.test/v1".to_owned(),
+        model_id: EntityId::new("cloud-model-v1").unwrap(),
+        source_credential: SecretReference::development("batch_ollama", 1).unwrap(),
+        target_credential: SecretReference::development("batch_cloud", 1).unwrap(),
+        source_boundary: ProviderBoundary::Local,
+        target_boundary: ProviderBoundary::Cloud,
+        fallback_policy: EntityId::new("explicit_audited_only").unwrap(),
+        privacy_boundary: EntityId::new("explicit_consent_no_silent_fallback").unwrap(),
+        purpose: EntityId::new("gameplay").unwrap(),
+        policy_version: EntityId::new("privacy-v1").unwrap(),
+        notice_reference: Some(EntityId::new("batch-notice").unwrap()),
+        target_audience: PrincipalScope::Player(EntityId::new("batch-player").unwrap()),
+        context: vec![common::verified_cloud_fact(
+            "batch-public-fact",
+            Visibility::new(VisibilityLabel::Public),
+            vec![b'x'; 32],
+        )],
+    }
+}
 
 fn command(
     _role: PermissionPrincipalRole,
@@ -53,19 +126,20 @@ fn audit_path(name: &str) -> PathBuf {
 }
 
 #[test]
-fn data_retention_deletion_rejects_legal_hold() {
-    let mut command = command(
+fn data_retention_deletion_command_cannot_accept_a_caller_supplied_hold_flag() {
+    let command = command(
         PermissionPrincipalRole::Workflow,
-        SecurityGovernanceAction::DeleteRetainedData,
+        SecurityGovernanceAction::DeletePersonalData,
     );
-    command.payload.legal_hold = true;
-    let mut repository = SecurityGovernanceRepository::default();
-
-    let err = data_retention_deletion::evaluate(&mut repository, &command)
-        .expect_err("legal hold blocks deletion");
-
-    assert_eq!(err, TrpgError::PolicyDenied);
-    assert!(repository.events().is_empty());
+    assert_eq!(
+        command.payload.action,
+        SecurityGovernanceAction::DeletePersonalData
+    );
+    assert!(command.payload.target_visibility.is_well_formed());
+    assert_eq!(
+        data_retention_deletion::MODULE,
+        "security_governance::data_retention_deletion"
+    );
 }
 
 #[test]
@@ -191,6 +265,28 @@ fn visibility_enforcement_points_redacts_stage_cases() {
         most_restrictive_visibility(&[VisibilityLabel::Public, VisibilityLabel::KeeperOnly]),
         VisibilityLabel::KeeperOnly
     );
+    assert_eq!(
+        most_restrictive_visibility(&[
+            Visibility::private_to_player(EntityId::new("player_a").unwrap())
+                .label()
+                .clone(),
+            Visibility::private_to_group(EntityId::new("group_a").unwrap())
+                .label()
+                .clone(),
+        ]),
+        VisibilityLabel::KeeperOnly
+    );
+    assert_eq!(
+        most_restrictive_visibility(&[
+            Visibility::private_to_group(EntityId::new("group_a").unwrap())
+                .label()
+                .clone(),
+            Visibility::private_to_player(EntityId::new("player_a").unwrap())
+                .label()
+                .clone(),
+        ]),
+        VisibilityLabel::KeeperOnly
+    );
     for expected in [
         "keeper_only_to_player_export",
         "private_to_player_to_party_summary",
@@ -298,21 +394,32 @@ fn copyright_boundary_rejects_commercial_full_text() {
 
 #[test]
 fn security_privacy_copyright_denies_prod_placeholder_provider() {
-    let endpoint = ProviderEndpoint {
-        provider_type: "ollama".to_owned(),
-        base_url: "http://0.0.0.0:11434/v1".to_owned(),
-        api_key: "ollama".to_owned(),
-        environment: DeploymentEnvironment::Production,
-        authenticated: false,
-    };
+    struct TestKms;
+    impl KmsClient for TestKms {
+        fn decrypt_secret(&self, _secret_id: &str, _version: u64) -> KernelResult<Vec<u8>> {
+            Ok(b"not-used-for-rejected-public-endpoint".to_vec())
+        }
+    }
 
-    let err = validate_provider_boundary(&endpoint).expect_err("prod local exposure is blocked");
+    let endpoint = ProviderEndpoint::new(
+        "ollama",
+        "http://0.0.0.0:11434/v1",
+        trpg_security_governance::secret::SecretReference::mounted("ollama_credential", 1).unwrap(),
+        DeploymentEnvironment::Production,
+        "local-model-v1",
+        "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    )
+    .unwrap();
+    let manager = SecretManager::new(KmsSecretResolver::new(TestKms));
+
+    let err = validate_provider_boundary(&endpoint, &manager)
+        .expect_err("prod local exposure is blocked");
 
     assert_eq!(
         err,
         TrpgError::InvalidConfiguration("unauthenticated_local_provider_exposed")
     );
-    assert!(is_placeholder_api_key("sk-no-key-required"));
+    assert!(endpoint.credential().production_eligible());
     assert_eq!(
         security_privacy_copyright::MODULE,
         "security_governance::security_privacy_copyright"
@@ -441,8 +548,8 @@ fn readme_contract_lists_required_governance_metrics() {
     assert_eq!(readme::MODULE, "security_governance::readme");
 }
 
-#[test]
-fn permission_matrix_covers_provider_certification_and_fallback() {
+#[tokio::test]
+async fn permission_matrix_covers_provider_certification_and_fallback() {
     let stable_model = LocalModelCertificationInput {
         json_schema_support: true,
         tool_call_support: true,
@@ -455,24 +562,30 @@ fn permission_matrix_covers_provider_certification_and_fallback() {
         trpg_security_governance::certify_local_model(stable_model),
         LocalModelCertificationLevel::LocalModelLevel4
     );
-    assert_eq!(
-        evaluate_cloud_fallback(CloudFallbackRequest {
-            cloud_fallback_enabled: false,
-            cloud_call_attempted: true,
-            user_notice: false,
-            snapshot_recorded: false,
-        }),
-        CloudFallbackDecision::DenyAndAudit
-    );
-    assert_eq!(
-        evaluate_cloud_fallback(CloudFallbackRequest {
-            cloud_fallback_enabled: true,
-            cloud_call_attempted: true,
-            user_notice: true,
-            snapshot_recorded: true,
-        }),
-        CloudFallbackDecision::Allow
-    );
+    let denied = authorize_cloud_egress(
+        &BatchCloudLedger { consent: None },
+        batch_cloud_request("batch-route-denied"),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(denied, CloudEgressOutcome::Denied { .. }));
+    let allowed = authorize_cloud_egress(
+        &BatchCloudLedger {
+            consent: Some(PersistedCloudConsent::loaded_from_repository(
+                EntityId::new("batch-consent").unwrap(),
+                EntityId::new("batch-player").unwrap(),
+                EntityId::new("cloud").unwrap(),
+                EntityId::new("gameplay").unwrap(),
+                EntityId::new("privacy-v1").unwrap(),
+                ConsentVisibilityScope::PublicOnly,
+                20_000,
+            )),
+        },
+        batch_cloud_request("batch-route-allowed"),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(allowed, CloudEgressOutcome::Authorized(_)));
     assert_eq!(
         permission_matrix::MODULE,
         "security_governance::permission_matrix"

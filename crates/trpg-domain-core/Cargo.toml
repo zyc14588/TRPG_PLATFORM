@@ -5,8 +5,16 @@ edition = "2021"
 publish = false
 license = "UNLICENSED"
 
+[features]
+default = []
+# Internal bridge used only by the canonical PostgreSQL adapter. It is not a
+# domain API and must not be enabled by feature consumers.
+canonical-store-internal = []
+
 [dependencies]
+hmac = "0.12"
 serde = { version = "1.0", features = ["derive"] }
+sha2 = "0.10.9"
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
 
 [dev-dependencies]

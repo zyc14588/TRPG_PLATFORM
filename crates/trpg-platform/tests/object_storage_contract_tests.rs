@@ -1,6 +1,6 @@
 use trpg_platform::object_storage::{public_object_descriptor, store_object, StoreObject};
 use trpg_platform::{PlatformEvent, PlatformEventStore};
-use trpg_shared_kernel::{ActorRole, AuthorityMode, Visibility, VisibilityLabel};
+use trpg_shared_kernel::{ActorRole, AuthorityMode, EntityId, Visibility, VisibilityLabel};
 
 #[test]
 fn restricted_object_descriptor_is_redacted() {
@@ -31,7 +31,8 @@ fn object_store_event_uses_redacted_descriptor() {
         ActorRole::System,
         AuthorityMode::HumanKp,
     );
-    command.visibility = Visibility::new(VisibilityLabel::PrivateToPlayer);
+    command.visibility =
+        Visibility::private_to_player(EntityId::new("player_001").expect("valid player"));
     let mut store = PlatformEventStore::default();
 
     let event = store_object(&mut store, &command).expect("object stored");

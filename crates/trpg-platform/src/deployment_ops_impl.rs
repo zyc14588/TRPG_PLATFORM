@@ -1,4 +1,7 @@
-use crate::deployment_ops::{validate_provider_boundary, DeploymentEnvironment, ProviderEndpoint};
+use crate::deployment_ops::{
+    validate_provider_boundary, DeploymentEnvironment, ProviderEndpoint, SecretManager,
+    SecretResolver,
+};
 use trpg_shared_kernel::{CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError};
 
 pub const DEPLOYMENT_OPERATION_APPLIED_EVENT: &str =
@@ -25,6 +28,7 @@ pub enum DeploymentOpsEvent {
         deployment_id: String,
         environment: String,
         provider: String,
+        security_snapshot_digest: String,
     },
 }
 
@@ -49,14 +53,19 @@ pub type DeploymentOpsRepository = EventStore<DeploymentOpsEvent>;
 pub struct DeploymentOpsService;
 
 impl DeploymentOpsService {
-    pub fn apply_deployment_operation(
+    pub fn apply_deployment_operation<R: SecretResolver>(
         repository: &mut DeploymentOpsRepository,
         command: &CommandEnvelope<ApplyDeploymentOperation>,
+        secret_manager: &SecretManager<R>,
     ) -> KernelResult<DeploymentOpsEventEnvelope> {
         if command.payload.deployment_id.trim().is_empty() {
             return Err(DeploymentOpsError::DeploymentIdRequired.into());
         }
-        validate_provider_boundary(&command.payload.environment, &command.payload.endpoint)?;
+        let attestation = validate_provider_boundary(
+            &command.payload.environment,
+            &command.payload.endpoint,
+            secret_manager,
+        )?;
 
         repository.append(
             command,
@@ -64,15 +73,17 @@ impl DeploymentOpsService {
             DeploymentOpsEvent::DeploymentOperationApplied {
                 deployment_id: command.payload.deployment_id.clone(),
                 environment: command.payload.environment.as_str().to_owned(),
-                provider: command.payload.endpoint.provider.clone(),
+                provider: command.payload.endpoint.provider_type().to_owned(),
+                security_snapshot_digest: attestation.security_snapshot_digest().to_owned(),
             },
         )
     }
 }
 
-pub fn apply_deployment_operation(
+pub fn apply_deployment_operation<R: SecretResolver>(
     repository: &mut DeploymentOpsRepository,
     command: &CommandEnvelope<ApplyDeploymentOperation>,
+    secret_manager: &SecretManager<R>,
 ) -> KernelResult<DeploymentOpsEventEnvelope> {
-    DeploymentOpsService::apply_deployment_operation(repository, command)
+    DeploymentOpsService::apply_deployment_operation(repository, command, secret_manager)
 }

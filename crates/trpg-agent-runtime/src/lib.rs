@@ -29,18 +29,19 @@ pub mod working_memory_rag_rag_snapshot;
 
 pub use agent_runtime::EventStore as AgentEventStore;
 pub use agent_runtime::{
-    assemble_context, evaluate_agent_tool_request, evaluate_prompt_injection,
-    replay_agent_events_for_principal, AgentDecision, AgentDecisionCommitter, AgentError,
-    AgentEventPayload, AgentKind, AgentResult, AgentTool, AssembledAgentContext, ContextFact,
-    PromptInjectionReport, ToolDecision, ToolRequest,
+    assemble_context, assemble_context_for_audience, evaluate_agent_tool_request,
+    evaluate_prompt_injection, replay_agent_events_for_principal, AgentDecision,
+    AgentDecisionCommitter, AgentError, AgentEventPayload, AgentKind, AgentResult, AgentTool,
+    AssembledAgentContext, ContextFact, PromptInjectionReport, ToolDecision, ToolRequest,
 };
 pub use local_model_certification::{
-    certify_local_model, ensure_ai_keeper_model, CertificationInput, LocalModelLevel,
+    certify_local_model, ensure_ai_keeper_model, CertificationInput, LocalModelCertificate,
+    LocalModelCertificationAuthority, LocalModelLevel,
 };
 pub use model_provider::{
-    evaluate_cloud_fallback, provider_boundary_snapshot, validate_provider_config, Environment,
-    FallbackDecision, FallbackPolicy, ModelProviderBoundarySnapshot, ModelRouteSnapshot,
-    ProviderConfig, ProviderType,
+    evaluate_cloud_fallback, provider_boundary_snapshot, validate_provider_config,
+    CloudContextFact, CloudEgressAuthorization, Environment, FallbackDecision,
+    ModelProviderBoundarySnapshot, ModelRouteSnapshot, ProviderConfig, ProviderType,
 };
 pub use rag_snapshot::{query_visible_chunks, require_visible_chunk, RagChunk};
 pub use trpg_identity::ReplayAuthorization;

@@ -21,7 +21,8 @@ pub struct VisibilityEnforcementDecision {
 pub fn enforce_visibility_at(
     point: VisibilityEnforcementPoint,
     visibility: &Visibility,
-    principal: &PrincipalScope,
+    processor: &PrincipalScope,
+    target_audience: &PrincipalScope,
 ) -> DomainResult<VisibilityEnforcementDecision> {
     let derived_object = match point {
         VisibilityEnforcementPoint::AgentContext => DerivedObject::AgentContextForPlayer,
@@ -29,7 +30,7 @@ pub fn enforce_visibility_at(
         VisibilityEnforcementPoint::Summary => DerivedObject::SessionSummaryParty,
         _ => DerivedObject::PlayerExport,
     };
-    let outcome = redaction_for(visibility, derived_object, principal);
+    let outcome = redaction_for(visibility, derived_object, processor, target_audience);
 
     if outcome == RedactionOutcome::Visible {
         Ok(VisibilityEnforcementDecision { point, outcome })

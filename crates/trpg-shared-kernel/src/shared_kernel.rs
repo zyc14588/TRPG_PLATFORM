@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
 use trpg_contracts::WireErrorCode;
@@ -161,30 +161,174 @@ impl fmt::Display for EntityId {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum VisibilityLabel {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VisibilityKind {
     Public,
     PartyVisible,
-    KeeperOnly,
     PrivateToPlayer,
+    PrivateToGroup,
+    KeeperOnly,
     InvestigatorPrivate,
     AiInternal,
     SystemOnly,
+    SpectatorVisible,
+    SpectatorHidden,
+    SystemPrivate,
+}
+
+impl VisibilityKind {
+    pub const fn requires_subject(self) -> bool {
+        matches!(
+            self,
+            Self::PrivateToPlayer | Self::PrivateToGroup | Self::InvestigatorPrivate
+        )
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::PartyVisible => "party_visible",
+            Self::PrivateToPlayer => "private_to_player",
+            Self::PrivateToGroup => "private_to_group",
+            Self::KeeperOnly => "keeper_only",
+            Self::InvestigatorPrivate => "investigator_private",
+            Self::AiInternal => "ai_internal",
+            Self::SystemOnly => "system_only",
+            Self::SpectatorVisible => "spectator_visible",
+            Self::SpectatorHidden => "spectator_hidden",
+            Self::SystemPrivate => "system_private",
+        }
+    }
+
+    pub const fn restriction_rank(self) -> u8 {
+        match self {
+            Self::Public => 0,
+            Self::SpectatorVisible => 1,
+            Self::PartyVisible | Self::SpectatorHidden => 2,
+            Self::PrivateToPlayer | Self::PrivateToGroup | Self::InvestigatorPrivate => 3,
+            Self::KeeperOnly => 4,
+            Self::AiInternal => 5,
+            Self::SystemOnly | Self::SystemPrivate => 6,
+        }
+    }
+}
+
+impl TryFrom<&str> for VisibilityKind {
+    type Error = TrpgError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "public" => Ok(Self::Public),
+            "party_visible" => Ok(Self::PartyVisible),
+            "private_to_player" => Ok(Self::PrivateToPlayer),
+            "private_to_group" => Ok(Self::PrivateToGroup),
+            "keeper_only" => Ok(Self::KeeperOnly),
+            "investigator_private" => Ok(Self::InvestigatorPrivate),
+            "ai_internal" => Ok(Self::AiInternal),
+            "system_only" => Ok(Self::SystemOnly),
+            "spectator_visible" => Ok(Self::SpectatorVisible),
+            "spectator_hidden" => Ok(Self::SpectatorHidden),
+            "system_private" => Ok(Self::SystemPrivate),
+            _ => Err(TrpgError::UnknownVisibilityLabel),
+        }
+    }
+}
+
+/// A visibility label is a complete audience classification. Targeted enum
+/// variants require an `EntityId`, so a targetless private label is not a
+/// representable Rust value.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum VisibilityLabel {
+    Public,
+    PartyVisible,
+    PrivateToPlayer(EntityId),
+    PrivateToGroup(EntityId),
+    KeeperOnly,
+    InvestigatorPrivate(EntityId),
+    AiInternal,
+    SystemOnly,
+    SpectatorVisible,
+    SpectatorHidden,
     SystemPrivate,
 }
 
 impl VisibilityLabel {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Public => "public",
-            Self::PartyVisible => "party_visible",
-            Self::KeeperOnly => "keeper_only",
-            Self::PrivateToPlayer => "private_to_player",
-            Self::InvestigatorPrivate => "investigator_private",
-            Self::AiInternal => "ai_internal",
-            Self::SystemOnly => "system_only",
-            Self::SystemPrivate => "system_private",
+    fn targeted(kind: VisibilityKind, subject_id: EntityId) -> Self {
+        match kind {
+            VisibilityKind::PrivateToPlayer => Self::PrivateToPlayer(subject_id),
+            VisibilityKind::PrivateToGroup => Self::PrivateToGroup(subject_id),
+            VisibilityKind::InvestigatorPrivate => Self::InvestigatorPrivate(subject_id),
+            _ => unreachable!("targeted visibility kind"),
         }
+    }
+
+    pub const fn kind(&self) -> VisibilityKind {
+        match self {
+            Self::Public => VisibilityKind::Public,
+            Self::PartyVisible => VisibilityKind::PartyVisible,
+            Self::PrivateToPlayer(_) => VisibilityKind::PrivateToPlayer,
+            Self::PrivateToGroup(_) => VisibilityKind::PrivateToGroup,
+            Self::KeeperOnly => VisibilityKind::KeeperOnly,
+            Self::InvestigatorPrivate(_) => VisibilityKind::InvestigatorPrivate,
+            Self::AiInternal => VisibilityKind::AiInternal,
+            Self::SystemOnly => VisibilityKind::SystemOnly,
+            Self::SpectatorVisible => VisibilityKind::SpectatorVisible,
+            Self::SpectatorHidden => VisibilityKind::SpectatorHidden,
+            Self::SystemPrivate => VisibilityKind::SystemPrivate,
+        }
+    }
+
+    pub fn subject_id(&self) -> Option<&EntityId> {
+        match self {
+            Self::PrivateToPlayer(subject_id)
+            | Self::PrivateToGroup(subject_id)
+            | Self::InvestigatorPrivate(subject_id) => Some(subject_id),
+            _ => None,
+        }
+    }
+
+    pub const fn is_private_to_player(&self) -> bool {
+        matches!(
+            self,
+            Self::PrivateToPlayer(_) | Self::InvestigatorPrivate(_)
+        )
+    }
+
+    pub const fn is_private_to_group(&self) -> bool {
+        matches!(self, Self::PrivateToGroup(_))
+    }
+
+    pub const fn is_restricted(&self) -> bool {
+        matches!(
+            self,
+            Self::PrivateToPlayer(_)
+                | Self::PrivateToGroup(_)
+                | Self::KeeperOnly
+                | Self::InvestigatorPrivate(_)
+                | Self::AiInternal
+                | Self::SystemOnly
+                | Self::SpectatorHidden
+                | Self::SystemPrivate
+        )
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        self.kind().as_str()
+    }
+
+    /// Total ordering used only after audience semantics have been resolved.
+    /// Targeted labels at rank 3 still require their `Visibility` subject to
+    /// determine whether two scopes are comparable.
+    pub const fn restriction_rank(&self) -> u8 {
+        self.kind().restriction_rank()
+    }
+
+    /// Conservative label-only merge for schema and policy surfaces that do
+    /// not carry a targeted subject. Incomparable private label kinds collapse
+    /// to Keeper-only instead of depending on input order.
+    pub fn conservative_merge(&self, other: &Self) -> Self {
+        intersect_visibility_labels(self, other)
     }
 }
 
@@ -192,45 +336,65 @@ impl TryFrom<&str> for VisibilityLabel {
     type Error = TrpgError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "public" => Ok(Self::Public),
-            "party_visible" => Ok(Self::PartyVisible),
-            "keeper_only" => Ok(Self::KeeperOnly),
-            "private_to_player" => Ok(Self::PrivateToPlayer),
-            "investigator_private" => Ok(Self::InvestigatorPrivate),
-            "ai_internal" => Ok(Self::AiInternal),
-            "system_only" => Ok(Self::SystemOnly),
-            "system_private" => Ok(Self::SystemPrivate),
-            _ => Err(TrpgError::UnknownVisibilityLabel),
+        let kind = VisibilityKind::try_from(value)?;
+        match kind {
+            VisibilityKind::Public => Ok(Self::Public),
+            VisibilityKind::PartyVisible => Ok(Self::PartyVisible),
+            VisibilityKind::KeeperOnly => Ok(Self::KeeperOnly),
+            VisibilityKind::AiInternal => Ok(Self::AiInternal),
+            VisibilityKind::SystemOnly => Ok(Self::SystemOnly),
+            VisibilityKind::SpectatorVisible => Ok(Self::SpectatorVisible),
+            VisibilityKind::SpectatorHidden => Ok(Self::SpectatorHidden),
+            VisibilityKind::SystemPrivate => Ok(Self::SystemPrivate),
+            VisibilityKind::PrivateToPlayer
+            | VisibilityKind::PrivateToGroup
+            | VisibilityKind::InvestigatorPrivate => Err(TrpgError::VisibilityDenied),
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Visibility {
     label: VisibilityLabel,
-    player_id: Option<EntityId>,
 }
 
 impl Visibility {
     pub fn new(label: VisibilityLabel) -> Self {
-        Self {
-            label,
-            player_id: None,
-        }
+        Self { label }
     }
 
     pub fn private_to_player(player_id: EntityId) -> Self {
         Self {
-            label: VisibilityLabel::PrivateToPlayer,
-            player_id: Some(player_id),
+            label: VisibilityLabel::PrivateToPlayer(player_id),
+        }
+    }
+
+    pub fn private_to_group(group_id: EntityId) -> Self {
+        Self {
+            label: VisibilityLabel::PrivateToGroup(group_id),
         }
     }
 
     pub fn investigator_private(player_id: EntityId) -> Self {
         Self {
-            label: VisibilityLabel::InvestigatorPrivate,
-            player_id: Some(player_id),
+            label: VisibilityLabel::InvestigatorPrivate(player_id),
+        }
+    }
+
+    pub fn try_from_parts(label: &str, subject_id: Option<&str>) -> KernelResult<Self> {
+        let kind = VisibilityKind::try_from(label)?;
+        match (kind.requires_subject(), subject_id) {
+            (true, Some(subject)) => {
+                let subject = EntityId::new(subject)?;
+                Ok(match kind {
+                    VisibilityKind::PrivateToPlayer => Self::private_to_player(subject),
+                    VisibilityKind::PrivateToGroup => Self::private_to_group(subject),
+                    VisibilityKind::InvestigatorPrivate => Self::investigator_private(subject),
+                    _ => unreachable!("subject-bearing visibility kind"),
+                })
+            }
+            (false, None) => Ok(Self::new(VisibilityLabel::try_from(label)?)),
+            _ => Err(TrpgError::VisibilityDenied),
         }
     }
 
@@ -239,50 +403,174 @@ impl Visibility {
     }
 
     pub fn player_id(&self) -> Option<&EntityId> {
-        self.player_id.as_ref()
+        self.label
+            .is_private_to_player()
+            .then_some(self.label.subject_id())
+            .flatten()
+    }
+
+    pub fn group_id(&self) -> Option<&EntityId> {
+        self.label
+            .is_private_to_group()
+            .then_some(self.label.subject_id())
+            .flatten()
+    }
+
+    /// The audience identity carried by targeted visibility labels.
+    /// Callers that persist or hash visibility metadata must use this method
+    /// rather than assuming that every target is a player.
+    pub fn subject_id(&self) -> Option<&EntityId> {
+        self.label.subject_id()
     }
 
     pub fn is_well_formed(&self) -> bool {
-        matches!(
-            (&self.label, &self.player_id),
-            (
-                VisibilityLabel::PrivateToPlayer | VisibilityLabel::InvestigatorPrivate,
-                Some(_)
-            ) | (
-                VisibilityLabel::Public
-                    | VisibilityLabel::PartyVisible
-                    | VisibilityLabel::KeeperOnly
-                    | VisibilityLabel::AiInternal
-                    | VisibilityLabel::SystemOnly
-                    | VisibilityLabel::SystemPrivate,
-                None
-            )
-        )
+        true
     }
 
     pub fn can_view(&self, principal: &PrincipalScope) -> bool {
-        match (&self.label, principal) {
-            (VisibilityLabel::Public, _) => true,
-            (VisibilityLabel::PartyVisible, PrincipalScope::PartyMember)
-            | (VisibilityLabel::PartyVisible, PrincipalScope::Keeper)
-            | (VisibilityLabel::PartyVisible, PrincipalScope::System) => true,
-            (VisibilityLabel::KeeperOnly, PrincipalScope::Keeper)
-            | (VisibilityLabel::KeeperOnly, PrincipalScope::System) => true,
-            (VisibilityLabel::PrivateToPlayer, PrincipalScope::Player(player_id)) => {
-                self.player_id.as_ref() == Some(player_id)
+        match self.label.kind() {
+            VisibilityKind::Public => true,
+            VisibilityKind::PartyVisible | VisibilityKind::SpectatorHidden => {
+                principal.is_party_audience()
             }
-            (VisibilityLabel::PrivateToPlayer, PrincipalScope::Keeper)
-            | (VisibilityLabel::PrivateToPlayer, PrincipalScope::System) => true,
-            (VisibilityLabel::InvestigatorPrivate, PrincipalScope::Player(player_id)) => {
-                self.player_id.as_ref() == Some(player_id)
+            VisibilityKind::KeeperOnly => principal.is_keeper() || principal.is_system(),
+            VisibilityKind::PrivateToPlayer | VisibilityKind::InvestigatorPrivate => {
+                principal.is_keeper()
+                    || principal.is_system()
+                    || self
+                        .subject_id()
+                        .is_some_and(|subject| principal.matches_player(subject))
             }
-            (VisibilityLabel::InvestigatorPrivate, PrincipalScope::Keeper)
-            | (VisibilityLabel::InvestigatorPrivate, PrincipalScope::System) => true,
-            (VisibilityLabel::AiInternal, PrincipalScope::System)
-            | (VisibilityLabel::SystemOnly, PrincipalScope::System)
-            | (VisibilityLabel::SystemPrivate, PrincipalScope::System) => true,
-            _ => false,
+            VisibilityKind::PrivateToGroup => {
+                principal.is_keeper()
+                    || principal.is_system()
+                    || self
+                        .subject_id()
+                        .is_some_and(|subject| principal.matches_group(subject))
+            }
+            VisibilityKind::SpectatorVisible => {
+                principal.is_spectator() || principal.is_party_audience()
+            }
+            VisibilityKind::AiInternal => principal.is_ai_runtime() || principal.is_system(),
+            VisibilityKind::SystemOnly | VisibilityKind::SystemPrivate => principal.is_system(),
         }
+    }
+
+    /// Computes the audience intersection of two source values. The result is
+    /// never broader than either source. Incomparable private targets collapse
+    /// to keeper/system or system-only rather than depending on input order.
+    pub fn intersection(&self, other: &Self) -> Self {
+        Self {
+            label: intersect_visibility_labels(&self.label, &other.label),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VisibilityWireValue {
+    label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    subject_id: Option<String>,
+}
+
+impl Serialize for Visibility {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        VisibilityWireValue {
+            label: self.label.as_str().to_owned(),
+            subject_id: self.subject_id().map(ToString::to_string),
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Visibility {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = VisibilityWireValue::deserialize(deserializer)?;
+        Self::try_from_parts(&value.label, value.subject_id.as_deref())
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PrincipalCapability {
+    PartyMember,
+    Keeper,
+    Spectator,
+    AiRuntime,
+    System,
+}
+
+/// Lossless authenticated principal claims. Unlike the compatibility enum
+/// variants below, this value can simultaneously represent one user/player,
+/// multiple groups and characters, spectator status, and trusted workload
+/// capabilities.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PrincipalClaims {
+    user_id: EntityId,
+    player_id: Option<EntityId>,
+    group_ids: Vec<EntityId>,
+    character_ids: Vec<EntityId>,
+    capabilities: Vec<PrincipalCapability>,
+}
+
+impl PrincipalClaims {
+    pub fn new(user_id: impl Into<String>) -> KernelResult<Self> {
+        Ok(Self {
+            user_id: EntityId::new(user_id)?,
+            player_id: None,
+            group_ids: Vec::new(),
+            character_ids: Vec::new(),
+            capabilities: Vec::new(),
+        })
+    }
+
+    pub fn with_player(mut self, player_id: impl Into<String>) -> KernelResult<Self> {
+        self.player_id = Some(EntityId::new(player_id)?);
+        Ok(self)
+    }
+
+    pub fn with_group(mut self, group_id: impl Into<String>) -> KernelResult<Self> {
+        push_unique(&mut self.group_ids, EntityId::new(group_id)?);
+        Ok(self)
+    }
+
+    pub fn with_character(mut self, character_id: impl Into<String>) -> KernelResult<Self> {
+        push_unique(&mut self.character_ids, EntityId::new(character_id)?);
+        Ok(self)
+    }
+
+    pub fn with_capability(mut self, capability: PrincipalCapability) -> Self {
+        if !self.capabilities.contains(&capability) {
+            self.capabilities.push(capability);
+        }
+        self
+    }
+
+    pub fn user_id(&self) -> &EntityId {
+        &self.user_id
+    }
+
+    pub fn player_id(&self) -> Option<&EntityId> {
+        self.player_id.as_ref()
+    }
+
+    pub fn group_ids(&self) -> &[EntityId] {
+        &self.group_ids
+    }
+
+    pub fn character_ids(&self) -> &[EntityId] {
+        &self.character_ids
+    }
+
+    pub fn has_capability(&self, capability: PrincipalCapability) -> bool {
+        self.capabilities.contains(&capability)
     }
 }
 
@@ -292,11 +580,120 @@ pub enum PrincipalScope {
     PartyMember,
     Keeper,
     Player(EntityId),
+    GroupMember(EntityId),
+    Spectator,
     System,
+    Claims(PrincipalClaims),
+}
+
+impl PrincipalScope {
+    fn is_system(&self) -> bool {
+        matches!(self, Self::System)
+            || matches!(self, Self::Claims(claims) if claims.has_capability(PrincipalCapability::System))
+    }
+
+    fn is_keeper(&self) -> bool {
+        matches!(self, Self::Keeper)
+            || matches!(self, Self::Claims(claims) if claims.has_capability(PrincipalCapability::Keeper))
+    }
+
+    fn is_ai_runtime(&self) -> bool {
+        matches!(self, Self::Claims(claims) if claims.has_capability(PrincipalCapability::AiRuntime))
+    }
+
+    fn is_spectator(&self) -> bool {
+        matches!(self, Self::Spectator)
+            || matches!(self, Self::Claims(claims) if claims.has_capability(PrincipalCapability::Spectator))
+    }
+
+    fn is_party_audience(&self) -> bool {
+        matches!(
+            self,
+            Self::PartyMember
+                | Self::Player(_)
+                | Self::GroupMember(_)
+                | Self::Keeper
+                | Self::System
+        ) || matches!(self, Self::Claims(claims) if claims.player_id.is_some()
+            || !claims.group_ids.is_empty()
+            || claims.has_capability(PrincipalCapability::PartyMember)
+            || claims.has_capability(PrincipalCapability::Keeper)
+            || claims.has_capability(PrincipalCapability::System))
+    }
+
+    fn matches_player(&self, subject: &EntityId) -> bool {
+        matches!(self, Self::Player(player_id) if player_id == subject)
+            || matches!(self, Self::Claims(claims) if claims.player_id.as_ref() == Some(subject))
+    }
+
+    fn matches_group(&self, subject: &EntityId) -> bool {
+        matches!(self, Self::GroupMember(group_id) if group_id == subject)
+            || matches!(self, Self::Claims(claims) if claims.group_ids.contains(subject))
+    }
+}
+
+fn push_unique(values: &mut Vec<EntityId>, value: EntityId) {
+    if !values.contains(&value) {
+        values.push(value);
+    }
+}
+
+fn intersect_visibility_labels(left: &VisibilityLabel, right: &VisibilityLabel) -> VisibilityLabel {
+    use VisibilityKind::*;
+
+    if left == right {
+        return left.clone();
+    }
+    match (left.kind(), right.kind()) {
+        (Public, _) => right.clone(),
+        (_, Public) => left.clone(),
+        (SystemPrivate, _) | (_, SystemPrivate) => VisibilityLabel::SystemPrivate,
+        (SystemOnly, _) | (_, SystemOnly) => VisibilityLabel::SystemOnly,
+        (AiInternal, AiInternal) => VisibilityLabel::AiInternal,
+        (AiInternal, _) | (_, AiInternal) => VisibilityLabel::SystemOnly,
+        (KeeperOnly, _) | (_, KeeperOnly) => VisibilityLabel::KeeperOnly,
+        (PrivateToPlayer | InvestigatorPrivate, PrivateToPlayer | InvestigatorPrivate)
+            if left.subject_id() == right.subject_id() =>
+        {
+            VisibilityLabel::targeted(
+                if matches!(left.kind(), InvestigatorPrivate)
+                    || matches!(right.kind(), InvestigatorPrivate)
+                {
+                    InvestigatorPrivate
+                } else {
+                    PrivateToPlayer
+                },
+                left.subject_id()
+                    .expect("targeted label has a subject")
+                    .clone(),
+            )
+        }
+        (PrivateToGroup, PrivateToGroup) if left.subject_id() == right.subject_id() => left.clone(),
+        (
+            PrivateToPlayer | PrivateToGroup | InvestigatorPrivate,
+            PrivateToPlayer | PrivateToGroup | InvestigatorPrivate,
+        ) => VisibilityLabel::KeeperOnly,
+        (PrivateToPlayer | PrivateToGroup | InvestigatorPrivate, _)
+        | (_, PrivateToPlayer | PrivateToGroup | InvestigatorPrivate) => {
+            if left.kind().requires_subject() {
+                left.clone()
+            } else {
+                right.clone()
+            }
+        }
+        (SpectatorVisible, _) => right.clone(),
+        (_, SpectatorVisible) => left.clone(),
+        (PartyVisible, SpectatorHidden) | (SpectatorHidden, PartyVisible) => {
+            VisibilityLabel::SpectatorHidden
+        }
+        (PartyVisible, PartyVisible) => VisibilityLabel::PartyVisible,
+        (SpectatorHidden, SpectatorHidden) => VisibilityLabel::SpectatorHidden,
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum ProvenanceKind {
+    UserStatement,
     HumanKeeperStatement,
     RulesEngineDecision,
     ToolResult,
@@ -459,6 +856,17 @@ impl Actor {
 
     pub fn origin(&self) -> &ActorOrigin {
         &self.origin
+    }
+
+    /// Canonical actor role derived from the authenticated principal. It must
+    /// not be replaced with the role of a separate policy approver.
+    pub fn canonical_role_name(&self) -> &'static str {
+        actor_role_integrity_name(&self.role)
+    }
+
+    /// Lossless canonical origin of the authenticated principal.
+    pub fn canonical_origin_wire(&self) -> EventActorOriginWire {
+        event_actor_origin_wire(&self.origin)
     }
 }
 
@@ -1044,12 +1452,19 @@ pub struct CanonicalCommitRequest {
     pub expected_version: u64,
     pub command_id: String,
     pub authenticated_actor_id: String,
+    pub authenticated_actor_role: String,
+    pub authenticated_actor_origin: EventActorOriginWire,
     pub authority_mode: String,
     pub authority_contract_version: u64,
     pub authority_contract_id: String,
     pub authority_owner: String,
     pub visibility_label: String,
     pub visibility_subject: String,
+    /// Independent personal-data owner for crypto-erasure and data-subject
+    /// workflows. This is deliberately not derived from the visibility
+    /// audience: public, party, keeper, and group-visible records can still
+    /// contain one person's data.
+    pub data_subject_id: String,
     pub provenance_kind: String,
     pub provenance_reference: String,
     pub provenance_recorded_by: String,
@@ -1060,21 +1475,50 @@ pub struct CanonicalCommitRequest {
     pub audit: CanonicalPolicyAudit,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonicalCommittedEvent {
+    pub sequence: u64,
+    pub stream_version: u64,
+    pub event_type: String,
+    pub payload_json: String,
+    pub command_id: String,
+    pub idempotency_key: String,
+    pub occurred_at_unix_ms: u64,
+    /// Store-generated HMAC for this exact canonical event. Consumers that
+    /// bind a secondary workflow to an event must use this value rather than
+    /// synthesizing a process-local digest.
+    pub event_integrity_hash: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CanonicalCommitReceipt {
     pub first_stream_version: u64,
     pub last_stream_version: u64,
+    /// Exact durable identities; consumers must not invent local replacements.
+    pub events: Vec<CanonicalCommittedEvent>,
 }
 
 pub trait CanonicalCommitPort: fmt::Debug + Send + Sync {
     /// Atomically validates the campaign stream version and idempotency key,
     /// persists the complete formal batch, and returns its durable range.
     fn commit(&self, request: &CanonicalCommitRequest) -> KernelResult<CanonicalCommitReceipt>;
+
+    /// Revalidates an exact receipt against the port's trusted canonical
+    /// custody. Durable adapters must prove the keyed primary/audit chains and
+    /// external witness binding; callers must never accept a hash-shaped
+    /// string as equivalent evidence.
+    fn verify_receipt(
+        &self,
+        request: &CanonicalCommitRequest,
+        receipt: &CanonicalCommitReceipt,
+    ) -> KernelResult<()>;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventEnvelope<P> {
     pub sequence: u64,
+    pub stream_id: EntityId,
+    pub stream_version: u64,
     pub event_type: &'static str,
     pub campaign_id: EntityId,
     pub authenticated_actor: Actor,
@@ -1095,6 +1539,73 @@ pub struct EventEnvelope<P> {
     integrity_hash: [u8; 32],
 }
 
+pub const EVENT_ENVELOPE_WIRE_SCHEMA_VERSION: u16 = 2;
+
+/// Stable, versioned representation used at persistence and transport
+/// boundaries. Domain-only private fields stay inside `EventEnvelope`, while
+/// every authoritative classification and provenance field is explicit here.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EventEnvelopeWire<P> {
+    pub schema_version: u16,
+    pub event_schema_version: u32,
+    pub sequence: u64,
+    pub stream_id: String,
+    pub stream_version: u64,
+    pub event_type: String,
+    pub campaign_id: String,
+    pub authenticated_actor_id: String,
+    pub authenticated_actor_role: String,
+    pub authenticated_actor_origin: EventActorOriginWire,
+    pub resource_campaign_id: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub authority_contract_id: String,
+    pub authority_owner: String,
+    pub command_id: String,
+    pub idempotency_key: String,
+    pub authority_contract_version: u64,
+    pub visibility_label: String,
+    pub visibility_subject: Option<String>,
+    pub provenance_kind: String,
+    pub provenance_reference: String,
+    pub provenance_recorded_by: String,
+    pub correlation_id: String,
+    pub causation_id: String,
+    pub trace_id: String,
+    pub occurred_at_unix_ms: u64,
+    pub payload: P,
+    pub request_hash_source: String,
+    pub integrity_status: String,
+    /// Historical imports can predate the HMAC domain. Absence is explicit
+    /// and must be interpreted together with the persisted integrity status;
+    /// callers must never synthesize a hash for those records.
+    pub integrity_hash: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum EventActorOriginWire {
+    UserSession {
+        session_id: String,
+    },
+    Workload {
+        role: String,
+    },
+    AgentRun {
+        run_id: String,
+        class: String,
+        campaign_id: String,
+    },
+}
+
+impl<P: Serialize> EventEnvelopeWire<P> {
+    pub fn to_canonical_json(&self) -> KernelResult<String> {
+        let value = serde_json::to_value(self).map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        serde_json::to_string(&value).map_err(|_| TrpgError::AuditIntegrityViolation)
+    }
+}
+
 impl<P: PartialEq + Serialize> EventEnvelope<P> {
     pub fn verify_recorded_integrity(&self) -> KernelResult<()> {
         if self.payload != self.recorded_payload
@@ -1106,17 +1617,66 @@ impl<P: PartialEq + Serialize> EventEnvelope<P> {
     }
 }
 
+impl<P: Clone + PartialEq + Serialize> EventEnvelope<P> {
+    pub fn to_canonical_wire(&self) -> EventEnvelopeWire<P> {
+        EventEnvelopeWire {
+            schema_version: EVENT_ENVELOPE_WIRE_SCHEMA_VERSION,
+            event_schema_version: 1,
+            sequence: self.sequence,
+            stream_id: self.stream_id.to_string(),
+            stream_version: self.stream_version,
+            event_type: self.event_type.to_owned(),
+            campaign_id: self.campaign_id.to_string(),
+            authenticated_actor_id: self.authenticated_actor.id().to_string(),
+            authenticated_actor_role: actor_role_integrity_name(self.authenticated_actor.role())
+                .to_owned(),
+            authenticated_actor_origin: event_actor_origin_wire(self.authenticated_actor.origin()),
+            resource_campaign_id: self.resource.campaign_id().to_string(),
+            resource_type: self.resource.resource_type().to_string(),
+            resource_id: self.resource.resource_id().to_string(),
+            authority_contract_id: self.authority_contract_id.to_string(),
+            authority_owner: self.authority_owner.to_string(),
+            command_id: self.command_id.to_string(),
+            idempotency_key: self.idempotency_key.clone(),
+            authority_contract_version: self.authority_contract_version,
+            visibility_label: self.visibility.label().as_str().to_owned(),
+            visibility_subject: self.visibility.subject_id().map(ToString::to_string),
+            provenance_kind: provenance_kind_integrity_name(&self.fact_provenance.kind).to_owned(),
+            provenance_reference: self.fact_provenance.reference.to_string(),
+            provenance_recorded_by: self.fact_provenance.recorded_by.to_string(),
+            correlation_id: self.correlation_id.to_string(),
+            causation_id: self.causation_id.to_string(),
+            trace_id: self.trace_id.to_string(),
+            occurred_at_unix_ms: self.occurred_at_unix_ms,
+            payload: self.payload.clone(),
+            request_hash_source: "shared_kernel_append".to_owned(),
+            integrity_status: "verified_sha256".to_owned(),
+            integrity_hash: Some(format!("sha256:{}", hex_lower(&self.integrity_hash))),
+        }
+    }
+
+    pub fn to_canonical_json(&self) -> KernelResult<String> {
+        self.to_canonical_wire().to_canonical_json()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct EventStore<P> {
-    stream_base_version: u64,
+    stream_base_versions: HashMap<(EntityId, EntityId), u64>,
     events: Vec<EventEnvelope<P>>,
-    idempotency_index: HashMap<String, u64>,
+    idempotency_index: HashMap<(EntityId, EntityId, String), IdempotencyRecord>,
+}
+
+#[derive(Clone, Debug)]
+struct IdempotencyRecord {
+    request_hash: [u8; 32],
+    event_index: usize,
 }
 
 impl<P> Default for EventStore<P> {
     fn default() -> Self {
         Self {
-            stream_base_version: 0,
+            stream_base_versions: HashMap::new(),
             events: Vec::new(),
             idempotency_index: HashMap::new(),
         }
@@ -1124,37 +1684,99 @@ impl<P> Default for EventStore<P> {
 }
 
 impl<P: Clone + PartialEq + Serialize> EventStore<P> {
-    pub fn append<T>(
-        &mut self,
+    /// Performs every deterministic append guard without mutating the store.
+    /// Callers that must persist an idempotent side effect before the event can
+    /// use this while holding their exclusive `&mut EventStore` borrow; the
+    /// subsequent append cannot encounter a stale version introduced by a
+    /// concurrent in-process writer.
+    pub fn validate_append<T>(
+        &self,
         command: &CommandEnvelope<T>,
         event_type: &'static str,
-        payload: P,
-    ) -> KernelResult<EventEnvelope<P>> {
+        payload: &P,
+    ) -> KernelResult<()> {
         validate_command_envelope(command)?;
 
-        let actual_version = self.stream_base_version + self.events.len() as u64;
+        let campaign_id = command
+            .authenticated_context()
+            .resource()
+            .campaign_id()
+            .clone();
+        let stream_id = command
+            .authenticated_context()
+            .resource()
+            .resource_id()
+            .clone();
+        let idempotency_scope = (
+            campaign_id.clone(),
+            stream_id.clone(),
+            command.idempotency_key.clone(),
+        );
+        let request_hash = append_request_hash(command, event_type, payload)?;
+        if let Some(existing) = self.idempotency_index.get(&idempotency_scope) {
+            return if existing.request_hash == request_hash {
+                Ok(())
+            } else {
+                Err(TrpgError::DuplicateCommand)
+            };
+        }
+
+        let actual_version = self.current_stream_version(&campaign_id, &stream_id);
         if command.expected_version != actual_version {
             return Err(TrpgError::ExpectedVersionConflict {
                 expected: command.expected_version,
                 actual: actual_version,
             });
         }
+        Ok(())
+    }
 
-        if self
-            .idempotency_index
-            .contains_key(&command.idempotency_key)
-        {
+    pub fn append<T>(
+        &mut self,
+        command: &CommandEnvelope<T>,
+        event_type: &'static str,
+        payload: P,
+    ) -> KernelResult<EventEnvelope<P>> {
+        self.validate_append(command, event_type, &payload)?;
+
+        let campaign_id = command
+            .authenticated_context()
+            .resource()
+            .campaign_id()
+            .clone();
+        let stream_id = command
+            .authenticated_context()
+            .resource()
+            .resource_id()
+            .clone();
+        let idempotency_scope = (
+            campaign_id.clone(),
+            stream_id.clone(),
+            command.idempotency_key.clone(),
+        );
+        let request_hash = append_request_hash(command, event_type, &payload)?;
+        if let Some(existing) = self.idempotency_index.get(&idempotency_scope) {
+            if existing.request_hash == request_hash {
+                return Ok(self.events[existing.event_index].clone());
+            }
             return Err(TrpgError::DuplicateCommand);
         }
 
+        let actual_version = self.current_stream_version(&campaign_id, &stream_id);
+
         let mut event = EventEnvelope {
-            sequence: actual_version + 1,
+            sequence: self
+                .events
+                .iter()
+                .map(|event| event.sequence)
+                .max()
+                .unwrap_or(0)
+                .checked_add(1)
+                .ok_or(TrpgError::AuditIntegrityViolation)?,
+            stream_id,
+            stream_version: actual_version + 1,
             event_type,
-            campaign_id: command
-                .authenticated_context()
-                .resource()
-                .campaign_id()
-                .clone(),
+            campaign_id,
             authenticated_actor: command.actor.clone(),
             resource: command.authenticated_context().resource().clone(),
             authority_contract_id: command
@@ -1182,37 +1804,254 @@ impl<P: Clone + PartialEq + Serialize> EventStore<P> {
         };
         event.integrity_hash = event_integrity_hash(&event)?;
 
-        self.idempotency_index
-            .insert(command.idempotency_key.clone(), event.sequence);
+        self.idempotency_index.insert(
+            idempotency_scope,
+            IdempotencyRecord {
+                request_hash,
+                event_index: self.events.len(),
+            },
+        );
         self.events.push(event.clone());
 
         Ok(event)
     }
+
+    /// Materializes a canonical event using only the identity returned by the
+    /// durable adapter. This closes cold-restart sequence/timestamp forgery.
+    pub fn record_canonical<T>(
+        &mut self,
+        command: &CommandEnvelope<T>,
+        event_type: &'static str,
+        payload: P,
+        durable: &CanonicalCommittedEvent,
+    ) -> KernelResult<EventEnvelope<P>> {
+        validate_command_envelope(command)?;
+        if durable.sequence == 0
+            || durable.occurred_at_unix_ms == 0
+            || durable.stream_version
+                != command
+                    .expected_version
+                    .checked_add(1)
+                    .ok_or(TrpgError::AuditIntegrityViolation)?
+            || durable.event_type != event_type
+            || durable.command_id.trim().is_empty()
+            || durable.idempotency_key.trim().is_empty()
+            || !is_canonical_hmac(&durable.event_integrity_hash)
+        {
+            return Err(TrpgError::AuditIntegrityViolation);
+        }
+        let local_payload =
+            serde_json::to_value(&payload).map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let durable_payload: serde_json::Value = serde_json::from_str(&durable.payload_json)
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        if local_payload != durable_payload {
+            return Err(TrpgError::AuditIntegrityViolation);
+        }
+
+        let campaign_id = command
+            .authenticated_context()
+            .resource()
+            .campaign_id()
+            .clone();
+        let stream_id = command
+            .authenticated_context()
+            .resource()
+            .resource_id()
+            .clone();
+        let idempotency_scope = (
+            campaign_id.clone(),
+            stream_id.clone(),
+            command.idempotency_key.clone(),
+        );
+        let request_hash = append_request_hash(command, event_type, &payload)?;
+        if let Some(existing) = self.idempotency_index.get(&idempotency_scope) {
+            let event = &self.events[existing.event_index];
+            if existing.request_hash == request_hash
+                && event.sequence == durable.sequence
+                && event.stream_version == durable.stream_version
+                && event.command_id.as_str() == durable.command_id
+                && event.idempotency_key == durable.idempotency_key
+                && event.occurred_at_unix_ms == durable.occurred_at_unix_ms
+            {
+                return Ok(event.clone());
+            }
+            return Err(TrpgError::DuplicateCommand);
+        }
+        if self.events.iter().any(|event| {
+            event.sequence == durable.sequence
+                || (event.campaign_id == campaign_id
+                    && event.stream_id == stream_id
+                    && event.stream_version == durable.stream_version)
+        }) {
+            return Err(TrpgError::AuditIntegrityViolation);
+        }
+
+        let mut event = EventEnvelope {
+            sequence: durable.sequence,
+            stream_id: stream_id.clone(),
+            stream_version: durable.stream_version,
+            event_type,
+            campaign_id: campaign_id.clone(),
+            authenticated_actor: command.actor.clone(),
+            resource: command.authenticated_context().resource().clone(),
+            authority_contract_id: command
+                .authenticated_context()
+                .authority()
+                .contract_id()
+                .clone(),
+            authority_owner: command
+                .authenticated_context()
+                .authority()
+                .authority_owner()
+                .clone(),
+            command_id: EntityId::new(durable.command_id.clone())?,
+            idempotency_key: durable.idempotency_key.clone(),
+            authority_contract_version: command.authority_contract_version,
+            visibility: command.visibility.clone(),
+            fact_provenance: command.fact_provenance.clone(),
+            correlation_id: command.correlation_id.clone(),
+            causation_id: command.causation_id.clone(),
+            trace_id: command.authenticated_context().trace_id().clone(),
+            occurred_at_unix_ms: durable.occurred_at_unix_ms,
+            payload: payload.clone(),
+            recorded_payload: payload,
+            integrity_hash: [0_u8; 32],
+        };
+        event.integrity_hash = event_integrity_hash(&event)?;
+        self.idempotency_index.insert(
+            idempotency_scope,
+            IdempotencyRecord {
+                request_hash,
+                event_index: self.events.len(),
+            },
+        );
+        self.events.push(event.clone());
+        self.stream_base_versions
+            .entry((campaign_id, stream_id))
+            .and_modify(|version| *version = (*version).max(durable.stream_version))
+            .or_insert(durable.stream_version);
+        Ok(event)
+    }
+}
+
+fn is_canonical_hmac(value: &str) -> bool {
+    const PREFIX: &str = "hmac-sha256:";
+    value.len() == PREFIX.len() + 64
+        && value.starts_with(PREFIX)
+        && value[PREFIX.len()..]
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
 }
 
 impl<P> EventStore<P> {
-    pub fn with_stream_base_version(stream_base_version: u64) -> Self {
-        Self {
-            stream_base_version,
-            events: Vec::new(),
-            idempotency_index: HashMap::new(),
-        }
+    pub fn with_stream_base_version_for(
+        campaign_id: EntityId,
+        stream_id: EntityId,
+        stream_base_version: u64,
+    ) -> Self {
+        let mut store = Self::default();
+        store
+            .stream_base_versions
+            .insert((campaign_id, stream_id), stream_base_version);
+        store
     }
 
     pub fn events(&self) -> &[EventEnvelope<P>] {
         &self.events
     }
 
-    pub fn current_stream_version(&self) -> u64 {
-        self.stream_base_version + self.events.len() as u64
+    pub fn current_stream_version(&self, campaign_id: &EntityId, stream_id: &EntityId) -> u64 {
+        let seeded = self
+            .stream_base_versions
+            .get(&(campaign_id.clone(), stream_id.clone()))
+            .copied()
+            .unwrap_or(0);
+        self.events
+            .iter()
+            .filter(|event| &event.campaign_id == campaign_id && &event.stream_id == stream_id)
+            .map(|event| event.stream_version)
+            .max()
+            .unwrap_or(seeded)
+            .max(seeded)
     }
 }
 
+fn append_request_hash<T, P: Clone + Serialize>(
+    command: &CommandEnvelope<T>,
+    event_type: &'static str,
+    payload: &P,
+) -> KernelResult<[u8; 32]> {
+    let mut proposed = EventEnvelope {
+        sequence: 0,
+        stream_id: command
+            .authenticated_context()
+            .resource()
+            .resource_id()
+            .clone(),
+        stream_version: command.expected_version.saturating_add(1),
+        event_type,
+        campaign_id: command
+            .authenticated_context()
+            .resource()
+            .campaign_id()
+            .clone(),
+        authenticated_actor: command.actor.clone(),
+        resource: command.authenticated_context().resource().clone(),
+        authority_contract_id: command
+            .authenticated_context()
+            .authority()
+            .contract_id()
+            .clone(),
+        authority_owner: command
+            .authenticated_context()
+            .authority()
+            .authority_owner()
+            .clone(),
+        command_id: command.command_id.clone(),
+        idempotency_key: command.idempotency_key.clone(),
+        authority_contract_version: command.authority_contract_version,
+        visibility: command.visibility.clone(),
+        fact_provenance: command.fact_provenance.clone(),
+        correlation_id: command.correlation_id.clone(),
+        causation_id: command.causation_id.clone(),
+        trace_id: command.authenticated_context().trace_id().clone(),
+        occurred_at_unix_ms: 0,
+        payload: payload.clone(),
+        recorded_payload: payload.clone(),
+        integrity_hash: [0_u8; 32],
+    };
+    proposed.integrity_hash = event_integrity_hash(&proposed)?;
+    Ok(proposed.integrity_hash)
+}
+
 impl<P: Clone> EventStore<P> {
+    /// Compatibility replay for single-campaign in-memory stores. A store
+    /// containing more than one campaign fails closed; callers that own an
+    /// authenticated campaign scope must use `replay_visible_in_campaign`.
     pub fn replay_visible(&self, principal: &PrincipalScope) -> Vec<EventEnvelope<P>> {
+        let Some(campaign_id) = self.events.first().map(|event| &event.campaign_id) else {
+            return Vec::new();
+        };
+        if self
+            .events
+            .iter()
+            .any(|event| &event.campaign_id != campaign_id)
+        {
+            return Vec::new();
+        }
+        self.replay_visible_in_campaign(campaign_id, principal)
+    }
+
+    pub fn replay_visible_in_campaign(
+        &self,
+        campaign_id: &EntityId,
+        principal: &PrincipalScope,
+    ) -> Vec<EventEnvelope<P>> {
         self.events
             .iter()
-            .filter(|event| event.visibility.can_view(principal))
+            .filter(|event| {
+                &event.campaign_id == campaign_id && event.visibility.can_view(principal)
+            })
             .cloned()
             .collect()
     }
@@ -1220,7 +2059,7 @@ impl<P: Clone> EventStore<P> {
 
 fn event_integrity_hash<P: Serialize>(event: &EventEnvelope<P>) -> KernelResult<[u8; 32]> {
     let mut digest = Sha256::new();
-    hash_integrity_field(&mut digest, 1, b"trpg-event-integrity-v3");
+    hash_integrity_field(&mut digest, 1, b"trpg-event-integrity-v4");
     hash_integrity_field(&mut digest, 2, &event.sequence.to_be_bytes());
     hash_integrity_field(&mut digest, 3, event.event_type.as_bytes());
     hash_integrity_field(&mut digest, 4, event.campaign_id.as_str().as_bytes());
@@ -1273,7 +2112,7 @@ fn event_integrity_hash<P: Serialize>(event: &EventEnvelope<P>) -> KernelResult<
         20,
         event
             .visibility
-            .player_id()
+            .subject_id()
             .map(EntityId::as_str)
             .unwrap_or_default()
             .as_bytes(),
@@ -1298,6 +2137,8 @@ fn event_integrity_hash<P: Serialize>(event: &EventEnvelope<P>) -> KernelResult<
     hash_integrity_field(&mut digest, 26, event.trace_id.as_str().as_bytes());
     hash_integrity_field(&mut digest, 27, &event.occurred_at_unix_ms.to_be_bytes());
     hash_integrity_field(&mut digest, 28, &canonical_json_bytes(&event.payload)?);
+    hash_integrity_field(&mut digest, 29, event.stream_id.as_str().as_bytes());
+    hash_integrity_field(&mut digest, 30, &event.stream_version.to_be_bytes());
     Ok(digest.finalize().into())
 }
 
@@ -1353,6 +2194,36 @@ fn hash_actor_origin(digest: &mut Sha256, origin: &ActorOrigin) {
     }
 }
 
+fn event_actor_origin_wire(origin: &ActorOrigin) -> EventActorOriginWire {
+    match origin {
+        ActorOrigin::UserSession { session_id } => EventActorOriginWire::UserSession {
+            session_id: session_id.to_string(),
+        },
+        ActorOrigin::Workload { role } => EventActorOriginWire::Workload {
+            role: workload_role_integrity_name(*role).to_owned(),
+        },
+        ActorOrigin::AgentRun {
+            run_id,
+            class,
+            campaign_id,
+        } => EventActorOriginWire::AgentRun {
+            run_id: run_id.to_string(),
+            class: agent_class_integrity_name(*class).to_owned(),
+            campaign_id: campaign_id.to_string(),
+        },
+    }
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    output
+}
+
 fn actor_role_integrity_name(role: &ActorRole) -> &'static str {
     match role {
         ActorRole::ServerOwner => "server_owner",
@@ -1390,6 +2261,7 @@ fn agent_class_integrity_name(class: AgentClass) -> &'static str {
 
 fn provenance_kind_integrity_name(kind: &ProvenanceKind) -> &'static str {
     match kind {
+        ProvenanceKind::UserStatement => "user_statement",
         ProvenanceKind::HumanKeeperStatement => "human_keeper_statement",
         ProvenanceKind::RulesEngineDecision => "rules_engine_decision",
         ProvenanceKind::ToolResult => "tool_result",
@@ -1421,14 +2293,17 @@ pub fn kernel_contract_snapshot() -> KernelContractSnapshot {
         id_format: "non_empty_ascii_alnum_underscore_dash",
         version_policy: "expected_version_plus_immutable_authority_contract",
         visibility_enum: vec![
-            VisibilityLabel::Public.as_str(),
-            VisibilityLabel::PartyVisible.as_str(),
-            VisibilityLabel::KeeperOnly.as_str(),
-            VisibilityLabel::PrivateToPlayer.as_str(),
-            VisibilityLabel::InvestigatorPrivate.as_str(),
-            VisibilityLabel::AiInternal.as_str(),
-            VisibilityLabel::SystemOnly.as_str(),
-            VisibilityLabel::SystemPrivate.as_str(),
+            VisibilityKind::Public.as_str(),
+            VisibilityKind::PartyVisible.as_str(),
+            VisibilityKind::PrivateToPlayer.as_str(),
+            VisibilityKind::PrivateToGroup.as_str(),
+            VisibilityKind::KeeperOnly.as_str(),
+            VisibilityKind::InvestigatorPrivate.as_str(),
+            VisibilityKind::AiInternal.as_str(),
+            VisibilityKind::SystemOnly.as_str(),
+            VisibilityKind::SpectatorVisible.as_str(),
+            VisibilityKind::SpectatorHidden.as_str(),
+            VisibilityKind::SystemPrivate.as_str(),
         ],
         error_codes: vec![
             TrpgError::InvalidEntityId.code(),

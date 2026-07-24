@@ -94,7 +94,7 @@ fn governed_application() -> Option<(ApiApplication, PathBuf)> {
             opa_address,
             "/v1/data/security_governance/decision",
             PolicyBackend::Opa,
-            "opa-security-governance-v2",
+            "opa-security-governance-v3",
         )
         .unwrap(),
     )

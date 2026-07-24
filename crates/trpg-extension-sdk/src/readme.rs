@@ -176,87 +176,32 @@ impl ExtensionCapabilityGrantSet {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExtensionPolicyGate {
-    pub capability_grants: ExtensionCapabilityGrantSet,
-    pub requested_capabilities: Vec<ExtensionCapability>,
-    pub tool_grant_allowed: bool,
-    pub openfga_allowed: bool,
-    pub opa_allowed: bool,
-    pub audit_recorded: bool,
+    capability_grants: ExtensionCapabilityGrantSet,
+    requested_capabilities: Vec<ExtensionCapability>,
 }
 
 impl ExtensionPolicyGate {
-    pub fn allow(requested_capabilities: &[ExtensionCapability]) -> Self {
-        Self {
-            capability_grants: ExtensionCapabilityGrantSet::with_grants(requested_capabilities)
-                .expect("declared extension capabilities are grantable"),
-            requested_capabilities: requested_capabilities.to_vec(),
-            tool_grant_allowed: true,
-            openfga_allowed: true,
-            opa_allowed: true,
-            audit_recorded: true,
+    pub fn with_capability_grants(
+        grants: ExtensionCapabilityGrantSet,
+        requested_capabilities: &[ExtensionCapability],
+    ) -> ExtensionSdkResult<Self> {
+        for capability in requested_capabilities {
+            grants.require(*capability)?;
         }
+        Ok(Self {
+            capability_grants: grants,
+            requested_capabilities: requested_capabilities.to_vec(),
+        })
     }
 
     pub fn default_deny(requested_capabilities: &[ExtensionCapability]) -> Self {
         Self {
             capability_grants: ExtensionCapabilityGrantSet::default(),
             requested_capabilities: requested_capabilities.to_vec(),
-            tool_grant_allowed: true,
-            openfga_allowed: true,
-            opa_allowed: true,
-            audit_recorded: true,
-        }
-    }
-
-    pub fn deny_tool_grant(requested_capabilities: &[ExtensionCapability]) -> Self {
-        Self {
-            tool_grant_allowed: false,
-            ..Self::allow(requested_capabilities)
-        }
-    }
-
-    pub fn deny_openfga(requested_capabilities: &[ExtensionCapability]) -> Self {
-        Self {
-            openfga_allowed: false,
-            ..Self::allow(requested_capabilities)
-        }
-    }
-
-    pub fn deny_opa(requested_capabilities: &[ExtensionCapability]) -> Self {
-        Self {
-            opa_allowed: false,
-            ..Self::allow(requested_capabilities)
-        }
-    }
-
-    pub fn without_audit(requested_capabilities: &[ExtensionCapability]) -> Self {
-        Self {
-            audit_recorded: false,
-            ..Self::allow(requested_capabilities)
         }
     }
 
     pub fn authorize(&self) -> ExtensionSdkResult<()> {
-        if !self.tool_grant_allowed {
-            return Err(ExtensionSdkError::ForbiddenCapability(
-                WireErrorCode::ExtensionToolGrantDenied,
-            ));
-        }
-        if !self.openfga_allowed {
-            return Err(ExtensionSdkError::ForbiddenCapability(
-                WireErrorCode::ExtensionOpenfgaDenied,
-            ));
-        }
-        if !self.opa_allowed {
-            return Err(ExtensionSdkError::ForbiddenCapability(
-                WireErrorCode::ExtensionOpaDenied,
-            ));
-        }
-        if !self.audit_recorded {
-            return Err(ExtensionSdkError::ForbiddenCapability(
-                WireErrorCode::ExtensionAuditRequired,
-            ));
-        }
         for capability in &self.requested_capabilities {
             self.capability_grants.require(*capability)?;
         }
@@ -655,15 +600,7 @@ pub fn is_current_safe_name(value: &str) -> bool {
 }
 
 fn restricted_visibility(label: &VisibilityLabel) -> bool {
-    matches!(
-        label,
-        VisibilityLabel::KeeperOnly
-            | VisibilityLabel::PrivateToPlayer
-            | VisibilityLabel::InvestigatorPrivate
-            | VisibilityLabel::AiInternal
-            | VisibilityLabel::SystemOnly
-            | VisibilityLabel::SystemPrivate
-    )
+    label.is_restricted()
 }
 
 fn has_long_hex_run(value: &str) -> bool {
@@ -747,7 +684,7 @@ macro_rules! define_extension_sdk_module {
 
         impl Default for $service {
             fn default() -> Self {
-                Self::new($crate::ExtensionPolicyGate::allow(ALLOWED_CAPABILITIES))
+                Self::new($crate::ExtensionPolicyGate::default_deny(ALLOWED_CAPABILITIES))
             }
         }
 

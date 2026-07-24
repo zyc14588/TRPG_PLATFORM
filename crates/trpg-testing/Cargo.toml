@@ -6,7 +6,11 @@ publish = false
 license = "UNLICENSED"
 
 [dependencies]
+async-trait = "0.1"
 serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
 trpg-agent-runtime = { path = "../trpg-agent-runtime" }
+trpg-domain-core = { path = "../trpg-domain-core" }
+trpg-security-governance = { path = "../trpg-security-governance" }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
 trpg-test-support = { path = "../trpg-contracts/test-support" }

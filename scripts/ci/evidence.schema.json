@@ -1,14 +1,16 @@
 {
-  "schema_version": "p00-3",
+  "schema_version": "p00-4",
   "required": [
     "base_commit",
     "worktree_diff_sha256",
     "generated_at_utc",
     "generator_version",
     "tool_versions",
+    "environment",
     "environment_sha256",
     "command",
     "command_argv",
+    "command_output",
     "exit_code",
     "artifact_sha256",
     "generated_artifact_sha256",

@@ -1,7 +1,9 @@
+mod common;
+
 use trpg_domain_core::authority_contract::patch_locked_authority_contract;
 use trpg_domain_core::ddd::{
-    AuthorityMode, EntityId, FactProvenance, FactSource, PrincipalScope, ProvenanceKind,
-    Visibility, VisibilityLabel,
+    AuthorityMode, EntityId, FactSource, PrincipalScope, ProvenanceKind, Visibility,
+    VisibilityLabel,
 };
 use trpg_domain_core::fork_canon_lineage::{
     fork_campaign, CampaignForkRequest, CanonStatus, CopyScope,
@@ -65,29 +67,22 @@ fn s02_detailed_fixture_maps_errors_events_and_records_to_domain_assertions() {
             .unwrap_err();
     assert_eq!(authority_error.code(), "AUTHORITY_CONTRACT_IMMUTABLE");
 
-    let provenance = FactProvenance::new(
-        ProvenanceKind::RulesEngineDecision,
-        "event_001",
-        "rules_001",
-    )
-    .unwrap();
-    let fact_error = promote_fact_to_confirmed(
-        "fact_agent_draft",
+    let fact_error = common::committed_fact_evidence(
         FactSource::AgentDraft,
-        Visibility::new(VisibilityLabel::KeeperOnly),
-        provenance.clone(),
+        ProvenanceKind::AgentProposal,
+        "rejected_agent_draft",
     )
     .unwrap_err();
     assert_eq!(fact_error.code(), "INVALID_CONFIRMED_FACT_SOURCE");
 
-    let confirmed = promote_fact_to_confirmed(
-        "fact_game_event",
+    let evidence = common::committed_fact_evidence(
         FactSource::GameEvent,
-        Visibility::new(VisibilityLabel::Public),
-        provenance,
+        ProvenanceKind::RulesEngineDecision,
+        "fact_game_event",
     )
     .unwrap();
-    assert_eq!(confirmed.source, FactSource::GameEvent);
+    let confirmed = promote_fact_to_confirmed("fact_game_event", &evidence).unwrap();
+    assert_eq!(confirmed.source(), FactSource::GameEvent);
 }
 
 #[test]
@@ -169,6 +164,7 @@ fn s02_visibility_fixture_cases_map_to_redaction_assertions() {
         redaction_for(
             &Visibility::new(VisibilityLabel::KeeperOnly),
             DerivedObject::PlayerExport,
+            &PrincipalScope::System,
             &PrincipalScope::Player(player_a)
         ),
         RedactionOutcome::Redacted
@@ -177,6 +173,7 @@ fn s02_visibility_fixture_cases_map_to_redaction_assertions() {
         redaction_for(
             &Visibility::private_to_player(EntityId::new("user_player_a").unwrap()),
             DerivedObject::SessionSummaryParty,
+            &PrincipalScope::System,
             &PrincipalScope::Player(player_b)
         ),
         RedactionOutcome::Redacted
@@ -185,6 +182,7 @@ fn s02_visibility_fixture_cases_map_to_redaction_assertions() {
         redaction_for(
             &Visibility::new(VisibilityLabel::AiInternal),
             DerivedObject::AnyPlayerOrKeeperExport,
+            &PrincipalScope::System,
             &PrincipalScope::Keeper
         ),
         RedactionOutcome::RedactedOrAuditOnly

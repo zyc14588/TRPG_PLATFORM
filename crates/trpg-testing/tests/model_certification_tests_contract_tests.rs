@@ -17,8 +17,8 @@ fn model_certification_requires_level4_for_ai_keeper() {
     assert!(model_certification_tests::level4_is_required_for_ai_keeper());
 }
 
-#[test]
-fn model_certification_denies_silent_cloud_fallback() {
+#[tokio::test]
+async fn model_certification_denies_silent_cloud_fallback() {
     let boundary = provider_boundary_snapshot();
 
     assert_eq!(boundary.gateway, "Agent Gateway");
@@ -27,5 +27,5 @@ fn model_certification_denies_silent_cloud_fallback() {
         AgentError::DirectLlmCallForbidden.code()
     );
     assert!(model_certification_tests::silent_cloud_fallback_is_denied());
-    assert!(model_certification_tests::explicit_cloud_fallback_is_allowed());
+    assert!(model_certification_tests::explicit_cloud_fallback_is_allowed().await);
 }

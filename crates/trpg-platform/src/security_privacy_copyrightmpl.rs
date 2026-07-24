@@ -1,5 +1,11 @@
 use crate::readme::redact_for_observability;
-use trpg_shared_kernel::{CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError};
+use trpg_security_governance::{
+    evaluate_derived_visibility, DerivationRequest, DerivedObject, RedactionOutcome,
+};
+use trpg_shared_kernel::{
+    validate_command_envelope, CommandEnvelope, EntityId, EventEnvelope, EventStore, KernelResult,
+    PrincipalScope, TrpgError,
+};
 
 pub const SECURITY_PRIVACY_COPYRIGHT_REVIEWED_EVENT: &str =
     "platform.security_privacy_copyrightmpl.reviewed";
@@ -17,8 +23,36 @@ pub struct ReviewSecurityPrivacyCopyrightPolicy {
     pub asset_id: String,
     pub license_tag: String,
     pub detail: String,
-    pub contains_restricted_visibility: bool,
-    pub export_allowed: bool,
+    pub export_intent: ExportIntent,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ExportIntent {
+    ReviewOnly,
+    ExportTo(ExportAudience),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub enum ExportAudience {
+    Public,
+    Party,
+    Player(EntityId),
+}
+
+impl ExportAudience {
+    fn principal(&self) -> PrincipalScope {
+        match self {
+            Self::Public => PrincipalScope::Public,
+            Self::Party => PrincipalScope::PartyMember,
+            Self::Player(player_id) => PrincipalScope::Player(player_id.clone()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub enum ExportDisposition {
+    ReviewOnly,
+    Authorized { audience: ExportAudience },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -27,7 +61,7 @@ pub enum SecurityPrivacyCopyrightEvent {
         asset_id: String,
         license_tag: String,
         detail: String,
-        export_allowed: bool,
+        export: ExportDisposition,
     },
 }
 
@@ -70,9 +104,8 @@ impl SecurityPrivacyCopyrightService {
         if command.payload.license_tag.trim().is_empty() {
             return Err(SecurityPrivacyCopyrightError::LicenseTagRequired.into());
         }
-        if command.payload.contains_restricted_visibility && command.payload.export_allowed {
-            return Err(SecurityPrivacyCopyrightError::RestrictedVisibilityExportDenied.into());
-        }
+        validate_command_envelope(command)?;
+        let export = derive_export_disposition(command)?;
 
         repository.append(
             command,
@@ -81,10 +114,32 @@ impl SecurityPrivacyCopyrightService {
                 asset_id: command.payload.asset_id.clone(),
                 license_tag: command.payload.license_tag.clone(),
                 detail: redact_for_observability(&command.visibility, &command.payload.detail),
-                export_allowed: command.payload.export_allowed,
+                export,
             },
         )
     }
+}
+
+fn derive_export_disposition(
+    command: &CommandEnvelope<ReviewSecurityPrivacyCopyrightPolicy>,
+) -> KernelResult<ExportDisposition> {
+    let ExportIntent::ExportTo(audience) = &command.payload.export_intent else {
+        return Ok(ExportDisposition::ReviewOnly);
+    };
+    let sources = [command.visibility.clone()];
+    let target = audience.principal();
+    let decision = evaluate_derived_visibility(DerivationRequest {
+        sources: &sources,
+        processor: &PrincipalScope::System,
+        target_audience: &target,
+        target: DerivedObject::PlayerExport,
+    });
+    if decision.outcome != RedactionOutcome::Visible {
+        return Err(SecurityPrivacyCopyrightError::RestrictedVisibilityExportDenied.into());
+    }
+    Ok(ExportDisposition::Authorized {
+        audience: audience.clone(),
+    })
 }
 
 pub fn review_security_privacy_copyright_policy(

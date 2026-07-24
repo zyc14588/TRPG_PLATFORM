@@ -6,11 +6,15 @@ use trpg_identity::{
     ReplayAuthorization,
 };
 use trpg_security_governance::formal_commit_audit::{FormalAuthorization, FormalCommitAuthorizer};
+use trpg_security_governance::{
+    evaluate_derived_visibility, DerivationRequest, DerivedObject as SecurityDerivedObject,
+    RedactionOutcome as SecurityRedactionOutcome,
+};
 use trpg_shared_kernel::{
     AuthorityContract, AuthorityMode, CanonicalCommitEvent, CanonicalCommitPort,
     CanonicalCommitRequest, CommandEnvelope, EntityId, EventEnvelope,
-    EventStore as KernelEventStore, FormalWritePath, PrincipalScope, ProvenanceKind, TrpgError,
-    Visibility, VisibilityLabel,
+    EventStore as KernelEventStore, FactProvenance, FormalWritePath, PrincipalScope,
+    ProvenanceKind, TrpgError, Visibility, VisibilityLabel,
 };
 
 pub type AgentResult<T> = Result<T, AgentError>;
@@ -512,7 +516,11 @@ impl AgentDecisionCommitter {
         validate_requester_identity(&decision.tool_request, &decision.authentication)?;
 
         if !decision.tool_request.is_formal_state_change() {
-            let draft_command = derived_command(command, "draft", store.events().len() as u64)?;
+            let resource = command.authenticated_context().resource();
+            let draft_version = store
+                .inner
+                .current_stream_version(resource.campaign_id(), resource.resource_id());
+            let draft_command = derived_command(command, "draft", draft_version)?;
             return Ok(vec![store.append(
                 &draft_command,
                 "DraftDecisionCreated",
@@ -531,7 +539,11 @@ impl AgentDecisionCommitter {
         let tool_decision =
             evaluate_agent_tool_request(&command.authority_mode, &decision.tool_request);
         if tool_decision.draft_only {
-            let draft_command = derived_command(command, "draft", store.events().len() as u64)?;
+            let resource = command.authenticated_context().resource();
+            let draft_version = store
+                .inner
+                .current_stream_version(resource.campaign_id(), resource.resource_id());
+            let draft_command = derived_command(command, "draft", draft_version)?;
             return Ok(vec![store.append(
                 &draft_command,
                 "DraftDecisionCreated",
@@ -552,19 +564,12 @@ impl AgentDecisionCommitter {
         }
 
         // Identity, authority, and tool checks must complete before the event-store capability is used.
-        let next_version = if store.has_canonical_custody() && store.events().is_empty() {
-            command.expected_version
-        } else {
-            store.inner.current_stream_version()
-        };
+        // Preserve the original derived request hashes so an exact network
+        // retry resolves through EventStore's scoped idempotency index before
+        // optimistic concurrency is evaluated.
+        let next_version = command.expected_version;
         let tool_command = derived_command(command, "tool", next_version)?;
         let decision_command = derived_command(command, "decision", next_version + 1)?;
-        if store.events().iter().any(|event| {
-            event.idempotency_key == tool_command.idempotency_key
-                || event.idempotency_key == decision_command.idempotency_key
-        }) {
-            return Err(AgentError::Core(TrpgError::DuplicateCommand));
-        }
         let requested_role = match decision.authentication.kind() {
             PrincipalKind::AgentRun { class, .. } => match class {
                 IdentityAgentClass::AiKeeperOrchestrator => "ai_keeper_orchestrator",
@@ -631,15 +636,6 @@ fn persist_agent_formal_batch(
         AgentEventPayload,
     ); 2],
 ) -> AgentResult<Vec<EventEnvelope<AgentEventPayload>>> {
-    let mut candidate = if store.events().is_empty() && command.expected_version > 0 {
-        KernelEventStore::with_stream_base_version(command.expected_version)
-    } else {
-        store.inner.clone()
-    };
-    let mut appended = Vec::with_capacity(events.len());
-    for (event_command, event_type, payload) in events {
-        appended.push(candidate.append(&event_command, event_type, payload)?);
-    }
     let contract = authorization.contract();
     let request = CanonicalCommitRequest {
         commit_id: format!(
@@ -652,6 +648,8 @@ fn persist_agent_formal_batch(
         expected_version: command.expected_version,
         command_id: command.command_id.to_string(),
         authenticated_actor_id: command.actor.id().to_string(),
+        authenticated_actor_role: command.actor.canonical_role_name().to_owned(),
+        authenticated_actor_origin: command.actor.canonical_origin_wire(),
         authority_mode: authority_mode_name(&command.authority_mode).to_owned(),
         authority_contract_version: contract.version(),
         authority_contract_id: contract.contract_id().to_string(),
@@ -659,21 +657,22 @@ fn persist_agent_formal_batch(
         visibility_label: command.visibility.label().as_str().to_owned(),
         visibility_subject: command
             .visibility
-            .player_id()
+            .subject_id()
             .map(ToString::to_string)
             .unwrap_or_else(|| "not_applicable".to_owned()),
+        data_subject_id: "not_applicable".to_owned(),
         provenance_kind: provenance_kind_name(&command.fact_provenance.kind).to_owned(),
         provenance_reference: command.fact_provenance.reference.to_string(),
         provenance_recorded_by: command.fact_provenance.recorded_by.to_string(),
         correlation_id: command.correlation_id.to_string(),
         causation_id: command.causation_id.to_string(),
         trace_id: command.authenticated_context().trace_id().to_string(),
-        events: appended
+        events: events
             .iter()
-            .map(|event| {
+            .map(|(_, event_type, payload)| {
                 Ok(CanonicalCommitEvent {
-                    event_type: event.event_type.to_owned(),
-                    payload_json: serde_json::to_string(&event.payload)
+                    event_type: (*event_type).to_owned(),
+                    payload_json: serde_json::to_string(payload)
                         .map_err(|_| TrpgError::AuditIntegrityViolation)?,
                 })
             })
@@ -681,18 +680,55 @@ fn persist_agent_formal_batch(
         audit: authorization.canonical_audit().clone(),
     };
     let receipt = canonical.commit(&request)?;
+    canonical.verify_receipt(&request, &receipt)?;
     let expected_first = command
         .expected_version
         .checked_add(1)
         .ok_or(TrpgError::AuditIntegrityViolation)?;
     let expected_last = command
         .expected_version
-        .checked_add(appended.len() as u64)
+        .checked_add(events.len() as u64)
         .ok_or(TrpgError::AuditIntegrityViolation)?;
     if receipt.first_stream_version != expected_first
         || receipt.last_stream_version != expected_last
+        || receipt.events.len() != events.len()
     {
         return Err(AgentError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    // Validate the complete durable receipt before publishing any part of the
+    // formal batch into the process-local read model. A faulty adapter must
+    // not make event one visible when event two is malformed.
+    let mut previous_sequence = 0;
+    for (index, ((_, event_type, payload), durable)) in
+        events.iter().zip(receipt.events.iter()).enumerate()
+    {
+        let expected_payload =
+            serde_json::to_value(payload).map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let durable_payload: serde_json::Value = serde_json::from_str(&durable.payload_json)
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let expected_version = expected_first
+            .checked_add(index as u64)
+            .ok_or(TrpgError::AuditIntegrityViolation)?;
+        if durable.sequence == 0
+            || durable.sequence <= previous_sequence
+            || durable.occurred_at_unix_ms == 0
+            || durable.stream_version != expected_version
+            || durable.event_type != *event_type
+            || durable_payload != expected_payload
+            || durable.command_id != request.command_id
+            || durable.idempotency_key != format!("{}:{index:04}", request.idempotency_key)
+        {
+            return Err(AgentError::Core(TrpgError::AuditIntegrityViolation));
+        }
+        previous_sequence = durable.sequence;
+    }
+
+    let mut candidate = store.inner.clone();
+    let mut appended = Vec::with_capacity(events.len());
+    for ((event_command, event_type, payload), durable) in
+        events.into_iter().zip(receipt.events.iter())
+    {
+        appended.push(candidate.record_canonical(&event_command, event_type, payload, durable)?);
     }
     store.inner = candidate;
     Ok(appended)
@@ -707,6 +743,7 @@ fn authority_mode_name(mode: &AuthorityMode) -> &'static str {
 
 fn provenance_kind_name(kind: &ProvenanceKind) -> &'static str {
     match kind {
+        ProvenanceKind::UserStatement => "user_statement",
         ProvenanceKind::HumanKeeperStatement => "human_keeper_statement",
         ProvenanceKind::RulesEngineDecision => "rules_engine_decision",
         ProvenanceKind::ToolResult => "tool_result",
@@ -729,6 +766,7 @@ pub struct ContextFact {
     pub fact_id: EntityId,
     pub text: String,
     pub visibility: Visibility,
+    pub fact_provenance: FactProvenance,
 }
 
 impl ContextFact {
@@ -736,11 +774,13 @@ impl ContextFact {
         fact_id: impl Into<String>,
         text: impl Into<String>,
         visibility: Visibility,
+        fact_provenance: FactProvenance,
     ) -> Result<Self, TrpgError> {
         Ok(Self {
             fact_id: EntityId::new(fact_id)?,
             text: text.into(),
             visibility,
+            fact_provenance,
         })
     }
 }
@@ -748,34 +788,51 @@ impl ContextFact {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssembledAgentContext {
     pub facts: Vec<ContextFact>,
+    pub derived_visibility: Visibility,
     pub strictest_visibility: VisibilityLabel,
 }
 
 pub fn assemble_context(
     facts: &[ContextFact],
-    principal: &PrincipalScope,
+    processor: &PrincipalScope,
+    target_audience: &PrincipalScope,
+) -> AssembledAgentContext {
+    assemble_context_for_audience(facts, processor, target_audience)
+}
+
+/// Assembles context for a declared target audience. A System/Keeper worker
+/// may process more sources than the target can receive, but those sources are
+/// omitted before context construction and cannot influence generated text.
+pub fn assemble_context_for_audience(
+    facts: &[ContextFact],
+    processor: &PrincipalScope,
+    target_audience: &PrincipalScope,
 ) -> AssembledAgentContext {
     let visible: Vec<ContextFact> = facts
         .iter()
-        .filter(|fact| fact.visibility.can_view(principal))
+        .filter(|fact| {
+            let sources = [fact.visibility.clone()];
+            evaluate_derived_visibility(DerivationRequest {
+                sources: &sources,
+                processor,
+                target_audience,
+                target: SecurityDerivedObject::AgentContext,
+            })
+            .outcome
+                == SecurityRedactionOutcome::Visible
+        })
         .cloned()
         .collect();
-    let strictest_visibility = if visible
+    let derived_visibility = visible
         .iter()
-        .any(|fact| fact.visibility.label() == &VisibilityLabel::KeeperOnly)
-    {
-        VisibilityLabel::KeeperOnly
-    } else if visible
-        .iter()
-        .any(|fact| fact.visibility.label() == &VisibilityLabel::PrivateToPlayer)
-    {
-        VisibilityLabel::PrivateToPlayer
-    } else {
-        VisibilityLabel::Public
-    };
+        .map(|fact| fact.visibility.clone())
+        .reduce(|current, candidate| current.intersection(&candidate))
+        .unwrap_or_else(|| Visibility::new(VisibilityLabel::Public));
+    let strictest_visibility = derived_visibility.label().clone();
 
     AssembledAgentContext {
         facts: visible,
+        derived_visibility,
         strictest_visibility,
     }
 }

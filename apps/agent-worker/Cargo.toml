@@ -13,4 +13,6 @@ trpg-agent-runtime = { path = "../../crates/trpg-agent-runtime" }
 trpg-contracts = { path = "../../crates/trpg-contracts" }
 trpg-data-eventing = { path = "../../crates/trpg-data-eventing" }
 trpg-extension-sdk = { path = "../../crates/trpg-extension-sdk" }
+trpg-privacy = { path = "../../crates/trpg-privacy" }
 trpg-runtime = { path = "../../crates/trpg-runtime" }
+trpg-security-governance = { path = "../../crates/trpg-security-governance" }

@@ -1,5 +1,7 @@
 \set ON_ERROR_STOP on
 
+BEGIN;
+
 DO $$
 DECLARE
     actual_columns TEXT[];
@@ -7,10 +9,19 @@ DECLARE
     trigger_signature TEXT;
     trigger_function_signature TEXT;
     invalid_commit TEXT;
+    search_path_bypass_rejected BOOLEAN := FALSE;
+    erased_user_reactivation_rejected BOOLEAN := FALSE;
+    unauthorized_erasure_rejected BOOLEAN := FALSE;
+    cloud_audit_mismatch_rejected BOOLEAN := FALSE;
+    erased_probe_id TEXT :=
+        'schema_probe_erased_' || pg_backend_pid()::TEXT || '_' || txid_current()::TEXT;
+    erased_probe_digest TEXT;
+    cloud_probe_id TEXT :=
+        'schema_cloud_' || pg_backend_pid()::TEXT || '_' || txid_current()::TEXT;
 BEGIN
     -- Make catalog deparsing deterministic for callers with a custom
     -- search_path. All canonical persistence objects live in public.
-    PERFORM set_config('search_path', 'public, pg_catalog', true);
+    PERFORM set_config('search_path', 'pg_catalog, public, pg_temp', true);
 
     IF to_regclass('public._sqlx_migrations') IS NULL THEN
         RAISE EXCEPTION 'SQLx migration ledger is missing';
@@ -30,11 +41,136 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'event persistence hardening migration is not applied';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM _sqlx_migrations
+         WHERE version = 20260717000100
+           AND success
+           AND encode(checksum, 'hex') =
+               'd67991333d4d9e06b5c1c51a9f3c17855bddfbb64558873f4821e7338700981a98fe78f1c05441244c95e5010e156adc'
+    ) THEN
+        RAISE EXCEPTION 'event delivery/checkpoint migration is missing or checksum-drifted';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM _sqlx_migrations
+         WHERE version = 20260721000200 AND success
+    ) THEN
+        RAISE EXCEPTION 'privacy visibility/encryption migration is not applied';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              (20260723000100::BIGINT, 'd47d65b1cd0d5de540720d9daf8e76baa9148ed792531861c876f59ff9221ad829a05b68306801c2cfd0f1592cbe87dc'),
+              (20260723000200::BIGINT, 'd8d3771de8ea914e47f2283a83f07bed3ced0eda8b9ab977d971d793d25198ff92a38a7a4c85810176d6b0d82d1c5eae'),
+              (20260723000300::BIGINT, '3651703e59cc0871905e8739e667cc991b60802da71576e74f530763529324b28508d12608fce6e0f06dc0d449ea7bd8'),
+              (20260723000400::BIGINT, '0a297ccf3ad17e25eadd1eb9c06f348e73a1c5573f625bd8b9b31f0bf835515f43dc48c02077c4deb467eccef23bd072'),
+              (20260723000500::BIGINT, 'cf5871b30c9f5e7bb3e8a3cbc77c397ccc607e9a11df7cb93ca711fe9fbd53eaf7d8e329dc37a8cdf93b0f7744e503e1'),
+              (20260723000600::BIGINT, '0be381a3fe07b82f5c67167f07a5c0a6375c11be9acfaaec2f402165bd54439a786579b38be56041468315cd6a50b7d5'),
+              (20260723000700::BIGINT, '532d72f2541b94538ac4031164474f9e43cc3a7a7a203ab042699e713f59fa61b6c54c72f56cd0683c892448ac4112b3'),
+              (20260723000800::BIGINT, '7ad0e2f71fd914bee579a373e91a5f775f378f8cb3c64f7a84e673e6c3dc23e7c2ad15fe835a7e15f4341a3fa66f77d1'),
+              (20260723000900::BIGINT, '9401b667b1119d95256e0aeff580a1713fbb276caccb3c9cf7c3672d702b9be21df54f6db27e99f47ae26336665f24c2'),
+              (20260724000100::BIGINT, '9233bdfb7089e673019c93d491d59722fe65e10b6b08d738bb9946ee8d05d75fa71a835d9bef4999e7023c5280af8d5a'),
+              (20260724000200::BIGINT, 'e7bd37bdd99cf15971195dc055aab9be6336971c598d8bfde7ecbe4092b60c84ae9142bb8850b72b6b7593f9490f91e4'),
+              (20260724000300::BIGINT, 'b0e29db7c453ae5bef7cc8272a814c6b9870b5a236b9cb0d17627c6bbed641230015bc4378537f57f1045637671e60a8')
+          ) AS expected(version, checksum)
+          LEFT JOIN _sqlx_migrations AS applied
+            ON applied.version = expected.version
+           AND applied.success
+           AND encode(applied.checksum, 'hex') = expected.checksum
+         WHERE applied.version IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P05 migration is missing, failed, or checksum-drifted';
+    END IF;
     IF EXISTS (SELECT 1 FROM _sqlx_migrations WHERE NOT success) THEN
         RAISE EXCEPTION 'failed SQLx migration ledger row found';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
         RAISE EXCEPTION 'pgvector extension is missing';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('trpg_application', FALSE),
+              ('trpg_api_service', FALSE),
+              ('trpg_canonical_service', FALSE),
+              ('trpg_worker_service', FALSE),
+              ('trpg_realtime_service', FALSE),
+              ('trpg_api_login', TRUE),
+              ('trpg_canonical_login', TRUE),
+              ('trpg_worker_login', TRUE),
+              ('trpg_realtime_login', TRUE)
+          ) AS expected(role_name, may_login)
+          LEFT JOIN pg_roles AS role ON role.rolname = expected.role_name
+         WHERE role.oid IS NULL
+            OR role.rolsuper
+            OR role.rolcreatedb
+            OR role.rolcreaterole
+            OR role.rolreplication
+            OR role.rolbypassrls
+            OR role.rolcanlogin IS DISTINCT FROM expected.may_login
+    ) THEN
+        RAISE EXCEPTION 'P05 application role topology or privilege flags drifted';
+    END IF;
+    IF has_schema_privilege('trpg_application', 'public', 'USAGE')
+       OR EXISTS (
+           SELECT 1
+             FROM pg_class AS relation
+            WHERE relation.relnamespace = 'public'::regnamespace
+              AND relation.relkind IN ('r', 'p', 'S')
+              AND (
+                  has_table_privilege('trpg_application', relation.oid, 'SELECT')
+                  OR has_table_privilege('trpg_application', relation.oid, 'INSERT')
+                  OR has_table_privilege('trpg_application', relation.oid, 'UPDATE')
+                  OR has_table_privilege('trpg_application', relation.oid, 'DELETE')
+                  OR has_table_privilege('trpg_application', relation.oid, 'TRUNCATE')
+              )
+       )
+    THEN
+        RAISE EXCEPTION 'legacy aggregate application role retains database authority';
+    END IF;
+    IF has_table_privilege('trpg_api_service', 'event_store', 'UPDATE')
+       OR has_table_privilege('trpg_api_service', 'event_store', 'INSERT')
+       OR has_table_privilege('trpg_api_service', 'event_store', 'DELETE')
+       OR has_table_privilege('trpg_api_service', 'event_outbox', 'INSERT')
+       OR has_table_privilege('trpg_api_service', 'event_outbox', 'UPDATE')
+       OR has_table_privilege('trpg_api_service', 'formal_commits', 'INSERT')
+       OR has_table_privilege('trpg_api_service', 'formal_commits', 'UPDATE')
+       OR has_table_privilege('trpg_api_service', 'canonical_audit_log', 'INSERT')
+       OR has_table_privilege('trpg_api_service', 'canonical_audit_log', 'UPDATE')
+       OR has_table_privilege('trpg_api_service', 'privacy_erased_subjects', 'INSERT')
+       OR has_table_privilege('trpg_api_service', 'privacy_subject_keys', 'UPDATE')
+       OR has_table_privilege('trpg_worker_service', 'event_store', 'INSERT')
+       OR has_table_privilege('trpg_worker_service', 'formal_commits', 'INSERT')
+       OR has_table_privilege('trpg_worker_service', 'canonical_audit_log', 'INSERT')
+       OR has_table_privilege('trpg_canonical_service', 'users', 'SELECT')
+       OR has_table_privilege('trpg_canonical_service', 'campaign_memberships', 'SELECT')
+       OR has_table_privilege('trpg_canonical_service', 'cloud_egress_consents', 'SELECT')
+       OR has_table_privilege('trpg_canonical_service', 'privacy_subject_keys', 'SELECT')
+       OR EXISTS (
+           SELECT 1
+             FROM pg_class AS relation
+            WHERE relation.relnamespace = 'public'::regnamespace
+              AND relation.relkind IN ('r', 'p')
+              AND (
+                  has_table_privilege('trpg_realtime_service', relation.oid, 'INSERT')
+                  OR has_table_privilege('trpg_realtime_service', relation.oid, 'UPDATE')
+                  OR has_table_privilege('trpg_realtime_service', relation.oid, 'DELETE')
+                  OR has_table_privilege('trpg_realtime_service', relation.oid, 'TRUNCATE')
+              )
+       )
+    THEN
+        RAISE EXCEPTION 'service database role crosses its P05 write boundary';
+    END IF;
+    IF NOT pg_has_role('trpg_api_login', 'trpg_api_service', 'MEMBER')
+       OR NOT pg_has_role('trpg_canonical_login', 'trpg_canonical_service', 'MEMBER')
+       OR NOT pg_has_role('trpg_worker_login', 'trpg_worker_service', 'MEMBER')
+       OR NOT pg_has_role('trpg_realtime_login', 'trpg_realtime_service', 'MEMBER')
+       OR pg_has_role('trpg_api_login', 'trpg_worker_service', 'MEMBER')
+       OR pg_has_role('trpg_api_login', 'trpg_canonical_service', 'MEMBER')
+       OR pg_has_role('trpg_canonical_login', 'trpg_api_service', 'MEMBER')
+       OR pg_has_role('trpg_worker_login', 'trpg_api_service', 'MEMBER')
+       OR pg_has_role('trpg_realtime_login', 'trpg_api_service', 'MEMBER')
+    THEN
+        RAISE EXCEPTION 'service login role membership crosses a trust boundary';
     END IF;
 
     SELECT array_agg(
@@ -66,9 +202,50 @@ BEGIN
         'event_integrity_hash:text:YES:-', 'stream_id:text:NO:-',
         'event_schema_version:int4:NO:-', 'idempotency_operation:text:NO:-',
         'request_hash:text:NO:-', 'request_hash_source:text:NO:-',
-        'integrity_status:text:NO:-', 'payload_integrity_source:text:NO:-'
+        'integrity_status:text:NO:-', 'payload_integrity_source:text:NO:-',
+        'authenticated_actor_role:text:NO:-',
+        'authenticated_actor_origin:jsonb:NO:-',
+        'payload_ciphertext:bytea:YES:-',
+        'payload_key_reference:text:YES:-', 'payload_nonce:bytea:YES:-',
+        'data_subject_id:text:NO:''not_applicable''::text',
+        'derived_source_event_sequence:int8:YES:-',
+        'derived_snapshot_id:text:YES:-', 'derived_chunk_id:text:YES:-',
+        'derived_content_hash:text:YES:-', 'deletion_job_id:text:YES:-',
+        'deletion_subject_id:text:YES:-', 'deletion_requested_by:text:YES:-',
+        'deletion_retention_policy:text:YES:-',
+        'derived_source_type:text:YES:-',
+        'derived_copyright_status:text:YES:-',
+        'derived_allowed_use:text:YES:-',
+        'derived_embedding_model:text:YES:-',
+        'derived_embedding_dimensions:int4:YES:-',
+        'derived_embedding_hash:text:YES:-',
+        'event_integrity_version:int4:NO:2'
     ]::TEXT[] THEN
         RAISE EXCEPTION 'event_store columns/types/nullability/defaults drifted: %', actual_columns;
+    END IF;
+
+    SELECT array_agg(
+               column_name || ':' || udt_name || ':' || is_nullable || ':' ||
+               COALESCE(column_default, '-')
+               ORDER BY ordinal_position
+           )
+      INTO actual_columns
+      FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'rag_snapshot_chunk';
+    IF actual_columns IS NULL OR actual_columns <> ARRAY[
+        'campaign_id:text:NO:-', 'snapshot_id:text:NO:-', 'chunk_id:text:NO:-',
+        'source_event_sequence:int8:NO:-', 'source_type:text:NO:-',
+        'visibility:text:NO:-', 'visibility_subject:text:NO:-',
+        'copyright_status:text:NO:-', 'version:int8:NO:-',
+        'owner:text:NO:-', 'allowed_use:text:NO:-',
+        'fact_provenance:jsonb:NO:-', 'chunk_hash:text:NO:-',
+        'content:text:NO:-', 'embedding_model:text:NO:-',
+        'embedding_dimensions:int4:NO:-', 'embedding:vector:NO:-',
+        'projected_at:timestamptz:NO:now()',
+        'derivation_event_sequence:int8:NO:-'
+    ]::TEXT[] THEN
+        RAISE EXCEPTION 'rag_snapshot_chunk columns/types/nullability/defaults drifted: %',
+            actual_columns;
     END IF;
 
     SELECT array_agg(
@@ -91,7 +268,13 @@ BEGIN
         'event_id:int8:NO:-', 'campaign_id:text:NO:-', 'stream_id:text:NO:-',
         'event_schema_version:int4:NO:-', 'idempotency_operation:text:NO:-',
         'request_hash:text:NO:-', 'request_hash_source:text:NO:-',
-        'integrity_status:text:NO:-'
+        'integrity_status:text:NO:-',
+        'delivery_status:text:NO:''pending''::text',
+        'available_at:timestamptz:NO:now()', 'locked_until:timestamptz:YES:-',
+        'claim_token:text:YES:-', 'visibility_subject:text:YES:-',
+        'payload_ciphertext:bytea:YES:-',
+        'payload_key_reference:text:YES:-', 'payload_nonce:bytea:YES:-',
+        'data_subject_id:text:NO:''not_applicable''::text'
     ]::TEXT[] AND actual_columns <> ARRAY[
         'outbox_id:int8:NO:nextval(''event_outbox_outbox_id_seq''::regclass)',
         'event_id:int8:NO:-', 'event_sequence:int8:NO:-',
@@ -104,7 +287,13 @@ BEGIN
         'dead_lettered_at:timestamptz:YES:-', 'campaign_id:text:NO:-',
         'stream_id:text:NO:-', 'event_schema_version:int4:NO:-',
         'idempotency_operation:text:NO:-', 'request_hash:text:NO:-',
-        'request_hash_source:text:NO:-', 'integrity_status:text:NO:-'
+        'request_hash_source:text:NO:-', 'integrity_status:text:NO:-',
+        'delivery_status:text:NO:''pending''::text',
+        'available_at:timestamptz:NO:now()', 'locked_until:timestamptz:YES:-',
+        'claim_token:text:YES:-', 'visibility_subject:text:YES:-',
+        'payload_ciphertext:bytea:YES:-',
+        'payload_key_reference:text:YES:-', 'payload_nonce:bytea:YES:-',
+        'data_subject_id:text:NO:''not_applicable''::text'
     ]::TEXT[]) THEN
         RAISE EXCEPTION 'event_outbox columns/types/nullability/defaults drifted: %', actual_columns;
     END IF;
@@ -127,6 +316,24 @@ BEGIN
         'rebuilt_at:timestamptz:NO:now()', 'campaign_id:text:NO:-'
     ]::TEXT[]) THEN
         RAISE EXCEPTION 'projection_checkpoint columns/types/nullability/defaults drifted: %', actual_columns;
+    END IF;
+
+    SELECT array_agg(
+               column_name || ':' || udt_name || ':' || is_nullable || ':' ||
+               COALESCE(column_default, '-')
+               ORDER BY ordinal_position
+           )
+      INTO actual_columns
+      FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'canonical_event_projection';
+    IF actual_columns IS NULL OR actual_columns <> ARRAY[
+        'projection_name:text:NO:-', 'campaign_id:text:NO:-',
+        'stream_id:text:NO:-', 'stream_version:int8:NO:-',
+        'event_sequence:int8:NO:-', 'projection_hash:text:NO:-',
+        'event_document:jsonb:NO:-', 'projected_at:timestamptz:NO:now()'
+    ]::TEXT[] THEN
+        RAISE EXCEPTION 'canonical_event_projection columns/types/nullability/defaults drifted: %',
+            actual_columns;
     END IF;
 
     SELECT array_agg(
@@ -173,11 +380,391 @@ BEGIN
         'witness_prepare_sequence:int8:NO:-', 'witness_prepare_hash:text:NO:-',
         'occurred_at:timestamptz:NO:now()', 'integrity_key_id:text:NO:-',
         'previous_hash:text:NO:-', 'record_hash:text:NO:-',
-        'integrity_version:int4:NO:2'
+        'integrity_version:int4:NO:3', 'correlation_id:text:NO:-',
+        'causation_id:text:NO:-'
     ]::TEXT[] THEN
         RAISE EXCEPTION 'canonical_audit_log columns/types/nullability/defaults drifted: %',
             actual_columns;
     END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+            ('privacy_deletion_jobs', ARRAY[
+                'job_id:text:NO:-', 'subject_id:text:NO:-', 'requested_by:text:NO:-',
+                'retention_policy:text:NO:-', 'status:text:NO:-',
+                'failure_code:text:YES:-', 'created_at:timestamptz:NO:now()',
+                'updated_at:timestamptz:NO:now()',
+                'evidence_status:text:NO:''pending''::text', 'command_id:text:YES:-',
+                'correlation_id:text:YES:-', 'causation_id:text:YES:-',
+                'canonical_event_type:text:YES:-',
+                'canonical_event_sequence:int8:YES:-',
+                'canonical_event_integrity_hash:text:YES:-',
+                'campaign_id:text:NO:-'
+            ]::TEXT[]),
+            ('privacy_deletion_job_targets', ARRAY[
+                'job_id:text:NO:-', 'target:text:NO:-', 'status:text:NO:-',
+                'error_code:text:YES:-', 'deleted_at:timestamptz:YES:-',
+                'verified_at:timestamptz:YES:-'
+            ]::TEXT[]),
+            ('privacy_legal_holds', ARRAY[
+                'subject_id:text:NO:-', 'hold_reference:text:NO:-',
+                'active:bool:NO:-', 'updated_at:timestamptz:NO:now()'
+            ]::TEXT[]),
+            ('privacy_subject_keys', ARRAY[
+                'subject_id:text:NO:-', 'key_reference:text:NO:-',
+                'wrapped_key:bytea:YES:-', 'destroyed_at:timestamptz:YES:-'
+            ]::TEXT[]),
+            ('privacy_subject_deletion_fences', ARRAY[
+                'subject_id:text:NO:-', 'job_id:text:NO:-', 'status:text:NO:-',
+                'started_at:timestamptz:NO:now()', 'updated_at:timestamptz:NO:now()'
+            ]::TEXT[]),
+            ('privacy_erased_subjects', ARRAY[
+                'subject_id:text:NO:-', 'erasure_digest:text:NO:-',
+                'erased_at:timestamptz:NO:now()'
+            ]::TEXT[]),
+            ('cloud_egress_consents', ARRAY[
+                'consent_id:text:NO:-', 'subject_id:text:NO:-',
+                'target_provider:text:NO:-', 'purpose:text:NO:-',
+                'policy_version:text:NO:-', 'visibility_scope:text:NO:-',
+                'granted:bool:NO:-', 'expires_at_unix_ms:int8:NO:-',
+                'created_at:timestamptz:NO:now()', 'updated_at:timestamptz:NO:now()'
+            ]::TEXT[]),
+            ('cloud_egress_route_snapshots', ARRAY[
+                'snapshot_id:text:NO:-', 'subject_id:text:NO:-',
+                'consent_id:text:YES:-', 'source_provider:text:NO:-',
+                'target_provider:text:NO:-', 'purpose:text:NO:-',
+                'policy_version:text:NO:-', 'notice_reference:text:YES:-',
+                'context_manifest_hash:text:NO:-', 'allowed_fact_ids:jsonb:NO:-',
+                'decision:text:NO:-', 'denial_code:text:YES:-',
+                'created_at_unix_ms:int8:NO:-', 'source_endpoint:text:NO:-',
+                'target_endpoint:text:NO:-', 'model_id:text:NO:-',
+                'source_credential_id:text:NO:-',
+                'source_credential_version:int8:NO:-',
+                'target_credential_id:text:NO:-',
+                'target_credential_version:int8:NO:-',
+                'fallback_policy:text:NO:-', 'privacy_boundary:text:NO:-',
+                'consent_expires_at_unix_ms:int8:YES:-'
+            ]::TEXT[]),
+            ('cloud_egress_audit', ARRAY[
+                'audit_id:text:NO:-', 'snapshot_id:text:NO:-', 'subject_id:text:NO:-',
+                'decision:text:NO:-', 'denial_code:text:YES:-',
+                'context_manifest_hash:text:NO:-', 'created_at_unix_ms:int8:NO:-',
+                'source_provider:text:NO:-', 'target_provider:text:NO:-',
+                'source_endpoint:text:NO:-', 'target_endpoint:text:NO:-',
+                'model_id:text:NO:-', 'source_credential_id:text:NO:-',
+                'source_credential_version:int8:NO:-',
+                'target_credential_id:text:NO:-',
+                'target_credential_version:int8:NO:-',
+                'fallback_policy:text:NO:-', 'privacy_boundary:text:NO:-'
+            ]::TEXT[]),
+            ('cloud_egress_notices', ARRAY[
+                'notice_reference:text:NO:-', 'subject_id:text:NO:-',
+                'policy_version:text:NO:-', 'notice_digest:text:NO:-',
+                'recorded_at:timestamptz:NO:now()'
+            ]::TEXT[])
+          ) AS expected(table_name, column_signature)
+          LEFT JOIN LATERAL (
+              SELECT array_agg(
+                         column_name || ':' || udt_name || ':' || is_nullable || ':' ||
+                         COALESCE(column_default, '-') ORDER BY ordinal_position
+                     ) AS column_signature
+                FROM information_schema.columns
+               WHERE table_schema = 'public'
+                 AND table_name = expected.table_name
+          ) AS actual ON TRUE
+         WHERE actual.column_signature IS DISTINCT FROM expected.column_signature
+    ) THEN
+        RAISE EXCEPTION 'P05 privacy/cloud table columns drifted';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+            ('campaign_groups', 'campaign_groups_truncate_guard'),
+            ('campaign_group_memberships', 'campaign_group_memberships_truncate_guard'),
+            ('cloud_egress_consents', 'cloud_egress_consent_transition_guard'),
+            ('cloud_egress_consents', 'cloud_egress_consents_truncate_guard'),
+            ('cloud_egress_route_snapshots', 'cloud_egress_route_snapshot_append_only'),
+            ('cloud_egress_route_snapshots', 'cloud_egress_route_snapshots_truncate_guard'),
+            ('cloud_egress_audit', 'cloud_egress_audit_append_only'),
+            ('cloud_egress_audit', 'cloud_egress_route_audit_binding'),
+            ('cloud_egress_audit', 'cloud_egress_audit_truncate_guard'),
+            ('cloud_egress_notices', 'cloud_egress_notices_append_only'),
+            ('cloud_egress_notices', 'cloud_egress_notices_truncate_guard'),
+            ('privacy_deletion_jobs', 'privacy_deletion_job_evidence_guard'),
+            ('privacy_deletion_jobs', 'privacy_deletion_jobs_delete_guard'),
+            ('privacy_deletion_job_targets', 'privacy_deletion_target_transition_guard'),
+            ('privacy_deletion_job_targets', 'privacy_deletion_targets_delete_guard'),
+            ('privacy_subject_deletion_fences', 'privacy_deletion_fences_delete_guard'),
+            ('privacy_erased_subjects', 'privacy_erased_subjects_mutation_guard'),
+            ('privacy_subject_keys', 'privacy_subject_key_destruction_guard'),
+            ('privacy_subject_keys', 'privacy_subject_keys_delete_guard'),
+            ('privacy_legal_holds', 'privacy_legal_holds_delete_guard'),
+            ('event_store', 'event_store_subject_protection_guard'),
+            ('event_outbox', 'event_outbox_subject_protection_guard'),
+            ('users', 'users_erasure_guard'),
+            ('sessions', 'sessions_erasure_guard'),
+            ('campaign_memberships', 'campaign_memberships_erasure_guard'),
+            ('campaign_group_memberships', 'campaign_group_memberships_erasure_guard')
+          ) AS expected(table_name, trigger_name)
+          LEFT JOIN pg_trigger AS trigger
+            ON trigger.tgrelid = to_regclass('public.' || expected.table_name)
+           AND trigger.tgname = expected.trigger_name
+           AND trigger.tgenabled = 'O'
+           AND NOT trigger.tgisinternal
+         WHERE trigger.oid IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P05 security/privacy trigger is missing or disabled';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM pg_trigger
+         WHERE tgname IN (
+             'cloud_egress_consents_no_truncate',
+             'cloud_egress_route_snapshots_no_truncate',
+             'cloud_egress_audit_no_truncate',
+             'cloud_egress_notices_no_truncate'
+         )
+           AND NOT tgisinternal
+    ) THEN
+        RAISE EXCEPTION 'superseded cloud-egress truncate trigger remains installed';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+            ('prevent_unverified_outbox_publish'),
+            ('prevent_unverified_rag_source'),
+            ('enforce_cloud_egress_route_audit_binding'),
+            ('enforce_privacy_deletion_job_evidence'),
+            ('enforce_privacy_deletion_target_transition'),
+            ('enforce_subject_scoped_event_protection'),
+            ('enforce_subject_scoped_outbox_protection'),
+            ('prevent_destroyed_subject_key_restoration'),
+            ('reject_erased_user_reactivation'),
+            ('reject_erased_subject_session'),
+            ('reject_erased_subject_membership'),
+            ('reject_retained_security_history_truncate'),
+            ('reject_privacy_evidence_removal')
+          ) AS expected(function_name)
+          LEFT JOIN pg_proc AS procedure
+            ON procedure.pronamespace = 'public'::regnamespace
+           AND procedure.proname = expected.function_name
+           AND pg_get_function_identity_arguments(procedure.oid) = ''
+           AND COALESCE(
+                 procedure.proconfig @> ARRAY['search_path=pg_catalog, public']::TEXT[],
+                 FALSE
+               )
+         WHERE procedure.oid IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P05 trigger function is missing or has unsafe search_path';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM pg_proc AS procedure
+          JOIN pg_class AS event_store_relation
+            ON event_store_relation.oid = 'event_store'::regclass
+         WHERE procedure.pronamespace = 'public'::regnamespace
+           AND procedure.proname IN (
+               'prevent_unverified_outbox_publish',
+               'prevent_unverified_rag_source',
+               'enforce_cloud_egress_route_audit_binding',
+               'enforce_privacy_deletion_job_evidence',
+               'enforce_privacy_deletion_target_transition',
+               'enforce_subject_scoped_event_protection',
+               'enforce_subject_scoped_outbox_protection',
+               'prevent_destroyed_subject_key_restoration',
+               'reject_erased_user_reactivation',
+               'reject_erased_subject_session',
+               'reject_erased_subject_membership',
+               'reject_retained_security_history_truncate',
+               'reject_privacy_evidence_removal'
+           )
+           AND (
+               procedure.prosecdef
+               OR procedure.proowner <> event_store_relation.relowner
+               OR procedure.provolatile <> 'v'
+               OR procedure.prokind <> 'f'
+           )
+    ) THEN
+        RAISE EXCEPTION 'P05 trigger function execution properties drifted';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM unnest(ARRAY[
+              '%NEW.subject_id IS DISTINCT FROM route.subject_id%',
+              '%NEW.source_provider IS DISTINCT FROM route.source_provider%',
+              '%NEW.target_provider IS DISTINCT FROM route.target_provider%',
+              '%NEW.source_endpoint IS DISTINCT FROM route.source_endpoint%',
+              '%NEW.target_endpoint IS DISTINCT FROM route.target_endpoint%',
+              '%NEW.model_id IS DISTINCT FROM route.model_id%',
+              '%NEW.source_credential_id IS DISTINCT FROM route.source_credential_id%',
+              '%NEW.source_credential_version IS DISTINCT FROM route.source_credential_version%',
+              '%NEW.target_credential_id IS DISTINCT FROM route.target_credential_id%',
+              '%NEW.target_credential_version IS DISTINCT FROM route.target_credential_version%',
+              '%NEW.fallback_policy IS DISTINCT FROM route.fallback_policy%',
+              '%NEW.privacy_boundary IS DISTINCT FROM route.privacy_boundary%',
+              '%NEW.context_manifest_hash IS DISTINCT FROM route.context_manifest_hash%',
+              '%NEW.created_at_unix_ms IS DISTINCT FROM route.created_at_unix_ms%'
+          ]::TEXT[]) AS expected(body_fragment)
+         WHERE pg_get_functiondef(
+                   'enforce_cloud_egress_route_audit_binding()'::regprocedure
+               ) NOT LIKE expected.body_fragment
+    )
+    THEN
+        RAISE EXCEPTION 'cloud-egress trigger body no longer binds the exact route tuple';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'event_store'::regclass
+           AND conname = 'event_store_rag_derivation_fields_check'
+           AND pg_get_constraintdef(oid) LIKE '%derived_source_event_sequence IS NOT NULL%'
+           AND pg_get_constraintdef(oid) LIKE '%derived_content_hash IS NOT NULL%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'event_store'::regclass
+           AND conname = 'event_store_deletion_request_fields_check'
+           AND pg_get_constraintdef(oid) LIKE '%deletion_job_id IS NOT NULL%'
+           AND pg_get_constraintdef(oid) LIKE '%deletion_retention_policy IS NOT NULL%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'privacy_deletion_jobs'::regclass
+           AND conname = 'privacy_deletion_jobs_evidence_binding_check'
+           AND pg_get_constraintdef(oid) LIKE '%hmac-sha256:%'
+    ) THEN
+        RAISE EXCEPTION 'P05 nullable security metadata or HMAC evidence constraint drifted';
+    END IF;
+
+    -- Execute the erased-subject guard, rather than accepting a function that
+    -- merely preserves the expected name and search_path. The enclosing
+    -- assertion transaction is rolled back, so this probe cannot add retained
+    -- production evidence.
+    erased_probe_digest :=
+        'sha256:' || md5(erased_probe_id) || md5(erased_probe_id || ':erasure');
+    INSERT INTO users (
+        user_id, login_normalized, password_hash, global_role, disabled_at
+    ) VALUES (
+        erased_probe_id,
+        'deleted_' || erased_probe_digest,
+        'DELETED_ACCOUNT_NO_LOGIN_' || erased_probe_digest,
+        'USER',
+        now()
+    );
+    BEGIN
+        INSERT INTO privacy_erased_subjects (
+            subject_id, erasure_digest
+        ) VALUES (
+            erased_probe_id, erased_probe_digest
+        );
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM =
+           'privacy erasure mutation requires a running confirmed deletion job' THEN
+            unauthorized_erasure_rejected := TRUE;
+        ELSE
+            RAISE EXCEPTION
+                'erasure-authority behavior probe returned an unexpected error: %',
+                SQLERRM;
+        END IF;
+    END;
+    IF NOT unauthorized_erasure_rejected THEN
+        RAISE EXCEPTION
+            'erasure-authority behavior guard accepted an unauthorised tombstone';
+    END IF;
+
+    -- Seed only the downstream reactivation probe. This owner-only schema
+    -- assertion runs inside a transaction that is always rolled back; the
+    -- trigger is re-enabled before the behavior test and fingerprint checks.
+    ALTER TABLE privacy_erased_subjects
+        DISABLE TRIGGER privacy_erased_subjects_creation_authority;
+    INSERT INTO privacy_erased_subjects (
+        subject_id, erasure_digest
+    ) VALUES (
+        erased_probe_id, erased_probe_digest
+    );
+    ALTER TABLE privacy_erased_subjects
+        ENABLE TRIGGER privacy_erased_subjects_creation_authority;
+    BEGIN
+        UPDATE users
+           SET login_normalized = 'reactivated-' || erased_probe_id || '@example.test',
+               password_hash = 'active-password',
+               disabled_at = NULL
+         WHERE user_id = erased_probe_id;
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM = 'erased user cannot be reactivated' THEN
+            erased_user_reactivation_rejected := TRUE;
+        ELSE
+            RAISE EXCEPTION
+                'erased-user behavior probe returned an unexpected error: %',
+                SQLERRM;
+        END IF;
+    END;
+    IF NOT erased_user_reactivation_rejected THEN
+        RAISE EXCEPTION 'erased-user behavior guard accepted reactivation';
+    END IF;
+
+    -- Execute the route/audit binding with a deliberately substituted model.
+    -- A matching audit is inserted after the rejection so the final
+    -- consistency scan also proves the positive path for this probe.
+    INSERT INTO cloud_egress_route_snapshots (
+        snapshot_id, subject_id, consent_id, source_provider, target_provider,
+        purpose, policy_version, notice_reference, context_manifest_hash,
+        allowed_fact_ids, decision, denial_code, created_at_unix_ms,
+        source_endpoint, target_endpoint, model_id,
+        source_credential_id, source_credential_version,
+        target_credential_id, target_credential_version,
+        fallback_policy, privacy_boundary, consent_expires_at_unix_ms
+    ) VALUES (
+        cloud_probe_id, 'schema_subject', NULL, 'ollama', 'cloud_provider',
+        'schema_behavior_probe', 'schema_policy_v1', NULL,
+        repeat('a', 64), '[]'::jsonb, 'deny', 'schema_probe_denied', 1,
+        'http://127.0.0.1:11434/v1', 'https://provider.example.test/v1',
+        'schema-model', 'local-credential', 1, 'cloud-credential', 1,
+        'explicit_audited_only', 'explicit_consent_no_silent_fallback', NULL
+    );
+    BEGIN
+        INSERT INTO cloud_egress_audit (
+            audit_id, snapshot_id, subject_id, decision, denial_code,
+            context_manifest_hash, created_at_unix_ms,
+            source_provider, target_provider, source_endpoint, target_endpoint,
+            model_id, source_credential_id, source_credential_version,
+            target_credential_id, target_credential_version,
+            fallback_policy, privacy_boundary
+        ) VALUES (
+            cloud_probe_id || '_forged', cloud_probe_id, 'schema_subject',
+            'deny', 'schema_probe_denied', repeat('a', 64), 1,
+            'ollama', 'cloud_provider', 'http://127.0.0.1:11434/v1',
+            'https://provider.example.test/v1', 'substituted-model',
+            'local-credential', 1, 'cloud-credential', 1,
+            'explicit_audited_only', 'explicit_consent_no_silent_fallback'
+        );
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM = 'cloud egress audit does not match route snapshot' THEN
+            cloud_audit_mismatch_rejected := TRUE;
+        ELSE
+            RAISE EXCEPTION
+                'cloud route/audit behavior probe returned an unexpected error: %',
+                SQLERRM;
+        END IF;
+    END;
+    IF NOT cloud_audit_mismatch_rejected THEN
+        RAISE EXCEPTION 'cloud route/audit behavior probe accepted a substituted model';
+    END IF;
+    INSERT INTO cloud_egress_audit (
+        audit_id, snapshot_id, subject_id, decision, denial_code,
+        context_manifest_hash, created_at_unix_ms,
+        source_provider, target_provider, source_endpoint, target_endpoint,
+        model_id, source_credential_id, source_credential_version,
+        target_credential_id, target_credential_version,
+        fallback_policy, privacy_boundary
+    ) VALUES (
+        cloud_probe_id || '_accepted', cloud_probe_id, 'schema_subject',
+        'deny', 'schema_probe_denied', repeat('a', 64), 1,
+        'ollama', 'cloud_provider', 'http://127.0.0.1:11434/v1',
+        'https://provider.example.test/v1', 'schema-model',
+        'local-credential', 1, 'cloud-credential', 1,
+        'explicit_audited_only', 'explicit_consent_no_silent_fallback'
+    );
 
     SELECT md5(string_agg(
                conrelid::regclass::text || '|' || conname || '|' || contype::text ||
@@ -190,11 +777,12 @@ BEGIN
      WHERE connamespace = 'public'::regnamespace
        AND conrelid IN (
            'event_store'::regclass, 'event_outbox'::regclass,
-           'projection_checkpoint'::regclass, 'formal_commits'::regclass,
-           'canonical_audit_log'::regclass
+           'projection_checkpoint'::regclass,
+           'canonical_event_projection'::regclass, 'formal_commits'::regclass,
+           'canonical_audit_log'::regclass, 'rag_snapshot_chunk'::regclass
        );
     IF constraint_signature IS NULL
-       OR constraint_signature <> '1289e4f2857a305fc7283fd02319db11' THEN
+       OR constraint_signature <> 'fb2c2e2c4235b06e356bdfbfa18b0d93' THEN
         RAISE EXCEPTION 'event persistence constraint relation/definition signature drifted: %',
             constraint_signature;
     END IF;
@@ -232,10 +820,13 @@ BEGIN
      WHERE NOT catalog_trigger.tgisinternal
        AND catalog_trigger.tgrelid IN (
            'event_store'::regclass, 'event_outbox'::regclass,
-           'formal_commits'::regclass, 'canonical_audit_log'::regclass
+           'projection_checkpoint'::regclass, 'formal_commits'::regclass,
+           'canonical_audit_log'::regclass,
+           'canonical_event_projection'::regclass,
+           'rag_snapshot_chunk'::regclass
        );
     IF trigger_signature IS NULL
-       OR trigger_signature <> '5b2eddf13c822cb4a220f7f9c790cc73' THEN
+       OR trigger_signature <> '9c5ea9fba170ea19b3da21e31f4359f7' THEN
         RAISE EXCEPTION 'event persistence trigger relation/enabled/definition signature drifted: %',
             trigger_signature;
     END IF;
@@ -272,12 +863,119 @@ BEGIN
          'enforce_formal_commit_binding()'::regprocedure,
          'enforce_existing_formal_commit_set()'::regprocedure,
          'enforce_event_formal_completion()'::regprocedure,
-         'reject_historical_classification_insert()'::regprocedure
+         'reject_historical_classification_insert()'::regprocedure,
+         'enforce_projection_checkpoint_monotonicity()'::regprocedure,
+         'enforce_canonical_event_projection_document()'::regprocedure,
+         'enforce_rag_snapshot_chunk_source()'::regprocedure,
+         'lock_rag_snapshot(text,text)'::regprocedure,
+         'canonical_projection_json(jsonb)'::regprocedure,
+         'projection_hash_field(integer,bytea)'::regprocedure,
+         'compute_canonical_projection_hash_v3(text,event_store)'::regprocedure
     );
     IF trigger_function_signature IS NULL
-       OR trigger_function_signature <> '6db05b2875333b14d2962a4f56d433e8' THEN
+       OR trigger_function_signature <> '81e8f54d925bbae9be6b29880a0cc5cf' THEN
         RAISE EXCEPTION 'event persistence trigger function definition/execution signature drifted: %',
             trigger_function_signature;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM pg_proc AS procedure
+         WHERE procedure.oid IN (
+                   'enforce_event_outbox_binding()'::regprocedure,
+                   'enforce_projection_checkpoint_monotonicity()'::regprocedure,
+                   'enforce_canonical_audit_chain()'::regprocedure,
+                   'enforce_canonical_event_projection_document()'::regprocedure,
+                   'enforce_rag_snapshot_chunk_source()'::regprocedure,
+                   'lock_rag_snapshot(text,text)'::regprocedure,
+                   'canonical_projection_json(jsonb)'::regprocedure,
+                   'projection_hash_field(integer,bytea)'::regprocedure,
+                   'compute_canonical_projection_hash_v3(text,event_store)'::regprocedure
+               )
+           AND NOT COALESCE(
+                   procedure.proconfig @> ARRAY['search_path=pg_catalog, public']::TEXT[],
+                   FALSE
+               )
+    ) THEN
+        RAISE EXCEPTION 'P04 canonical lookup function has an unsafe execution search_path';
+    END IF;
+
+    -- Prove the checkpoint trigger cannot be redirected to a session-local
+    -- event_store lookalike. A catalog signature alone would not prove this.
+    CREATE TEMP TABLE event_store (
+        campaign_id TEXT NOT NULL,
+        stream_id TEXT NOT NULL,
+        stream_version BIGINT NOT NULL,
+        sequence BIGINT NOT NULL
+    ) ON COMMIT DROP;
+    INSERT INTO pg_temp.event_store VALUES (
+        'schema_shadow_campaign', 'schema_shadow_stream',
+        9223372036854775806, 9223372036854775806
+    );
+    PERFORM set_config('search_path', 'pg_temp, public', true);
+    BEGIN
+        INSERT INTO public.projection_checkpoint (
+            projection_name, campaign_id, stream_id, version,
+            last_event_sequence, projection_hash
+        ) VALUES (
+            'schema_search_path_probe', 'schema_shadow_campaign',
+            'schema_shadow_stream', 9223372036854775806,
+            9223372036854775806,
+            'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+        );
+    EXCEPTION WHEN OTHERS THEN
+        IF SQLERRM =
+           'projection checkpoint does not reference its canonical stream event' THEN
+            search_path_bypass_rejected := TRUE;
+        ELSE
+            RAISE EXCEPTION 'checkpoint search_path probe returned an unexpected error: %',
+                SQLERRM;
+        END IF;
+    END;
+    IF NOT search_path_bypass_rejected THEN
+        RAISE EXCEPTION 'checkpoint search_path bypass was accepted';
+    END IF;
+    DROP TABLE pg_temp.event_store;
+    PERFORM set_config('search_path', 'pg_catalog, public, pg_temp', true);
+
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_indexes
+         WHERE schemaname = 'public'
+           AND tablename = 'event_outbox'
+           AND indexname = 'event_outbox_claim_ready_idx'
+           AND indexdef =
+               'CREATE INDEX event_outbox_claim_ready_idx ON public.event_outbox USING btree (available_at, locked_until, outbox_id) WHERE ((published_at IS NULL) AND (dead_lettered_at IS NULL))'
+    ) THEN
+        RAISE EXCEPTION 'event outbox claim-ready index drifted';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_indexes
+         WHERE schemaname = 'public'
+           AND tablename = 'rag_snapshot_chunk'
+           AND indexname = 'rag_snapshot_chunk_visibility_idx'
+           AND indexdef =
+               'CREATE INDEX rag_snapshot_chunk_visibility_idx ON public.rag_snapshot_chunk USING btree (campaign_id, snapshot_id, visibility, visibility_subject)'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_indexes
+         WHERE schemaname = 'public'
+           AND tablename = 'rag_snapshot_chunk'
+           AND indexname = 'rag_snapshot_chunk_source_event_idx'
+           AND indexdef =
+               'CREATE INDEX rag_snapshot_chunk_source_event_idx ON public.rag_snapshot_chunk USING btree (source_event_sequence)'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_indexes
+         WHERE schemaname = 'public'
+           AND tablename = 'rag_snapshot_chunk'
+           AND indexname = 'rag_snapshot_chunk_embedding_contract_idx'
+           AND indexdef =
+               'CREATE INDEX rag_snapshot_chunk_embedding_contract_idx ON public.rag_snapshot_chunk USING btree (campaign_id, snapshot_id, embedding_model, embedding_dimensions)'
+    ) THEN
+        RAISE EXCEPTION 'RAG snapshot indexes drifted';
     END IF;
 
     BEGIN
@@ -286,7 +984,8 @@ BEGIN
             authority_mode, authority_contract_version, visibility_label,
             fact_provenance_kind, fact_provenance_reference, fact_recorded_by,
             correlation_id, causation_id, payload_json, campaign_id,
-            stream_version, authenticated_actor_id, resource_type, resource_id,
+            stream_version, authenticated_actor_id, authenticated_actor_role,
+            authenticated_actor_origin, resource_type, resource_id,
             authority_contract_id, authority_owner, visibility_subject, trace_id,
             event_integrity_hash, stream_id, event_schema_version,
             idempotency_operation, request_hash, request_hash_source,
@@ -297,6 +996,8 @@ BEGIN
             'imported_source', 'schema_assertion', 'schema_assertion',
             'schema_historical_correlation', 'schema_historical_causation',
             '{}'::jsonb, 'historical_unscoped', 1, 'historical_unknown',
+            'historical_unknown',
+            '{"kind":"workload","role":"historical_unknown"}'::jsonb,
             'historical_unknown', 'historical_unknown', 'historical_unknown',
             'historical_unknown', 'not_applicable', 'historical_unknown', NULL,
             'historical_unscoped', 1, 'canonical_commit',
@@ -341,7 +1042,8 @@ BEGIN
             requested_role, visibility_label, visibility_subject,
             provenance_kind, provenance_reference, provenance_recorded_by,
             decision, openfga_decision_id, openfga_policy_revision,
-            opa_decision_id, opa_policy_revision, trace_id, event_batch_hash,
+            opa_decision_id, opa_policy_revision, trace_id,
+            correlation_id, causation_id, event_batch_hash,
             witness_prepare_sequence, witness_prepare_hash, integrity_version,
             integrity_key_id, previous_hash, record_hash
         ) VALUES (
@@ -351,7 +1053,7 @@ BEGIN
             'party_visible', 'not_applicable', 'system_fixture',
             'schema_assertion', 'schema_assertion', 'PERMIT', 'schema_fga',
             'schema_fga_revision', 'schema_opa', 'schema_opa_revision',
-            'schema_trace',
+            'schema_trace', 'schema_correlation', 'schema_causation',
             'sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
             1,
             'hmac-sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
@@ -376,7 +1078,8 @@ BEGIN
             requested_role, visibility_label, visibility_subject,
             provenance_kind, provenance_reference, provenance_recorded_by,
             decision, openfga_decision_id, openfga_policy_revision,
-            opa_decision_id, opa_policy_revision, trace_id, event_batch_hash,
+            opa_decision_id, opa_policy_revision, trace_id,
+            correlation_id, causation_id, event_batch_hash,
             witness_prepare_sequence, witness_prepare_hash, occurred_at,
             integrity_version, integrity_key_id, previous_hash, record_hash
         ) VALUES (
@@ -386,11 +1089,11 @@ BEGIN
             'party_visible', 'not_applicable', 'system_fixture',
             'schema_assertion', 'schema_assertion', 'PERMIT', 'schema_fga',
             'schema_fga_revision', 'schema_opa', 'schema_opa_revision',
-            'schema_trace',
+            'schema_trace', 'schema_correlation', 'schema_causation',
             'sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
             1,
             'hmac-sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
-            '2026-07-16T00:00:00Z'::timestamptz, 2, 'schema_key',
+            '2026-07-16T00:00:00Z'::timestamptz, 3, 'schema_key',
             COALESCE(
                 (SELECT record_hash FROM canonical_audit_log ORDER BY sequence DESC LIMIT 1),
                 'hmac-sha256:0000000000000000000000000000000000000000000000000000000000000000'
@@ -406,6 +1109,27 @@ BEGIN
             RAISE EXCEPTION 'canonical audit mutation guard returned an unexpected error: %', SQLERRM;
         END IF;
     END;
+
+    IF EXISTS (
+        SELECT 1 FROM canonical_audit_log
+         WHERE btrim(correlation_id) = '' OR btrim(causation_id) = ''
+    ) THEN
+        RAISE EXCEPTION 'canonical audit correlation/causation context is incomplete';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM canonical_audit_log AS audit
+          JOIN formal_commits AS formal ON formal.audit_sequence = audit.sequence
+          JOIN event_store AS event ON event.sequence = formal.first_event_sequence
+         WHERE audit.integrity_version = 3
+           AND (
+               audit.correlation_id IS DISTINCT FROM event.correlation_id
+               OR audit.causation_id IS DISTINCT FROM event.causation_id
+           )
+    ) THEN
+        RAISE EXCEPTION 'canonical audit context is not bound to its event batch';
+    END IF;
 
     IF EXISTS (
         SELECT 1
@@ -429,9 +1153,14 @@ BEGIN
             OR outbox.event_schema_version IS DISTINCT FROM event.event_schema_version
             OR outbox.idempotency_operation IS DISTINCT FROM event.idempotency_operation
             OR outbox.visibility_label IS DISTINCT FROM event.visibility_label
+            OR outbox.visibility_subject IS DISTINCT FROM event.visibility_subject
             OR outbox.correlation_id IS DISTINCT FROM event.correlation_id
             OR outbox.causation_id IS DISTINCT FROM event.causation_id
             OR outbox.payload_json IS DISTINCT FROM event.payload_json
+            OR outbox.payload_ciphertext IS DISTINCT FROM event.payload_ciphertext
+            OR outbox.payload_key_reference IS DISTINCT FROM event.payload_key_reference
+            OR outbox.payload_nonce IS DISTINCT FROM event.payload_nonce
+            OR outbox.data_subject_id IS DISTINCT FROM event.data_subject_id
             OR outbox.request_hash IS DISTINCT FROM event.request_hash
             OR outbox.request_hash_source IS DISTINCT FROM event.request_hash_source
             OR outbox.integrity_status IS DISTINCT FROM event.integrity_status
@@ -456,6 +1185,76 @@ BEGIN
                'sha256:0000000000000000000000000000000000000000000000000000000000000000'
     ) THEN
         RAISE EXCEPTION 'stored event integrity/request classification is invalid';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM event_outbox AS outbox
+         WHERE (outbox.delivery_status = 'published' OR outbox.published_at IS NOT NULL)
+           AND (
+               outbox.delivery_status <> 'published'
+               OR outbox.published_at IS NULL
+               OR outbox.integrity_status <> 'verified_hmac'
+               OR outbox.request_hash_source <> 'formal_commit'
+               OR outbox.commit_id IS NULL
+               OR NOT (outbox.payload_json ? 'protected_payload')
+           )
+    ) THEN
+        RAISE EXCEPTION 'published outbox row bypasses P05 authenticated ciphertext gate';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM privacy_deletion_jobs AS job
+          LEFT JOIN event_store AS event
+            ON event.sequence = job.canonical_event_sequence
+         WHERE job.evidence_status = 'confirmed'
+           AND (
+               event.sequence IS NULL
+               OR event.event_type IS DISTINCT FROM job.canonical_event_type
+               OR event.command_id IS DISTINCT FROM job.command_id
+               OR event.correlation_id IS DISTINCT FROM job.correlation_id
+               OR event.causation_id IS DISTINCT FROM job.causation_id
+               OR event.event_integrity_hash IS DISTINCT FROM
+                  job.canonical_event_integrity_hash
+               OR event.integrity_status IS DISTINCT FROM 'verified_hmac'
+               OR event.request_hash_source IS DISTINCT FROM 'formal_commit'
+               OR event.deletion_job_id IS DISTINCT FROM job.job_id
+               OR event.deletion_subject_id IS DISTINCT FROM job.subject_id
+               OR event.deletion_requested_by IS DISTINCT FROM job.requested_by
+               OR event.deletion_retention_policy IS DISTINCT FROM job.retention_policy
+               OR event.fact_provenance_kind IS DISTINCT FROM 'user_statement'
+           )
+    ) THEN
+        RAISE EXCEPTION 'confirmed deletion job is not bound to its exact canonical HMAC event';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM cloud_egress_route_snapshots AS route
+          LEFT JOIN cloud_egress_audit AS audit
+            ON audit.snapshot_id = route.snapshot_id
+         WHERE audit.audit_id IS NULL
+            OR audit.subject_id IS DISTINCT FROM route.subject_id
+            OR audit.source_provider IS DISTINCT FROM route.source_provider
+            OR audit.target_provider IS DISTINCT FROM route.target_provider
+            OR audit.source_endpoint IS DISTINCT FROM route.source_endpoint
+            OR audit.target_endpoint IS DISTINCT FROM route.target_endpoint
+            OR audit.model_id IS DISTINCT FROM route.model_id
+            OR audit.source_credential_id IS DISTINCT FROM route.source_credential_id
+            OR audit.source_credential_version IS DISTINCT FROM
+               route.source_credential_version
+            OR audit.target_credential_id IS DISTINCT FROM route.target_credential_id
+            OR audit.target_credential_version IS DISTINCT FROM
+               route.target_credential_version
+            OR audit.fallback_policy IS DISTINCT FROM route.fallback_policy
+            OR audit.privacy_boundary IS DISTINCT FROM route.privacy_boundary
+            OR audit.decision IS DISTINCT FROM route.decision
+            OR audit.denial_code IS DISTINCT FROM route.denial_code
+            OR audit.context_manifest_hash IS DISTINCT FROM route.context_manifest_hash
+            OR audit.created_at_unix_ms IS DISTINCT FROM route.created_at_unix_ms
+    ) THEN
+        RAISE EXCEPTION 'cloud egress route lacks its exact immutable audit record';
     END IF;
 
     SELECT formal.commit_id
@@ -505,4 +1304,6 @@ BEGIN
 END;
 $$;
 
-SELECT 'P03_SCHEMA_ASSERTION_OK' AS schema_assertion;
+SELECT 'P05_SCHEMA_ASSERTION_OK' AS schema_assertion;
+
+ROLLBACK;

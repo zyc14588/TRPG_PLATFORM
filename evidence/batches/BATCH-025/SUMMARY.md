@@ -46,4 +46,4 @@
 
 ## Handoff
 
-Next batch can build on `batch_025_data_event_contracts()` and the global `all_data_event_contracts()` registry. B025 SQLx migration has live run/revert/run evidence against disposable PostgreSQL.
+Next batch can build on `batch_025_data_event_contracts()` and the global `all_data_event_contracts()` registry. The historical B025 run/revert/run transcript is provenance only; current P04 acceptance uses forward-only apply, repeated no-op apply and schema assertions against disposable PostgreSQL. The 66-test Data/Eventing matrix embeds a recovery drill; a separately counted `trpg-ops` target supplies an additional runbook-level backup/restore proof.

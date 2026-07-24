@@ -6,10 +6,8 @@ use trpg_runtime::durable_workflow::{
 
 #[tokio::test(flavor = "multi_thread")]
 async fn workflow_state_and_leases_survive_process_reconstruction() {
-    let Ok(database_url) = env::var("P02_WORKFLOW_DATABASE_URL") else {
-        eprintln!("skipped: set P02_WORKFLOW_DATABASE_URL for the real durable-workflow gate");
-        return;
-    };
+    let database_url = env::var("P02_WORKFLOW_DATABASE_URL")
+        .expect("P02_WORKFLOW_DATABASE_URL is required for the real durable-workflow gate");
     let suffix = std::process::id();
     let workflow_id = format!("durable_workflow_{suffix}");
     let campaign_id = format!("durable_campaign_{suffix}");

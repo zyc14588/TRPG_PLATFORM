@@ -139,6 +139,7 @@ fn b026_contract_metadata_covers_api_nats_rag_cache_and_persistence() {
 
     for field in [
         "source_type",
+        "copyright_status",
         "version",
         "owner",
         "allowed_use",

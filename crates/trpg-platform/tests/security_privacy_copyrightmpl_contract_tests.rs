@@ -1,7 +1,8 @@
 use trpg_platform::security_privacy_copyrightmpl::{
-    review_security_privacy_copyright_policy, ReviewSecurityPrivacyCopyrightPolicy,
-    SecurityPrivacyCopyrightEvent, SecurityPrivacyCopyrightRepository,
-    SECURITY_PRIVACY_COPYRIGHTMPL_METRIC_MODULE, SECURITY_PRIVACY_COPYRIGHT_REVIEWED_EVENT,
+    review_security_privacy_copyright_policy, ExportAudience, ExportIntent,
+    ReviewSecurityPrivacyCopyrightPolicy, SecurityPrivacyCopyrightEvent,
+    SecurityPrivacyCopyrightRepository, SECURITY_PRIVACY_COPYRIGHTMPL_METRIC_MODULE,
+    SECURITY_PRIVACY_COPYRIGHT_REVIEWED_EVENT,
 };
 use trpg_shared_kernel::{
     ActorRole, AuthorityMode, CommandEnvelope, PrincipalScope, TrpgError, Visibility,
@@ -9,17 +10,18 @@ use trpg_shared_kernel::{
 };
 
 fn command() -> CommandEnvelope<ReviewSecurityPrivacyCopyrightPolicy> {
-    trpg_test_support::governed_command(
+    let mut command = trpg_test_support::governed_command(
         ReviewSecurityPrivacyCopyrightPolicy {
             asset_id: "handout_001".to_owned(),
             license_tag: "original_campaign_asset".to_owned(),
             detail: "keeper_only_handout_notes".to_owned(),
-            contains_restricted_visibility: false,
-            export_allowed: true,
+            export_intent: ExportIntent::ExportTo(ExportAudience::Public),
         },
         ActorRole::System,
         AuthorityMode::HumanKp,
-    )
+    );
+    command.visibility = Visibility::new(VisibilityLabel::Public);
+    command
 }
 
 #[test]
@@ -42,6 +44,7 @@ fn security_privacy_copyrightmpl_rejects_authority_contract_violation() {
 fn security_privacy_copyrightmpl_keeps_visibility_and_fact_provenance_on_replay() {
     let mut command = command();
     command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
+    command.payload.export_intent = ExportIntent::ReviewOnly;
     let mut repository = SecurityPrivacyCopyrightRepository::default();
 
     let event = review_security_privacy_copyright_policy(&mut repository, &command)
@@ -63,8 +66,8 @@ fn security_privacy_copyrightmpl_keeps_visibility_and_fact_provenance_on_replay(
 #[test]
 fn security_privacy_copyrightmpl_rejects_restricted_visibility_export() {
     let mut command = command();
-    command.payload.contains_restricted_visibility = true;
-    command.payload.export_allowed = true;
+    command.visibility = Visibility::new(VisibilityLabel::KeeperOnly);
+    command.payload.export_intent = ExportIntent::ExportTo(ExportAudience::Public);
     let mut repository = SecurityPrivacyCopyrightRepository::default();
 
     let err = review_security_privacy_copyright_policy(&mut repository, &command)

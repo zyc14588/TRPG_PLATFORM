@@ -21,6 +21,7 @@ pub enum PlatformEvent {
     DeploymentConfigured {
         environment: String,
         provider: String,
+        security_snapshot_digest: String,
     },
     LocalDevEnvironmentValidated {
         profile: String,
@@ -76,15 +77,7 @@ pub fn append_platform_event<T>(
 }
 
 pub fn restricted_visibility(label: &VisibilityLabel) -> bool {
-    matches!(
-        label,
-        VisibilityLabel::KeeperOnly
-            | VisibilityLabel::PrivateToPlayer
-            | VisibilityLabel::InvestigatorPrivate
-            | VisibilityLabel::AiInternal
-            | VisibilityLabel::SystemOnly
-            | VisibilityLabel::SystemPrivate
-    )
+    label.is_restricted()
 }
 
 pub fn redact_for_observability(visibility: &Visibility, text: &str) -> String {

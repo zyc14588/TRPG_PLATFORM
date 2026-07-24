@@ -9,24 +9,24 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     AtomicCommitDraft, CanonicalEventDraft, PolicyAuditDraft, PostgresCanonicalStore,
 };
 use trpg_identity::{CampaignRole, GlobalRole, IdentityService};
+use trpg_privacy::PostgresDeletionRepository;
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
 };
 use trpg_security_governance::tamper_evident_audit::FileAuditLog;
-use trpg_shared_kernel::AuthorityMode;
+use trpg_shared_kernel::{AuthorityMode, EventActorOriginWire};
 
 const IDENTITY_KEY: [u8; 32] = [0x44; 32];
 const CANONICAL_KEY: [u8; 32] = [0x62; 32];
+const PAYLOAD_KEY: [u8; 32] = [0x73; 32];
 
 #[test]
 fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership() {
-    let (Ok(primary_url), Ok(witness_url)) = (
-        env::var("P02_API_CANONICAL_DATABASE_URL"),
-        env::var("P02_API_CANONICAL_WITNESS_DATABASE_URL"),
-    ) else {
-        eprintln!("skipped: set independent P02 API canonical primary/witness databases");
-        return;
-    };
+    let primary_url = env::var("P02_API_CANONICAL_DATABASE_URL")
+        .expect("P02_API_CANONICAL_DATABASE_URL is required for canonical replay integration");
+    let witness_url = env::var("P02_API_CANONICAL_WITNESS_DATABASE_URL").expect(
+        "P02_API_CANONICAL_WITNESS_DATABASE_URL is required for canonical replay integration",
+    );
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let store = runtime
         .block_on(PostgresCanonicalStore::connect(
@@ -34,6 +34,8 @@ fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership(
             &witness_url,
             "api-replay-test-key",
             &CANONICAL_KEY,
+            "api-replay-payload-key",
+            &PAYLOAD_KEY,
         ))
         .unwrap();
     runtime.block_on(store.prepare_for_service()).unwrap();
@@ -43,8 +45,16 @@ fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership(
         .unwrap();
     runtime
         .block_on(store.commit(&draft(
-            "api_replay_keeper",
+            "api_replay_party",
             1,
+            "party_visible",
+            "not_applicable",
+        )))
+        .unwrap();
+    runtime
+        .block_on(store.commit(&draft(
+            "api_replay_keeper",
+            2,
             "keeper_only",
             "not_applicable",
         )))
@@ -52,9 +62,33 @@ fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership(
     runtime
         .block_on(store.commit(&draft(
             "api_replay_private",
-            2,
+            3,
             "private_to_player",
             "player_replay",
+        )))
+        .unwrap();
+    runtime
+        .block_on(store.commit(&draft(
+            "api_replay_spectator_visible",
+            4,
+            "spectator_visible",
+            "not_applicable",
+        )))
+        .unwrap();
+    runtime
+        .block_on(store.commit(&draft(
+            "api_replay_spectator_hidden",
+            5,
+            "spectator_hidden",
+            "not_applicable",
+        )))
+        .unwrap();
+    runtime
+        .block_on(store.commit(&draft(
+            "api_replay_private_group",
+            6,
+            "private_to_group",
+            "investigation_group_alpha",
         )))
         .unwrap();
 
@@ -66,6 +100,14 @@ fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership(
             "keeper-replay@example.test",
             "keeper replay password long enough",
             GlobalRole::ServerOwner,
+        )
+        .unwrap();
+    identity
+        .create_user(
+            "spectator_replay",
+            "spectator-replay@example.test",
+            "spectator replay password long enough",
+            GlobalRole::User,
         )
         .unwrap();
     identity
@@ -100,8 +142,34 @@ fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership(
         .grant_membership(
             &keeper,
             "campaign_api_replay",
+            "spectator_replay",
+            CampaignRole::Spectator,
+            now + 1,
+        )
+        .unwrap();
+    identity
+        .grant_membership(
+            &keeper,
+            "campaign_api_replay",
             "player_replay",
             CampaignRole::Player,
+            now + 1,
+        )
+        .unwrap();
+    identity
+        .create_campaign_group(
+            &keeper,
+            "campaign_api_replay",
+            "investigation_group_alpha",
+            now + 1,
+        )
+        .unwrap();
+    identity
+        .grant_group_membership(
+            &keeper,
+            "campaign_api_replay",
+            "investigation_group_alpha",
+            "player_replay",
             now + 1,
         )
         .unwrap();
@@ -126,6 +194,14 @@ fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership(
         )
         .unwrap();
     let player_token = player_session.token.expose().to_owned();
+    let spectator_session = identity
+        .login(
+            "spectator-replay@example.test",
+            "spectator replay password long enough",
+            now + 2,
+        )
+        .unwrap();
+    let spectator_token = spectator_session.token.expose().to_owned();
 
     let audit_path = PathBuf::from(format!(
         "/tmp/p02-api-replay-audit-{}.jsonl",
@@ -151,8 +227,19 @@ fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership(
         .unwrap(),
     )
     .unwrap();
-    let application =
-        ApiApplication::new_production_governed(identity, policy, audit, runtime, store);
+    let privacy_runtime = tokio::runtime::Runtime::new().unwrap();
+    let deletion_repository = privacy_runtime
+        .block_on(PostgresDeletionRepository::connect(&primary_url))
+        .unwrap();
+    let application = ApiApplication::new_production_governed(
+        identity,
+        policy,
+        audit,
+        runtime,
+        store,
+        privacy_runtime,
+        deletion_repository,
+    );
     let player_response = application
         .handle(&request(
             "/campaigns/campaign_api_replay/events?after_sequence=0&limit=100",
@@ -161,12 +248,34 @@ fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership(
         .unwrap();
     assert_eq!(player_response.status, 200);
     let player_events = player_response.body["events"].as_array().unwrap();
-    assert_eq!(player_events.len(), 2);
+    assert_eq!(player_events.len(), 6);
     assert_eq!(player_events[0]["stream_id"], "campaign_api_replay");
     assert_eq!(player_events[0]["request_hash_source"], "formal_commit");
     assert_eq!(player_events[0]["integrity_status"], "verified_hmac");
     assert_eq!(player_events[0]["visibility_label"], "public");
-    assert_eq!(player_events[1]["visibility_label"], "private_to_player");
+    assert_eq!(player_events[1]["visibility_label"], "party_visible");
+    assert!(player_events
+        .iter()
+        .any(|event| event["visibility_label"] == "private_to_player"));
+    assert!(player_events
+        .iter()
+        .any(|event| event["visibility_label"] == "spectator_hidden"));
+    assert!(player_events.iter().any(|event| {
+        event["visibility_label"] == "private_to_group"
+            && event["visibility_subject"] == "investigation_group_alpha"
+    }));
+
+    let spectator_response = application
+        .handle(&request(
+            "/campaigns/campaign_api_replay/events?after_sequence=0&limit=100",
+            Some(&spectator_token),
+        ))
+        .unwrap();
+    assert_eq!(spectator_response.status, 200);
+    let spectator_events = spectator_response.body["events"].as_array().unwrap();
+    assert_eq!(spectator_events.len(), 2);
+    assert_eq!(spectator_events[0]["visibility_label"], "public");
+    assert_eq!(spectator_events[1]["visibility_label"], "spectator_visible");
 
     let keeper_response = application
         .handle(&request(
@@ -175,7 +284,7 @@ fn authenticated_transport_filters_canonical_replay_by_live_campaign_membership(
         ))
         .unwrap();
     assert_eq!(keeper_response.status, 200);
-    assert_eq!(keeper_response.body["events"].as_array().unwrap().len(), 3);
+    assert_eq!(keeper_response.body["events"].as_array().unwrap().len(), 7);
 
     let unauthenticated = application
         .handle(&request("/campaigns/campaign_api_replay/events", None))
@@ -214,12 +323,17 @@ fn draft(
         expected_version,
         command_id: format!("command_{commit_id}"),
         authenticated_actor_id: "workflow_api_replay".to_owned(),
+        authenticated_actor_role: "workflow".to_owned(),
+        authenticated_actor_origin: EventActorOriginWire::Workload {
+            role: "workflow_engine".to_owned(),
+        },
         authority_mode: "human_kp".to_owned(),
         authority_contract_version: 1,
         authority_contract_id: "authority_campaign_api_replay_1".to_owned(),
         authority_owner: "keeper_replay".to_owned(),
         visibility_label: visibility_label.to_owned(),
         visibility_subject: visibility_subject.to_owned(),
+        data_subject_id: "not_applicable".to_owned(),
         provenance_kind: "rules_engine_decision".to_owned(),
         provenance_reference: format!("decision_{commit_id}"),
         provenance_recorded_by: "rules_engine_api_replay".to_owned(),

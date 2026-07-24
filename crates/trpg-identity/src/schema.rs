@@ -11,6 +11,9 @@ pub const MEMBERSHIP_CAMPAIGN_MOVE_GUARD_MIGRATION_SQL: &str =
 pub const AUDIT_VISIBILITY_PROVENANCE_MIGRATION_NAME: &str = "add_audit_visibility_provenance";
 pub const AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL: &str =
     include_str!("../../../migrations/20260715000300_add_audit_visibility_provenance.up.sql");
+pub const CAMPAIGN_GROUP_MEMBERSHIP_MIGRATION_NAME: &str = "create_campaign_group_memberships";
+pub const CAMPAIGN_GROUP_MEMBERSHIP_MIGRATION_SQL: &str =
+    include_str!("../../../migrations/20260721000100_create_campaign_group_memberships.up.sql");
 
 pub const IDENTITY_AUTHORIZATION_TABLES: &[&str] = &[
     "users",
@@ -20,6 +23,9 @@ pub const IDENTITY_AUTHORIZATION_TABLES: &[&str] = &[
     "audit_log",
 ];
 
+pub const CAMPAIGN_GROUP_AUTHORIZATION_TABLES: &[&str] =
+    &["campaign_groups", "campaign_group_memberships"];
+
 pub fn migration_statement() -> (&'static str, &'static str) {
     (
         IDENTITY_AUTHORIZATION_MIGRATION_NAME,
@@ -27,7 +33,7 @@ pub fn migration_statement() -> (&'static str, &'static str) {
     )
 }
 
-pub fn migration_statements() -> [(&'static str, &'static str); 4] {
+pub fn migration_statements() -> [(&'static str, &'static str); 5] {
     [
         migration_statement(),
         (
@@ -41,6 +47,10 @@ pub fn migration_statements() -> [(&'static str, &'static str); 4] {
         (
             AUDIT_VISIBILITY_PROVENANCE_MIGRATION_NAME,
             AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL,
+        ),
+        (
+            CAMPAIGN_GROUP_MEMBERSHIP_MIGRATION_NAME,
+            CAMPAIGN_GROUP_MEMBERSHIP_MIGRATION_SQL,
         ),
     ]
 }
@@ -80,5 +90,17 @@ mod tests {
             .contains("NEW.campaign_id <> OLD.campaign_id"));
         assert!(AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL.contains("visibility_label"));
         assert!(AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL.contains("provenance_reference"));
+        for table in CAMPAIGN_GROUP_AUTHORIZATION_TABLES {
+            assert!(
+                CAMPAIGN_GROUP_MEMBERSHIP_MIGRATION_SQL
+                    .contains(&format!("CREATE TABLE IF NOT EXISTS {table}")),
+                "missing campaign group authorization table: {table}"
+            );
+        }
+        assert!(CAMPAIGN_GROUP_MEMBERSHIP_MIGRATION_SQL.contains(
+            "active campaign group membership requires an active investigator membership"
+        ));
+        assert!(CAMPAIGN_GROUP_MEMBERSHIP_MIGRATION_SQL
+            .contains("campaign_group_memberships_identity_guard"));
     }
 }

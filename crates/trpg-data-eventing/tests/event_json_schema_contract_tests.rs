@@ -106,9 +106,12 @@ fn event_json_schema_catalog_declares_governed_command_and_event_fields() {
         "public",
         "party_visible",
         "private_to_player",
+        "private_to_group",
         "keeper_only",
         "ai_internal",
         "system_only",
+        "spectator_visible",
+        "spectator_hidden",
     ] {
         assert!(entry.visibility_labels.contains(&required));
     }

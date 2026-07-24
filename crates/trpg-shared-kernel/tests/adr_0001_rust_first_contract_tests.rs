@@ -3,7 +3,8 @@ use trpg_shared_kernel::adr_0001_rust_first::{
     current_rust_first_decisions, validate_adr_0001_rust_first_record,
 };
 use trpg_shared_kernel::shared_kernel::{
-    ActorRole, AuthorityMode, EntityId, EventStore, PrincipalScope, TrpgError, Visibility,
+    ActorRole, AuthorityMode, EntityId, EventEnvelopeWire, EventStore, PrincipalScope, TrpgError,
+    Visibility, EVENT_ENVELOPE_WIRE_SCHEMA_VERSION,
 };
 use trpg_shared_kernel::workspace_and_governance::{
     validate_governance_contract, CanonicalStateBoundary, GovernanceSurface,
@@ -83,18 +84,26 @@ fn adr_0001_rust_first_review_is_recorded_through_event_store() {
     assert_eq!(event.payload.module_name, "adr_0001_rust_first");
     assert_eq!(event.payload.reviewed_requirements, 4);
 
+    let canonical_json = event.to_canonical_json().unwrap();
+    let wire: EventEnvelopeWire<serde_json::Value> = serde_json::from_str(&canonical_json).unwrap();
+    assert_eq!(wire.schema_version, EVENT_ENVELOPE_WIRE_SCHEMA_VERSION);
+    assert_eq!(wire.stream_id, event.stream_id.as_str());
+    assert_eq!(wire.stream_version, event.stream_version);
+    assert_eq!(wire.visibility_label, event.visibility.label().as_str());
+    assert_eq!(
+        wire.provenance_reference,
+        event.fact_provenance.reference.as_str()
+    );
+    assert_eq!(wire.to_canonical_json().unwrap(), canonical_json);
+
     let duplicate = trpg_test_support::governed_command(
         adr_0001_rust_first_review(),
         ActorRole::HumanKeeper,
         AuthorityMode::HumanKp,
     );
-    assert_eq!(
-        append_adr_0001_rust_first_reviewed(&mut store, &duplicate).unwrap_err(),
-        TrpgError::ExpectedVersionConflict {
-            expected: 0,
-            actual: 1
-        }
-    );
+    let retried = append_adr_0001_rust_first_reviewed(&mut store, &duplicate).unwrap();
+    assert_eq!(retried, event);
+    assert_eq!(store.events().len(), 1);
 }
 
 #[test]
@@ -125,4 +134,43 @@ fn adr_0001_rust_first_preserves_visibility_and_authority_guards() {
         append_adr_0001_rust_first_reviewed(&mut store, &invalid_authority).unwrap_err(),
         TrpgError::AuthorityViolation
     );
+}
+
+#[test]
+fn p04_seeded_stream_version_is_scoped_to_one_campaign_stream() {
+    let contract_a =
+        trpg_test_support::authority_contract("campaign_p04_seeded_a", AuthorityMode::HumanKp, 1)
+            .unwrap();
+    let contract_b =
+        trpg_test_support::authority_contract("campaign_p04_fresh_b", AuthorityMode::HumanKp, 1)
+            .unwrap();
+    let mut store: EventStore<String> = EventStore::with_stream_base_version_for(
+        contract_a.campaign_id().clone(),
+        contract_a.campaign_id().clone(),
+        5,
+    );
+
+    let mut command_a = trpg_test_support::governed_command_for_contract(
+        &contract_a,
+        "seeded stream".to_owned(),
+        ActorRole::HumanKeeper,
+    );
+    command_a.expected_version = 5;
+    let event_a = store
+        .append(&command_a, "P04SeededStreamRecorded", "seeded".to_owned())
+        .unwrap();
+
+    let command_b = trpg_test_support::governed_command_for_contract(
+        &contract_b,
+        "fresh stream".to_owned(),
+        ActorRole::HumanKeeper,
+    );
+    let event_b = store
+        .append(&command_b, "P04FreshStreamRecorded", "fresh".to_owned())
+        .unwrap();
+
+    assert_eq!(event_a.stream_version, 6);
+    assert_eq!(event_b.stream_version, 1);
+    assert_eq!(event_a.sequence, 1);
+    assert_eq!(event_b.sequence, 2);
 }

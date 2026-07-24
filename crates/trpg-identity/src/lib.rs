@@ -1,6 +1,6 @@
 pub mod schema;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt;
 use std::sync::{Arc, Mutex, RwLock};
@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 use trpg_shared_kernel::{
     Actor, ActorOrigin, ActorRole, AgentClass as KernelAgentClass, AuthorityContract,
     AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft, EntityId, PrincipalScope,
-    Visibility, WorkloadRole as KernelWorkloadRole,
+    Visibility, VisibilityKind, WorkloadRole as KernelWorkloadRole,
 };
 
 type HmacSha256 = Hmac<Sha256>;
@@ -238,6 +238,226 @@ pub struct AuthenticationContext {
     issuer_fingerprint: [u8; 32],
 }
 
+/// Independent read connection used by distributed verifiers. It deliberately
+/// does not rely on the creating process's replicated maps: every user replay
+/// decision checks the durable session, campaign role, and (when relevant)
+/// group grant at decision time.
+#[derive(Clone)]
+struct PersistentVerificationStore {
+    database: Arc<Mutex<Client>>,
+}
+
+impl fmt::Debug for PersistentVerificationStore {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PersistentVerificationStore")
+            .field("database", &"[POSTGRESQL CONNECTION]")
+            .finish()
+    }
+}
+
+impl PersistentVerificationStore {
+    fn new(database: Client) -> Self {
+        Self {
+            database: Arc::new(Mutex::new(database)),
+        }
+    }
+
+    fn check_readiness(&self) -> Result<(), IdentityError> {
+        self.database
+            .lock()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?
+            .check_connection()
+            .map_err(|_| IdentityError::PersistenceUnavailable)
+    }
+
+    fn verify_session(
+        &self,
+        session_id: &EntityId,
+        subject_id: &EntityId,
+        issued_at_unix_ms: u64,
+        expires_at_unix_ms: u64,
+    ) -> Result<(), IdentityError> {
+        let mut database = self
+            .database
+            .lock()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        verify_persisted_session(
+            &mut database,
+            session_id,
+            subject_id,
+            issued_at_unix_ms,
+            expires_at_unix_ms,
+        )
+    }
+
+    fn replay_principal(
+        &self,
+        session_id: &EntityId,
+        subject_id: &EntityId,
+        issued_at_unix_ms: u64,
+        expires_at_unix_ms: u64,
+        campaign_id: &EntityId,
+    ) -> Result<PrincipalScope, IdentityError> {
+        let mut database = self
+            .database
+            .lock()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        verify_persisted_session(
+            &mut database,
+            session_id,
+            subject_id,
+            issued_at_unix_ms,
+            expires_at_unix_ms,
+        )?;
+        let row = database
+            .query_opt(
+                "SELECT role FROM campaign_memberships \
+                   WHERE campaign_id = $1 AND user_id = $2 AND revoked_at IS NULL",
+                &[&campaign_id.as_str(), &subject_id.as_str()],
+            )
+            .map_err(|_| IdentityError::PersistenceUnavailable)?
+            .ok_or(IdentityError::MembershipRequired)?;
+        Ok(
+            match parse_campaign_role(row.get::<_, String>(0).as_str())? {
+                CampaignRole::HumanKeeper => PrincipalScope::Keeper,
+                CampaignRole::Player => PrincipalScope::Player(subject_id.clone()),
+                CampaignRole::CampaignOwner => PrincipalScope::PartyMember,
+                CampaignRole::Spectator => PrincipalScope::Spectator,
+            },
+        )
+    }
+
+    /// Rechecks the session, campaign role, and optional private-group grant
+    /// in one PostgreSQL statement. PostgreSQL gives one statement a single
+    /// MVCC snapshot, so a membership revocation cannot be interleaved
+    /// between a role query and a separate group query.
+    fn can_view(
+        &self,
+        session_id: &EntityId,
+        subject_id: &EntityId,
+        issued_at_unix_ms: u64,
+        expires_at_unix_ms: u64,
+        campaign_id: &EntityId,
+        visibility: &Visibility,
+    ) -> Result<bool, IdentityError> {
+        let group_id = visibility.group_id().map(EntityId::as_str);
+        let row = self
+            .database
+            .lock()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?
+            .query_opt(
+                "SELECT session.user_id, \
+                        (extract(epoch FROM session.issued_at) * 1000)::bigint, \
+                        (extract(epoch FROM session.expires_at) * 1000)::bigint, \
+                        session.revoked_at IS NOT NULL, membership.role, \
+                        CASE WHEN $4::text IS NULL THEN false ELSE EXISTS (\
+                            SELECT 1 FROM campaign_group_memberships AS group_membership \
+                             WHERE group_membership.campaign_id = $3 \
+                               AND group_membership.group_id = $4 \
+                               AND group_membership.user_id = $2 \
+                               AND group_membership.revoked_at IS NULL\
+                        ) END \
+                   FROM sessions AS session \
+                   LEFT JOIN campaign_memberships AS membership \
+                     ON membership.campaign_id = $3 \
+                    AND membership.user_id = session.user_id \
+                    AND membership.revoked_at IS NULL \
+                  WHERE session.session_id = $1 \
+                    AND session.user_id = $2",
+                &[
+                    &session_id.as_str(),
+                    &subject_id.as_str(),
+                    &campaign_id.as_str(),
+                    &group_id,
+                ],
+            )
+            .map_err(|_| IdentityError::PersistenceUnavailable)?
+            .ok_or(IdentityError::SessionNotFound)?;
+        if row.get::<_, String>(0) != subject_id.as_str()
+            || row.get::<_, i64>(1)
+                != i64::try_from(issued_at_unix_ms)
+                    .map_err(|_| IdentityError::InvalidInternalCredential)?
+            || row.get::<_, i64>(2)
+                != i64::try_from(expires_at_unix_ms)
+                    .map_err(|_| IdentityError::InvalidInternalCredential)?
+        {
+            return Err(IdentityError::InvalidInternalCredential);
+        }
+        if row.get::<_, bool>(3) {
+            return Err(IdentityError::SessionRevoked);
+        }
+        let role = row
+            .get::<_, Option<String>>(4)
+            .ok_or(IdentityError::MembershipRequired)?;
+        let principal = match parse_campaign_role(&role)? {
+            CampaignRole::HumanKeeper => PrincipalScope::Keeper,
+            CampaignRole::Player => PrincipalScope::Player(subject_id.clone()),
+            CampaignRole::CampaignOwner => PrincipalScope::PartyMember,
+            CampaignRole::Spectator => PrincipalScope::Spectator,
+        };
+        if visibility.label().kind() == VisibilityKind::PrivateToGroup {
+            return Ok(match principal {
+                PrincipalScope::Keeper | PrincipalScope::System => true,
+                PrincipalScope::Player(_) | PrincipalScope::PartyMember => {
+                    group_id.is_some() && row.get::<_, bool>(5)
+                }
+                _ => false,
+            });
+        }
+        Ok(visibility.can_view(&principal))
+    }
+
+    fn campaign_role(
+        &self,
+        campaign_id: &EntityId,
+        subject_id: &EntityId,
+    ) -> Result<CampaignRole, IdentityError> {
+        let row = self
+            .database
+            .lock()
+            .map_err(|_| IdentityError::PersistenceUnavailable)?
+            .query_opt(
+                "SELECT role FROM campaign_memberships \
+                   WHERE campaign_id = $1 AND user_id = $2 AND revoked_at IS NULL",
+                &[&campaign_id.as_str(), &subject_id.as_str()],
+            )
+            .map_err(|_| IdentityError::PersistenceUnavailable)?
+            .ok_or(IdentityError::MembershipRequired)?;
+        parse_campaign_role(row.get::<_, String>(0).as_str())
+    }
+}
+
+fn verify_persisted_session(
+    database: &mut Client,
+    session_id: &EntityId,
+    subject_id: &EntityId,
+    issued_at_unix_ms: u64,
+    expires_at_unix_ms: u64,
+) -> Result<(), IdentityError> {
+    let row = database
+        .query_opt(
+            "SELECT user_id, \
+                    (extract(epoch FROM issued_at) * 1000)::bigint, \
+                    (extract(epoch FROM expires_at) * 1000)::bigint, \
+                    revoked_at IS NOT NULL \
+               FROM sessions WHERE session_id = $1",
+            &[&session_id.as_str()],
+        )
+        .map_err(|_| IdentityError::PersistenceUnavailable)?
+        .ok_or(IdentityError::SessionNotFound)?;
+    if row.get::<_, String>(0) != subject_id.as_str()
+        || row.get::<_, i64>(1) != i64::try_from(issued_at_unix_ms).unwrap_or(-1)
+        || row.get::<_, i64>(2) != i64::try_from(expires_at_unix_ms).unwrap_or(-1)
+    {
+        return Err(IdentityError::InvalidInternalCredential);
+    }
+    if row.get::<_, bool>(3) {
+        return Err(IdentityError::SessionRevoked);
+    }
+    Ok(())
+}
+
 /// Opaque, live replay capability minted from an authenticated user session.
 ///
 /// The capability is campaign-bound and rechecks session revocation and the
@@ -251,6 +471,7 @@ pub struct ReplayAuthorization {
     authenticated_at_unix_ms: u64,
     expires_at_unix_ms: u64,
     state: Arc<RwLock<VerificationState>>,
+    persistent_verification: Option<PersistentVerificationStore>,
 }
 
 #[derive(Clone, Debug)]
@@ -267,6 +488,13 @@ impl fmt::Debug for ReplayAuthorization {
             .field("campaign_id", &self.campaign_id)
             .field("expires_at_unix_ms", &self.expires_at_unix_ms)
             .field("state", &"[LIVE IDENTITY STATE]")
+            .field(
+                "persistent_verification",
+                &self
+                    .persistent_verification
+                    .as_ref()
+                    .map(|_| "[POSTGRESQL]"),
+            )
             .finish()
     }
 }
@@ -292,13 +520,23 @@ impl ReplayAuthorization {
         if now_unix_ms < self.authenticated_at_unix_ms || now_unix_ms >= self.expires_at_unix_ms {
             return Err(IdentityError::SessionExpired);
         }
-        let state = self
-            .state
-            .read()
-            .map_err(|_| IdentityError::PersistenceUnavailable)?;
         let principal = match &self.binding {
             ReplayBinding::Workload => PrincipalScope::System,
             ReplayBinding::UserSession { session_id } => {
+                if let Some(persistent) = &self.persistent_verification {
+                    return persistent.can_view(
+                        session_id,
+                        &self.subject_id,
+                        self.authenticated_at_unix_ms,
+                        self.expires_at_unix_ms,
+                        &self.campaign_id,
+                        visibility,
+                    );
+                }
+                let state = self
+                    .state
+                    .read()
+                    .map_err(|_| IdentityError::PersistenceUnavailable)?;
                 let session = state
                     .sessions_by_id
                     .get(session_id)
@@ -318,12 +556,38 @@ impl ReplayAuthorization {
                     .ok_or(IdentityError::MembershipRequired)?
                 {
                     CampaignRole::HumanKeeper => PrincipalScope::Keeper,
+                    // Campaign role is not proof of membership in an arbitrary
+                    // private group. Ordinary players remain Player principals;
+                    // the private-group branch below separately verifies the
+                    // authoritative live campaign/group/subject tuple.
                     CampaignRole::Player => PrincipalScope::Player(self.subject_id.clone()),
                     CampaignRole::CampaignOwner => PrincipalScope::PartyMember,
-                    CampaignRole::Spectator => PrincipalScope::Public,
+                    CampaignRole::Spectator => PrincipalScope::Spectator,
                 }
             }
         };
+        if visibility.label().kind() == VisibilityKind::PrivateToGroup {
+            let state = self
+                .state
+                .read()
+                .map_err(|_| IdentityError::PersistenceUnavailable)?;
+            return Ok(match principal {
+                PrincipalScope::Keeper | PrincipalScope::System => true,
+                PrincipalScope::Player(_) | PrincipalScope::PartyMember => {
+                    visibility.group_id().is_some_and(|group_id| {
+                        state.group_memberships.contains(&(
+                            self.campaign_id.clone(),
+                            group_id.clone(),
+                            self.subject_id.clone(),
+                        ))
+                    })
+                }
+                PrincipalScope::Public
+                | PrincipalScope::GroupMember(_)
+                | PrincipalScope::Spectator => false,
+                PrincipalScope::Claims(_) => visibility.can_view(&principal),
+            });
+        }
         Ok(visibility.can_view(&principal))
     }
 }
@@ -420,6 +684,7 @@ impl AuthenticationContext {
 pub struct IdentityVerifier {
     issuer_fingerprint: [u8; 32],
     state: Arc<RwLock<VerificationState>>,
+    persistent_verification: Option<PersistentVerificationStore>,
 }
 
 impl fmt::Debug for IdentityVerifier {
@@ -428,6 +693,13 @@ impl fmt::Debug for IdentityVerifier {
             .debug_struct("IdentityVerifier")
             .field("issuer_fingerprint", &hex_encode(&self.issuer_fingerprint))
             .field("state", &"[LIVE IDENTITY STATE]")
+            .field(
+                "persistent_verification",
+                &self
+                    .persistent_verification
+                    .as_ref()
+                    .map(|_| "[POSTGRESQL]"),
+            )
             .finish()
     }
 }
@@ -447,6 +719,14 @@ impl IdentityVerifier {
             return Err(IdentityError::InternalCredentialExpired);
         }
         if let PrincipalKind::UserSession { session_id, .. } = authentication.kind() {
+            if let Some(persistent) = &self.persistent_verification {
+                return persistent.verify_session(
+                    session_id,
+                    &authentication.subject_id,
+                    authentication.authenticated_at_unix_ms,
+                    authentication.expires_at_unix_ms,
+                );
+            }
             let state = self
                 .state
                 .read()
@@ -491,15 +771,25 @@ impl IdentityVerifier {
         authentication.require_campaign(campaign_id)?;
         let binding = match authentication.kind() {
             PrincipalKind::UserSession { session_id, .. } => {
-                let state = self
-                    .state
-                    .read()
-                    .map_err(|_| IdentityError::PersistenceUnavailable)?;
-                if !state
-                    .memberships
-                    .contains_key(&(campaign_id.clone(), authentication.subject_id.clone()))
-                {
-                    return Err(IdentityError::MembershipRequired);
+                if let Some(persistent) = &self.persistent_verification {
+                    persistent.replay_principal(
+                        session_id,
+                        authentication.subject_id(),
+                        authentication.authenticated_at_unix_ms,
+                        authentication.expires_at_unix_ms,
+                        campaign_id,
+                    )?;
+                } else {
+                    let state = self
+                        .state
+                        .read()
+                        .map_err(|_| IdentityError::PersistenceUnavailable)?;
+                    if !state
+                        .memberships
+                        .contains_key(&(campaign_id.clone(), authentication.subject_id.clone()))
+                    {
+                        return Err(IdentityError::MembershipRequired);
+                    }
                 }
                 ReplayBinding::UserSession {
                     session_id: session_id.clone(),
@@ -515,6 +805,7 @@ impl IdentityVerifier {
             authenticated_at_unix_ms: authentication.authenticated_at_unix_ms,
             expires_at_unix_ms: authentication.expires_at_unix_ms,
             state: Arc::clone(&self.state),
+            persistent_verification: self.persistent_verification.clone(),
         })
     }
 
@@ -544,15 +835,18 @@ impl IdentityVerifier {
                     GlobalRole::ServerOwner => ActorRole::ServerOwner,
                     GlobalRole::Moderator => ActorRole::Moderator,
                     GlobalRole::User => {
-                        let state = self
-                            .state
-                            .read()
-                            .map_err(|_| IdentityError::PersistenceUnavailable)?;
-                        match state
-                            .memberships
-                            .get(&(campaign_id.clone(), authentication.subject_id().clone()))
-                            .ok_or(IdentityError::MembershipRequired)?
-                        {
+                        let role = if let Some(persistent) = &self.persistent_verification {
+                            persistent.campaign_role(campaign_id, authentication.subject_id())?
+                        } else {
+                            *self
+                                .state
+                                .read()
+                                .map_err(|_| IdentityError::PersistenceUnavailable)?
+                                .memberships
+                                .get(&(campaign_id.clone(), authentication.subject_id().clone()))
+                                .ok_or(IdentityError::MembershipRequired)?
+                        };
+                        match role {
                             CampaignRole::CampaignOwner => ActorRole::CampaignOwner,
                             CampaignRole::HumanKeeper => ActorRole::HumanKeeper,
                             CampaignRole::Player => ActorRole::Investigator,
@@ -677,6 +971,7 @@ struct SessionVerificationRecord {
 struct VerificationState {
     sessions_by_id: HashMap<EntityId, SessionVerificationRecord>,
     memberships: HashMap<(EntityId, EntityId), CampaignRole>,
+    group_memberships: HashSet<(EntityId, EntityId, EntityId)>,
     authorities: HashMap<EntityId, AuthorityContract>,
 }
 
@@ -701,13 +996,53 @@ impl CampaignMembership {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CampaignGroup {
+    campaign_id: EntityId,
+    group_id: EntityId,
+}
+
+impl CampaignGroup {
+    pub fn campaign_id(&self) -> &EntityId {
+        &self.campaign_id
+    }
+
+    pub fn group_id(&self) -> &EntityId {
+        &self.group_id
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CampaignGroupMembership {
+    campaign_id: EntityId,
+    group_id: EntityId,
+    user_id: EntityId,
+}
+
+impl CampaignGroupMembership {
+    pub fn campaign_id(&self) -> &EntityId {
+        &self.campaign_id
+    }
+
+    pub fn group_id(&self) -> &EntityId {
+        &self.group_id
+    }
+
+    pub fn user_id(&self) -> &EntityId {
+        &self.user_id
+    }
+}
+
 pub struct IdentityService {
     users_by_login: HashMap<String, UserRecord>,
     users_by_id: HashMap<EntityId, UserRecord>,
     sessions_by_hash: HashMap<[u8; 32], SessionRecord>,
     memberships: HashMap<(EntityId, EntityId), CampaignMembership>,
+    campaign_groups: HashMap<(EntityId, EntityId), CampaignGroup>,
+    group_memberships: HashMap<(EntityId, EntityId, EntityId), CampaignGroupMembership>,
     authorities: HashMap<EntityId, AuthorityContract>,
     database: Option<Client>,
+    persistent_verification: Option<PersistentVerificationStore>,
     verification_state: Arc<RwLock<VerificationState>>,
     signing_key: [u8; SIGNING_KEY_BYTES],
     session_ttl_ms: u64,
@@ -741,7 +1076,13 @@ impl fmt::Debug for DistributedLoginSecurity {
 }
 
 impl DistributedLoginSecurity {
-    fn connect(redis_url: &str, namespace: &str) -> Result<Self, IdentityError> {
+    fn connect_with_tls(
+        redis_url: &str,
+        namespace: &str,
+        root_certificate: Option<&[u8]>,
+        client_certificate: Option<&[u8]>,
+        client_private_key: Option<&[u8]>,
+    ) -> Result<Self, IdentityError> {
         if redis_url.trim().is_empty()
             || namespace.trim().is_empty()
             || namespace.len() > 128
@@ -751,9 +1092,48 @@ impl DistributedLoginSecurity {
         {
             return Err(IdentityError::PersistenceUnavailable);
         }
+        let redis_endpoint =
+            url::Url::parse(redis_url).map_err(|_| IdentityError::PersistenceUnavailable)?;
+        let host = redis_endpoint
+            .host_str()
+            .ok_or(IdentityError::PersistenceUnavailable)?;
+        let local = matches!(host, "localhost" | "127.0.0.1" | "::1");
+        if redis_endpoint.scheme() != "rediss" && !(local && redis_endpoint.scheme() == "redis") {
+            return Err(IdentityError::PersistenceUnavailable);
+        }
+        let material = [
+            root_certificate.is_some(),
+            client_certificate.is_some(),
+            client_private_key.is_some(),
+        ];
+        if material.iter().any(|present| *present) && !material.iter().all(|present| *present) {
+            return Err(IdentityError::PersistenceUnavailable);
+        }
+        let client = if redis_endpoint.scheme() == "rediss" {
+            redis::Client::build_with_tls(
+                redis_url,
+                redis::TlsCertificates {
+                    client_tls: Some(redis::ClientTlsConfig {
+                        client_cert: client_certificate
+                            .ok_or(IdentityError::PersistenceUnavailable)?
+                            .to_vec(),
+                        client_key: client_private_key
+                            .ok_or(IdentityError::PersistenceUnavailable)?
+                            .to_vec(),
+                    }),
+                    root_cert: Some(
+                        root_certificate
+                            .ok_or(IdentityError::PersistenceUnavailable)?
+                            .to_vec(),
+                    ),
+                },
+            )
+            .map_err(|_| IdentityError::PersistenceUnavailable)?
+        } else {
+            redis::Client::open(redis_url).map_err(|_| IdentityError::PersistenceUnavailable)?
+        };
         let security = Self {
-            client: redis::Client::open(redis_url)
-                .map_err(|_| IdentityError::PersistenceUnavailable)?,
+            client,
             namespace: namespace.to_owned(),
         };
         security.check_readiness()?;
@@ -874,8 +1254,11 @@ impl IdentityService {
             users_by_id: HashMap::new(),
             sessions_by_hash: HashMap::new(),
             memberships: HashMap::new(),
+            campaign_groups: HashMap::new(),
+            group_memberships: HashMap::new(),
             authorities: HashMap::new(),
             database: None,
+            persistent_verification: None,
             verification_state: Arc::new(RwLock::new(VerificationState::default())),
             signing_key: key,
             session_ttl_ms,
@@ -895,20 +1278,12 @@ impl IdentityService {
             return Err(IdentityError::PersistenceUnavailable);
         }
         let mut client = connect_postgres(database_url, None)?;
-        client
-            .batch_execute(schema::IDENTITY_AUTHORIZATION_MIGRATION_SQL)
-            .map_err(|_| IdentityError::PersistenceUnavailable)?;
-        client
-            .batch_execute(schema::IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL)
-            .map_err(|_| IdentityError::PersistenceUnavailable)?;
-        client
-            .batch_execute(schema::MEMBERSHIP_CAMPAIGN_MOVE_GUARD_MIGRATION_SQL)
-            .map_err(|_| IdentityError::PersistenceUnavailable)?;
-        client
-            .batch_execute(schema::AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL)
-            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        apply_identity_migrations(&mut client)?;
+        let persistent_verification =
+            PersistentVerificationStore::new(connect_postgres(database_url, None)?);
         let mut service = Self::new(signing_key, session_ttl_ms)?;
         service.database = Some(client);
+        service.persistent_verification = Some(persistent_verification);
         service.reload_from_database()?;
         Ok(service)
     }
@@ -943,26 +1318,52 @@ impl IdentityService {
         session_ttl_ms: u64,
         argon2_concurrency: usize,
     ) -> Result<Self, IdentityError> {
+        Self::from_postgres_with_security_and_redis_tls(
+            database_url,
+            postgres_ca_certificate_pem,
+            redis_url,
+            redis_namespace,
+            signing_key,
+            session_ttl_ms,
+            argon2_concurrency,
+            None,
+            None,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_postgres_with_security_and_redis_tls(
+        database_url: &str,
+        postgres_ca_certificate_pem: Option<&[u8]>,
+        redis_url: &str,
+        redis_namespace: &str,
+        signing_key: &[u8],
+        session_ttl_ms: u64,
+        argon2_concurrency: usize,
+        redis_root_certificate: Option<&[u8]>,
+        redis_client_certificate: Option<&[u8]>,
+        redis_client_private_key: Option<&[u8]>,
+    ) -> Result<Self, IdentityError> {
         if database_url.trim().is_empty() {
             return Err(IdentityError::PersistenceUnavailable);
         }
-        let distributed_login_security =
-            DistributedLoginSecurity::connect(redis_url, redis_namespace)?;
+        let distributed_login_security = DistributedLoginSecurity::connect_with_tls(
+            redis_url,
+            redis_namespace,
+            redis_root_certificate,
+            redis_client_certificate,
+            redis_client_private_key,
+        )?;
         let mut client = connect_postgres(database_url, postgres_ca_certificate_pem)?;
-        client
-            .batch_execute(schema::IDENTITY_AUTHORIZATION_MIGRATION_SQL)
-            .map_err(|_| IdentityError::PersistenceUnavailable)?;
-        client
-            .batch_execute(schema::IDENTITY_AUTHORIZATION_HARDENING_MIGRATION_SQL)
-            .map_err(|_| IdentityError::PersistenceUnavailable)?;
-        client
-            .batch_execute(schema::MEMBERSHIP_CAMPAIGN_MOVE_GUARD_MIGRATION_SQL)
-            .map_err(|_| IdentityError::PersistenceUnavailable)?;
-        client
-            .batch_execute(schema::AUDIT_VISIBILITY_PROVENANCE_MIGRATION_SQL)
-            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        apply_identity_migrations(&mut client)?;
+        let persistent_verification = PersistentVerificationStore::new(connect_postgres(
+            database_url,
+            postgres_ca_certificate_pem,
+        )?);
         let mut service = Self::new(signing_key, session_ttl_ms)?;
         service.database = Some(client);
+        service.persistent_verification = Some(persistent_verification);
         service.distributed_login_security = Some(distributed_login_security);
         service.password_verification_gate = PasswordVerificationGate::new(argon2_concurrency)?;
         service.reload_from_database()?;
@@ -985,6 +1386,10 @@ impl IdentityService {
         database
             .check_connection()
             .map_err(|_| IdentityError::PersistenceUnavailable)?;
+        self.persistent_verification
+            .as_ref()
+            .ok_or(IdentityError::PersistenceUnavailable)?
+            .check_readiness()?;
         match &self.distributed_login_security {
             Some(security) => security.check_readiness(),
             None => Ok(()),
@@ -995,6 +1400,7 @@ impl IdentityService {
         IdentityVerifier {
             issuer_fingerprint: Sha256::digest(self.signing_key).into(),
             state: Arc::clone(&self.verification_state),
+            persistent_verification: self.persistent_verification.clone(),
         }
     }
 
@@ -1024,6 +1430,7 @@ impl IdentityService {
             .iter()
             .map(|(key, membership)| (key.clone(), membership.role))
             .collect();
+        state.group_memberships = self.group_memberships.keys().cloned().collect();
         state.authorities = self.authorities.clone();
         Ok(())
     }
@@ -1106,6 +1513,47 @@ impl IdentityService {
             );
         }
 
+        let mut campaign_groups = HashMap::new();
+        for row in database
+            .query("SELECT campaign_id, group_id FROM campaign_groups", &[])
+            .map_err(|_| IdentityError::PersistenceUnavailable)?
+        {
+            let group = CampaignGroup {
+                campaign_id: EntityId::new(row.get::<_, String>(0))
+                    .map_err(|_| IdentityError::InvalidIdentityData)?,
+                group_id: EntityId::new(row.get::<_, String>(1))
+                    .map_err(|_| IdentityError::InvalidIdentityData)?,
+            };
+            campaign_groups.insert((group.campaign_id.clone(), group.group_id.clone()), group);
+        }
+
+        let mut group_memberships = HashMap::new();
+        for row in database
+            .query(
+                "SELECT campaign_id, group_id, user_id \
+                   FROM campaign_group_memberships WHERE revoked_at IS NULL",
+                &[],
+            )
+            .map_err(|_| IdentityError::PersistenceUnavailable)?
+        {
+            let membership = CampaignGroupMembership {
+                campaign_id: EntityId::new(row.get::<_, String>(0))
+                    .map_err(|_| IdentityError::InvalidIdentityData)?,
+                group_id: EntityId::new(row.get::<_, String>(1))
+                    .map_err(|_| IdentityError::InvalidIdentityData)?,
+                user_id: EntityId::new(row.get::<_, String>(2))
+                    .map_err(|_| IdentityError::InvalidIdentityData)?,
+            };
+            group_memberships.insert(
+                (
+                    membership.campaign_id.clone(),
+                    membership.group_id.clone(),
+                    membership.user_id.clone(),
+                ),
+                membership,
+            );
+        }
+
         let mut authorities = HashMap::new();
         for row in database
             .query(
@@ -1150,6 +1598,8 @@ impl IdentityService {
         self.users_by_id = users_by_id;
         self.sessions_by_hash = sessions_by_hash;
         self.memberships = memberships;
+        self.campaign_groups = campaign_groups;
+        self.group_memberships = group_memberships;
         self.authorities = authorities;
         self.publish_verification_state()
     }
@@ -1159,6 +1609,23 @@ impl IdentityService {
             self.reload_from_database()?;
         }
         Ok(())
+    }
+
+    fn can_manage_campaign_memberships(
+        &self,
+        actor: &AuthenticationContext,
+        campaign_id: &EntityId,
+    ) -> bool {
+        matches!(
+            actor.kind,
+            PrincipalKind::UserSession {
+                global_role: GlobalRole::ServerOwner,
+                ..
+            }
+        ) || self
+            .memberships
+            .get(&(campaign_id.clone(), actor.subject_id.clone()))
+            .is_some_and(|membership| membership.role == CampaignRole::CampaignOwner)
     }
 
     pub fn create_user(
@@ -1440,11 +1907,7 @@ impl IdentityService {
                 ..
             }
         );
-        let campaign_owner = self
-            .memberships
-            .get(&(campaign_id.clone(), actor.subject_id.clone()))
-            .is_some_and(|membership| membership.role == CampaignRole::CampaignOwner);
-        if !server_owner && !campaign_owner {
+        if !self.can_manage_campaign_memberships(actor, &campaign_id) {
             return Err(IdentityError::MembershipDenied);
         }
         if !server_owner
@@ -1502,6 +1965,152 @@ impl IdentityService {
             .insert((campaign_id, user_id), membership.clone());
         self.publish_verification_state()?;
         Ok(membership)
+    }
+
+    pub fn create_campaign_group(
+        &mut self,
+        actor: &AuthenticationContext,
+        campaign_id: impl Into<String>,
+        group_id: impl Into<String>,
+        now_unix_ms: u64,
+    ) -> Result<CampaignGroup, IdentityError> {
+        self.sync_if_persistent()?;
+        self.verifier().verify(actor, now_unix_ms)?;
+        let campaign_id =
+            EntityId::new(campaign_id).map_err(|_| IdentityError::InvalidIdentityData)?;
+        let group_id = EntityId::new(group_id).map_err(|_| IdentityError::InvalidIdentityData)?;
+        if !self.can_manage_campaign_memberships(actor, &campaign_id) {
+            return Err(IdentityError::MembershipDenied);
+        }
+        if !self
+            .memberships
+            .keys()
+            .any(|(member_campaign_id, _)| member_campaign_id == &campaign_id)
+        {
+            return Err(IdentityError::MembershipRequired);
+        }
+        let key = (campaign_id.clone(), group_id.clone());
+        if let Some(existing) = self.campaign_groups.get(&key) {
+            return Ok(existing.clone());
+        }
+        let group = CampaignGroup {
+            campaign_id,
+            group_id,
+        };
+        if let Some(database) = self.database.as_mut() {
+            database
+                .execute(
+                    "INSERT INTO campaign_groups (campaign_id, group_id, created_by) \
+                     VALUES ($1, $2, $3)",
+                    &[
+                        &group.campaign_id.as_str(),
+                        &group.group_id.as_str(),
+                        &actor.subject_id.as_str(),
+                    ],
+                )
+                .map_err(map_postgres_error)?;
+        }
+        self.campaign_groups.insert(key, group.clone());
+        Ok(group)
+    }
+
+    pub fn grant_group_membership(
+        &mut self,
+        actor: &AuthenticationContext,
+        campaign_id: impl Into<String>,
+        group_id: impl Into<String>,
+        user_id: impl Into<String>,
+        now_unix_ms: u64,
+    ) -> Result<CampaignGroupMembership, IdentityError> {
+        self.sync_if_persistent()?;
+        self.verifier().verify(actor, now_unix_ms)?;
+        let campaign_id =
+            EntityId::new(campaign_id).map_err(|_| IdentityError::InvalidIdentityData)?;
+        let group_id = EntityId::new(group_id).map_err(|_| IdentityError::InvalidIdentityData)?;
+        let user_id = EntityId::new(user_id).map_err(|_| IdentityError::InvalidIdentityData)?;
+        if !self.can_manage_campaign_memberships(actor, &campaign_id) {
+            return Err(IdentityError::MembershipDenied);
+        }
+        if !self
+            .campaign_groups
+            .contains_key(&(campaign_id.clone(), group_id.clone()))
+        {
+            return Err(IdentityError::MembershipRequired);
+        }
+        let campaign_membership = self
+            .memberships
+            .get(&(campaign_id.clone(), user_id.clone()))
+            .ok_or(IdentityError::MembershipRequired)?;
+        if !matches!(
+            campaign_membership.role,
+            CampaignRole::CampaignOwner | CampaignRole::Player
+        ) {
+            return Err(IdentityError::MembershipDenied);
+        }
+        let membership = CampaignGroupMembership {
+            campaign_id: campaign_id.clone(),
+            group_id: group_id.clone(),
+            user_id: user_id.clone(),
+        };
+        if let Some(database) = self.database.as_mut() {
+            database
+                .execute(
+                    "INSERT INTO campaign_group_memberships \
+                        (campaign_id, group_id, user_id, granted_by, revoked_at) \
+                     VALUES ($1, $2, $3, $4, NULL) \
+                     ON CONFLICT (campaign_id, group_id, user_id) DO UPDATE SET \
+                        granted_by = EXCLUDED.granted_by, granted_at = now(), revoked_at = NULL",
+                    &[
+                        &membership.campaign_id.as_str(),
+                        &membership.group_id.as_str(),
+                        &membership.user_id.as_str(),
+                        &actor.subject_id.as_str(),
+                    ],
+                )
+                .map_err(map_postgres_error)?;
+        }
+        self.group_memberships
+            .insert((campaign_id, group_id, user_id), membership.clone());
+        self.publish_verification_state()?;
+        Ok(membership)
+    }
+
+    pub fn revoke_group_membership(
+        &mut self,
+        actor: &AuthenticationContext,
+        campaign_id: impl Into<String>,
+        group_id: impl Into<String>,
+        user_id: impl Into<String>,
+        now_unix_ms: u64,
+    ) -> Result<(), IdentityError> {
+        self.sync_if_persistent()?;
+        self.verifier().verify(actor, now_unix_ms)?;
+        let campaign_id =
+            EntityId::new(campaign_id).map_err(|_| IdentityError::InvalidIdentityData)?;
+        let group_id = EntityId::new(group_id).map_err(|_| IdentityError::InvalidIdentityData)?;
+        let user_id = EntityId::new(user_id).map_err(|_| IdentityError::InvalidIdentityData)?;
+        if !self.can_manage_campaign_memberships(actor, &campaign_id) {
+            return Err(IdentityError::MembershipDenied);
+        }
+        let key = (campaign_id.clone(), group_id.clone(), user_id.clone());
+        if !self.group_memberships.contains_key(&key) {
+            return Err(IdentityError::MembershipRequired);
+        }
+        if let Some(database) = self.database.as_mut() {
+            let updated = database
+                .execute(
+                    "UPDATE campaign_group_memberships SET revoked_at = now() \
+                     WHERE campaign_id = $1 AND group_id = $2 AND user_id = $3 \
+                       AND revoked_at IS NULL",
+                    &[&campaign_id.as_str(), &group_id.as_str(), &user_id.as_str()],
+                )
+                .map_err(map_postgres_error)?;
+            if updated != 1 {
+                return Err(IdentityError::MembershipRequired);
+            }
+        }
+        self.group_memberships.remove(&key);
+        self.publish_verification_state()
     }
 
     pub fn require_membership(
@@ -1938,6 +2547,15 @@ fn map_postgres_error(_error: postgres::Error) -> IdentityError {
     IdentityError::PersistenceUnavailable
 }
 
+fn apply_identity_migrations(database: &mut Client) -> Result<(), IdentityError> {
+    for (_, migration) in schema::migration_statements() {
+        database
+            .batch_execute(migration)
+            .map_err(|_| IdentityError::PersistenceUnavailable)?;
+    }
+    Ok(())
+}
+
 fn persist_session(
     database: &mut impl GenericClient,
     token_hash: [u8; 32],
@@ -2294,9 +2912,45 @@ mod tests {
             .authorize_replay(&authentication, &campaign_a, 1_003)
             .unwrap();
         let private = Visibility::private_to_player(EntityId::new("replay_user").unwrap());
+        let private_group = Visibility::private_to_group(EntityId::new("unproven_group").unwrap());
 
         assert!(authorization
             .can_view(&campaign_a, &private, 1_004)
+            .unwrap());
+        assert!(!authorization
+            .can_view(&campaign_a, &private_group, 1_004)
+            .unwrap());
+        service
+            .create_campaign_group(
+                &authentication,
+                "campaign_replay_a",
+                "unproven_group",
+                1_004,
+            )
+            .unwrap();
+        service
+            .grant_group_membership(
+                &authentication,
+                "campaign_replay_a",
+                "unproven_group",
+                "replay_user",
+                1_004,
+            )
+            .unwrap();
+        assert!(authorization
+            .can_view(&campaign_a, &private_group, 1_004)
+            .unwrap());
+        service
+            .revoke_group_membership(
+                &authentication,
+                "campaign_replay_a",
+                "unproven_group",
+                "replay_user",
+                1_004,
+            )
+            .unwrap();
+        assert!(!authorization
+            .can_view(&campaign_a, &private_group, 1_004)
             .unwrap());
         assert!(!authorization
             .can_view(&campaign_b, &private, 1_004)
@@ -2307,6 +2961,134 @@ mod tests {
             authorization.can_view(&campaign_a, &private, 1_005),
             Err(IdentityError::SessionRevoked)
         );
+    }
+
+    #[test]
+    fn player_cannot_self_grant_private_group_access() {
+        let mut service = service();
+        service
+            .create_user(
+                "group_owner",
+                "group-owner@example.test",
+                "correct horse battery staple",
+                GlobalRole::ServerOwner,
+            )
+            .unwrap();
+        service
+            .create_user(
+                "group_player",
+                "group-player@example.test",
+                "another correct horse battery",
+                GlobalRole::User,
+            )
+            .unwrap();
+        let owner_session = service
+            .login(
+                "group-owner@example.test",
+                "correct horse battery staple",
+                3_000,
+            )
+            .unwrap();
+        let owner = service
+            .authenticate_session(Some(owner_session.token.expose()), 3_001)
+            .unwrap();
+        service
+            .grant_membership(
+                &owner,
+                "campaign_group_access",
+                "group_player",
+                CampaignRole::Player,
+                3_002,
+            )
+            .unwrap();
+        service
+            .create_campaign_group(
+                &owner,
+                "campaign_group_access",
+                "investigation_alpha",
+                3_002,
+            )
+            .unwrap();
+        let player_session = service
+            .login(
+                "group-player@example.test",
+                "another correct horse battery",
+                3_003,
+            )
+            .unwrap();
+        let player = service
+            .authenticate_session(Some(player_session.token.expose()), 3_004)
+            .unwrap();
+
+        assert_eq!(
+            service.grant_group_membership(
+                &player,
+                "campaign_group_access",
+                "investigation_alpha",
+                "group_player",
+                3_005,
+            ),
+            Err(IdentityError::MembershipDenied)
+        );
+    }
+
+    #[test]
+    fn spectator_replay_authorization_is_not_public_authority() {
+        let mut service = service();
+        service
+            .create_user(
+                "spectator_user",
+                "spectator-user@example.test",
+                "correct horse battery staple",
+                GlobalRole::ServerOwner,
+            )
+            .unwrap();
+        let session = service
+            .login(
+                "spectator-user@example.test",
+                "correct horse battery staple",
+                2_000,
+            )
+            .unwrap();
+        let authentication = service
+            .authenticate_session(Some(session.token.expose()), 2_001)
+            .unwrap();
+        service
+            .grant_membership(
+                &authentication,
+                "campaign_spectator",
+                "spectator_user",
+                CampaignRole::Spectator,
+                2_002,
+            )
+            .unwrap();
+        let campaign = EntityId::new("campaign_spectator").unwrap();
+        let authorization = service
+            .verifier()
+            .authorize_replay(&authentication, &campaign, 2_003)
+            .unwrap();
+
+        assert!(authorization
+            .can_view(
+                &campaign,
+                &Visibility::new(trpg_shared_kernel::VisibilityLabel::SpectatorVisible),
+                2_004,
+            )
+            .unwrap());
+        assert!(!authorization
+            .can_view(
+                &campaign,
+                &Visibility::new(trpg_shared_kernel::VisibilityLabel::SpectatorHidden),
+                2_004,
+            )
+            .unwrap());
+        assert!(!authorization
+            .can_view(
+                &campaign,
+                &Visibility::new(trpg_shared_kernel::VisibilityLabel::PartyVisible),
+                2_004,
+            )
+            .unwrap());
     }
 
     #[test]

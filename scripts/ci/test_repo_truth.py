@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
 
@@ -52,13 +54,16 @@ class RepositoryTruthNegativeTests(unittest.TestCase):
         report = assess(ROOT)
         self.assertEqual(report["status"], "BLOCKED")
         ids = {blocker["id"] for blocker in report["blockers"]}
-        self.assertTrue({"AUD-002", "AUD-006"}.issubset(ids))
+        self.assertNotIn("AUD-002", ids)
+        self.assertNotIn("AUD-006", ids)
         self.assertNotIn("AUD-001", ids)
         self.assertNotIn("MISSING_PRODUCT_BINARY", ids)
         self.assertNotIn("MISSING_WEB_ENTRYPOINT", ids)
         self.assertNotIn("MISSING_WEB_SCRIPT", ids)
-        self.assertIn("NO_PRODUCT_DOCKERFILE", ids)
-        self.assertIn("PLACEHOLDER_SERVICE", ids)
+        self.assertNotIn("NO_PRODUCT_DOCKERFILE", ids)
+        self.assertNotIn("PLACEHOLDER_SERVICE", ids)
+        self.assertNotIn("MUTABLE_PRODUCT_IMAGE", ids)
+        self.assertIn("MISSING_CURRENT_EVIDENCE", ids)
         self.assertEqual(readiness_report_errors(report), [])
         del report["base_commit"]
         self.assertIn("release readiness base_commit mismatch", readiness_report_errors(report))
@@ -205,7 +210,12 @@ jobs:\n  negative:\n    runs-on: ubuntu-latest\n    timeout-minutes: 1
             )
             payload["generated_artifact_sha256"].pop(extra_log.name)
             payload["tool_versions"]["pnpm"] = "NOT_VERIFIED"
-            payload["environment_sha256"] = canonical_json_sha256(payload["tool_versions"])
+            payload["environment_sha256"] = canonical_json_sha256(
+                {
+                    "tool_versions": payload["tool_versions"],
+                    "environment": payload["environment"],
+                }
+            )
             self.assertIn(
                 "tool version not verified: pnpm",
                 validate_evidence(payload, artifact_base=report.parent),
@@ -244,6 +254,89 @@ jobs:\n  negative:\n    runs-on: ubuntu-latest\n    timeout-minutes: 1
                 self.assertIn("worktree changed", report.with_suffix(".log").read_text())
             finally:
                 mutation.unlink(missing_ok=True)
+
+    def test_evidence_binds_environment_service_versions_and_real_test_details(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "bound.json"
+            environment = dict(os.environ)
+            environment["P00_EVIDENCE_TEST_SCOPE"] = "dedicated-fixture"
+            service_probe = json.dumps(
+                ["python_runtime", sys.executable, "--version"]
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/ci/generate_evidence.py",
+                    "--report",
+                    str(report),
+                    "--artifact",
+                    "MANIFEST.md",
+                    "--environment-key",
+                    "P00_EVIDENCE_TEST_SCOPE",
+                    "--service-version-command",
+                    service_probe,
+                    "--",
+                    sys.executable,
+                    "-c",
+                    (
+                        "print('test evidence::passes ... ok'); "
+                        "print('test evidence::skipped ... ignored')"
+                    ),
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(validate_evidence(payload, artifact_base=report.parent), [])
+            self.assertRegex(
+                payload["environment"]["variables"]["P00_EVIDENCE_TEST_SCOPE"],
+                r"^sha256:[0-9a-f]{64}$",
+            )
+            self.assertIn(
+                "Python", payload["environment"]["service_versions"]["python_runtime"]["output"]
+            )
+            junit = ET.parse(report.with_suffix(".junit.xml")).getroot()
+            self.assertEqual(
+                [case.get("name") for case in junit.findall("testcase")],
+                ["evidence::passes", "evidence::skipped"],
+            )
+            self.assertEqual(junit.get("tests"), "2")
+            self.assertEqual(junit.get("skipped"), "1")
+
+            payload.update(
+                github_run_id="123",
+                github_run_attempt="1",
+                workflow="test",
+                job="test",
+            )
+            live = {
+                "GITHUB_REPOSITORY": payload["repository"],
+                "GITHUB_SHA": payload["github_sha"],
+                "GITHUB_RUN_ID": "123",
+                "GITHUB_RUN_ATTEMPT": "1",
+                "GITHUB_WORKFLOW": "test",
+                "GITHUB_JOB": "test",
+                "RUNNER_OS": payload["runner_os"],
+                "P00_EVIDENCE_TEST_SCOPE": "dedicated-fixture",
+            }
+            with patch.dict("os.environ", live, clear=False):
+                self.assertEqual(
+                    validate_evidence(
+                        payload, artifact_base=report.parent, live_context=True
+                    ),
+                    [],
+                )
+            live["P00_EVIDENCE_TEST_SCOPE"] = "different-environment"
+            with patch.dict("os.environ", live, clear=False):
+                self.assertIn(
+                    "environment variable digest mismatch: P00_EVIDENCE_TEST_SCOPE",
+                    validate_evidence(
+                        payload, artifact_base=report.parent, live_context=True
+                    ),
+                )
 
     def test_unreferenced_fixture_is_rejected_and_restored(self) -> None:
         relative = "fixtures/" + "p00a-unreferenced-" + "negative.json.md"

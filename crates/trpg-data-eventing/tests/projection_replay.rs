@@ -48,15 +48,53 @@ fn projection_replay_hash_is_stable_and_event_store_derived() {
     assert_eq!(first.last_sequence, 3);
     assert_eq!(first.projection_hash, expected_hash);
 
+    let mut visibility_changed = store.events().to_vec();
+    visibility_changed[0].visibility = Visibility::new(VisibilityLabel::KeeperOnly);
+    assert_ne!(
+        rebuild_projection_from_events(&visibility_changed).projection_hash,
+        first.projection_hash
+    );
+    let mut provenance_changed = store.events().to_vec();
+    provenance_changed[0].fact_provenance = FactProvenance::new(
+        ProvenanceKind::SystemFixture,
+        "different_projection_fact",
+        "fixture_s03",
+    )
+    .unwrap();
+    assert_ne!(
+        rebuild_projection_from_events(&provenance_changed).projection_hash,
+        first.projection_hash
+    );
+    let mut payload_changed = store.events().to_vec();
+    payload_changed[0].payload.operation = DataEventOperation::SnapshotCreate;
+    assert_ne!(
+        rebuild_projection_from_events(&payload_changed).projection_hash,
+        first.projection_hash
+    );
+
     let outbox = OutboxMessage::from(store.events().first().unwrap());
     assert_eq!(outbox.event_id, 1);
+    assert_eq!(outbox.event_sequence, 1);
+    assert_eq!(outbox.subject, "trpg.events.appended");
+    assert_eq!(
+        outbox.delivery_status,
+        trpg_data_eventing::OutboxDeliveryStatus::Pending
+    );
     assert_eq!(outbox.correlation_id.as_str(), "corr_idem_projection_0");
     assert_eq!(outbox.causation_id.as_str(), "cause_idem_projection_0");
+    assert_eq!(outbox.fact_provenance, store.events()[0].fact_provenance);
 
-    let checkpoint =
-        ProjectionCheckpoint::from_snapshot(EntityId::new("campaign_001").unwrap(), &first);
-    assert_eq!(checkpoint.stream_id.as_str(), "campaign_001");
+    let checkpoint = ProjectionCheckpoint::from_snapshot(
+        EntityId::new("campaign_001").unwrap(),
+        EntityId::new("scene_001").unwrap(),
+        3,
+        &first,
+    );
+    assert_eq!(checkpoint.campaign_id.as_str(), "campaign_001");
+    assert_eq!(checkpoint.stream_id.as_str(), "scene_001");
     assert_eq!(checkpoint.version, 3);
+    assert_eq!(checkpoint.last_event_sequence, 3);
+    assert_eq!(checkpoint.projection_name, "data_event_projection");
     assert_eq!(checkpoint.projection_hash, expected_hash);
 
     let wrong_version = append_data_event(

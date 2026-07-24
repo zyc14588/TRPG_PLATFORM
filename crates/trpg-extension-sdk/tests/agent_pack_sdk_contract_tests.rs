@@ -2,8 +2,9 @@ mod common;
 
 use trpg_extension_sdk::agent_pack_sdk::{
     append_agent_pack_sdk_event, contract, AgentPackManifest, AgentPackSdkCommand,
-    AgentPackSdkService,
+    AgentPackSdkService, ALLOWED_CAPABILITIES,
 };
+use trpg_extension_sdk::{ExtensionCapabilityGrantSet, ExtensionPolicyGate};
 
 #[test]
 fn agent_pack_sdk_records_governed_event() {
@@ -33,7 +34,9 @@ fn agent_pack_sdk_service_records_observability() {
         trpg_extension_sdk::Visibility::new(trpg_extension_sdk::VisibilityLabel::SystemOnly),
     );
 
-    let execution = AgentPackSdkService::default()
+    let grants = ExtensionCapabilityGrantSet::with_grants(ALLOWED_CAPABILITIES).unwrap();
+    let gate = ExtensionPolicyGate::with_capability_grants(grants, ALLOWED_CAPABILITIES).unwrap();
+    let execution = AgentPackSdkService::new(gate)
         .execute(&mut store, &authority, &command)
         .expect("policy-approved agent pack records event");
 

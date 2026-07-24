@@ -41,7 +41,8 @@ pub fn run_agent_runtime_decision(
 
 pub fn assemble_runtime_context(
     facts: &[ContextFact],
-    principal: &PrincipalScope,
+    processor: &PrincipalScope,
+    target_audience: &PrincipalScope,
 ) -> AssembledAgentContext {
-    assemble_context(facts, principal)
+    assemble_context(facts, processor, target_audience)
 }

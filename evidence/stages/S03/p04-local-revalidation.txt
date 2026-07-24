@@ -1,0 +1,69 @@
+S03 / P04 local revalidation summary
+Classification: HUMAN_AUTHORED_SUMMARY (not raw command output)
+Verified: 2026-07-21 AEST
+Base HEAD: fb6e146612e4df66a508292245da6b995bbe64fb
+Scope: uncommitted worktree; dedicated local services
+Hosted CI: NOT_RUN
+Product release: NO
+CodeRabbit: PRIOR_FIX_CYCLE_ONLY (initial 3 findings; then 0; not rerun after additional repair)
+Machine evidence: PASS_CURRENT_WORKTREE_P00_4
+
+Machine-evidence files:
+- /tmp/p04-final-evidence-20260721/p04-data-eventing.json
+- /tmp/p04-final-evidence-20260721/p04-backup-restore.json
+- sibling .log, .junit.xml and .sarif files for each command
+- generated after the additional repair and accepted by
+  verify_evidence_schema.py
+
+Services actually exercised:
+- PostgreSQL 18.4 primary 127.0.0.1:25432
+- PostgreSQL 18.4 independent witness 127.0.0.1:25433
+- NATS Server 2.10.27 JetStream 127.0.0.1:24222
+- Redis 8.0.5 127.0.0.1:26379
+
+Current verified results:
+- trpg-data-eventing all-features: 66 passed, 0 failed, 0 ignored
+- trpg-ops PostgreSQL backup/restore: 1 passed, 0 failed, 0 ignored
+- canonical_commit_postgres: passed twice consecutively after guarded reset
+- identity: 15 unit + 1 PostgreSQL + 1 Redis passed; TLS NOT_RUN
+- API canonical replay: 1 passed with authoritative group membership
+- agent-worker: 4 passed including pending/stale/stopped/cycle failure
+- workspace fmt/check/clippy -D warnings: passed
+- test discovery: 210 Rust targets, 48 fixtures, 0 orphan
+- dependency direction, product boundaries, workflows and evidence schema: passed
+- repository truth: 11 tests passed under pinned Node 24/pnpm PATH
+- clean-worktree repository truth: expected block because the repair is uncommitted
+
+Migration/schema values:
+- 20260717000100 SHA-256:
+  730da5a67fdb64e60898dee3ad911e0758261026d64afe5d414078e02cd69024
+- 20260717000100 SQLx SHA-384:
+  d67991333d4d9e06b5c1c51a9f3c17855bddfbb64558873f4821e7338700981a98fe78f1c05441244c95e5010e156adc
+- 20260721000100 SHA-256:
+  bdf7831cbd46da473502f35b791f73a7e58ab834bc334b1d8eb37d83fdbd9f2f
+- 20260721000100 SQLx SHA-384:
+  89f3a6b7554f9ab392ac0d5f9c06e3d886de9e607415e71fe34585439fee3c82c3580aa8494ffae153533683546163e9
+- constraint signature: 74abd245d298fcbc86ffaef6ab33a216
+- trigger signature: 3d0d5cdb9fbaa52551125b4a0c935bcb
+- trigger/function signature: 55817f97d554378f6cc4bd789115ebf5
+- SQLx ledger: 9 installed; repeated run no-op
+- schema assertion: P04_SCHEMA_ASSERTION_OK
+
+Failures retained as non-PASS:
+- the report-state RAG decoder and test accessed private fields and did not compile
+- old migration checksum and old function signature were rejected before update
+- canonical integration reused residual data before reset isolation was added
+- one final evidence invocation omitted required P04 reset/recovery variables
+  and failed closed before the complete rerun; the 66-test matrix embeds its
+  own recovery drill, while the trpg-ops target was also run independently
+- evidence tests failed 2/11 under Node 22/no pnpm before the pinned toolchain run
+- the first final manifest failed integrity exit 86 on the Redis dynamic-library
+  version probe before its real runtime environment was bound
+- TLS early-return, real OpenFGA/OPA, full external workspace runtime and Hosted CI
+  were not run and are not claimed
+
+Anti-fabrication boundary:
+- P04 is an audit label, not a fabricated batch or prompt.
+- No current canon/security down migration, ledger editing, test deletion, new
+  ignore/early-return/continue-on-error/lint allow, or policy weakening.
+- This summary does not substitute for the machine manifest and raw log.

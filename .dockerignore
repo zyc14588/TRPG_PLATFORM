@@ -1,0 +1,12 @@
+.git
+.github
+target
+node_modules
+source-archive
+artifacts
+evidence
+docs
+*.md
+!Cargo.toml
+!Cargo.lock
+!rust-toolchain.toml

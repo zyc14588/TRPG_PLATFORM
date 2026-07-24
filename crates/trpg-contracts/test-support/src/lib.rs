@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -7,9 +7,9 @@ use std::thread;
 use trpg_shared_kernel::{
     Actor, ActorRole, AgentClass, AuthenticatedCommandContext, AuthorityContract,
     AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft, CanonicalCommitPort,
-    CanonicalCommitReceipt, CanonicalCommitRequest, CommandEnvelope, CommandMetadata, EntityId,
-    FactProvenance, FormalWritePath, KernelResult, ProvenanceKind, ResourceRef, TrpgError,
-    Visibility, VisibilityLabel, WorkloadRole,
+    CanonicalCommitReceipt, CanonicalCommitRequest, CanonicalCommittedEvent, CommandEnvelope,
+    CommandMetadata, EntityId, FactProvenance, FormalWritePath, KernelResult, ProvenanceKind,
+    ResourceRef, TrpgError, Visibility, VisibilityLabel, WorkloadRole,
 };
 
 const TEST_IDENTITY_SIGNING_KEY: [u8; 32] = [0x5a; 32];
@@ -21,8 +21,10 @@ struct TestCanonicalCommitPort {
 
 #[derive(Debug, Default)]
 struct TestCanonicalState {
-    stream_versions: HashMap<String, u64>,
-    idempotency_keys: HashSet<(String, String)>,
+    stream_versions: HashMap<(String, String), u64>,
+    next_sequence: u64,
+    idempotency_results:
+        HashMap<(String, String, String), (CanonicalCommitRequest, CanonicalCommitReceipt)>,
 }
 
 impl CanonicalCommitPort for TestCanonicalCommitPort {
@@ -34,9 +36,27 @@ impl CanonicalCommitPort for TestCanonicalCommitPort {
             .state
             .lock()
             .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let stream_scope = (
+            request.campaign_id.clone(),
+            request.audit.resource_id.clone(),
+        );
+        let idempotency_scope = (
+            request.campaign_id.clone(),
+            request.audit.resource_id.clone(),
+            request.idempotency_key.clone(),
+        );
+        if let Some((original_request, original_receipt)) =
+            state.idempotency_results.get(&idempotency_scope)
+        {
+            return if original_request == request {
+                Ok(original_receipt.clone())
+            } else {
+                Err(TrpgError::DuplicateCommand)
+            };
+        }
         let actual_version = state
             .stream_versions
-            .get(&request.campaign_id)
+            .get(&stream_scope)
             .copied()
             .unwrap_or(0);
         if request.expected_version != actual_version {
@@ -44,10 +64,6 @@ impl CanonicalCommitPort for TestCanonicalCommitPort {
                 expected: request.expected_version,
                 actual: actual_version,
             });
-        }
-        let idempotency = (request.campaign_id.clone(), request.idempotency_key.clone());
-        if state.idempotency_keys.contains(&idempotency) {
-            return Err(TrpgError::DuplicateCommand);
         }
         let event_count =
             u64::try_from(request.events.len()).map_err(|_| TrpgError::AuditIntegrityViolation)?;
@@ -59,19 +75,113 @@ impl CanonicalCommitPort for TestCanonicalCommitPort {
             .expected_version
             .checked_add(event_count)
             .ok_or(TrpgError::AuditIntegrityViolation)?;
-        state.idempotency_keys.insert(idempotency);
-        state
-            .stream_versions
-            .insert(request.campaign_id.clone(), last_stream_version);
-        Ok(CanonicalCommitReceipt {
+        let first_sequence = state
+            .next_sequence
+            .checked_add(1)
+            .ok_or(TrpgError::AuditIntegrityViolation)?;
+        let committed_events = request
+            .events
+            .iter()
+            .enumerate()
+            .map(|(index, event)| {
+                let offset =
+                    u64::try_from(index).map_err(|_| TrpgError::AuditIntegrityViolation)?;
+                Ok(CanonicalCommittedEvent {
+                    sequence: first_sequence
+                        .checked_add(offset)
+                        .ok_or(TrpgError::AuditIntegrityViolation)?,
+                    stream_version: first_stream_version
+                        .checked_add(offset)
+                        .ok_or(TrpgError::AuditIntegrityViolation)?,
+                    event_type: event.event_type.clone(),
+                    payload_json: event.payload_json.clone(),
+                    command_id: request.command_id.clone(),
+                    idempotency_key: format!("{}:{index:04}", request.idempotency_key),
+                    occurred_at_unix_ms: first_sequence
+                        .checked_add(offset)
+                        .ok_or(TrpgError::AuditIntegrityViolation)?,
+                    event_integrity_hash: format!("hmac-sha256:{:064x}", first_sequence + offset),
+                })
+            })
+            .collect::<KernelResult<Vec<_>>>()?;
+        let receipt = CanonicalCommitReceipt {
             first_stream_version,
             last_stream_version,
-        })
+            events: committed_events,
+        };
+        state.next_sequence = state
+            .next_sequence
+            .checked_add(event_count)
+            .ok_or(TrpgError::AuditIntegrityViolation)?;
+        state
+            .idempotency_results
+            .insert(idempotency_scope, (request.clone(), receipt.clone()));
+        state
+            .stream_versions
+            .insert(stream_scope, last_stream_version);
+        Ok(receipt)
+    }
+
+    fn verify_receipt(
+        &self,
+        request: &CanonicalCommitRequest,
+        receipt: &CanonicalCommitReceipt,
+    ) -> KernelResult<()> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let scope = (
+            request.campaign_id.clone(),
+            request.audit.resource_id.clone(),
+            request.idempotency_key.clone(),
+        );
+        match state.idempotency_results.get(&scope) {
+            Some((stored_request, stored_receipt))
+                if stored_request == request && stored_receipt == receipt =>
+            {
+                Ok(())
+            }
+            _ => Err(TrpgError::AuditIntegrityViolation),
+        }
     }
 }
 
 pub fn test_canonical_commit_port() -> Arc<dyn CanonicalCommitPort> {
     Arc::new(TestCanonicalCommitPort::default())
+}
+
+#[derive(Debug)]
+struct CorruptSecondEventReceiptPort {
+    inner: Arc<dyn CanonicalCommitPort>,
+}
+
+impl CanonicalCommitPort for CorruptSecondEventReceiptPort {
+    fn commit(&self, request: &CanonicalCommitRequest) -> KernelResult<CanonicalCommitReceipt> {
+        let mut receipt = self.inner.commit(request)?;
+        let second = receipt
+            .events
+            .get_mut(1)
+            .ok_or(TrpgError::AuditIntegrityViolation)?;
+        second.payload_json = r#"{"corrupted":true}"#.to_owned();
+        Ok(receipt)
+    }
+
+    fn verify_receipt(
+        &self,
+        request: &CanonicalCommitRequest,
+        receipt: &CanonicalCommitReceipt,
+    ) -> KernelResult<()> {
+        self.inner.verify_receipt(request, receipt)
+    }
+}
+
+/// Fault-injection adapter proving that consumers validate a complete formal
+/// batch before exposing any locally materialized event.
+pub fn corrupt_second_event_receipt_port() -> Arc<dyn CanonicalCommitPort> {
+    Arc::new(CorruptSecondEventReceiptPort {
+        inner: test_canonical_commit_port(),
+    })
 }
 
 const NORMALIZED_PROMPT_MAP: &str =

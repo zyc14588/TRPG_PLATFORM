@@ -34,10 +34,6 @@ REQUIRED_SCRIPTS = (
     "scripts/ci/verify_evidence_schema.py",
 )
 RELEASE_COMMAND = ["bash", "scripts/ci/test-all.sh"]
-REQUIRED_AUDIT_BLOCKERS = {
-    "AUD-002": "V1 product container image is not implemented",
-    "AUD-006": "V1 Compose services remain explicit placeholders",
-}
 REQUIRED_PRODUCT_BINARIES = {
     "api-server",
     "realtime-server",
@@ -63,10 +59,7 @@ def release_evidence_errors(data: dict, root: Path, artifact_base: Path) -> list
 
 
 def assess(root: Path, evidence: Path | None = None) -> dict:
-    blockers: list[dict[str, str]] = [
-        {"id": audit_id, "reason": reason}
-        for audit_id, reason in REQUIRED_AUDIT_BLOCKERS.items()
-    ]
+    blockers: list[dict[str, str]] = []
     missing_binaries = REQUIRED_PRODUCT_BINARIES - cargo_targets(root, "bin")
     blockers.extend(
         {"id": "MISSING_PRODUCT_BINARY", "reason": binary}
@@ -150,8 +143,6 @@ def assess(root: Path, evidence: Path | None = None) -> dict:
 
 def readiness_report_errors(data: dict, root: Path = ROOT) -> list[str]:
     errors = []
-    if data.get("status") != "BLOCKED":
-        errors.append("release readiness must remain BLOCKED")
     if data.get("base_commit") != base_commit(root):
         errors.append("release readiness base_commit mismatch")
     if os.environ.get("GITHUB_SHA", data.get("base_commit")) != data.get("base_commit"):
@@ -164,10 +155,11 @@ def readiness_report_errors(data: dict, root: Path = ROOT) -> list[str]:
     if not isinstance(blockers, list) or not all(isinstance(item, dict) for item in blockers):
         errors.append("release readiness blockers must be an object array")
     else:
-        blocker_ids = {item.get("id") for item in blockers}
-        for audit_id in REQUIRED_AUDIT_BLOCKERS:
-            if audit_id not in blocker_ids:
-                errors.append(f"release readiness missing blocker: {audit_id}")
+        expected_status = "BLOCKED" if blockers else "READY"
+        if data.get("status") != expected_status:
+            errors.append(
+                f"release readiness status must be {expected_status} for the recorded blockers"
+            )
     return errors
 
 
@@ -185,13 +177,14 @@ def main() -> int:
         if any((args.report, args.evidence, args.require_ready, args.require_blocked)):
             parser.error("--verify-report cannot be combined with assessment options")
         try:
-            errors = readiness_report_errors(json.loads(args.verify_report.read_text(encoding="utf-8")))
+            verified_report = json.loads(args.verify_report.read_text(encoding="utf-8"))
+            errors = readiness_report_errors(verified_report)
         except (OSError, json.JSONDecodeError) as error:
             errors = [str(error)]
         if errors:
             print("\n".join(errors))
             return 1
-        print("release readiness report verified: BLOCKED")
+        print(f"release readiness report verified: {verified_report['status']}")
         return 0
     if args.report:
         args.report = args.report.resolve()
@@ -205,6 +198,8 @@ def main() -> int:
     print(payload, end="")
     if args.require_blocked:
         errors = readiness_report_errors(report)
+        if report["status"] != "BLOCKED":
+            errors.append("release readiness is not BLOCKED")
         if errors:
             print("\n".join(errors))
             return 1

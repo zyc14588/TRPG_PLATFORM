@@ -5,7 +5,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use wasmi::{Config, Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, TrapCode};
 
+use crate::plugin_sdk::PluginInvocationContext;
 use crate::{ExtensionCapability, ExtensionCapabilityGrantSet};
+use trpg_shared_kernel::{EntityId, FactProvenance, ProvenanceKind, Visibility};
 
 const MAX_MODULE_BYTES: usize = 1_048_576;
 const MAX_INPUT_BYTES: usize = 65_536;
@@ -37,16 +39,63 @@ pub enum PluginOutputKind {
     ToolRequest,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct UntrustedPluginOutput {
+    kind: PluginOutputKind,
+    payload: Value,
+}
+
+/// Host-classified plugin output. Visibility and provenance are private and
+/// host-minted; deserialized plugin bytes can never construct this type.
+#[derive(Clone, PartialEq)]
 pub struct PluginOutput {
-    pub kind: PluginOutputKind,
-    pub visibility_label: String,
-    pub visibility_subject: String,
-    pub provenance_kind: String,
-    pub provenance_reference: String,
-    pub provenance_recorded_by: String,
-    pub payload: Value,
+    kind: PluginOutputKind,
+    request_id: EntityId,
+    campaign_id: EntityId,
+    visibility: Visibility,
+    fact_provenance: FactProvenance,
+    payload: Value,
+}
+
+impl fmt::Debug for PluginOutput {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PluginOutput")
+            .field("kind", &self.kind)
+            .field("request_id", &self.request_id)
+            .field("campaign_id", &self.campaign_id)
+            .field("visibility", &self.visibility)
+            .field("fact_provenance", &self.fact_provenance)
+            .field("payload", &"[REDACTED PLUGIN PAYLOAD]")
+            .finish()
+    }
+}
+
+impl PluginOutput {
+    pub const fn kind(&self) -> PluginOutputKind {
+        self.kind
+    }
+
+    pub fn request_id(&self) -> &EntityId {
+        &self.request_id
+    }
+
+    pub fn campaign_id(&self) -> &EntityId {
+        &self.campaign_id
+    }
+
+    pub fn visibility(&self) -> &Visibility {
+        &self.visibility
+    }
+
+    pub fn fact_provenance(&self) -> &FactProvenance {
+        &self.fact_provenance
+    }
+
+    pub fn payload(&self) -> &Value {
+        &self.payload
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -62,7 +111,9 @@ pub enum PluginHostError {
     MemoryLimitExceeded,
     ExecutionLimitExceeded,
     InputInvalid,
+    InputBindingMismatch,
     OutputInvalid,
+    OutputAudienceDenied,
 }
 
 impl fmt::Display for PluginHostError {
@@ -79,7 +130,11 @@ impl fmt::Display for PluginHostError {
             Self::MemoryLimitExceeded => formatter.write_str("plugin memory limit exceeded"),
             Self::ExecutionLimitExceeded => formatter.write_str("plugin execution limit exceeded"),
             Self::InputInvalid => formatter.write_str("plugin input invalid"),
+            Self::InputBindingMismatch => {
+                formatter.write_str("plugin input does not match trusted source binding")
+            }
             Self::OutputInvalid => formatter.write_str("plugin output invalid"),
+            Self::OutputAudienceDenied => formatter.write_str("plugin output audience denied"),
         }
     }
 }
@@ -168,6 +223,7 @@ impl PluginHost {
         &self,
         plugin: &HostedPlugin,
         input_json: &str,
+        context: &PluginInvocationContext,
     ) -> Result<PluginOutput, PluginHostError> {
         if input_json.len() > MAX_INPUT_BYTES
             || !matches!(
@@ -177,9 +233,19 @@ impl PluginHost {
         {
             return Err(PluginHostError::InputInvalid);
         }
+        context
+            .verify_invocation(
+                &plugin.manifest.plugin_id,
+                &plugin.manifest.requested_capabilities,
+                input_json,
+            )
+            .map_err(|_| PluginHostError::InputBindingMismatch)?;
         if sha256(&plugin.module_bytes) != plugin.manifest.module_sha256 {
             return Err(PluginHostError::ModuleDigestMismatch);
         }
+        let visibility = context
+            .derive_output_visibility()
+            .map_err(|_| PluginHostError::OutputAudienceDenied)?;
         let module = Module::new(&self.engine, &plugin.module_bytes)
             .map_err(|_| PluginHostError::ModuleInvalid)?;
         if module.imports().next().is_some() {
@@ -238,10 +304,30 @@ impl PluginHost {
         memory
             .read(&store, output_offset, &mut output_bytes)
             .map_err(|_| PluginHostError::OutputInvalid)?;
-        let output: PluginOutput =
+        let output: UntrustedPluginOutput =
             serde_json::from_slice(&output_bytes).map_err(|_| PluginHostError::OutputInvalid)?;
         validate_output(&plugin.manifest, &output)?;
-        Ok(output)
+        let provenance_reference = plugin_provenance_reference(
+            &plugin.manifest,
+            context,
+            &visibility,
+            output.kind,
+            &output_bytes,
+        );
+        let fact_provenance = FactProvenance::new(
+            ProvenanceKind::AgentProposal,
+            provenance_reference,
+            plugin.manifest.plugin_id.clone(),
+        )
+        .map_err(|_| PluginHostError::OutputInvalid)?;
+        Ok(PluginOutput {
+            kind: output.kind,
+            request_id: context.request_id().clone(),
+            campaign_id: context.campaign_id().clone(),
+            visibility,
+            fact_provenance,
+            payload: output.payload,
+        })
     }
 }
 
@@ -253,15 +339,20 @@ fn validate_manifest(manifest: &HostedPluginManifest) -> Result<(), PluginHostEr
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
         || manifest.requested_capabilities.is_empty()
-        || manifest.requested_capabilities.iter().any(|capability| {
-            capability.is_forbidden()
-                || !matches!(
-                    capability,
-                    ExtensionCapability::EmitProposedDecision
-                        | ExtensionCapability::InvokeGrantedTool
-                        | ExtensionCapability::ReadProjection
-                )
-        })
+        || manifest
+            .requested_capabilities
+            .iter()
+            .enumerate()
+            .any(|(index, capability)| {
+                capability.is_forbidden()
+                    || !matches!(
+                        capability,
+                        ExtensionCapability::EmitProposedDecision
+                            | ExtensionCapability::InvokeGrantedTool
+                            | ExtensionCapability::ReadProjection
+                    )
+                    || manifest.requested_capabilities[..index].contains(capability)
+            })
         || !valid_sha256(&manifest.module_sha256)
     {
         Err(PluginHostError::ManifestInvalid)
@@ -272,7 +363,7 @@ fn validate_manifest(manifest: &HostedPluginManifest) -> Result<(), PluginHostEr
 
 fn validate_output(
     manifest: &HostedPluginManifest,
-    output: &PluginOutput,
+    output: &UntrustedPluginOutput,
 ) -> Result<(), PluginHostError> {
     let required_capability = match output.kind {
         PluginOutputKind::Proposal => ExtensionCapability::EmitProposedDecision,
@@ -284,33 +375,66 @@ fn validate_output(
     {
         return Err(PluginHostError::CapabilityDenied);
     }
-    if !matches!(
-        output.visibility_label.as_str(),
-        "public"
-            | "party_visible"
-            | "keeper_only"
-            | "private_to_player"
-            | "investigator_private"
-            | "ai_internal"
-    ) {
-        return Err(PluginHostError::OutputInvalid);
-    }
-    let private = matches!(
-        output.visibility_label.as_str(),
-        "private_to_player" | "investigator_private"
-    );
-    if private == (output.visibility_subject == "not_applicable")
-        || output.provenance_recorded_by != manifest.plugin_id
-        || output.provenance_reference.trim().is_empty()
-        || !matches!(
-            (output.kind, output.provenance_kind.as_str()),
-            (PluginOutputKind::Proposal, "agent_proposal")
-                | (PluginOutputKind::ToolRequest, "tool_result")
-        )
-    {
+    if !matches!(output.payload, Value::Object(_)) {
         return Err(PluginHostError::OutputInvalid);
     }
     Ok(())
+}
+
+fn plugin_provenance_reference(
+    manifest: &HostedPluginManifest,
+    context: &PluginInvocationContext,
+    visibility: &Visibility,
+    output_kind: PluginOutputKind,
+    output_bytes: &[u8],
+) -> String {
+    let mut digest = Sha256::new();
+    update_digest_field(&mut digest, b"trpg-plugin-provenance-v2");
+    for value in [
+        manifest.plugin_id.as_bytes(),
+        manifest.module_sha256.as_bytes(),
+        context.request_id().as_str().as_bytes(),
+        context.campaign_id().as_str().as_bytes(),
+        context.required_capability().as_str().as_bytes(),
+        context.input_sha256().as_bytes(),
+        visibility.label().as_str().as_bytes(),
+        visibility
+            .subject_id()
+            .map(EntityId::as_str)
+            .unwrap_or("")
+            .as_bytes(),
+        match output_kind {
+            PluginOutputKind::Proposal => b"proposal".as_slice(),
+            PluginOutputKind::ToolRequest => b"tool_request".as_slice(),
+        },
+        sha256(output_bytes).as_bytes(),
+    ] {
+        update_digest_field(&mut digest, value);
+    }
+    update_digest_field(
+        &mut digest,
+        &u64::try_from(manifest.requested_capabilities.len())
+            .unwrap_or(u64::MAX)
+            .to_be_bytes(),
+    );
+    for capability in &manifest.requested_capabilities {
+        update_digest_field(&mut digest, capability.as_str().as_bytes());
+    }
+    update_digest_field(
+        &mut digest,
+        &u64::try_from(context.source_fact_ids().len())
+            .unwrap_or(u64::MAX)
+            .to_be_bytes(),
+    );
+    for fact_id in context.source_fact_ids() {
+        update_digest_field(&mut digest, fact_id.as_str().as_bytes());
+    }
+    format!("plugin_request_{:x}", digest.finalize())
+}
+
+fn update_digest_field(digest: &mut Sha256, value: &[u8]) {
+    digest.update((value.len() as u64).to_be_bytes());
+    digest.update(value);
 }
 
 fn map_execution_error(error: wasmi::Error) -> PluginHostError {

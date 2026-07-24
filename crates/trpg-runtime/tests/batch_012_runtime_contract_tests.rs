@@ -1,3 +1,6 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
 use trpg_runtime::adr_0007_internal_workflow_vs_temporal;
 use trpg_runtime::capability_layer;
 use trpg_runtime::capability_layer_tool_grant;
@@ -22,10 +25,18 @@ use trpg_runtime::{
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
 };
+use trpg_shared_kernel::CanonicalCommitPort;
 
 static NEXT_AUDIT_ID: AtomicU64 = AtomicU64::new(1);
 
 fn audited_store(contract: &AuthorityContract) -> EventStore<RuntimeEventPayload> {
+    audited_store_with_canonical(contract, trpg_test_support::test_canonical_commit_port())
+}
+
+fn audited_store_with_canonical(
+    contract: &AuthorityContract,
+    canonical: Arc<dyn CanonicalCommitPort>,
+) -> EventStore<RuntimeEventPayload> {
     let audit_id = NEXT_AUDIT_ID.fetch_add(1, Ordering::Relaxed);
     let path = std::env::temp_dir().join(format!(
         "p02-runtime-batch-audit-{}-{audit_id}.jsonl",
@@ -53,7 +64,7 @@ fn audited_store(contract: &AuthorityContract) -> EventStore<RuntimeEventPayload
     let (identity_verifier, _) = trpg_test_support::formal_commit_identity_for_contract(contract);
     EventStore::with_formal_custody(
         FormalCommitAuthorizer::new(identity_verifier, policy, audit),
-        trpg_test_support::test_canonical_commit_port(),
+        canonical,
     )
 }
 
@@ -573,7 +584,7 @@ fn expected_version_and_idempotency_are_enforced() {
     );
 
     command.expected_version = 0;
-    runtime_workflow_engine::commit_runtime_workflow_decision(
+    let first_result = runtime_workflow_engine::commit_runtime_workflow_decision(
         &mut store,
         &contract,
         &command,
@@ -582,6 +593,19 @@ fn expected_version_and_idempotency_are_enforced() {
         2,
     )
     .unwrap();
+
+    let replayed_result = runtime_workflow_engine::commit_runtime_workflow_decision(
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision.clone(),
+        2,
+    )
+    .expect("an exact network retry must return the original formal result");
+    assert_eq!(replayed_result, first_result);
+    assert_eq!(store.events().len(), 2);
+
     command.expected_version = 2;
     assert_eq!(
         runtime_workflow_engine::commit_runtime_workflow_decision(
@@ -597,4 +621,45 @@ fn expected_version_and_idempotency_are_enforced() {
         "DUPLICATE_COMMAND"
     );
 }
-use std::sync::atomic::{AtomicU64, Ordering};
+
+#[test]
+fn p04_runtime_rejects_corrupt_batch_receipt_without_partial_local_events() {
+    let request = ToolRequest::formal(
+        RuntimeAgent::AiKeeperOrchestrator,
+        RuntimeTool::RequestSkillCheck,
+    );
+    let decision = RuntimeDecision::new(
+        "decision_p04_corrupt_receipt",
+        "corrupt receipt probe",
+        request,
+    )
+    .unwrap();
+    let contract = trpg_test_support::authority_contract(
+        "campaign_p04_corrupt_receipt",
+        AuthorityMode::AiKp,
+        1,
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
+    let mut store = audited_store_with_canonical(
+        &contract,
+        trpg_test_support::corrupt_second_event_receipt_port(),
+    );
+
+    let error = runtime_workflow_engine::commit_runtime_workflow_decision(
+        &mut store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .unwrap_err();
+
+    assert_eq!(error.code(), "AUDIT_INTEGRITY_VIOLATION");
+    assert!(store.events().is_empty());
+}

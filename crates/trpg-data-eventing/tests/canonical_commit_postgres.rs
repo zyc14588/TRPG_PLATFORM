@@ -1,14 +1,19 @@
 use std::env;
+use std::str::FromStr;
 use std::time::Duration;
 
+use sqlx::postgres::PgConnectOptions;
 use sqlx::{Connection, PgConnection, PgPool, Row};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     AtomicCommitDraft, CanonicalEventDraft, CanonicalStoreError, PolicyAuditDraft,
     PostgresCanonicalStore, RecoveryReport,
 };
 use trpg_data_eventing::persistence::FormalCommitRecord;
+use trpg_domain_core::ddd::FactSource;
+use trpg_shared_kernel::EventActorOriginWire;
 
 const KEY: &[u8; 32] = &[0x9c; 32];
+const PAYLOAD_KEY: &[u8; 32] = &[0xad; 32];
 
 fn database_urls() -> (String, String) {
     let primary = env::var("P02_CANONICAL_DATABASE_URL")
@@ -16,6 +21,70 @@ fn database_urls() -> (String, String) {
     let witness = env::var("P02_CANONICAL_WITNESS_DATABASE_URL")
         .expect("P02_CANONICAL_WITNESS_DATABASE_URL is required for the real PostgreSQL gate");
     (primary, witness)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct DatabaseIdentity {
+    host: String,
+    port: u16,
+    database: String,
+}
+
+fn database_identity(options: &PgConnectOptions) -> DatabaseIdentity {
+    let database = options
+        .get_database()
+        .filter(|database| !database.trim().is_empty())
+        .expect("canonical PostgreSQL URL must name an explicit non-empty database");
+    DatabaseIdentity {
+        host: options.get_host().to_owned(),
+        port: options.get_port(),
+        database: database.to_owned(),
+    }
+}
+
+fn assert_distinct_database_targets(primary_url: &str, witness_url: &str) {
+    let primary_identity = database_identity(
+        &PgConnectOptions::from_str(primary_url).expect("valid primary canonical PostgreSQL URL"),
+    );
+    let witness_identity = database_identity(
+        &PgConnectOptions::from_str(witness_url).expect("valid witness canonical PostgreSQL URL"),
+    );
+    assert_ne!(
+        primary_identity, witness_identity,
+        "canonical primary and witness reset targets must be distinct"
+    );
+}
+
+async fn reset_dedicated_database(database_url: &str, authorized_database_variable: &str) {
+    assert_eq!(
+        env::var("P02_CANONICAL_ALLOW_DATABASE_RESET").as_deref(),
+        Ok("1"),
+        "set P02_CANONICAL_ALLOW_DATABASE_RESET=1 for the dedicated canonical integration databases"
+    );
+    let options = PgConnectOptions::from_str(database_url).expect("valid canonical PostgreSQL URL");
+    let identity = database_identity(&options);
+    let authorized_database = env::var(authorized_database_variable).unwrap_or_else(|_| {
+        panic!("{authorized_database_variable} must name the dedicated canonical database")
+    });
+    assert!(
+        !authorized_database.trim().is_empty(),
+        "{authorized_database_variable} must name a non-empty dedicated canonical database"
+    );
+    assert!(
+        matches!(identity.host.as_str(), "localhost" | "127.0.0.1" | "::1")
+            && identity.database == authorized_database,
+        "canonical integration test refuses to reset a non-dedicated local database"
+    );
+    let pool = PgPool::connect_with(options)
+        .await
+        .expect("connect to dedicated canonical integration database");
+    sqlx::raw_sql(
+        "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;",
+    )
+    .execute(&pool)
+    .await
+    .expect("reset dedicated canonical integration database");
+    pool.close().await;
 }
 
 fn draft(commit_id: &str, expected_version: i64, event_types: &[&str]) -> AtomicCommitDraft {
@@ -27,12 +96,17 @@ fn draft(commit_id: &str, expected_version: i64, event_types: &[&str]) -> Atomic
         expected_version,
         command_id: format!("command_{commit_id}"),
         authenticated_actor_id: "workflow_atomic_commit".to_owned(),
+        authenticated_actor_role: "workflow".to_owned(),
+        authenticated_actor_origin: EventActorOriginWire::Workload {
+            role: "workflow_engine".to_owned(),
+        },
         authority_mode: "human_kp".to_owned(),
         authority_contract_version: 1,
         authority_contract_id: "authority_campaign_atomic_commit_1".to_owned(),
         authority_owner: "keeper_atomic_commit".to_owned(),
         visibility_label: "party_visible".to_owned(),
         visibility_subject: "not_applicable".to_owned(),
+        data_subject_id: "not_applicable".to_owned(),
         provenance_kind: "rules_engine_decision".to_owned(),
         provenance_reference: format!("decision_{commit_id}"),
         provenance_recorded_by: "rules_engine_atomic_commit".to_owned(),
@@ -83,11 +157,20 @@ async fn scalar(pool: &PgPool, sql: &str) -> i64 {
 #[tokio::test(flavor = "multi_thread")]
 async fn canonical_commit_is_atomic_recoverable_and_externally_witnessed() {
     let (primary_url, witness_url) = database_urls();
+    assert_distinct_database_targets(&primary_url, &witness_url);
+    reset_dedicated_database(&primary_url, "P02_CANONICAL_RESET_DATABASE").await;
+    reset_dedicated_database(&witness_url, "P02_CANONICAL_WITNESS_RESET_DATABASE").await;
 
-    let store =
-        PostgresCanonicalStore::connect(&primary_url, &witness_url, "p02-canonical-test-key", KEY)
-            .await
-            .unwrap();
+    let store = PostgresCanonicalStore::connect(
+        &primary_url,
+        &witness_url,
+        "p02-canonical-test-key",
+        KEY,
+        "p05-canonical-payload-key",
+        PAYLOAD_KEY,
+    )
+    .await
+    .unwrap();
     let (first_startup, concurrent_startup) =
         tokio::join!(store.prepare_for_service(), store.prepare_for_service());
     first_startup.unwrap();
@@ -112,6 +195,19 @@ async fn canonical_commit_is_atomic_recoverable_and_externally_witnessed() {
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM canonical_audit_log").await,
         1
+    );
+    let audit_context: (String, String) = sqlx::query_as(
+        "SELECT correlation_id, causation_id FROM canonical_audit_log WHERE commit_id = 'success'",
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        audit_context,
+        (
+            success_draft.correlation_id.clone(),
+            success_draft.causation_id.clone()
+        )
     );
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM formal_commits").await,
@@ -141,15 +237,127 @@ async fn canonical_commit_is_atomic_recoverable_and_externally_witnessed() {
             .await
             .unwrap();
     assert_ne!(signed_payload, success_draft.events[0].payload_json);
+    let protected_envelope = serde_json::from_str::<serde_json::Value>(&signed_payload).unwrap();
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&signed_payload).unwrap(),
+        protected_envelope["protected_payload"]["algorithm"],
+        "AES-256-GCM"
+    );
+    assert_eq!(
+        protected_envelope["protected_payload"]["key_reference"],
+        "p05-canonical-payload-key"
+    );
+    assert!(!signed_payload.contains("\"a\":[true"));
+    assert!(!signed_payload.contains("\"z\":1"));
+    let stored_payload: String =
+        sqlx::query_scalar("SELECT payload_json::text FROM event_store WHERE sequence = $1")
+            .bind(success.first_event_sequence)
+            .fetch_one(&primary)
+            .await
+            .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&stored_payload).unwrap(),
+        protected_envelope
+    );
+    let outbox_payload: String =
+        sqlx::query_scalar("SELECT payload_json::text FROM event_outbox WHERE event_sequence = $1")
+            .bind(success.first_event_sequence)
+            .fetch_one(&primary)
+            .await
+            .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&outbox_payload).unwrap(),
+        serde_json::from_str::<serde_json::Value>(&stored_payload).unwrap()
+    );
+    assert!(!outbox_payload.contains("\"a\":[true"));
+    let encrypted_columns = sqlx::query(
+        "SELECT payload_ciphertext, payload_key_reference, payload_nonce \
+         FROM event_store WHERE sequence = $1",
+    )
+    .bind(success.first_event_sequence)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let event_ciphertext: Vec<u8> = encrypted_columns.get("payload_ciphertext");
+    let event_key_reference: String = encrypted_columns.get("payload_key_reference");
+    let event_nonce: Vec<u8> = encrypted_columns.get("payload_nonce");
+    assert!(event_ciphertext.len() >= 16);
+    assert_eq!(event_key_reference, "p05-canonical-payload-key");
+    assert_eq!(event_nonce.len(), 12);
+    let outbox_encrypted_columns = sqlx::query(
+        "SELECT payload_ciphertext, payload_key_reference, payload_nonce, visibility_subject \
+         FROM event_outbox WHERE event_sequence = $1",
+    )
+    .bind(success.first_event_sequence)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        outbox_encrypted_columns.get::<Vec<u8>, _>("payload_ciphertext"),
+        event_ciphertext
+    );
+    assert_eq!(
+        outbox_encrypted_columns.get::<String, _>("payload_key_reference"),
+        event_key_reference
+    );
+    assert_eq!(
+        outbox_encrypted_columns.get::<Vec<u8>, _>("payload_nonce"),
+        event_nonce
+    );
+    assert_eq!(
+        outbox_encrypted_columns.get::<String, _>("visibility_subject"),
+        success_draft.visibility_subject
+    );
+    let replay = store
+        .load_replay_page("campaign_atomic_commit", 0, 10)
+        .await
+        .unwrap();
+    assert_eq!(replay.len(), 2);
+    assert_eq!(
+        replay[0].payload,
         serde_json::json!({"a": [true, null], "z": 1})
+    );
+
+    // Fact promotion consumes the real encrypted, HMAC-verified canonical
+    // event and external witness chain. It cannot substitute the process-local
+    // EventStore fixture used by domain-only tests.
+    let mut fact_draft = draft("persisted_fact_evidence", 0, &["DecisionCommitted"]);
+    bind_campaign(&mut fact_draft, "campaign_persisted_fact_evidence");
+    fact_draft.events[0].payload_json = serde_json::json!({
+        "kind": "RecordDecision",
+        "fact_source": "DecisionRecord",
+        "target_fact_id": "persisted_fact_001"
+    })
+    .to_string();
+    let fact_commit = store.commit(&fact_draft).await.unwrap();
+    let evidence = store
+        .load_committed_fact_evidence(
+            "campaign_persisted_fact_evidence",
+            fact_commit.first_event_sequence,
+            "persisted_fact_001",
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        evidence.event_sequence(),
+        fact_commit.first_event_sequence as u64
+    );
+    assert_eq!(evidence.source(), FactSource::DecisionRecord);
+    assert_eq!(evidence.target_fact_id().as_str(), "persisted_fact_001");
+    assert_eq!(
+        evidence.stream_id().as_str(),
+        "campaign_persisted_fact_evidence"
     );
 
     // A database-side rejection after the first event proves that events,
     // outbox rows, the audit record, and the formal-commit marker roll back as
     // one primary transaction. The independent PREPARED witness is reconciled
     // to ABORTED rather than being silently erased.
+    let event_count_before_rollback = scalar(&primary, "SELECT count(*) FROM event_store").await;
+    let outbox_count_before_rollback = scalar(&primary, "SELECT count(*) FROM event_outbox").await;
+    let audit_count_before_rollback =
+        scalar(&primary, "SELECT count(*) FROM canonical_audit_log").await;
+    let formal_count_before_rollback =
+        scalar(&primary, "SELECT count(*) FROM formal_commits").await;
     sqlx::raw_sql(
         r#"
         CREATE OR REPLACE FUNCTION reject_atomicity_probe()
@@ -195,19 +403,19 @@ async fn canonical_commit_is_atomic_recoverable_and_externally_witnessed() {
 
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM event_store").await,
-        2
+        event_count_before_rollback
     );
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM event_outbox").await,
-        2
+        outbox_count_before_rollback
     );
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM canonical_audit_log").await,
-        1
+        audit_count_before_rollback
     );
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM formal_commits").await,
-        1
+        formal_count_before_rollback
     );
 
     let recovered = store.recover().await.unwrap();
@@ -259,7 +467,11 @@ async fn canonical_commit_is_atomic_recoverable_and_externally_witnessed() {
     ));
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM event_store").await,
-        3
+        event_count_before_rollback + 1
+    );
+    assert_eq!(
+        scalar(&primary, "SELECT count(*) FROM event_outbox").await,
+        outbox_count_before_rollback + 1
     );
 
     sqlx::raw_sql(
@@ -276,15 +488,19 @@ async fn canonical_commit_is_atomic_recoverable_and_externally_witnessed() {
     assert_eq!(retry.first_event_sequence, retry.last_event_sequence);
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM event_store").await,
-        3
+        event_count_before_rollback + 1
+    );
+    assert_eq!(
+        scalar(&primary, "SELECT count(*) FROM event_outbox").await,
+        outbox_count_before_rollback + 1
     );
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM canonical_audit_log").await,
-        2
+        audit_count_before_rollback + 1
     );
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM formal_commits").await,
-        2
+        formal_count_before_rollback + 1
     );
 
     // The witness tables are append-only, including TRUNCATE protection.
@@ -484,6 +700,50 @@ async fn canonical_commit_is_atomic_recoverable_and_externally_witnessed() {
         "probe must produce overlapping global sequence ranges"
     );
 
+    // A stale write deliberately leaves an unresolved PREPARED witness. A
+    // process carrying the wrong HMAC key must fail before appending an
+    // ABORTED recovery record; otherwise one bad deployment permanently
+    // poisons the append-only external witness.
+    let mut wrong_key_probe = draft("wrong_key_recovery_probe", 1, &["MustNotCommit"]);
+    bind_campaign(&mut wrong_key_probe, "campaign_wrong_key_recovery_probe");
+    assert!(matches!(
+        store.commit(&wrong_key_probe).await,
+        Err(CanonicalStoreError::VersionConflict {
+            expected: 1,
+            actual: 0
+        })
+    ));
+    let witness_rows_before_wrong_key =
+        scalar(&witness, "SELECT count(*) FROM external_audit_witness").await;
+    let wrong_key_store = PostgresCanonicalStore::connect(
+        &primary_url,
+        &witness_url,
+        "wrong-canonical-integrity-key",
+        &[0xee; 32],
+        "p05-canonical-payload-key",
+        PAYLOAD_KEY,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        wrong_key_store.prepare_for_service().await,
+        Err(CanonicalStoreError::IntegrityViolation(
+            "external_witness_hmac_mismatch"
+        ))
+    );
+    assert_eq!(
+        scalar(&witness, "SELECT count(*) FROM external_audit_witness").await,
+        witness_rows_before_wrong_key,
+        "wrong-key recovery must not mutate the append-only witness"
+    );
+    assert_eq!(
+        store.recover().await.unwrap(),
+        RecoveryReport {
+            finalized: 0,
+            aborted: 1,
+        }
+    );
+
     store.verify_integrity().await.unwrap();
     let audit_integrity_versions: Vec<i32> = sqlx::query_scalar(
         "SELECT DISTINCT integrity_version FROM canonical_audit_log ORDER BY integrity_version",
@@ -491,9 +751,9 @@ async fn canonical_commit_is_atomic_recoverable_and_externally_witnessed() {
     .fetch_all(&primary)
     .await
     .unwrap();
-    assert_eq!(audit_integrity_versions, vec![2]);
+    assert_eq!(audit_integrity_versions, vec![3]);
 
-    // Simulate a privileged restore that bypasses ordinary triggers. Version 2
+    // Simulate a privileged restore that bypasses ordinary triggers. Version 3
     // binds occurred_at into the HMAC, so timestamp-only tampering is detected
     // even when the database append-only guard is deliberately bypassed.
     let mut audit_tamper = primary.begin().await.unwrap();
@@ -519,13 +779,32 @@ async fn canonical_commit_is_atomic_recoverable_and_externally_witnessed() {
 #[tokio::test]
 async fn canonical_and_witness_endpoints_must_be_distinct() {
     let (primary_url, _) = database_urls();
-    let result =
-        PostgresCanonicalStore::connect(&primary_url, &primary_url, "p02-canonical-test-key", KEY)
-            .await;
+    let result = PostgresCanonicalStore::connect(
+        &primary_url,
+        &primary_url,
+        "p02-canonical-test-key",
+        KEY,
+        "p05-canonical-payload-key",
+        PAYLOAD_KEY,
+    )
+    .await;
     assert!(matches!(
         result,
         Err(CanonicalStoreError::Configuration(
             "independent_witness_endpoint_required"
         ))
     ));
+}
+
+#[test]
+#[should_panic(expected = "canonical primary and witness reset targets must be distinct")]
+fn canonical_reset_rejects_identical_targets_before_connecting() {
+    let database_url = "postgresql://local@127.0.0.1:25432/canonical_reset_probe";
+    assert_distinct_database_targets(database_url, database_url);
+}
+
+#[test]
+#[should_panic(expected = "canonical PostgreSQL URL must name an explicit non-empty database")]
+fn canonical_reset_rejects_a_missing_database_name() {
+    database_identity(&PgConnectOptions::new().host("127.0.0.1").port(25432));
 }
