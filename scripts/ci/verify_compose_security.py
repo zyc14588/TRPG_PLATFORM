@@ -15,6 +15,7 @@ PINNED_INFRASTRUCTURE_SERVICES = {
     "policy-bootstrap",
     "postgres",
     "postgres-witness",
+    "witness-role-bootstrap",
     "redis",
     "nats",
     "minio",
@@ -34,6 +35,12 @@ DATABASE_CLIENT_SERVICES = {
     "realtime",
     "agent-worker",
     "migration-runner",
+}
+WITNESS_DATABASE_SECRET_BY_SERVICE = {
+    "api": "witness_append_database_url",
+    "realtime": "witness_read_database_url",
+    "agent-worker": "witness_read_database_url",
+    "migration-runner": "witness_owner_database_url",
 }
 
 
@@ -93,7 +100,7 @@ def errors(root: Path = ROOT) -> list[str]:
     backend_network = network_blocks.get("backend", "")
     if not re.search(r"(?m)^\s+internal:\s+true\s*$", backend_network):
         found.append("PostgreSQL backend network must remain internal")
-    for service in ("postgres", "postgres-witness"):
+    for service in ("postgres", "postgres-witness", "witness-role-bootstrap"):
         block = service_blocks.get(service, "")
         if not re.search(
             r"(?m)^\s{4}networks:\s*\n\s{6}- backend\s*$",
@@ -160,6 +167,93 @@ def errors(root: Path = ROOT) -> list[str]:
         ):
             found.append(f"runtime secret override has an unexpected source: {name}")
 
+    witness_secret_names = set(WITNESS_DATABASE_SECRET_BY_SERVICE.values())
+    if "witness_database_url" in production_secrets:
+        found.append("production Compose still declares the shared witness owner URL")
+    for service, expected_secret in WITNESS_DATABASE_SECRET_BY_SERVICE.items():
+        block = service_blocks.get(service, "")
+        if not re.search(
+            rf"(?m)^\s+TRPG_WITNESS_DATABASE_URL_SECRET_ID:\s+{re.escape(expected_secret)}\s*$",
+            block,
+        ):
+            found.append(
+                f"{service} does not select its least-privilege witness URL: "
+                f"{expected_secret}"
+            )
+        if not re.search(
+            rf"(?m)^\s+- source:\s+{re.escape(expected_secret)}\s*\n"
+            rf"\s+target:\s+{re.escape(expected_secret)}\.v1\s*$",
+            block,
+        ):
+            found.append(
+                f"{service} does not mount its least-privilege witness URL: "
+                f"{expected_secret}"
+            )
+        for forbidden_secret in sorted(witness_secret_names - {expected_secret}):
+            if re.search(
+                rf"(?m)^\s+(?:TRPG_WITNESS_DATABASE_URL_SECRET_ID:\s+|- source:\s+)"
+                rf"{re.escape(forbidden_secret)}\s*$",
+                block,
+            ):
+                found.append(
+                    f"{service} also receives forbidden witness URL: {forbidden_secret}"
+                )
+
+    witness_database_block = service_blocks.get("postgres-witness", "")
+    for password_secret in (
+        "postgres_witness_owner_password",
+        "postgres_witness_append_password",
+        "postgres_witness_read_password",
+    ):
+        if not re.search(
+            rf"(?m)^\s+- {re.escape(password_secret)}\s*$",
+            witness_database_block,
+        ):
+            found.append(
+                f"postgres-witness does not mount role password: {password_secret}"
+            )
+    if (
+        "POSTGRES_PASSWORD_FILE: /run/secrets/postgres_witness_owner_password"
+        not in witness_database_block
+    ):
+        found.append("postgres-witness bootstrap password is not owner-only")
+
+    bootstrap_block = service_blocks.get("witness-role-bootstrap", "")
+    required_bootstrap_fragments = (
+        "user: postgres",
+        "read_only: true",
+        "no-new-privileges:true",
+        "PGSSLMODE: verify-full",
+        "PGSSLROOTCERT: /run/secrets/postgres_ca_certificate",
+        "- postgres_witness_owner_password",
+        "- postgres_ca_certificate",
+        "source: postgres_witness_runtime_roles",
+        'entrypoint: ["/bin/sh", "/usr/local/bin/witness-runtime-roles.sh"]',
+    )
+    for fragment in required_bootstrap_fragments:
+        if fragment not in bootstrap_block:
+            found.append(f"witness role bootstrap is incomplete: {fragment}")
+    for forbidden_secret in (
+        "postgres_witness_append_password",
+        "postgres_witness_read_password",
+        "witness_owner_database_url",
+    ):
+        if re.search(
+            rf"(?m)^\s+- (?:source:\s+)?{re.escape(forbidden_secret)}\s*$",
+            bootstrap_block,
+        ):
+            found.append(
+                f"witness role bootstrap directly receives forbidden secret: "
+                f"{forbidden_secret}"
+            )
+    migration_block = service_blocks.get("migration-runner", "")
+    if not re.search(
+        r"(?m)^\s+witness-role-bootstrap:\s*\n"
+        r"\s+condition:\s+service_completed_successfully\s*$",
+        migration_block,
+    ):
+        found.append("migration-runner does not wait for witness role bootstrap")
+
     required_security_fragments = (
         "hostnossl all           all",
         "tls-auth-clients yes",
@@ -175,6 +269,13 @@ def errors(root: Path = ROOT) -> list[str]:
             compose,
             (root / "config/postgres/pg_hba.conf").read_text(encoding="utf-8"),
             (root / "config/postgres/witness_pg_hba.conf").read_text(encoding="utf-8"),
+            (root / "config/postgres/witness-runtime-roles.sh").read_text(
+                encoding="utf-8"
+            ),
+            (
+                root
+                / "migrations/witness/20260726000100_restrict_witness_runtime_privileges.up.sql"
+            ).read_text(encoding="utf-8"),
             (root / "config/redis/redis.conf").read_text(encoding="utf-8"),
             (root / "config/nats/nats.conf").read_text(encoding="utf-8"),
         ]
@@ -202,16 +303,70 @@ def errors(root: Path = ROOT) -> list[str]:
         primary_hba,
     ):
         found.append("PostgreSQL owner is not limited to its database and backend network")
-    if not re.search(
-        r"(?m)^hostssl\s+coc_ai_trpg_witness\s+trpg_witness_owner\s+samenet\s+scram-sha-256\s*$",
-        witness_hba,
+    for witness_role in (
+        "trpg_witness_append_login",
+        "trpg_witness_read_login",
+        "trpg_witness_owner",
     ):
-        found.append("PostgreSQL witness owner is not limited to its database and backend network")
+        if not re.search(
+            rf"(?m)^hostssl\s+coc_ai_trpg_witness\s+{witness_role}"
+            r"\s+samenet\s+scram-sha-256\s*$",
+            witness_hba,
+        ):
+            found.append(
+                "PostgreSQL witness role is not limited to its database and "
+                f"backend network: {witness_role}"
+            )
     if re.search(
-        r"(?m)^(?:host|hostssl)\s+all\s+(?:trpg_database_owner|trpg_witness_owner)\s+(?:0\.0\.0\.0/0|::/0)",
+        r"(?m)^(?:host|hostssl)\s+all\s+"
+        r"(?:trpg_database_owner|trpg_witness_owner|"
+        r"trpg_witness_append_login|trpg_witness_read_login)\s+"
+        r"(?:0\.0\.0\.0/0|::/0)",
         primary_hba + "\n" + witness_hba,
     ):
-        found.append("PostgreSQL owner access still accepts unrestricted routed addresses")
+        found.append(
+            "PostgreSQL privileged/runtime access still accepts unrestricted "
+            "routed addresses"
+        )
+
+    role_bootstrap = (root / "config/postgres/witness-runtime-roles.sh").read_text(
+        encoding="utf-8"
+    )
+    witness_privilege_migration = (
+        root
+        / "migrations/witness/20260726000100_restrict_witness_runtime_privileges.up.sql"
+    ).read_text(encoding="utf-8")
+    required_witness_role_fragments = (
+        "pg_read_file('/run/secrets/postgres_witness_append_password')",
+        "pg_read_file('/run/secrets/postgres_witness_read_password')",
+        "FROM pg_auth_members membership",
+        "Re-apply the privilege boundary on every startup",
+        "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM PUBLIC",
+        "GRANT SELECT, INSERT ON TABLE external_audit_witness",
+        "dependency.deptype = 'o'",
+        "GRANT trpg_witness_append_service TO trpg_witness_append_login",
+        "GRANT trpg_witness_read_service TO trpg_witness_read_login",
+    )
+    for fragment in required_witness_role_fragments:
+        if fragment not in role_bootstrap:
+            found.append(f"witness role bootstrap is not fail-closed: {fragment}")
+    required_witness_migration_fragments = (
+        "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM PUBLIC;",
+        "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;",
+        "GRANT SELECT, INSERT ON TABLE external_audit_witness",
+        "TO trpg_witness_append_service;",
+        "GRANT SELECT ON TABLE external_audit_witness",
+        "TO trpg_witness_read_service;",
+    )
+    for fragment in required_witness_migration_fragments:
+        if fragment not in witness_privilege_migration:
+            found.append(f"witness privilege migration is incomplete: {fragment}")
+    if re.search(
+        r"(?is)GRANT\s+(?:ALL|.*\b(?:UPDATE|DELETE|TRUNCATE|REFERENCES|TRIGGER)\b)"
+        r".*?\bTO\s+trpg_witness_(?:append|read)_(?:service|login)",
+        witness_privilege_migration,
+    ):
+        found.append("witness runtime migration grants mutable/owner privileges")
 
     if "pull_request:" not in workflow:
         found.append("production security workflow does not run on pull requests")
@@ -228,10 +383,26 @@ def errors(root: Path = ROOT) -> list[str]:
         "MinIO certificate fingerprint did not change after rotation",
         "--write-out '%{http_code} %{redirect_url}'",
         '[[ "$plaintext_proxy_status" != 308\\ https://* ]]',
+        '"${compose_command[@]}" run --rm witness-role-bootstrap',
+        "GRANT trpg_witness_owner TO trpg_witness_append_login",
+        "ALTER ROLE trpg_witness_append_login CREATEDB CREATEROLE BYPASSRLS",
+        'expected_append_privileges="trpg_witness_append_login|t|f|f|t|f|t|t|f|f|f|f|t|f|f|f|f|f|f"',
+        'expected_read_privileges="trpg_witness_read_login|t|f|f|t|f|t|f|f|f|f|f|f|t|f|f|f|f|f"',
+        "has_table_privilege(current_user, 'public.external_audit_witness', 'TRUNCATE')",
+        'witness_query trpg_witness_read_login "$postgres_witness_read_password"',
+        '"$postgres_witness_append_password" drop-table',
+        '"$postgres_witness_append_password" create-table',
+        "trpg_witness_read_login \"$postgres_witness_read_password\" insert",
+        "production security smoke: full product graph, witness least privilege",
     )
     for fragment in required_runtime_fragments:
         if fragment not in smoke:
             found.append(f"production runtime smoke is incomplete: {fragment}")
+    if smoke.count('"${compose_command[@]}" run --rm witness-role-bootstrap') < 2:
+        found.append(
+            "production runtime smoke does not prove existing-volume witness "
+            "privilege repair"
+        )
     if "runtime-smoke-infrastructure-only" in smoke:
         found.append("production runtime smoke still uses a placeholder NATS credential")
     entrypoint = (root / "config/container/trpg-entrypoint.sh").read_text(

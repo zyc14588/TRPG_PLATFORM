@@ -1,7 +1,7 @@
 # Repository Source Manifest v1
 
-Repository files: 3906
-Hashed files: 3903
+Repository files: 3909
+Hashed files: 3906
 
 All tracked paths are listed. The three generated outputs use a self-reference sentinel instead of an impossible self-hash.
 CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manifest.py` requires all three outputs to be byte-identical.
@@ -1365,7 +1365,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `codex-prompts/99-appendix/P0032.md` | 10812 | `053b7adbfd5a52022519e91e8026f28eb5424edbc17da498d64213e793e365e6` | `100644` |
 | `codex-prompts/99-appendix/P0033.md` | 12776 | `81f73e190fad8a8e2b6495f03ba582cecb3450401734e57f1edf4c4c4f34031c` | `100644` |
 | `compose.override.yml` | 13 | `fa6ccea1ca4e3a031d9e99f25cc05db803aa9bac642c000ddab14f6d9da54b52` | `100644` |
-| `compose.yml` | 29673 | `686e71efdfaacd298ffdd9a0f03dd2ad9b0c5016d20b679acf92af4f8d2f4a62` | `100644` |
+| `compose.yml` | 31537 | `391c5db9b31373a895694184bc59d180232c8dee52c781d72a9d8764b432f38d` | `100644` |
 | `config/container/trpg-entrypoint.sh` | 1449 | `8e108d67a4a0696dd2246d07ddb976e26de2cad66a825b87ba4f9ca044e21da8` | `100644` |
 | `config/nats/nats.conf` | 667 | `82ad8b28fda04baff1da7f3d19e546f1372739e234f22681a9e39338adb289e0` | `100644` |
 | `config/nginx/trpg.conf` | 1534 | `53936e2cb6cb5831faf4c582286036741b40c148099ed3a77a69d95bf9aed70c` | `100644` |
@@ -1373,7 +1373,8 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `config/postgres/001-security-roles.sql` | 2085 | `4c2ab6b2b739698803db778dc3836f616d050edf98fae72d6fd9c5eb6748335b` | `100644` |
 | `config/postgres/002-application-role.sh` | 2440 | `41014d0c4ba316a02c38d79e550a8cd159049a7446a452ba17c2dc895f015c75` | `100644` |
 | `config/postgres/pg_hba.conf` | 1324 | `e0011eb9a42f7bc3a07bfd9f4f6db12f90658998f3399294a9213f9dc109573f` | `100644` |
-| `config/postgres/witness_pg_hba.conf` | 744 | `06701c2570fbaf90cbe2d01f5f3209d5cf46eced4328ef147d807f5bfa343a1b` | `100644` |
+| `config/postgres/witness-runtime-roles.sh` | 6224 | `4abe1826f303a70671a168e95d19ec23ff18c492765a73e58fe29ff3dfcbf24c` | `100644` |
+| `config/postgres/witness_pg_hba.conf` | 906 | `1d4566030700d999f1f78f00cbed27b7cf7c0f558f6dcc0a686c9ed2a3726d78` | `100644` |
 | `config/redis/redis.conf` | 282 | `fc4b4d146faa6685e960015ace2a79a57faa98235a7e66e0a6dcd20a2e6dd935` | `100644` |
 | `crates/trpg-agent-runtime/Cargo.toml` | 699 | `a6ffca5e392e98f8bbb0c40f6012c2ee8a28db8b2bdcaee9d41c6925dabd0e29` | `100644` |
 | `crates/trpg-agent-runtime/src/adr_0009_agent_governance.rs` | 868 | `e88b60c5add06226c5ed16809cceab361800cdaf86a39c2ff54362a1badd89fa` | `100644` |
@@ -1923,7 +1924,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-testing/tests/top_level_principle_trace_contract_tests.rs` | 827 | `5c4cb525982c8b61a2df02fe00295a79183c4a112000a91833280e074692bdb2` | `100644` |
 | `crates/trpg-testing/tests/visibility_leakage.rs` | 953 | `203679607f9109a73dd5b20f65342c56fb0c15c72b48759b7b3f73b4b121a17f` | `100644` |
 | `crates/trpg-testing/tests/visibility_leakage_tests_contract_tests.rs` | 2022 | `2d7c588d151a70d962d358ce4e33cfe7bbbcf871f98e32fac6b610b3fe7f92e8` | `100644` |
-| `docker-compose.ci.yml` | 7567 | `7927a245defab8958e8ab09df914d78f1a52ed744b17c69907a22fb39adad842` | `100644` |
+| `docker-compose.ci.yml` | 8231 | `89db4bf5501c45f7cc3979da07adfd5f8221d01190957b8178e331465b8adbfb` | `100644` |
 | `docs/audit/p00/P00_FINAL_STATUS.md` | 8016 | `de63f054580598206460aa861966be0aa128fff64726e24f51dfeab371f9c5fa` | `100644` |
 | `docs/audit/p01/P01_FINAL_STATUS.md` | 5928 | `02012cf20c2ccbcfe0540174ec072d8b7bcac57b8573556107c4c8b69fbd1b2a` | `100644` |
 | `docs/audit/p02/P02_ACCEPTANCE.md` | 1192 | `7af9ef688d43d436269fc16f5b5ae8a5a99c68ae84840e9d75fda6f8baeb0daa` | `100644` |
@@ -2990,6 +2991,8 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `migrations/20260725000100_lease_privacy_deletion_execution.sql` | 17755 | `cf1fa5eff170aa9e68e8e29641cf25a29a8af11a65a0537e27abc4f4c9bb4c2c` | `100644` |
 | `migrations/witness/20260715000100_create_external_audit_witness.down.sql` | 163 | `b883d3e3248eb7be7badd0d427b86268b3d83d81550a85fa97a45613abd97058` | `100644` |
 | `migrations/witness/20260715000100_create_external_audit_witness.up.sql` | 2866 | `5009aab875b335e95e6e131a1903bf92fccbdc34142095408a6e5c3f5c1c81fb` | `100644` |
+| `migrations/witness/20260726000100_restrict_witness_runtime_privileges.down.sql` | 581 | `0afae16f99a8f4de9f822ebbda3d0ab0c1a9a80e72442b00afc42b7f8cf6051b` | `100644` |
+| `migrations/witness/20260726000100_restrict_witness_runtime_privileges.up.sql` | 3114 | `757abf08ce18e1dd543a9215dfb99614f0e176d4090d98d6c028b8a550cb7550` | `100644` |
 | `package.json` | 445 | `7545f260ca0de0f28af75daedab423725264341e20a92651a0f87f36604fef44` | `100644` |
 | `pnpm-lock.yaml` | 130 | `c30b8c81193e4cf2613e698692ee577ef890600e1ebc51d252717a1c7409242b` | `100644` |
 | `pnpm-workspace.yaml` | 25 | `c800c8f05523db01a428b46cd7a2c9af23d96e1166b36a80cbc06b3e30ffd9ab` | `100644` |
@@ -3041,16 +3044,16 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `scripts/ci/p00_negative_case.py` | 6643 | `a0cc559b08a2876a53d02345e687d576b44bea27a8369e7aa9fa60500ee0e34d` | `100644` |
 | `scripts/ci/p02_boundary_regression.py` | 3376 | `026d5c444a59c37445ab206a7a7871aeb38a80e337e9e6de4aa80a2101e5c6e4` | `100644` |
 | `scripts/ci/p02_policy_bootstrap.py` | 7296 | `d69df3affb645c7519eca85877e53cf41e5be5a0d600e2a96e74f4f8488e694d` | `100644` |
-| `scripts/ci/production-security-smoke.sh` | 18310 | `af56a8e673a8fe131f90275ac28767218281d5443271df82e30b650b9779db36` | `100755` |
+| `scripts/ci/production-security-smoke.sh` | 26385 | `62290739408856d4a39e53ef2c23370a4fedd11f63be969923a614bb6e939aa3` | `100755` |
 | `scripts/ci/release_readiness.py` | 12907 | `349d22306d5de00540aa09250c6d8d443eeb56681df369e2b9a308f9aa69dd2b` | `100644` |
 | `scripts/ci/repo_truth.py` | 32704 | `404ceadb0756c2f77ca5a068d2ce1a161828392d930465e34fef6e328a4a8255` | `100644` |
 | `scripts/ci/service-process-smoke.sh` | 12098 | `83982657e5d2ddaf7cc19b3a6b7f0e28ade9935604d49a2f30406573bacd993e` | `100755` |
 | `scripts/ci/test-all.sh` | 8003 | `e5003f03cdfa177a9b322eb206e6e768a144bd0784b6397d1953c88236d7d806` | `100755` |
 | `scripts/ci/test_dependency_directions.py` | 3585 | `9415e655efcd1438620bc97446396448298c6538758bf70f2546cd72f6d0bfac` | `100644` |
 | `scripts/ci/test_product_boundaries.py` | 3033 | `4cc23ff94d0f343b9ad6ce35dd5bd2c3e5a51dfe30dddc346af6a0c147c33444` | `100755` |
-| `scripts/ci/test_repo_truth.py` | 28481 | `1990db0bd40284261b3d172eae976d3492b3ae22fe4c7dfc8b18ad2f8a724bea` | `100644` |
+| `scripts/ci/test_repo_truth.py` | 31155 | `66f4b13f87bb3641e8b0a33e4d83a4ada33391164d3336b7b64f3d8d85fce9c1` | `100644` |
 | `scripts/ci/validate_workflows.py` | 6981 | `fc6e470f0ba195b2b792240a3337f90898eb400563d8405fd48baa5d268770ba` | `100644` |
-| `scripts/ci/verify_compose_security.py` | 10938 | `172da9cc25c5c2067822fc16385a035b97425ed3755efb9578ea81955dec0e4e` | `100755` |
+| `scripts/ci/verify_compose_security.py` | 18544 | `c92d7844b0f3c81589d979a67d300187b33996433263e8dd1a87d82b4ac79acb` | `100755` |
 | `scripts/ci/verify_evidence_schema.py` | 1900 | `9eab4cc21adcb773c4fdda4f283004795f1c6c20b00c2cfb67edceb89c7ecc83` | `100644` |
 | `scripts/ci/verify_manifest.py` | 4246 | `d229f487266e5d9475fde22d74bce91f5242a83f542db7ba77f58b7ce697dc61` | `100644` |
 | `scripts/ci/verify_test_inventory.py` | 11329 | `65a1134c612d900f0c6c1d9214edcd119a9c43b7e66cbc8c6d6d67a64ea35a5c` | `100644` |

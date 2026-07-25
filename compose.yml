@@ -56,7 +56,7 @@ services:
       TRPG_DATABASE_URL_SECRET_VERSION: "1"
       TRPG_CANONICAL_DATABASE_URL_SECRET_ID: canonical_database_url
       TRPG_CANONICAL_DATABASE_URL_SECRET_VERSION: "1"
-      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_append_database_url
       TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
       TRPG_IDENTITY_SIGNING_KEY_SECRET_ID: identity_signing_key
       TRPG_IDENTITY_SIGNING_KEY_SECRET_VERSION: "1"
@@ -86,8 +86,8 @@ services:
         target: api_database_url.v1
       - source: canonical_database_url
         target: canonical_database_url.v1
-      - source: witness_database_url
-        target: witness_database_url.v1
+      - source: witness_append_database_url
+        target: witness_append_database_url.v1
       - source: identity_signing_key
         target: identity_signing_key.v1
       - source: redis_url
@@ -233,7 +233,7 @@ services:
       TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
       TRPG_DATABASE_URL_SECRET_ID: realtime_database_url
       TRPG_DATABASE_URL_SECRET_VERSION: "1"
-      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_read_database_url
       TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
       TRPG_NATS_URL_SECRET_ID: nats_url
       TRPG_NATS_URL_SECRET_VERSION: "1"
@@ -258,8 +258,8 @@ services:
     secrets:
       - source: realtime_database_url
         target: realtime_database_url.v1
-      - source: witness_database_url
-        target: witness_database_url.v1
+      - source: witness_read_database_url
+        target: witness_read_database_url.v1
       - source: nats_url
         target: nats_url.v1
       - source: redis_url
@@ -306,7 +306,7 @@ services:
       TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
       TRPG_DATABASE_URL_SECRET_ID: worker_database_url
       TRPG_DATABASE_URL_SECRET_VERSION: "1"
-      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_read_database_url
       TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
       TRPG_NATS_URL_SECRET_ID: nats_url
       TRPG_NATS_URL_SECRET_VERSION: "1"
@@ -336,8 +336,8 @@ services:
     secrets:
       - source: worker_database_url
         target: worker_database_url.v1
-      - source: witness_database_url
-        target: witness_database_url.v1
+      - source: witness_read_database_url
+        target: witness_read_database_url.v1
       - source: nats_url
         target: nats_url.v1
       - source: redis_url
@@ -405,7 +405,7 @@ services:
       TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
       TRPG_DATABASE_URL_SECRET_ID: owner_database_url
       TRPG_DATABASE_URL_SECRET_VERSION: "1"
-      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_owner_database_url
       TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
       TRPG_CANONICAL_HMAC_KEY_ID: ${TRPG_CANONICAL_HMAC_KEY_ID:?set canonical key id}
       TRPG_CANONICAL_HMAC_KEY_SECRET_ID: canonical_hmac_key
@@ -416,8 +416,8 @@ services:
     secrets:
       - source: owner_database_url
         target: owner_database_url.v1
-      - source: witness_database_url
-        target: witness_database_url.v1
+      - source: witness_owner_database_url
+        target: witness_owner_database_url.v1
       - source: canonical_hmac_key
         target: canonical_hmac_key.v1
       - source: payload_encryption_key
@@ -432,6 +432,8 @@ services:
         condition: service_healthy
       postgres-witness:
         condition: service_healthy
+      witness-role-bootstrap:
+        condition: service_completed_successfully
     healthcheck:
       <<: *rust-healthcheck
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8084/health/ready"]
@@ -486,10 +488,12 @@ services:
     environment:
       POSTGRES_DB: coc_ai_trpg_witness
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --data-checksums
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_witness_password
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_witness_owner_password
       POSTGRES_USER: trpg_witness_owner
     secrets:
-      - postgres_witness_password
+      - postgres_witness_owner_password
+      - postgres_witness_append_password
+      - postgres_witness_read_password
       - postgres_tls_certificate
       - postgres_tls_private_key
     configs:
@@ -514,6 +518,37 @@ services:
     healthcheck:
       <<: *rust-healthcheck
       test: ["CMD-SHELL", "pg_isready -U trpg_witness_owner -d coc_ai_trpg_witness"]
+
+  witness-role-bootstrap:
+    image: postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    restart: "no"
+    user: postgres
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    environment:
+      PGHOST: postgres-witness
+      PGPORT: "5432"
+      PGDATABASE: coc_ai_trpg_witness
+      PGUSER: trpg_witness_owner
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /run/secrets/postgres_ca_certificate
+      PGCONNECT_TIMEOUT: "10"
+    secrets:
+      - postgres_witness_owner_password
+      - postgres_ca_certificate
+    configs:
+      - source: postgres_witness_runtime_roles
+        target: /usr/local/bin/witness-runtime-roles.sh
+        mode: 0555
+    entrypoint: ["/bin/sh", "/usr/local/bin/witness-runtime-roles.sh"]
+    networks:
+      - backend
+    depends_on:
+      postgres-witness:
+        condition: service_healthy
 
   redis:
     image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
@@ -662,9 +697,15 @@ secrets:
   postgres_bootstrap_password:
     external: true
     name: ${TRPG_POSTGRES_BOOTSTRAP_PASSWORD_SECRET:-trpg_postgres_bootstrap_password}
-  postgres_witness_password:
+  postgres_witness_owner_password:
     external: true
-    name: ${TRPG_POSTGRES_WITNESS_PASSWORD_SECRET:-trpg_postgres_witness_password}
+    name: ${TRPG_POSTGRES_WITNESS_OWNER_PASSWORD_SECRET:-trpg_postgres_witness_owner_password}
+  postgres_witness_append_password:
+    external: true
+    name: ${TRPG_POSTGRES_WITNESS_APPEND_PASSWORD_SECRET:-trpg_postgres_witness_append_password}
+  postgres_witness_read_password:
+    external: true
+    name: ${TRPG_POSTGRES_WITNESS_READ_PASSWORD_SECRET:-trpg_postgres_witness_read_password}
   postgres_api_password:
     external: true
     name: ${TRPG_POSTGRES_API_PASSWORD_SECRET:-trpg_postgres_api_password}
@@ -692,9 +733,15 @@ secrets:
   realtime_database_url:
     external: true
     name: ${TRPG_REALTIME_DATABASE_URL_SECRET:-trpg_realtime_database_url}
-  witness_database_url:
+  witness_owner_database_url:
     external: true
-    name: ${TRPG_WITNESS_DATABASE_URL_SECRET:-trpg_witness_database_url}
+    name: ${TRPG_WITNESS_OWNER_DATABASE_URL_SECRET:-trpg_witness_owner_database_url}
+  witness_append_database_url:
+    external: true
+    name: ${TRPG_WITNESS_APPEND_DATABASE_URL_SECRET:-trpg_witness_append_database_url}
+  witness_read_database_url:
+    external: true
+    name: ${TRPG_WITNESS_READ_DATABASE_URL_SECRET:-trpg_witness_read_database_url}
   identity_signing_key:
     external: true
     name: ${TRPG_IDENTITY_SIGNING_KEY_SECRET:-trpg_identity_signing_key}
@@ -803,6 +850,8 @@ configs:
     file: ./config/postgres/pg_hba.conf
   postgres_witness_hba:
     file: ./config/postgres/witness_pg_hba.conf
+  postgres_witness_runtime_roles:
+    file: ./config/postgres/witness-runtime-roles.sh
   postgres_security_roles:
     file: ./config/postgres/001-security-roles.sql
   postgres_application_role:

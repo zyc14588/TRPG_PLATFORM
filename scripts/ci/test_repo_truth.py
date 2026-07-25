@@ -37,9 +37,74 @@ from verify_test_inventory import (
     integration_test_silent_env_successes,
     inventory,
 )
+from verify_compose_security import errors as compose_security_errors
 
 
 class RepositoryTruthNegativeTests(unittest.TestCase):
+    def test_runtime_witness_owner_credential_injection_is_rejected(self) -> None:
+        compose_path = ROOT / "compose.yml"
+        original_read_text = Path.read_text
+        original_compose = original_read_text(compose_path, encoding="utf-8")
+        tampered_compose = original_compose.replace(
+            "TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_append_database_url",
+            "TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_owner_database_url",
+            1,
+        ).replace(
+            "- source: witness_append_database_url\n"
+            "        target: witness_append_database_url.v1",
+            "- source: witness_owner_database_url\n"
+            "        target: witness_owner_database_url.v1",
+            1,
+        )
+        self.assertNotEqual(tampered_compose, original_compose)
+
+        def tampered_read_text(
+            path: Path, *args: object, **kwargs: object
+        ) -> str:
+            if path == compose_path:
+                return tampered_compose
+            return original_read_text(path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", tampered_read_text):
+            found = compose_security_errors(ROOT)
+        self.assertIn(
+            "api does not select its least-privilege witness URL: "
+            "witness_append_database_url",
+            found,
+        )
+        self.assertIn(
+            "api also receives forbidden witness URL: witness_owner_database_url",
+            found,
+        )
+
+    def test_mutable_witness_runtime_grant_is_rejected(self) -> None:
+        migration_path = (
+            ROOT
+            / "migrations/witness/20260726000100_restrict_witness_runtime_privileges.up.sql"
+        )
+        original_read_text = Path.read_text
+        original_migration = original_read_text(migration_path, encoding="utf-8")
+        tampered_migration = original_migration.replace(
+            "GRANT SELECT, INSERT ON TABLE external_audit_witness",
+            "GRANT SELECT, INSERT, UPDATE ON TABLE external_audit_witness",
+            1,
+        )
+        self.assertNotEqual(tampered_migration, original_migration)
+
+        def tampered_read_text(
+            path: Path, *args: object, **kwargs: object
+        ) -> str:
+            if path == migration_path:
+                return tampered_migration
+            return original_read_text(path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", tampered_read_text):
+            found = compose_security_errors(ROOT)
+        self.assertIn(
+            "witness runtime migration grants mutable/owner privileges",
+            found,
+        )
+
     def test_openfga_version_normalization_preserves_real_version_drift(self) -> None:
         command = ["docker", "exec", "trpg-openfga", "/openfga", "version"]
         first = (

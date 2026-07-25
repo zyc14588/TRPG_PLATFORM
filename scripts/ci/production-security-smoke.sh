@@ -92,6 +92,30 @@ copy_secret() {
   install -m 0600 "$source" "$secret_directory/$name"
 }
 
+witness_query() {
+  local role="$1"
+  local password="$2"
+  local statement="$3"
+  PGPASSWORD="$password" \
+    PGSSLMODE=verify-full \
+    PGSSLROOTCERT="$runtime_directory/ca.crt" \
+    psql -X -A -t --set=ON_ERROR_STOP=1 \
+      -h localhost -p 25433 -U "$role" -d coc_ai_trpg_witness \
+      -c "$statement"
+}
+
+expect_witness_denied() {
+  local role="$1"
+  local password="$2"
+  local operation="$3"
+  local statement="$4"
+  if witness_query "$role" "$password" "$statement" >/dev/null 2>&1; then
+    printf 'PostgreSQL witness runtime role unexpectedly allowed %s: %s\n' \
+      "$operation" "$role" >&2
+    exit 1
+  fi
+}
+
 wait_for_task_container() {
   local service_name="$1"
   local previous_container="${2:-}"
@@ -141,7 +165,9 @@ issue_certificate redis_healthcheck redis-healthcheck clientAuth "DNS:redis-heal
 issue_certificate nats_client nats-client clientAuth "DNS:nats-client"
 
 postgres_owner_password="$(openssl rand -hex 24)"
-postgres_witness_password="$(openssl rand -hex 24)"
+postgres_witness_owner_password="$(openssl rand -hex 24)"
+postgres_witness_append_password="$(openssl rand -hex 24)"
+postgres_witness_read_password="$(openssl rand -hex 24)"
 postgres_api_password="$(openssl rand -hex 24)"
 postgres_canonical_password="$(openssl rand -hex 24)"
 postgres_worker_password="$(openssl rand -hex 24)"
@@ -153,7 +179,9 @@ minio_user="trpg_runtime_smoke"
 minio_password="$(openssl rand -hex 24)"
 
 write_secret postgres_bootstrap_password "$postgres_owner_password"
-write_secret postgres_witness_password "$postgres_witness_password"
+write_secret postgres_witness_owner_password "$postgres_witness_owner_password"
+write_secret postgres_witness_append_password "$postgres_witness_append_password"
+write_secret postgres_witness_read_password "$postgres_witness_read_password"
 write_secret postgres_api_password "$postgres_api_password"
 write_secret postgres_canonical_password "$postgres_canonical_password"
 write_secret postgres_worker_password "$postgres_worker_password"
@@ -168,8 +196,12 @@ write_secret worker_database_url \
   "postgresql://trpg_worker_login:$postgres_worker_password@postgres:5432/coc_ai_trpg?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca_certificate"
 write_secret realtime_database_url \
   "postgresql://trpg_realtime_login:$postgres_realtime_password@postgres:5432/coc_ai_trpg?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca_certificate"
-write_secret witness_database_url \
-  "postgresql://trpg_witness_owner:$postgres_witness_password@postgres-witness:5432/coc_ai_trpg_witness?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca_certificate"
+write_secret witness_owner_database_url \
+  "postgresql://trpg_witness_owner:$postgres_witness_owner_password@postgres-witness:5432/coc_ai_trpg_witness?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca_certificate"
+write_secret witness_append_database_url \
+  "postgresql://trpg_witness_append_login:$postgres_witness_append_password@postgres-witness:5432/coc_ai_trpg_witness?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca_certificate"
+write_secret witness_read_database_url \
+  "postgresql://trpg_witness_read_login:$postgres_witness_read_password@postgres-witness:5432/coc_ai_trpg_witness?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca_certificate"
 write_secret identity_signing_key "$(openssl rand -hex 32)"
 write_secret canonical_hmac_key "$(openssl rand -hex 32)"
 write_secret payload_encryption_key "$(openssl rand -hex 32)"
@@ -233,6 +265,7 @@ python3 "$root/scripts/ci/verify_compose_security.py" --check
 "${compose_command[@]}" pull postgres postgres-witness redis nats minio minio-init
 "${compose_command[@]}" up --detach --wait --wait-timeout 240 \
   postgres postgres-witness redis nats minio
+"${compose_command[@]}" run --rm witness-role-bootstrap
 "${compose_command[@]}" run --rm minio-init
 
 if PGPASSWORD="$postgres_api_password" PGSSLMODE=disable \
@@ -254,18 +287,18 @@ if [[ "$postgres_tls" != t ]]; then
   exit 1
 fi
 
-if PGPASSWORD="$postgres_witness_password" PGSSLMODE=disable \
-  psql -X -h localhost -p 25433 -U trpg_witness_owner -d coc_ai_trpg_witness \
+if PGPASSWORD="$postgres_witness_append_password" PGSSLMODE=disable \
+  psql -X -h localhost -p 25433 -U trpg_witness_append_login -d coc_ai_trpg_witness \
   -c "SELECT 1" >/dev/null 2>&1; then
   printf 'PostgreSQL witness accepted a plaintext TCP connection\n' >&2
   exit 1
 fi
 witness_tls="$(
-  PGPASSWORD="$postgres_witness_password" \
+  PGPASSWORD="$postgres_witness_append_password" \
   PGSSLMODE=verify-full \
   PGSSLROOTCERT="$runtime_directory/ca.crt" \
   psql -X -A -t -h localhost -p 25433 \
-    -U trpg_witness_owner -d coc_ai_trpg_witness \
+    -U trpg_witness_append_login -d coc_ai_trpg_witness \
     -c "SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()"
 )"
 if [[ "$witness_tls" != t ]]; then
@@ -378,6 +411,185 @@ curl --fail --silent --show-error \
 # the full graph to start from exactly those local images.
 "${compose_command[@]}" build api web
 "${compose_command[@]}" up --detach --no-build --wait --wait-timeout 600
+
+# Seed an existing-volume privilege regression, then require the idempotent
+# bootstrap to remove every direct grant, dangerous role flag, role setting,
+# and owner membership. The exact matrices below prove the repair took effect.
+witness_query trpg_witness_owner "$postgres_witness_owner_password" "
+GRANT CREATE, TEMPORARY ON DATABASE coc_ai_trpg_witness
+    TO trpg_witness_read_login;
+GRANT CREATE ON SCHEMA public TO trpg_witness_read_login;
+GRANT UPDATE, DELETE, TRUNCATE ON TABLE external_audit_witness
+    TO trpg_witness_append_login;
+GRANT INSERT ON TABLE external_audit_witness TO trpg_witness_read_login;
+GRANT trpg_witness_owner TO trpg_witness_append_login;
+ALTER ROLE trpg_witness_append_login CREATEDB CREATEROLE BYPASSRLS;
+ALTER ROLE trpg_witness_append_login SET search_path = pg_catalog;
+" >/dev/null
+"${compose_command[@]}" run --rm witness-role-bootstrap
+
+append_privileges="$(
+  witness_query trpg_witness_append_login "$postgres_witness_append_password" "
+SELECT concat_ws(
+    '|',
+    current_user,
+    has_database_privilege(current_user, current_database(), 'CONNECT'),
+    has_database_privilege(current_user, current_database(), 'CREATE'),
+    has_database_privilege(current_user, current_database(), 'TEMPORARY'),
+    has_schema_privilege(current_user, 'public', 'USAGE'),
+    has_schema_privilege(current_user, 'public', 'CREATE'),
+    has_table_privilege(current_user, 'public.external_audit_witness', 'SELECT'),
+    has_table_privilege(current_user, 'public.external_audit_witness', 'INSERT'),
+    has_table_privilege(current_user, 'public.external_audit_witness', 'UPDATE'),
+    has_table_privilege(current_user, 'public.external_audit_witness', 'DELETE'),
+    has_table_privilege(current_user, 'public.external_audit_witness', 'TRUNCATE'),
+    pg_has_role(current_user, 'trpg_witness_owner', 'MEMBER'),
+    pg_has_role(current_user, 'trpg_witness_append_service', 'MEMBER'),
+    pg_has_role(current_user, 'trpg_witness_read_service', 'MEMBER'),
+    rolsuper,
+    rolcreatedb,
+    rolcreaterole,
+    rolreplication,
+    rolbypassrls
+)
+FROM pg_roles
+WHERE rolname = current_user;
+"
+)"
+expected_append_privileges="trpg_witness_append_login|t|f|f|t|f|t|t|f|f|f|f|t|f|f|f|f|f|f"
+if [[ "$append_privileges" != "$expected_append_privileges" ]]; then
+  printf 'PostgreSQL witness append privilege matrix is not least-privilege: %s\n' \
+    "$append_privileges" >&2
+  exit 1
+fi
+
+read_privileges="$(
+  witness_query trpg_witness_read_login "$postgres_witness_read_password" "
+SELECT concat_ws(
+    '|',
+    current_user,
+    has_database_privilege(current_user, current_database(), 'CONNECT'),
+    has_database_privilege(current_user, current_database(), 'CREATE'),
+    has_database_privilege(current_user, current_database(), 'TEMPORARY'),
+    has_schema_privilege(current_user, 'public', 'USAGE'),
+    has_schema_privilege(current_user, 'public', 'CREATE'),
+    has_table_privilege(current_user, 'public.external_audit_witness', 'SELECT'),
+    has_table_privilege(current_user, 'public.external_audit_witness', 'INSERT'),
+    has_table_privilege(current_user, 'public.external_audit_witness', 'UPDATE'),
+    has_table_privilege(current_user, 'public.external_audit_witness', 'DELETE'),
+    has_table_privilege(current_user, 'public.external_audit_witness', 'TRUNCATE'),
+    pg_has_role(current_user, 'trpg_witness_owner', 'MEMBER'),
+    pg_has_role(current_user, 'trpg_witness_append_service', 'MEMBER'),
+    pg_has_role(current_user, 'trpg_witness_read_service', 'MEMBER'),
+    rolsuper,
+    rolcreatedb,
+    rolcreaterole,
+    rolreplication,
+    rolbypassrls
+)
+FROM pg_roles
+WHERE rolname = current_user;
+"
+)"
+expected_read_privileges="trpg_witness_read_login|t|f|f|t|f|t|f|f|f|f|f|f|t|f|f|f|f|f"
+if [[ "$read_privileges" != "$expected_read_privileges" ]]; then
+  printf 'PostgreSQL witness read privilege matrix is not least-privilege: %s\n' \
+    "$read_privileges" >&2
+  exit 1
+fi
+
+witness_query trpg_witness_read_login "$postgres_witness_read_password" \
+  "SELECT count(*) FROM external_audit_witness;" >/dev/null
+
+witness_query trpg_witness_append_login "$postgres_witness_append_password" "
+BEGIN;
+INSERT INTO external_audit_witness (
+    sequence,
+    commit_id,
+    phase,
+    primary_request_hash,
+    primary_first_sequence,
+    primary_last_sequence,
+    reason,
+    integrity_key_id,
+    previous_hash,
+    record_hash
+)
+SELECT
+    0,
+    'runtime-privilege-probe-' || txid_current()::text,
+    'PREPARED',
+    'sha256:' || lpad(to_hex(txid_current()), 64, '0'),
+    NULL,
+    NULL,
+    'least-privilege smoke probe',
+    'runtime-privilege-probe',
+    COALESCE(
+        (
+            SELECT record_hash
+            FROM external_audit_witness
+            ORDER BY sequence DESC
+            LIMIT 1
+        ),
+        'hmac-sha256:' || repeat('0', 64)
+    ),
+    'hmac-sha256:' || lpad(to_hex(txid_current()), 64, '0');
+ROLLBACK;
+" >/dev/null
+
+expect_witness_denied \
+  trpg_witness_append_login "$postgres_witness_append_password" update \
+  "BEGIN; UPDATE external_audit_witness SET reason = reason WHERE false; ROLLBACK;"
+expect_witness_denied \
+  trpg_witness_append_login "$postgres_witness_append_password" delete \
+  "BEGIN; DELETE FROM external_audit_witness WHERE false; ROLLBACK;"
+expect_witness_denied \
+  trpg_witness_append_login "$postgres_witness_append_password" truncate \
+  "BEGIN; TRUNCATE TABLE external_audit_witness; ROLLBACK;"
+expect_witness_denied \
+  trpg_witness_append_login "$postgres_witness_append_password" drop-table \
+  "BEGIN; DROP TABLE external_audit_witness; ROLLBACK;"
+expect_witness_denied \
+  trpg_witness_append_login "$postgres_witness_append_password" create-table \
+  "BEGIN; CREATE TABLE witness_privilege_escape_probe(id integer); ROLLBACK;"
+expect_witness_denied \
+  trpg_witness_read_login "$postgres_witness_read_password" insert \
+  "
+BEGIN;
+INSERT INTO external_audit_witness (
+    sequence,
+    commit_id,
+    phase,
+    primary_request_hash,
+    primary_first_sequence,
+    primary_last_sequence,
+    reason,
+    integrity_key_id,
+    previous_hash,
+    record_hash
+)
+SELECT
+    0,
+    'read-privilege-escape-' || txid_current()::text,
+    'PREPARED',
+    'sha256:' || lpad(to_hex(txid_current()), 64, '0'),
+    NULL,
+    NULL,
+    'read privilege escape probe',
+    'runtime-privilege-probe',
+    COALESCE(
+        (
+            SELECT record_hash
+            FROM external_audit_witness
+            ORDER BY sequence DESC
+            LIMIT 1
+        ),
+        'hmac-sha256:' || repeat('0', 64)
+    ),
+    'hmac-sha256:' || lpad(to_hex(txid_current()), 64, '0');
+ROLLBACK;
+"
+
 plaintext_proxy_status="$(
   curl --silent --output /dev/null \
     --write-out '%{http_code} %{redirect_url}' http://localhost:8080/ || true
@@ -441,4 +653,4 @@ if [[ "$mounted_v2" != "$expected_v2" ]]; then
 fi
 docker secret rm "$swarm_secret_v1" >/dev/null
 
-printf 'production security smoke: full product graph, TLS, Redis/NATS mTLS, certificate rotation, and external-secret rotation passed\n'
+printf 'production security smoke: full product graph, witness least privilege, TLS, Redis/NATS mTLS, certificate rotation, and external-secret rotation passed\n'

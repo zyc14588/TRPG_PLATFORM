@@ -30,9 +30,15 @@ secrets:
   postgres_bootstrap_password:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_bootstrap_password
-  postgres_witness_password:
+  postgres_witness_owner_password:
     external: false
-    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_witness_password
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_witness_owner_password
+  postgres_witness_append_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_witness_append_password
+  postgres_witness_read_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_witness_read_password
   postgres_api_password:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_api_password
@@ -60,9 +66,15 @@ secrets:
   realtime_database_url:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/realtime_database_url
-  witness_database_url:
+  witness_owner_database_url:
     external: false
-    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/witness_database_url
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/witness_owner_database_url
+  witness_append_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/witness_append_database_url
+  witness_read_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/witness_read_database_url
   identity_signing_key:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/identity_signing_key
