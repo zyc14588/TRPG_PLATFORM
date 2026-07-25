@@ -213,8 +213,8 @@ fn canonical_store_from_environment(
         .ok_or_else(|| "CANONICAL_STORE_CONNECTION_NOT_ATTEMPTED".to_owned())?
         .map_err(|error| format!("CANONICAL_STORE_CONNECTION_FAILED:{error}"))?;
     runtime
-        .block_on(store.prepare_for_service())
-        .map_err(|error| format!("CANONICAL_STORE_RECOVERY_FAILED:{error}"))?;
+        .block_on(store.verify_integrity())
+        .map_err(|error| format!("CANONICAL_STORE_NOT_READY:{error}"))?;
     Ok((runtime, store))
 }
 
@@ -238,18 +238,20 @@ fn identity_from_secrets(
     let database_result = configuration.database_url.expose_utf8_to(|database| {
         configuration.redis_url.expose_utf8_to(|redis| {
             configuration.signing_key.expose_to(|key| {
-                identity = Some(IdentityService::from_postgres_with_security_and_redis_tls(
-                    database,
-                    configuration.postgres_ca,
-                    redis,
-                    configuration.redis_namespace,
-                    key,
-                    configuration.session_ttl_ms,
-                    configuration.argon2_concurrency,
-                    configuration.redis_ca,
-                    configuration.redis_client_certificate,
-                    configuration.redis_client_private_key,
-                ));
+                identity = Some(
+                    IdentityService::from_prepared_postgres_with_security_and_redis_tls(
+                        database,
+                        configuration.postgres_ca,
+                        redis,
+                        configuration.redis_namespace,
+                        key,
+                        configuration.session_ttl_ms,
+                        configuration.argon2_concurrency,
+                        configuration.redis_ca,
+                        configuration.redis_client_certificate,
+                        configuration.redis_client_private_key,
+                    ),
+                );
             });
         })
     });

@@ -6,6 +6,8 @@ DO $$
 DECLARE
     actual_columns TEXT[];
     constraint_signature TEXT;
+    expected_constraint_signature TEXT;
+    postgres_major INTEGER;
     trigger_signature TEXT;
     trigger_function_signature TEXT;
     invalid_commit TEXT;
@@ -22,6 +24,17 @@ BEGIN
     -- Make catalog deparsing deterministic for callers with a custom
     -- search_path. All canonical persistence objects live in public.
     PERFORM set_config('search_path', 'pg_catalog, public, pg_temp', true);
+    postgres_major := current_setting('server_version_num')::INTEGER / 10000;
+    expected_constraint_signature := CASE postgres_major
+        WHEN 16 THEN '59d8ffeb4e0d69daf77dd3ee52293e54'
+        WHEN 18 THEN 'fb2c2e2c4235b06e356bdfbfa18b0d93'
+        ELSE NULL
+    END;
+    IF expected_constraint_signature IS NULL THEN
+        RAISE EXCEPTION
+            'unsupported PostgreSQL major for schema fingerprint: %',
+            postgres_major;
+    END IF;
 
     IF to_regclass('public._sqlx_migrations') IS NULL THEN
         RAISE EXCEPTION 'SQLx migration ledger is missing';
@@ -936,9 +949,10 @@ BEGIN
            'canonical_audit_log'::regclass, 'rag_snapshot_chunk'::regclass
        );
     IF constraint_signature IS NULL
-       OR constraint_signature <> 'fb2c2e2c4235b06e356bdfbfa18b0d93' THEN
-        RAISE EXCEPTION 'event persistence constraint relation/definition signature drifted: %',
-            constraint_signature;
+       OR constraint_signature <> expected_constraint_signature THEN
+        RAISE EXCEPTION
+            'event persistence constraint relation/definition signature drifted on PostgreSQL %: %',
+            postgres_major, constraint_signature;
     END IF;
 
     SELECT md5(string_agg(

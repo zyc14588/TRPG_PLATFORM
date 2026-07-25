@@ -26,7 +26,7 @@ libpq_service_file="$backup_directory/pg_service.conf"
 minio_access_key="trpg_ci_access"
 minio_secret_key="trpg_ci_secret_key_20260725"
 minio_bucket="trpg-ci-deletion"
-tls_hostname="trpg-ci-postgres-tls"
+tls_hostname="localhost"
 postgres_password="$(openssl rand -hex 24)"
 
 openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
@@ -166,10 +166,6 @@ docker exec trpg-tls-postgres psql -v ON_ERROR_STOP=1 -U postgres -d p02_tls_ide
   -c "ALTER SYSTEM SET hba_file = '/var/lib/postgresql/tls/pg_hba.conf'" >/dev/null
 docker restart trpg-tls-postgres >/dev/null
 wait_for_postgres trpg-tls-postgres p02_tls_identity
-if ! getent hosts "$tls_hostname" >/dev/null 2>&1; then
-  printf '127.0.0.1 %s\n' "$tls_hostname" | sudo tee -a /etc/hosts >/dev/null
-fi
-
 redis_ready=false
 for _ in $(seq 1 120); do
   if [[ "$(docker exec trpg-redis redis-cli ping 2>/dev/null || true)" == PONG ]]; then

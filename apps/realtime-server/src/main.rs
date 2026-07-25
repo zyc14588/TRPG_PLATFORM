@@ -120,11 +120,14 @@ impl RealtimeRuntime {
         let cache_secret = secret_manager
             .resolve(&cache_reference)
             .map_err(|_| "REDIS_CACHE_KEY_RESOLUTION_FAILED".to_owned())?;
+        let cache_key = cache_secret
+            .to_key32()
+            .map_err(|_| "REDIS_CACHE_KEY_INVALID".to_owned())?;
         let cache_key_reference = format!("{}-v{}", cache_secret_id, cache_secret_version);
         let mut cache_connection = None;
         redis_url
             .expose_utf8_to(|redis| {
-                cache_secret.expose_to(|cache_key| {
+                cache_key.expose_to(|cache_key| {
                     cache_connection =
                         Some(runtime.block_on(RedisProjectionCache::connect_with_tls(
                             redis,

@@ -13,7 +13,23 @@ import urllib.request
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[2]
+def repository_root() -> Path:
+    configured = os.environ.get("TRPG_REPOSITORY_ROOT")
+    if configured:
+        return Path(configured).resolve()
+    script_path = Path(__file__).resolve()
+    for candidate in script_path.parents:
+        if (candidate / "Cargo.toml").is_file() and (
+            candidate / "policy/openfga/security_governance.json"
+        ).is_file():
+            return candidate
+    # Container deployments pass --model explicitly and mount the script in a
+    # shallow /bootstrap directory. Keep argument parsing usable there instead
+    # of indexing a parent that does not exist.
+    return script_path.parent
+
+
+ROOT = repository_root()
 
 
 def request_json(method: str, url: str, body: object | None = None) -> dict[str, object]:
@@ -136,7 +152,6 @@ def bootstrap(
             },
         )
     return {
-        "P02_DATABASE_URL": "postgresql://postgres@127.0.0.1:15432/p02_identity",
         "P02_OPENFGA_ADDRESS": openfga_address,
         "P02_OPENFGA_STORE_ID": store_id,
         "P02_OPENFGA_MODEL_ID": model_id,

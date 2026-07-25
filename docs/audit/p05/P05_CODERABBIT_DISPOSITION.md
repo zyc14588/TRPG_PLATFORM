@@ -5,6 +5,13 @@
 本文件只记录 CodeRabbit CLI 对当前未提交补丁的审查结果，不替代完整安全扫描，也不证明
 历史 P05 finding 实例全部关闭。
 
+> 当前状态通知（2026-07-26）：本文件以下内容是各审查时点的历史 disposition，不是当前批次
+> 终态。后续真实 production smoke 已覆盖完整服务图、TLS/mTLS、证书与 external-secret 轮换，
+> P04/P05 必需门禁也已重跑通过；当前 `P06_ENTRY = ALLOWED`。文中旧
+> `Docker runtime NOT_RUN`/`P06_ENTRY DENIED` 只描述当时状态。CodeRabbit raw artifact 仍然只是
+> session-local 历史 provenance，未被提升为 external/release attestation。当前权威结论见
+> `P05_FINAL_STATUS.md` 与 `P05_TEST_RESULTS.md`。
+
 ## 首轮审查
 
 首轮返回 16 项；15 项经当前代码确认有效并完成修复，1 项为误报。
@@ -155,9 +162,10 @@ post-fix 复审返回 1 项防伪元数据问题：
 | `CR-44` | primary HBA 的 `samenet` 应替换为固定 backend CIDR | 不采纳固定 CIDR，理由同 `CR-42`。primary 容器只连接同一个 internal backend，生产无端口；固定私网 CIDR不会缩小当前可达集合，反而会引入宿主路由冲突和一键部署可移植性问题 |
 | `P05-R17` | 使用 `sslrootcert=/run/secrets/postgres_ca_certificate` 的 realtime、agent-worker、migration-runner 没有挂载该 CA | 有效并修复。3 个服务均挂载 PostgreSQL trust anchor；静态 Compose 门禁和 S09 测试要求全部 4 个数据库客户端服务包含该 secret。聚焦验证为 S09 4/4 与 Compose security contract PASS |
 
-以上“不采纳”均基于当前文件内容和权威边界，不等于把 finding 隐藏为通过。若未来为 PostgreSQL
-正式引入 mTLS 或给数据库容器增加网络，必须同步修改顶层安全契约、角色证书生命周期、secret
-轮换、HBA 和运行态 smoke；当前 P06 仍因 Docker runtime 未执行而阻断。
+以上“不采纳”均基于该审查时点的文件内容和权威边界，不等于把 finding 隐藏为通过。若未来为
+PostgreSQL 正式引入 mTLS 或给数据库容器增加网络，必须同步修改顶层安全契约、角色证书生命
+周期、secret 轮换、HBA 和运行态 smoke。该段当时的 Docker/P06 阻断状态已由 2026-07-26 的
+真实 production smoke 与当前最终证据取代。
 
 ## Manifest 命名与测试库存边界复审
 

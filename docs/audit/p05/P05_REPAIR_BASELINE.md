@@ -2,6 +2,12 @@
 
 记录日期：2026-07-25（Australia/Brisbane）
 
+> 这是修复开始时的历史基线，不是当前验收终态。2026-07-26 已完成步骤 1–6 的当前真实复验，
+> 包含完整 production TLS/mTLS、证书与 external-secret 轮换；P05 当前为 `COMPLETE`，
+> `P06_ENTRY = ALLOWED`。Hosted CI、commit-bound machine evidence 和 final external review
+> 仍是发布级 `NOT_RUN/NOT_ATTESTED`，没有被写成 PASS。当前权威结论见
+> `P05_FINAL_STATUS.md`。
+
 ```text
 REPAIR_BASE_HEAD = dbbc91d58f29c38c9153567609e594fe77cfdee5
 BRANCH = agent/p03-p05-review
@@ -53,8 +59,7 @@ checkpoint；本轮不能事后重写该历史事实。
 6. 在具备 Docker daemon 的环境运行生产 TLS/mTLS、external secret、轮换和完整服务图。
 7. 生成绑定干净提交的机器证据，运行 Hosted CI 和最终审查。
 
-截至本文件记录时，步骤 1–5 只在当前 staged、未提交 patch 上本地执行并观察到相应退出码；
-这些 session-local 输出没有持久化为绑定当前候选 commit 的 raw output/JUnit 机器证据，因此
-状态只能记为 `LOCAL_EXECUTED_NOT_RELEASE_ATTESTED`，不能记为发布验证完成。步骤 6 为
-`NOT_RUN`；步骤 7 因尚无候选 commit、Hosted CI 和持久化外部审查结果而为
-`BLOCKED/NOT_RUN`。故不得据此进入 P06。
+在 2026-07-25 本基线最初记录时，步骤 1–5 只在未提交 patch 上本地执行，步骤 6–7 尚未执行；
+该历史状态不能冒充当前结论。2026-07-26 后续复验已使步骤 1–6 通过，且 P05/P06 批次准入
+条件满足。步骤 7 的 Hosted CI、commit-bound raw output/JUnit 和最终外部审查仍为
+`RELEASE_ONLY_NOT_RUN/NOT_ATTESTED`，所以仍不得由本基线宣称“产品发布完成”。

@@ -199,6 +199,9 @@ impl JetStreamOutboxPublisher {
             .name(worker_id)
             .require_tls(tls_nats || !local_nats)
             .connection_timeout(Duration::from_secs(5));
+        if tls_nats {
+            options = options.tls_first();
+        }
         if let Some(path) = nats_ca_certificate_path {
             options = options.add_root_certificates(path.to_path_buf());
         }
@@ -461,6 +464,8 @@ fn canonical_stream_config() -> StreamConfig {
 fn stream_config_matches(actual: &StreamConfig, desired: &StreamConfig) -> bool {
     let mut actual_subjects = actual.subjects.clone();
     let mut desired_subjects = desired.subjects.clone();
+    let mut actual_application_metadata = actual.metadata.clone();
+    actual_application_metadata.retain(|key, _| !is_nats_server_versioning_metadata(key));
     actual_subjects.sort_unstable();
     desired_subjects.sort_unstable();
     actual.name == desired.name
@@ -489,13 +494,22 @@ fn stream_config_matches(actual: &StreamConfig, desired: &StreamConfig) -> bool 
         && actual.mirror_direct == desired.mirror_direct
         && actual.mirror == desired.mirror
         && actual.sources == desired.sources
-        && actual.metadata == desired.metadata
+        // NATS 2.12+ annotates assets with its own API/version metadata when
+        // returning them. Those three exact keys are server-owned response
+        // data, not mutable application stream policy. Keep every other
+        // metadata key fail-closed so operator or application drift is still
+        // rejected.
+        && actual_application_metadata == desired.metadata
         && actual.subject_transform == desired.subject_transform
         && actual.compression == desired.compression
         && actual.consumer_limits == desired.consumer_limits
         && actual.first_sequence == desired.first_sequence
         && actual.placement == desired.placement
         && actual.persist_mode == desired.persist_mode
+}
+
+fn is_nats_server_versioning_metadata(key: &str) -> bool {
+    matches!(key, "_nats.req.level" | "_nats.ver" | "_nats.level")
 }
 
 fn event_envelope(
@@ -1023,6 +1037,21 @@ mod tests {
         let desired = canonical_stream_config();
         assert!(stream_config_matches(&desired, &desired));
 
+        let mut server_annotated = desired.clone();
+        server_annotated
+            .metadata
+            .insert("_nats.req.level".to_owned(), "0".to_owned());
+        server_annotated
+            .metadata
+            .insert("_nats.ver".to_owned(), "2.14.3".to_owned());
+        server_annotated
+            .metadata
+            .insert("_nats.level".to_owned(), "4".to_owned());
+        assert!(
+            stream_config_matches(&server_annotated, &desired),
+            "NATS-owned version metadata must not be confused with application policy drift"
+        );
+
         let mut variants = Vec::new();
         let mut changed = desired.clone();
         changed.subjects = vec!["trpg.events.appended".to_owned()];
@@ -1058,6 +1087,11 @@ mod tests {
         changed
             .metadata
             .insert("owner".to_owned(), "unexpected".to_owned());
+        variants.push(changed);
+        let mut changed = desired.clone();
+        changed
+            .metadata
+            .insert("_nats.unexpected".to_owned(), "unexpected".to_owned());
         variants.push(changed);
         let mut changed = desired.clone();
         changed.subject_transform = Some(async_nats::jetstream::stream::SubjectTransform {

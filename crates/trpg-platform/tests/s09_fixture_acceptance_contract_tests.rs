@@ -13,6 +13,8 @@ const DEV_SMOKE: &str = include_str!("../../../scripts/dev/smoke.ps1");
 const PROCESS_SMOKE: &str = include_str!("../../../scripts/ci/service-process-smoke.sh");
 const PRODUCTION_SECURITY_SMOKE: &str =
     include_str!("../../../scripts/ci/production-security-smoke.sh");
+const AGENT_WORKER: &str = include_str!("../../../apps/agent-worker/src/main.rs");
+const API_SERVER: &str = include_str!("../../../apps/api-server/src/main.rs");
 
 fn top_level_mapping_entry<'a>(document: &'a str, section: &str, entry: &str) -> &'a str {
     let section_marker = format!("{section}:");
@@ -101,6 +103,10 @@ fn s09_compose_builds_real_services_and_local_policy_sidecars() {
             "-f \"$root/docker-compose.ci.yml\"",
         ]
     );
+    assert!(PRODUCTION_SECURITY_SMOKE.contains("\"${compose_command[@]}\" build api web"));
+    assert!(PRODUCTION_SECURITY_SMOKE
+        .contains("\"${compose_command[@]}\" up --detach --no-build --wait"));
+    assert!(!PRODUCTION_SECURITY_SMOKE.contains("up --detach --build"));
     for secret in [
         "nats_url",
         "nats_authorization",
@@ -169,6 +175,28 @@ fn s09_compose_builds_real_services_and_local_policy_sidecars() {
     assert!(!COMPOSE.contains("not_implemented"));
     assert!(!CI_COMPOSE.contains("coc_ai_trpg.placeholder"));
     assert!(!CI_COMPOSE.contains("not_implemented"));
+    assert!(
+        !AGENT_WORKER.contains("workflow.apply_migration()"),
+        "the least-privileged worker must not execute owner migrations"
+    );
+    for (service, source) in [("api", API_SERVER), ("agent-worker", AGENT_WORKER)] {
+        assert!(
+            !source.contains(".prepare_for_service()"),
+            "{service} must not execute canonical owner migrations/recovery"
+        );
+    }
+    assert!(
+        API_SERVER.contains("IdentityService::from_prepared_postgres_with_security_and_redis_tls("),
+        "the API must connect to the identity schema prepared by the migration runner"
+    );
+    assert!(
+        !API_SERVER.contains("IdentityService::from_postgres_with_security_and_redis_tls("),
+        "the API must not invoke the identity constructor that executes owner migrations"
+    );
+    assert!(
+        !AGENT_WORKER.contains("deletion_repository.migrate()"),
+        "the least-privileged worker must not execute deletion migrations"
+    );
     assert!(DEV_SMOKE.contains("release_readiness.py"));
     assert!(DEV_SMOKE.contains("X-Smoke-Challenge"));
     assert!(DEV_SMOKE.contains("$response.placeholder -eq $true"));

@@ -1,70 +1,48 @@
-# P05 问题修复追溯
+# P05 主责问题修复追溯
 
-记录日期：2026-07-25（Australia/Brisbane）
+记录日期：2026-07-26（Australia/Brisbane）
 
 ```text
-REPAIR_BASE_HEAD = dbbc91d58f29c38c9153567609e594fe77cfdee5
-CURRENT_CONTROL_REPAIR = LOCAL_EXECUTED_NOT_RELEASE_ATTESTED
-ORIGINAL_FINDING_INSTANCE_COMPLETENESS = UNPROVEN
-P06_ENTRY = DENIED
+REVALIDATION_BASE_HEAD = 63e708afe3560a419fe66afbb6f55dc99e79e175
+PRIMARY_AUD_COUNT = 9
+CLOSED_PASS = 9
+BLOCKED = 0
+P06_ENTRY = ALLOWED
 ```
 
-## 当前控制覆盖
+本表只关闭外部 P05 提示词明确列出的九个 AUD，不从已丢失的历史扫描临时文件猜测额外实例。
+每一行同时列出实现、正向/负向测试与当前状态。
 
-| 控制面 | 主要实现位置 | 当前验证 |
-| --- | --- | --- |
-| Canonical Event Store、Outbox、payload cipher | `trpg-data-eventing` normalized owner | P03 migration、P04 Event Store/Outbox/Projection/RAG、全工作区测试通过 |
-| Privacy、deletion、cloud consent/egress | `trpg-security-governance` normalized owner | deletion 8 项、cloud egress、policy fail-closed、platform privacy 14 项通过 |
-| PostgreSQL/Redis/NATS/MinIO 多 surface 删除 | security-governance adapters + 真实临时服务 | PostgreSQL primary/witness、Redis、NATS JetStream、MinIO 实测通过 |
-| OpenFGA/OPA 一致授权 | security-governance policy adapter | 真实 OpenFGA/OPA 12 项及 OPA 16/16 通过 |
-| TLS、mTLS 和凭据边界 | identity/data-eventing client + Compose secrets | PostgreSQL verify-full TLS 实测；全部数据库客户端的 CA mount 有静态/S09 约束；Redis/NATS unit/static 通过；生产容器 mTLS 未运行 |
-| 备份恢复 | `trpg-ops` | PostgreSQL 18 custom archive、独立目标连续两次恢复、计数核对、篡改拒绝通过 |
-| 证据与 false-green 防护 | `scripts/ci/repo_truth.py`、manifest、inventory、readiness | Python 19/19，覆盖裸 skip 状态、跨行不拼接、逐测试环境控制边界和静态工作流检查 |
-| 发布环境安全 | production Compose + runtime smoke | 两种 Compose config 解析和静态安全契约通过；Docker runtime 未运行 |
+| AUD | 实现证据 | 测试与负向证据 | 状态 |
+| --- | --- | --- | --- |
+| `AUD-011` | `trpg-shared-kernel/src/shared_kernel.rs` 的 `VisibilityLabel`、`Visibility`、`PrincipalScope`；支持 player/group/spectator/system 组合 | `derived_visibility_matrix` 全处理者×来源×目标受众矩阵；shared-kernel 与 visibility leakage 回归证明严格度不降级 | `CLOSED_PASS` |
+| `AUD-023` | 私密标签携带非空 `EntityId`；`Visibility::try_from_parts` 对缺失 subject fail closed，反序列化走相同校验 | shared-kernel 构造/serde 负例拒绝无目标 `PrivateToPlayer`、`PrivateToGroup`、`InvestigatorPrivate` | `CLOSED_PASS` |
+| `AUD-024` | `trpg-security-governance/src/derived_visibility.rs` 统一按来源与目标受众求交；`agent_runtime.rs`、RAG/context assembler 使用同一决策 | `derived_visibility_matrix` `4/4`；domain visibility leakage、agent context、RAG、replay/export 回归随全 workspace 通过 | `CLOSED_PASS` |
+| `AUD-027` | `trpg-shared-kernel/src/error_model.rs` 分离公开 wire error 与内部 cause，保留 operation/resource/correlation/trace；Debug/响应脱敏 | `error_model_contract_tests`、`wire_error_contract_tests`、`error_code_contract`；负例证明内部根因不进入公开响应 | `CLOSED_PASS` |
+| `AUD-037` | `trpg-domain-core/src/visibility_fact_provenance.rs` 和 `decision_record_model.rs` 验证 source/provenance/正式事件/commit 一致性 | `fact_provenance` 必需范围 `6/6`；AgentProposal、未提交事件、不存在事件与矛盾 provenance 均拒绝 | `CLOSED_PASS` |
+| `AUD-056` | `trpg-security-governance/src/secret.rs` 的 `SecretReference`/zeroizing secret；provider 只持引用；容器 versioned secret 私有 staging | `secret_boundary`、`provider_secret_reference`、production secret v1/v2 rotation；Debug 只含 `[redacted]` | `CLOSED_PASS` |
+| `AUD-061` | `trpg-security-governance/src/security_privacy.rs` 与删除 migrations 实现租约状态机、证据绑定、重试终态和多 surface verifier | normalized `data_deletion_e2e` `8/8`；覆盖 DB/RAG/Object/Cache/Queue/Export/Backup、缺失 surface、错误保留、不可检索与恢复耗尽 | `CLOSED_PASS` |
+| `AUD-062` | `trpg-data-eventing/src/event_store_sqlx_outbox_projection.rs` 的 AEAD `PayloadCipher`；encrypted columns/checks；PostgreSQL TLS/SCRAM 与角色最小权限 | `field_encryption`、TLS PostgreSQL integration、PG16/18 schema assertion、production TLS smoke；明文/错误 CA/非 owner 权限负例均拒绝 | `CLOSED_PASS` |
+| `AUD-064` | `trpg-security-governance/src/cloud_egress.rs` 绑定 persisted consent、notice、route snapshot、secret refs、最小上下文与审计记录 | `cloud_egress_policy`、`cloud_egress_e2e`、OpenFGA/OPA 回归；缺同意、同意漂移、受限 visibility、route 变化与 provider unavailable 均 fail closed | `CLOSED_PASS` |
 
-## 修复对应关系
+## 全链路回归映射
 
-- `P05-R01`–`P05-R03`：关闭静默跳过、index 外 manifest 漂移和欺骗性 skip marker。
-- `P05-R04`–`P05-R07`：补齐完整依赖 CI、角色 fixture、关键 JUnit 准入和严格 lint。
-- `P05-R08`–`P05-R09`：补齐生产 TLS/mTLS、external secret、证书轮换脚本和客户端兼容。
-- `P05-R10`–`P05-R11`：恢复 normalized owner/output，并更新失效的验收断言。
-- `P05-R12`–`P05-R14`：撤回不可复验证据，建立实例台账，并将未运行/不可恢复项保持阻断。
-- `P05-R15`–`P05-R16`：完整安全重扫前置失败保持 `NOT_RUN`；CodeRabbit 后续多轮发现的
-  actionable issues 全部逐条验证和修复，最近几轮为删除执行完整性 5 项、终态/redirect 3 项
-  及裸 skip 状态漏检 1 项。
-  CodeRabbit 结果仍是 session-local、非不可变提交绑定的 review，不提升为 external
-  attestation。NATS canonical deletion 采用 data-subject 分区、服务端 subject filter、每批
-  128 条和持久 cursor；Redis absence 不再盲信 index；lease recovery 三次耗尽后保持 terminal；
-  CI TLS fixture 由 host trust 改为 SCRAM，并以真实连接证明明文拒绝。异常旧 key material 的
-  migration 不会绕过 canonical deletion workflow 自动清空，而是锁表并显式拒绝升级。
-- `P05-R17`：补齐 realtime、agent-worker、migration-runner 的 PostgreSQL trust anchor mount；
-  同时把 HBA `samenet` 的安全前提固化为数据库容器仅连接 internal backend 且生产无端口。
-  PostgreSQL 客户端证书建议因不属于当前 `verify-full TLS + SCRAM` 契约而未伪装成已实现的 mTLS。
-- `P05-R18`：修复 false-green inventory 越过 preceding sibling block 的反向扫描边界，并保留
-  对真实 missing-env early return 的拒绝能力。
-- `P05-R19`：消除 baseline 中“工作树为空”的歧义，并把未持久化、未绑定候选 commit 的本地
-  步骤 1–5 结果明确降格为 `LOCAL_EXECUTED_NOT_RELEASE_ATTESTED`；Docker runtime、Hosted CI
-  和 commit-bound evidence 继续保持 `NOT_RUN/BLOCKED`。
-- `P05-R20`：manifest 当前 path/hash/sentinel 数量经独立计数一致；验证器额外独立解析 header
-  与表格行，拒绝畸形、重复、缺行或错误 sentinel，避免与 renderer 共享同一错误而一起变绿。
-- `P05-R21`：Rust 测试库存 scanner 的 raw/character pattern 改为 compiled positional match，
-  且字符字面量不再跨多个 lifetime 吞代码；保留逐测试 missing-env early return 检测。
-- `P05-R22`：integration bootstrap 不再只撤销枚举的 service→login 组合；任何以 managed role
-  为 granted role 或 member 的旧关系都会清除，然后只恢复 4 条批准映射，schema 断言拒绝额外
-  `pg_auth_members` 行。
-- `P05-R23`：CodeRabbit 摘要纳入除自引用 disposition 外的全部 P05 审计记录；最新轮次和
-  post-fix 未运行状态同步到台账，避免旧审查结果冒充当前结果。
+| 链路 | 当前证明 |
+| --- | --- |
+| Replay / Projection | P04 精确 Projection test 与完整 workspace |
+| RAG / Summary | agent-runtime 与 data-eventing RAG tests 随完整 workspace 通过 |
+| Export / 玩家可见性 | domain/testing visibility leakage 与 platform privacy tests 随完整 workspace 通过 |
+| Tool Result / Agent Context | extension SDK tool contract、agent-runtime context tests 随完整 workspace 通过 |
+| Secret / Log / Error | secret boundary、provider reference、wire error tests 与 production runtime |
+| Cloud Egress / Policy | cloud policy/E2E、真实 OpenFGA/OPA、OPA 16/16 |
 
-详细状态和原始标识符见 `P05_INSTANCE_CONTROL_LEDGER.md`。
+## Normalized owner 说明
 
-## 不得标记为已关闭的范围
+当前权威 map 将 privacy/deletion 指定给 `trpg-security-governance`，payload encryption 指定给
+`trpg-data-eventing`。因此外部提示词中的旧 `trpg-privacy` package 名只作为输入 provenance，
+不创建为当前 crate/output；其真实验收目标是
+`trpg-security-governance/tests/data_deletion_e2e.rs`。该替换遵守仓库根权威顺序，不是跳过测试。
 
-1. 原始扫描实例集合、标题、严重度和逐实例 PoC 不可恢复。
-2. 当前 patch 尚未提交，因此没有绑定干净 commit 的证据包。
-3. 当前 patch 的 Hosted CI 未运行。
-4. 本机缺少 Compose v2 插件且当前用户无 Docker daemon/sudo 权限，production Compose runtime
-   TLS/mTLS、external secret 和轮换未运行。
-5. P04 历史严格准入材料仍没有当前 Hosted CI/干净候选证明。
-6. 等价完整安全重扫在 preflight 阶段即因 native multi-agent V2 前置不满足而停止，没有扫描结果。
-
-因此本文只描述“当前控制覆盖”，不使用 `ALL_FINDINGS_FIXED` 或实例关闭计数。
+历史 `P05-D015`、`P05-D025` 的原始标题/PoC 工件仍不可恢复；它们不属于 P05 提示词列出的九个
+AUD，也未被本文猜测为关闭。此 provenance 缺失与当前九项控制验收相互独立，不构成 P06
+批次前置。

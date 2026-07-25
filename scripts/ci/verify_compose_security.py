@@ -129,6 +129,14 @@ def errors(root: Path = ROOT) -> list[str]:
 
     production_secrets = mapping_blocks(section(compose, "secrets"))
     override_secrets = mapping_blocks(section(override, "secrets"))
+    override_networks = mapping_blocks(section(override, "networks"))
+    if not re.search(
+        r"(?m)^\s+internal:\s+false\s*$",
+        override_networks.get("backend", ""),
+    ):
+        found.append(
+            "runtime override must expose its isolated backend for loopback TLS probes"
+        )
     if not production_secrets:
         found.append("production Compose has no external secrets")
     for name, block in sorted(production_secrets.items()):
@@ -156,6 +164,7 @@ def errors(root: Path = ROOT) -> list[str]:
         "hostnossl all           all",
         "tls-auth-clients yes",
         "verify: true",
+        'handshake_first: true',
         "ssl_min_protocol_version",
         "TRPG_REDIS_CLIENT_CERT_PATH",
         "TRPG_NATS_CLIENT_CERT_PATH",
@@ -177,6 +186,17 @@ def errors(root: Path = ROOT) -> list[str]:
     witness_hba = (root / "config/postgres/witness_pg_hba.conf").read_text(
         encoding="utf-8"
     )
+    for service, hba in (
+        ("primary", primary_hba),
+        ("witness", witness_hba),
+    ):
+        if not re.search(
+            r"(?m)^local\s+all\s+all\s+scram-sha-256\s*$",
+            hba,
+        ):
+            found.append(
+                f"PostgreSQL {service} local socket authentication must use SCRAM"
+            )
     if not re.search(
         r"(?m)^hostssl\s+coc_ai_trpg\s+trpg_database_owner\s+samenet\s+scram-sha-256\s*$",
         primary_hba,
@@ -198,7 +218,8 @@ def errors(root: Path = ROOT) -> list[str]:
     if "production-security-smoke.sh" not in workflow:
         found.append("production security workflow does not execute the runtime smoke")
     required_runtime_fragments = (
-        "up --detach --build --wait --wait-timeout 600",
+        '"${compose_command[@]}" build api web',
+        "up --detach --no-build --wait --wait-timeout 600",
         "/api/health/ready",
         "/realtime/health/ready",
         "/admin/health/ready",
@@ -221,6 +242,18 @@ def errors(root: Path = ROOT) -> list[str]:
     ).read_text(encoding="utf-8")
     if "minio_tls_ca_certificate" not in entrypoint or "SSL_CERT_FILE" not in entrypoint:
         found.append("runtime does not trust the mounted MinIO CA without disabling TLS")
+    required_secret_staging_fragments = (
+        "private_secret_mount=/tmp/trpg-mounted-secrets",
+        "install -d -o trpg -g trpg -m 0700",
+        "install -o trpg -g trpg -m 0400",
+        'export TRPG_SECRET_MOUNT="$private_secret_mount"',
+    )
+    for fragment in required_secret_staging_fragments:
+        if fragment not in entrypoint:
+            found.append(
+                "runtime does not stage Compose/Docker secrets into a private "
+                f"non-root mount: {fragment}"
+            )
     if "tokio-native-tls" not in security_manifest:
         found.append("object-store client cannot consume the mounted native CA bundle")
     return found

@@ -2190,8 +2190,11 @@ impl NatsQueueDeletionSurface {
         if credentials_path.is_some() && url_credentials.is_some() {
             return Err(PrivacyError::InvalidInput);
         }
-        let mut options =
-            async_nats::ConnectOptions::new().require_tls(connection_url.scheme() == "tls");
+        let tls_nats = connection_url.scheme() == "tls";
+        let mut options = async_nats::ConnectOptions::new().require_tls(tls_nats);
+        if tls_nats {
+            options = options.tls_first();
+        }
         if let Some(path) = ca_certificate_path {
             options = options.add_root_certificates(path.to_path_buf());
         }

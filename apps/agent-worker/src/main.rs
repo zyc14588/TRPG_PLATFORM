@@ -81,9 +81,6 @@ impl AgentWorkerProcess {
             .ok_or_else(|| "DURABLE_WORKFLOW_CONNECTION_NOT_ATTEMPTED".to_owned())?
             .map_err(|_| "DURABLE_WORKFLOW_CONNECTION_FAILED".to_owned())?;
         runtime
-            .block_on(workflow.apply_migration())
-            .map_err(|_| "DURABLE_WORKFLOW_MIGRATION_FAILED".to_owned())?;
-        runtime
             .block_on(workflow.check_readiness())
             .map_err(|error| format!("DURABLE_WORKFLOW_NOT_READY:{error}"))?;
         let nats_url = resolve_mounted_secret(&secret_manager, "TRPG_NATS_URL")?;
@@ -117,7 +114,7 @@ impl AgentWorkerProcess {
             .map_err(|_| "WITNESS_DATABASE_URL_SECRET_INVALID".to_owned())?
             .map_err(|_| "CANONICAL_STORE_CONNECTION_FAILED".to_owned())?;
         runtime
-            .block_on(canonical.prepare_for_service())
+            .block_on(canonical.verify_integrity())
             .map_err(|_| "CANONICAL_STORE_NOT_READY".to_owned())?;
         let nats_ca = optional_path("TRPG_NATS_CA_CERT_PATH")?;
         let nats_client_certificate = optional_path("TRPG_NATS_CLIENT_CERT_PATH")?;
@@ -160,7 +157,7 @@ impl AgentWorkerProcess {
             .ok_or_else(|| "DELETION_DATABASE_CONNECTION_NOT_ATTEMPTED".to_owned())?
             .map_err(|_| "DELETION_DATABASE_CONNECTION_FAILED".to_owned())?;
         runtime
-            .block_on(deletion_repository.migrate())
+            .block_on(deletion_repository.check_readiness())
             .map_err(|_| "DELETION_SCHEMA_NOT_READY".to_owned())?;
         let mut cache_surface = None;
         redis_url

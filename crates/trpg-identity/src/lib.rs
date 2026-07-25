@@ -1345,6 +1345,66 @@ impl IdentityService {
         redis_client_certificate: Option<&[u8]>,
         redis_client_private_key: Option<&[u8]>,
     ) -> Result<Self, IdentityError> {
+        Self::initialize_postgres_with_security_and_redis_tls(
+            database_url,
+            postgres_ca_certificate_pem,
+            redis_url,
+            redis_namespace,
+            signing_key,
+            session_ttl_ms,
+            argon2_concurrency,
+            redis_root_certificate,
+            redis_client_certificate,
+            redis_client_private_key,
+            true,
+        )
+    }
+
+    /// Connects the production identity service to a schema prepared by the
+    /// dedicated migration runner. Missing or unreadable schema objects still
+    /// fail closed during the initial database reload.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_prepared_postgres_with_security_and_redis_tls(
+        database_url: &str,
+        postgres_ca_certificate_pem: Option<&[u8]>,
+        redis_url: &str,
+        redis_namespace: &str,
+        signing_key: &[u8],
+        session_ttl_ms: u64,
+        argon2_concurrency: usize,
+        redis_root_certificate: Option<&[u8]>,
+        redis_client_certificate: Option<&[u8]>,
+        redis_client_private_key: Option<&[u8]>,
+    ) -> Result<Self, IdentityError> {
+        Self::initialize_postgres_with_security_and_redis_tls(
+            database_url,
+            postgres_ca_certificate_pem,
+            redis_url,
+            redis_namespace,
+            signing_key,
+            session_ttl_ms,
+            argon2_concurrency,
+            redis_root_certificate,
+            redis_client_certificate,
+            redis_client_private_key,
+            false,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn initialize_postgres_with_security_and_redis_tls(
+        database_url: &str,
+        postgres_ca_certificate_pem: Option<&[u8]>,
+        redis_url: &str,
+        redis_namespace: &str,
+        signing_key: &[u8],
+        session_ttl_ms: u64,
+        argon2_concurrency: usize,
+        redis_root_certificate: Option<&[u8]>,
+        redis_client_certificate: Option<&[u8]>,
+        redis_client_private_key: Option<&[u8]>,
+        apply_migrations: bool,
+    ) -> Result<Self, IdentityError> {
         if database_url.trim().is_empty() {
             return Err(IdentityError::PersistenceUnavailable);
         }
@@ -1356,7 +1416,9 @@ impl IdentityService {
             redis_client_private_key,
         )?;
         let mut client = connect_postgres(database_url, postgres_ca_certificate_pem)?;
-        apply_identity_migrations(&mut client)?;
+        if apply_migrations {
+            apply_identity_migrations(&mut client)?;
+        }
         let persistent_verification = PersistentVerificationStore::new(connect_postgres(
             database_url,
             postgres_ca_certificate_pem,
@@ -2595,7 +2657,7 @@ fn validate_password(password: &str) -> Result<(), IdentityError> {
     Ok(())
 }
 
-fn validate_postgres_transport(config: &PostgresConfig) -> Result<bool, IdentityError> {
+fn uses_local_plaintext_postgres_transport(config: &PostgresConfig) -> Result<bool, IdentityError> {
     let local = config.get_hosts().iter().all(|host| match host {
         PostgresHost::Tcp(host) => matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1"),
         #[cfg(unix)]
@@ -2604,17 +2666,71 @@ fn validate_postgres_transport(config: &PostgresConfig) -> Result<bool, Identity
     if !local && !matches!(config.get_ssl_mode(), PostgresSslMode::Require) {
         return Err(IdentityError::PersistenceUnavailable);
     }
-    Ok(local)
+    Ok(local && !matches!(config.get_ssl_mode(), PostgresSslMode::Require))
+}
+
+fn parse_postgres_config(
+    database_url: &str,
+    ca_certificate_pem: Option<&[u8]>,
+) -> Result<PostgresConfig, IdentityError> {
+    if let Ok(config) = database_url.parse::<PostgresConfig>() {
+        return Ok(config);
+    }
+
+    // `tokio-postgres` accepts only disable/prefer/require and does not parse
+    // libpq's sslrootcert option. Production URLs are also consumed by SQLx,
+    // so preserve their verify-full form at the secret boundary and normalize
+    // only the two TLS options whose guarantees are implemented below by
+    // native-tls (verified chain plus hostname validation).
+    let mut url =
+        url::Url::parse(database_url).map_err(|_| IdentityError::PersistenceUnavailable)?;
+    if !matches!(url.scheme(), "postgres" | "postgresql") {
+        return Err(IdentityError::PersistenceUnavailable);
+    }
+    let pairs = url
+        .query_pairs()
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect::<Vec<_>>();
+    let sslmode_count = pairs.iter().filter(|(key, _)| key == "sslmode").count();
+    let sslrootcert_count = pairs.iter().filter(|(key, _)| key == "sslrootcert").count();
+    if sslmode_count != 1 || sslrootcert_count > 1 {
+        return Err(IdentityError::PersistenceUnavailable);
+    }
+
+    let mut normalized_verify_full = false;
+    let mut explicit_root_certificate = false;
+    {
+        let mut query = url.query_pairs_mut();
+        query.clear();
+        for (key, value) in pairs {
+            match (key.as_str(), value.as_str()) {
+                ("sslmode", "verify-full") => {
+                    query.append_pair("sslmode", "require");
+                    normalized_verify_full = true;
+                }
+                ("sslrootcert", _) => {
+                    explicit_root_certificate = true;
+                }
+                _ => {
+                    query.append_pair(&key, &value);
+                }
+            }
+        }
+    }
+    if !normalized_verify_full || (explicit_root_certificate && ca_certificate_pem.is_none()) {
+        return Err(IdentityError::PersistenceUnavailable);
+    }
+    url.as_str()
+        .parse::<PostgresConfig>()
+        .map_err(|_| IdentityError::PersistenceUnavailable)
 }
 
 fn connect_postgres(
     database_url: &str,
     ca_certificate_pem: Option<&[u8]>,
 ) -> Result<Client, IdentityError> {
-    let config = database_url
-        .parse::<PostgresConfig>()
-        .map_err(|_| IdentityError::PersistenceUnavailable)?;
-    if validate_postgres_transport(&config)? {
+    let config = parse_postgres_config(database_url, ca_certificate_pem)?;
+    if uses_local_plaintext_postgres_transport(&config)? {
         return config
             .connect(NoTls)
             .map_err(|_| IdentityError::PersistenceUnavailable);
@@ -2838,13 +2954,46 @@ mod tests {
             .parse::<PostgresConfig>()
             .unwrap();
         assert_eq!(
-            validate_postgres_transport(&remote_without_tls),
+            uses_local_plaintext_postgres_transport(&remote_without_tls),
             Err(IdentityError::PersistenceUnavailable)
         );
         let remote_verified = "postgresql://app@db.example.test/trpg?sslmode=require"
             .parse::<PostgresConfig>()
             .unwrap();
-        assert!(validate_postgres_transport(&remote_verified).is_ok());
+        assert_eq!(
+            uses_local_plaintext_postgres_transport(&remote_verified),
+            Ok(false)
+        );
+        let local_plaintext = "postgresql://app@localhost/trpg"
+            .parse::<PostgresConfig>()
+            .unwrap();
+        assert_eq!(
+            uses_local_plaintext_postgres_transport(&local_plaintext),
+            Ok(true)
+        );
+        let local_tls = "postgresql://app@localhost/trpg?sslmode=require"
+            .parse::<PostgresConfig>()
+            .unwrap();
+        assert_eq!(
+            uses_local_plaintext_postgres_transport(&local_tls),
+            Ok(false)
+        );
+    }
+
+    #[test]
+    fn libpq_verify_full_url_is_normalized_only_with_explicit_ca_material() {
+        let url = "postgresql://app@db.example.test/trpg?sslmode=verify-full&\
+                   sslrootcert=%2Frun%2Fsecrets%2Fpostgres_ca_certificate";
+        let config = parse_postgres_config(url, Some(b"certificate material")).unwrap();
+        assert_eq!(config.get_ssl_mode(), PostgresSslMode::Require);
+        assert!(config
+            .get_hosts()
+            .iter()
+            .any(|host| matches!(host, PostgresHost::Tcp(value) if value == "db.example.test")));
+        assert_eq!(
+            parse_postgres_config(url, None).err(),
+            Some(IdentityError::PersistenceUnavailable)
+        );
     }
 
     #[test]

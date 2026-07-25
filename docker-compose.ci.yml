@@ -18,6 +18,14 @@ services:
     ports:
       - "127.0.0.1:29000:9000"
 
+# Production keeps the backend network internal. The isolated runtime smoke
+# must publish loopback-only ports to prove plaintext rejection and TLS/mTLS
+# acceptance from outside each container, which Docker suppresses on an
+# internal network.
+networks:
+  backend:
+    internal: false
+
 secrets:
   postgres_bootstrap_password:
     external: false

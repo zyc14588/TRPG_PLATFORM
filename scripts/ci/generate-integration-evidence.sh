@@ -76,7 +76,7 @@ python3 scripts/ci/generate_evidence.py \
   --service-version-command '["postgres_tls","docker","exec","trpg-tls-postgres","postgres","--version"]' \
   --service-version-command '["redis","docker","exec","trpg-redis","redis-server","--version"]' \
   --service-version-command '["nats","docker","exec","trpg-nats","nats-server","--version"]' \
-  --service-version-command '["openfga","docker","exec","trpg-openfga","openfga","version"]' \
+  --service-version-command '["openfga","docker","exec","trpg-openfga","/openfga","version"]' \
   --service-version-command '["opa","docker","exec","trpg-opa","/opa","version"]' \
   --service-version-command '["minio","docker","exec","trpg-minio","minio","--version"]' \
   -- \

@@ -17,6 +17,12 @@ compose_command=(
 )
 
 cleanup() {
+  local exit_code="$?"
+  if [[ "$exit_code" -ne 0 ]]; then
+    printf 'production security smoke failed; Compose diagnostics follow\n' >&2
+    "${compose_command[@]}" ps --all >&2 || true
+    "${compose_command[@]}" logs --no-color --tail 200 >&2 || true
+  fi
   "${compose_command[@]}" down --volumes --remove-orphans >/dev/null 2>&1 || true
   docker service rm "$swarm_service" >/dev/null 2>&1 || true
   docker secret rm "$swarm_secret_v1" "$swarm_secret_v2" >/dev/null 2>&1 || true
@@ -24,6 +30,7 @@ cleanup() {
     docker swarm leave --force >/dev/null 2>&1 || true
   fi
   rm -rf "$runtime_directory"
+  return "$exit_code"
 }
 trap cleanup EXIT
 
@@ -207,6 +214,12 @@ copy_secret minio_tls_ca_certificate "$runtime_directory/ca.crt"
 copy_secret reverse_proxy_tls_certificate "$runtime_directory/reverse_proxy.crt"
 copy_secret reverse_proxy_tls_private_key "$runtime_directory/reverse_proxy.key"
 
+# Compose file-backed secrets retain their source mode and ignore per-secret
+# uid/gid/mode overrides. The parent remains 0700 on the isolated runner, while
+# 0444 mirrors Docker-managed secret mounts and lets non-root service UIDs read
+# only the files explicitly mounted into their containers.
+chmod 0444 "$secret_directory"/*
+
 export TRPG_COMPOSE_SECRET_DIRECTORY="$secret_directory"
 export TRPG_CANONICAL_HMAC_KEY_ID="runtime-smoke-canonical-v1"
 export TRPG_PAYLOAD_ENCRYPTION_KEY_ID="runtime-smoke-payload-v1"
@@ -359,7 +372,12 @@ curl --fail --silent --show-error \
   --cacert "$runtime_directory/ca.crt" \
   https://localhost:29000/minio/health/live >/dev/null
 
-"${compose_command[@]}" up --detach --build --wait --wait-timeout 600
+# All Rust services intentionally share one runtime image. Building every
+# service in parallel asks Buildx to export the same tag five times and can
+# race its snapshot extraction. Build each distinct target once, then require
+# the full graph to start from exactly those local images.
+"${compose_command[@]}" build api web
+"${compose_command[@]}" up --detach --no-build --wait --wait-timeout 600
 plaintext_proxy_status="$(
   curl --silent --output /dev/null \
     --write-out '%{http_code} %{redirect_url}' http://localhost:8080/ || true
