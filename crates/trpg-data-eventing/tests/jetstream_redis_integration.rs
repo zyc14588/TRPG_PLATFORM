@@ -336,7 +336,10 @@ async fn outbox_waits_for_jetstream_ack_and_redis_remains_a_versioned_read_model
         .await
         .unwrap();
 
-    let mut event_messages = nats_client.subscribe("trpg.events.appended").await.unwrap();
+    let mut event_messages = nats_client
+        .subscribe("trpg.events.appended.>")
+        .await
+        .unwrap();
     nats_client.flush().await.unwrap();
     publisher.ensure_stream().await.unwrap();
     let result = publisher.publish_batch().await.unwrap();

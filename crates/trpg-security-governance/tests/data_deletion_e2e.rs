@@ -1,6 +1,6 @@
 use std::fs;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use sqlx::postgres::PgPoolOptions;
 use sqlx::Row;
@@ -11,12 +11,13 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
 };
 use trpg_data_eventing::postgre_sql_sq_lx_pgvector::PostgresRagSnapshotRepository;
 use trpg_data_eventing::rag_snapshot::RagSnapshotChunkDraft;
-use trpg_privacy::{
-    BackupKeyDeletionSurface, DeletionEvidenceStatus, DeletionJobStatus, DeletionRequestEvidence,
-    DeletionSurface, DeletionTarget, DeletionTargetStatus, DeletionWorker,
+use trpg_security_governance::security_privacy::{
+    BackupKeyDeletionSurface, DeletionBatchProgress, DeletionEvidenceStatus, DeletionJobStatus,
+    DeletionRequestEvidence, DeletionSurface, DeletionTarget, DeletionTargetStatus, DeletionWorker,
     FilesystemDeletionSurface, NatsQueueDeletionSurface, PostgresDeletionRepository,
     PostgresLegalHoldResolver, PostgresRecordDeletionSurface, PrivacyError,
-    RedisCacheDeletionSurface, S3ObjectDeletionSurface, REQUIRED_DELETION_TARGETS,
+    RedisCacheDeletionSurface, S3ObjectDeletionSurface, MAX_DELETION_LEASE_RECOVERIES,
+    REQUIRED_DELETION_TARGETS,
 };
 use trpg_shared_kernel::EventActorOriginWire;
 
@@ -25,6 +26,48 @@ const PAYLOAD_KEY: [u8; 32] = [0x84; 32];
 const CACHE_KEY: [u8; 32] = [0x95; 32];
 const INTEGRITY_KEY_ID: &str = "p05-deletion-integrity-key";
 const PAYLOAD_KEY_ID: &str = "p05-deletion-master-payload-key";
+
+struct SimulatedLeaseLossSurface {
+    pool: sqlx::PgPool,
+}
+
+#[async_trait::async_trait]
+impl DeletionSurface for SimulatedLeaseLossSurface {
+    fn target(&self) -> DeletionTarget {
+        DeletionTarget::Database
+    }
+
+    async fn delete_subject_batch(
+        &self,
+        subject_id: &str,
+        _cursor: u64,
+    ) -> Result<DeletionBatchProgress, PrivacyError> {
+        let mut transaction = self.pool.begin().await.unwrap();
+        sqlx::query(
+            "UPDATE privacy_deletion_jobs SET status = 'failed', \
+             failure_code = 'SIMULATED_LEASE_LOSS', lease_expires_at = NULL \
+             WHERE subject_id = $1 AND status = 'running'",
+        )
+        .bind(subject_id)
+        .execute(&mut *transaction)
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE privacy_subject_deletion_fences SET status = 'failed', \
+             lease_expires_at = NULL WHERE subject_id = $1 AND status = 'running'",
+        )
+        .bind(subject_id)
+        .execute(&mut *transaction)
+        .await
+        .unwrap();
+        transaction.commit().await.unwrap();
+        Err(PrivacyError::Storage)
+    }
+
+    async fn verify_absent(&self, _subject_id: &str) -> Result<bool, PrivacyError> {
+        Ok(false)
+    }
+}
 
 fn deletion_evidence(nonce: u128) -> DeletionRequestEvidence {
     DeletionRequestEvidence::new(
@@ -328,6 +371,14 @@ async fn data_deletion_persists_blocks_on_hold_and_verifies_every_real_surface()
     let cache = RedisCacheDeletionSurface::connect(&redis_url, "trpg:realtime:projection")
         .await
         .unwrap();
+    cache
+        .remove_subject_index_for_test(&subject_id)
+        .await
+        .unwrap();
+    assert!(
+        !cache.verify_absent(&subject_id).await.unwrap(),
+        "an orphaned resident cache entry must not be mistaken for absence"
+    );
     let object_storage = S3ObjectDeletionSurface::connect(
         &object_endpoint,
         &object_region,
@@ -375,6 +426,15 @@ async fn data_deletion_persists_blocks_on_hold_and_verifies_every_real_surface()
     )
     .await
     .unwrap();
+    for batch_probe in 0..129_u16 {
+        queue
+            .put_canonical_for_test(
+                &subject_id,
+                format!(r#"{{"protected_payload":"batch-probe-{batch_probe}"}}"#).as_bytes(),
+            )
+            .await
+            .unwrap();
+    }
     let backup_key = BackupKeyDeletionSurface::new(pool.clone());
 
     let legal_holds = PostgresLegalHoldResolver::new(pool.clone());
@@ -435,7 +495,7 @@ async fn data_deletion_persists_blocks_on_hold_and_verifies_every_real_surface()
             )
             .await
             .expect_err("an unrelated canonical event cannot confirm deletion evidence"),
-        PrivacyError::Database
+        PrivacyError::DeletionEvidenceMismatch
     );
     let (deletion_event_sequence, deletion_event_hash) =
         commit_deletion_request(&store, &pool, nonce, &subject_id, &job_id).await;
@@ -483,6 +543,18 @@ async fn data_deletion_persists_blocks_on_hold_and_verifies_every_real_surface()
         .targets
         .iter()
         .all(|target| target.status == DeletionTargetStatus::Verified));
+    let queue_progress_cursor: i64 = sqlx::query_scalar(
+        "SELECT progress_cursor FROM privacy_deletion_job_targets \
+         WHERE job_id = $1 AND target = 'queue'",
+    )
+    .bind(&job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(
+        queue_progress_cursor > 1,
+        "queue erasure must persist a resumable cursor across bounded batches"
+    );
 
     // Re-open through a fresh repository handle to prove status is durable,
     // then independently query every backing store instead of trusting Worker
@@ -557,6 +629,18 @@ async fn data_deletion_persists_blocks_on_hold_and_verifies_every_real_surface()
         worker.execute(&job_id).await.unwrap().status,
         DeletionJobStatus::Completed
     );
+    let incomplete_completed_worker =
+        DeletionWorker::new(repository.clone(), Arc::new(legal_holds), Vec::new()).unwrap();
+    assert_eq!(
+        incomplete_completed_worker
+            .execute(&job_id)
+            .await
+            .unwrap_err(),
+        PrivacyError::MissingSurface(DeletionTarget::Database)
+    );
+    let still_completed = repository.load(&job_id).await.unwrap();
+    assert_eq!(still_completed.status, DeletionJobStatus::Completed);
+    assert!(still_completed.all_targets_verified());
 
     fs::remove_dir_all(root).unwrap();
 }
@@ -605,14 +689,409 @@ async fn deletion_cannot_complete_when_a_required_surface_is_missing() {
         )
         .await
         .unwrap();
+    let second_nonce = nonce + 1;
+    let held_job_id = format!("held_after_failed_job_{second_nonce}");
+    let held_subject_id = format!("held_after_failed_subject_{second_nonce}");
+    let (held_event_sequence, held_event_hash) = commit_deletion_request(
+        &store,
+        repository.pool(),
+        second_nonce,
+        &held_subject_id,
+        &held_job_id,
+    )
+    .await;
+    repository
+        .record_confirmed(
+            &held_job_id,
+            &held_subject_id,
+            "privacy_officer",
+            "user_erasure_v1",
+            &deletion_evidence(second_nonce),
+            held_event_sequence,
+            &held_event_hash,
+        )
+        .await
+        .unwrap();
     let legal_holds = PostgresLegalHoldResolver::new(pool);
+    legal_holds
+        .set_hold(
+            &held_subject_id,
+            &format!("held_after_failure_{second_nonce}"),
+            true,
+        )
+        .await
+        .unwrap();
     let worker =
         DeletionWorker::new(repository.clone(), Arc::new(legal_holds), Vec::new()).unwrap();
 
-    assert!(worker.execute(&job_id).await.is_err());
+    assert_eq!(
+        worker.execute_next(100).await.unwrap_err(),
+        PrivacyError::MissingSurface(DeletionTarget::Database)
+    );
     let failed = repository.load(&job_id).await.unwrap();
     assert_eq!(failed.status, DeletionJobStatus::Failed);
     assert!(!failed.all_targets_verified());
+    assert_eq!(
+        repository.load(&held_job_id).await.unwrap().status,
+        DeletionJobStatus::BlockedLegalHold,
+        "a failed job must not prevent later claimed jobs from being processed"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn failure_cleanup_never_masks_the_surface_error_after_lease_loss() {
+    let database_url = std::env::var("P05_DATABASE_URL")
+        .expect("P05_DATABASE_URL must point to the P05 PostgreSQL test database");
+    let witness_url = std::env::var("P05_WITNESS_DATABASE_URL")
+        .expect("P05_WITNESS_DATABASE_URL must point to an independent P05 witness database");
+    let store = PostgresCanonicalStore::connect(
+        &database_url,
+        &witness_url,
+        INTEGRITY_KEY_ID,
+        &INTEGRITY_KEY,
+        PAYLOAD_KEY_ID,
+        &PAYLOAD_KEY,
+    )
+    .await
+    .expect("connect canonical store for failure-cleanup evidence");
+    store.prepare_for_service().await.unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(3)
+        .connect(&database_url)
+        .await
+        .expect("connect P05 PostgreSQL");
+    let repository = PostgresDeletionRepository::new(pool.clone());
+    repository.migrate().await.unwrap();
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let job_id = format!("lease_loss_surface_{nonce}");
+    let subject_id = format!("lease_loss_subject_{nonce}");
+    let (event_sequence, event_hash) =
+        commit_deletion_request(&store, repository.pool(), nonce, &subject_id, &job_id).await;
+    repository
+        .record_confirmed(
+            &job_id,
+            &subject_id,
+            "privacy_officer",
+            "user_erasure_v1",
+            &deletion_evidence(nonce),
+            event_sequence,
+            &event_hash,
+        )
+        .await
+        .unwrap();
+    let worker = DeletionWorker::new(
+        repository.clone(),
+        Arc::new(PostgresLegalHoldResolver::new(pool.clone())),
+        vec![Box::new(SimulatedLeaseLossSurface { pool })],
+    )
+    .unwrap();
+
+    assert_eq!(
+        worker.execute(&job_id).await.unwrap_err(),
+        PrivacyError::Storage,
+        "best-effort failure bookkeeping must not replace the originating surface error"
+    );
+    let failed = repository.load(&job_id).await.unwrap();
+    assert_eq!(failed.status, DeletionJobStatus::Failed);
+    assert_eq!(failed.failure_code.as_deref(), Some("SIMULATED_LEASE_LOSS"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn expired_deletion_executions_are_reclaimed_and_counted_before_retry() {
+    let database_url = std::env::var("P05_DATABASE_URL")
+        .expect("P05_DATABASE_URL must point to the P05 PostgreSQL test database");
+    let witness_url = std::env::var("P05_WITNESS_DATABASE_URL")
+        .expect("P05_WITNESS_DATABASE_URL must point to an independent P05 witness database");
+    let store = PostgresCanonicalStore::connect(
+        &database_url,
+        &witness_url,
+        INTEGRITY_KEY_ID,
+        &INTEGRITY_KEY,
+        PAYLOAD_KEY_ID,
+        &PAYLOAD_KEY,
+    )
+    .await
+    .expect("connect canonical store for expired-lease evidence");
+    store.prepare_for_service().await.unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(3)
+        .connect(&database_url)
+        .await
+        .expect("connect P05 PostgreSQL");
+    let repository = PostgresDeletionRepository::new(pool.clone());
+    repository.migrate().await.unwrap();
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let mut expired_jobs = Vec::new();
+    for (offset, active_status) in ["running", "verifying"].into_iter().enumerate() {
+        let phase_nonce = nonce + offset as u128;
+        let job_id = format!("expired_{active_status}_{phase_nonce}");
+        let subject_id = format!("expired_subject_{active_status}_{phase_nonce}");
+        let (event_sequence, event_hash) =
+            commit_deletion_request(&store, repository.pool(), phase_nonce, &subject_id, &job_id)
+                .await;
+        repository
+            .record_confirmed(
+                &job_id,
+                &subject_id,
+                "privacy_officer",
+                "user_erasure_v1",
+                &deletion_evidence(phase_nonce),
+                event_sequence,
+                &event_hash,
+            )
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO privacy_subject_deletion_fences \
+             (subject_id, job_id, status, lease_expires_at) \
+             VALUES ($1, $2, 'running', statement_timestamp() + interval '1 second')",
+        )
+        .bind(&subject_id)
+        .bind(&job_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE privacy_deletion_jobs SET status = 'running', \
+             lease_expires_at = statement_timestamp() + interval '1 second' \
+             WHERE job_id = $1",
+        )
+        .bind(&job_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        if active_status == "verifying" {
+            sqlx::query(
+                "UPDATE privacy_deletion_jobs SET status = 'verifying' \
+                 WHERE job_id = $1",
+            )
+            .bind(&job_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        expired_jobs.push((job_id, subject_id));
+    }
+    tokio::time::sleep(Duration::from_millis(1_200)).await;
+
+    let worker = DeletionWorker::new(
+        repository.clone(),
+        Arc::new(PostgresLegalHoldResolver::new(pool.clone())),
+        Vec::new(),
+    )
+    .unwrap();
+    for (job_id, subject_id) in expired_jobs {
+        assert_eq!(
+            worker.execute(&job_id).await.unwrap_err(),
+            PrivacyError::MissingSurface(DeletionTarget::Database)
+        );
+
+        let recovered: (String, i64, bool, bool) = sqlx::query_as(
+            "SELECT status, lease_recovery_count, \
+                    last_lease_expired_at IS NOT NULL, lease_expires_at IS NULL \
+             FROM privacy_deletion_jobs WHERE job_id = $1",
+        )
+        .bind(&job_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(recovered, ("failed".to_owned(), 1, true, true));
+        let fence: (String, bool) = sqlx::query_as(
+            "SELECT status, lease_expires_at IS NULL \
+             FROM privacy_subject_deletion_fences WHERE subject_id = $1",
+        )
+        .bind(&subject_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(fence, ("failed".to_owned(), true));
+    }
+    assert!(repository.lease_recovery_total().await.unwrap() >= 2);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn exhausted_lease_recovery_remains_terminal_and_is_not_requeued() {
+    let database_url = std::env::var("P05_DATABASE_URL")
+        .expect("P05_DATABASE_URL must point to the P05 PostgreSQL test database");
+    let witness_url = std::env::var("P05_WITNESS_DATABASE_URL")
+        .expect("P05_WITNESS_DATABASE_URL must point to an independent P05 witness database");
+    let store = PostgresCanonicalStore::connect(
+        &database_url,
+        &witness_url,
+        INTEGRITY_KEY_ID,
+        &INTEGRITY_KEY,
+        PAYLOAD_KEY_ID,
+        &PAYLOAD_KEY,
+    )
+    .await
+    .expect("connect canonical store for exhausted-lease evidence");
+    store.prepare_for_service().await.unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(3)
+        .connect(&database_url)
+        .await
+        .expect("connect P05 PostgreSQL");
+    let repository = PostgresDeletionRepository::new(pool.clone());
+    repository.migrate().await.unwrap();
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let job_id = format!("exhausted_lease_{nonce}");
+    let subject_id = format!("exhausted_subject_{nonce}");
+    let (event_sequence, event_hash) =
+        commit_deletion_request(&store, repository.pool(), nonce, &subject_id, &job_id).await;
+    repository
+        .record_confirmed(
+            &job_id,
+            &subject_id,
+            "privacy_officer",
+            "user_erasure_v1",
+            &deletion_evidence(nonce),
+            event_sequence,
+            &event_hash,
+        )
+        .await
+        .unwrap();
+
+    let legal_holds = PostgresLegalHoldResolver::new(pool.clone());
+    legal_holds
+        .set_hold(&subject_id, &format!("exhausted_lease_hold_{nonce}"), true)
+        .await
+        .unwrap();
+    let worker =
+        DeletionWorker::new(repository.clone(), Arc::new(legal_holds), Vec::new()).unwrap();
+
+    for recovery in 1..=MAX_DELETION_LEASE_RECOVERIES {
+        if recovery == 1 {
+            sqlx::query(
+                "INSERT INTO privacy_subject_deletion_fences \
+                 (subject_id, job_id, status, lease_expires_at) \
+                 VALUES ($1, $2, 'running', statement_timestamp() + interval '1 second')",
+            )
+            .bind(&subject_id)
+            .bind(&job_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        } else {
+            sqlx::query(
+                "UPDATE privacy_subject_deletion_fences SET status = 'running', \
+                 lease_expires_at = statement_timestamp() + interval '1 second', \
+                 updated_at = statement_timestamp() \
+                 WHERE subject_id = $1 AND job_id = $2 AND status = 'failed'",
+            )
+            .bind(&subject_id)
+            .bind(&job_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        sqlx::query(
+            "UPDATE privacy_deletion_jobs SET status = 'running', failure_code = NULL, \
+             lease_expires_at = statement_timestamp() + interval '1 second', \
+             updated_at = statement_timestamp() WHERE job_id = $1",
+        )
+        .bind(&job_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        tokio::time::sleep(Duration::from_millis(1_200)).await;
+
+        if recovery < MAX_DELETION_LEASE_RECOVERIES {
+            let blocked = worker.execute(&job_id).await.unwrap();
+            assert_eq!(blocked.status, DeletionJobStatus::BlockedLegalHold);
+        } else {
+            assert_eq!(
+                worker.execute(&job_id).await.unwrap_err(),
+                PrivacyError::LeaseRecoveryExhausted
+            );
+        }
+    }
+
+    let exhausted: (String, Option<String>, i64, bool, bool) = sqlx::query_as(
+        "SELECT status, failure_code, lease_recovery_count, \
+                last_lease_expired_at IS NOT NULL, lease_expires_at IS NULL \
+         FROM privacy_deletion_jobs WHERE job_id = $1",
+    )
+    .bind(&job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        exhausted,
+        (
+            "failed".to_owned(),
+            Some("DELETION_LEASE_EXPIRED".to_owned()),
+            MAX_DELETION_LEASE_RECOVERIES,
+            true,
+            true,
+        )
+    );
+    assert!(
+        sqlx::query(
+            "UPDATE privacy_deletion_jobs SET status = 'running', failure_code = NULL, \
+             lease_expires_at = statement_timestamp() + interval '5 minutes' \
+             WHERE job_id = $1",
+        )
+        .bind(&job_id)
+        .execute(&pool)
+        .await
+        .is_err(),
+        "an exhausted recovery row must remain terminal database evidence"
+    );
+    let eligible: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM privacy_deletion_jobs \
+         WHERE job_id = $1 AND status = 'failed' \
+           AND failure_code = 'DELETION_LEASE_EXPIRED' \
+           AND lease_recovery_count < $2)",
+    )
+    .bind(&job_id)
+    .bind(MAX_DELETION_LEASE_RECOVERIES)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(
+        !eligible,
+        "the exhausted job must not be selected for retry"
+    );
+}
+
+#[tokio::test]
+async fn destroyed_subject_key_cannot_retain_key_material_on_insert() {
+    let database_url = std::env::var("P05_DATABASE_URL")
+        .expect("P05_DATABASE_URL must point to the P05 PostgreSQL test database");
+    let repository = PostgresDeletionRepository::connect(&database_url)
+        .await
+        .expect("connect P05 PostgreSQL");
+    repository.migrate().await.unwrap();
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let subject_id = format!("destroyed_key_material_{nonce}");
+
+    assert!(
+        sqlx::query(
+            "INSERT INTO privacy_subject_keys \
+             (subject_id, key_reference, wrapped_key, destroyed_at) \
+             VALUES ($1, $2, $3, statement_timestamp())",
+        )
+        .bind(&subject_id)
+        .bind(format!("destroyed_key_reference_{nonce}"))
+        .bind(b"forbidden-retained-key-material".as_slice())
+        .execute(repository.pool())
+        .await
+        .is_err(),
+        "destroyed subject keys must reject retained wrapped key material on every write path"
+    );
 }
 
 #[tokio::test]

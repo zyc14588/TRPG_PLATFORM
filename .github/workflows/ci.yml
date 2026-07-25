@@ -32,12 +32,12 @@ jobs:
         run: corepack enable && corepack prepare pnpm@11.9.0 --activate
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
-      - name: Start pinned P02 and P03 integration services
-        run: bash scripts/ci/p02-integration-services.sh "$GITHUB_ENV"
+      - name: Start pinned integration services
+        run: bash scripts/ci/integration-services.sh "$GITHUB_ENV"
       - name: Full CI with evidence
         run: |
           mkdir -p "$RUNNER_TEMP/workspace-ci"
-          python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/workspace-ci/evidence-manifest.json" --artifact MANIFEST.md -- bash scripts/ci/test-all.sh
+          bash scripts/ci/generate-integration-evidence.sh "$RUNNER_TEMP/workspace-ci/evidence-manifest.json"
           python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/workspace-ci/evidence-manifest.json"
       - name: Upload workspace evidence
         if: always()

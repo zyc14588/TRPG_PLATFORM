@@ -9,10 +9,10 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     AtomicCommitDraft, CanonicalEventDraft, PolicyAuditDraft, PostgresCanonicalStore,
 };
 use trpg_identity::{CampaignRole, GlobalRole, IdentityService};
-use trpg_privacy::PostgresDeletionRepository;
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
 };
+use trpg_security_governance::security_privacy::PostgresDeletionRepository;
 use trpg_security_governance::tamper_evident_audit::FileAuditLog;
 use trpg_shared_kernel::{AuthorityMode, EventActorOriginWire};
 

@@ -10,7 +10,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
 trpg-security-governance = { path = "../trpg-security-governance" }
-trpg-privacy = { path = "../trpg-privacy" }
 trpg-identity = { path = "../trpg-identity" }
 url = "2.5"
 

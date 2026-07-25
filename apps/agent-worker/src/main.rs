@@ -12,14 +12,14 @@ use trpg_data_eventing::event_bus_nats_impl::{JetStreamOutboxPublisher, PublishB
 use trpg_data_eventing::event_store_sqlx_outbox_projection::PostgresCanonicalStore;
 use trpg_extension_sdk::plugin_host::{HostedPlugin, HostedPluginManifest, PluginHost};
 use trpg_extension_sdk::{ExtensionCapability, ExtensionCapabilityGrantSet};
-use trpg_privacy::{
-    BackupKeyDeletionSurface, DeletionTarget, DeletionWorker, FilesystemDeletionSurface,
-    NatsQueueDeletionSurface, PostgresDeletionRepository, PostgresLegalHoldResolver,
-    PostgresRecordDeletionSurface, RedisCacheDeletionSurface, S3ObjectDeletionSurface,
-};
 use trpg_runtime::durable_workflow::DurableWorkflowStore;
 use trpg_security_governance::secret::{
     MountedFileSecretResolver, SecretManager, SecretReference, SecretValue,
+};
+use trpg_security_governance::security_privacy::{
+    BackupKeyDeletionSurface, DeletionTarget, DeletionWorker, FilesystemDeletionSurface,
+    NatsQueueDeletionSurface, PostgresDeletionRepository, PostgresLegalHoldResolver,
+    PostgresRecordDeletionSurface, RedisCacheDeletionSurface, S3ObjectDeletionSurface,
 };
 
 const BACKGROUND_HEARTBEAT_STALE_AFTER: Duration = Duration::from_secs(30);
@@ -404,7 +404,10 @@ fn background_cycle_error<T>(
         trpg_data_eventing::event_bus_nats_impl::JetStreamOutboxError,
     >,
     projection: &Result<T, trpg_data_eventing::event_bus_nats_impl::JetStreamOutboxError>,
-    deletion: &Result<Vec<trpg_privacy::DeletionJob>, trpg_privacy::PrivacyError>,
+    deletion: &Result<
+        Vec<trpg_security_governance::security_privacy::DeletionJob>,
+        trpg_security_governance::security_privacy::PrivacyError,
+    >,
 ) -> Option<String> {
     let delivery_error = match delivery {
         Ok(result) if result.requires_operator_attention() => {
@@ -717,7 +720,8 @@ mod tests {
             background_cycle_error(&healthy_delivery, &projection_failed, &healthy_deletion),
             Some("PROJECTION_REBUILD_FAILED:outbox database failed: projection_rebuild".to_owned())
         );
-        let deletion_failed = Err(trpg_privacy::PrivacyError::Database);
+        let deletion_failed =
+            Err(trpg_security_governance::security_privacy::PrivacyError::Database);
         assert_eq!(
             background_cycle_error(&healthy_delivery, &Ok(1), &deletion_failed),
             Some("PRIVACY_DELETION_CYCLE_FAILED:PRIVACY_DATABASE_ERROR".to_owned())

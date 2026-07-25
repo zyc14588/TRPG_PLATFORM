@@ -11,19 +11,31 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
 
-from manifest import render
-from release_readiness import assess, readiness_report_errors, release_evidence_errors
+from manifest import manifest_source_errors, render
+from release_readiness import (
+    REQUIRED_RELEASE_TEST_CASES,
+    assess,
+    readiness_report_errors,
+    release_evidence_errors,
+    release_junit_errors,
+)
 from repo_truth import (
     ROOT,
     canonical_json_sha256,
     compose_services,
+    false_skip_markers,
     git_modes,
     sha256_file,
     validate_evidence,
 )
 from validate_workflows import validate as validate_workflows
 from verify_evidence_schema import schema_errors
-from verify_test_inventory import inventory
+from verify_manifest import HASHED_ROW, manifest_count_errors
+from verify_test_inventory import (
+    _blank_rust_non_code,
+    integration_test_silent_env_successes,
+    inventory,
+)
 
 
 class RepositoryTruthNegativeTests(unittest.TestCase):
@@ -64,9 +76,34 @@ class RepositoryTruthNegativeTests(unittest.TestCase):
         self.assertNotIn("PLACEHOLDER_SERVICE", ids)
         self.assertNotIn("MUTABLE_PRODUCT_IMAGE", ids)
         self.assertIn("MISSING_CURRENT_EVIDENCE", ids)
+        self.assertIn("MISSING_PRODUCTION_SECURITY_EVIDENCE", ids)
         self.assertEqual(readiness_report_errors(report), [])
         del report["base_commit"]
         self.assertIn("release readiness base_commit mismatch", readiness_report_errors(report))
+
+    def test_release_junit_recurses_and_rejects_error_or_skip_as_passing(self) -> None:
+        root = ET.Element("testsuites")
+        nested = ET.SubElement(root, "testsuites")
+        suite = ET.SubElement(nested, "testsuite")
+        cases = {
+            name: ET.SubElement(suite, "testcase", name=name)
+            for name in REQUIRED_RELEASE_TEST_CASES
+        }
+        self.assertEqual(release_junit_errors(root), [])
+
+        errored_name, skipped_name = sorted(REQUIRED_RELEASE_TEST_CASES)[:2]
+        ET.SubElement(cases[errored_name], "error")
+        ET.SubElement(cases[skipped_name], "skipped")
+        errors = release_junit_errors(root)
+        self.assertIn(
+            f"release evidence is missing required passing test: {errored_name}",
+            errors,
+        )
+        self.assertIn(
+            f"release evidence is missing required passing test: {skipped_name}",
+            errors,
+        )
+        self.assertIn("release evidence must not contain ignored tests", errors)
 
     def test_missing_workflow_script_is_rejected_and_restored(self) -> None:
         path = ROOT / ".github/workflows/p00a-negative.yml"
@@ -102,12 +139,59 @@ jobs:\n  negative:\n    runs-on: ubuntu-latest\n    timeout-minutes: 1
             path.unlink()
 
     def test_manifest_path_set_matches_git(self) -> None:
+        content = render()
         paths = [
             line.split("`", 2)[1]
-            for line in render().splitlines()
+            for line in content.splitlines()
             if line.startswith("| `")
         ]
         self.assertEqual(paths, sorted(git_modes()))
+        self.assertEqual(manifest_count_errors(content), [])
+
+        repository_header = next(
+            line for line in content.splitlines() if line.startswith("Repository files: ")
+        )
+        tampered_header = content.replace(
+            repository_header, "Repository files: 0", 1
+        )
+        self.assertTrue(
+            any(
+                "repository file count does not match manifest path rows" in error
+                for error in manifest_count_errors(tampered_header)
+            )
+        )
+
+        hashed_row = next(
+            line for line in content.splitlines() if HASHED_ROW.fullmatch(line)
+        )
+        missing_row = content.replace(hashed_row + "\n", "", 1)
+        missing_row_errors = manifest_count_errors(missing_row)
+        self.assertTrue(
+            any(
+                "repository file count does not match manifest path rows" in error
+                for error in missing_row_errors
+            )
+        )
+        self.assertTrue(
+            any(
+                "hashed file count does not match hashed path rows" in error
+                for error in missing_row_errors
+            )
+        )
+
+    def test_manifest_rejects_unstaged_and_untracked_source_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "--quiet"], cwd=root, check=True)
+            tracked = root / "tracked.txt"
+            tracked.write_text("committed shape\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=root, check=True)
+            tracked.write_text("unstaged shape\n", encoding="utf-8")
+            (root / "untracked.txt").write_text("not indexed\n", encoding="utf-8")
+            self.assertEqual(
+                manifest_source_errors(root),
+                ["tracked.txt", "untracked.txt"],
+            )
 
     def test_evidence_generator_executes_command_and_derives_failure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -254,6 +338,163 @@ jobs:\n  negative:\n    runs-on: ubuntu-latest\n    timeout-minutes: 1
                 self.assertIn("worktree changed", report.with_suffix(".log").read_text())
             finally:
                 mutation.unlink(missing_ok=True)
+
+    def test_evidence_generator_rejects_deceptive_skip_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = root / "false-skip.json"
+            shim_dir = root / "bin"
+            shim_dir.mkdir()
+            for name, version in (
+                ("node", "v24.17.0"),
+                ("npm", "11.9.0"),
+                ("pnpm", "11.9.0"),
+            ):
+                shim = shim_dir / name
+                shim.write_text(
+                    f"#!/usr/bin/env sh\nprintf '%s\\n' '{version}'\n",
+                    encoding="utf-8",
+                )
+                shim.chmod(0o755)
+            environment = dict(os.environ)
+            environment["PATH"] = str(shim_dir) + os.pathsep + environment["PATH"]
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/ci/generate_evidence.py",
+                    "--report",
+                    str(report),
+                    "--artifact",
+                    "MANIFEST.md",
+                    "--",
+                    sys.executable,
+                    "-c",
+                    (
+                        "print('test integration::requires_service ... ok'); "
+                        "print('SKIPPING: service configuration is absent'); "
+                        "print('not executed: dependency is absent')"
+                    ),
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 86)
+            payload = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(payload["status"], "FAIL")
+            self.assertEqual(payload["exit_code"], 86)
+            self.assertIn(
+                "deceptive skip marker",
+                report.with_suffix(".log").read_text(encoding="utf-8"),
+            )
+            self.assertEqual(validate_evidence(payload, artifact_base=report.parent), [])
+
+    def test_false_skip_markers_include_bare_status_without_crossing_lines(self) -> None:
+        output = "\n".join(
+            (
+                "SKIPPED",
+                "not run",
+                "NOT_EXECUTED",
+                "skipping: service configuration is absent",
+                "not",
+                "executed: split across lines must not be joined",
+                "ordinary test output",
+            )
+        )
+        self.assertEqual(
+            false_skip_markers(output),
+            [
+                "SKIPPED",
+                "not run",
+                "NOT_EXECUTED",
+                "skipping: service configuration is absent",
+            ],
+        )
+
+    def test_inventory_rejects_environment_driven_early_return(self) -> None:
+        path = ROOT / "crates/trpg-identity/tests/p00-false-skip-negative.rs"
+        path.write_text(
+            """
+#[test]
+fn false_green() {
+    let Ok(_value) = std::env::var("REQUIRED_SERVICE") else {
+        return;
+    };
+}
+""",
+            encoding="utf-8",
+        )
+        try:
+            _, errors = inventory()
+            self.assertIn(
+                "integration test can silently pass after missing environment configuration: "
+                "crates/trpg-identity/tests/p00-false-skip-negative.rs (false_green)",
+                errors,
+            )
+        finally:
+            path.unlink()
+
+    def test_inventory_rejects_result_success_after_missing_environment(self) -> None:
+        source = """
+#[tokio::test]
+async fn false_green_result() -> Result<(), Box<dyn std::error::Error>> {
+    let service = match env::var("REQUIRED_SERVICE") {
+        Ok(service) => service,
+        Err(_) => return Ok(()),
+    };
+    use_service(service).await?;
+    Ok(())
+}
+"""
+        self.assertEqual(
+            integration_test_silent_env_successes(source),
+            ["false_green_result"],
+        )
+
+    def test_inventory_ignores_comments_strings_and_unrelated_functions(self) -> None:
+        source = r'''
+fn helper() {
+    let _service = std::env::var("HELPER_ONLY");
+}
+
+#[test]
+fn legitimate_test() {
+    let message = "std::env::var(\"FAKE\") then return;";
+    // let Ok(_) = env::var("COMMENT_ONLY") else { return; };
+    assert!(std::env::var("REQUIRED_SERVICE").expect("required").len() > 0);
+}
+
+fn unrelated_return() {
+    return;
+}
+'''
+        self.assertEqual(integration_test_silent_env_successes(source), [])
+        literal_source = r"""fn borrow<'a>(value: &'a str) -> &'a str {
+    let brace = '{';
+    let escaped = '\u{7b}';
+    let raw = r###"{ env::var(\"FAKE\") }"###;
+    value
+}
+"""
+        sanitized = _blank_rust_non_code(literal_source)
+        self.assertIn("fn borrow<'a>(value: &'a str) -> &'a str {", sanitized)
+        self.assertIn("value", sanitized)
+        self.assertNotIn("env::var", sanitized)
+        self.assertEqual(literal_source.count("\n"), sanitized.count("\n"))
+
+    def test_inventory_does_not_cross_preceding_sibling_block(self) -> None:
+        source = """
+#[test]
+fn legitimate_after_sibling_block() {
+    if unrelated_probe() {
+        return;
+    }
+    let required = std::env::var("REQUIRED_SERVICE").expect("required");
+    use_service(required);
+}
+"""
+        self.assertEqual(integration_test_silent_env_successes(source), [])
 
     def test_evidence_binds_environment_service_versions_and_real_test_details(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

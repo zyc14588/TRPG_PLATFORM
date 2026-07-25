@@ -1,4 +1,6 @@
-use trpg_privacy::{PayloadCipher, PrivacyError};
+use trpg_data_eventing::event_store_sqlx_outbox_projection::{
+    PayloadCipher, PayloadProtectionError,
+};
 
 #[test]
 fn protected_payload_round_trips_without_persisting_plaintext() {
@@ -21,7 +23,7 @@ fn protected_payload_round_trips_without_persisting_plaintext() {
             &first,
             &["campaign_b", "stream_a", "command_a", "ClueRecorded"]
         ),
-        Err(PrivacyError::Cryptography)
+        Err(PayloadProtectionError::Cryptography)
     ));
 
     let fields = cipher.encrypt_json_field(plaintext, &aad).unwrap();

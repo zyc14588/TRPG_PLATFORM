@@ -8,13 +8,13 @@ use sqlx::migrate::Migrator;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgQueryResult};
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::load_canonical_replay_page;
+use trpg_data_eventing::event_store_sqlx_outbox_projection::PayloadCipher;
 use trpg_data_eventing::outbox_projection_workers::PostgresProjectionWorker;
 use trpg_data_eventing::persistence::{
     EventOutboxRecord, EventPayloadUpcaster, EventStoreRecord, ProjectionCheckpointRecord,
     CURRENT_EVENT_SCHEMA_VERSION,
 };
 use trpg_data_eventing::{persistence_migrations, sqlx_migrations_contract};
-use trpg_privacy::PayloadCipher;
 
 const ZERO_REQUEST_HASH: &str =
     "sha256:0000000000000000000000000000000000000000000000000000000000000000";
@@ -578,6 +578,70 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
     .execute(&pool)
     .await
     .is_err());
+
+    // A legacy schema may have lost the original anonymous key-material
+    // constraint. The lease migration must not silently destroy material to
+    // make such drift pass: it fails before recording success and leaves the
+    // incident row untouched for authorized remediation.
+    reset_database(&pool).await;
+    migrator_through(current, 20260724000300)
+        .run(&pool)
+        .await
+        .expect("apply through the migration before deletion leases");
+    pool.execute(
+        "ALTER TABLE privacy_subject_keys \
+             DROP CONSTRAINT privacy_subject_keys_check",
+    )
+    .await
+    .expect("simulate a legacy schema missing the anonymous material check");
+    sqlx::query(
+        r#"
+        INSERT INTO privacy_subject_keys (
+            subject_id, key_reference, wrapped_key, destroyed_at
+        ) VALUES (
+            'legacy_invalid_destroyed_subject', 'legacy_key_reference',
+            decode('aabbccdd', 'hex'), statement_timestamp()
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("seed a claimed-destroyed key that still contains material");
+    let invalid_key_error = current
+        .run(&pool)
+        .await
+        .expect_err("migration must reject retained destroyed key material");
+    assert!(
+        invalid_key_error
+            .to_string()
+            .contains("privacy subject key material remains after a claimed destruction"),
+        "unexpected key-material preflight error: {invalid_key_error}"
+    );
+    let retained_material: Option<Vec<u8>> = sqlx::query_scalar(
+        "SELECT wrapped_key FROM privacy_subject_keys \
+          WHERE subject_id = 'legacy_invalid_destroyed_subject'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        retained_material,
+        Some(vec![0xaa, 0xbb, 0xcc, 0xdd]),
+        "failed migration must not silently destroy legacy key material"
+    );
+    let lease_migration_success: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM _sqlx_migrations \
+          WHERE version = 20260725000100 AND success",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        lease_migration_success, 0,
+        "failed key-material preflight must not record migration success"
+    );
+    pool.close().await;
+    pool = test_pool().await;
 
     // Restore a clean HEAD schema for the independent drift probes below.
     reset_database(&pool).await;

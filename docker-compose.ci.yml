@@ -1,5 +1,159 @@
-# CI uses the same real service graph and security boundaries as production.
-# Test jobs supply disposable external secrets and policy-service identifiers;
-# this file intentionally does not replace app binaries with fake health pages.
-include:
-  - path: compose.yml
+# Runtime security override. The production model remains in compose.yml;
+# this file only publishes isolated CI ports and replaces platform-managed
+# external secrets with ephemeral files created by production-security-smoke.sh.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:25432:5432"
+  postgres-witness:
+    ports:
+      - "127.0.0.1:25433:5432"
+  redis:
+    ports:
+      - "127.0.0.1:26379:6379"
+  nats:
+    ports:
+      - "127.0.0.1:24222:4222"
+  minio:
+    ports:
+      - "127.0.0.1:29000:9000"
+
+secrets:
+  postgres_bootstrap_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_bootstrap_password
+  postgres_witness_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_witness_password
+  postgres_api_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_api_password
+  postgres_canonical_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_canonical_password
+  postgres_worker_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_worker_password
+  postgres_realtime_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_realtime_password
+  owner_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/owner_database_url
+  api_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/api_database_url
+  canonical_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/canonical_database_url
+  worker_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/worker_database_url
+  realtime_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/realtime_database_url
+  witness_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/witness_database_url
+  identity_signing_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/identity_signing_key
+  canonical_hmac_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/canonical_hmac_key
+  payload_encryption_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/payload_encryption_key
+  audit_hmac_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/audit_hmac_key
+  redis_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_url
+  nats_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_url
+  realtime_cache_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/realtime_cache_key
+  object_storage_access_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/object_storage_access_key
+  object_storage_secret_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/object_storage_secret_key
+  postgres_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_tls_certificate
+  postgres_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_tls_private_key
+  postgres_ca_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_ca_certificate
+  redis_acl:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_acl
+  redis_healthcheck_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_healthcheck_password
+  redis_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_tls_certificate
+  redis_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_tls_private_key
+  redis_tls_ca_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_tls_ca_certificate
+  redis_client_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_client_tls_certificate
+  redis_client_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_client_tls_private_key
+  redis_healthcheck_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_healthcheck_tls_certificate
+  redis_healthcheck_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_healthcheck_tls_private_key
+  nats_authorization:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_authorization
+  nats_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_tls_certificate
+  nats_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_tls_private_key
+  nats_tls_ca_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_tls_ca_certificate
+  nats_client_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_client_tls_certificate
+  nats_client_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_client_tls_private_key
+  minio_root_user:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/minio_root_user
+  minio_root_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/minio_root_password
+  minio_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/minio_tls_certificate
+  minio_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/minio_tls_private_key
+  minio_tls_ca_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/minio_tls_ca_certificate
+  reverse_proxy_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/reverse_proxy_tls_certificate
+  reverse_proxy_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/reverse_proxy_tls_private_key

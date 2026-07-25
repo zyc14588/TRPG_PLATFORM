@@ -70,7 +70,8 @@ BEGIN
               (20260723000900::BIGINT, '9401b667b1119d95256e0aeff580a1713fbb276caccb3c9cf7c3672d702b9be21df54f6db27e99f47ae26336665f24c2'),
               (20260724000100::BIGINT, '9233bdfb7089e673019c93d491d59722fe65e10b6b08d738bb9946ee8d05d75fa71a835d9bef4999e7023c5280af8d5a'),
               (20260724000200::BIGINT, 'e7bd37bdd99cf15971195dc055aab9be6336971c598d8bfde7ecbe4092b60c84ae9142bb8850b72b6b7593f9490f91e4'),
-              (20260724000300::BIGINT, 'b0e29db7c453ae5bef7cc8272a814c6b9870b5a236b9cb0d17627c6bbed641230015bc4378537f57f1045637671e60a8')
+              (20260724000300::BIGINT, 'b0e29db7c453ae5bef7cc8272a814c6b9870b5a236b9cb0d17627c6bbed641230015bc4378537f57f1045637671e60a8'),
+              (20260725000100::BIGINT, '8cd03566d1d43e90046a9dcded3985d5958596d153110606a2de0b8f00b2df5a86ba7f8e6b5d5588d247fbc84b145072')
           ) AS expected(version, checksum)
           LEFT JOIN _sqlx_migrations AS applied
             ON applied.version = expected.version
@@ -164,13 +165,128 @@ BEGIN
        OR NOT pg_has_role('trpg_canonical_login', 'trpg_canonical_service', 'MEMBER')
        OR NOT pg_has_role('trpg_worker_login', 'trpg_worker_service', 'MEMBER')
        OR NOT pg_has_role('trpg_realtime_login', 'trpg_realtime_service', 'MEMBER')
-       OR pg_has_role('trpg_api_login', 'trpg_worker_service', 'MEMBER')
-       OR pg_has_role('trpg_api_login', 'trpg_canonical_service', 'MEMBER')
-       OR pg_has_role('trpg_canonical_login', 'trpg_api_service', 'MEMBER')
-       OR pg_has_role('trpg_worker_login', 'trpg_api_service', 'MEMBER')
-       OR pg_has_role('trpg_realtime_login', 'trpg_api_service', 'MEMBER')
+       OR EXISTS (
+           SELECT 1
+             FROM pg_auth_members AS membership
+             JOIN pg_roles AS granted_role ON granted_role.oid = membership.roleid
+             JOIN pg_roles AS member_role ON member_role.oid = membership.member
+            WHERE (
+                    granted_role.rolname = ANY (ARRAY[
+                        'trpg_application',
+                        'trpg_api_service',
+                        'trpg_canonical_service',
+                        'trpg_worker_service',
+                        'trpg_realtime_service',
+                        'trpg_api_login',
+                        'trpg_canonical_login',
+                        'trpg_worker_login',
+                        'trpg_realtime_login'
+                    ])
+                    OR member_role.rolname = ANY (ARRAY[
+                        'trpg_application',
+                        'trpg_api_service',
+                        'trpg_canonical_service',
+                        'trpg_worker_service',
+                        'trpg_realtime_service',
+                        'trpg_api_login',
+                        'trpg_canonical_login',
+                        'trpg_worker_login',
+                        'trpg_realtime_login'
+                    ])
+                  )
+              AND (granted_role.rolname, member_role.rolname) NOT IN (
+                  VALUES
+                      ('trpg_api_service', 'trpg_api_login'),
+                      ('trpg_canonical_service', 'trpg_canonical_login'),
+                      ('trpg_worker_service', 'trpg_worker_login'),
+                      ('trpg_realtime_service', 'trpg_realtime_login')
+              )
+       )
     THEN
         RAISE EXCEPTION 'service login role membership crosses a trust boundary';
+    END IF;
+    IF NOT has_column_privilege(
+               'trpg_worker_service', 'privacy_deletion_jobs',
+               'lease_expires_at', 'UPDATE'
+           )
+       OR NOT has_column_privilege(
+               'trpg_worker_service', 'privacy_deletion_jobs',
+               'lease_recovery_count', 'UPDATE'
+           )
+       OR NOT has_column_privilege(
+               'trpg_worker_service', 'privacy_deletion_jobs',
+               'last_lease_expired_at', 'UPDATE'
+           )
+       OR NOT has_column_privilege(
+               'trpg_worker_service', 'privacy_subject_deletion_fences',
+               'lease_expires_at', 'UPDATE'
+           )
+       OR NOT has_column_privilege(
+               'trpg_worker_service', 'privacy_deletion_job_targets',
+               'progress_cursor', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_api_service', 'privacy_deletion_jobs',
+               'lease_expires_at', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_api_service', 'privacy_deletion_jobs',
+               'lease_recovery_count', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_api_service', 'privacy_deletion_jobs',
+               'last_lease_expired_at', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_api_service', 'privacy_subject_deletion_fences',
+               'lease_expires_at', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_api_service', 'privacy_deletion_job_targets',
+               'progress_cursor', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_canonical_service', 'privacy_deletion_jobs',
+               'lease_expires_at', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_canonical_service', 'privacy_deletion_jobs',
+               'lease_recovery_count', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_canonical_service', 'privacy_deletion_jobs',
+               'last_lease_expired_at', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_canonical_service', 'privacy_subject_deletion_fences',
+               'lease_expires_at', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_canonical_service', 'privacy_deletion_job_targets',
+               'progress_cursor', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_realtime_service', 'privacy_deletion_jobs',
+               'lease_expires_at', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_realtime_service', 'privacy_deletion_jobs',
+               'lease_recovery_count', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_realtime_service', 'privacy_deletion_jobs',
+               'last_lease_expired_at', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_realtime_service', 'privacy_subject_deletion_fences',
+               'lease_expires_at', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_realtime_service', 'privacy_deletion_job_targets',
+               'progress_cursor', 'UPDATE'
+           )
+    THEN
+        RAISE EXCEPTION 'deletion execution lease authority drifted';
     END IF;
 
     SELECT array_agg(
@@ -400,12 +516,16 @@ BEGIN
                 'canonical_event_type:text:YES:-',
                 'canonical_event_sequence:int8:YES:-',
                 'canonical_event_integrity_hash:text:YES:-',
-                'campaign_id:text:NO:-'
+                'campaign_id:text:NO:-',
+                'lease_expires_at:timestamptz:YES:-',
+                'lease_recovery_count:int8:NO:0',
+                'last_lease_expired_at:timestamptz:YES:-'
             ]::TEXT[]),
             ('privacy_deletion_job_targets', ARRAY[
                 'job_id:text:NO:-', 'target:text:NO:-', 'status:text:NO:-',
                 'error_code:text:YES:-', 'deleted_at:timestamptz:YES:-',
-                'verified_at:timestamptz:YES:-'
+                'verified_at:timestamptz:YES:-',
+                'progress_cursor:int8:NO:1'
             ]::TEXT[]),
             ('privacy_legal_holds', ARRAY[
                 'subject_id:text:NO:-', 'hold_reference:text:NO:-',
@@ -417,7 +537,8 @@ BEGIN
             ]::TEXT[]),
             ('privacy_subject_deletion_fences', ARRAY[
                 'subject_id:text:NO:-', 'job_id:text:NO:-', 'status:text:NO:-',
-                'started_at:timestamptz:NO:now()', 'updated_at:timestamptz:NO:now()'
+                'started_at:timestamptz:NO:now()', 'updated_at:timestamptz:NO:now()',
+                'lease_expires_at:timestamptz:YES:-'
             ]::TEXT[]),
             ('privacy_erased_subjects', ARRAY[
                 'subject_id:text:NO:-', 'erasure_digest:text:NO:-',
@@ -538,6 +659,7 @@ BEGIN
             ('enforce_cloud_egress_route_audit_binding'),
             ('enforce_privacy_deletion_job_evidence'),
             ('enforce_privacy_deletion_target_transition'),
+            ('require_running_deletion_authority'),
             ('enforce_subject_scoped_event_protection'),
             ('enforce_subject_scoped_outbox_protection'),
             ('prevent_destroyed_subject_key_restoration'),
@@ -571,6 +693,7 @@ BEGIN
                'enforce_cloud_egress_route_audit_binding',
                'enforce_privacy_deletion_job_evidence',
                'enforce_privacy_deletion_target_transition',
+               'require_running_deletion_authority',
                'enforce_subject_scoped_event_protection',
                'enforce_subject_scoped_outbox_protection',
                'prevent_destroyed_subject_key_restoration',
@@ -632,8 +755,39 @@ BEGIN
          WHERE conrelid = 'privacy_deletion_jobs'::regclass
            AND conname = 'privacy_deletion_jobs_evidence_binding_check'
            AND pg_get_constraintdef(oid) LIKE '%hmac-sha256:%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'privacy_deletion_jobs'::regclass
+           AND conname = 'privacy_deletion_jobs_live_lease_check'
+           AND pg_get_constraintdef(oid) LIKE '%lease_expires_at IS NOT NULL%'
+           AND pg_get_constraintdef(oid) LIKE '%lease_expires_at IS NULL%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'privacy_deletion_jobs'::regclass
+           AND conname = 'privacy_deletion_jobs_lease_recovery_check'
+           AND pg_get_constraintdef(oid) LIKE '%lease_recovery_count >= 0%'
+           AND pg_get_constraintdef(oid) LIKE '%lease_recovery_count <= 3%'
+           AND pg_get_constraintdef(oid) LIKE '%last_lease_expired_at IS NOT NULL%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'privacy_subject_keys'::regclass
+           AND conname = 'privacy_subject_keys_destroyed_material_check'
+           AND pg_get_constraintdef(oid) LIKE '%destroyed_at IS NULL%'
+           AND pg_get_constraintdef(oid) LIKE '%wrapped_key IS NULL%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'privacy_subject_deletion_fences'::regclass
+           AND conname = 'privacy_deletion_fences_live_lease_check'
+           AND pg_get_constraintdef(oid) LIKE '%lease_expires_at IS NOT NULL%'
+           AND pg_get_constraintdef(oid) LIKE '%lease_expires_at IS NULL%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'privacy_deletion_job_targets'::regclass
+           AND conname = 'privacy_deletion_target_progress_cursor_check'
+           AND pg_get_constraintdef(oid) LIKE '%progress_cursor > 0%'
     ) THEN
-        RAISE EXCEPTION 'P05 nullable security metadata or HMAC evidence constraint drifted';
+        RAISE EXCEPTION
+            'P05 nullable security metadata, HMAC evidence, or deletion lease constraint drifted';
     END IF;
 
     -- Execute the erased-subject guard, rather than accepting a function that
@@ -659,7 +813,7 @@ BEGIN
         );
     EXCEPTION WHEN raise_exception THEN
         IF SQLERRM =
-           'privacy erasure mutation requires a running confirmed deletion job' THEN
+           'privacy erasure mutation requires a live confirmed deletion lease' THEN
             unauthorized_erasure_rejected := TRUE;
         ELSE
             RAISE EXCEPTION
@@ -954,6 +1108,18 @@ BEGIN
         SELECT 1
           FROM pg_indexes
          WHERE schemaname = 'public'
+           AND tablename = 'privacy_deletion_jobs'
+           AND indexname = 'privacy_deletion_jobs_expired_lease_idx'
+           AND indexdef =
+               'CREATE INDEX privacy_deletion_jobs_expired_lease_idx ON public.privacy_deletion_jobs USING btree (lease_expires_at, job_id) WHERE (status = ANY (ARRAY[''running''::text, ''verifying''::text]))'
+    ) THEN
+        RAISE EXCEPTION 'privacy deletion expired-lease recovery index drifted';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_indexes
+         WHERE schemaname = 'public'
            AND tablename = 'rag_snapshot_chunk'
            AND indexname = 'rag_snapshot_chunk_visibility_idx'
            AND indexdef =
@@ -1227,6 +1393,56 @@ BEGIN
            )
     ) THEN
         RAISE EXCEPTION 'confirmed deletion job is not bound to its exact canonical HMAC event';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM privacy_deletion_jobs
+         WHERE (
+                   status IN ('running', 'verifying')
+                   AND (
+                       lease_expires_at IS NULL
+                       OR lease_expires_at <= statement_timestamp()
+                   )
+               )
+            OR (
+                   status NOT IN ('running', 'verifying')
+                   AND lease_expires_at IS NOT NULL
+               )
+            OR lease_recovery_count NOT BETWEEN 0 AND 3
+            OR (
+                   lease_recovery_count = 0
+                   AND last_lease_expired_at IS NOT NULL
+               )
+            OR (
+                   lease_recovery_count > 0
+                   AND last_lease_expired_at IS NULL
+               )
+    ) OR EXISTS (
+        SELECT 1
+          FROM privacy_subject_deletion_fences
+         WHERE (
+                   status = 'running'
+                   AND (
+                       lease_expires_at IS NULL
+                       OR lease_expires_at <= statement_timestamp()
+                   )
+               )
+            OR (
+                   status <> 'running'
+                   AND lease_expires_at IS NOT NULL
+               )
+    ) THEN
+        RAISE EXCEPTION 'stale or inconsistent privacy deletion lease remains unrecovered';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM privacy_subject_keys
+         WHERE destroyed_at IS NOT NULL
+           AND wrapped_key IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'destroyed subject key still retains wrapped key material';
     END IF;
 
     IF EXISTS (

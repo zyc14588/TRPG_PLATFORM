@@ -1,4 +1,4 @@
-name: coc-ai-trpg-p05
+name: coc-ai-trpg
 
 x-trpg-runtime: &trpg-runtime
   image: coc-ai-trpg/runtime:${TRPG_IMAGE_TAG:-local}
@@ -185,7 +185,7 @@ services:
         condition: service_healthy
 
   policy-bootstrap:
-    image: python:3.13-alpine
+    image: python:3.13-alpine@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0
     command:
       - python3
       - /bootstrap/p02_policy_bootstrap.py
@@ -255,7 +255,6 @@ services:
       TRPG_NATS_CA_CERT_PATH: /run/secrets/nats_tls_ca_certificate
       TRPG_NATS_CLIENT_CERT_PATH: /run/secrets/nats_client_tls_certificate
       TRPG_NATS_CLIENT_KEY_PATH: /run/secrets/nats_client_tls_private_key
-      TRPG_NATS_CREDENTIALS_PATH: /run/secrets/nats_client_credentials
     secrets:
       - source: realtime_database_url
         target: realtime_database_url.v1
@@ -277,7 +276,7 @@ services:
       - nats_tls_ca_certificate
       - nats_client_tls_certificate
       - nats_client_tls_private_key
-      - nats_client_credentials
+      - postgres_ca_certificate
     volumes:
       - realtime_state:/var/lib/trpg
     networks:
@@ -331,7 +330,6 @@ services:
       TRPG_NATS_CA_CERT_PATH: /run/secrets/nats_tls_ca_certificate
       TRPG_NATS_CLIENT_CERT_PATH: /run/secrets/nats_client_tls_certificate
       TRPG_NATS_CLIENT_KEY_PATH: /run/secrets/nats_client_tls_private_key
-      TRPG_NATS_CREDENTIALS_PATH: /run/secrets/nats_client_credentials
       TRPG_REDIS_CA_CERT_PATH: /run/secrets/redis_tls_ca_certificate
       TRPG_REDIS_CLIENT_CERT_PATH: /run/secrets/redis_client_tls_certificate
       TRPG_REDIS_CLIENT_KEY_PATH: /run/secrets/redis_client_tls_private_key
@@ -358,8 +356,8 @@ services:
       - nats_tls_ca_certificate
       - nats_client_tls_certificate
       - nats_client_tls_private_key
-      - nats_client_credentials
       - minio_tls_ca_certificate
+      - postgres_ca_certificate
     volumes:
       - agent_state:/var/lib/trpg
     networks:
@@ -424,6 +422,7 @@ services:
         target: canonical_hmac_key.v1
       - source: payload_encryption_key
         target: payload_encryption_key.v1
+      - postgres_ca_certificate
     volumes:
       - migration_state:/var/lib/trpg
     networks:
@@ -438,7 +437,7 @@ services:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8084/health/ready"]
 
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
     restart: unless-stopped
     environment:
       POSTGRES_DB: coc_ai_trpg
@@ -471,6 +470,7 @@ services:
         exec docker-entrypoint.sh postgres \
           -c password_encryption=scram-sha-256 \
           -c ssl=on \
+          -c ssl_min_protocol_version=TLSv1.2 \
           -c ssl_cert_file=/run/secrets/postgres_tls_certificate \
           -c ssl_key_file=/tmp/postgres-server.key \
           -c hba_file=/etc/trpg/postgres/pg_hba.conf
@@ -481,7 +481,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U trpg_database_owner -d coc_ai_trpg"]
 
   postgres-witness:
-    image: postgres:16-alpine
+    image: postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
     restart: unless-stopped
     environment:
       POSTGRES_DB: coc_ai_trpg_witness
@@ -492,6 +492,9 @@ services:
       - postgres_witness_password
       - postgres_tls_certificate
       - postgres_tls_private_key
+    configs:
+      - source: postgres_witness_hba
+        target: /etc/trpg/postgres/pg_hba.conf
     volumes:
       - postgres_witness_data:/var/lib/postgresql/data
     command:
@@ -502,8 +505,10 @@ services:
         exec docker-entrypoint.sh postgres \
           -c password_encryption=scram-sha-256 \
           -c ssl=on \
+          -c ssl_min_protocol_version=TLSv1.2 \
           -c ssl_cert_file=/run/secrets/postgres_tls_certificate \
-          -c ssl_key_file=/tmp/postgres-server.key
+          -c ssl_key_file=/tmp/postgres-server.key \
+          -c hba_file=/etc/trpg/postgres/pg_hba.conf
     networks:
       - backend
     healthcheck:
@@ -511,7 +516,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U trpg_witness_owner -d coc_ai_trpg_witness"]
 
   redis:
-    image: redis:7-alpine
+    image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
     restart: unless-stopped
     command: ["redis-server", "/etc/trpg/redis/redis.conf"]
     configs:
@@ -541,7 +546,7 @@ services:
           --key /run/secrets/redis_healthcheck_tls_private_key ping
 
   nats:
-    image: nats:2-alpine
+    image: nats@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0
     restart: unless-stopped
     command: ["-c", "/etc/trpg/nats/nats.conf"]
     configs:
@@ -561,7 +566,7 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/healthz >/dev/null"]
 
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
@@ -569,9 +574,12 @@ services:
     entrypoint: ["sh", "-ec"]
     command:
       - |
-        install -d -m 0700 /root/.minio/certs
-        install -m 0644 /run/secrets/minio_tls_certificate /root/.minio/certs/public.crt
-        install -m 0600 /run/secrets/minio_tls_private_key /root/.minio/certs/private.key
+        umask 077
+        mkdir -p /root/.minio/certs
+        cp /run/secrets/minio_tls_certificate /root/.minio/certs/public.crt
+        cp /run/secrets/minio_tls_private_key /root/.minio/certs/private.key
+        chmod 0644 /root/.minio/certs/public.crt
+        chmod 0600 /root/.minio/certs/private.key
         exec minio server /data --console-address :9001
     secrets:
       - minio_root_user
@@ -593,7 +601,7 @@ services:
           https://127.0.0.1:9000/minio/health/live >/dev/null
 
   minio-init:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: minio/mc@sha256:aead63c77f9db9107f1696fb08ecb0faeda23729cde94b0f663edf4fe09728e3
     restart: "no"
     depends_on:
       minio:
@@ -607,15 +615,17 @@ services:
     entrypoint: ["sh", "-ec"]
     command:
       - |
-        install -d -m 0700 /tmp/mc/certs/CAs
-        install -m 0644 /run/secrets/minio_tls_ca_certificate /tmp/mc/certs/CAs/trpg-ca.crt
+        umask 077
+        mkdir -p /tmp/mc/certs/CAs
+        cp /run/secrets/minio_tls_ca_certificate /tmp/mc/certs/CAs/trpg-ca.crt
+        chmod 0644 /tmp/mc/certs/CAs/trpg-ca.crt
         export MC_CERTS_DIR=/tmp/mc/certs
         export MC_HOST_trpg="https://$$(cat /run/secrets/minio_root_user):$$(cat /run/secrets/minio_root_password)@minio:9000"
         mc --config-dir /tmp/mc mb --ignore-existing "trpg/${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}"
         mc --config-dir /tmp/mc version suspend "trpg/${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}"
 
   reverse-proxy:
-    image: nginx:1.27-alpine
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     restart: unless-stopped
     read_only: true
     security_opt:
@@ -766,9 +776,6 @@ secrets:
   nats_client_tls_private_key:
     external: true
     name: ${TRPG_NATS_CLIENT_TLS_PRIVATE_KEY_SECRET:-trpg_nats_client_tls_private_key}
-  nats_client_credentials:
-    external: true
-    name: ${TRPG_NATS_CLIENT_CREDENTIALS_SECRET:-trpg_nats_client_credentials}
   minio_root_user:
     external: true
     name: ${TRPG_MINIO_ROOT_USER_SECRET:-trpg_minio_root_user}
@@ -794,6 +801,8 @@ secrets:
 configs:
   postgres_hba:
     file: ./config/postgres/pg_hba.conf
+  postgres_witness_hba:
+    file: ./config/postgres/witness_pg_hba.conf
   postgres_security_roles:
     file: ./config/postgres/001-security-roles.sql
   postgres_application_role:

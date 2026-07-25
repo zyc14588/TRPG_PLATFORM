@@ -1,7 +1,9 @@
 use crate::readme::redact_for_observability;
 use trpg_identity::{AuthenticationContext, GlobalRole, PrincipalKind};
-use trpg_privacy::{ConfirmedDeletionRecord, DeletionRequestEvidence, DeletionRequestPort};
 use trpg_security_governance::formal_commit_audit::{FormalAuthorization, FormalCommitAuthorizer};
+use trpg_security_governance::security_privacy::{
+    ConfirmedDeletionRecord, DeletionRequestEvidence, DeletionRequestPort,
+};
 use trpg_security_governance::{
     evaluate_derived_visibility, DerivationRequest, DerivedObject, RedactionOutcome,
 };

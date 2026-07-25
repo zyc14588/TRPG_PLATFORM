@@ -11,7 +11,6 @@ members = [
     "crates/trpg-data-eventing",
     "crates/trpg-api",
     "crates/trpg-platform",
-    "crates/trpg-privacy",
     "crates/trpg-security-governance",
     "crates/trpg-testing",
     "crates/trpg-ops",

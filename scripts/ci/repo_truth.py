@@ -24,8 +24,8 @@ MANIFEST_OUTPUTS = {
     "manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md",
 }
 PRODUCT_SERVICES = ("web", "api", "realtime", "agent-worker", "admin")
-EVIDENCE_SCHEMA_VERSION = "p00-4"
-EVIDENCE_GENERATOR_VERSION = "p00-4"
+EVIDENCE_SCHEMA_VERSION = "p00-5"
+EVIDENCE_GENERATOR_VERSION = "p00-5"
 EVIDENCE_REQUIRED = (
     "base_commit",
     "worktree_diff_sha256",
@@ -204,6 +204,18 @@ def cargo_test_cases(*outputs: str) -> list[tuple[str, str]]:
     for output in outputs:
         cases.extend((match.group(1), match.group(2)) for match in pattern.finditer(output))
     return cases
+
+
+def false_skip_markers(*outputs: str) -> list[str]:
+    pattern = re.compile(
+        r"(?im)^[ \t]*(?:skip(?:ped|ping)?|not[ \t_-]+(?:run|executed))"
+        r"(?:[ \t]*(?::|-)[ \t]*.*)?[ \t]*$"
+    )
+    return [
+        match.group(0).strip()
+        for output in outputs
+        for match in pattern.finditer(output)
+    ]
 
 
 def evidence_test_cases(
@@ -614,6 +626,11 @@ def validate_evidence(
                 }
                 if command_output != expected_output:
                     errors.append("command_output does not match bound raw output")
+                if exit_code == 0 and false_skip_markers(
+                    stdout_bytes.decode("utf-8", errors="replace"),
+                    stderr_bytes.decode("utf-8", errors="replace"),
+                ):
+                    errors.append("passing evidence contains a deceptive skip marker")
                 if len(generated_by_suffix[".junit.xml"]) == 1:
                     junit_path = artifact_base / generated_by_suffix[".junit.xml"][0]
                     try:

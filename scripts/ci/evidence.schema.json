@@ -1,5 +1,5 @@
 {
-  "schema_version": "p00-4",
+  "schema_version": "p00-5",
   "required": [
     "base_commit",
     "worktree_diff_sha256",

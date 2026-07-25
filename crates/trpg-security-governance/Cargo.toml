@@ -7,11 +7,17 @@ license = "UNLICENSED"
 
 [dependencies]
 async-trait = "0.1"
+async-nats = { version = "0.49.1", default-features = false, features = ["jetstream", "nkeys", "ring", "server_2_10"] }
 hmac = "0.12"
+percent-encoding = "2.3"
+redis = { version = "1.0", default-features = false, features = ["aio", "connection-manager", "script", "tokio-rustls-comp"] }
 rustix = { version = "1.1", features = ["fs"] }
+s3 = { package = "rust-s3", version = "0.37.2", default-features = false, features = ["fail-on-err", "tokio-native-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10.9"
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "macros", "migrate"] }
+tokio = { version = "1.48", features = ["fs"] }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
 trpg-identity = { path = "../trpg-identity" }
 trpg-domain-core = { path = "../trpg-domain-core" }
@@ -20,4 +26,5 @@ zeroize = "1.8"
 
 [dev-dependencies]
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
+trpg-data-eventing = { path = "../trpg-data-eventing" }
 trpg-test-support = { path = "../trpg-contracts/test-support" }

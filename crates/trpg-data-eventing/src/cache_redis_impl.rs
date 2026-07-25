@@ -24,13 +24,13 @@ pub const CACHE_IS_CANONICAL: bool = false;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::event_store_sqlx_outbox_projection::PayloadCipher;
 use hmac::{Hmac, Mac};
 use redis::aio::ConnectionManager;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use trpg_identity::ReplayAuthorization;
-use trpg_privacy::PayloadCipher;
 use trpg_shared_kernel::{EntityId, Visibility};
 use url::Url;
 use zeroize::{Zeroize, Zeroizing};

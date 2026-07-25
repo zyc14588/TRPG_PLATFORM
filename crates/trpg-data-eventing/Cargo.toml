@@ -7,8 +7,10 @@ license = "UNLICENSED"
 
 [dependencies]
 async-nats = { version = "0.49.1", default-features = false, features = ["jetstream", "nkeys", "ring", "server_2_10"] }
+base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 hmac = "0.12"
+percent-encoding = "2.3"
 redis = { version = "1.0", default-features = false, features = ["aio", "connection-manager", "script", "tokio-rustls-comp"] }
 ring = "0.17"
 serde = { version = "1.0", features = ["derive"] }
@@ -20,7 +22,6 @@ tracing = "0.1"
 trpg-contracts = { path = "../trpg-contracts" }
 trpg-domain-core = { path = "../trpg-domain-core", features = ["canonical-store-internal"] }
 trpg-identity = { path = "../trpg-identity" }
-trpg-privacy = { path = "../trpg-privacy" }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
 url = "2.5"
 zeroize = "1.8"

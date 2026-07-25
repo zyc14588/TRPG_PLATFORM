@@ -1,62 +1,70 @@
-# P05 深度检查问题修复追溯
+# P05 问题修复追溯
+
+记录日期：2026-07-25（Australia/Brisbane）
 
 ```text
-SOURCE_REVIEW = /tmp/codex-security-scans/TRPG_PLATFORM/fb6e1466_20260723T132131Z/report.md
-BASE_HEAD = fb6e146612e4df66a508292245da6b995bbe64fb
-LOCAL_IMPLEMENTATION_REPAIR = VERIFIED
-STRICT_BATCH_ACCEPTANCE = BLOCKED | PARTIAL_NOT_ACCEPTED
+REPAIR_BASE_HEAD = dbbc91d58f29c38c9153567609e594fe77cfdee5
+CURRENT_CONTROL_REPAIR = LOCAL_EXECUTED_NOT_RELEASE_ATTESTED
+ORIGINAL_FINDING_INSTANCE_COMPLETENESS = UNPROVEN
+P06_ENTRY = DENIED
 ```
 
-本表以 2026-07-23 深度检查中的正式 family 为单位，不再使用旧的 `9/9`、`20/20` 或 `5/5`
-关闭计数。`FIXED_LOCAL` 表示当前工作树的实现已经由负向或真实依赖测试验证；它不代表缺失的
-P04 前置、干净 checkpoint、Hosted CI 或 production TLS 已通过。
+## 当前控制覆盖
 
-## 实现与控制 family
-
-| 检查 family | 修复 | 关键复验 | 状态 |
-| --- | --- | --- | --- |
-| `CANONICAL-DB-FORMAL-TUPLE-FORGERY`、`CANONICAL-EVENT-SECURITY-METADATA-BINDING`、`CANONICAL-RECEIPT-INTEGRITY-DOWNGRADE` | canonical integrity v2 绑定所有安全字段；consumer、recover、commit、witness append 均执行 keyed verification；DB roles 收紧 | canonical PostgreSQL 4/4、wrong-key/tamper regression、角色探针 | FIXED_LOCAL |
-| `RAW-EVENTSTORE-CROSS-CAMPAIGN-REPLAY`、`RAW-EVENTSTORE-SELF-ISSUED-WORKFLOW-AUTHORITY` | unscoped multi-campaign replay fail closed；正式读取要求 campaign-bound live authorization，调用方不能自发 workflow authority | API canonical replay、shared-kernel unscoped replay、agent identity gate | FIXED_LOCAL |
-| `DELETION-CROSS-CAMPAIGN-CONFUSED-DEPUTY`、`DELETION-JOB-EXISTENCE-ORACLE`、`DELETION-ORPHAN-PENDING-JOBS` | job 绑定 requester/campaign/subject；先完成真实 policy + canonical evidence，再原子分配；越权状态查询返回不透明 404；重试幂等 | API privacy 14/14、真实 policy route、失败 commit 无 pending job | FIXED_LOCAL |
-| `DELETION-DATA-SUBJECT-KEYING`、`DELETION-JETSTREAM-ABSENCE-PROOF`、`DELETION-REDIS-INDEX-TTL` | data subject 独立于 visibility；NATS deletion digest/classification、Redis AEAD metadata/index、TTL/legacy 处理均绑定 subject；未知/错绑消息使 absence proof 失败 | 真实 deletion E2E 4/4、JetStream/Redis integration | FIXED_LOCAL |
-| `DELETION-OBJECTSTORE-ADAPTER-MISMATCH` | worker 和 E2E 统一使用生产 MinIO/S3 adapter 语义，并验证对象不存在而非影子目录 | MinIO + deletion E2E、真实 agent-worker smoke | FIXED_LOCAL |
-| `DELETION-TERMINAL-STATUS-FORGERY`、`LEGAL-HOLD-DEACTIVATION-AUTHORIZATION`、`SUBJECT-KEY-UNAUTHORIZED-DESTRUCTION`、`ERASED-SUBJECT-TOMBSTONE-CREATION-AUTHORIZATION` | transition trigger、running-job authority、append-only evidence 与最小数据库角色阻止应用凭据直接伪造终态/hold/key/tombstone | schema assertion、6 个拒绝角色探针、retained-history negative tests | FIXED_LOCAL |
-| `OUTBOX-TERMINAL-STATE-AUTHORIZATION` | Outbox claim/ACK 绑定 delivery transition、claim token 和已验证 formal commit；应用角色不能直接改终态 | migration/schema assertion、JetStream integration、角色探针 | FIXED_LOCAL |
-| `DB-GROUP-MEMBERSHIP-FORGERY`、`PRIVATE-GROUP-REPLAY-LIFECYCLE-ATOMICITY` | group membership 写入收紧；授权决策在同一持久连接/事务快照读取 membership 与 revocation，不再使用两次可漂移查询 | PostgreSQL identity revoke、private-group replay tests | FIXED_LOCAL |
-| `CACHE-PRIVATE-METADATA-CONFIDENTIALITY` | Redis value 和敏感 metadata 同时进入 AEAD envelope，Debug 只输出脱敏引用 | cache unit tests、真实 Redis E2E | FIXED_LOCAL |
-| `CALLER-MINTABLE-VISIBILITY-PRINCIPAL`、`MEMORY-RAG-PROCESSOR-AUTHORIZATION` | RAG/Memory RAG 接受 IdentityVerifier 铸造的 campaign-bound ReplayAuthorization；processor 与 target audience 分离 | Memory RAG、target audience、live replay tests | FIXED_LOCAL |
-| `RAG-COPYRIGHT-USE-METADATA-BINDING`、`RAG-EMBEDDING-INTEGRITY` | snapshot 绑定来源事件、内容摘要、use/copyright metadata、embedding bytes/model、visibility/provenance 和 derivation receipt | pgvector RAG contract、schema assertion | FIXED_LOCAL |
-| `PLUGIN-INPUT-MANIFEST-CLASSIFICATION`、`TOOL-GRANT-EXECUTION-TUPLE-BINDING` | host 验证输入 manifest/classification；grant 绑定 plugin/tool/schema/input/campaign/actor；ToolResult 仅在成功执行后铸造 | plugin host 6/6、tool provider contracts | FIXED_LOCAL |
-| `FACT-EVIDENCE-TRUST-ROOT-AND-FACT-BINDING`、`FACTSOURCE-SEMANTIC-ATTESTATION` | 移除默认自签路径；evidence 由仓库 trust root 验证并绑定 target、canonical event、完整 command；DiceRoll 等来源要求专用 receipt | fact provenance 8/8、human confirmation 8/8、canonical integration | FIXED_LOCAL |
-| `CLOUD-CONTEXT-PROVENANCE-BINDING`、`CLOUD-PROVIDER-ENDPOINT-IDENTITY`、`CLOUD-PROVIDER-CREDENTIAL-BINDING`、`CLOUD-ROUTE-POLICY-BINDING` | authorization 绑定精确最小上下文、bytes、endpoint/provider/model/credential/route/policy revision | cloud policy 6/6、cloud E2E、provider send tests | FIXED_LOCAL |
-| `CLOUD-CONSENT-UNTRUSTED-CLOCK`、`CLOUD-AUTHORIZATION-REVOCATION-FRESHNESS`、`CLOUD-NOTICE-EVIDENCE-AUTHENTICITY` | 时间来自可信 clock；notice 持久化并绑定；发送边界重新检查 consent、secret 和 route 撤销 | cloud policy/E2E、provider transport tests | FIXED_LOCAL |
-| `CLOUD-CONSENT-PUBLIC-WRITE-AUTHORIZATION`、`DB-CLOUD-CONSENT-FORGERY`、`POST-ERASURE-CONSENT-RESURRECTION` | 移除宽泛 public write；consent transition 要求授权来源；数据库角色收紧；erased subject trigger 禁止复活 consent | schema assertion、cloud E2E、post-erasure negative tests | FIXED_LOCAL |
-| `CLOUD-MIGRATION-APPEND-ONLY-BACKFILL-CONFLICT` | migration 使用锁定、可重入的 append-only backfill 顺序，保留历史审计并拒绝冲突升级 | populated upgrade test、clean schema assertion | FIXED_LOCAL |
-| `LOCAL-PROVIDER-REMOTE-BOUNDARY-MISCLASSIFICATION`、`PROVIDER-PRODUCTION-ATTESTATION` | endpoint 解析决定隐私边界，label 不能伪装；production attestation 绑定部署 snapshot 和可信 secret reference | provider secret 4/4、deployment contracts | FIXED_LOCAL |
-| `LOCAL-MODEL-LEVEL4-CERTIFICATION-AUTHENTICITY` | Level 4 report 使用持久签名 receipt、模型/量化/runtime/测试集摘要，AI Keeper 每次检查真实认证 | certification、provider/runtime tests | FIXED_LOCAL |
-| `SECRET-REVOCATION-DURABILITY` | mounted/KMS revocation 写入持久 catalog，manager restart 后仍拒绝已撤销版本 | secret boundary 5/5、provider send recheck | FIXED_LOCAL |
-| `DEPLOYMENT-SECURITY-SNAPSHOT-EVENT-BINDING` | 部署 snapshot 绑定 provider endpoint、credential reference、环境和安全 policy，并写 governed event | deployment contracts、release service smoke | FIXED_LOCAL |
-| `NATS-MTLS-CLIENT-INCOMPATIBILITY`、`REDIS-MTLS-CLIENT-INCOMPATIBILITY` | 客户端配置支持 CA/client cert/private key 并对远端 plaintext fail closed；Compose 配置与 secret path 对齐 | client negative contracts、静态 Compose checks | IMPLEMENTATION_FIXED；RUNTIME_TLS_NOT_PROVEN |
-| `POSTGRES-PASSWORD-ARGV-EXPOSURE` | bootstrap 通过受限环境/文件输入密码，不再把密码放入 `psql` argv | shell/static contract、argv negative probe | FIXED_LOCAL |
-
-## Evidence/false-green family
-
-| 检查 family | 当前处理 | 状态 |
+| 控制面 | 主要实现位置 | 当前验证 |
 | --- | --- | --- |
-| `PRIVACY-POLICY-PERMIT-DOUBLE` | Rust/OpenFGA/OPA 统一 `delete_personal_data`；新增真实 policy permit/deny 测试，固定 permit 只保留作内部单元隔离 | FIXED_LOCAL |
-| `DELETION-VACUOUS-BRANCH-FIXTURE` | 缺少任一真实 surface 时测试失败；生产 adapter 与 E2E 共用，逐面记录真实 receipt | FIXED_LOCAL |
-| `MODEL-CERTIFICATION-NO-EXECUTION` | certification 必须绑定实际执行摘要、签名和 durable store；provider/runtime 消费该 receipt | FIXED_LOCAL |
-| `CLOUD-FALLBACK-FAKE-LEDGER` | production provider send 使用持久 consent/notice/route/secret，并在真实 transport boundary 消耗 authorization | FIXED_LOCAL |
-| `SCHEMA-ASSERTION-SEMANTIC-DRIFT` | assertion 验证函数/触发器语义与 migration checksum；替换为 no-op 或故障注入后会失败 | FIXED_LOCAL |
-| `COMPOSE-PLACEHOLDER-HEALTH` | Compose 使用真实 Rust binaries；release process smoke 已启动五服务和 web | PLACEHOLDER_FIXED；PRODUCTION_COMPOSE_TLS_NOT_RUN |
-| `UNBOUND-LOCAL-PASS-ATTESTATION` | 旧 `9/9`、`20/20`、`5/5` 全部撤回；raw logs 保留在扫描目录；release readiness 保持 BLOCKED | BLOCKED_BY_INHERITED_HISTORY |
+| Canonical Event Store、Outbox、payload cipher | `trpg-data-eventing` normalized owner | P03 migration、P04 Event Store/Outbox/Projection/RAG、全工作区测试通过 |
+| Privacy、deletion、cloud consent/egress | `trpg-security-governance` normalized owner | deletion 8 项、cloud egress、policy fail-closed、platform privacy 14 项通过 |
+| PostgreSQL/Redis/NATS/MinIO 多 surface 删除 | security-governance adapters + 真实临时服务 | PostgreSQL primary/witness、Redis、NATS JetStream、MinIO 实测通过 |
+| OpenFGA/OPA 一致授权 | security-governance policy adapter | 真实 OpenFGA/OPA 12 项及 OPA 16/16 通过 |
+| TLS、mTLS 和凭据边界 | identity/data-eventing client + Compose secrets | PostgreSQL verify-full TLS 实测；全部数据库客户端的 CA mount 有静态/S09 约束；Redis/NATS unit/static 通过；生产容器 mTLS 未运行 |
+| 备份恢复 | `trpg-ops` | PostgreSQL 18 custom archive、独立目标连续两次恢复、计数核对、篡改拒绝通过 |
+| 证据与 false-green 防护 | `scripts/ci/repo_truth.py`、manifest、inventory、readiness | Python 19/19，覆盖裸 skip 状态、跨行不拼接、逐测试环境控制边界和静态工作流检查 |
+| 发布环境安全 | production Compose + runtime smoke | 两种 Compose config 解析和静态安全契约通过；Docker runtime 未运行 |
 
-## 为什么仍不能标记 COMPLETE
+## 修复对应关系
 
-- `UNBOUND-LOCAL-PASS-ATTESTATION` 的历史边界不能在当前混合 dirty worktree 中事后制造；
-- P04 严格前置没有已验证完成证据；
-- production Compose TLS/mTLS、external secrets、Hosted CI 和最终 CodeRabbit 未执行；
-- 没有外部、不可变、绑定当前干净 commit 的完整 `scripts/ci/test-all.sh` 发布证据。
+- `P05-R01`–`P05-R03`：关闭静默跳过、index 外 manifest 漂移和欺骗性 skip marker。
+- `P05-R04`–`P05-R07`：补齐完整依赖 CI、角色 fixture、关键 JUnit 准入和严格 lint。
+- `P05-R08`–`P05-R09`：补齐生产 TLS/mTLS、external secret、证书轮换脚本和客户端兼容。
+- `P05-R10`–`P05-R11`：恢复 normalized owner/output，并更新失效的验收断言。
+- `P05-R12`–`P05-R14`：撤回不可复验证据，建立实例台账，并将未运行/不可恢复项保持阻断。
+- `P05-R15`–`P05-R16`：完整安全重扫前置失败保持 `NOT_RUN`；CodeRabbit 后续多轮发现的
+  actionable issues 全部逐条验证和修复，最近几轮为删除执行完整性 5 项、终态/redirect 3 项
+  及裸 skip 状态漏检 1 项。
+  CodeRabbit 结果仍是 session-local、非不可变提交绑定的 review，不提升为 external
+  attestation。NATS canonical deletion 采用 data-subject 分区、服务端 subject filter、每批
+  128 条和持久 cursor；Redis absence 不再盲信 index；lease recovery 三次耗尽后保持 terminal；
+  CI TLS fixture 由 host trust 改为 SCRAM，并以真实连接证明明文拒绝。异常旧 key material 的
+  migration 不会绕过 canonical deletion workflow 自动清空，而是锁表并显式拒绝升级。
+- `P05-R17`：补齐 realtime、agent-worker、migration-runner 的 PostgreSQL trust anchor mount；
+  同时把 HBA `samenet` 的安全前提固化为数据库容器仅连接 internal backend 且生产无端口。
+  PostgreSQL 客户端证书建议因不属于当前 `verify-full TLS + SCRAM` 契约而未伪装成已实现的 mTLS。
+- `P05-R18`：修复 false-green inventory 越过 preceding sibling block 的反向扫描边界，并保留
+  对真实 missing-env early return 的拒绝能力。
+- `P05-R19`：消除 baseline 中“工作树为空”的歧义，并把未持久化、未绑定候选 commit 的本地
+  步骤 1–5 结果明确降格为 `LOCAL_EXECUTED_NOT_RELEASE_ATTESTED`；Docker runtime、Hosted CI
+  和 commit-bound evidence 继续保持 `NOT_RUN/BLOCKED`。
+- `P05-R20`：manifest 当前 path/hash/sentinel 数量经独立计数一致；验证器额外独立解析 header
+  与表格行，拒绝畸形、重复、缺行或错误 sentinel，避免与 renderer 共享同一错误而一起变绿。
+- `P05-R21`：Rust 测试库存 scanner 的 raw/character pattern 改为 compiled positional match，
+  且字符字面量不再跨多个 lifetime 吞代码；保留逐测试 missing-env early return 检测。
+- `P05-R22`：integration bootstrap 不再只撤销枚举的 service→login 组合；任何以 managed role
+  为 granted role 或 member 的旧关系都会清除，然后只恢复 4 条批准映射，schema 断言拒绝额外
+  `pg_auth_members` 行。
+- `P05-R23`：CodeRabbit 摘要纳入除自引用 disposition 外的全部 P05 审计记录；最新轮次和
+  post-fix 未运行状态同步到台账，避免旧审查结果冒充当前结果。
 
-因此，所有 `FIXED_LOCAL` 只描述当前可验证实现；严格批次结论仍为
-`BLOCKED | PARTIAL_NOT_ACCEPTED`。
+详细状态和原始标识符见 `P05_INSTANCE_CONTROL_LEDGER.md`。
+
+## 不得标记为已关闭的范围
+
+1. 原始扫描实例集合、标题、严重度和逐实例 PoC 不可恢复。
+2. 当前 patch 尚未提交，因此没有绑定干净 commit 的证据包。
+3. 当前 patch 的 Hosted CI 未运行。
+4. 本机缺少 Compose v2 插件且当前用户无 Docker daemon/sudo 权限，production Compose runtime
+   TLS/mTLS、external secret 和轮换未运行。
+5. P04 历史严格准入材料仍没有当前 Hosted CI/干净候选证明。
+6. 等价完整安全重扫在 preflight 阶段即因 native multi-agent V2 前置不满足而停止，没有扫描结果。
+
+因此本文只描述“当前控制覆盖”，不使用 `ALL_FINDINGS_FIXED` 或实例关闭计数。

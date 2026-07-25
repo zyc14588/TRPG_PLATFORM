@@ -8,7 +8,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use trpg_contracts::HttpRequest;
 use trpg_data_eventing::event_store_sqlx_outbox_projection::PostgresCanonicalStore;
 use trpg_identity::{GlobalRole, WorkloadRole};
-use trpg_privacy::PostgresDeletionRepository;
 use trpg_runtime::runtime;
 use trpg_runtime::runtime_state_machines::{
     RuntimeAgent, RuntimeDecision, RuntimeError, RuntimeTool, ToolRequest,
@@ -16,6 +15,7 @@ use trpg_runtime::runtime_state_machines::{
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
 };
+use trpg_security_governance::security_privacy::PostgresDeletionRepository;
 use trpg_security_governance::tamper_evident_audit::FileAuditLog;
 use trpg_shared_kernel::{ActorRole, AuthorityMode, EntityId, TrpgError};
 
@@ -301,7 +301,7 @@ fn production_privacy_api_binds_job_to_real_canonical_event_and_protects_status(
         .unwrap();
     assert_eq!(
         persisted_job.evidence_status,
-        trpg_privacy::DeletionEvidenceStatus::Confirmed
+        trpg_security_governance::security_privacy::DeletionEvidenceStatus::Confirmed
     );
     assert!(persisted_job
         .canonical_event_integrity_hash

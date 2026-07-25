@@ -21,6 +21,7 @@ from repo_truth import (
     current_tool_versions,
     evidence_environment_sha256,
     evidence_test_cases,
+    false_skip_markers,
     git_modes,
     repository_artifact_path,
     repository_slug,
@@ -232,6 +233,15 @@ def main() -> int:
             integrity_errors.append(f"duplicate generated artifact name: {path.name}")
         else:
             reserved_names.add(path.name)
+    skip_markers = false_skip_markers(
+        stdout_bytes.decode("utf-8", errors="replace"),
+        stderr_bytes.decode("utf-8", errors="replace"),
+    )
+    if skip_markers:
+        integrity_errors.append(
+            "command emitted a deceptive skip marker instead of a harness-visible ignored or failed test: "
+            + "; ".join(skip_markers)
+        )
     if integrity_errors:
         stderr_bytes += (
             "\n".join(f"[evidence-integrity] {error}" for error in integrity_errors) + "\n"

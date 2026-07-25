@@ -6,14 +6,10 @@ const KEY: [u8; 32] = [0x6d; 32];
 
 #[test]
 fn redis_rate_limit_is_shared_across_identity_instances() {
-    let Ok(database_url) = env::var("P02_DATABASE_URL") else {
-        eprintln!("skipped: set P02_DATABASE_URL for the real identity integration gate");
-        return;
-    };
-    let Ok(redis_url) = env::var("P02_REDIS_URL") else {
-        eprintln!("skipped: set P02_REDIS_URL for the real distributed-login gate");
-        return;
-    };
+    let database_url = env::var("P02_DATABASE_URL")
+        .expect("P02_DATABASE_URL is required for the real identity integration gate");
+    let redis_url = env::var("P02_REDIS_URL")
+        .expect("P02_REDIS_URL is required for the real distributed-login gate");
     let suffix = std::process::id();
     let login = format!("distributed-limit-{suffix}@example.test");
     let namespace = format!("p02:identity:test:{suffix}");

@@ -11,13 +11,13 @@ use trpg_platform::security_privacy_copyright::{
     DATA_DELETION_REQUESTED_EVENT, SECURITY_PRIVACY_COPYRIGHT_METRIC_MODULE,
     SECURITY_PRIVACY_COPYRIGHT_REQUIRED_METRICS, SECURITY_PRIVACY_COPYRIGHT_REVIEWED_EVENT,
 };
-use trpg_privacy::{
-    ConfirmedDeletionRecord, DeletionEvidenceStatus, DeletionJob, DeletionJobStatus,
-    DeletionRequestEvidence, DeletionRequestPort, PrivacyError,
-};
 use trpg_security_governance::formal_commit_audit::{FormalCommitAudit, FormalCommitAuthorizer};
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
+};
+use trpg_security_governance::security_privacy::{
+    ConfirmedDeletionRecord, DeletionEvidenceStatus, DeletionJob, DeletionJobStatus,
+    DeletionRequestEvidence, DeletionRequestPort, PrivacyError,
 };
 use trpg_shared_kernel::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, FormalWritePath,

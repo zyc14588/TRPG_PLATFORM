@@ -16,12 +16,12 @@ use trpg_identity::{
 use trpg_platform::security_privacy_copyright::{
     request_data_deletion_canonical, RequestDataDeletion,
 };
-use trpg_privacy::{
-    DeletionJob, DeletionJobStatus, DeletionTargetStatus, PostgresDeletionRepository,
-};
 use trpg_security_governance::authorize_campaign_membership_change;
 use trpg_security_governance::formal_commit_audit::{FormalCommitAudit, FormalCommitAuthorizer};
 use trpg_security_governance::policy_adapter::OpenFgaOpaPolicyAdapter;
+use trpg_security_governance::security_privacy::{
+    DeletionJob, DeletionJobStatus, DeletionTargetStatus, PostgresDeletionRepository,
+};
 use trpg_security_governance::tamper_evident_audit::FileAuditLog;
 use trpg_shared_kernel::error_model::{
     describe_error, InternalErrorContext, TrustedErrorLogEntry, TrustedErrorLogSink,
@@ -512,7 +512,7 @@ impl ApiApplication {
         };
         let job = match job {
             Ok(job) => job,
-            Err(trpg_privacy::PrivacyError::JobNotFound) => {
+            Err(trpg_security_governance::security_privacy::PrivacyError::JobNotFound) => {
                 return HttpResponse::json(404, json!({"error": "DELETION_JOB_NOT_FOUND"}))
             }
             Err(_) => return internal_error(),
@@ -943,8 +943,12 @@ fn deletion_status_response(job: DeletionJob) -> HttpResponse {
             "job_id": job.job_id,
             "status": deletion_job_status_name(job.status),
             "evidence_status": match job.evidence_status {
-                trpg_privacy::DeletionEvidenceStatus::Pending => "pending",
-                trpg_privacy::DeletionEvidenceStatus::Confirmed => "confirmed",
+                trpg_security_governance::security_privacy::DeletionEvidenceStatus::Pending => {
+                    "pending"
+                }
+                trpg_security_governance::security_privacy::DeletionEvidenceStatus::Confirmed => {
+                    "confirmed"
+                }
             },
             "canonical_event_sequence": job.canonical_event_sequence,
             "failure_code": job.failure_code,

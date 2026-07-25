@@ -37,13 +37,14 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(test)]
+use crate::event_store_sqlx_outbox_projection::PayloadCipher;
 use async_nats::jetstream::stream::{
     Config as StreamConfig, DiscardPolicy, RetentionPolicy, StorageType,
 };
 use async_nats::{ConnectOptions, HeaderMap, HeaderValue};
+use percent_encoding::percent_decode_str;
 use sha2::{Digest, Sha256};
-#[cfg(test)]
-use trpg_privacy::PayloadCipher;
 #[cfg(test)]
 use trpg_shared_kernel::EventActorOriginWire;
 use trpg_shared_kernel::{EventEnvelopeWire, EVENT_ENVELOPE_WIRE_SCHEMA_VERSION};
@@ -177,9 +178,16 @@ impl JetStreamOutboxPublisher {
         let pool = canonical.primary_pool();
 
         let (local_nats, tls_nats) = validate_nats_url(nats_url)?;
-        if !local_nats && nats_credentials_path.is_none() {
+        let url_credentials = nats_url_credentials(nats_url)?;
+        let connection_url = nats_endpoint_without_userinfo(nats_url)?;
+        if !local_nats && nats_credentials_path.is_none() && url_credentials.is_none() {
             return Err(JetStreamOutboxError::Configuration(
                 "remote_nats_credentials_required",
+            ));
+        }
+        if nats_credentials_path.is_some() && url_credentials.is_some() {
+            return Err(JetStreamOutboxError::Configuration(
+                "ambiguous_nats_credentials",
             ));
         }
         if nats_client_certificate_path.is_some() != nats_client_private_key_path.is_some() {
@@ -200,14 +208,16 @@ impl JetStreamOutboxPublisher {
             options = options
                 .add_client_certificate(certificate.to_path_buf(), private_key.to_path_buf());
         }
-        if let Some(path) = nats_credentials_path {
+        if let Some((username, password)) = url_credentials {
+            options = options.user_and_password(username, password);
+        } else if let Some(path) = nats_credentials_path {
             options = options
                 .credentials_file(path)
                 .await
                 .map_err(|_| JetStreamOutboxError::Configuration("invalid_nats_credentials"))?;
         }
         let client = options
-            .connect(nats_url)
+            .connect(connection_url)
             .await
             .map_err(|_| JetStreamOutboxError::NatsUnavailable)?;
         let repository = PostgresOutboxLeaseRepository::new(
@@ -410,7 +420,7 @@ impl JetStreamOutboxPublisher {
             .map_err(|_| JetStreamOutboxError::InvalidOutboxPayload)?;
         let headers = outbox_headers(row)?;
         self.jetstream
-            .publish_with_headers(row.subject.clone(), headers, envelope.into())
+            .publish_with_headers(canonical_delivery_subject(row), headers, envelope.into())
             .await
             .map_err(|_| JetStreamOutboxError::NatsUnavailable)?
             .await
@@ -585,6 +595,47 @@ fn validate_nats_url(nats_url: &str) -> Result<(bool, bool), JetStreamOutboxErro
     Ok((local, tls))
 }
 
+fn nats_url_credentials(nats_url: &str) -> Result<Option<(String, String)>, JetStreamOutboxError> {
+    let url = Url::parse(nats_url)
+        .map_err(|_| JetStreamOutboxError::Configuration("invalid_nats_url"))?;
+    match (url.username(), url.password()) {
+        ("", None) => Ok(None),
+        (username, Some(password)) if !username.is_empty() && !password.is_empty() => {
+            let username = percent_decode_str(username)
+                .decode_utf8()
+                .map_err(|_| {
+                    JetStreamOutboxError::Configuration("invalid_nats_url_credentials_encoding")
+                })?
+                .into_owned();
+            let password = percent_decode_str(password)
+                .decode_utf8()
+                .map_err(|_| {
+                    JetStreamOutboxError::Configuration("invalid_nats_url_credentials_encoding")
+                })?
+                .into_owned();
+            if username.is_empty() || password.is_empty() {
+                return Err(JetStreamOutboxError::Configuration(
+                    "nats_url_credentials_incomplete",
+                ));
+            }
+            Ok(Some((username, password)))
+        }
+        _ => Err(JetStreamOutboxError::Configuration(
+            "nats_url_credentials_incomplete",
+        )),
+    }
+}
+
+fn nats_endpoint_without_userinfo(nats_url: &str) -> Result<String, JetStreamOutboxError> {
+    let mut url = Url::parse(nats_url)
+        .map_err(|_| JetStreamOutboxError::Configuration("invalid_nats_url"))?;
+    url.set_username("")
+        .map_err(|_| JetStreamOutboxError::Configuration("invalid_nats_url"))?;
+    url.set_password(None)
+        .map_err(|_| JetStreamOutboxError::Configuration("invalid_nats_url"))?;
+    Ok(url.into())
+}
+
 #[cfg(test)]
 fn outbox_integrity_metadata_is_valid(
     integrity_status: &str,
@@ -646,6 +697,18 @@ fn outbox_headers(row: &OutboxClaim) -> Result<HeaderMap, JetStreamOutboxError> 
 
 fn data_subject_digest(data_subject_id: &str) -> String {
     format!("sha256:{:x}", Sha256::digest(data_subject_id.as_bytes()))
+}
+
+fn canonical_delivery_subject(row: &OutboxClaim) -> String {
+    if row.data_subject_id == "not_applicable" {
+        format!("{}.unscoped", row.subject)
+    } else {
+        format!(
+            "{}.subject.{:x}",
+            row.subject,
+            Sha256::digest(row.data_subject_id.as_bytes())
+        )
+    }
 }
 
 fn nats_message_id(row: &OutboxClaim) -> String {
@@ -750,6 +813,26 @@ mod tests {
         assert_eq!(
             validate_nats_url("tls://nats.example.invalid:4222"),
             Ok((false, true))
+        );
+        assert_eq!(
+            nats_url_credentials("tls://runtime:secret@nats.example.invalid:4222"),
+            Ok(Some(("runtime".to_owned(), "secret".to_owned())))
+        );
+        assert_eq!(
+            nats_url_credentials("tls://runtime%20user:secret%40value@nats.example.invalid:4222"),
+            Ok(Some(("runtime user".to_owned(), "secret@value".to_owned())))
+        );
+        assert_eq!(
+            nats_endpoint_without_userinfo(
+                "tls://runtime%20user:secret%40value@nats.example.invalid:4222"
+            ),
+            Ok("tls://nats.example.invalid:4222".to_owned())
+        );
+        assert_eq!(
+            nats_url_credentials("tls://runtime@nats.example.invalid:4222"),
+            Err(JetStreamOutboxError::Configuration(
+                "nats_url_credentials_incomplete"
+            ))
         );
     }
 
@@ -916,6 +999,23 @@ mod tests {
         assert_eq!(wire.payload, formal.payload_json);
         assert!(wire.payload.get("protected_payload").is_some());
         assert!(!String::from_utf8(bytes).unwrap().contains("harbor ledger"));
+    }
+
+    #[test]
+    fn canonical_delivery_subject_is_data_subject_scoped() {
+        let mut claim = claimed_row("verified_hmac", "formal_commit");
+        assert_eq!(
+            canonical_delivery_subject(&claim),
+            "trpg.events.appended.unscoped"
+        );
+        claim.data_subject_id = "player_subject_123".to_owned();
+        assert_eq!(
+            canonical_delivery_subject(&claim),
+            format!(
+                "trpg.events.appended.subject.{:x}",
+                Sha256::digest(b"player_subject_123")
+            )
+        );
     }
 
     #[test]

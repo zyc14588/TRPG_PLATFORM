@@ -8,16 +8,32 @@ use trpg_domain_core::ddd::{
     ActorRole, AuthorityMode, EventStore, FactProvenance, FactSource, ProvenanceKind,
 };
 use trpg_domain_core::visibility_fact_provenance::CommittedFactEvidence;
-use trpg_privacy::{CloudConsentGrant, PostgresCloudEgressLedger, PostgresDeletionRepository};
 use trpg_security_governance::cloud_egress::{
     authorize_cloud_egress, CloudContextFact, CloudEgressDenial, CloudEgressOutcome,
     CloudEgressRequest, ConsentVisibilityScope, ProviderBoundary,
 };
 use trpg_security_governance::secret::SecretReference;
+use trpg_security_governance::security_privacy::{
+    CloudConsentGrant, PostgresCloudEgressLedger, PostgresDeletionRepository,
+};
 use trpg_shared_kernel::{EntityId, PrincipalScope, TrpgError, Visibility, VisibilityLabel};
 
 fn id(value: impl Into<String>) -> EntityId {
     EntityId::new(value).unwrap()
+}
+
+fn assert_append_only_enforcement(error: sqlx::Error) {
+    let database_error = error
+        .as_database_error()
+        .expect("append-only tampering must be rejected by PostgreSQL");
+    match database_error.code().as_deref() {
+        Some("P0001") => assert_eq!(
+            database_error.message(),
+            "cloud egress route and audit evidence is append-only"
+        ),
+        Some("42501") => {}
+        code => panic!("unexpected append-only enforcement SQLSTATE: {code:?}"),
+    }
 }
 
 async fn seed_consent_fixture(pool: &PgPool, grant: &CloudConsentGrant) -> Result<(), TrpgError> {
@@ -210,13 +226,14 @@ async fn persisted_consent_controls_route_snapshot_and_audit_across_revocation()
     assert_eq!(allowed_record.0, "allow");
     assert_eq!(allowed_record.1, None);
     assert_eq!(allowed_record.2, authorization.context_manifest_hash());
-    assert!(sqlx::query(
-        "UPDATE cloud_egress_route_snapshots SET purpose = 'tampered' WHERE snapshot_id = $1"
+    let route_tampering = sqlx::query(
+        "UPDATE cloud_egress_route_snapshots SET purpose = 'tampered' WHERE snapshot_id = $1",
     )
     .bind(snapshot_id.as_str())
     .execute(&pool)
     .await
-    .is_err());
+    .expect_err("route snapshot mutation must be rejected");
+    assert_append_only_enforcement(route_tampering);
 
     sqlx::query(
         "UPDATE cloud_egress_consents SET granted = false, updated_at = now() \
@@ -287,11 +304,10 @@ async fn persisted_consent_controls_route_snapshot_and_audit_across_revocation()
         Some(CloudEgressDenial::ConsentRequired.code())
     );
     assert_eq!(denied_record.2.len(), 64);
-    assert!(
-        sqlx::query("DELETE FROM cloud_egress_audit WHERE snapshot_id = $1")
-            .bind(denied_snapshot_id.as_str())
-            .execute(&pool)
-            .await
-            .is_err()
-    );
+    let audit_tampering = sqlx::query("DELETE FROM cloud_egress_audit WHERE snapshot_id = $1")
+        .bind(denied_snapshot_id.as_str())
+        .execute(&pool)
+        .await
+        .expect_err("cloud egress audit deletion must be rejected");
+    assert_append_only_enforcement(audit_tampering);
 }
