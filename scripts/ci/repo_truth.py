@@ -52,6 +52,10 @@ EVIDENCE_REQUIRED = (
     "status",
 )
 EVIDENCE_STATUSES = ("PASS", "FAIL")
+OPENFGA_VERSION_WITH_LOG_TIMESTAMP = re.compile(
+    r"^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} "
+    r"(OpenFGA version `[^`\r\n]+` build from `[^`\r\n]+` on `[^`\r\n]+`)$"
+)
 
 
 def run(*args: str, root: Path = ROOT, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -87,7 +91,9 @@ def service_version_record(command: list[str], root: Path = ROOT) -> dict:
             capture_output=True,
         )
         exit_code = result.returncode
-        output = (result.stdout + result.stderr).strip()
+        output = stable_service_version_output(
+            command, (result.stdout + result.stderr).strip()
+        )
     except OSError as error:
         exit_code = 127
         output = str(error)
@@ -97,6 +103,14 @@ def service_version_record(command: list[str], root: Path = ROOT) -> dict:
         "exit_code": exit_code,
         "output": output,
     }
+
+
+def stable_service_version_output(command: list[str], output: str) -> str:
+    """Remove only a tool-owned nondeterministic prefix from version output."""
+    if command[-2:] != ["/openfga", "version"]:
+        return output
+    match = OPENFGA_VERSION_WITH_LOG_TIMESTAMP.fullmatch(output)
+    return match.group(1) if match is not None else output
 
 
 def current_tool_versions(root: Path = ROOT) -> dict[str, str]:

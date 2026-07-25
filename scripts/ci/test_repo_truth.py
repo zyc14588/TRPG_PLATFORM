@@ -26,6 +26,7 @@ from repo_truth import (
     false_skip_markers,
     git_modes,
     sha256_file,
+    stable_service_version_output,
     validate_evidence,
 )
 from validate_workflows import validate as validate_workflows
@@ -39,6 +40,28 @@ from verify_test_inventory import (
 
 
 class RepositoryTruthNegativeTests(unittest.TestCase):
+    def test_openfga_version_normalization_preserves_real_version_drift(self) -> None:
+        command = ["docker", "exec", "trpg-openfga", "/openfga", "version"]
+        first = (
+            "2026/07/25 17:35:13 OpenFGA version `v1.15.1` build from "
+            "`1db35fb8b33d7512666e49e6b75cbd2cca8c4694` on "
+            "`2026-05-06T20:12:25Z`"
+        )
+        second = first.replace("17:35:13", "17:50:11")
+        expected = first.split(" ", 2)[2]
+        self.assertEqual(stable_service_version_output(command, first), expected)
+        self.assertEqual(stable_service_version_output(command, second), expected)
+
+        changed_version = second.replace("v1.15.1", "v1.15.2")
+        self.assertNotEqual(
+            stable_service_version_output(command, changed_version), expected
+        )
+        malformed = "prefix " + expected
+        self.assertEqual(stable_service_version_output(command, malformed), malformed)
+        self.assertEqual(
+            stable_service_version_output(["openfga", "version"], first), first
+        )
+
     def test_historical_pass_evidence_is_rejected(self) -> None:
         legacy = ROOT / "evidence/stages/S09/docker-compose-smoke.txt"
         with self.assertRaises(json.JSONDecodeError):

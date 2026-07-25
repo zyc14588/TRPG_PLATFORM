@@ -3043,12 +3043,12 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `scripts/ci/p02_policy_bootstrap.py` | 7296 | `d69df3affb645c7519eca85877e53cf41e5be5a0d600e2a96e74f4f8488e694d` | `100644` |
 | `scripts/ci/production-security-smoke.sh` | 18310 | `af56a8e673a8fe131f90275ac28767218281d5443271df82e30b650b9779db36` | `100755` |
 | `scripts/ci/release_readiness.py` | 12901 | `28f828cbed337ce59e8d087218dd6f65eaa2322c5458cca39f54040b845a4e69` | `100644` |
-| `scripts/ci/repo_truth.py` | 31500 | `ed7b6c633fbfca111c8acd54316f5e08518b8b5be2d1ca0c6ca9ff8545757504` | `100644` |
+| `scripts/ci/repo_truth.py` | 32085 | `2e22920325e26441f683ce99b1f5580a3d7cd77aac480bc799dcab2103dfa231` | `100644` |
 | `scripts/ci/service-process-smoke.sh` | 12098 | `83982657e5d2ddaf7cc19b3a6b7f0e28ade9935604d49a2f30406573bacd993e` | `100755` |
 | `scripts/ci/test-all.sh` | 8003 | `e5003f03cdfa177a9b322eb206e6e768a144bd0784b6397d1953c88236d7d806` | `100755` |
 | `scripts/ci/test_dependency_directions.py` | 3585 | `9415e655efcd1438620bc97446396448298c6538758bf70f2546cd72f6d0bfac` | `100644` |
 | `scripts/ci/test_product_boundaries.py` | 3033 | `4cc23ff94d0f343b9ad6ce35dd5bd2c3e5a51dfe30dddc346af6a0c147c33444` | `100755` |
-| `scripts/ci/test_repo_truth.py` | 23519 | `5351c8975e8da1548ef8622ec7f4dda4d84dae5b93b2cac5fe7653e11cbddcce` | `100644` |
+| `scripts/ci/test_repo_truth.py` | 24603 | `7b6f04e6e2d7f227d914a6b9ec01e2ad7cb7e31fc24f2a47262ab4b8f2c17299` | `100644` |
 | `scripts/ci/validate_workflows.py` | 6981 | `fc6e470f0ba195b2b792240a3337f90898eb400563d8405fd48baa5d268770ba` | `100644` |
 | `scripts/ci/verify_compose_security.py` | 10938 | `172da9cc25c5c2067822fc16385a035b97425ed3755efb9578ea81955dec0e4e` | `100755` |
 | `scripts/ci/verify_evidence_schema.py` | 1900 | `9eab4cc21adcb773c4fdda4f283004795f1c6c20b00c2cfb67edceb89c7ecc83` | `100644` |
