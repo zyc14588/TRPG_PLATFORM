@@ -11,6 +11,7 @@ import re
 import shlex
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -23,19 +24,22 @@ MANIFEST_OUTPUTS = {
     "manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md",
 }
 PRODUCT_SERVICES = ("web", "api", "realtime", "agent-worker", "admin")
-EVIDENCE_SCHEMA_VERSION = "p00-3"
-EVIDENCE_GENERATOR_VERSION = "p00-3"
+EVIDENCE_SCHEMA_VERSION = "p00-6"
+EVIDENCE_GENERATOR_VERSION = "p00-6"
 EVIDENCE_REQUIRED = (
     "base_commit",
     "worktree_diff_sha256",
     "generated_at_utc",
     "generator_version",
     "tool_versions",
+    "environment",
     "environment_sha256",
     "command",
     "command_argv",
+    "command_output",
     "exit_code",
     "artifact_sha256",
+    "command_artifact_sha256",
     "generated_artifact_sha256",
     "report_files",
     "repository",
@@ -49,6 +53,10 @@ EVIDENCE_REQUIRED = (
     "status",
 )
 EVIDENCE_STATUSES = ("PASS", "FAIL")
+OPENFGA_VERSION_WITH_LOG_TIMESTAMP = re.compile(
+    r"^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} "
+    r"(OpenFGA version `[^`\r\n]+` build from `[^`\r\n]+` on `[^`\r\n]+`)$"
+)
 
 
 def run(*args: str, root: Path = ROOT, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -71,6 +79,39 @@ def command_version(*command: str, root: Path = ROOT) -> str:
     except OSError:
         return "NOT_VERIFIED"
     return (result.stdout or result.stderr).splitlines()[0] if result.returncode == 0 else "NOT_VERIFIED"
+
+
+def service_version_record(command: list[str], root: Path = ROOT) -> dict:
+    try:
+        result = subprocess.run(
+            command,
+            cwd=root,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+        )
+        exit_code = result.returncode
+        output = stable_service_version_output(
+            command, (result.stdout + result.stderr).strip()
+        )
+    except OSError as error:
+        exit_code = 127
+        output = str(error)
+    return {
+        "command": shlex.join(command),
+        "command_argv": command,
+        "exit_code": exit_code,
+        "output": output,
+    }
+
+
+def stable_service_version_output(command: list[str], output: str) -> str:
+    """Remove only a tool-owned nondeterministic prefix from version output."""
+    if command[-2:] != ["/openfga", "version"]:
+        return output
+    match = OPENFGA_VERSION_WITH_LOG_TIMESTAMP.fullmatch(output)
+    return match.group(1) if match is not None else output
 
 
 def current_tool_versions(root: Path = ROOT) -> dict[str, str]:
@@ -166,6 +207,94 @@ def canonical_json_sha256(value: object) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def evidence_environment_sha256(tool_versions: dict, environment: dict) -> str:
+    return canonical_json_sha256(
+        {"tool_versions": tool_versions, "environment": environment}
+    )
+
+
+def cargo_test_cases(*outputs: str) -> list[tuple[str, str]]:
+    cases = []
+    pattern = re.compile(r"(?m)^test (.+?) \.\.\. (ok|FAILED|ignored)$")
+    for output in outputs:
+        cases.extend((match.group(1), match.group(2)) for match in pattern.finditer(output))
+    return cases
+
+
+def false_skip_markers(*outputs: str) -> list[str]:
+    pattern = re.compile(
+        r"(?im)^[ \t]*(?:skip(?:ped|ping)?|not[ \t_-]+(?:run|executed))"
+        r"(?:[ \t]*(?::|-)[ \t]*.*)?[ \t]*$"
+    )
+    return [
+        match.group(0).strip()
+        for output in outputs
+        for match in pattern.finditer(output)
+    ]
+
+
+def evidence_test_cases(
+    command: str, exit_code: int, stdout: str, stderr: str
+) -> list[tuple[str, str]]:
+    cases = cargo_test_cases(stdout, stderr)
+    if not cases:
+        return [(command, "ok" if exit_code == 0 else "FAILED")]
+    if exit_code != 0 and not any(status == "FAILED" for _, status in cases):
+        cases.append((command, "FAILED"))
+    return cases
+
+
+def parse_bound_raw_output(
+    raw: bytes, command: str
+) -> tuple[bytes, bytes, int] | None:
+    prefix = f"$ {command}\n[stdout bytes=".encode("utf-8")
+    if not raw.startswith(prefix):
+        return None
+    cursor = len(prefix)
+    header_end = raw.find(b"]\n", cursor)
+    if header_end < 0:
+        return None
+    stdout_header = raw[cursor:header_end].decode("ascii", errors="replace")
+    stdout_match = re.fullmatch(r"([0-9]+) sha256=([0-9a-f]{64})", stdout_header)
+    if stdout_match is None:
+        return None
+    cursor = header_end + 2
+    stdout_length = int(stdout_match.group(1))
+    stdout = raw[cursor : cursor + stdout_length]
+    if len(stdout) != stdout_length or hashlib.sha256(stdout).hexdigest() != stdout_match.group(2):
+        return None
+    cursor += stdout_length
+
+    stderr_prefix = b"\n[stderr bytes="
+    if raw[cursor : cursor + len(stderr_prefix)] != stderr_prefix:
+        return None
+    cursor += len(stderr_prefix)
+    header_end = raw.find(b"]\n", cursor)
+    if header_end < 0:
+        return None
+    stderr_header = raw[cursor:header_end].decode("ascii", errors="replace")
+    stderr_match = re.fullmatch(r"([0-9]+) sha256=([0-9a-f]{64})", stderr_header)
+    if stderr_match is None:
+        return None
+    cursor = header_end + 2
+    stderr_length = int(stderr_match.group(1))
+    stderr = raw[cursor : cursor + stderr_length]
+    if len(stderr) != stderr_length or hashlib.sha256(stderr).hexdigest() != stderr_match.group(2):
+        return None
+    cursor += stderr_length
+
+    exit_prefix = b"\n[exit_code]\n"
+    if raw[cursor : cursor + len(exit_prefix)] != exit_prefix:
+        return None
+    try:
+        exit_code = int(raw[cursor + len(exit_prefix) :].decode("ascii").strip())
+    except ValueError:
+        return None
+    if raw[cursor + len(exit_prefix) :] != f"{exit_code}\n".encode("ascii"):
+        return None
+    return stdout, stderr, exit_code
+
+
 def repository_artifact_path(name: str, root: Path = ROOT) -> Path:
     relative = Path(name)
     if relative.is_absolute() or ".." in relative.parts or relative.as_posix() != name:
@@ -218,9 +347,20 @@ def cargo_targets(root: Path = ROOT, kind: str | None = None) -> set[str]:
     return targets
 
 
-def compose_services(path: Path) -> dict[str, dict[str, object]]:
+def compose_services(
+    path: Path, _seen: set[Path] | None = None
+) -> dict[str, dict[str, object]]:
+    path = path.resolve()
+    seen = set() if _seen is None else _seen
+    if path in seen:
+        return {}
+    seen.add(path)
     text = path.read_text(encoding="utf-8")
     services: dict[str, dict[str, object]] = {}
+    for include in re.finditer(
+        r"(?m)^\s*-\s+path:\s*['\"]?([^'\"\s#]+)['\"]?\s*$", text
+    ):
+        services.update(compose_services(path.parent / include.group(1), seen))
     matches = list(re.finditer(r"(?m)^  ([a-zA-Z0-9_-]+):\s*$", text))
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
@@ -272,6 +412,8 @@ def validate_evidence(
     argv = data.get("command_argv")
     if not isinstance(argv, list) or not argv or not all(isinstance(item, str) for item in argv):
         errors.append("command_argv must be a non-empty string array")
+    elif any(any(control in item for control in ("\0", "\n", "\r")) for item in argv):
+        errors.append("command_argv must not contain control characters")
     elif data.get("command") != shlex.join(argv):
         errors.append("command does not match command_argv")
     if data.get("base_commit") != base_commit(root):
@@ -314,8 +456,6 @@ def validate_evidence(
     tool_versions = data.get("tool_versions")
     if not isinstance(tool_versions, dict) or not tool_versions:
         errors.append("tool_versions must be a non-empty object")
-    elif data.get("environment_sha256") != canonical_json_sha256(tool_versions):
-        errors.append("environment_sha256 mismatch")
     else:
         for name in ("platform", "python", "rustc", "cargo", "node", "npm", "pnpm"):
             if not tool_versions.get(name) or tool_versions[name] == "NOT_VERIFIED":
@@ -350,6 +490,95 @@ def validate_evidence(
             errors.append("node version does not match .nvmrc")
         if str(tool_versions.get("pnpm", "")) != pnpm_pin:
             errors.append("pnpm version does not match packageManager")
+    environment = data.get("environment")
+    if not isinstance(environment, dict) or set(environment) != {
+        "variables",
+        "service_versions",
+    }:
+        errors.append("environment must contain variables and service_versions")
+    else:
+        variables = environment.get("variables")
+        if not isinstance(variables, dict):
+            errors.append("environment variables must be an object")
+        else:
+            for name, digest in variables.items():
+                if not isinstance(name, str) or not re.fullmatch(
+                    r"[A-Z_][A-Z0-9_]{0,127}", name
+                ):
+                    errors.append(f"invalid environment variable name: {name}")
+                elif not re.fullmatch(r"sha256:[0-9a-f]{64}", str(digest)):
+                    errors.append(f"invalid environment variable digest: {name}")
+                elif live_context:
+                    current = os.environ.get(name)
+                    if current is None:
+                        errors.append(f"missing bound environment variable: {name}")
+                    elif digest != f"sha256:{hashlib.sha256(current.encode('utf-8')).hexdigest()}":
+                        errors.append(f"environment variable digest mismatch: {name}")
+        service_versions = environment.get("service_versions")
+        if not isinstance(service_versions, dict):
+            errors.append("service_versions must be an object")
+        else:
+            for name, record in service_versions.items():
+                if not isinstance(name, str) or not re.fullmatch(
+                    r"[a-z0-9][a-z0-9_.-]{0,63}", name
+                ):
+                    errors.append(f"invalid service version name: {name}")
+                    continue
+                if not isinstance(record, dict) or set(record) != {
+                    "command",
+                    "command_argv",
+                    "exit_code",
+                    "output",
+                }:
+                    errors.append(f"invalid service version record: {name}")
+                    continue
+                service_argv = record.get("command_argv")
+                if (
+                    not isinstance(service_argv, list)
+                    or not service_argv
+                    or not all(isinstance(item, str) and item for item in service_argv)
+                    or any(
+                        any(control in item for control in ("\0", "\n", "\r"))
+                        for item in service_argv
+                    )
+                ):
+                    errors.append(f"invalid service version command_argv: {name}")
+                    continue
+                if record.get("command") != shlex.join(service_argv):
+                    errors.append(f"service version command mismatch: {name}")
+                if type(record.get("exit_code")) is not int:
+                    errors.append(f"service version exit_code must be an integer: {name}")
+                if not isinstance(record.get("output"), str):
+                    errors.append(f"service version output must be a string: {name}")
+                if data.get("status") == "PASS" and (
+                    record.get("exit_code") != 0 or not record.get("output", "").strip()
+                ):
+                    errors.append(f"service version was not verified: {name}")
+                if live_context and record != service_version_record(service_argv, root):
+                    errors.append(f"service version does not match current environment: {name}")
+    if isinstance(tool_versions, dict) and isinstance(environment, dict):
+        if data.get("environment_sha256") != evidence_environment_sha256(
+            tool_versions, environment
+        ):
+            errors.append("environment_sha256 mismatch")
+    command_output = data.get("command_output")
+    if not isinstance(command_output, dict) or set(command_output) != {
+        "stdout_bytes",
+        "stdout_sha256",
+        "stderr_bytes",
+        "stderr_sha256",
+    }:
+        errors.append("command_output metadata is invalid")
+    else:
+        for stream in ("stdout", "stderr"):
+            if type(command_output.get(f"{stream}_bytes")) is not int or command_output[
+                f"{stream}_bytes"
+            ] < 0:
+                errors.append(f"invalid {stream} byte count")
+            if not re.fullmatch(
+                r"[0-9a-f]{64}", str(command_output.get(f"{stream}_sha256", ""))
+            ):
+                errors.append(f"invalid {stream} digest")
     artifacts = data.get("artifact_sha256")
     if not isinstance(artifacts, dict) or not artifacts:
         errors.append("artifact_sha256 must be a non-empty object")
@@ -371,13 +600,6 @@ def validate_evidence(
     if not isinstance(generated, dict) or not generated:
         errors.append("generated_artifact_sha256 must be a non-empty object")
     else:
-        generated_by_suffix = {
-            suffix: [name for name in generated if name.endswith(suffix)]
-            for suffix in (".log", ".junit.xml", ".sarif")
-        }
-        for suffix, names in generated_by_suffix.items():
-            if not names:
-                errors.append(f"missing generated artifact: *{suffix}")
         for name, expected in generated.items():
             candidate = artifact_base / name if artifact_base is not None else None
             if Path(name).name != name or artifact_base is None:
@@ -390,18 +612,91 @@ def validate_evidence(
                 errors.append(f"invalid generated artifact hash: {name}")
             elif not candidate.is_file() or sha256_file(candidate) != expected:
                 errors.append(f"generated artifact hash mismatch: {name}")
-        if artifact_base is not None:
-            bound_logs = []
-            for name in generated_by_suffix[".log"]:
+
+    command_artifacts = data.get("command_artifact_sha256")
+    if not isinstance(command_artifacts, dict) or not command_artifacts:
+        errors.append("command_artifact_sha256 must be a non-empty object")
+    else:
+        command_by_suffix = {
+            suffix: [name for name in command_artifacts if name.endswith(suffix)]
+            for suffix in (".log", ".junit.xml", ".sarif")
+        }
+        if len(command_artifacts) != 3:
+            errors.append("command_artifact_sha256 must contain exactly three artifacts")
+        for suffix, names in command_by_suffix.items():
+            if len(names) != 1:
+                errors.append(f"expected exactly one command artifact: *{suffix}")
+        if isinstance(generated, dict):
+            for name, expected in command_artifacts.items():
+                if name not in generated:
+                    errors.append(f"command artifact is not a generated artifact: {name}")
+                elif generated[name] != expected:
+                    errors.append(f"command artifact hash mismatch: {name}")
+        if artifact_base is not None and all(
+            len(names) == 1 for names in command_by_suffix.values()
+        ):
+            bound_outputs = []
+            for name in command_by_suffix[".log"]:
                 raw_path = artifact_base / name
                 if raw_path.is_file():
-                    raw = raw_path.read_text(encoding="utf-8")
-                    if raw.startswith(f"$ {data.get('command', '')}\n") and raw.endswith(
-                        f"[exit_code]\n{data.get('exit_code')}\n"
-                    ):
-                        bound_logs.append(name)
-            if len(bound_logs) != 1:
+                    parsed = parse_bound_raw_output(
+                        raw_path.read_bytes(), str(data.get("command", ""))
+                    )
+                    if parsed is not None and parsed[2] == data.get("exit_code"):
+                        bound_outputs.append(parsed)
+            if len(bound_outputs) != 1:
                 errors.append("expected exactly one raw output bound to command and exit_code")
+            else:
+                stdout_bytes, stderr_bytes, _ = bound_outputs[0]
+                expected_output = {
+                    "stdout_bytes": len(stdout_bytes),
+                    "stdout_sha256": hashlib.sha256(stdout_bytes).hexdigest(),
+                    "stderr_bytes": len(stderr_bytes),
+                    "stderr_sha256": hashlib.sha256(stderr_bytes).hexdigest(),
+                }
+                if command_output != expected_output:
+                    errors.append("command_output does not match bound raw output")
+                if exit_code == 0 and false_skip_markers(
+                    stdout_bytes.decode("utf-8", errors="replace"),
+                    stderr_bytes.decode("utf-8", errors="replace"),
+                ):
+                    errors.append("passing evidence contains a deceptive skip marker")
+                junit_path = artifact_base / command_by_suffix[".junit.xml"][0]
+                try:
+                    suite = ET.parse(junit_path).getroot()
+                except (OSError, ET.ParseError):
+                    errors.append("generated JUnit is not valid XML")
+                else:
+                    expected_cases = evidence_test_cases(
+                        str(data.get("command", "")),
+                        exit_code if type(exit_code) is int else -1,
+                        stdout_bytes.decode("utf-8", errors="replace"),
+                        stderr_bytes.decode("utf-8", errors="replace"),
+                    )
+                    actual_cases = []
+                    for case in suite.findall("testcase"):
+                        status = (
+                            "FAILED"
+                            if case.find("failure") is not None
+                            else "ignored"
+                            if case.find("skipped") is not None
+                            else "ok"
+                        )
+                        actual_cases.append((case.get("name", ""), status))
+                    if actual_cases != expected_cases:
+                        errors.append("JUnit test details do not match bound raw output")
+                    expected_failures = sum(
+                        status == "FAILED" for _, status in expected_cases
+                    )
+                    expected_skipped = sum(
+                        status == "ignored" for _, status in expected_cases
+                    )
+                    if suite.get("tests") != str(len(expected_cases)):
+                        errors.append("JUnit test count does not match bound raw output")
+                    if suite.get("failures") != str(expected_failures):
+                        errors.append("JUnit failure count does not match bound raw output")
+                    if suite.get("skipped", "0") != str(expected_skipped):
+                        errors.append("JUnit skipped count does not match bound raw output")
     reports = data.get("report_files")
     if not isinstance(reports, dict) or not reports:
         errors.append("report_files must be a non-empty object")

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import subprocess
 import sys
 from pathlib import Path
 
@@ -10,6 +11,32 @@ from repo_truth import MANIFEST_OUTPUTS, ROOT, git_blob_bytes, git_modes
 
 
 OUTPUTS = tuple(sorted(MANIFEST_OUTPUTS))
+
+
+def manifest_source_errors(root: Path = ROOT) -> list[str]:
+    unstaged = subprocess.run(
+        ["git", "diff", "--name-only", "-z", "--"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    ).stdout
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    ).stdout
+    paths = {
+        path.decode("utf-8")
+        for output in (unstaged, untracked)
+        for path in output.split(b"\0")
+        if path
+    }
+    return [
+        path
+        for path in sorted(paths)
+        if path not in MANIFEST_OUTPUTS
+    ]
 
 
 def render(root: Path = ROOT) -> str:
@@ -47,6 +74,18 @@ def main() -> int:
     mode.add_argument("--write", action="store_true")
     mode.add_argument("--check", action="store_true")
     args = parser.parse_args()
+    source_errors = manifest_source_errors()
+    if (args.write or args.check) and source_errors:
+        print(
+            "manifest drift: Git index excludes unstaged or untracked source paths: "
+            + ", ".join(source_errors),
+            file=sys.stderr,
+        )
+        print(
+            "stage the intended source set before generating or checking the index-bound manifest",
+            file=sys.stderr,
+        )
+        return 1
     content = render()
     if args.write:
         for name in OUTPUTS:

@@ -7,23 +7,36 @@ use trpg_identity::IdentityService;
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
 };
+use trpg_security_governance::secret::{
+    MountedFileSecretResolver, SecretKey32, SecretManager, SecretReference, SecretValue,
+};
+use trpg_security_governance::security_privacy::PostgresDeletionRepository;
 use trpg_security_governance::tamper_evident_audit::FileAuditLog;
 
 fn main() -> ExitCode {
-    let database_url = match std::env::var("TRPG_DATABASE_URL") {
-        Ok(value) if !value.trim().is_empty() => value,
-        _ => {
-            eprintln!("service=api-server error=TRPG_DATABASE_URL_REQUIRED");
+    let secret_manager = match production_secret_manager() {
+        Ok(manager) => manager,
+        Err(error) => {
+            eprintln!("service=api-server error={error}");
             return ExitCode::FAILURE;
         }
     };
-    let signing_key = match std::env::var("TRPG_IDENTITY_SIGNING_KEY_HEX")
-        .ok()
-        .and_then(|value| decode_signing_key(&value))
-    {
-        Some(key) => key,
-        None => {
-            eprintln!("service=api-server error=IDENTITY_SIGNING_KEY_INVALID");
+    let database_url = match resolve_mounted_secret(&secret_manager, "TRPG_DATABASE_URL") {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("service=api-server error={error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let signing_key = match resolve_mounted_secret(&secret_manager, "TRPG_IDENTITY_SIGNING_KEY")
+        .and_then(|value| {
+            value
+                .to_key32()
+                .map_err(|_| "IDENTITY_SIGNING_KEY_INVALID".to_owned())
+        }) {
+        Ok(key) => key,
+        Err(error) => {
+            eprintln!("service=api-server error={error}");
             return ExitCode::FAILURE;
         }
     };
@@ -32,7 +45,7 @@ fn main() -> ExitCode {
         .and_then(|value| value.parse::<u64>().ok())
         .filter(|value| *value > 0)
         .unwrap_or(8 * 60 * 60 * 1_000);
-    let redis_url = match required_environment("TRPG_REDIS_URL") {
+    let redis_url = match resolve_mounted_secret(&secret_manager, "TRPG_REDIS_URL") {
         Ok(value) => value,
         Err(error) => {
             eprintln!("service=api-server error={error}");
@@ -55,42 +68,78 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let identity = match IdentityService::from_postgres_with_security(
-        &database_url,
-        postgres_ca.as_deref(),
-        &redis_url,
-        &redis_namespace,
-        &signing_key,
+    let redis_ca = match optional_file_from_environment("TRPG_REDIS_CA_CERT_PATH") {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("service=api-server error={error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let redis_client_certificate =
+        match optional_file_from_environment("TRPG_REDIS_CLIENT_CERT_PATH") {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("service=api-server error={error}");
+                return ExitCode::FAILURE;
+            }
+        };
+    let redis_client_private_key =
+        match optional_file_from_environment("TRPG_REDIS_CLIENT_KEY_PATH") {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("service=api-server error={error}");
+                return ExitCode::FAILURE;
+            }
+        };
+    let identity = match identity_from_secrets(IdentitySecretConfiguration {
+        database_url: &database_url,
+        redis_url: &redis_url,
+        signing_key: &signing_key,
+        postgres_ca: postgres_ca.as_deref(),
+        redis_ca: redis_ca.as_deref(),
+        redis_client_certificate: redis_client_certificate.as_deref(),
+        redis_client_private_key: redis_client_private_key.as_deref(),
+        redis_namespace: &redis_namespace,
         session_ttl_ms,
         argon2_concurrency,
-    ) {
+    }) {
         Ok(identity) => identity,
         Err(error) => {
             eprintln!("service=api-server error={}", error.code());
             return ExitCode::FAILURE;
         }
     };
-    let (policy, audit) = match policy_and_audit_from_environment() {
+    let (policy, audit) = match policy_and_audit_from_environment(&secret_manager) {
         Ok(configuration) => configuration,
         Err(error) => {
             eprintln!("service=api-server error={error}");
             return ExitCode::FAILURE;
         }
     };
-    let (canonical_runtime, canonical_store) = match canonical_store_from_environment(&database_url)
-    {
-        Ok(configuration) => configuration,
-        Err(error) => {
-            eprintln!("service=api-server error={error}");
-            return ExitCode::FAILURE;
-        }
-    };
+    let (canonical_runtime, canonical_store) =
+        match canonical_store_from_environment(&secret_manager) {
+            Ok(configuration) => configuration,
+            Err(error) => {
+                eprintln!("service=api-server error={error}");
+                return ExitCode::FAILURE;
+            }
+        };
+    let (privacy_runtime, deletion_repository) =
+        match deletion_repository_from_environment(&database_url) {
+            Ok(configuration) => configuration,
+            Err(error) => {
+                eprintln!("service=api-server error={error}");
+                return ExitCode::FAILURE;
+            }
+        };
     let application = ApiApplication::new_production_governed(
         identity,
         policy,
         audit,
         canonical_runtime,
         canonical_store,
+        privacy_runtime,
+        deletion_repository,
     );
     let readiness_application = application.clone();
     run(
@@ -104,32 +153,115 @@ fn main() -> ExitCode {
     )
 }
 
+fn deletion_repository_from_environment(
+    database_url: &SecretValue,
+) -> Result<(tokio::runtime::Runtime, PostgresDeletionRepository), String> {
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|_| "PRIVACY_RUNTIME_INITIALIZATION_FAILED".to_owned())?;
+    let mut connection = None;
+    database_url
+        .expose_utf8_to(|database| {
+            connection = Some(runtime.block_on(PostgresDeletionRepository::connect(database)));
+        })
+        .map_err(|_| "DATABASE_URL_SECRET_INVALID".to_owned())?;
+    let repository = connection
+        .ok_or_else(|| "DELETION_DATABASE_CONNECTION_NOT_ATTEMPTED".to_owned())?
+        .map_err(|_| "DELETION_DATABASE_CONNECTION_FAILED".to_owned())?;
+    runtime
+        .block_on(repository.check_readiness())
+        .map_err(|_| "DELETION_SCHEMA_NOT_READY".to_owned())?;
+    Ok((runtime, repository))
+}
+
 fn canonical_store_from_environment(
-    database_url: &str,
+    secret_manager: &SecretManager<MountedFileSecretResolver>,
 ) -> Result<(tokio::runtime::Runtime, PostgresCanonicalStore), String> {
-    let witness_database_url = required_environment("TRPG_WITNESS_DATABASE_URL")?;
+    let database_url = resolve_mounted_secret(secret_manager, "TRPG_CANONICAL_DATABASE_URL")?;
+    let witness_database_url = resolve_mounted_secret(secret_manager, "TRPG_WITNESS_DATABASE_URL")?;
     let integrity_key_id = required_environment("TRPG_CANONICAL_HMAC_KEY_ID")?;
-    let integrity_key = required_environment("TRPG_CANONICAL_HMAC_KEY_HEX")
-        .ok()
-        .and_then(|value| decode_signing_key(&value))
-        .ok_or_else(|| "CANONICAL_HMAC_KEY_INVALID".to_owned())?;
+    let integrity_key = resolve_mounted_secret(secret_manager, "TRPG_CANONICAL_HMAC_KEY")?
+        .to_key32()
+        .map_err(|_| "CANONICAL_HMAC_KEY_INVALID".to_owned())?;
+    let payload_key_id = required_environment("TRPG_PAYLOAD_ENCRYPTION_KEY_ID")?;
+    let payload_key = resolve_mounted_secret(secret_manager, "TRPG_PAYLOAD_ENCRYPTION_KEY")?
+        .to_key32()
+        .map_err(|_| "PAYLOAD_ENCRYPTION_KEY_INVALID".to_owned())?;
     let runtime = tokio::runtime::Runtime::new()
         .map_err(|_| "CANONICAL_RUNTIME_INITIALIZATION_FAILED".to_owned())?;
-    let store = runtime
-        .block_on(PostgresCanonicalStore::connect(
-            database_url,
-            &witness_database_url,
-            integrity_key_id,
-            &integrity_key,
-        ))
+    let mut connection = None;
+    database_url
+        .expose_utf8_to(|primary| {
+            witness_database_url
+                .expose_utf8_to(|witness| {
+                    integrity_key.expose_to(|integrity| {
+                        payload_key.expose_to(|payload| {
+                            connection = Some(runtime.block_on(PostgresCanonicalStore::connect(
+                                primary,
+                                witness,
+                                integrity_key_id,
+                                integrity,
+                                payload_key_id,
+                                payload,
+                            )));
+                        });
+                    });
+                })
+                .map_err(|_| "WITNESS_DATABASE_URL_SECRET_INVALID".to_owned())
+        })
+        .map_err(|_| "DATABASE_URL_SECRET_INVALID".to_owned())??;
+    let store = connection
+        .ok_or_else(|| "CANONICAL_STORE_CONNECTION_NOT_ATTEMPTED".to_owned())?
         .map_err(|error| format!("CANONICAL_STORE_CONNECTION_FAILED:{error}"))?;
     runtime
-        .block_on(store.prepare_for_service())
-        .map_err(|error| format!("CANONICAL_STORE_RECOVERY_FAILED:{error}"))?;
+        .block_on(store.verify_integrity())
+        .map_err(|error| format!("CANONICAL_STORE_NOT_READY:{error}"))?;
     Ok((runtime, store))
 }
 
-fn optional_file_from_environment(name: &str) -> Result<Option<Vec<u8>>, &'static str> {
+struct IdentitySecretConfiguration<'a> {
+    database_url: &'a SecretValue,
+    redis_url: &'a SecretValue,
+    signing_key: &'a SecretKey32,
+    postgres_ca: Option<&'a [u8]>,
+    redis_ca: Option<&'a [u8]>,
+    redis_client_certificate: Option<&'a [u8]>,
+    redis_client_private_key: Option<&'a [u8]>,
+    redis_namespace: &'a str,
+    session_ttl_ms: u64,
+    argon2_concurrency: usize,
+}
+
+fn identity_from_secrets(
+    configuration: IdentitySecretConfiguration<'_>,
+) -> Result<IdentityService, trpg_identity::IdentityError> {
+    let mut identity = None;
+    let database_result = configuration.database_url.expose_utf8_to(|database| {
+        configuration.redis_url.expose_utf8_to(|redis| {
+            configuration.signing_key.expose_to(|key| {
+                identity = Some(
+                    IdentityService::from_prepared_postgres_with_security_and_redis_tls(
+                        database,
+                        configuration.postgres_ca,
+                        redis,
+                        configuration.redis_namespace,
+                        key,
+                        configuration.session_ttl_ms,
+                        configuration.argon2_concurrency,
+                        configuration.redis_ca,
+                        configuration.redis_client_certificate,
+                        configuration.redis_client_private_key,
+                    ),
+                );
+            });
+        })
+    });
+    database_result
+        .map_err(|_| trpg_identity::IdentityError::InvalidIdentityData)?
+        .map_err(|_| trpg_identity::IdentityError::InvalidIdentityData)?;
+    identity.unwrap_or(Err(trpg_identity::IdentityError::InvalidIdentityData))
+}
+
+fn optional_file_from_environment(name: &str) -> Result<Option<Vec<u8>>, String> {
     let Some(path) = std::env::var(name)
         .ok()
         .filter(|value| !value.trim().is_empty())
@@ -138,36 +270,19 @@ fn optional_file_from_environment(name: &str) -> Result<Option<Vec<u8>>, &'stati
     };
     std::fs::read(path)
         .map(Some)
-        .map_err(|_| "POSTGRES_CA_CERTIFICATE_UNREADABLE")
-}
-
-fn decode_signing_key(value: &str) -> Option<[u8; 32]> {
-    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return None;
-    }
-    let mut key = [0_u8; 32];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
-        key[index] = (hex_nibble(pair[0])? << 4) | hex_nibble(pair[1])?;
-    }
-    Some(key)
-}
-
-fn hex_nibble(value: u8) -> Option<u8> {
-    match value {
-        b'0'..=b'9' => Some(value - b'0'),
-        b'a'..=b'f' => Some(value - b'a' + 10),
-        b'A'..=b'F' => Some(value - b'A' + 10),
-        _ => None,
-    }
+        .map_err(|_| format!("{name}_UNREADABLE"))
 }
 
 fn policy_and_audit_from_environment(
+    secret_manager: &SecretManager<MountedFileSecretResolver>,
 ) -> Result<(OpenFgaOpaPolicyAdapter, FileAuditLog), &'static str> {
     let openfga_address = required_environment("TRPG_OPENFGA_ADDRESS")?
         .parse()
         .map_err(|_| "TRPG_OPENFGA_ADDRESS_INVALID")?;
-    let openfga_store_id = required_environment("TRPG_OPENFGA_STORE_ID")?;
-    let openfga_model_id = required_environment("TRPG_OPENFGA_MODEL_ID")?;
+    let openfga_store_id =
+        required_environment_or_file("TRPG_OPENFGA_STORE_ID", "TRPG_OPENFGA_STORE_ID_FILE")?;
+    let openfga_model_id =
+        required_environment_or_file("TRPG_OPENFGA_MODEL_ID", "TRPG_OPENFGA_MODEL_ID_FILE")?;
     let opa_address = required_environment("TRPG_OPA_ADDRESS")?
         .parse()
         .map_err(|_| "TRPG_OPA_ADDRESS_INVALID")?;
@@ -192,13 +307,43 @@ fn policy_and_audit_from_environment(
 
     let audit_path = required_environment("TRPG_AUDIT_LOG_PATH")?;
     let audit_key_id = required_environment("TRPG_AUDIT_HMAC_KEY_ID")?;
-    let audit_key = required_environment("TRPG_AUDIT_HMAC_KEY_HEX")
-        .ok()
-        .and_then(|value| decode_signing_key(&value))
-        .ok_or("AUDIT_HMAC_KEY_INVALID")?;
-    let audit = FileAuditLog::open(audit_path, audit_key_id, &audit_key)
+    let audit_secret = resolve_mounted_secret(secret_manager, "TRPG_AUDIT_HMAC_KEY")
+        .map_err(|_| "AUDIT_HMAC_KEY_RESOLUTION_FAILED")?;
+    let audit_key = audit_secret
+        .to_key32()
+        .map_err(|_| "AUDIT_HMAC_KEY_INVALID")?;
+    let audit = audit_key
+        .expose_to(|key| FileAuditLog::open(audit_path, audit_key_id, key))
         .map_err(|_| "AUDIT_LOG_CONFIGURATION_INVALID")?;
     Ok((policy, audit))
+}
+
+fn production_secret_manager() -> Result<SecretManager<MountedFileSecretResolver>, String> {
+    let mount = required_environment("TRPG_SECRET_MOUNT")?;
+    let catalog = required_environment("TRPG_SECRET_CATALOG_PATH")?;
+    let resolver =
+        MountedFileSecretResolver::new(mount).map_err(|_| "SECRET_MOUNT_INVALID".to_owned())?;
+    SecretManager::new_durable(resolver, catalog).map_err(|_| "SECRET_CATALOG_INVALID".to_owned())
+}
+
+fn resolve_mounted_secret(
+    manager: &SecretManager<MountedFileSecretResolver>,
+    prefix: &str,
+) -> Result<SecretValue, String> {
+    let secret_id = required_environment(&format!("{prefix}_SECRET_ID"))?;
+    let version = required_environment(&format!("{prefix}_SECRET_VERSION"))?
+        .parse::<u64>()
+        .ok()
+        .filter(|version| *version > 0)
+        .ok_or_else(|| format!("{prefix}_SECRET_VERSION_INVALID"))?;
+    let reference = SecretReference::mounted(secret_id, version)
+        .map_err(|_| format!("{prefix}_SECRET_REFERENCE_INVALID"))?;
+    manager
+        .register(&reference)
+        .map_err(|_| format!("{prefix}_SECRET_REGISTRATION_FAILED"))?;
+    manager
+        .resolve(&reference)
+        .map_err(|_| format!("{prefix}_SECRET_RESOLUTION_FAILED"))
 }
 
 fn required_environment(name: &str) -> Result<String, &'static str> {
@@ -206,6 +351,21 @@ fn required_environment(name: &str) -> Result<String, &'static str> {
         .ok()
         .filter(|value| !value.trim().is_empty())
         .ok_or("REQUIRED_ENVIRONMENT_MISSING")
+}
+
+fn required_environment_or_file(name: &str, file_name: &str) -> Result<String, &'static str> {
+    if let Some(value) = std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return Ok(value);
+    }
+    let path = required_environment(file_name)?;
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .ok_or("REQUIRED_ENVIRONMENT_FILE_INVALID")
 }
 
 fn run(

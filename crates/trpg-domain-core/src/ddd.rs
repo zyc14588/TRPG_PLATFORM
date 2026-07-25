@@ -6,8 +6,8 @@ pub use trpg_shared_kernel::shared_kernel::{
     AuthorityContract as KernelAuthorityContract, AuthorityContractDraft, AuthorityMode,
     AuthorityVersionSnapshot, AuthorityVersionSnapshotDraft, ChangePolicy, CommandEnvelope,
     CommandMetadata, EntityId, EventEnvelope, EventStore, FactProvenance, FormalWritePath,
-    PrincipalScope, ProvenanceKind, ResourceRef, TrpgError, Visibility, VisibilityLabel,
-    WorkloadRole,
+    PrincipalCapability, PrincipalClaims, PrincipalScope, ProvenanceKind, ResourceRef, TrpgError,
+    Visibility, VisibilityKind, VisibilityLabel, WorkloadRole,
 };
 pub use trpg_shared_kernel::WireErrorCode;
 
@@ -21,6 +21,8 @@ pub enum DomainError {
     CampaignScopeMismatch,
     AuthorityContractVersionConflict,
     InvalidConfirmedFactSource,
+    CommittedFactEvidenceMissing,
+    CommittedFactEvidenceInvalid,
     MissingCommandMetadata,
     DuplicateCommand,
     ExpectedVersionConflict { expected: u64, actual: u64 },
@@ -44,6 +46,8 @@ impl DomainError {
             Self::DuplicateCommand => WireErrorCode::DuplicateCommand,
             Self::ExpectedVersionConflict { .. } => WireErrorCode::ExpectedVersionConflict,
             Self::VisibilityDenied => WireErrorCode::VisibilityDenied,
+            Self::CommittedFactEvidenceMissing => WireErrorCode::MissingFactProvenance,
+            Self::CommittedFactEvidenceInvalid => WireErrorCode::PolicyEvidenceUntrusted,
             Self::PolicyDenied => WireErrorCode::PolicyDenied,
             Self::SharedKernel(code) => *code,
         }
@@ -81,7 +85,7 @@ impl From<TrpgError> for DomainError {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum FactSource {
     GameEvent,
     DecisionRecord,

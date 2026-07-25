@@ -1,23 +1,59 @@
 # S03 Traceability
 
-Date: `2026-07-05`
-Batch: `BATCH-025-06-data-eventing`
+Date: `2026-07-21`
+Scope: B024–B028, revalidated under audit label P04
 
-## Fixture Binding
+## Batch inventory
 
-| Fixture item | Executable assertion |
+| Batch | Primary | Supplemental | Docs/Trace | Total |
+| --- | ---: | ---: | ---: | ---: |
+| B024 | 15 | 9 | 1 | 25 |
+| B025 | 11 | 14 | 0 | 25 |
+| B026 | 9 | 4 | 12 | 25 |
+| B027 | 2 | 13 | 10 | 25 |
+| B028 | 1 | 6 | 0 | 7 |
+| Total | 38 | 46 | 23 | 107 |
+
+P04 is an audit label, not a normalized prompt or batch. The authoritative mapping and the seven
+review findings are recorded in `docs/audit/p04/P04_FINDINGS_TRACEABILITY.md`.
+
+## Primary implementation ownership used by this repair
+
+| Prompt | Canonical ID | Owned surface |
+| --- | --- | --- |
+| P0006 | `CODEX-0062-06-DATA-EVENTING-09d943908d` | Outbox/Projection workers |
+| P0007 | `CODEX-0063-06-DATA-EVENTING-f6f824261f` | Persistence migrations |
+| P0020 | `CODEX-0595-06-DATA-EVENTING-f8fc21553c` | SQLx Event Store/Outbox/Projection |
+| P0030 | `CODEX-0605-06-DATA-EVENTING-7aa50c4023` | PostgreSQL/SQLx/pgvector |
+| P0031 | `CODEX-0606-06-DATA-EVENTING-96df5cfdb1` | SQLx migrations |
+| P0050 | `CODEX-0625-06-DATA-EVENTING-181b11b4cd` | SQLx migration contract |
+| Ops P0001 | `CODEX-0097-11-OPS-MIGRATION-e7c0cc1d29` | Backup/restore runbook and its independent integration target |
+
+`apps/agent-worker`, `crates/trpg-identity`, `apps/api-server`, and `scripts/ci` do not have exact
+output-owner rows for these files in the normalized maps. Worker composition and replay authorization
+are established P02 repair surfaces (#7 and #3 respectively); the current changes close P04 regressions
+on those surfaces without inventing a new owner.
+
+## Requirement-to-proof binding
+
+| Requirement / fixture | Executable proof |
 | --- | --- |
-| `ProjectionRebuilt.hash` | `projection_replay_hash_is_stable_and_event_store_derived` compares rebuilt projection hash to `sha256:a83861bce178f274e6a2e809c790770577445268b48fedfb889af4b87f8c1c50`. |
-| `OutboxMessage.required_fields` | `OutboxMessage::from(event)` asserts `event_id`, `correlation_id`, and `causation_id`. |
-| `ProjectionCheckpoint.required_fields` | `ProjectionCheckpoint::from_snapshot` asserts `stream_id`, `version`, and `projection_hash`. |
-| `wrong_expected_version` | Real append with stale expected version maps to `EVENT_STREAM_VERSION_CONFLICT`. |
-| `duplicate_idempotency_key` | Real idempotency replay maps to `IDEMPOTENCY_REPLAYED`. |
-| `mutable_event_update` | Direct business write is denied and Event Store length remains unchanged, mapped to `EVENT_STORE_APPEND_ONLY`. |
+| Event Store is canon | append-only/version/idempotency tests plus database mutation guards |
+| Atomic event/outbox/audit commit | `canonical_commit_postgres` and fault injection |
+| JetStream derives from Event Store | real envelope/ACK test against NATS 2.10.27 |
+| Projection is rebuildable | damage, missing checkpoint, forged hash, restart and embedded backup—destroy—restore tests in `trpg-data-eventing` |
+| Canonical backup is independently restorable | separate `trpg-ops::postgres_backup_restore_integration` custom-archive restore and tamper rejection |
+| RAG is a visibility-filtered read model | real pgvector cosine query, source binding, concurrent generation lock and relabel rejection |
+| Canonical JSON is cross-engine stable | serde_json/PostgreSQL equality for nested Unicode keys under C collation |
+| Private group access is authoritative | persisted campaign group membership, exact subject lookup, live revoke and self-grant denial |
+| Worker readiness cannot be forged | pending/stale/stopped/panic/cycle-error health tests |
+| Migration policy | forward apply, repeated no-op, old-schema upgrade, backup/restore and application rollback retaining schema |
+| Evidence cannot be summary-only | environment/service/output/JUnit binding and live-context mutation tests |
 
-## Prompt Coverage
+The 66-test `trpg-data-eventing` command (including its embedded recovery drill) and the 1-test `trpg-ops`
+backup/restore command are intentionally reported separately. Their package boundary and distinct assertions
+must not be collapsed into one test count.
 
-B025 contains 25 rows: 11 primary implementation prompts and 14 supplemental requirement prompts. The primary prompts are represented by `batch_025_data_event_contracts()` and `batch_025_data_eventing_contract_tests`; supplemental prompts remain constraints on their owning primary modules.
-
-## Migration Trace
-
-`migrations/20260705000100_create_data_eventing_event_store.up.sql` and `.down.sql` were live-tested with SQLx against disposable PostgreSQL. The live schema includes Event Store metadata, Outbox `event_id/correlation_id/causation_id`, and ProjectionCheckpoint `stream_id/version/projection_hash`.
+Current migration `20260717000100` and identity group migration `20260721000100` are forward-only.
+Application rollback retains schema and Event Store history. Historical run/revert/run transcripts for
+`20260705000100` are provenance for that explicitly reversible base migration only.

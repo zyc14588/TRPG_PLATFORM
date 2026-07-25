@@ -19,16 +19,11 @@ fn domain_command_cqrs_preserves_idempotency_and_expected_version() {
     );
     let mut store: EventStore<CommandAcceptedPayload> = EventStore::default();
 
-    decide_and_append(&contract, &mut store, &command, decision.clone()).unwrap();
-    let duplicate = decide_and_append(&contract, &mut store, &command, decision).unwrap_err();
+    let first = decide_and_append(&contract, &mut store, &command, decision.clone()).unwrap();
+    let retried = decide_and_append(&contract, &mut store, &command, decision).unwrap();
 
-    assert_eq!(
-        duplicate,
-        DomainError::ExpectedVersionConflict {
-            expected: 0,
-            actual: 1
-        }
-    );
+    assert_eq!(retried, first);
+    assert_eq!(store.events().len(), 1);
 }
 
 #[test]

@@ -1,113 +1,889 @@
-name: coc-ai-trpg-s09
+name: coc-ai-trpg
+
+x-trpg-runtime: &trpg-runtime
+  image: coc-ai-trpg/runtime:${TRPG_IMAGE_TAG:-local}
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: runtime
+  init: true
+  restart: unless-stopped
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=64m
+
+x-healthcheck: &rust-healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 20s
 
 services:
   web:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"]
+    image: coc-ai-trpg/web:${TRPG_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web-runtime
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/cache/nginx:rw,noexec,nosuid,nodev,size=16m
+      - /var/run:rw,noexec,nosuid,nodev,size=1m
+    networks:
+      - edge
     healthcheck:
+      <<: *rust-healthcheck
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
 
   api:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    ports:
-      - "8080:80"
-    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true,\"service\":\"api\"}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
+    <<: *trpg-runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["api-server"]
+    network_mode: "service:openfga"
+    environment:
+      TRPG_API_SERVER_BIND: 0.0.0.0:8080
+      TRPG_SECRET_MOUNT: /run/secrets
+      TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
+      TRPG_DATABASE_URL_SECRET_ID: api_database_url
+      TRPG_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_CANONICAL_DATABASE_URL_SECRET_ID: canonical_database_url
+      TRPG_CANONICAL_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_append_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_IDENTITY_SIGNING_KEY_SECRET_ID: identity_signing_key
+      TRPG_IDENTITY_SIGNING_KEY_SECRET_VERSION: "1"
+      TRPG_REDIS_URL_SECRET_ID: redis_url
+      TRPG_REDIS_URL_SECRET_VERSION: "1"
+      TRPG_CANONICAL_HMAC_KEY_ID: ${TRPG_CANONICAL_HMAC_KEY_ID:?set canonical key id}
+      TRPG_CANONICAL_HMAC_KEY_SECRET_ID: canonical_hmac_key
+      TRPG_CANONICAL_HMAC_KEY_SECRET_VERSION: "1"
+      TRPG_PAYLOAD_ENCRYPTION_KEY_ID: ${TRPG_PAYLOAD_ENCRYPTION_KEY_ID:?set payload key id}
+      TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_ID: payload_encryption_key
+      TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_VERSION: "1"
+      TRPG_AUDIT_LOG_PATH: /var/lib/trpg/audit/security.jsonl
+      TRPG_AUDIT_HMAC_KEY_ID: ${TRPG_AUDIT_HMAC_KEY_ID:?set audit key id}
+      TRPG_AUDIT_HMAC_KEY_SECRET_ID: audit_hmac_key
+      TRPG_AUDIT_HMAC_KEY_SECRET_VERSION: "1"
+      TRPG_POSTGRES_CA_CERT_PATH: /run/secrets/postgres_ca_certificate
+      TRPG_REDIS_CA_CERT_PATH: /run/secrets/redis_tls_ca_certificate
+      TRPG_REDIS_CLIENT_CERT_PATH: /run/secrets/redis_client_tls_certificate
+      TRPG_REDIS_CLIENT_KEY_PATH: /run/secrets/redis_client_tls_private_key
+      TRPG_OPENFGA_ADDRESS: 127.0.0.1:8085
+      TRPG_OPENFGA_STORE_ID_FILE: /run/trpg-policy/openfga_store_id
+      TRPG_OPENFGA_MODEL_ID_FILE: /run/trpg-policy/openfga_model_id
+      TRPG_OPA_ADDRESS: 127.0.0.1:8181
+      TRPG_OPA_POLICY_REVISION: opa-security-governance-v3
+    secrets:
+      - source: api_database_url
+        target: api_database_url.v1
+      - source: canonical_database_url
+        target: canonical_database_url.v1
+      - source: witness_append_database_url
+        target: witness_append_database_url.v1
+      - source: identity_signing_key
+        target: identity_signing_key.v1
+      - source: redis_url
+        target: redis_url.v1
+      - source: canonical_hmac_key
+        target: canonical_hmac_key.v1
+      - source: payload_encryption_key
+        target: payload_encryption_key.v1
+      - source: audit_hmac_key
+        target: audit_hmac_key.v1
+      - postgres_ca_certificate
+      - redis_tls_ca_certificate
+      - redis_client_tls_certificate
+      - redis_client_tls_private_key
+    volumes:
+      - api_state:/var/lib/trpg
+      - policy_bootstrap:/run/trpg-policy:ro
+    depends_on:
+      migration-runner:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      policy-bootstrap:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
+      <<: *rust-healthcheck
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/health/ready"]
+
+  openfga-migrate:
+    image: openfga/openfga@sha256:8543200bf85878c968d73da46c4f0e31ba1f63ed3675b71122f1133b0e9d97eb
+    command: ["migrate"]
+    user: nonroot
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      OPENFGA_DATASTORE_ENGINE: sqlite
+      OPENFGA_DATASTORE_URI: file:/home/nonroot/openfga.db
+    volumes:
+      - openfga_data:/home/nonroot
+    networks:
+      - backend
+
+  openfga:
+    image: openfga/openfga@sha256:8543200bf85878c968d73da46c4f0e31ba1f63ed3675b71122f1133b0e9d97eb
+    command: ["run"]
+    user: nonroot
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    environment:
+      OPENFGA_AUTHN_METHOD: none
+      OPENFGA_DATASTORE_ENGINE: sqlite
+      OPENFGA_DATASTORE_URI: file:/home/nonroot/openfga.db
+      OPENFGA_GRPC_ADDR: 127.0.0.1:8086
+      OPENFGA_HTTP_ADDR: 127.0.0.1:8085
+      OPENFGA_LOG_FORMAT: json
+      OPENFGA_PLAYGROUND_ENABLED: "false"
+      OPENFGA_PROFILER_ENABLED: "false"
+    volumes:
+      - openfga_data:/home/nonroot
+    networks:
+      backend:
+        aliases:
+          - api
+    depends_on:
+      openfga-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *rust-healthcheck
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=127.0.0.1:8086"]
+
+  opa:
+    image: openpolicyagent/opa@sha256:cba27d3c6af2feba1e4d6e6b5e24df5b53db332420d4148a90acccd12efae6ed
+    command:
+      - run
+      - --server
+      - --addr=127.0.0.1:8181
+      - --disable-telemetry
+      - /policy/security_governance.rego
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    network_mode: "service:openfga"
+    configs:
+      - source: opa_policy
+        target: /policy/security_governance.rego
+    depends_on:
+      openfga:
+        condition: service_healthy
+
+  policy-bootstrap:
+    image: python:3.13-alpine@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0
+    command:
+      - python3
+      - /bootstrap/p02_policy_bootstrap.py
+      - --openfga-address
+      - 127.0.0.1:8085
+      - --opa-address
+      - 127.0.0.1:8181
+      - --model
+      - /bootstrap/security_governance.json
+      - --store-name
+      - coc-ai-trpg-production
+      - --no-test-fixtures
+      - --output-dir
+      - /state
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    network_mode: "service:openfga"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    configs:
+      - source: policy_bootstrap_script
+        target: /bootstrap/p02_policy_bootstrap.py
+      - source: openfga_model
+        target: /bootstrap/security_governance.json
+    volumes:
+      - policy_bootstrap:/state
+    depends_on:
+      openfga:
+        condition: service_healthy
+      opa:
+        condition: service_started
 
   realtime:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
-  agent-worker:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
-  postgres:
-    image: postgres:16-alpine
+    <<: *trpg-runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["realtime-server"]
     environment:
-      POSTGRES_DB: coc_ai_trpg
-      POSTGRES_PASSWORD: coc_ai_trpg
-      POSTGRES_USER: coc_ai_trpg
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U coc_ai_trpg -d coc_ai_trpg"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
-  redis:
-    image: redis:7-alpine
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
-  nats:
-    image: nats:2-alpine
-    command: ["-js", "-m", "8222"]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
-  minio:
-    image: minio/minio:latest
-    command: ["server", "/data", "--console-address", ":9001"]
-    environment:
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_ROOT_USER: minioadmin
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
-  reverse-proxy:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
+      TRPG_REALTIME_SERVER_BIND: 0.0.0.0:8081
+      TRPG_SECRET_MOUNT: /run/secrets
+      TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
+      TRPG_DATABASE_URL_SECRET_ID: realtime_database_url
+      TRPG_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_read_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_NATS_URL_SECRET_ID: nats_url
+      TRPG_NATS_URL_SECRET_VERSION: "1"
+      TRPG_REDIS_URL_SECRET_ID: redis_url
+      TRPG_REDIS_URL_SECRET_VERSION: "1"
+      TRPG_CANONICAL_HMAC_KEY_ID: ${TRPG_CANONICAL_HMAC_KEY_ID:?set canonical key id}
+      TRPG_CANONICAL_HMAC_KEY_SECRET_ID: canonical_hmac_key
+      TRPG_CANONICAL_HMAC_KEY_SECRET_VERSION: "1"
+      TRPG_PAYLOAD_ENCRYPTION_KEY_ID: ${TRPG_PAYLOAD_ENCRYPTION_KEY_ID:?set payload key id}
+      TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_ID: payload_encryption_key
+      TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_VERSION: "1"
+      TRPG_REDIS_CACHE_KEY_ID: realtime_cache_key
+      TRPG_REDIS_CACHE_KEY_VERSION: "1"
+      TRPG_REDIS_CACHE_KEY_SECRET_ID: realtime_cache_key
+      TRPG_REDIS_CACHE_KEY_SECRET_VERSION: "1"
+      TRPG_REDIS_CA_CERT_PATH: /run/secrets/redis_tls_ca_certificate
+      TRPG_REDIS_CLIENT_CERT_PATH: /run/secrets/redis_client_tls_certificate
+      TRPG_REDIS_CLIENT_KEY_PATH: /run/secrets/redis_client_tls_private_key
+      TRPG_NATS_CA_CERT_PATH: /run/secrets/nats_tls_ca_certificate
+      TRPG_NATS_CLIENT_CERT_PATH: /run/secrets/nats_client_tls_certificate
+      TRPG_NATS_CLIENT_KEY_PATH: /run/secrets/nats_client_tls_private_key
+    secrets:
+      - source: realtime_database_url
+        target: realtime_database_url.v1
+      - source: witness_read_database_url
+        target: witness_read_database_url.v1
+      - source: nats_url
+        target: nats_url.v1
+      - source: redis_url
+        target: redis_url.v1
+      - source: canonical_hmac_key
+        target: canonical_hmac_key.v1
+      - source: payload_encryption_key
+        target: payload_encryption_key.v1
+      - source: realtime_cache_key
+        target: realtime_cache_key.v1
+      - redis_tls_ca_certificate
+      - redis_client_tls_certificate
+      - redis_client_tls_private_key
+      - nats_tls_ca_certificate
+      - nats_client_tls_certificate
+      - nats_client_tls_private_key
+      - postgres_ca_certificate
+    volumes:
+      - realtime_state:/var/lib/trpg
+    networks:
+      - backend
     depends_on:
-      api:
+      migration-runner:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
+      <<: *rust-healthcheck
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8081/health/ready"]
+
+  agent-worker:
+    <<: *trpg-runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["agent-worker"]
+    environment:
+      TRPG_AGENT_WORKER_BIND: 0.0.0.0:8082
+      TRPG_AGENT_WORKER_ID: agent-worker-primary
+      TRPG_SECRET_MOUNT: /run/secrets
+      TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
+      TRPG_DATABASE_URL_SECRET_ID: worker_database_url
+      TRPG_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_read_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_NATS_URL_SECRET_ID: nats_url
+      TRPG_NATS_URL_SECRET_VERSION: "1"
+      TRPG_REDIS_URL_SECRET_ID: redis_url
+      TRPG_REDIS_URL_SECRET_VERSION: "1"
+      TRPG_CANONICAL_HMAC_KEY_ID: ${TRPG_CANONICAL_HMAC_KEY_ID:?set canonical key id}
+      TRPG_CANONICAL_HMAC_KEY_SECRET_ID: canonical_hmac_key
+      TRPG_CANONICAL_HMAC_KEY_SECRET_VERSION: "1"
+      TRPG_PAYLOAD_ENCRYPTION_KEY_ID: ${TRPG_PAYLOAD_ENCRYPTION_KEY_ID:?set payload key id}
+      TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_ID: payload_encryption_key
+      TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_VERSION: "1"
+      TRPG_OBJECT_STORAGE_ENDPOINT: https://minio:9000
+      TRPG_OBJECT_STORAGE_REGION: ${TRPG_OBJECT_STORAGE_REGION:-us-east-1}
+      TRPG_OBJECT_STORAGE_BUCKET: ${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}
+      TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_ID: object_storage_access_key
+      TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_VERSION: "1"
+      TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_ID: object_storage_secret_key
+      TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_VERSION: "1"
+      TRPG_EXPORT_STORAGE_ROOT: /var/lib/trpg/exports
+      TRPG_PLUGIN_REGISTRY_PATH: /etc/trpg/plugins/registry.json
+      TRPG_NATS_CA_CERT_PATH: /run/secrets/nats_tls_ca_certificate
+      TRPG_NATS_CLIENT_CERT_PATH: /run/secrets/nats_client_tls_certificate
+      TRPG_NATS_CLIENT_KEY_PATH: /run/secrets/nats_client_tls_private_key
+      TRPG_REDIS_CA_CERT_PATH: /run/secrets/redis_tls_ca_certificate
+      TRPG_REDIS_CLIENT_CERT_PATH: /run/secrets/redis_client_tls_certificate
+      TRPG_REDIS_CLIENT_KEY_PATH: /run/secrets/redis_client_tls_private_key
+    secrets:
+      - source: worker_database_url
+        target: worker_database_url.v1
+      - source: witness_read_database_url
+        target: witness_read_database_url.v1
+      - source: nats_url
+        target: nats_url.v1
+      - source: redis_url
+        target: redis_url.v1
+      - source: canonical_hmac_key
+        target: canonical_hmac_key.v1
+      - source: payload_encryption_key
+        target: payload_encryption_key.v1
+      - source: object_storage_access_key
+        target: object_storage_access_key.v1
+      - source: object_storage_secret_key
+        target: object_storage_secret_key.v1
+      - redis_tls_ca_certificate
+      - redis_client_tls_certificate
+      - redis_client_tls_private_key
+      - nats_tls_ca_certificate
+      - nats_client_tls_certificate
+      - nats_client_tls_private_key
+      - minio_tls_ca_certificate
+      - postgres_ca_certificate
+    volumes:
+      - agent_state:/var/lib/trpg
+    networks:
+      - backend
+    depends_on:
+      migration-runner:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *rust-healthcheck
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8082/health/ready"]
 
   admin:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
+    <<: *trpg-runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["admin-server"]
+    environment:
+      TRPG_ADMIN_SERVER_BIND: 0.0.0.0:8083
+    volumes:
+      - admin_state:/var/lib/trpg
+    networks:
+      - backend
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
+      <<: *rust-healthcheck
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8083/health/ready"]
+
+  migration-runner:
+    <<: *trpg-runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["migration-runner"]
+    environment:
+      TRPG_MIGRATION_RUNNER_BIND: 0.0.0.0:8084
+      TRPG_SECRET_MOUNT: /run/secrets
+      TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
+      TRPG_DATABASE_URL_SECRET_ID: owner_database_url
+      TRPG_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_owner_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_CANONICAL_HMAC_KEY_ID: ${TRPG_CANONICAL_HMAC_KEY_ID:?set canonical key id}
+      TRPG_CANONICAL_HMAC_KEY_SECRET_ID: canonical_hmac_key
+      TRPG_CANONICAL_HMAC_KEY_SECRET_VERSION: "1"
+      TRPG_PAYLOAD_ENCRYPTION_KEY_ID: ${TRPG_PAYLOAD_ENCRYPTION_KEY_ID:?set payload key id}
+      TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_ID: payload_encryption_key
+      TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_VERSION: "1"
+    secrets:
+      - source: owner_database_url
+        target: owner_database_url.v1
+      - source: witness_owner_database_url
+        target: witness_owner_database_url.v1
+      - source: canonical_hmac_key
+        target: canonical_hmac_key.v1
+      - source: payload_encryption_key
+        target: payload_encryption_key.v1
+      - postgres_ca_certificate
+    volumes:
+      - migration_state:/var/lib/trpg
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-witness:
+        condition: service_healthy
+      witness-role-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *rust-healthcheck
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8084/health/ready"]
+
+  postgres:
+    image: pgvector/pgvector@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: coc_ai_trpg
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --data-checksums
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_bootstrap_password
+      POSTGRES_USER: trpg_database_owner
+    secrets:
+      - postgres_bootstrap_password
+      - postgres_api_password
+      - postgres_canonical_password
+      - postgres_worker_password
+      - postgres_realtime_password
+      - postgres_tls_certificate
+      - postgres_tls_private_key
+    configs:
+      - source: postgres_hba
+        target: /etc/trpg/postgres/pg_hba.conf
+      - source: postgres_security_roles
+        target: /docker-entrypoint-initdb.d/001-security-roles.sql
+      - source: postgres_application_role
+        target: /docker-entrypoint-initdb.d/002-application-role.sh
+        mode: 0555
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command:
+      - sh
+      - -ec
+      - |
+        install -o postgres -g postgres -m 0600 /run/secrets/postgres_tls_private_key /tmp/postgres-server.key
+        exec docker-entrypoint.sh postgres \
+          -c password_encryption=scram-sha-256 \
+          -c ssl=on \
+          -c ssl_min_protocol_version=TLSv1.2 \
+          -c ssl_cert_file=/run/secrets/postgres_tls_certificate \
+          -c ssl_key_file=/tmp/postgres-server.key \
+          -c hba_file=/etc/trpg/postgres/pg_hba.conf
+    networks:
+      - backend
+    healthcheck:
+      <<: *rust-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U trpg_database_owner -d coc_ai_trpg"]
+
+  postgres-witness:
+    image: postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: coc_ai_trpg_witness
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --data-checksums
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_witness_owner_password
+      POSTGRES_USER: trpg_witness_owner
+    secrets:
+      - postgres_witness_owner_password
+      - postgres_witness_append_password
+      - postgres_witness_read_password
+      - postgres_tls_certificate
+      - postgres_tls_private_key
+    configs:
+      - source: postgres_witness_hba
+        target: /etc/trpg/postgres/pg_hba.conf
+    volumes:
+      - postgres_witness_data:/var/lib/postgresql/data
+    command:
+      - sh
+      - -ec
+      - |
+        install -o postgres -g postgres -m 0600 /run/secrets/postgres_tls_private_key /tmp/postgres-server.key
+        exec docker-entrypoint.sh postgres \
+          -c password_encryption=scram-sha-256 \
+          -c ssl=on \
+          -c ssl_min_protocol_version=TLSv1.2 \
+          -c ssl_cert_file=/run/secrets/postgres_tls_certificate \
+          -c ssl_key_file=/tmp/postgres-server.key \
+          -c hba_file=/etc/trpg/postgres/pg_hba.conf
+    networks:
+      - backend
+    healthcheck:
+      <<: *rust-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U trpg_witness_owner -d coc_ai_trpg_witness"]
+
+  witness-role-bootstrap:
+    image: postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    restart: "no"
+    user: postgres
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    environment:
+      PGHOST: postgres-witness
+      PGPORT: "5432"
+      PGDATABASE: coc_ai_trpg_witness
+      PGUSER: trpg_witness_owner
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /run/secrets/postgres_ca_certificate
+      PGCONNECT_TIMEOUT: "10"
+    secrets:
+      - postgres_witness_owner_password
+      - postgres_ca_certificate
+    configs:
+      - source: postgres_witness_runtime_roles
+        target: /usr/local/bin/witness-runtime-roles.sh
+        mode: 0555
+    entrypoint: ["/bin/sh", "/usr/local/bin/witness-runtime-roles.sh"]
+    networks:
+      - backend
+    depends_on:
+      postgres-witness:
+        condition: service_healthy
+
+  redis:
+    image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    restart: unless-stopped
+    command: ["redis-server", "/etc/trpg/redis/redis.conf"]
+    configs:
+      - source: redis_config
+        target: /etc/trpg/redis/redis.conf
+    secrets:
+      - redis_acl
+      - redis_healthcheck_password
+      - redis_tls_certificate
+      - redis_tls_private_key
+      - redis_tls_ca_certificate
+      - redis_healthcheck_tls_certificate
+      - redis_healthcheck_tls_private_key
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+    healthcheck:
+      <<: *rust-healthcheck
+      test:
+        - CMD-SHELL
+        - >-
+          REDISCLI_AUTH="$$(tr -d '\r\n' < /run/secrets/redis_healthcheck_password)"
+          redis-cli --tls --user healthcheck
+          --cacert /run/secrets/redis_tls_ca_certificate
+          --cert /run/secrets/redis_healthcheck_tls_certificate
+          --key /run/secrets/redis_healthcheck_tls_private_key ping
+
+  nats:
+    image: nats@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0
+    restart: unless-stopped
+    command: ["-c", "/etc/trpg/nats/nats.conf"]
+    configs:
+      - source: nats_config
+        target: /etc/trpg/nats/nats.conf
+    secrets:
+      - nats_authorization
+      - nats_tls_certificate
+      - nats_tls_private_key
+      - nats_tls_ca_certificate
+    volumes:
+      - nats_data:/data
+    networks:
+      - backend
+    healthcheck:
+      <<: *rust-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/healthz >/dev/null"]
+
+  minio:
+    image: minio/minio@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    entrypoint: ["sh", "-ec"]
+    command:
+      - |
+        umask 077
+        mkdir -p /root/.minio/certs
+        cp /run/secrets/minio_tls_certificate /root/.minio/certs/public.crt
+        cp /run/secrets/minio_tls_private_key /root/.minio/certs/private.key
+        chmod 0644 /root/.minio/certs/public.crt
+        chmod 0600 /root/.minio/certs/private.key
+        exec minio server /data --console-address :9001
+    secrets:
+      - minio_root_user
+      - minio_root_password
+      - minio_tls_certificate
+      - minio_tls_private_key
+      - minio_tls_ca_certificate
+    volumes:
+      - minio_data:/data
+    networks:
+      - backend
+    healthcheck:
+      <<: *rust-healthcheck
+      test:
+        - CMD-SHELL
+        - >-
+          curl --fail --silent --show-error
+          --cacert /run/secrets/minio_tls_ca_certificate
+          https://127.0.0.1:9000/minio/health/live >/dev/null
+
+  minio-init:
+    image: minio/mc@sha256:aead63c77f9db9107f1696fb08ecb0faeda23729cde94b0f663edf4fe09728e3
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    secrets:
+      - minio_root_user
+      - minio_root_password
+      - minio_tls_ca_certificate
+    networks:
+      - backend
+    entrypoint: ["sh", "-ec"]
+    command:
+      - |
+        umask 077
+        mkdir -p /tmp/mc/certs/CAs
+        cp /run/secrets/minio_tls_ca_certificate /tmp/mc/certs/CAs/trpg-ca.crt
+        chmod 0644 /tmp/mc/certs/CAs/trpg-ca.crt
+        export MC_CERTS_DIR=/tmp/mc/certs
+        export MC_HOST_trpg="https://$$(cat /run/secrets/minio_root_user):$$(cat /run/secrets/minio_root_password)@minio:9000"
+        mc --config-dir /tmp/mc mb --ignore-existing "trpg/${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}"
+        mc --config-dir /tmp/mc version suspend "trpg/${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}"
+
+  reverse-proxy:
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+      realtime:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+    configs:
+      - source: reverse_proxy_config
+        target: /etc/nginx/conf.d/default.conf
+    secrets:
+      - reverse_proxy_tls_certificate
+      - reverse_proxy_tls_private_key
+    tmpfs:
+      - /var/cache/nginx:rw,noexec,nosuid,nodev,size=16m
+      - /var/run:rw,noexec,nosuid,nodev,size=1m
+    networks:
+      - edge
+      - backend
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    healthcheck:
+      <<: *rust-healthcheck
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null"]
+
+secrets:
+  postgres_bootstrap_password:
+    external: true
+    name: ${TRPG_POSTGRES_BOOTSTRAP_PASSWORD_SECRET:-trpg_postgres_bootstrap_password}
+  postgres_witness_owner_password:
+    external: true
+    name: ${TRPG_POSTGRES_WITNESS_OWNER_PASSWORD_SECRET:-trpg_postgres_witness_owner_password}
+  postgres_witness_append_password:
+    external: true
+    name: ${TRPG_POSTGRES_WITNESS_APPEND_PASSWORD_SECRET:-trpg_postgres_witness_append_password}
+  postgres_witness_read_password:
+    external: true
+    name: ${TRPG_POSTGRES_WITNESS_READ_PASSWORD_SECRET:-trpg_postgres_witness_read_password}
+  postgres_api_password:
+    external: true
+    name: ${TRPG_POSTGRES_API_PASSWORD_SECRET:-trpg_postgres_api_password}
+  postgres_canonical_password:
+    external: true
+    name: ${TRPG_POSTGRES_CANONICAL_PASSWORD_SECRET:-trpg_postgres_canonical_password}
+  postgres_worker_password:
+    external: true
+    name: ${TRPG_POSTGRES_WORKER_PASSWORD_SECRET:-trpg_postgres_worker_password}
+  postgres_realtime_password:
+    external: true
+    name: ${TRPG_POSTGRES_REALTIME_PASSWORD_SECRET:-trpg_postgres_realtime_password}
+  owner_database_url:
+    external: true
+    name: ${TRPG_OWNER_DATABASE_URL_SECRET:-trpg_owner_database_url}
+  api_database_url:
+    external: true
+    name: ${TRPG_API_DATABASE_URL_SECRET:-trpg_api_database_url}
+  canonical_database_url:
+    external: true
+    name: ${TRPG_CANONICAL_DATABASE_URL_SECRET:-trpg_canonical_database_url}
+  worker_database_url:
+    external: true
+    name: ${TRPG_WORKER_DATABASE_URL_SECRET:-trpg_worker_database_url}
+  realtime_database_url:
+    external: true
+    name: ${TRPG_REALTIME_DATABASE_URL_SECRET:-trpg_realtime_database_url}
+  witness_owner_database_url:
+    external: true
+    name: ${TRPG_WITNESS_OWNER_DATABASE_URL_SECRET:-trpg_witness_owner_database_url}
+  witness_append_database_url:
+    external: true
+    name: ${TRPG_WITNESS_APPEND_DATABASE_URL_SECRET:-trpg_witness_append_database_url}
+  witness_read_database_url:
+    external: true
+    name: ${TRPG_WITNESS_READ_DATABASE_URL_SECRET:-trpg_witness_read_database_url}
+  identity_signing_key:
+    external: true
+    name: ${TRPG_IDENTITY_SIGNING_KEY_SECRET:-trpg_identity_signing_key}
+  canonical_hmac_key:
+    external: true
+    name: ${TRPG_CANONICAL_HMAC_KEY_SECRET:-trpg_canonical_hmac_key}
+  payload_encryption_key:
+    external: true
+    name: ${TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET:-trpg_payload_encryption_key}
+  audit_hmac_key:
+    external: true
+    name: ${TRPG_AUDIT_HMAC_KEY_SECRET:-trpg_audit_hmac_key}
+  redis_url:
+    external: true
+    name: ${TRPG_REDIS_URL_SECRET:-trpg_redis_url}
+  nats_url:
+    external: true
+    name: ${TRPG_NATS_URL_SECRET:-trpg_nats_url}
+  realtime_cache_key:
+    external: true
+    name: ${TRPG_REALTIME_CACHE_KEY_SECRET:-trpg_realtime_cache_key}
+  object_storage_access_key:
+    external: true
+    name: ${TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET:-trpg_object_storage_access_key}
+  object_storage_secret_key:
+    external: true
+    name: ${TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET:-trpg_object_storage_secret_key}
+  postgres_tls_certificate:
+    external: true
+    name: ${TRPG_POSTGRES_TLS_CERTIFICATE_SECRET:-trpg_postgres_tls_certificate}
+  postgres_tls_private_key:
+    external: true
+    name: ${TRPG_POSTGRES_TLS_PRIVATE_KEY_SECRET:-trpg_postgres_tls_private_key}
+  postgres_ca_certificate:
+    external: true
+    name: ${TRPG_POSTGRES_CA_CERTIFICATE_SECRET:-trpg_postgres_ca_certificate}
+  redis_acl:
+    external: true
+    name: ${TRPG_REDIS_ACL_SECRET:-trpg_redis_acl}
+  redis_healthcheck_password:
+    external: true
+    name: ${TRPG_REDIS_HEALTHCHECK_PASSWORD_SECRET:-trpg_redis_healthcheck_password}
+  redis_tls_certificate:
+    external: true
+    name: ${TRPG_REDIS_TLS_CERTIFICATE_SECRET:-trpg_redis_tls_certificate}
+  redis_tls_private_key:
+    external: true
+    name: ${TRPG_REDIS_TLS_PRIVATE_KEY_SECRET:-trpg_redis_tls_private_key}
+  redis_tls_ca_certificate:
+    external: true
+    name: ${TRPG_REDIS_TLS_CA_CERTIFICATE_SECRET:-trpg_redis_tls_ca_certificate}
+  redis_client_tls_certificate:
+    external: true
+    name: ${TRPG_REDIS_CLIENT_TLS_CERTIFICATE_SECRET:-trpg_redis_client_tls_certificate}
+  redis_client_tls_private_key:
+    external: true
+    name: ${TRPG_REDIS_CLIENT_TLS_PRIVATE_KEY_SECRET:-trpg_redis_client_tls_private_key}
+  redis_healthcheck_tls_certificate:
+    external: true
+    name: ${TRPG_REDIS_HEALTHCHECK_TLS_CERTIFICATE_SECRET:-trpg_redis_healthcheck_tls_certificate}
+  redis_healthcheck_tls_private_key:
+    external: true
+    name: ${TRPG_REDIS_HEALTHCHECK_TLS_PRIVATE_KEY_SECRET:-trpg_redis_healthcheck_tls_private_key}
+  nats_authorization:
+    external: true
+    name: ${TRPG_NATS_AUTHORIZATION_SECRET:-trpg_nats_authorization}
+  nats_tls_certificate:
+    external: true
+    name: ${TRPG_NATS_TLS_CERTIFICATE_SECRET:-trpg_nats_tls_certificate}
+  nats_tls_private_key:
+    external: true
+    name: ${TRPG_NATS_TLS_PRIVATE_KEY_SECRET:-trpg_nats_tls_private_key}
+  nats_tls_ca_certificate:
+    external: true
+    name: ${TRPG_NATS_TLS_CA_CERTIFICATE_SECRET:-trpg_nats_tls_ca_certificate}
+  nats_client_tls_certificate:
+    external: true
+    name: ${TRPG_NATS_CLIENT_TLS_CERTIFICATE_SECRET:-trpg_nats_client_tls_certificate}
+  nats_client_tls_private_key:
+    external: true
+    name: ${TRPG_NATS_CLIENT_TLS_PRIVATE_KEY_SECRET:-trpg_nats_client_tls_private_key}
+  minio_root_user:
+    external: true
+    name: ${TRPG_MINIO_ROOT_USER_SECRET:-trpg_minio_root_user}
+  minio_root_password:
+    external: true
+    name: ${TRPG_MINIO_ROOT_PASSWORD_SECRET:-trpg_minio_root_password}
+  minio_tls_certificate:
+    external: true
+    name: ${TRPG_MINIO_TLS_CERTIFICATE_SECRET:-trpg_minio_tls_certificate}
+  minio_tls_private_key:
+    external: true
+    name: ${TRPG_MINIO_TLS_PRIVATE_KEY_SECRET:-trpg_minio_tls_private_key}
+  minio_tls_ca_certificate:
+    external: true
+    name: ${TRPG_MINIO_TLS_CA_CERTIFICATE_SECRET:-trpg_minio_tls_ca_certificate}
+  reverse_proxy_tls_certificate:
+    external: true
+    name: ${TRPG_REVERSE_PROXY_TLS_CERTIFICATE_SECRET:-trpg_reverse_proxy_tls_certificate}
+  reverse_proxy_tls_private_key:
+    external: true
+    name: ${TRPG_REVERSE_PROXY_TLS_PRIVATE_KEY_SECRET:-trpg_reverse_proxy_tls_private_key}
+
+configs:
+  postgres_hba:
+    file: ./config/postgres/pg_hba.conf
+  postgres_witness_hba:
+    file: ./config/postgres/witness_pg_hba.conf
+  postgres_witness_runtime_roles:
+    file: ./config/postgres/witness-runtime-roles.sh
+  postgres_security_roles:
+    file: ./config/postgres/001-security-roles.sql
+  postgres_application_role:
+    file: ./config/postgres/002-application-role.sh
+  redis_config:
+    file: ./config/redis/redis.conf
+  nats_config:
+    file: ./config/nats/nats.conf
+  reverse_proxy_config:
+    file: ./config/nginx/trpg.conf
+  opa_policy:
+    file: ./policy/opa/security_governance.rego
+  openfga_model:
+    file: ./policy/openfga/security_governance.json
+  policy_bootstrap_script:
+    file: ./scripts/ci/p02_policy_bootstrap.py
+
+volumes:
+  postgres_data:
+  postgres_witness_data:
+  redis_data:
+  nats_data:
+  minio_data:
+  api_state:
+  realtime_state:
+  agent_state:
+  admin_state:
+  migration_state:
+  openfga_data:
+  policy_bootstrap:
+
+networks:
+  edge:
+  backend:
+    internal: true

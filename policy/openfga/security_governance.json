@@ -69,7 +69,7 @@
           }
         },
         "can_connect_provider": { "computedUserset": { "relation": "system" } },
-        "can_delete_retained_data": {
+        "can_delete_personal_data": {
           "union": {
             "child": [
               { "computedUserset": { "relation": "workflow" } },

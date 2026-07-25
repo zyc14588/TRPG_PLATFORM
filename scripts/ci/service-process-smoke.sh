@@ -4,6 +4,10 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 release_dir="${CARGO_TARGET_DIR:-$root/target}/release"
 temporary_directory="$(mktemp -d)"
+secret_mount="$temporary_directory/secrets"
+secret_catalog_directory="$temporary_directory/secret-catalog"
+secret_catalog_path="$secret_catalog_directory/catalog.jsonl"
+export_root="$temporary_directory/exports"
 pids=()
 
 cleanup() {
@@ -36,6 +40,11 @@ api_opa_revision="${TRPG_OPA_POLICY_REVISION:-${P02_OPA_REVISION:-}}"
 canonical_witness_url="${TRPG_WITNESS_DATABASE_URL:-${P02_WITNESS_DATABASE_URL:-}}"
 nats_url="${TRPG_NATS_URL:-${P02_NATS_URL:-}}"
 redis_url="${TRPG_REDIS_URL:-${P02_REDIS_URL:-}}"
+object_storage_endpoint="${TRPG_OBJECT_STORAGE_ENDPOINT:-${P05_MINIO_ENDPOINT:-}}"
+object_storage_region="${TRPG_OBJECT_STORAGE_REGION:-${P05_MINIO_REGION:-}}"
+object_storage_bucket="${TRPG_OBJECT_STORAGE_BUCKET:-${P05_MINIO_BUCKET:-}}"
+object_storage_access_key="${TRPG_OBJECT_STORAGE_ACCESS_KEY:-${P05_MINIO_ACCESS_KEY:-}}"
+object_storage_secret_key="${TRPG_OBJECT_STORAGE_SECRET_KEY:-${P05_MINIO_SECRET_KEY:-}}"
 
 require_configuration "TRPG_DATABASE_URL or P02_DATABASE_URL" "$api_database_url"
 require_configuration "TRPG_OPENFGA_ADDRESS or P02_OPENFGA_ADDRESS" "$api_openfga_address"
@@ -46,12 +55,46 @@ require_configuration "TRPG_OPA_POLICY_REVISION or P02_OPA_REVISION" "$api_opa_r
 require_configuration "TRPG_WITNESS_DATABASE_URL or P02_WITNESS_DATABASE_URL" "$canonical_witness_url"
 require_configuration "TRPG_NATS_URL or P02_NATS_URL" "$nats_url"
 require_configuration "TRPG_REDIS_URL or P02_REDIS_URL" "$redis_url"
+require_configuration "TRPG_OBJECT_STORAGE_ENDPOINT or P05_MINIO_ENDPOINT" "$object_storage_endpoint"
+require_configuration "TRPG_OBJECT_STORAGE_REGION or P05_MINIO_REGION" "$object_storage_region"
+require_configuration "TRPG_OBJECT_STORAGE_BUCKET or P05_MINIO_BUCKET" "$object_storage_bucket"
+require_configuration \
+  "TRPG_OBJECT_STORAGE_ACCESS_KEY or P05_MINIO_ACCESS_KEY" \
+  "$object_storage_access_key"
+require_configuration \
+  "TRPG_OBJECT_STORAGE_SECRET_KEY or P05_MINIO_SECRET_KEY" \
+  "$object_storage_secret_key"
 
 identity_signing_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 audit_hmac_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 canonical_hmac_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+payload_encryption_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+redis_cache_key="$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
 plugin_registry="$temporary_directory/plugin-registry.json"
 printf '%s\n' '{"fuel_limit":100000,"memory_limit_bytes":1048576,"plugins":[]}' >"$plugin_registry"
+
+install -d -m 0700 "$secret_mount" "$secret_catalog_directory" "$export_root"
+
+write_secret() {
+  local secret_id="$1"
+  local secret_value="$2"
+  (
+    umask 077
+    printf '%s' "$secret_value" >"$secret_mount/$secret_id.v1"
+  )
+}
+
+write_secret database_url "$api_database_url"
+write_secret witness_database_url "$canonical_witness_url"
+write_secret nats_url "$nats_url"
+write_secret redis_url "$redis_url"
+write_secret identity_signing_key "$identity_signing_key"
+write_secret audit_hmac_key "$audit_hmac_key"
+write_secret canonical_hmac_key "$canonical_hmac_key"
+write_secret payload_encryption_key "$payload_encryption_key"
+write_secret redis_cache_key "$redis_cache_key"
+write_secret object_storage_access_key "$object_storage_access_key"
+write_secret object_storage_secret_key "$object_storage_secret_key"
 
 services=(api-server realtime-server agent-worker admin-server migration-runner)
 environment_keys=(
@@ -79,28 +122,56 @@ start_service() {
   test -x "$binary"
   command_environment=("${environment_keys[$index]}=127.0.0.1:${ports[$index]}")
   if [[ "$service" == api-server || "$service" == realtime-server || "$service" == agent-worker || "$service" == migration-runner ]]; then
-    command_environment+=("TRPG_DATABASE_URL=$api_database_url")
-  fi
-  if [[ "$service" == api-server || "$service" == migration-runner ]]; then
     command_environment+=(
-      "TRPG_WITNESS_DATABASE_URL=$canonical_witness_url"
+      "TRPG_SECRET_MOUNT=$secret_mount"
+      "TRPG_SECRET_CATALOG_PATH=$secret_catalog_path"
+      "TRPG_DATABASE_URL_SECRET_ID=database_url"
+      "TRPG_DATABASE_URL_SECRET_VERSION=1"
+      "TRPG_PAYLOAD_ENCRYPTION_KEY_ID=service-process-smoke-payload-v1"
+      "TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_ID=payload_encryption_key"
+      "TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_VERSION=1"
+      "TRPG_WITNESS_DATABASE_URL_SECRET_ID=witness_database_url"
+      "TRPG_WITNESS_DATABASE_URL_SECRET_VERSION=1"
       "TRPG_CANONICAL_HMAC_KEY_ID=service-process-smoke-v1"
-      "TRPG_CANONICAL_HMAC_KEY_HEX=$canonical_hmac_key"
+      "TRPG_CANONICAL_HMAC_KEY_SECRET_ID=canonical_hmac_key"
+      "TRPG_CANONICAL_HMAC_KEY_SECRET_VERSION=1"
     )
   fi
   if [[ "$service" == realtime-server || "$service" == agent-worker ]]; then
     command_environment+=(
-      "TRPG_NATS_URL=$nats_url"
-      "TRPG_REDIS_URL=$redis_url"
+      "TRPG_NATS_URL_SECRET_ID=nats_url"
+      "TRPG_NATS_URL_SECRET_VERSION=1"
+      "TRPG_REDIS_URL_SECRET_ID=redis_url"
+      "TRPG_REDIS_URL_SECRET_VERSION=1"
+    )
+  fi
+  if [[ "$service" == realtime-server ]]; then
+    command_environment+=(
+      "TRPG_REDIS_CACHE_KEY_ID=redis_cache_key"
+      "TRPG_REDIS_CACHE_KEY_VERSION=1"
     )
   fi
   if [[ "$service" == agent-worker ]]; then
-    command_environment+=("TRPG_PLUGIN_REGISTRY_PATH=$plugin_registry")
+    command_environment+=(
+      "TRPG_PLUGIN_REGISTRY_PATH=$plugin_registry"
+      "TRPG_OBJECT_STORAGE_ENDPOINT=$object_storage_endpoint"
+      "TRPG_OBJECT_STORAGE_REGION=$object_storage_region"
+      "TRPG_OBJECT_STORAGE_BUCKET=$object_storage_bucket"
+      "TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_ID=object_storage_access_key"
+      "TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_VERSION=1"
+      "TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_ID=object_storage_secret_key"
+      "TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_VERSION=1"
+      "TRPG_EXPORT_STORAGE_ROOT=$export_root"
+    )
   fi
   if [[ "$service" == api-server ]]; then
     command_environment+=(
-      "TRPG_IDENTITY_SIGNING_KEY_HEX=$identity_signing_key"
-      "TRPG_REDIS_URL=$redis_url"
+      "TRPG_CANONICAL_DATABASE_URL_SECRET_ID=database_url"
+      "TRPG_CANONICAL_DATABASE_URL_SECRET_VERSION=1"
+      "TRPG_IDENTITY_SIGNING_KEY_SECRET_ID=identity_signing_key"
+      "TRPG_IDENTITY_SIGNING_KEY_SECRET_VERSION=1"
+      "TRPG_REDIS_URL_SECRET_ID=redis_url"
+      "TRPG_REDIS_URL_SECRET_VERSION=1"
       "TRPG_OPENFGA_ADDRESS=$api_openfga_address"
       "TRPG_OPENFGA_STORE_ID=$api_openfga_store_id"
       "TRPG_OPENFGA_MODEL_ID=$api_openfga_model_id"
@@ -108,7 +179,8 @@ start_service() {
       "TRPG_OPA_POLICY_REVISION=$api_opa_revision"
       "TRPG_AUDIT_LOG_PATH=$temporary_directory/api-audit.jsonl"
       "TRPG_AUDIT_HMAC_KEY_ID=service-process-smoke-v1"
-      "TRPG_AUDIT_HMAC_KEY_HEX=$audit_hmac_key"
+      "TRPG_AUDIT_HMAC_KEY_SECRET_ID=audit_hmac_key"
+      "TRPG_AUDIT_HMAC_KEY_SECRET_VERSION=1"
     )
   fi
   env "${command_environment[@]}" \

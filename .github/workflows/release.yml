@@ -2,6 +2,8 @@ name: release-readiness-evidence
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [master]
   push:
     branches: [master]
     paths:
@@ -17,7 +19,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  blocked-evidence:
+  release-evidence:
+    name: release-readiness-evidence / release-evidence
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -34,14 +37,29 @@ jobs:
         run: corepack enable && corepack prepare pnpm@11.9.0 --activate
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
-      - name: Start pinned P02 and P03 integration services
-        run: bash scripts/ci/p02-integration-services.sh "$GITHUB_ENV"
+      - name: Start pinned integration services
+        run: bash scripts/ci/integration-services.sh "$GITHUB_ENV"
       - name: Generate release input evidence
         run: |
           mkdir -p "$RUNNER_TEMP/release-readiness"
-          python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/release-readiness/release-input.json" --artifact MANIFEST.md -- bash scripts/ci/test-all.sh
+          bash scripts/ci/generate-integration-evidence.sh "$RUNNER_TEMP/release-readiness/release-input.json"
           python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/release-readiness/release-input.json"
-      - name: Verify the truthful BLOCKED state
+      - name: Reclaim rebuildable Rust artifacts
+        run: cargo clean
+      - name: Generate production security input evidence
+        run: |
+          python3 scripts/ci/generate_evidence.py \
+            --report "$RUNNER_TEMP/release-readiness/production-security-input.json" \
+            --artifact MANIFEST.md \
+            --environment-key GITHUB_ACTIONS \
+            --service-version-command '["docker_engine","docker","version","--format","{{.Server.Version}}"]' \
+            --service-version-command '["docker_compose","docker","compose","version"]' \
+            --service-version-command '["openssl","openssl","version"]' \
+            -- bash scripts/ci/production-security-smoke.sh
+          python3 scripts/ci/verify_evidence_schema.py \
+            --live-context \
+            "$RUNNER_TEMP/release-readiness/production-security-input.json"
+      - name: Verify the truthful READY state
         run: |
           python3 scripts/ci/generate_evidence.py \
             --report "$RUNNER_TEMP/release-readiness/evidence-manifest.json" \
@@ -50,11 +68,16 @@ jobs:
             --generated-artifact "$RUNNER_TEMP/release-readiness/release-input.log" \
             --generated-artifact "$RUNNER_TEMP/release-readiness/release-input.junit.xml" \
             --generated-artifact "$RUNNER_TEMP/release-readiness/release-input.sarif" \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/production-security-input.json" \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/production-security-input.log" \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/production-security-input.junit.xml" \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/production-security-input.sarif" \
             --generated-artifact "$RUNNER_TEMP/release-readiness/release-readiness.json" \
             -- python3 scripts/ci/release_readiness.py \
               --report "$RUNNER_TEMP/release-readiness/release-readiness.json" \
               --evidence "$RUNNER_TEMP/release-readiness/release-input.json" \
-              --require-blocked
+              --security-evidence "$RUNNER_TEMP/release-readiness/production-security-input.json" \
+              --require-ready
           python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/release-readiness/evidence-manifest.json"
       - name: Upload release readiness evidence
         if: always()

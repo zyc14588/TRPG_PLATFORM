@@ -2,7 +2,7 @@ package security_governance
 
 default allow := false
 
-policy_revision := "opa-security-governance-v2"
+policy_revision := "opa-security-governance-v3"
 
 decision := {
 	"allow": allow,
@@ -45,7 +45,7 @@ permission_allowed if {
 
 permission_allowed if {
 	input.principal_role in {"workflow", "system"}
-	input.action in {"delete_retained_data", "export_player_report", "generate_party_summary", "index_rag_chunk"}
+	input.action in {"delete_personal_data", "export_player_report", "generate_party_summary", "index_rag_chunk"}
 }
 
 permission_allowed if {

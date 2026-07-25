@@ -1,4 +1,4 @@
-mod common;
+pub mod common;
 
 use trpg_agent_runtime::agent_runtime::{AgentDecision, AgentDecisionCommitter};
 use trpg_agent_runtime::{

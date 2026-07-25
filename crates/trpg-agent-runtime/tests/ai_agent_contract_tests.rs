@@ -1,4 +1,4 @@
-mod common;
+pub mod common;
 
 use trpg_agent_runtime::ai_agent;
 use trpg_agent_runtime::{
@@ -94,6 +94,163 @@ fn ai_agent_commits_only_through_event_store_with_provenance() {
     assert_eq!(audit_records[0].actor_id, "ai_kp_local_level4");
     assert_eq!(audit_records[0].action, "write_official_state");
     assert_eq!(audit_records[0].requested_role, "ai_keeper_orchestrator");
+}
+
+#[test]
+fn ai_agent_exact_retry_returns_original_formal_events() {
+    let request = ToolRequest::formal(
+        AgentKind::AiKeeperOrchestrator,
+        AgentTool::RequestSkillCheck,
+    );
+    let contract =
+        trpg_test_support::authority_contract("campaign_b018_ai_agent", AuthorityMode::AiKp, 1)
+            .unwrap();
+    let authentication =
+        trpg_test_support::ai_keeper_authentication(contract.campaign_id().as_str());
+    let decision = AgentDecision::new(
+        "decision_b018_ai_agent_retry",
+        request,
+        "Spot Hidden",
+        &authentication,
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
+    let mut store = common::audited_store(&contract);
+    let committer =
+        AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
+            .unwrap();
+
+    let first = ai_agent::submit_ai_agent_decision(
+        &committer,
+        &mut store,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision.clone(),
+        2,
+    )
+    .unwrap();
+    let replayed = ai_agent::submit_ai_agent_decision(
+        &committer,
+        &mut store,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .expect("exact retry returns the first formal result");
+
+    assert_eq!(replayed, first);
+    assert_eq!(store.events().len(), 2);
+}
+
+#[test]
+fn cold_retry_returns_canonical_event_identities() {
+    let request = ToolRequest::formal(
+        AgentKind::AiKeeperOrchestrator,
+        AgentTool::RequestSkillCheck,
+    );
+    let contract = trpg_test_support::authority_contract(
+        "campaign_b018_ai_agent_cold_retry",
+        AuthorityMode::AiKp,
+        1,
+    )
+    .unwrap();
+    let authentication =
+        trpg_test_support::ai_keeper_authentication(contract.campaign_id().as_str());
+    let decision = AgentDecision::new(
+        "decision_b018_ai_agent_cold_retry",
+        request,
+        "Spot Hidden",
+        &authentication,
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
+    let canonical = trpg_test_support::test_canonical_commit_port();
+    let (mut first_store, _) = common::audited_store_with_canonical(&contract, canonical.clone());
+    let committer =
+        AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
+            .unwrap();
+
+    let first = ai_agent::submit_ai_agent_decision(
+        &committer,
+        &mut first_store,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision.clone(),
+        2,
+    )
+    .unwrap();
+
+    std::thread::sleep(std::time::Duration::from_millis(2));
+    let (mut restarted_store, _) = common::audited_store_with_canonical(&contract, canonical);
+    let replayed = ai_agent::submit_ai_agent_decision(
+        &committer,
+        &mut restarted_store,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .expect("a cold exact retry must materialize the durable event identities");
+
+    assert_eq!(replayed, first);
+    assert_eq!(restarted_store.events(), first.as_slice());
+}
+
+#[test]
+fn corrupt_batch_receipt_is_rejected_without_partial_local_events() {
+    let request = ToolRequest::formal(
+        AgentKind::AiKeeperOrchestrator,
+        AgentTool::RequestSkillCheck,
+    );
+    let contract = trpg_test_support::authority_contract(
+        "campaign_b018_ai_agent_corrupt_receipt",
+        AuthorityMode::AiKp,
+        1,
+    )
+    .unwrap();
+    let authentication =
+        trpg_test_support::ai_keeper_authentication(contract.campaign_id().as_str());
+    let decision = AgentDecision::new(
+        "decision_b018_ai_agent_corrupt_receipt",
+        request,
+        "Listen",
+        &authentication,
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
+    let (mut store, _) = common::audited_store_with_canonical(
+        &contract,
+        trpg_test_support::corrupt_second_event_receipt_port(),
+    );
+    let committer =
+        AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
+            .unwrap();
+
+    let error = ai_agent::submit_ai_agent_decision(
+        &committer,
+        &mut store,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .unwrap_err();
+
+    assert_eq!(error.code(), "AUDIT_INTEGRITY_VIOLATION");
+    assert!(store.events().is_empty());
 }
 
 #[test]

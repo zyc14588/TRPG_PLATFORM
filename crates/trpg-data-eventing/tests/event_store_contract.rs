@@ -17,6 +17,8 @@ const DATA_EVENTING_MIGRATION: &str =
     include_str!("../../../migrations/20260705000100_create_data_eventing_event_store.up.sql");
 const EVENT_PERSISTENCE_HARDENING_MIGRATION: &str =
     include_str!("../../../migrations/20260716000100_harden_event_persistence_schema.sql");
+const EVENT_DELIVERY_CHECKPOINT_MIGRATION: &str =
+    include_str!("../../../migrations/20260717000100_strengthen_event_delivery_checkpoints.sql");
 
 #[test]
 fn s03_fixtures_are_bound_to_event_store_contract_assertions() {
@@ -148,7 +150,7 @@ fn event_store_contract_enforces_version_idempotency_and_visibility() {
         "idem_session_summary",
         Visibility::new(VisibilityLabel::PartyVisible),
     );
-    append_data_event(
+    let first_summary = append_data_event(
         &mut store,
         &contract,
         &allowed,
@@ -161,18 +163,91 @@ fn event_store_contract_enforces_version_idempotency_and_visibility() {
     )
     .unwrap();
 
+    let retried_summary = append_data_event(
+        &mut store,
+        &contract,
+        &allowed,
+        DataEventWrite::new(
+            "event_store_contract",
+            "SessionSummaryCreated",
+            DataEventOperation::EventStoreAppend,
+            &["event_store", "event_outbox"],
+        ),
+    )
+    .unwrap();
+    assert_eq!(retried_summary, first_summary);
+    assert_eq!(store.events().len(), 6);
+
     assert_eq!(store.events().len(), 6);
     assert_eq!(
         store
             .replay_visible(&PrincipalScope::Player(player_a))
             .len(),
-        1
+        4
     );
-    assert!(store
-        .replay_visible(&PrincipalScope::Player(player_b))
-        .is_empty());
+    assert_eq!(
+        store
+            .replay_visible(&PrincipalScope::Player(player_b))
+            .len(),
+        3
+    );
     assert_eq!(store.replay_visible(&PrincipalScope::PartyMember).len(), 3);
     assert_eq!(store.replay_visible(&PrincipalScope::System).len(), 6);
+}
+
+#[test]
+fn in_memory_contract_uses_campaign_stream_versions_not_global_event_count() {
+    let authority_a =
+        trpg_test_support::authority_contract("campaign_stream_a", AuthorityMode::AiKp, 1).unwrap();
+    let authority_b =
+        trpg_test_support::authority_contract("campaign_stream_b", AuthorityMode::AiKp, 1).unwrap();
+    let mut command_a =
+        trpg_test_support::governed_command_for_contract(&authority_a, (), ActorRole::Workflow);
+    command_a.command_id = EntityId::new("command_stream_a").unwrap();
+    command_a.idempotency_key = "idempotency_stream_a".to_owned();
+    let mut command_b =
+        trpg_test_support::governed_command_for_contract(&authority_b, (), ActorRole::Workflow);
+    command_b.command_id = EntityId::new("command_stream_b").unwrap();
+    command_b.idempotency_key = "idempotency_stream_b".to_owned();
+    let mut store = EventStore::default();
+
+    let event_a = append_data_event(
+        &mut store,
+        &authority_a,
+        &command_a,
+        DataEventWrite::new(
+            "event_store_contract",
+            "StreamARecorded",
+            DataEventOperation::EventStoreAppend,
+            &["event_store"],
+        ),
+    )
+    .unwrap();
+    let event_b = append_data_event(
+        &mut store,
+        &authority_b,
+        &command_b,
+        DataEventWrite::new(
+            "event_store_contract",
+            "StreamBRecorded",
+            DataEventOperation::EventStoreAppend,
+            &["event_store"],
+        ),
+    )
+    .unwrap();
+
+    assert_eq!(event_a.sequence, 1);
+    assert_eq!(event_b.sequence, 2);
+    assert_eq!(event_a.stream_version, 1);
+    assert_eq!(event_b.stream_version, 1);
+    assert_eq!(
+        store.current_stream_version(&event_a.campaign_id, &event_a.stream_id),
+        1
+    );
+    assert_eq!(
+        store.current_stream_version(&event_b.campaign_id, &event_b.stream_id),
+        1
+    );
 }
 
 #[test]
@@ -205,6 +280,9 @@ fn migration_entry_is_repeatable_sqlx_evidence() {
     assert!(migrations
         .iter()
         .any(|migration| migration.version == 20_260_716_000_100));
+    assert!(migrations
+        .iter()
+        .any(|migration| migration.version == 20_260_717_000_100));
     assert_contains_all(
         EVENT_PERSISTENCE_HARDENING_MIGRATION,
         &[
@@ -222,6 +300,19 @@ fn migration_entry_is_repeatable_sqlx_evidence() {
         ],
     );
     assert!(!EVENT_PERSISTENCE_HARDENING_MIGRATION.contains("CREATE TABLE IF NOT EXISTS"));
+    assert_contains_all(
+        EVENT_DELIVERY_CHECKPOINT_MIGRATION,
+        &[
+            "delivery_status",
+            "available_at",
+            "locked_until",
+            "event_outbox_claim_ready_idx",
+            "enforce_projection_checkpoint_monotonicity",
+            "projection checkpoint cannot move backwards",
+            "projection checkpoint does not reference its canonical stream event",
+        ],
+    );
+    assert!(!EVENT_DELIVERY_CHECKPOINT_MIGRATION.contains("DROP TABLE"));
 }
 
 #[test]
@@ -231,6 +322,7 @@ fn rag_and_realtime_fixtures_preserve_metadata_and_private_visibility() {
         &[
             "\"source_type\"",
             "\"visibility\"",
+            "\"copyright_status\"",
             "\"version\"",
             "\"owner\"",
             "\"allowed_use\"",

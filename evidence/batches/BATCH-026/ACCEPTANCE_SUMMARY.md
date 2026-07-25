@@ -1,5 +1,10 @@
 # BATCH-026 Acceptance Summary
 
+> Historical batch boundary: the original B026 notes below are provenance.
+> Current P04 acceptance is forward-only and is recorded in
+> `docs/audit/p04/P04_TEST_RESULTS.md`; it includes real PostgreSQL, NATS 2.10
+> JetStream and Redis execution.
+
 Batch: BATCH-026-06-data-eventing - Strict Governance Final
 Stage: S03 data-eventing persistence
 
@@ -25,7 +30,7 @@ Stage: S03 data-eventing persistence
 - Business/API/agent-facing surfaces still append formal facts only through the shared governed Event Store path.
 - Direct agent writes, wrong expected_version, duplicate idempotency keys, and authority actor violations are rejected.
 - Visibility and fact provenance are preserved across replay and projection rebuild.
-- RAG snapshot metadata includes source_type, visibility, version, owner, allowed_use, fact_provenance, source_event_sequence, and chunk_hash.
+- RAG snapshot metadata includes source_type, visibility, copyright_status, version, owner, allowed_use, fact_provenance, source_event_sequence, and chunk_hash; P04 later hardened this into the concrete pgvector table and query path.
 - Cache, NATS, projection, and RAG surfaces are declared as rebuildable or derived from Event Store/outbox sources.
 - Current-safe name checks pass through `b026_primary_contracts_map_to_current_safe_outputs`; historical source/path/version tokens are retained only as source provenance or deny-list values, not as current module/output names.
 
@@ -41,7 +46,7 @@ Stage: S03 data-eventing persistence
 | P0059 / CODEX-0635 | `rag_snapshot` | RAG metadata and player-context redaction fixture assertion. |
 | P0061 / CODEX-0636 | `cache_redis_impl` | Derived cache assertion, including `!CACHE_IS_CANONICAL` without a clippy constant assertion. |
 | P0062 / CODEX-0637 | `event_bus_nats_impl` | `OutboxMessage` conversion from governed event and `OutboxPublish` assertion. |
-| P0063 / CODEX-0638 | `persistence_postgresql_impl` | Event Store/outbox/projection checkpoint metadata plus live SQLx run/revert/run evidence. |
+| P0063 / CODEX-0638 | `persistence_postgresql_impl` | Event Store/outbox/projection checkpoint metadata; current P04 evidence uses forward-only migration verification. |
 
 ## Evidence Files
 
@@ -49,10 +54,10 @@ Stage: S03 data-eventing persistence
 - evidence/batches/BATCH-026/TEST_RESULTS.md
 - evidence/batches/BATCH-026/ACCEPTANCE_SUMMARY.md
 
-## Open Risks
+## Historical Open Risks
 
 - A prior parallel all-features run hit a Windows linker/file-lock error. The same check passed with `CARGO_BUILD_JOBS=1`.
-- Live PostgreSQL was started only for the SQLx migration gate. Redis and NATS services were not started because BATCH-026 validates those surfaces through current-safe contract modules, governed Event Store/outbox assertions, and fixture-backed tests; the repository root has no compose entrypoint.
+- In the original B026 run, PostgreSQL was started only for the SQLx gate and Redis/NATS were not started. P04 later closed that evidence gap with real NATS 2.10 JetStream and Redis integration tests; this historical limitation is not a statement about current P04 execution.
 
 ## Next Batch Handoff
 

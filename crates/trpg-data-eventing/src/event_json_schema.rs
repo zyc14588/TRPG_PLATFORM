@@ -36,10 +36,13 @@ pub const VISIBILITY_LABELS: &[&str] = &[
     "public",
     "party_visible",
     "private_to_player",
+    "private_to_group",
     "keeper_only",
     "investigator_private",
     "ai_internal",
     "system_only",
+    "spectator_visible",
+    "spectator_hidden",
     "system_private",
 ];
 

@@ -2,6 +2,9 @@ use std::process::ExitCode;
 
 use trpg_contracts::{run_service, RoleRuntimeProbe, ServiceKind, ServiceSpec};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::PostgresCanonicalStore;
+use trpg_security_governance::secret::{
+    MountedFileSecretResolver, SecretManager, SecretReference, SecretValue,
+};
 
 fn main() -> ExitCode {
     let runtime = match MigrationRuntime::from_environment() {
@@ -24,22 +27,34 @@ struct MigrationRuntime {
 
 impl MigrationRuntime {
     fn from_environment() -> Result<Self, String> {
-        let primary_url = required_environment("TRPG_DATABASE_URL")?;
-        let witness_url = required_environment("TRPG_WITNESS_DATABASE_URL")?;
+        let manager = production_secret_manager()?;
+        let primary_url = resolve_mounted_secret(&manager, "TRPG_DATABASE_URL")?;
+        let witness_url = resolve_mounted_secret(&manager, "TRPG_WITNESS_DATABASE_URL")?;
         let key_id = required_environment("TRPG_CANONICAL_HMAC_KEY_ID")?;
-        let key = required_environment("TRPG_CANONICAL_HMAC_KEY_HEX")
-            .ok()
-            .and_then(|value| decode_key(&value))
-            .ok_or_else(|| "CANONICAL_HMAC_KEY_INVALID".to_owned())?;
+        let key = resolve_mounted_secret(&manager, "TRPG_CANONICAL_HMAC_KEY")?
+            .to_key32()
+            .map_err(|_| "CANONICAL_HMAC_KEY_INVALID".to_owned())?;
+        let payload_key_id = required_environment("TRPG_PAYLOAD_ENCRYPTION_KEY_ID")?;
+        let payload_key = resolve_mounted_secret(&manager, "TRPG_PAYLOAD_ENCRYPTION_KEY")?
+            .to_key32()
+            .map_err(|_| "PAYLOAD_ENCRYPTION_KEY_INVALID".to_owned())?;
         let runtime = tokio::runtime::Runtime::new()
             .map_err(|_| "MIGRATION_RUNTIME_INITIALIZATION_FAILED".to_owned())?;
-        let store = runtime
-            .block_on(PostgresCanonicalStore::connect(
-                &primary_url,
-                &witness_url,
-                key_id,
-                &key,
-            ))
+        let mut connection = None;
+        expose_store_connection(
+            &runtime,
+            CanonicalSecretInputs {
+                primary: &primary_url,
+                witness: &witness_url,
+                integrity: &key,
+                payload: &payload_key,
+                integrity_key_id: &key_id,
+                payload_key_id: &payload_key_id,
+            },
+            &mut connection,
+        )?;
+        let store = connection
+            .ok_or_else(|| "CANONICAL_STORE_CONNECTION_NOT_ATTEMPTED".to_owned())?
             .map_err(|_| "CANONICAL_STORE_CONNECTION_FAILED".to_owned())?;
         runtime
             .block_on(store.prepare_for_service())
@@ -68,24 +83,74 @@ fn required_environment(name: &str) -> Result<String, String> {
         .ok_or_else(|| format!("{name}_REQUIRED"))
 }
 
-fn decode_key(value: &str) -> Option<[u8; 32]> {
-    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return None;
-    }
-    let mut key = [0_u8; 32];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
-        key[index] = (hex_nibble(pair[0])? << 4) | hex_nibble(pair[1])?;
-    }
-    Some(key)
+fn production_secret_manager() -> Result<SecretManager<MountedFileSecretResolver>, String> {
+    let mount = required_environment("TRPG_SECRET_MOUNT")?;
+    let resolver =
+        MountedFileSecretResolver::new(mount).map_err(|_| "SECRET_MOUNT_INVALID".to_owned())?;
+    SecretManager::new_durable(resolver, required_environment("TRPG_SECRET_CATALOG_PATH")?)
+        .map_err(|_| "SECRET_CATALOG_INVALID".to_owned())
 }
 
-fn hex_nibble(value: u8) -> Option<u8> {
-    match value {
-        b'0'..=b'9' => Some(value - b'0'),
-        b'a'..=b'f' => Some(value - b'a' + 10),
-        b'A'..=b'F' => Some(value - b'A' + 10),
-        _ => None,
-    }
+fn resolve_mounted_secret(
+    manager: &SecretManager<MountedFileSecretResolver>,
+    prefix: &str,
+) -> Result<SecretValue, String> {
+    let id = required_environment(&format!("{prefix}_SECRET_ID"))?;
+    let version = required_environment(&format!("{prefix}_SECRET_VERSION"))?
+        .parse::<u64>()
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or_else(|| format!("{prefix}_SECRET_VERSION_INVALID"))?;
+    let reference = SecretReference::mounted(id, version)
+        .map_err(|_| format!("{prefix}_SECRET_REFERENCE_INVALID"))?;
+    manager
+        .register(&reference)
+        .map_err(|_| format!("{prefix}_SECRET_REGISTRATION_FAILED"))?;
+    manager
+        .resolve(&reference)
+        .map_err(|_| format!("{prefix}_SECRET_RESOLUTION_FAILED"))
+}
+
+struct CanonicalSecretInputs<'a> {
+    primary: &'a SecretValue,
+    witness: &'a SecretValue,
+    integrity: &'a trpg_security_governance::secret::SecretKey32,
+    payload: &'a trpg_security_governance::secret::SecretKey32,
+    integrity_key_id: &'a str,
+    payload_key_id: &'a str,
+}
+
+fn expose_store_connection(
+    runtime: &tokio::runtime::Runtime,
+    inputs: CanonicalSecretInputs<'_>,
+    output: &mut Option<
+        Result<
+            PostgresCanonicalStore,
+            trpg_data_eventing::event_store_sqlx_outbox_projection::CanonicalStoreError,
+        >,
+    >,
+) -> Result<(), String> {
+    inputs
+        .primary
+        .expose_utf8_to(|primary_url| {
+            inputs.witness.expose_utf8_to(|witness_url| {
+                inputs.integrity.expose_to(|integrity_key| {
+                    inputs.payload.expose_to(|payload_key| {
+                        *output = Some(runtime.block_on(PostgresCanonicalStore::connect(
+                            primary_url,
+                            witness_url,
+                            inputs.integrity_key_id,
+                            integrity_key,
+                            inputs.payload_key_id,
+                            payload_key,
+                        )));
+                    });
+                });
+            })
+        })
+        .map_err(|_| "DATABASE_URL_SECRET_INVALID".to_owned())?
+        .map_err(|_| "WITNESS_DATABASE_URL_SECRET_INVALID".to_owned())?;
+    Ok(())
 }
 
 fn run(

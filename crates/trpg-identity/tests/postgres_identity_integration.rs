@@ -2,7 +2,7 @@ use postgres::{Client, NoTls};
 use trpg_identity::{CampaignRole, GlobalRole, IdentityError, IdentityService};
 use trpg_shared_kernel::{
     AuthorityContract, AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft,
-    EntityId,
+    EntityId, Visibility,
 };
 
 const KEY: [u8; 32] = [0x63; 32];
@@ -64,6 +64,7 @@ fn postgres_persists_sessions_memberships_and_canonical_authority_across_restart
     let owner_session = identity
         .login(&owner_login, "owner password long enough", 10_000)
         .unwrap();
+    let owner_token = owner_session.token.expose().to_owned();
     let owner = identity
         .authenticate_session(Some(owner_session.token.expose()), 10_001)
         .unwrap();
@@ -84,6 +85,13 @@ fn postgres_persists_sessions_memberships_and_canonical_authority_across_restart
             CampaignRole::Player,
             10_002,
         )
+        .unwrap();
+    let group_id = format!("investigation_group_{suffix}");
+    identity
+        .create_campaign_group(&owner, &campaign_id, &group_id, 10_002)
+        .unwrap();
+    identity
+        .grant_group_membership(&owner, &campaign_id, &group_id, &player_id, 10_002)
         .unwrap();
     identity
         .register_authority_contract(&owner, contract(&campaign_id, &owner_id), 10_002)
@@ -107,6 +115,28 @@ fn postgres_persists_sessions_memberships_and_canonical_authority_across_restart
             10_002,
         )
         .unwrap();
+    let campaign = EntityId::new(&campaign_id).unwrap();
+    let group_visibility = Visibility::private_to_group(EntityId::new(&group_id).unwrap());
+    let group_authorization = restarted
+        .verifier()
+        .authorize_replay(&player, &campaign, 10_002)
+        .unwrap();
+    assert!(group_authorization
+        .can_view(&campaign, &group_visibility, 10_002)
+        .unwrap());
+    // Revoke through a separate service replica. The authorization minted by
+    // `restarted` must consult PostgreSQL on the next decision instead of
+    // trusting its now-stale process-local membership map.
+    let mut revoking_replica = IdentityService::from_postgres(&database_url, &KEY, 60_000).unwrap();
+    let revoking_owner = revoking_replica
+        .authenticate_session(Some(&owner_token), 10_002)
+        .unwrap();
+    revoking_replica
+        .revoke_group_membership(&revoking_owner, &campaign_id, &group_id, &player_id, 10_002)
+        .unwrap();
+    assert!(!group_authorization
+        .can_view(&campaign, &group_visibility, 10_002)
+        .unwrap());
     let authority = restarted
         .authority_contract(&EntityId::new(&campaign_id).unwrap())
         .unwrap()
@@ -152,6 +182,20 @@ fn postgres_persists_sessions_memberships_and_canonical_authority_across_restart
             "UPDATE authority_contracts SET authority_owner = 'forged' \
              WHERE campaign_id = $1",
             &[&campaign_id],
+        )
+        .is_err());
+    assert!(database
+        .execute(
+            "UPDATE campaign_group_memberships SET user_id = $4 \
+             WHERE campaign_id = $1 AND group_id = $2 AND user_id = $3",
+            &[&campaign_id, &group_id, &player_id, &owner_id],
+        )
+        .is_err());
+    assert!(database
+        .execute(
+            "DELETE FROM campaign_group_memberships \
+             WHERE campaign_id = $1 AND group_id = $2 AND user_id = $3",
+            &[&campaign_id, &group_id, &player_id],
         )
         .is_err());
     assert!(database

@@ -1,10 +1,9 @@
-mod common;
+pub mod common;
 
 use trpg_agent_runtime::agent_runtime_impl;
 use trpg_agent_runtime::{
     ActorRole, AgentDecision, AgentDecisionCommitter, AgentKind, AgentTool, AuthorityMode,
-    CommandEnvelope, ContextFact, FormalWritePath, PrincipalScope, ToolRequest, Visibility,
-    VisibilityLabel,
+    CommandEnvelope, FormalWritePath, PrincipalScope, ToolRequest, Visibility, VisibilityLabel,
 };
 
 fn ai_kp_command(payload: AgentDecision) -> CommandEnvelope<AgentDecision> {
@@ -57,13 +56,13 @@ fn agent_runtime_impl_rejects_direct_agent_state_write() {
 
 #[test]
 fn agent_runtime_impl_filters_context_by_visibility_label() {
-    let public_fact = ContextFact::new(
+    let public_fact = common::context_fact(
         "fact_b018_public",
         "The front door is unlocked.",
         Visibility::new(VisibilityLabel::Public),
     )
     .unwrap();
-    let keeper_fact = ContextFact::new(
+    let keeper_fact = common::context_fact(
         "fact_b018_keeper",
         "keeper_only ai_internal",
         Visibility::new(VisibilityLabel::KeeperOnly),
@@ -72,6 +71,7 @@ fn agent_runtime_impl_filters_context_by_visibility_label() {
 
     let public_context = agent_runtime_impl::assemble_runtime_context(
         &[public_fact.clone(), keeper_fact],
+        &PrincipalScope::System,
         &PrincipalScope::Public,
     );
 

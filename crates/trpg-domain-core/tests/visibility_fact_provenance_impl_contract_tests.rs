@@ -1,3 +1,5 @@
+mod common;
+
 use trpg_domain_core::ddd::{
     ActorRole, AuthorityMode, DomainError, EntityId, EventStore, FactProvenance, FactSource,
     PrincipalScope, ProvenanceKind, Visibility, VisibilityLabel,
@@ -9,19 +11,24 @@ use trpg_domain_core::visibility_fact_provenance_impl::{
 
 #[test]
 fn visibility_fact_provenance_impl_rejects_untrusted_confirmed_fact_source() {
-    let provenance =
-        FactProvenance::new(ProvenanceKind::AgentProposal, "draft_001", "agent_001").unwrap();
-
     assert_eq!(
-        confirm_visibility_fact(
-            "fact_001",
+        common::committed_fact_evidence(
             FactSource::AgentDraft,
-            Visibility::new(VisibilityLabel::KeeperOnly),
-            provenance
+            ProvenanceKind::AgentProposal,
+            "rejected_agent_draft",
         )
         .unwrap_err(),
         DomainError::InvalidConfirmedFactSource
     );
+
+    let evidence = common::committed_fact_evidence(
+        FactSource::DecisionRecord,
+        ProvenanceKind::RulesEngineDecision,
+        "fact_001",
+    )
+    .unwrap();
+    let fact = confirm_visibility_fact("fact_001", &evidence).unwrap();
+    assert!(fact.is_confirmed());
 }
 
 #[test]
@@ -62,6 +69,7 @@ fn visibility_fact_provenance_impl_preserves_visibility_and_provenance_on_replay
         redact_for_derived_object(
             &Visibility::new(VisibilityLabel::KeeperOnly),
             DerivedObject::AgentContextForPlayer,
+            &PrincipalScope::System,
             &PrincipalScope::Player(EntityId::new("player_001").unwrap())
         ),
         RedactionOutcome::Omitted

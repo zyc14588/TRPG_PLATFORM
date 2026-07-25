@@ -1,8 +1,9 @@
 mod common;
 
 use trpg_extension_sdk::sdk::{
-    append_sdk_event, contract, ExtensionSdkManifest, SdkCommand, SdkService,
+    append_sdk_event, contract, ExtensionSdkManifest, SdkCommand, SdkService, ALLOWED_CAPABILITIES,
 };
+use trpg_extension_sdk::{ExtensionCapabilityGrantSet, ExtensionPolicyGate};
 
 #[test]
 fn sdk_records_governed_event() {
@@ -36,7 +37,9 @@ fn sdk_service_records_contract_registry_event() {
         trpg_extension_sdk::Visibility::new(trpg_extension_sdk::VisibilityLabel::SystemOnly),
     );
 
-    let execution = SdkService::default()
+    let grants = ExtensionCapabilityGrantSet::with_grants(ALLOWED_CAPABILITIES).unwrap();
+    let gate = ExtensionPolicyGate::with_capability_grants(grants, ALLOWED_CAPABILITIES).unwrap();
+    let execution = SdkService::new(gate)
         .execute(&mut store, &authority, &command)
         .expect("sdk registry records event");
 

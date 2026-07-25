@@ -8,6 +8,7 @@ use trpg_extension_sdk::{
     EXTENSION_REDACTED,
 };
 
+#[allow(dead_code)]
 pub fn assert_extension_contract<T, F>(contract: ExtensionContract, payload: T, append: F)
 where
     T: Clone + Debug,

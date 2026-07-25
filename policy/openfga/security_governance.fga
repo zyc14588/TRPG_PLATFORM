@@ -27,7 +27,7 @@ type campaign
     define can_generate_party_summary: workflow or system
     define can_index_rag_chunk: workflow or system
     define can_connect_provider: system
-    define can_delete_retained_data: workflow or system
+    define can_delete_personal_data: workflow or system
     define can_record_audit: workflow or rules_engine or system
 
     # deny: server_owner override_dice_roll

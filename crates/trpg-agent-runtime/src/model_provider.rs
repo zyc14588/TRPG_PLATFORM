@@ -1,4 +1,8 @@
 use crate::agent_runtime::{AgentError, AgentResult};
+use async_trait::async_trait;
+use trpg_security_governance::cloud_egress::CloudEgressAttempt;
+pub use trpg_security_governance::cloud_egress::{CloudContextFact, CloudEgressAuthorization};
+pub use trpg_security_governance::secret::SecretReference;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProviderType {
@@ -12,6 +16,15 @@ impl ProviderType {
     pub fn is_local(self) -> bool {
         !matches!(self, Self::Cloud)
     }
+
+    pub const fn route_name(self) -> &'static str {
+        match self {
+            Self::Cloud => "cloud",
+            Self::Ollama => "ollama",
+            Self::LlamaCpp => "llama_cpp",
+            Self::LocalOpenAiCompatible => "local_openai_compatible",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,13 +33,30 @@ pub enum Environment {
     Prod,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ProviderConfig {
+    pub provider_id: trpg_shared_kernel::EntityId,
     pub provider_type: ProviderType,
+    pub model_id: String,
+    pub model_artifact_sha256: String,
     pub base_url: String,
-    pub api_key: String,
+    pub credential: SecretReference,
     pub environment: Environment,
-    pub reverse_proxy_auth: bool,
+}
+
+impl std::fmt::Debug for ProviderConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ProviderConfig")
+            .field("provider_id", &self.provider_id)
+            .field("provider_type", &self.provider_type)
+            .field("model_id", &self.model_id)
+            .field("model_artifact_sha256", &self.model_artifact_sha256)
+            .field("base_url", &"[redacted endpoint]")
+            .field("credential", &self.credential)
+            .field("environment", &self.environment)
+            .finish()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -41,13 +71,6 @@ pub struct ModelRouteSnapshot {
 pub enum FallbackDecision {
     Allow,
     DenyAndAudit,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FallbackPolicy {
-    pub cloud_fallback_enabled: bool,
-    pub user_notice: bool,
-    pub snapshot_recorded: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,31 +91,174 @@ pub fn provider_boundary_snapshot() -> ModelProviderBoundarySnapshot {
 }
 
 pub fn validate_provider_config(config: &ProviderConfig) -> AgentResult<()> {
-    if config.environment == Environment::Prod
-        && config.provider_type.is_local()
-        && (config.base_url.contains("0.0.0.0") || !config.reverse_proxy_auth)
+    if config.model_id.trim().is_empty()
+        || config.model_id.len() > 256
+        || config.model_artifact_sha256.len() != 71
+        || !config.model_artifact_sha256.starts_with("sha256:")
+        || !config.model_artifact_sha256[7..]
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
     {
+        return Err(AgentError::Core(
+            trpg_shared_kernel::TrpgError::InvalidConfiguration("provider_model_identity_invalid"),
+        ));
+    }
+    if config.environment == Environment::Prod && !config.credential.production_eligible() {
+        return Err(AgentError::Core(
+            trpg_shared_kernel::TrpgError::InvalidConfiguration(
+                "production_secret_backend_required",
+            ),
+        ));
+    }
+    let endpoint = url::Url::parse(&config.base_url).map_err(|_| {
+        AgentError::Core(trpg_shared_kernel::TrpgError::InvalidConfiguration(
+            "provider_endpoint_invalid",
+        ))
+    })?;
+    if endpoint.host_str().is_none()
+        || !endpoint.username().is_empty()
+        || endpoint.password().is_some()
+        || endpoint.query().is_some()
+        || endpoint.fragment().is_some()
+    {
+        return Err(AgentError::Core(
+            trpg_shared_kernel::TrpgError::InvalidConfiguration(
+                "provider_endpoint_must_not_contain_credentials",
+            ),
+        ));
+    }
+    let host_is_loopback = matches!(endpoint.host_str(), Some("localhost" | "127.0.0.1" | "::1"));
+    if config.provider_type.is_local() && !host_is_loopback {
         return Err(AgentError::UnauthenticatedLocalProviderExposed);
+    }
+    if config.provider_type == ProviderType::Cloud && host_is_loopback {
+        return Err(AgentError::Core(
+            trpg_shared_kernel::TrpgError::InvalidConfiguration(
+                "cloud_provider_endpoint_must_be_remote",
+            ),
+        ));
+    }
+    if config.environment == Environment::Prod && endpoint.scheme() != "https" {
+        return Err(AgentError::Core(
+            trpg_shared_kernel::TrpgError::InvalidConfiguration(
+                "production_provider_https_required",
+            ),
+        ));
     }
 
     Ok(())
 }
 
 pub fn evaluate_cloud_fallback(
-    from: ProviderType,
-    to: ProviderType,
-    policy: FallbackPolicy,
+    source: &ProviderConfig,
+    target: &ProviderConfig,
+    route: &ModelRouteSnapshot,
+    authorization: Option<CloudEgressAuthorization>,
+    context: &[CloudContextFact],
 ) -> AgentResult<FallbackDecision> {
-    if from.is_local()
-        && to == ProviderType::Cloud
-        && !(policy.cloud_fallback_enabled && policy.user_notice && policy.snapshot_recorded)
+    validate_provider_config(source)?;
+    validate_provider_config(target)?;
+    let local_to_cloud = source.provider_type.is_local()
+        && target.provider_type == ProviderType::Cloud
+        && route.provider_type == target.provider_type
+        && route.model_id == target.model_id;
+    let authorized_cloud_route = local_to_cloud
+        && authorization.as_ref().is_some_and(|authorization| {
+            authorization.permits_context(CloudEgressAttempt {
+                source_provider: source.provider_id.as_str(),
+                target_provider: target.provider_id.as_str(),
+                source_endpoint: &source.base_url,
+                target_endpoint: &target.base_url,
+                model_id: &route.model_id,
+                source_credential: &source.credential,
+                target_credential: &target.credential,
+                fallback_policy: route.fallback_policy,
+                privacy_boundary: route.privacy_boundary,
+                context,
+            })
+        });
+    if source.provider_type.is_local()
+        && target.provider_type == ProviderType::Cloud
+        && !authorized_cloud_route
     {
         return Err(AgentError::SilentFallbackForbidden);
     }
 
-    Ok(if from.is_local() && to == ProviderType::Cloud {
+    Ok(if authorized_cloud_route {
         FallbackDecision::Allow
     } else {
         FallbackDecision::DenyAndAudit
     })
+}
+
+/// The only transport boundary for cloud model calls. Implementations receive
+/// the exact endpoint, provider, model, and context bytes already bound to the
+/// persisted cloud-egress authorization.
+#[async_trait]
+pub trait CloudProviderTransport: Send + Sync {
+    async fn send_authorized(
+        &self,
+        target_endpoint: &str,
+        target_provider: &trpg_shared_kernel::EntityId,
+        model_id: &str,
+        credential: &trpg_security_governance::secret::SecretValue,
+        context: &[CloudContextFact],
+    ) -> AgentResult<()>;
+}
+
+pub struct AuditedCloudSend<'a> {
+    pub source: &'a ProviderConfig,
+    pub target: &'a ProviderConfig,
+    pub route: &'a ModelRouteSnapshot,
+    pub context: &'a [CloudContextFact],
+}
+
+/// Consumes the non-cloneable authorization in the same operation that invokes
+/// the provider adapter. A token for equal-sized but different bytes, another
+/// endpoint, provider, or model is rejected before the transport is called.
+pub async fn send_audited_cloud_request<
+    R: trpg_security_governance::secret::SecretResolver,
+    L: trpg_security_governance::cloud_egress::CloudEgressLedger,
+>(
+    request: AuditedCloudSend<'_>,
+    authorization: CloudEgressAuthorization,
+    credential_manager: &trpg_security_governance::secret::SecretManager<R>,
+    ledger: &L,
+    transport: &impl CloudProviderTransport,
+) -> AgentResult<()> {
+    if !authorization
+        .revalidate_for_send(ledger)
+        .await
+        .map_err(AgentError::Core)?
+    {
+        return Err(AgentError::SilentFallbackForbidden);
+    }
+    let decision = evaluate_cloud_fallback(
+        request.source,
+        request.target,
+        request.route,
+        Some(authorization),
+        request.context,
+    )?;
+    if decision != FallbackDecision::Allow {
+        return Err(AgentError::SilentFallbackForbidden);
+    }
+    // Both references must still be active at the actual transport boundary.
+    // The target credential is exposed only for the lifetime of this exact
+    // audited send and never becomes part of ProviderConfig or Debug output.
+    let _source_credential = credential_manager
+        .resolve(&request.source.credential)
+        .map_err(AgentError::Core)?;
+    let target_credential = credential_manager
+        .resolve(&request.target.credential)
+        .map_err(AgentError::Core)?;
+    transport
+        .send_authorized(
+            &request.target.base_url,
+            &request.target.provider_id,
+            &request.route.model_id,
+            &target_credential,
+            request.context,
+        )
+        .await
 }

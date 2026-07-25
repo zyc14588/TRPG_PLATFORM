@@ -8,7 +8,8 @@ use trpg_domain_core::visibility_leakage_tests::{
 fn visibility_leakage_tests_detect_no_keeper_only_player_export_leak() {
     let probe = VisibilityLeakageProbe {
         derived_object: DerivedObject::PlayerExport,
-        principal: PrincipalScope::PartyMember,
+        processor: PrincipalScope::System,
+        target_audience: PrincipalScope::PartyMember,
     };
 
     assert!(!detect_visibility_leakage(
@@ -21,7 +22,8 @@ fn visibility_leakage_tests_detect_no_keeper_only_player_export_leak() {
 fn visibility_leakage_tests_allow_public_player_export() {
     let probe = VisibilityLeakageProbe {
         derived_object: DerivedObject::PlayerExport,
-        principal: PrincipalScope::PartyMember,
+        processor: PrincipalScope::System,
+        target_audience: PrincipalScope::PartyMember,
     };
 
     assert!(detect_visibility_leakage(

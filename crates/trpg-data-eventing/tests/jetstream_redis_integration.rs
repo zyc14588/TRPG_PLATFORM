@@ -1,19 +1,30 @@
 use std::env;
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
 
+use async_nats::jetstream::stream::{Config as StreamConfig, StorageType, SubjectTransform};
+use futures_util::StreamExt;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::PgConnectOptions;
 use sqlx::PgPool;
 use trpg_data_eventing::cache_redis_impl::{ProjectionCacheEntry, RedisProjectionCache};
-use trpg_data_eventing::event_bus_nats_impl::JetStreamOutboxPublisher;
+use trpg_data_eventing::event_bus_nats_impl::{JetStreamOutboxError, JetStreamOutboxPublisher};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     AtomicCommitDraft, CanonicalEventDraft, PolicyAuditDraft, PostgresCanonicalStore,
 };
+use trpg_data_eventing::outbox_projection_workers::{
+    EventingMetrics, EVENTING_COMMAND_TOTAL_METRIC,
+};
+use trpg_data_eventing::persistence::CURRENT_EVENT_SCHEMA_VERSION;
+use trpg_identity::{CampaignRole, GlobalRole, IdentityService};
+use trpg_shared_kernel::{
+    EntityId, EventActorOriginWire, EventEnvelopeWire, EVENT_ENVELOPE_WIRE_SCHEMA_VERSION,
+};
 
 const KEY: &[u8; 32] = &[0xa7; 32];
-const CORRUPT_ROW_REQUEST_HASH: &str =
-    "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+const PAYLOAD_KEY: &[u8; 32] = &[0x6d; 32];
 
 async fn reset_dedicated_database(
     database_url: &str,
@@ -75,12 +86,17 @@ fn draft(suffix: u32) -> AtomicCommitDraft {
         expected_version: 0,
         command_id: format!("jetstream_command_{suffix}"),
         authenticated_actor_id: "workflow_jetstream".to_owned(),
+        authenticated_actor_role: "workflow".to_owned(),
+        authenticated_actor_origin: EventActorOriginWire::Workload {
+            role: "workflow_engine".to_owned(),
+        },
         authority_mode: "human_kp".to_owned(),
         authority_contract_version: 1,
         authority_contract_id: format!("jetstream_authority_{suffix}"),
         authority_owner: "keeper_jetstream".to_owned(),
         visibility_label: "keeper_only".to_owned(),
         visibility_subject: "not_applicable".to_owned(),
+        data_subject_id: "not_applicable".to_owned(),
         provenance_kind: "rules_engine_decision".to_owned(),
         provenance_reference: format!("jetstream_decision_{suffix}"),
         provenance_recorded_by: "rules_engine_jetstream".to_owned(),
@@ -206,10 +222,16 @@ async fn outbox_waits_for_jetstream_ack_and_redis_remains_a_versioned_read_model
     .await
     .unwrap();
 
-    let store =
-        PostgresCanonicalStore::connect(&database_url, &witness_url, "p02-jetstream-key", KEY)
-            .await
-            .unwrap();
+    let store = PostgresCanonicalStore::connect(
+        &database_url,
+        &witness_url,
+        "p02-jetstream-key",
+        KEY,
+        "p05-jetstream-payload-key",
+        PAYLOAD_KEY,
+    )
+    .await
+    .unwrap();
     store.prepare_for_service().await.unwrap();
     store.commit(&draft(suffix)).await.unwrap();
 
@@ -237,97 +259,180 @@ async fn outbox_waits_for_jetstream_ack_and_redis_remains_a_versioned_read_model
     store.commit(&scoped_a).await.unwrap();
     store.commit(&scoped_b).await.unwrap();
 
-    // Simulate one recoverable storage-corruption row without weakening the
-    // schema: PostgreSQL replication restore mode bypasses triggers only for
-    // this dedicated test transaction. The row is internally formal/HMAC but
-    // deliberately lacks its formal commit marker. It must fail independently
-    // after claiming, while the two legitimate rows in the batch still publish.
-    let mut corruption_transaction = pool.begin().await.unwrap();
-    sqlx::query("SET LOCAL session_replication_role = replica")
-        .execute(&mut *corruption_transaction)
-        .await
-        .unwrap();
-    let corrupt_sequence: i64 = sqlx::query_scalar(
-        r#"
-        INSERT INTO event_store (
-            event_type, command_id, idempotency_key, expected_version,
-            authority_mode, authority_contract_version, visibility_label,
-            fact_provenance_kind, fact_provenance_reference, fact_recorded_by,
-            correlation_id, causation_id, payload_json, campaign_id,
-            stream_version, authenticated_actor_id, resource_type, resource_id,
-            authority_contract_id, authority_owner, visibility_subject, trace_id,
-            event_integrity_hash, stream_id, event_schema_version,
-            idempotency_operation, request_hash, request_hash_source,
-            integrity_status, payload_integrity_source
-        ) VALUES (
-            'OutboxRecoveryProbe', $1, $2, 0, 'human_kp', 1, 'keeper_only',
-            'rules_engine_decision', 'outbox_recovery_probe',
-            'rules_engine_jetstream', $3, $4, '{"probe":"corrupt"}'::jsonb,
-            $5, 1, 'workflow_jetstream', 'campaign', $5, $6,
-            'keeper_jetstream', 'not_applicable', $7,
-            'hmac-sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
-            $8, 1, 'canonical_commit', $9, 'formal_commit', 'verified_hmac',
-            '{"probe":"corrupt"}'
-        ) RETURNING sequence
-        "#,
-    )
-    .bind(format!("corrupt_command_{suffix}"))
-    .bind(format!("corrupt_event_{suffix}"))
-    .bind(format!("corrupt_correlation_{suffix}"))
-    .bind(format!("corrupt_causation_{suffix}"))
-    .bind(format!("corrupt_campaign_{suffix}"))
-    .bind(format!("corrupt_authority_{suffix}"))
-    .bind(format!("corrupt_trace_{suffix}"))
-    .bind(format!("corrupt_stream_{suffix}"))
-    .bind(CORRUPT_ROW_REQUEST_HASH)
-    .fetch_one(&mut *corruption_transaction)
-    .await
-    .unwrap();
-    sqlx::query(
-        r#"
-        INSERT INTO event_outbox (
-            event_id, event_sequence, nats_subject, idempotency_key,
-            visibility_label, correlation_id, causation_id, payload_json,
-            campaign_id, stream_id, event_schema_version,
-            idempotency_operation, request_hash, request_hash_source,
-            integrity_status
-        ) VALUES (
-            $1, $1, 'trpg.events.appended', $2, 'keeper_only', $3, $4,
-            '{"probe":"corrupt"}'::jsonb, $5, $6, 1,
-            'canonical_commit', $7, 'formal_commit', 'verified_hmac'
-        )
-        "#,
-    )
-    .bind(corrupt_sequence)
-    .bind(format!("corrupt_outbox_{suffix}"))
-    .bind(format!("corrupt_correlation_{suffix}"))
-    .bind(format!("corrupt_causation_{suffix}"))
-    .bind(format!("corrupt_campaign_{suffix}"))
-    .bind(format!("corrupt_stream_{suffix}"))
-    .bind(CORRUPT_ROW_REQUEST_HASH)
-    .execute(&mut *corruption_transaction)
-    .await
-    .unwrap();
-    corruption_transaction.commit().await.unwrap();
-
+    let metrics = Arc::new(EventingMetrics::default());
     let publisher = JetStreamOutboxPublisher::connect(
-        &database_url,
+        store.clone(),
         &nats_url,
         "p02-jetstream-publisher",
         None,
     )
     .await
-    .unwrap();
+    .unwrap()
+    .with_metrics(Arc::clone(&metrics));
+
+    // An existing stream is not accepted merely because it has a matching
+    // subject. Every configured durability/de-duplication safety field must
+    // match, otherwise startup fails closed without silently rewriting it.
+    let nats_client = async_nats::connect(&nats_url).await.unwrap();
+    let jetstream = async_nats::jetstream::new(nats_client.clone());
+
+    // Prove the binary was compiled with the NATS 2.10 configuration surface:
+    // a server-side subject transform must survive the client round trip. The
+    // unit-level comparator then verifies that this single-field drift is
+    // rejected against the canonical stream contract.
+    let _ = jetstream.delete_stream("P04_SUBJECT_TRANSFORM_PROBE").await;
+    let mut transform_probe = jetstream
+        .create_stream(StreamConfig {
+            name: "P04_SUBJECT_TRANSFORM_PROBE".to_owned(),
+            subjects: vec!["p04.probe.>".to_owned()],
+            subject_transform: Some(SubjectTransform {
+                source: "p04.probe.>".to_owned(),
+                destination: "p04.transformed.>".to_owned(),
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        transform_probe
+            .info()
+            .await
+            .unwrap()
+            .config
+            .subject_transform,
+        Some(SubjectTransform {
+            source: "p04.probe.>".to_owned(),
+            destination: "p04.transformed.>".to_owned(),
+        })
+    );
+    jetstream
+        .delete_stream("P04_SUBJECT_TRANSFORM_PROBE")
+        .await
+        .unwrap();
+
+    let _ = jetstream.delete_stream("TRPG_CANONICAL_EVENTS").await;
+    jetstream
+        .create_stream(StreamConfig {
+            name: "TRPG_CANONICAL_EVENTS".to_owned(),
+            subjects: vec!["trpg.events.>".to_owned()],
+            storage: StorageType::Memory,
+            max_bytes: 1024,
+            max_age: Duration::from_secs(60),
+            duplicate_window: Duration::from_secs(1),
+            deny_delete: false,
+            deny_purge: false,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        publisher.ensure_stream().await,
+        Err(JetStreamOutboxError::Configuration(
+            "jetstream_stream_contract_mismatch"
+        ))
+    );
+    jetstream
+        .delete_stream("TRPG_CANONICAL_EVENTS")
+        .await
+        .unwrap();
+
+    let mut event_messages = nats_client
+        .subscribe("trpg.events.appended.>")
+        .await
+        .unwrap();
+    nats_client.flush().await.unwrap();
     publisher.ensure_stream().await.unwrap();
     let result = publisher.publish_batch().await.unwrap();
-    assert_eq!(result.claimed, 6);
-    assert_eq!(result.published, 4);
-    assert_eq!(result.failed, 2);
+    assert_eq!(result.claimed, 3);
+    assert_eq!(result.published, 3);
+    assert_eq!(result.failed, 0);
     assert_eq!(result.dead_lettered, 0);
-    assert!(publisher.stream_message_count().await.unwrap() >= 4);
-    assert_eq!(publisher.pending_count().await.unwrap(), 2);
-    let legacy_delivery: (bool, Option<String>, String) = sqlx::query_as(
-        "SELECT published_at IS NOT NULL, commit_id, integrity_status FROM event_outbox WHERE event_sequence = $1",
+    assert_eq!(result.dead_letter_total, 2);
+    assert!(result.requires_operator_attention());
+    assert!(publisher.stream_message_count().await.unwrap() >= 3);
+    assert_eq!(
+        metrics.counter_value(EVENTING_COMMAND_TOTAL_METRIC, "outbox_publish", "published"),
+        3
+    );
+    assert_eq!(
+        metrics.counter_value(EVENTING_COMMAND_TOTAL_METRIC, "outbox_publish", "failed"),
+        0
+    );
+    let formal_metric = metrics
+        .observations()
+        .into_iter()
+        .find(|observation| observation.correlation_id == format!("jetstream_correlation_{suffix}"))
+        .expect("formal outbox metric must retain its correlation context");
+    assert_eq!(
+        formal_metric.causation_id,
+        format!("jetstream_causation_{suffix}")
+    );
+    assert_eq!(formal_metric.visibility_label, "keeper_only");
+    assert_eq!(formal_metric.provenance_kind, "rules_engine_decision");
+
+    // Validate the bytes that actually crossed NATS, rather than a helper
+    // serialization detached from the publisher. All authoritative fields
+    // live in the versioned shared-kernel envelope.
+    let mut envelopes = Vec::with_capacity(result.published);
+    for _ in 0..result.published {
+        let message = tokio::time::timeout(Duration::from_secs(5), event_messages.next())
+            .await
+            .expect("published NATS event timed out")
+            .expect("NATS event subscription ended");
+        envelopes.push(
+            serde_json::from_slice::<EventEnvelopeWire<serde_json::Value>>(&message.payload)
+                .expect("publisher must emit the canonical event envelope"),
+        );
+    }
+    for envelope in &envelopes {
+        assert!(
+            envelope.schema_version == EVENT_ENVELOPE_WIRE_SCHEMA_VERSION
+                && envelope.event_schema_version > 0
+                && envelope.sequence > 0
+                && envelope.stream_version > 0
+                && !envelope.authenticated_actor_id.is_empty()
+                && !envelope.authenticated_actor_role.is_empty()
+                && !envelope.authority_contract_id.is_empty()
+                && !envelope.authority_owner.is_empty()
+                && !envelope.command_id.is_empty()
+                && !envelope.resource_type.is_empty()
+                && !envelope.resource_id.is_empty()
+                && !envelope.trace_id.is_empty()
+                && envelope.occurred_at_unix_ms > 0,
+            "incomplete production envelope: {envelope:?}"
+        );
+    }
+    assert!(envelopes
+        .iter()
+        .all(|envelope| envelope.sequence != u64::try_from(legacy_sequence).unwrap()));
+    let formal = envelopes
+        .iter()
+        .find(|envelope| envelope.campaign_id == format!("jetstream_campaign_{suffix}"))
+        .expect("formal event was not published");
+    assert_eq!(formal.authenticated_actor_id, "workflow_jetstream");
+    assert_eq!(
+        formal.event_schema_version,
+        u32::try_from(CURRENT_EVENT_SCHEMA_VERSION).unwrap()
+    );
+    assert_eq!(formal.authenticated_actor_role, "workflow");
+    assert!(matches!(
+        formal.authenticated_actor_origin,
+        EventActorOriginWire::Workload { ref role }
+            if role == "workflow_engine"
+    ));
+    assert_eq!(formal.resource_campaign_id, formal.campaign_id);
+    assert_eq!(formal.resource_type, "campaign");
+    assert_eq!(formal.resource_id, formal.campaign_id);
+    assert_eq!(formal.visibility_subject, None);
+    assert_eq!(formal.request_hash_source, "formal_commit");
+    assert_eq!(formal.integrity_status, "verified_hmac");
+    assert!(formal.integrity_hash.is_some());
+    assert!(formal.payload.get("protected_payload").is_some());
+    let formal_wire = serde_json::to_string(formal).unwrap();
+    assert!(!formal_wire.contains("harbor ledger"));
+    assert_eq!(publisher.pending_count().await.unwrap(), 0);
+    let legacy_delivery: (bool, bool, Option<String>, String) = sqlx::query_as(
+        "SELECT published_at IS NULL, dead_lettered_at IS NOT NULL, last_error, integrity_status FROM event_outbox WHERE event_sequence = $1",
     )
     .bind(legacy_sequence)
     .fetch_one(&pool)
@@ -335,18 +440,12 @@ async fn outbox_waits_for_jetstream_ack_and_redis_remains_a_versioned_read_model
     .unwrap();
     assert_eq!(
         legacy_delivery,
-        (true, None, "historical_unsigned".to_owned())
-    );
-    let corrupt_delivery: (bool, i32, Option<String>, bool) = sqlx::query_as(
-        "SELECT published_at IS NULL, retry_count, last_error, claim_owner IS NULL FROM event_outbox WHERE event_sequence = $1",
-    )
-    .bind(corrupt_sequence)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(
-        corrupt_delivery,
-        (true, 1, Some("JETSTREAM_PUBLISH_FAILED".to_owned()), true)
+        (
+            true,
+            true,
+            Some("UNVERIFIED_HISTORY_QUARANTINED".to_owned()),
+            "historical_unsigned".to_owned()
+        )
     );
     let poisoned_header_delivery: (bool, i32, Option<String>, bool) = sqlx::query_as(
         "SELECT published_at IS NULL, retry_count, last_error, claim_owner IS NULL FROM event_outbox WHERE event_sequence = $1",
@@ -357,42 +456,183 @@ async fn outbox_waits_for_jetstream_ack_and_redis_remains_a_versioned_read_model
     .unwrap();
     assert_eq!(
         poisoned_header_delivery,
-        (true, 1, Some("JETSTREAM_PUBLISH_FAILED".to_owned()), true)
+        (
+            true,
+            0,
+            Some("UNVERIFIED_HISTORY_QUARANTINED".to_owned()),
+            true
+        )
     );
+    let persistent_alert = publisher.publish_batch().await.unwrap();
+    assert_eq!(persistent_alert.dead_letter_total, 2);
+    assert!(persistent_alert.requires_operator_attention());
 
-    let cache = RedisProjectionCache::connect(&redis_url, "p02:projection:test")
-        .await
-        .unwrap();
+    let cache_namespace = format!("p02:projection:test:{suffix}");
+    let cache = RedisProjectionCache::connect(
+        &redis_url,
+        &cache_namespace,
+        "redis-integration-v1",
+        &[0x83; 32],
+    )
+    .await
+    .unwrap();
     let cache_key = format!("campaign:{suffix}:clues");
+    let campaign_id = format!("jetstream_campaign_{suffix}");
+    let keeper_id = format!("cache_keeper_{suffix}");
+    let mut identity = IdentityService::new(&[0x39; 32], 60_000).unwrap();
+    identity
+        .create_user(
+            &keeper_id,
+            &format!("cache-keeper-{suffix}@example.test"),
+            "correct horse battery staple",
+            GlobalRole::ServerOwner,
+        )
+        .unwrap();
+    let session = identity
+        .login(
+            &format!("cache-keeper-{suffix}@example.test"),
+            "correct horse battery staple",
+            1_000,
+        )
+        .unwrap();
+    let authentication = identity
+        .authenticate_session(Some(session.token.expose()), 1_001)
+        .unwrap();
+    identity
+        .grant_membership(
+            &authentication,
+            &campaign_id,
+            &keeper_id,
+            CampaignRole::HumanKeeper,
+            1_002,
+        )
+        .unwrap();
+    let replay = identity
+        .verifier()
+        .authorize_replay(
+            &authentication,
+            &EntityId::new(&campaign_id).unwrap(),
+            1_003,
+        )
+        .unwrap();
     cache
-        .put(&ProjectionCacheEntry {
-            key: cache_key.clone(),
-            version: 2,
-            visibility_label: "keeper_only".to_owned(),
-            visibility_subject: "not_applicable".to_owned(),
-            provenance_kind: "rules_engine_decision".to_owned(),
-            provenance_reference: format!("jetstream_decision_{suffix}"),
-            value_json: r#"{"count":1}"#.to_owned(),
-            ttl_seconds: 60,
-        })
+        .put(
+            &ProjectionCacheEntry::new(
+                &cache_key,
+                &campaign_id,
+                &keeper_id,
+                2,
+                "keeper_only",
+                "not_applicable",
+                "rules_engine_decision",
+                format!("jetstream_decision_{suffix}"),
+                r#"{"count":1}"#,
+                60,
+            )
+            .unwrap(),
+        )
         .await
         .unwrap();
-    assert_eq!(cache.get(&cache_key).await.unwrap().unwrap().version, 2);
+
+    // Redis contains only hashed keys and an AEAD envelope; neither the value
+    // nor its data-subject/provenance metadata is present in plaintext.
+    let redis_client = redis::Client::open(redis_url.as_str()).unwrap();
+    let mut redis_connection = redis::aio::ConnectionManager::new(redis_client)
+        .await
+        .unwrap();
+    let stored_keys: Vec<String> = redis::cmd("KEYS")
+        .arg(format!("{cache_namespace}:entry:*"))
+        .query_async(&mut redis_connection)
+        .await
+        .unwrap();
+    assert_eq!(stored_keys.len(), 1);
+    let stored_value: String = redis::cmd("GET")
+        .arg(&stored_keys[0])
+        .query_async(&mut redis_connection)
+        .await
+        .unwrap();
+    assert!(!stored_value.contains(r#"\"count\":1"#));
+    assert!(!stored_value.contains(&keeper_id));
+    assert!(!stored_value.contains(&campaign_id));
+    assert!(!stored_value.contains("keeper_only"));
+    assert!(!stored_value.contains(&format!("jetstream_decision_{suffix}")));
+
+    assert_eq!(
+        cache
+            .get_authorized(&cache_key, &replay, 1_004)
+            .await
+            .unwrap()
+            .unwrap()
+            .version(),
+        2
+    );
     assert!(cache
-        .put(&ProjectionCacheEntry {
-            key: cache_key.clone(),
-            version: 1,
-            visibility_label: "public".to_owned(),
-            visibility_subject: "not_applicable".to_owned(),
-            provenance_kind: "system_fixture".to_owned(),
-            provenance_reference: "stale_projection".to_owned(),
-            value_json: r#"{"count":0}"#.to_owned(),
-            ttl_seconds: 60,
-        })
+        .put(
+            &ProjectionCacheEntry::new(
+                &cache_key,
+                &campaign_id,
+                &keeper_id,
+                1,
+                "public",
+                "not_applicable",
+                "system_fixture",
+                "stale_projection",
+                r#"{"count":0}"#,
+                60,
+            )
+            .unwrap(),
+        )
         .await
         .is_err());
-    let retained = cache.get(&cache_key).await.unwrap().unwrap();
-    assert_eq!(retained.version, 2);
-    assert_eq!(retained.visibility_label, "keeper_only");
+    let retained = cache
+        .get_authorized(&cache_key, &replay, 1_005)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(retained.version(), 2);
+    assert_eq!(retained.visibility_label(), "keeper_only");
+    assert_eq!(cache.invalidate_subject(&keeper_id).await.unwrap(), 1);
+    assert!(cache
+        .get_authorized(&cache_key, &replay, 1_006)
+        .await
+        .unwrap()
+        .is_none());
     cache.invalidate(&cache_key).await.unwrap();
+
+    // A storage restore or privileged tamper after startup invalidates the
+    // entire canonical custody. Refuse the next batch before claiming any row
+    // instead of treating corruption as one recoverable message failure.
+    let mut corruption_transaction = pool.begin().await.unwrap();
+    sqlx::query("SET LOCAL session_replication_role = replica")
+        .execute(&mut *corruption_transaction)
+        .await
+        .unwrap();
+    let tampered_rows = sqlx::query(
+        "UPDATE event_store \
+            SET correlation_id = correlation_id || '_tampered' \
+          WHERE campaign_id = $1",
+    )
+    .bind(format!("jetstream_campaign_{suffix}"))
+    .execute(&mut *corruption_transaction)
+    .await
+    .unwrap()
+    .rows_affected();
+    assert_eq!(tampered_rows, 1);
+    corruption_transaction.commit().await.unwrap();
+
+    assert!(
+        publisher.publish_batch().await.is_err(),
+        "publisher accepted a canonical store whose keyed event chain was corrupted"
+    );
+    assert!(
+        JetStreamOutboxPublisher::connect(
+            store,
+            &nats_url,
+            "p02-jetstream-corruption-restart",
+            None,
+        )
+        .await
+        .is_err(),
+        "publisher restart accepted corrupted canonical custody"
+    );
 }

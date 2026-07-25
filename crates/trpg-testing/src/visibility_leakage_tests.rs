@@ -2,23 +2,20 @@ use crate::{
     evaluate_testing_quality, standard_contract, TestingQualityAction, TestingQualityCommand,
     TestingQualityEventEnvelope, TestingQualityModuleContract, TestingQualityRepository,
 };
-use trpg_shared_kernel::{CommandEnvelope, KernelResult, VisibilityLabel};
+use trpg_security_governance::{
+    evaluate_derived_visibility, DerivationRequest, DerivedObject, RedactionOutcome,
+};
+use trpg_shared_kernel::{
+    CommandEnvelope, KernelResult, PrincipalScope, Visibility, VisibilityKind,
+};
 
 pub const PROMPT_ID: &str = "CODEX-0095-10-TESTING-QUALITY-e84e4a394d";
 pub const MODULE: &str = "testing_quality::visibility_leakage_tests";
 
-pub const RESTRICTED_EXPORT_TOKENS: &[&str] = &[
-    "secret_operator",
-    "keeper_truth",
-    "ai_internal",
-    "keeper_only",
-    "private_to_player",
-];
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VisibilityLeakageCase {
     pub case_id: &'static str,
-    pub source_label: VisibilityLabel,
+    pub source_label: VisibilityKind,
     pub expected: &'static str,
 }
 
@@ -45,34 +42,55 @@ pub fn fixture_cases() -> Vec<VisibilityLeakageCase> {
     vec![
         VisibilityLeakageCase {
             case_id: "keeper_secret_not_in_player_export",
-            source_label: VisibilityLabel::KeeperOnly,
+            source_label: VisibilityKind::KeeperOnly,
             expected: "REDACTED",
         },
         VisibilityLeakageCase {
             case_id: "private_to_player_not_party_visible",
-            source_label: VisibilityLabel::PrivateToPlayer,
+            source_label: VisibilityKind::PrivateToPlayer,
             expected: "REDACTED",
         },
         VisibilityLeakageCase {
             case_id: "ai_internal_never_exported",
-            source_label: VisibilityLabel::AiInternal,
+            source_label: VisibilityKind::AiInternal,
             expected: "REDACTED_OR_AUDIT_ONLY",
         },
     ]
 }
 
-pub fn redact_player_export(text: &str) -> String {
-    RESTRICTED_EXPORT_TOKENS
-        .iter()
-        .fold(text.to_owned(), |redacted, token| {
-            redacted.replace(token, "[redacted]")
-        })
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PlayerExportEvaluation {
+    Visible(String),
+    Redacted,
+    Omitted,
+    NotEvaluated,
 }
 
-pub fn contains_restricted_export_token(text: &str) -> bool {
-    RESTRICTED_EXPORT_TOKENS
-        .iter()
-        .any(|token| text.contains(token))
+/// Evaluates exportability exclusively from trusted visibility metadata and
+/// the declared target audience. Text content is never treated as a policy
+/// signal; missing classification remains `NotEvaluated` and exposes nothing.
+pub fn evaluate_player_export(
+    text: &str,
+    visibility: Option<&Visibility>,
+    processor: &PrincipalScope,
+    target_audience: &PrincipalScope,
+) -> PlayerExportEvaluation {
+    let Some(visibility) = visibility else {
+        return PlayerExportEvaluation::NotEvaluated;
+    };
+    let sources = [visibility.clone()];
+    match evaluate_derived_visibility(DerivationRequest {
+        sources: &sources,
+        processor,
+        target_audience,
+        target: DerivedObject::PlayerExport,
+    })
+    .outcome
+    {
+        RedactionOutcome::Visible => PlayerExportEvaluation::Visible(text.to_owned()),
+        RedactionOutcome::Redacted => PlayerExportEvaluation::Redacted,
+        RedactionOutcome::Omitted => PlayerExportEvaluation::Omitted,
+    }
 }
 
 pub fn evaluate(

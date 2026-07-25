@@ -1,5 +1,15 @@
 # BATCH-025 Test Results
 
+> Historical capture boundary (2026-07-20): the transcript below records the
+> original 2026-07-05 BATCH-025 run on a Windows path. It is retained only for
+> provenance and MUST NOT be counted as the current P04 acceptance result. The
+> authoritative local P04 revalidation is
+> `evidence/stages/S03/p04-local-revalidation.txt`: Data/Eventing 66 passed,
+> 0 failed, 0 ignored against real PostgreSQL/pgvector, NATS JetStream and Redis;
+> backup/restore is a separate `trpg-ops` target with 1 passed. Current
+> migration verification is forward-only; any historical run/revert wording
+> below does not describe the repaired P04 gate.
+
 Date: `2026-07-05`
 Scope: `trpg-data-eventing`
 Mode: strict repair verification
@@ -8,7 +18,7 @@ Mode: strict repair verification
 
 `fixtures/stages/detailed/S03_event_store_projection_hash.current.json.md` is now bound to executable assertions:
 
-- `ProjectionRebuilt.hash` is asserted against the rebuilt projection hash: `sha256:a83861bce178f274e6a2e809c790770577445268b48fedfb889af4b87f8c1c50`.
+- `ProjectionRebuilt.hash` is asserted against the current rebuilt projection hash: `sha256:6d967a6be23067c845a53f640c9d0092a3ec5ecfc2f88edb5c94bb4471def297` (P04 revalidation, 2026-07-20).
 - `expected_records.OutboxMessage` is asserted through `OutboxMessage { event_id, correlation_id, causation_id }`.
 - `expected_records.ProjectionCheckpoint` is asserted through `ProjectionCheckpoint { stream_id, version, projection_hash }`.
 - `expected_errors.wrong_expected_version` is asserted from a real stale append.

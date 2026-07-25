@@ -22,12 +22,14 @@ pub mod technology_selection_rust_impl;
 pub mod workspace_and_governance;
 
 pub use shared_kernel::{
-    Actor, ActorOrigin, ActorRole, AgentClass, AuthenticatedCommandContext, AuthorityBinding,
-    AuthorityContract, AuthorityContractDraft, AuthorityMode, AuthorityRegistry,
-    AuthorityVersionSnapshot, AuthorityVersionSnapshotDraft, CanonicalCommitEvent,
-    CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest, CanonicalPolicyAudit,
-    ChangePolicy, CommandEnvelope, CommandMetadata, EntityId, EventEnvelope, EventStore,
-    FactProvenance, FormalWritePath, KernelContractSnapshot, KernelResult, PrincipalScope,
-    ProvenanceKind, ResourceRef, TrpgError, Visibility, VisibilityLabel, WorkloadRole,
+    validate_command_envelope, Actor, ActorOrigin, ActorRole, AgentClass,
+    AuthenticatedCommandContext, AuthorityBinding, AuthorityContract, AuthorityContractDraft,
+    AuthorityMode, AuthorityRegistry, AuthorityVersionSnapshot, AuthorityVersionSnapshotDraft,
+    CanonicalCommitEvent, CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest,
+    CanonicalCommittedEvent, CanonicalPolicyAudit, ChangePolicy, CommandEnvelope, CommandMetadata,
+    EntityId, EventActorOriginWire, EventEnvelope, EventEnvelopeWire, EventStore, FactProvenance,
+    FormalWritePath, KernelContractSnapshot, KernelResult, PrincipalCapability, PrincipalClaims,
+    PrincipalScope, ProvenanceKind, ResourceRef, TrpgError, Visibility, VisibilityKind,
+    VisibilityLabel, WorkloadRole, EVENT_ENVELOPE_WIRE_SCHEMA_VERSION,
 };
 pub use trpg_contracts::WireErrorCode;

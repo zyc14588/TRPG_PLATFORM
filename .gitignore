@@ -4,3 +4,9 @@ apps/web/dist/
 /.pnpm-store/
 __pycache__/
 *.pyc
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem

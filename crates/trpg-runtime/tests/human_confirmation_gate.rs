@@ -138,16 +138,14 @@ fn unconfirmed_non_owner_changed_and_expired_drafts_are_rejected() {
     );
     assert!(store.events().is_empty());
 
-    let pending = gate
-        .create_pending(contract.campaign_id(), decision.clone(), 100, 200)
-        .unwrap();
+    let pending = gate.create_pending(&command, 100, 200).unwrap();
     assert_eq!(
         pending.status,
         PendingDecisionStatus::AwaitingHumanConfirmation
     );
     let attacker = authentication(&mut identity, "keeper_attacker");
     assert_eq!(
-        gate.confirm(&pending, &attacker, &decision, 150)
+        gate.confirm(&pending, &attacker, &command, 150)
             .unwrap_err(),
         RuntimeError::Core(TrpgError::AuthorityOwnerMismatch)
     );
@@ -155,12 +153,15 @@ fn unconfirmed_non_owner_changed_and_expired_drafts_are_rejected() {
     let owner = authentication(&mut identity, "keeper_owner");
     let mut changed = decision.clone();
     changed.decision_summary.push_str(" after confirmation");
+    let mut changed_command = command.clone();
+    changed_command.payload = changed;
     assert_eq!(
-        gate.confirm(&pending, &owner, &changed, 150).unwrap_err(),
+        gate.confirm(&pending, &owner, &changed_command, 150)
+            .unwrap_err(),
         RuntimeError::Core(TrpgError::DecisionDraftChanged)
     );
     assert_eq!(
-        gate.confirm(&pending, &owner, &decision, 201).unwrap_err(),
+        gate.confirm(&pending, &owner, &command, 201).unwrap_err(),
         RuntimeError::Core(TrpgError::DecisionExpired)
     );
 }
@@ -170,19 +171,17 @@ fn owner_confirmation_commits_exact_draft_once() {
     let contract = contract();
     let (gate, mut identity) = gate(&contract);
     let decision = decision();
-    let pending = gate
-        .create_pending(contract.campaign_id(), decision.clone(), 100, 200)
-        .unwrap();
-    let owner = authentication(&mut identity, "keeper_owner");
-    let mut confirmed = gate.confirm(&pending, &owner, &decision, 150).unwrap();
-    assert_eq!(confirmed.status(), PendingDecisionStatus::ReadyToCommit);
-    assert_eq!(confirmed.confirmed_by().id().as_str(), "keeper_owner");
-
     let command = trpg_test_support::governed_command_for_contract(
         &contract,
         decision.clone(),
         ActorRole::Workflow,
     );
+    let pending = gate.create_pending(&command, 100, 200).unwrap();
+    let owner = authentication(&mut identity, "keeper_owner");
+    let mut confirmed = gate.confirm(&pending, &owner, &command, 150).unwrap();
+    assert_eq!(confirmed.status(), PendingDecisionStatus::ReadyToCommit);
+    assert_eq!(confirmed.confirmed_by().id().as_str(), "keeper_owner");
+
     let audit = formal_audit("owner-confirmation");
     let workflow_authentication = trpg_test_support::workflow_authentication();
     let mut store = EventStore::with_formal_custody(
@@ -216,21 +215,43 @@ fn owner_confirmation_commits_exact_draft_once() {
     assert!(confirmed.is_committed());
     assert_eq!(confirmed.status(), PendingDecisionStatus::Committed);
 
+    let retried = gate
+        .commit(
+            &mut store,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            &mut confirmed,
+            decision.clone(),
+            170,
+        )
+        .unwrap();
+    assert_eq!(retried, events);
+    assert_eq!(store.events().len(), 2);
+
+    let mut changed_retry = decision;
+    changed_retry
+        .decision_summary
+        .push_str(" changed after durable commit");
     assert_eq!(
         gate.commit(
             &mut store,
             &command,
             &trpg_test_support::workflow_authentication(),
             &mut confirmed,
-            decision,
-            170,
+            changed_retry,
+            180,
         )
         .unwrap_err(),
-        RuntimeError::Core(TrpgError::DecisionAlreadyCommitted)
+        RuntimeError::Core(TrpgError::DecisionDraftChanged)
     );
     assert_eq!(store.events().len(), 2);
     let records = audit.verify().unwrap();
-    assert_eq!(records.len(), 1);
+    // Both authenticated write attempts are auditable, while Event Store
+    // idempotency keeps the canonical event batch single-copy.
+    assert_eq!(records.len(), 2);
+    assert!(records
+        .iter()
+        .all(|record| record.actor_id == "keeper_owner"));
     assert_eq!(records[0].actor_id, "keeper_owner");
     assert_eq!(records[0].action, "write_official_state");
     assert_eq!(records[0].requested_role, "human_keeper");
@@ -238,20 +259,61 @@ fn owner_confirmation_commits_exact_draft_once() {
 }
 
 #[test]
-fn formal_commit_fails_closed_without_external_audit() {
+fn human_confirmation_binds_visibility_and_fact_provenance() {
     let contract = contract();
     let (gate, mut identity) = gate(&contract);
     let decision = decision();
-    let pending = gate
-        .create_pending(contract.campaign_id(), decision.clone(), 100, 200)
-        .unwrap();
-    let owner = authentication(&mut identity, "keeper_owner");
-    let mut confirmed = gate.confirm(&pending, &owner, &decision, 150).unwrap();
     let command = trpg_test_support::governed_command_for_contract(
         &contract,
         decision.clone(),
         ActorRole::Workflow,
     );
+    let pending = gate.create_pending(&command, 100, 200).unwrap();
+    let owner = authentication(&mut identity, "keeper_owner");
+    let mut confirmed = gate.confirm(&pending, &owner, &command, 150).unwrap();
+    let mut command = command;
+    command.visibility =
+        trpg_shared_kernel::Visibility::new(trpg_shared_kernel::VisibilityLabel::KeeperOnly);
+    command.fact_provenance = trpg_shared_kernel::FactProvenance::new(
+        trpg_shared_kernel::ProvenanceKind::HumanKeeperStatement,
+        "changed_after_confirmation",
+        "keeper_owner",
+    )
+    .unwrap();
+    let audit = formal_audit("security-metadata-binding");
+    let mut store = EventStore::with_formal_custody(
+        formal_authorizer(identity.verifier(), audit),
+        trpg_test_support::test_canonical_commit_port(),
+    );
+
+    assert_eq!(
+        gate.commit(
+            &mut store,
+            &command,
+            &trpg_test_support::workflow_authentication(),
+            &mut confirmed,
+            decision,
+            160,
+        )
+        .unwrap_err(),
+        RuntimeError::Core(TrpgError::DecisionDraftChanged)
+    );
+    assert!(store.events().is_empty());
+}
+
+#[test]
+fn formal_commit_fails_closed_without_external_audit() {
+    let contract = contract();
+    let (gate, mut identity) = gate(&contract);
+    let decision = decision();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
+    let pending = gate.create_pending(&command, 100, 200).unwrap();
+    let owner = authentication(&mut identity, "keeper_owner");
+    let mut confirmed = gate.confirm(&pending, &owner, &command, 150).unwrap();
     let mut store = EventStore::default();
 
     assert_eq!(
@@ -275,8 +337,10 @@ fn one_pending_issues_one_confirmation_even_concurrently_and_not_after_restart()
     let contract = contract();
     let (confirmation_gate, mut identity) = gate(&contract);
     let decision = decision();
+    let command =
+        trpg_test_support::governed_command_for_contract(&contract, decision, ActorRole::Workflow);
     let pending = confirmation_gate
-        .create_pending(contract.campaign_id(), decision.clone(), 100, 200)
+        .create_pending(&command, 100, 200)
         .unwrap();
     let owner = authentication(&mut identity, "keeper_owner");
     let barrier = Arc::new(Barrier::new(3));
@@ -285,11 +349,11 @@ fn one_pending_issues_one_confirmation_even_concurrently_and_not_after_restart()
         let worker_gate = confirmation_gate.clone();
         let worker_pending = pending.clone();
         let worker_owner = owner.clone();
-        let worker_decision = decision.clone();
+        let worker_command = command.clone();
         let worker_barrier = Arc::clone(&barrier);
         workers.push(thread::spawn(move || {
             worker_barrier.wait();
-            worker_gate.confirm(&worker_pending, &worker_owner, &worker_decision, 150)
+            worker_gate.confirm(&worker_pending, &worker_owner, &worker_command, 150)
         }));
     }
     barrier.wait();
@@ -309,7 +373,7 @@ fn one_pending_issues_one_confirmation_even_concurrently_and_not_after_restart()
     let restarted_gate = HumanConfirmationGate::new(identity.verifier()).unwrap();
     assert_eq!(
         restarted_gate
-            .confirm(&pending, &owner, &decision, 150)
+            .confirm(&pending, &owner, &command, 150)
             .unwrap_err(),
         RuntimeError::Core(TrpgError::DecisionConfirmationRequired)
     );
@@ -320,13 +384,13 @@ fn same_subject_from_a_rogue_identity_issuer_cannot_confirm() {
     let contract = contract();
     let (gate, _identity) = gate(&contract);
     let decision = decision();
-    let pending = gate
-        .create_pending(contract.campaign_id(), decision.clone(), 100, 200)
-        .unwrap();
+    let command =
+        trpg_test_support::governed_command_for_contract(&contract, decision, ActorRole::Workflow);
+    let pending = gate.create_pending(&command, 100, 200).unwrap();
     let rogue_owner = rogue_authentication("keeper_owner");
 
     assert_eq!(
-        gate.confirm(&pending, &rogue_owner, &decision, 150)
+        gate.confirm(&pending, &rogue_owner, &command, 150)
             .unwrap_err(),
         RuntimeError::Core(TrpgError::InternalIdentityInvalid)
     );
@@ -344,11 +408,16 @@ fn caller_contract_cannot_replace_the_identity_roots_canonical_contract() {
     .unwrap();
     let (gate, mut identity) = gate(&canonical);
     let decision = decision();
-    let pending = gate
-        .create_pending(canonical.campaign_id(), decision.clone(), 100, 200)
-        .unwrap();
+    let canonical_command = trpg_test_support::governed_command_for_contract(
+        &canonical,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
+    let pending = gate.create_pending(&canonical_command, 100, 200).unwrap();
     let owner = authentication(&mut identity, "keeper_owner");
-    let mut confirmed = gate.confirm(&pending, &owner, &decision, 150).unwrap();
+    let mut confirmed = gate
+        .confirm(&pending, &owner, &canonical_command, 150)
+        .unwrap();
     let command = trpg_test_support::governed_command_for_contract(
         &conflicting,
         decision.clone(),

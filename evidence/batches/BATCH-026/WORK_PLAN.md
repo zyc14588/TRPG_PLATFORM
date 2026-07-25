@@ -38,7 +38,7 @@ Scope note:
 | P0060 | CODEX-0632 | supplemental-requirement | codex-prompts/06-data-eventing/P0060.md | No implementation output; source prompt already records merge target CODEX-0057 | Covered by cache tests |
 | P0056 | CODEX-0633 | supplemental-requirement | codex-prompts/06-data-eventing/P0056.md | No implementation output; source prompt already records merge target CODEX-0601 | Covered by persistence tests |
 | P0057 | CODEX-0634 | primary-implementation | crates/trpg-data-eventing/src/domain_event_sourcing_projection.rs | Create/update projection contract module only | Projection remains rebuildable from Event Store |
-| P0059 | CODEX-0635 | primary-implementation | crates/trpg-data-eventing/src/rag_snapshot.rs | Create/update RAG snapshot module and metadata constants only | RAG metadata includes source_type, visibility, version, owner, allowed_use |
+| P0059 | CODEX-0635 | primary-implementation | crates/trpg-data-eventing/src/rag_snapshot.rs | Create/update RAG snapshot module and metadata constants only | RAG metadata includes source_type, visibility, copyright_status, version, owner, allowed_use |
 | P0061 | CODEX-0636 | primary-implementation | crates/trpg-data-eventing/src/cache_redis_impl.rs | Create/update Redis cache implementation contract only | Cache is derived read model; no canon writes |
 | P0062 | CODEX-0637 | primary-implementation | crates/trpg-data-eventing/src/event_bus_nats_impl.rs | Create/update NATS event bus implementation contract only | Outbox/retry/DLQ and derived publish path |
 | P0063 | CODEX-0638 | primary-implementation | crates/trpg-data-eventing/src/persistence_postgresql_impl.rs | Create/update PostgreSQL implementation contract only | Event Store + outbox + projection checkpoint transaction surface |

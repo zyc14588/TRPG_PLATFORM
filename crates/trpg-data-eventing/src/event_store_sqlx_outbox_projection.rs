@@ -17,29 +17,457 @@ use std::fmt;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
+use ring::{
+    aead,
+    rand::{SecureRandom, SystemRandom},
+};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::types::Json;
 use sqlx::{PgPool, Postgres, Row, Transaction};
+use trpg_domain_core::command_cqrs::CommandAcceptedPayload;
+use trpg_domain_core::{CommittedFactEvidence, PersistedFactEvidenceRecord};
 use trpg_shared_kernel::{
-    CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest, KernelResult, TrpgError,
+    CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest, CanonicalCommittedEvent,
+    EntityId, EventActorOriginWire, FactProvenance, KernelResult, ProvenanceKind, TrpgError,
+    Visibility,
 };
+use zeroize::{Zeroize, Zeroizing};
 
 const GENESIS_HASH: &str =
     "hmac-sha256:0000000000000000000000000000000000000000000000000000000000000000";
 const ZERO_REQUEST_HASH: &str =
     "sha256:0000000000000000000000000000000000000000000000000000000000000000";
 const CANONICAL_IDEMPOTENCY_OPERATION: &str = "canonical_commit";
+const CURRENT_EVENT_INTEGRITY_VERSION: i32 = 2;
 
 type HmacSha256 = Hmac<Sha256>;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PayloadProtectionError {
+    InvalidInput,
+    Cryptography,
+}
+
+impl PayloadProtectionError {
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::InvalidInput => "EVENT_PAYLOAD_PROTECTION_INVALID_INPUT",
+            Self::Cryptography => "EVENT_PAYLOAD_PROTECTION_CRYPTOGRAPHY_ERROR",
+        }
+    }
+}
+
+impl fmt::Display for PayloadProtectionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.code())
+    }
+}
+
+impl std::error::Error for PayloadProtectionError {}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProtectedPayload {
+    algorithm: String,
+    key_reference: String,
+    nonce: String,
+    ciphertext: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProtectedPayloadEnvelope {
+    protected_payload: ProtectedPayload,
+}
+
+/// AES-256-GCM field protection for canonical event/outbox payloads. The key
+/// and decrypted bytes are zeroized and this type deliberately has no Debug or
+/// Clone implementation.
+pub struct PayloadCipher {
+    key_reference: EntityId,
+    key: Zeroizing<[u8; 32]>,
+}
+
+/// Zeroizing plaintext view with no Debug/Clone implementation.
+pub struct DecryptedPayload(Zeroizing<Vec<u8>>);
+
+/// Ciphertext metadata suitable for separate database columns. It contains no
+/// plaintext and deliberately has no Debug implementation.
+pub struct EncryptedPayload {
+    envelope: serde_json::Value,
+    ciphertext: Vec<u8>,
+    nonce: [u8; 12],
+    key_reference: EntityId,
+}
+
+impl EncryptedPayload {
+    pub fn envelope(&self) -> &serde_json::Value {
+        &self.envelope
+    }
+
+    pub fn ciphertext(&self) -> &[u8] {
+        &self.ciphertext
+    }
+
+    pub const fn nonce(&self) -> &[u8; 12] {
+        &self.nonce
+    }
+
+    pub fn key_reference(&self) -> &EntityId {
+        &self.key_reference
+    }
+
+    pub fn into_envelope(self) -> serde_json::Value {
+        self.envelope
+    }
+}
+
+impl DecryptedPayload {
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+}
+
+impl PayloadCipher {
+    pub fn new(
+        key_reference: impl Into<String>,
+        key: &[u8],
+    ) -> Result<Self, PayloadProtectionError> {
+        if key.len() != 32 {
+            return Err(PayloadProtectionError::InvalidInput);
+        }
+        let mut protected_key = Zeroizing::new([0_u8; 32]);
+        protected_key.copy_from_slice(key);
+        Ok(Self {
+            key_reference: EntityId::new(key_reference)
+                .map_err(|_| PayloadProtectionError::InvalidInput)?,
+            key: protected_key,
+        })
+    }
+
+    pub fn key_reference(&self) -> &EntityId {
+        &self.key_reference
+    }
+
+    pub fn encrypt_json(
+        &self,
+        plaintext_json: &[u8],
+        associated_fields: &[&str],
+    ) -> Result<serde_json::Value, PayloadProtectionError> {
+        self.encrypt_json_field(plaintext_json, associated_fields)
+            .map(EncryptedPayload::into_envelope)
+    }
+
+    pub fn encrypt_json_field(
+        &self,
+        plaintext_json: &[u8],
+        associated_fields: &[&str],
+    ) -> Result<EncryptedPayload, PayloadProtectionError> {
+        if plaintext_json.is_empty() || plaintext_json.len() > 1_048_576 {
+            return Err(PayloadProtectionError::InvalidInput);
+        }
+        let key = aead::UnboundKey::new(&aead::AES_256_GCM, self.key.as_slice())
+            .map_err(|_| PayloadProtectionError::Cryptography)?;
+        let key = aead::LessSafeKey::new(key);
+        let random = SystemRandom::new();
+        let mut nonce_bytes = [0_u8; 12];
+        random
+            .fill(&mut nonce_bytes)
+            .map_err(|_| PayloadProtectionError::Cryptography)?;
+        let nonce = aead::Nonce::assume_unique_for_key(nonce_bytes);
+        let aad = payload_associated_data(associated_fields)?;
+        let mut ciphertext = plaintext_json.to_vec();
+        key.seal_in_place_append_tag(nonce, aead::Aad::from(aad.as_slice()), &mut ciphertext)
+            .map_err(|_| PayloadProtectionError::Cryptography)?;
+        let envelope = ProtectedPayloadEnvelope {
+            protected_payload: ProtectedPayload {
+                algorithm: "AES-256-GCM".to_owned(),
+                key_reference: self.key_reference.to_string(),
+                nonce: BASE64.encode(nonce_bytes),
+                ciphertext: BASE64.encode(&ciphertext),
+            },
+        };
+        Ok(EncryptedPayload {
+            envelope: serde_json::to_value(envelope)
+                .map_err(|_| PayloadProtectionError::Cryptography)?,
+            ciphertext,
+            nonce: nonce_bytes,
+            key_reference: self.key_reference.clone(),
+        })
+    }
+
+    pub fn decrypt_json(
+        &self,
+        envelope: &serde_json::Value,
+        associated_fields: &[&str],
+    ) -> Result<DecryptedPayload, PayloadProtectionError> {
+        let envelope: ProtectedPayloadEnvelope = serde_json::from_value(envelope.clone())
+            .map_err(|_| PayloadProtectionError::Cryptography)?;
+        let protected = envelope.protected_payload;
+        if protected.algorithm != "AES-256-GCM"
+            || protected.key_reference != self.key_reference.as_str()
+        {
+            return Err(PayloadProtectionError::Cryptography);
+        }
+        let nonce = BASE64
+            .decode(protected.nonce)
+            .map_err(|_| PayloadProtectionError::Cryptography)?;
+        let nonce: [u8; 12] = nonce
+            .try_into()
+            .map_err(|_| PayloadProtectionError::Cryptography)?;
+        let mut ciphertext = Zeroizing::new(
+            BASE64
+                .decode(protected.ciphertext)
+                .map_err(|_| PayloadProtectionError::Cryptography)?,
+        );
+        let key = aead::UnboundKey::new(&aead::AES_256_GCM, self.key.as_slice())
+            .map_err(|_| PayloadProtectionError::Cryptography)?;
+        let key = aead::LessSafeKey::new(key);
+        let aad = payload_associated_data(associated_fields)?;
+        let plaintext = key
+            .open_in_place(
+                aead::Nonce::assume_unique_for_key(nonce),
+                aead::Aad::from(aad.as_slice()),
+                ciphertext.as_mut_slice(),
+            )
+            .map_err(|_| PayloadProtectionError::Cryptography)?;
+        let plaintext_len = plaintext.len();
+        ciphertext.truncate(plaintext_len);
+        Ok(DecryptedPayload(ciphertext))
+    }
+}
+
+impl Drop for PayloadCipher {
+    fn drop(&mut self) {
+        self.key.zeroize();
+    }
+}
+
+fn payload_associated_data(fields: &[&str]) -> Result<Zeroizing<Vec<u8>>, PayloadProtectionError> {
+    if fields.is_empty() || fields.iter().any(|field| field.len() > 65_536) {
+        return Err(PayloadProtectionError::InvalidInput);
+    }
+    let mut result = Zeroizing::new(Vec::new());
+    for field in fields {
+        let length =
+            u32::try_from(field.len()).map_err(|_| PayloadProtectionError::InvalidInput)?;
+        result.extend_from_slice(&length.to_be_bytes());
+        result.extend_from_slice(field.as_bytes());
+    }
+    Ok(result)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CanonicalEventDraft {
     pub event_type: String,
     pub payload_json: String,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RagChunkDerivationPayload {
+    source_event_sequence: i64,
+    snapshot_id: String,
+    chunk_id: String,
+    content_hash: String,
+    source_type: String,
+    copyright_status: String,
+    allowed_use: String,
+    embedding_model: String,
+    embedding_dimensions: i32,
+    embedding_hash: String,
+}
+
+#[derive(Default)]
+struct RagDerivationFields {
+    source_event_sequence: Option<i64>,
+    snapshot_id: Option<String>,
+    chunk_id: Option<String>,
+    content_hash: Option<String>,
+    source_type: Option<String>,
+    copyright_status: Option<String>,
+    allowed_use: Option<String>,
+    embedding_model: Option<String>,
+    embedding_dimensions: Option<i32>,
+    embedding_hash: Option<String>,
+}
+
+#[derive(Clone)]
+struct CanonicalEventIntegrityRecord {
+    sequence: i64,
+    event_index: usize,
+    stream_version: i64,
+    event_type: String,
+    command_id: String,
+    idempotency_key: String,
+    expected_version: i64,
+    authority_mode: String,
+    authority_contract_version: i64,
+    visibility_label: String,
+    provenance_kind: String,
+    provenance_reference: String,
+    provenance_recorded_by: String,
+    correlation_id: String,
+    causation_id: String,
+    campaign_id: String,
+    authenticated_actor_id: String,
+    authenticated_actor_role: String,
+    authenticated_actor_origin: String,
+    resource_type: String,
+    resource_id: String,
+    authority_contract_id: String,
+    authority_owner: String,
+    visibility_subject: String,
+    trace_id: String,
+    stream_id: String,
+    event_schema_version: i32,
+    idempotency_operation: String,
+    request_hash: String,
+    request_hash_source: String,
+    integrity_status: String,
+    payload_integrity_source: String,
+    payload_ciphertext: Option<Vec<u8>>,
+    payload_key_reference: Option<String>,
+    payload_nonce: Option<Vec<u8>>,
+    data_subject_id: String,
+    recorded_at_micros: i64,
+    derived_source_event_sequence: Option<i64>,
+    derived_snapshot_id: Option<String>,
+    derived_chunk_id: Option<String>,
+    derived_content_hash: Option<String>,
+    derived_source_type: Option<String>,
+    derived_copyright_status: Option<String>,
+    derived_allowed_use: Option<String>,
+    derived_embedding_model: Option<String>,
+    derived_embedding_dimensions: Option<i32>,
+    derived_embedding_hash: Option<String>,
+    deletion_job_id: Option<String>,
+    deletion_subject_id: Option<String>,
+    deletion_requested_by: Option<String>,
+    deletion_retention_policy: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CanonicalDeletionRequestPayload {
+    job_id: String,
+    subject_id: String,
+    requested_by: String,
+    retention_policy: String,
+    reason: String,
+}
+
+#[derive(serde::Deserialize)]
+enum CanonicalPrivacyEventPayload {
+    DataDeletionRequested(CanonicalDeletionRequestPayload),
+}
+
+#[derive(Default)]
+struct DeletionRequestFields {
+    job_id: Option<String>,
+    subject_id: Option<String>,
+    requested_by: Option<String>,
+    retention_policy: Option<String>,
+}
+
+fn deletion_request_fields(
+    event_type: &str,
+    payload: &Value,
+) -> Result<DeletionRequestFields, CanonicalStoreError> {
+    if event_type != "platform.security_privacy_copyright.data_deletion_requested" {
+        return Ok(DeletionRequestFields::default());
+    }
+    let CanonicalPrivacyEventPayload::DataDeletionRequested(deletion) =
+        serde_json::from_value(payload.clone())
+            .map_err(|_| CanonicalStoreError::Validation("deletion_request_payload_invalid"))?;
+    let valid_identifier = |value: &str| {
+        !value.is_empty()
+            && value.len() <= 160
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+    };
+    if !valid_identifier(&deletion.job_id)
+        || !valid_identifier(&deletion.subject_id)
+        || !valid_identifier(&deletion.requested_by)
+        || deletion.retention_policy.trim().is_empty()
+        || deletion.retention_policy.len() > 128
+        || deletion.reason.len() > 1_024
+    {
+        return Err(CanonicalStoreError::Validation(
+            "deletion_request_payload_invalid",
+        ));
+    }
+    Ok(DeletionRequestFields {
+        job_id: Some(deletion.job_id),
+        subject_id: Some(deletion.subject_id),
+        requested_by: Some(deletion.requested_by),
+        retention_policy: Some(deletion.retention_policy),
+    })
+}
+
+fn rag_derivation_fields(
+    event_type: &str,
+    payload: &Value,
+) -> Result<RagDerivationFields, CanonicalStoreError> {
+    if event_type != "RagChunkDerived" {
+        return Ok(RagDerivationFields::default());
+    }
+    let derivation: RagChunkDerivationPayload = serde_json::from_value(payload.clone())
+        .map_err(|_| CanonicalStoreError::Validation("rag_derivation_payload_invalid"))?;
+    let valid_identifier = |value: &str| {
+        !value.is_empty()
+            && value.len() <= 160
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+    };
+    let valid_policy_token = |value: &str| {
+        !value.is_empty()
+            && value.len() <= 128
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+    };
+    let valid_lower_hex = |value: &str| {
+        value.len() == 64
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    };
+    if derivation.source_event_sequence <= 0
+        || !valid_identifier(&derivation.snapshot_id)
+        || !valid_identifier(&derivation.chunk_id)
+        || !valid_lower_hex(&derivation.content_hash)
+        || !valid_policy_token(&derivation.source_type)
+        || !valid_policy_token(&derivation.copyright_status)
+        || !valid_policy_token(&derivation.allowed_use)
+        || derivation.embedding_model.trim().is_empty()
+        || derivation.embedding_model.len() > 256
+        || !(1..=4_096).contains(&derivation.embedding_dimensions)
+        || !valid_lower_hex(&derivation.embedding_hash)
+    {
+        return Err(CanonicalStoreError::Validation(
+            "rag_derivation_payload_invalid",
+        ));
+    }
+    Ok(RagDerivationFields {
+        source_event_sequence: Some(derivation.source_event_sequence),
+        snapshot_id: Some(derivation.snapshot_id),
+        chunk_id: Some(derivation.chunk_id),
+        content_hash: Some(derivation.content_hash),
+        source_type: Some(derivation.source_type),
+        copyright_status: Some(derivation.copyright_status),
+        allowed_use: Some(derivation.allowed_use),
+        embedding_model: Some(derivation.embedding_model),
+        embedding_dimensions: Some(derivation.embedding_dimensions),
+        embedding_hash: Some(derivation.embedding_hash),
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,12 +497,15 @@ pub struct AtomicCommitDraft {
     pub expected_version: i64,
     pub command_id: String,
     pub authenticated_actor_id: String,
+    pub authenticated_actor_role: String,
+    pub authenticated_actor_origin: EventActorOriginWire,
     pub authority_mode: String,
     pub authority_contract_version: i64,
     pub authority_contract_id: String,
     pub authority_owner: String,
     pub visibility_label: String,
     pub visibility_subject: String,
+    pub data_subject_id: String,
     pub provenance_kind: String,
     pub provenance_reference: String,
     pub provenance_recorded_by: String,
@@ -101,20 +532,26 @@ pub struct PersistedCommit {
 /// data adapter deliberately does not decide who may see the record; the
 /// composition root must apply an identity-minted replay capability before it
 /// serializes any event to a client.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct CanonicalReplayEvent {
     pub sequence: i64,
     pub stream_version: i64,
     pub stream_id: String,
     pub event_type: String,
+    pub event_schema_version: i32,
     pub campaign_id: String,
+    pub expected_version: i64,
+    pub authority_mode: String,
     pub authenticated_actor_id: String,
+    pub authenticated_actor_role: String,
+    pub authenticated_actor_origin: EventActorOriginWire,
     pub resource_type: String,
     pub resource_id: String,
     pub authority_contract_id: String,
     pub authority_owner: String,
     pub command_id: String,
     pub idempotency_key: String,
+    pub idempotency_operation: String,
     pub authority_contract_version: i64,
     pub visibility_label: String,
     pub visibility_subject: String,
@@ -125,9 +562,12 @@ pub struct CanonicalReplayEvent {
     pub causation_id: String,
     pub trace_id: String,
     pub payload: Value,
+    pub recorded_at: DateTime<Utc>,
     pub event_integrity_hash: Option<String>,
+    pub request_hash: String,
     pub request_hash_source: String,
     pub integrity_status: String,
+    pub payload_integrity_source: String,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -209,7 +649,8 @@ pub struct PostgresCanonicalStore {
     primary: PgPool,
     witness: PgPool,
     integrity_key_id: String,
-    integrity_key: [u8; 32],
+    integrity_key: Arc<Zeroizing<[u8; 32]>>,
+    payload_cipher: Arc<PayloadCipher>,
 }
 
 impl fmt::Debug for PostgresCanonicalStore {
@@ -220,6 +661,7 @@ impl fmt::Debug for PostgresCanonicalStore {
             .field("witness", &"[INDEPENDENT POSTGRESQL POOL]")
             .field("integrity_key_id", &self.integrity_key_id)
             .field("integrity_key", &"[REDACTED]")
+            .field("payload_cipher", &"[REDACTED]")
             .finish()
     }
 }
@@ -240,6 +682,35 @@ impl PostgresCanonicalCommitPort {
     ) -> Self {
         Self { runtime, store }
     }
+
+    fn commit_draft(&self, draft: AtomicCommitDraft) -> KernelResult<CanonicalCommitReceipt> {
+        // The shared-kernel port is intentionally synchronous, but callers such
+        // as the privacy workflow can already be running on a Tokio executor.
+        // Tokio forbids entering a second Runtime from that executor thread.
+        // Bridge only that nested case through a dedicated OS thread while the
+        // retained SQLx Runtime remains the sole owner of its pools.
+        if tokio::runtime::Handle::try_current().is_ok() {
+            let runtime = Arc::clone(&self.runtime);
+            let store = self.store.clone();
+            return std::thread::Builder::new()
+                .name("canonical-commit-bridge".to_owned())
+                .spawn(move || {
+                    let runtime = runtime
+                        .lock()
+                        .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+                    commit_on_runtime(&runtime, &store, &draft)
+                })
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?
+                .join()
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        }
+
+        let runtime = self
+            .runtime
+            .lock()
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        commit_on_runtime(&runtime, &self.store, &draft)
+    }
 }
 
 impl fmt::Debug for PostgresCanonicalCommitPort {
@@ -255,19 +726,106 @@ impl fmt::Debug for PostgresCanonicalCommitPort {
 impl CanonicalCommitPort for PostgresCanonicalCommitPort {
     fn commit(&self, request: &CanonicalCommitRequest) -> KernelResult<CanonicalCommitReceipt> {
         let draft = canonical_request_draft(request)?;
-        let persisted = self
-            .runtime
-            .lock()
-            .map_err(|_| TrpgError::AuditIntegrityViolation)?
-            .block_on(self.store.commit(&draft))
-            .map_err(map_canonical_port_error)?;
-        Ok(CanonicalCommitReceipt {
-            first_stream_version: u64::try_from(persisted.first_stream_version)
-                .map_err(|_| TrpgError::AuditIntegrityViolation)?,
-            last_stream_version: u64::try_from(persisted.last_stream_version)
-                .map_err(|_| TrpgError::AuditIntegrityViolation)?,
-        })
+        self.commit_draft(draft)
     }
+
+    fn verify_receipt(
+        &self,
+        request: &CanonicalCommitRequest,
+        receipt: &CanonicalCommitReceipt,
+    ) -> KernelResult<()> {
+        let draft = canonical_request_draft(request)?;
+        let runtime = Arc::clone(&self.runtime);
+        let store = self.store.clone();
+        let receipt = receipt.clone();
+        let verify = move || {
+            let runtime = runtime
+                .lock()
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+            runtime
+                .block_on(verify_receipt_on_store(&store, &draft, &receipt))
+                .map_err(map_canonical_port_error)
+        };
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return std::thread::Builder::new()
+                .name("canonical-receipt-verification-bridge".to_owned())
+                .spawn(verify)
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?
+                .join()
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        }
+        verify()
+    }
+}
+
+fn commit_on_runtime(
+    runtime: &tokio::runtime::Runtime,
+    store: &PostgresCanonicalStore,
+    draft: &AtomicCommitDraft,
+) -> KernelResult<CanonicalCommitReceipt> {
+    let (persisted, events) = runtime
+        .block_on(async {
+            let persisted = store.commit(draft).await?;
+            store.verify_integrity().await?;
+            let events =
+                load_committed_events(&store.primary, &store.payload_cipher, &persisted).await?;
+            Ok::<_, CanonicalStoreError>((persisted, events))
+        })
+        .map_err(map_canonical_port_error)?;
+    Ok(CanonicalCommitReceipt {
+        first_stream_version: u64::try_from(persisted.first_stream_version)
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?,
+        last_stream_version: u64::try_from(persisted.last_stream_version)
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?,
+        events,
+    })
+}
+
+async fn verify_receipt_on_store(
+    store: &PostgresCanonicalStore,
+    draft: &AtomicCommitDraft,
+    receipt: &CanonicalCommitReceipt,
+) -> Result<(), CanonicalStoreError> {
+    let normalized = normalize_and_validate(draft)?;
+    store.verify_integrity().await?;
+    let persisted = store
+        .load_existing_commit(
+            &normalized.commit_id,
+            &normalized.campaign_id,
+            &normalized.stream_id,
+            &normalized.idempotency_key,
+        )
+        .await?
+        .ok_or(CanonicalStoreError::IntegrityViolation(
+            "canonical_receipt_commit_missing",
+        ))?;
+    let persisted_request_hash: String =
+        sqlx::query_scalar("SELECT request_hash FROM formal_commits WHERE commit_id = $1")
+            .bind(&normalized.commit_id)
+            .fetch_one(&store.primary)
+            .await
+            .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                operation: "verify_receipt_request_hash",
+            })?;
+    if persisted_request_hash != request_hash(&normalized) {
+        return Err(CanonicalStoreError::IntegrityViolation(
+            "canonical_receipt_request_mismatch",
+        ));
+    }
+    let events = load_committed_events(&store.primary, &store.payload_cipher, &persisted).await?;
+    let expected = CanonicalCommitReceipt {
+        first_stream_version: u64::try_from(persisted.first_stream_version)
+            .map_err(|_| CanonicalStoreError::IntegrityViolation("receipt_version_invalid"))?,
+        last_stream_version: u64::try_from(persisted.last_stream_version)
+            .map_err(|_| CanonicalStoreError::IntegrityViolation("receipt_version_invalid"))?,
+        events,
+    };
+    if &expected != receipt {
+        return Err(CanonicalStoreError::IntegrityViolation(
+            "canonical_receipt_bytes_mismatch",
+        ));
+    }
+    Ok(())
 }
 
 fn canonical_request_draft(request: &CanonicalCommitRequest) -> KernelResult<AtomicCommitDraft> {
@@ -287,12 +845,15 @@ fn canonical_request_draft(request: &CanonicalCommitRequest) -> KernelResult<Ato
         expected_version,
         command_id: request.command_id.clone(),
         authenticated_actor_id: request.authenticated_actor_id.clone(),
+        authenticated_actor_role: request.authenticated_actor_role.clone(),
+        authenticated_actor_origin: request.authenticated_actor_origin.clone(),
         authority_mode: request.authority_mode.clone(),
         authority_contract_version,
         authority_contract_id: request.authority_contract_id.clone(),
         authority_owner: request.authority_owner.clone(),
         visibility_label: request.visibility_label.clone(),
         visibility_subject: request.visibility_subject.clone(),
+        data_subject_id: request.data_subject_id.clone(),
         provenance_kind: request.provenance_kind.clone(),
         provenance_reference: request.provenance_reference.clone(),
         provenance_recorded_by: request.provenance_recorded_by.clone(),
@@ -392,6 +953,8 @@ struct AuditRecord {
     opa_decision_id: String,
     opa_policy_revision: String,
     trace_id: String,
+    correlation_id: String,
+    causation_id: String,
     event_batch_hash: String,
     witness_prepare_sequence: i64,
     witness_prepare_hash: String,
@@ -408,10 +971,22 @@ impl PostgresCanonicalStore {
         witness_url: &str,
         integrity_key_id: impl Into<String>,
         integrity_key: &[u8],
+        payload_key_reference: impl Into<String>,
+        payload_key: &[u8],
     ) -> Result<Self, CanonicalStoreError> {
         if integrity_key.len() != 32 {
             return Err(CanonicalStoreError::Configuration(
                 "32_byte_integrity_key_required",
+            ));
+        }
+        if payload_key.len() != 32 {
+            return Err(CanonicalStoreError::Configuration(
+                "32_byte_payload_encryption_key_required",
+            ));
+        }
+        if payload_key == integrity_key {
+            return Err(CanonicalStoreError::Configuration(
+                "payload_and_integrity_keys_must_be_distinct",
             ));
         }
         let integrity_key_id = integrity_key_id.into();
@@ -444,14 +1019,28 @@ impl PostgresCanonicalStore {
                 component: "witness",
             })?;
 
-        let mut key = [0_u8; 32];
+        let mut key = Zeroizing::new([0_u8; 32]);
         key.copy_from_slice(integrity_key);
+        let payload_cipher = PayloadCipher::new(payload_key_reference, payload_key)
+            .map_err(|_| CanonicalStoreError::Configuration("payload_cipher_invalid"))?;
         Ok(Self {
             primary,
             witness,
             integrity_key_id,
-            integrity_key: key,
+            integrity_key: Arc::new(key),
+            payload_cipher: Arc::new(payload_cipher),
         })
+    }
+
+    fn integrity_key(&self) -> &[u8; 32] {
+        &self.integrity_key
+    }
+
+    /// Gives trusted composition adapters a clone of the primary pool. The
+    /// canonical store remains the integrity authority and must be retained by
+    /// every adapter that consumes this pool.
+    pub fn primary_pool(&self) -> PgPool {
+        self.primary.clone()
     }
 
     pub async fn apply_migrations(&self) -> Result<(), CanonicalStoreError> {
@@ -494,11 +1083,23 @@ impl PostgresCanonicalStore {
         self.recover().await
     }
 
+    #[tracing::instrument(
+        name = "canonical_commit",
+        skip_all,
+        fields(
+            correlation_id = %draft.correlation_id,
+            causation_id = %draft.causation_id,
+            commit_id = %draft.commit_id,
+            campaign_id = %draft.campaign_id,
+            stream_id = %draft.stream_id
+        )
+    )]
     pub async fn commit(
         &self,
         draft: &AtomicCommitDraft,
     ) -> Result<PersistedCommit, CanonicalStoreError> {
         let normalized = normalize_and_validate(draft)?;
+        self.verify_cryptographic_chains().await?;
         let request_hash = request_hash(&normalized);
 
         if let Some(existing) = self
@@ -540,6 +1141,11 @@ impl PostgresCanonicalStore {
     }
 
     pub async fn recover(&self) -> Result<RecoveryReport, CanonicalStoreError> {
+        // Recovery is itself an append operation. Validate both existing
+        // cryptographic chains before resolving an incomplete PREPARED row so
+        // a process configured with the wrong key cannot irreversibly append
+        // an ABORTED/COMMITTED record to an otherwise valid witness.
+        self.verify_cryptographic_chains().await?;
         let rows = sqlx::query(
             r#"
             SELECT p.sequence, p.commit_id, p.primary_request_hash, p.record_hash
@@ -594,9 +1200,9 @@ impl PostgresCanonicalStore {
 
     pub async fn verify_integrity(&self) -> Result<(), CanonicalStoreError> {
         let witness_records = self.load_witness_records().await?;
-        verify_witness_chain(&witness_records, &self.integrity_key)?;
+        verify_witness_chain(&witness_records, self.integrity_key())?;
         let audit_records = self.load_audit_records().await?;
-        verify_audit_chain(&audit_records, &self.integrity_key)?;
+        verify_audit_chain(&audit_records, self.integrity_key())?;
 
         let commits = sqlx::query(
             r#"
@@ -666,12 +1272,20 @@ impl PostgresCanonicalStore {
 
         let primary_commits = sqlx::query(
             r#"
-            SELECT commit_id, request_hash,
-                   (response_payload->>'first_event_sequence')::bigint AS first_event_sequence,
-                   result_event_sequence AS last_event_sequence,
-                   (response_payload->>'first_stream_version')::bigint AS first_stream_version,
-                   (response_payload->>'last_stream_version')::bigint AS last_stream_version,
-                   witness_prepare_sequence, witness_prepare_hash
+            SELECT commit_id, campaign_id, stream_id, idempotency_key,
+                   expected_version, status, idempotency_operation, request_hash,
+                   first_event_sequence, last_event_sequence,
+                   first_stream_version, last_stream_version, audit_sequence,
+                   result_event_sequence, witness_prepare_sequence,
+                   witness_prepare_hash,
+                   (response_payload->>'first_event_sequence')::bigint
+                       AS response_first_event_sequence,
+                   (response_payload->>'last_event_sequence')::bigint
+                       AS response_last_event_sequence,
+                   (response_payload->>'first_stream_version')::bigint
+                       AS response_first_stream_version,
+                   (response_payload->>'last_stream_version')::bigint
+                       AS response_last_stream_version
               FROM formal_commits
              ORDER BY committed_at, commit_id
             "#,
@@ -683,13 +1297,46 @@ impl PostgresCanonicalStore {
         })?;
         for row in primary_commits {
             let commit_id: String = row.get("commit_id");
+            let formal_campaign_id: String = row.get("campaign_id");
+            let formal_stream_id: String = row.get("stream_id");
+            let formal_idempotency_key: String = row.get("idempotency_key");
+            let formal_expected_version: i64 = row.get("expected_version");
             let request_hash: String = row.get("request_hash");
             let first_event_sequence: i64 = row.get("first_event_sequence");
             let last_event_sequence: i64 = row.get("last_event_sequence");
             let first_stream_version: i64 = row.get("first_stream_version");
             let last_stream_version: i64 = row.get("last_stream_version");
+            let audit_sequence: i64 = row.get("audit_sequence");
             let prepare_sequence: i64 = row.get("witness_prepare_sequence");
             let prepare_hash: String = row.get("witness_prepare_hash");
+            if row.get::<String, _>("status") != "committed"
+                || row.get::<String, _>("idempotency_operation") != CANONICAL_IDEMPOTENCY_OPERATION
+                || row.get::<i64, _>("result_event_sequence") != last_event_sequence
+                || row.get::<i64, _>("response_first_event_sequence") != first_event_sequence
+                || row.get::<i64, _>("response_last_event_sequence") != last_event_sequence
+                || row.get::<i64, _>("response_first_stream_version") != first_stream_version
+                || row.get::<i64, _>("response_last_stream_version") != last_stream_version
+            {
+                return Err(CanonicalStoreError::IntegrityViolation(
+                    "formal_commit_receipt_metadata_mismatch",
+                ));
+            }
+            let audit = audit_records
+                .iter()
+                .find(|record| record.sequence == audit_sequence)
+                .ok_or(CanonicalStoreError::IntegrityViolation(
+                    "formal_commit_audit_record_missing",
+                ))?;
+            if audit.commit_id != commit_id
+                || audit.campaign_id != formal_campaign_id
+                || audit.decision != "PERMIT"
+                || audit.witness_prepare_sequence != prepare_sequence
+                || audit.witness_prepare_hash != prepare_hash
+            {
+                return Err(CanonicalStoreError::IntegrityViolation(
+                    "formal_commit_audit_binding_mismatch",
+                ));
+            }
             let prepared_count: i64 = sqlx::query_scalar(
                 r#"
                 SELECT count(*) FROM external_audit_witness
@@ -734,15 +1381,56 @@ impl PostgresCanonicalStore {
             let event_rows = sqlx::query(
                 r#"
                 SELECT event.sequence, event.stream_version, event.event_type,
-                       event.payload_json, event.payload_integrity_source,
-                       event.event_integrity_hash, event.request_hash,
-                       event.request_hash_source, event.integrity_status,
+                       event.command_id, event.idempotency_key,
+                       event.expected_version, event.authority_mode,
+                       event.authority_contract_version,
+                       event.visibility_label, event.fact_provenance_kind,
+                       event.fact_provenance_reference, event.fact_recorded_by,
+                       event.correlation_id, event.causation_id,
+                       event.payload_json, event.campaign_id,
+                       event.authenticated_actor_id,
+                       event.authenticated_actor_role,
+                       event.authenticated_actor_origin,
+                       event.resource_type, event.resource_id,
+                       event.authority_contract_id, event.authority_owner,
+                       event.visibility_subject, event.trace_id,
+                       event.event_integrity_hash, event.stream_id,
+                       event.event_schema_version, event.idempotency_operation,
+                       event.request_hash, event.request_hash_source,
+                       event.integrity_status, event.payload_integrity_source,
+                       event.payload_ciphertext, event.payload_key_reference,
+                       event.payload_nonce, event.data_subject_id,
+                       event.recorded_at, event.event_integrity_version,
+                       event.derived_source_event_sequence,
+                       event.derived_snapshot_id, event.derived_chunk_id,
+                       event.derived_content_hash, event.derived_source_type,
+                       event.derived_copyright_status, event.derived_allowed_use,
+                       event.derived_embedding_model,
+                       event.derived_embedding_dimensions,
+                       event.derived_embedding_hash, event.deletion_job_id,
+                       event.deletion_subject_id, event.deletion_requested_by,
+                       event.deletion_retention_policy,
+                       outbox.event_id AS outbox_event_id,
+                       outbox.event_sequence AS outbox_event_sequence,
+                       outbox.nats_subject AS outbox_nats_subject,
+                       outbox.idempotency_key AS outbox_idempotency_key,
+                       outbox.visibility_label AS outbox_visibility_label,
+                       outbox.correlation_id AS outbox_correlation_id,
+                       outbox.causation_id AS outbox_causation_id,
+                       outbox.payload_json AS outbox_payload_json,
+                       outbox.commit_id AS outbox_commit_id,
                        outbox.request_hash AS outbox_request_hash,
                        outbox.request_hash_source AS outbox_request_hash_source,
                        outbox.integrity_status AS outbox_integrity_status,
                        outbox.campaign_id AS outbox_campaign_id,
                        outbox.stream_id AS outbox_stream_id,
-                       event.campaign_id, event.stream_id
+                       outbox.event_schema_version AS outbox_event_schema_version,
+                       outbox.idempotency_operation AS outbox_idempotency_operation,
+                       outbox.visibility_subject AS outbox_visibility_subject,
+                       outbox.payload_ciphertext AS outbox_payload_ciphertext,
+                       outbox.payload_key_reference AS outbox_payload_key_reference,
+                       outbox.payload_nonce AS outbox_payload_nonce,
+                       outbox.data_subject_id AS outbox_data_subject_id
                   FROM event_store AS event
                   JOIN event_outbox AS outbox
                     ON outbox.event_sequence = event.sequence
@@ -795,46 +1483,179 @@ impl PostgresCanonicalStore {
             for (index, event) in event_rows.iter().enumerate() {
                 let event_integrity_status: String = event.get("integrity_status");
                 let outbox_integrity_status: String = event.get("outbox_integrity_status");
-                let integrity_classification_matches = event_integrity_status
-                    == outbox_integrity_status
-                    && matches!(
-                        event_integrity_status.as_str(),
-                        "verified_hmac" | "historical_unverified_hmac"
-                    );
+                let event_integrity_version: i32 = event.get("event_integrity_version");
+                let event_sequence: i64 = event.get("sequence");
+                let event_stream_version: i64 = event.get("stream_version");
+                let event_campaign_id: String = event.get("campaign_id");
+                let event_stream_id: String = event.get("stream_id");
+                let event_idempotency_key: String = event.get("idempotency_key");
+                let event_visibility_label: String = event.get("visibility_label");
+                let event_visibility_subject: String = event.get("visibility_subject");
+                let event_correlation_id: String = event.get("correlation_id");
+                let event_causation_id: String = event.get("causation_id");
+                let event_schema_version: i32 = event.get("event_schema_version");
+                let event_idempotency_operation: String = event.get("idempotency_operation");
+                let event_payload: Json<Value> = event.get("payload_json");
+                let event_payload_ciphertext: Option<Vec<u8>> = event.get("payload_ciphertext");
+                let event_payload_key_reference: Option<String> =
+                    event.get("payload_key_reference");
+                let event_payload_nonce: Option<Vec<u8>> = event.get("payload_nonce");
+                let event_data_subject_id: String = event.get("data_subject_id");
+                let expected_event_idempotency_key =
+                    format!("{}:{index:04}", formal_idempotency_key);
+
                 if event.get::<String, _>("request_hash") != request_hash
                     || event.get::<String, _>("outbox_request_hash") != request_hash
                     || event.get::<String, _>("request_hash_source") != "formal_commit"
                     || event.get::<String, _>("outbox_request_hash_source") != "formal_commit"
-                    || !integrity_classification_matches
-                    || event.get::<String, _>("campaign_id")
-                        != event.get::<String, _>("outbox_campaign_id")
-                    || event.get::<String, _>("stream_id")
-                        != event.get::<String, _>("outbox_stream_id")
+                    || event_integrity_status != outbox_integrity_status
+                    || !matches!(
+                        (event_integrity_status.as_str(), event_integrity_version),
+                        ("verified_hmac", CURRENT_EVENT_INTEGRITY_VERSION)
+                            | ("historical_unverified_hmac", 1)
+                    )
+                    || event_sequence != event.get::<i64, _>("outbox_event_id")
+                    || event_sequence != event.get::<i64, _>("outbox_event_sequence")
+                    || event.get::<String, _>("outbox_nats_subject") != crate::NATS_EVENTS_APPENDED
+                    || event.get::<String, _>("outbox_idempotency_key")
+                        != format!("outbox:{event_idempotency_key}")
+                    || event_visibility_label != event.get::<String, _>("outbox_visibility_label")
+                    || event_correlation_id != event.get::<String, _>("outbox_correlation_id")
+                    || event_causation_id != event.get::<String, _>("outbox_causation_id")
+                    || event_payload.0 != event.get::<Json<Value>, _>("outbox_payload_json").0
+                    || event.get::<String, _>("outbox_commit_id") != commit_id
+                    || event_campaign_id != event.get::<String, _>("outbox_campaign_id")
+                    || event_stream_id != event.get::<String, _>("outbox_stream_id")
+                    || event_schema_version != event.get::<i32, _>("outbox_event_schema_version")
+                    || event_idempotency_operation
+                        != event.get::<String, _>("outbox_idempotency_operation")
+                    || Some(event_visibility_subject.clone())
+                        != event.get::<Option<String>, _>("outbox_visibility_subject")
+                    || event_payload_ciphertext
+                        != event.get::<Option<Vec<u8>>, _>("outbox_payload_ciphertext")
+                    || event_payload_key_reference
+                        != event.get::<Option<String>, _>("outbox_payload_key_reference")
+                    || event_payload_nonce
+                        != event.get::<Option<Vec<u8>>, _>("outbox_payload_nonce")
+                    || event_data_subject_id != event.get::<String, _>("outbox_data_subject_id")
                 {
                     return Err(CanonicalStoreError::IntegrityViolation(
                         "canonical_event_outbox_binding_mismatch",
                     ));
                 }
+                if event_campaign_id != formal_campaign_id
+                    || event_stream_id != formal_stream_id
+                    || event_idempotency_key != expected_event_idempotency_key
+                    || event.get::<i64, _>("expected_version") != formal_expected_version
+                    || event_stream_version != first_stream_version + index as i64
+                    || event_idempotency_operation != CANONICAL_IDEMPOTENCY_OPERATION
+                    || event_visibility_label != audit.visibility_label
+                    || event_visibility_subject != audit.visibility_subject
+                    || event.get::<String, _>("fact_provenance_kind") != audit.provenance_kind
+                    || event.get::<String, _>("fact_provenance_reference")
+                        != audit.provenance_reference
+                    || event.get::<String, _>("fact_recorded_by") != audit.provenance_recorded_by
+                    || event_correlation_id != audit.correlation_id
+                    || event_causation_id != audit.causation_id
+                    || event.get::<String, _>("trace_id") != audit.trace_id
+                    || event.get::<String, _>("resource_type") != audit.resource_type
+                    || event.get::<String, _>("resource_id") != audit.resource_id
+                {
+                    return Err(CanonicalStoreError::IntegrityViolation(
+                        "canonical_event_commit_audit_binding_mismatch",
+                    ));
+                }
                 let event_type: String = event.get("event_type");
-                let payload: Json<Value> = event.get("payload_json");
                 let payload_integrity_source: String = event.get("payload_integrity_source");
                 let integrity_payload: Value = serde_json::from_str(&payload_integrity_source)
                     .map_err(|_| {
                         CanonicalStoreError::IntegrityViolation("event_payload_json_invalid")
                     })?;
-                if integrity_payload != payload.0 {
+                if integrity_payload != event_payload.0 {
                     return Err(CanonicalStoreError::IntegrityViolation(
                         "event_payload_integrity_source_mismatch",
                     ));
                 }
                 let stored_hash: Option<String> = event.get("event_integrity_hash");
-                let expected_hash = event_integrity_hash(
-                    &self.integrity_key,
-                    &request_hash,
-                    index,
-                    &event_type,
-                    &payload_integrity_source,
-                );
+                let expected_hash = if event_integrity_version == 1 {
+                    legacy_event_integrity_hash(
+                        self.integrity_key(),
+                        &request_hash,
+                        index,
+                        &event_type,
+                        &payload_integrity_source,
+                    )
+                } else {
+                    let authenticated_actor_origin = serde_json::to_string(
+                        &event
+                            .get::<Json<EventActorOriginWire>, _>("authenticated_actor_origin")
+                            .0,
+                    )
+                    .map_err(|_| {
+                        CanonicalStoreError::IntegrityViolation(
+                            "authenticated_actor_origin_invalid",
+                        )
+                    })?;
+                    event_integrity_hash_v2(
+                        self.integrity_key(),
+                        &CanonicalEventIntegrityRecord {
+                            sequence: event_sequence,
+                            event_index: index,
+                            stream_version: event_stream_version,
+                            event_type,
+                            command_id: event.get("command_id"),
+                            idempotency_key: event_idempotency_key,
+                            expected_version: event.get("expected_version"),
+                            authority_mode: event.get("authority_mode"),
+                            authority_contract_version: event.get("authority_contract_version"),
+                            visibility_label: event_visibility_label,
+                            provenance_kind: event.get("fact_provenance_kind"),
+                            provenance_reference: event.get("fact_provenance_reference"),
+                            provenance_recorded_by: event.get("fact_recorded_by"),
+                            correlation_id: event_correlation_id,
+                            causation_id: event_causation_id,
+                            campaign_id: event_campaign_id,
+                            authenticated_actor_id: event.get("authenticated_actor_id"),
+                            authenticated_actor_role: event.get("authenticated_actor_role"),
+                            authenticated_actor_origin,
+                            resource_type: event.get("resource_type"),
+                            resource_id: event.get("resource_id"),
+                            authority_contract_id: event.get("authority_contract_id"),
+                            authority_owner: event.get("authority_owner"),
+                            visibility_subject: event_visibility_subject,
+                            trace_id: event.get("trace_id"),
+                            stream_id: event_stream_id,
+                            event_schema_version,
+                            idempotency_operation: event_idempotency_operation,
+                            request_hash: request_hash.clone(),
+                            request_hash_source: event.get("request_hash_source"),
+                            integrity_status: event_integrity_status,
+                            payload_integrity_source,
+                            payload_ciphertext: event_payload_ciphertext,
+                            payload_key_reference: event_payload_key_reference,
+                            payload_nonce: event_payload_nonce,
+                            data_subject_id: event_data_subject_id,
+                            recorded_at_micros: event
+                                .get::<DateTime<Utc>, _>("recorded_at")
+                                .timestamp_micros(),
+                            derived_source_event_sequence: event
+                                .get("derived_source_event_sequence"),
+                            derived_snapshot_id: event.get("derived_snapshot_id"),
+                            derived_chunk_id: event.get("derived_chunk_id"),
+                            derived_content_hash: event.get("derived_content_hash"),
+                            derived_source_type: event.get("derived_source_type"),
+                            derived_copyright_status: event.get("derived_copyright_status"),
+                            derived_allowed_use: event.get("derived_allowed_use"),
+                            derived_embedding_model: event.get("derived_embedding_model"),
+                            derived_embedding_dimensions: event.get("derived_embedding_dimensions"),
+                            derived_embedding_hash: event.get("derived_embedding_hash"),
+                            deletion_job_id: event.get("deletion_job_id"),
+                            deletion_subject_id: event.get("deletion_subject_id"),
+                            deletion_requested_by: event.get("deletion_requested_by"),
+                            deletion_retention_policy: event.get("deletion_retention_policy"),
+                        },
+                    )
+                };
                 if stored_hash.as_deref() != Some(expected_hash.as_str()) {
                     return Err(CanonicalStoreError::IntegrityViolation(
                         "canonical_event_hmac_mismatch",
@@ -892,7 +1713,102 @@ impl PostgresCanonicalStore {
         after_sequence: i64,
         limit: i64,
     ) -> Result<Vec<CanonicalReplayEvent>, CanonicalStoreError> {
-        load_canonical_replay_page(&self.primary, campaign_id, after_sequence, limit).await
+        self.verify_integrity().await?;
+        load_canonical_replay_page(
+            &self.primary,
+            &self.payload_cipher,
+            campaign_id,
+            after_sequence,
+            limit,
+        )
+        .await
+    }
+
+    /// Loads one fact-promotion source from the durable canonical store. This
+    /// path rejects historical/unverified rows, proves the full primary and
+    /// external-witness chains, verifies encryption/HMAC metadata, and returns
+    /// an immutable domain evidence capability rather than raw caller fields.
+    pub async fn load_committed_fact_evidence(
+        &self,
+        campaign_id: &str,
+        event_sequence: i64,
+        target_fact_id: &str,
+    ) -> Result<CommittedFactEvidence, CanonicalStoreError> {
+        if event_sequence <= 0 {
+            return Err(CanonicalStoreError::Validation(
+                "positive_event_sequence_required",
+            ));
+        }
+        self.verify_integrity().await?;
+        let mut events = self
+            .load_replay_page(campaign_id, event_sequence - 1, 1)
+            .await?;
+        let event = events.pop().ok_or(CanonicalStoreError::Validation(
+            "committed_fact_event_missing",
+        ))?;
+        if event.sequence != event_sequence
+            || event.integrity_status != "verified_hmac"
+            || event.request_hash_source != "formal_commit"
+            || event.event_integrity_hash.is_none()
+        {
+            return Err(CanonicalStoreError::IntegrityViolation(
+                "committed_fact_event_unverified",
+            ));
+        }
+        let protected_source: Value = serde_json::from_str(&event.payload_integrity_source)
+            .map_err(|_| {
+                CanonicalStoreError::IntegrityViolation("event_payload_integrity_source_invalid")
+            })?;
+        if protected_source.get("protected_payload").is_none() {
+            return Err(CanonicalStoreError::IntegrityViolation(
+                "committed_fact_payload_not_encrypted",
+            ));
+        }
+        let payload: CommandAcceptedPayload = serde_json::from_value(event.payload)
+            .map_err(|_| CanonicalStoreError::Validation("committed_fact_payload_invalid"))?;
+        if payload.target_fact_id != target_fact_id {
+            return Err(CanonicalStoreError::IntegrityViolation(
+                "committed_fact_target_mismatch",
+            ));
+        }
+        let visibility = Visibility::try_from_parts(
+            &event.visibility_label,
+            nonempty_subject(&event.visibility_subject),
+        )
+        .map_err(|_| CanonicalStoreError::Validation("committed_fact_visibility_invalid"))?;
+        let provenance_kind = persisted_provenance_kind(&event.provenance_kind)?;
+        let provenance = FactProvenance::new(
+            provenance_kind,
+            event.provenance_reference,
+            event.provenance_recorded_by,
+        )
+        .map_err(|_| CanonicalStoreError::Validation("committed_fact_provenance_invalid"))?;
+        let record = PersistedFactEvidenceRecord::seal_verified(
+            payload.target_fact_id,
+            event.campaign_id,
+            u64::try_from(event.sequence).map_err(|_| {
+                CanonicalStoreError::IntegrityViolation("committed_fact_sequence_invalid")
+            })?,
+            event.stream_id,
+            u64::try_from(event.stream_version).map_err(|_| {
+                CanonicalStoreError::IntegrityViolation("committed_fact_stream_version_invalid")
+            })?,
+            event.event_type,
+            payload.kind,
+            payload.fact_source,
+            visibility,
+            provenance,
+            event
+                .event_integrity_hash
+                .expect("checked verified canonical event integrity hash"),
+            event.request_hash,
+            self.integrity_key(),
+        )
+        .map_err(|_| {
+            CanonicalStoreError::IntegrityViolation("committed_fact_evidence_seal_failed")
+        })?;
+        CommittedFactEvidence::load_persisted(&record, self.integrity_key())
+            .map_err(|_| CanonicalStoreError::IntegrityViolation("committed_fact_evidence_invalid"))
     }
 
     async fn commit_primary(
@@ -957,41 +1873,171 @@ impl PostgresCanonicalStore {
             });
         }
 
+        let data_subject_id = draft.data_subject_id.as_str();
+        let subject_payload_cipher = if data_subject_id == "not_applicable" {
+            None
+        } else {
+            Some(
+                load_or_create_subject_payload_cipher(
+                    &mut transaction,
+                    self.payload_cipher.as_ref(),
+                    data_subject_id,
+                )
+                .await?,
+            )
+        };
+        let payload_cipher = subject_payload_cipher
+            .as_ref()
+            .unwrap_or(self.payload_cipher.as_ref());
+
         let mut event_sequences = Vec::with_capacity(draft.events.len());
         let mut event_hashes = Vec::with_capacity(draft.events.len());
         for (index, event) in draft.events.iter().enumerate() {
             let payload: Value = serde_json::from_str(&event.payload_json)
                 .map_err(|_| CanonicalStoreError::Validation("event_payload_must_be_json"))?;
+            let derivation = rag_derivation_fields(&event.event_type, &payload)?;
+            let DeletionRequestFields {
+                job_id: deletion_job_id,
+                subject_id: deletion_subject_id,
+                requested_by: deletion_requested_by,
+                retention_policy: deletion_retention_policy,
+            } = deletion_request_fields(&event.event_type, &payload)?;
+            if let Some(subject_id) = deletion_subject_id.as_deref() {
+                if subject_id != data_subject_id
+                    || subject_id != draft.audit.resource_id
+                    || draft.audit.resource_type != "data_subject"
+                    || draft.provenance_kind != "user_statement"
+                    || deletion_requested_by.as_deref() != Some(&draft.provenance_recorded_by)
+                {
+                    return Err(CanonicalStoreError::Validation(
+                        "deletion_request_binding_invalid",
+                    ));
+                }
+            }
             let canonical_payload = serde_json::to_string(&payload)
                 .map_err(|_| CanonicalStoreError::Validation("event_payload_must_be_json"))?;
             let stream_version = draft.expected_version + index as i64 + 1;
-            let event_hash = event_integrity_hash(
-                &self.integrity_key,
-                request_hash,
-                index,
-                &event.event_type,
-                &canonical_payload,
-            );
+            let encrypted_payload = payload_cipher
+                .encrypt_json_field(
+                    canonical_payload.as_bytes(),
+                    &[
+                        &draft.campaign_id,
+                        &draft.stream_id,
+                        &draft.command_id,
+                        &event.event_type,
+                    ],
+                )
+                .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                    operation: "encrypt_event_payload",
+                })?;
+            let protected_payload = encrypted_payload.envelope().clone();
+            let protected_integrity_source =
+                serde_json::to_string(&protected_payload).map_err(|_| {
+                    CanonicalStoreError::PrimaryWrite {
+                        operation: "serialize_protected_payload",
+                    }
+                })?;
             let event_idempotency_key = format!("{}:{index:04}", draft.idempotency_key);
+            let sequence: i64 =
+                sqlx::query_scalar("SELECT nextval('event_store_sequence_seq'::regclass)")
+                    .fetch_one(&mut *transaction)
+                    .await
+                    .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                        operation: "allocate_event_sequence",
+                    })?;
+            let recorded_at = Utc::now();
+            let authenticated_actor_origin =
+                serde_json::to_string(&draft.authenticated_actor_origin).map_err(|_| {
+                    CanonicalStoreError::PrimaryWrite {
+                        operation: "serialize_authenticated_actor_origin",
+                    }
+                })?;
+            let integrity_record = CanonicalEventIntegrityRecord {
+                sequence,
+                event_index: index,
+                stream_version,
+                event_type: event.event_type.clone(),
+                command_id: draft.command_id.clone(),
+                idempotency_key: event_idempotency_key.clone(),
+                expected_version: draft.expected_version,
+                authority_mode: draft.authority_mode.clone(),
+                authority_contract_version: draft.authority_contract_version,
+                visibility_label: draft.visibility_label.clone(),
+                provenance_kind: draft.provenance_kind.clone(),
+                provenance_reference: draft.provenance_reference.clone(),
+                provenance_recorded_by: draft.provenance_recorded_by.clone(),
+                correlation_id: draft.correlation_id.clone(),
+                causation_id: draft.causation_id.clone(),
+                campaign_id: draft.campaign_id.clone(),
+                authenticated_actor_id: draft.authenticated_actor_id.clone(),
+                authenticated_actor_role: draft.authenticated_actor_role.clone(),
+                authenticated_actor_origin,
+                resource_type: draft.audit.resource_type.clone(),
+                resource_id: draft.audit.resource_id.clone(),
+                authority_contract_id: draft.authority_contract_id.clone(),
+                authority_owner: draft.authority_owner.clone(),
+                visibility_subject: draft.visibility_subject.clone(),
+                trace_id: draft.trace_id.clone(),
+                stream_id: draft.stream_id.clone(),
+                event_schema_version: crate::persistence::CURRENT_EVENT_SCHEMA_VERSION,
+                idempotency_operation: CANONICAL_IDEMPOTENCY_OPERATION.to_owned(),
+                request_hash: request_hash.to_owned(),
+                request_hash_source: "formal_commit".to_owned(),
+                integrity_status: "verified_hmac".to_owned(),
+                payload_integrity_source: protected_integrity_source.clone(),
+                payload_ciphertext: Some(encrypted_payload.ciphertext().to_vec()),
+                payload_key_reference: Some(encrypted_payload.key_reference().as_str().to_owned()),
+                payload_nonce: Some(encrypted_payload.nonce().as_slice().to_vec()),
+                data_subject_id: data_subject_id.to_owned(),
+                recorded_at_micros: recorded_at.timestamp_micros(),
+                derived_source_event_sequence: derivation.source_event_sequence,
+                derived_snapshot_id: derivation.snapshot_id.clone(),
+                derived_chunk_id: derivation.chunk_id.clone(),
+                derived_content_hash: derivation.content_hash.clone(),
+                derived_source_type: derivation.source_type.clone(),
+                derived_copyright_status: derivation.copyright_status.clone(),
+                derived_allowed_use: derivation.allowed_use.clone(),
+                derived_embedding_model: derivation.embedding_model.clone(),
+                derived_embedding_dimensions: derivation.embedding_dimensions,
+                derived_embedding_hash: derivation.embedding_hash.clone(),
+                deletion_job_id: deletion_job_id.clone(),
+                deletion_subject_id: deletion_subject_id.clone(),
+                deletion_requested_by: deletion_requested_by.clone(),
+                deletion_retention_policy: deletion_retention_policy.clone(),
+            };
+            let event_hash = event_integrity_hash_v2(self.integrity_key(), &integrity_record);
             let sequence: i64 = sqlx::query_scalar(
                 r#"
                 INSERT INTO event_store (
+                    sequence,
                     event_type, command_id, idempotency_key, expected_version,
                     authority_mode, authority_contract_version, visibility_label,
                     fact_provenance_kind, fact_provenance_reference, fact_recorded_by,
                     correlation_id, causation_id, payload_json, campaign_id,
-                    stream_version, authenticated_actor_id, resource_type, resource_id,
+                    stream_version, authenticated_actor_id, authenticated_actor_role,
+                    authenticated_actor_origin, resource_type, resource_id,
                     authority_contract_id, authority_owner, visibility_subject, trace_id,
                     event_integrity_hash, stream_id, event_schema_version,
                     idempotency_operation, request_hash, request_hash_source,
-                    integrity_status, payload_integrity_source
+                    integrity_status, payload_integrity_source,
+                    payload_ciphertext, payload_key_reference, payload_nonce,
+                    data_subject_id, derived_source_event_sequence,
+                    derived_snapshot_id, derived_chunk_id, derived_content_hash,
+                    derived_source_type, derived_copyright_status,
+                    derived_allowed_use, derived_embedding_model,
+                    derived_embedding_dimensions, derived_embedding_hash,
+                    deletion_job_id, deletion_subject_id, deletion_requested_by,
+                    deletion_retention_policy, event_integrity_version, recorded_at
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                    $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-                    $25, $26, $27, $28, $29, $30
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                    $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23,
+                    $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34,
+                    $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45,
+                    $46, $47, $48, $49, $50, $51, $52, $53
                 ) RETURNING sequence
                 "#,
             )
+            .bind(sequence)
             .bind(&event.event_type)
             .bind(&draft.command_id)
             .bind(&event_idempotency_key)
@@ -1004,10 +2050,12 @@ impl PostgresCanonicalStore {
             .bind(&draft.provenance_recorded_by)
             .bind(&draft.correlation_id)
             .bind(&draft.causation_id)
-            .bind(Json(payload.clone()))
+            .bind(Json(protected_payload.clone()))
             .bind(&draft.campaign_id)
             .bind(stream_version)
             .bind(&draft.authenticated_actor_id)
+            .bind(&draft.authenticated_actor_role)
+            .bind(Json(draft.authenticated_actor_origin.clone()))
             .bind(&draft.audit.resource_type)
             .bind(&draft.audit.resource_id)
             .bind(&draft.authority_contract_id)
@@ -1021,7 +2069,27 @@ impl PostgresCanonicalStore {
             .bind(request_hash)
             .bind("formal_commit")
             .bind("verified_hmac")
-            .bind(&canonical_payload)
+            .bind(&protected_integrity_source)
+            .bind(encrypted_payload.ciphertext())
+            .bind(encrypted_payload.key_reference().as_str())
+            .bind(encrypted_payload.nonce().as_slice())
+            .bind(data_subject_id)
+            .bind(derivation.source_event_sequence)
+            .bind(derivation.snapshot_id)
+            .bind(derivation.chunk_id)
+            .bind(derivation.content_hash)
+            .bind(derivation.source_type)
+            .bind(derivation.copyright_status)
+            .bind(derivation.allowed_use)
+            .bind(derivation.embedding_model)
+            .bind(derivation.embedding_dimensions)
+            .bind(derivation.embedding_hash)
+            .bind(deletion_job_id)
+            .bind(deletion_subject_id)
+            .bind(deletion_requested_by)
+            .bind(deletion_retention_policy)
+            .bind(CURRENT_EVENT_INTEGRITY_VERSION)
+            .bind(recorded_at)
             .fetch_one(&mut *transaction)
             .await
             .map_err(|_| CanonicalStoreError::PrimaryWrite {
@@ -1035,10 +2103,11 @@ impl PostgresCanonicalStore {
                     visibility_label, correlation_id, causation_id, payload_json, commit_id,
                     campaign_id, stream_id, event_schema_version,
                     idempotency_operation, request_hash, request_hash_source,
-                    integrity_status
+                    integrity_status, visibility_subject, payload_ciphertext,
+                    payload_key_reference, payload_nonce, data_subject_id
                 ) VALUES (
                     $1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                    $12, $13, $14, $15
+                    $12, $13, $14, $15, $16, $17, $18, $19, $20
                 )
                 "#,
             )
@@ -1048,7 +2117,7 @@ impl PostgresCanonicalStore {
             .bind(&draft.visibility_label)
             .bind(&draft.correlation_id)
             .bind(&draft.causation_id)
-            .bind(Json(payload))
+            .bind(Json(protected_payload))
             .bind(&draft.commit_id)
             .bind(&draft.campaign_id)
             .bind(&draft.stream_id)
@@ -1057,6 +2126,11 @@ impl PostgresCanonicalStore {
             .bind(request_hash)
             .bind("formal_commit")
             .bind("verified_hmac")
+            .bind(&draft.visibility_subject)
+            .bind(encrypted_payload.ciphertext())
+            .bind(encrypted_payload.key_reference().as_str())
+            .bind(encrypted_payload.nonce().as_slice())
+            .bind(data_subject_id)
             .execute(&mut *transaction)
             .await
             .map_err(|_| CanonicalStoreError::PrimaryWrite {
@@ -1195,16 +2269,18 @@ impl PostgresCanonicalStore {
             opa_decision_id: draft.audit.opa_decision_id.clone(),
             opa_policy_revision: draft.audit.opa_policy_revision.clone(),
             trace_id: draft.trace_id.clone(),
+            correlation_id: draft.correlation_id.clone(),
+            causation_id: draft.causation_id.clone(),
             event_batch_hash: event_batch_hash.to_owned(),
             witness_prepare_sequence: prepared.sequence,
             witness_prepare_hash: prepared.record_hash.clone(),
             occurred_at: Utc::now(),
-            integrity_version: 2,
+            integrity_version: 3,
             key_id: self.integrity_key_id.clone(),
             previous_hash,
             record_hash: String::new(),
         };
-        let record_hash = audit_record_hash(&self.integrity_key, &record);
+        let record_hash = audit_record_hash(self.integrity_key(), &record);
 
         let inserted_sequence: i64 = sqlx::query_scalar(
             r#"
@@ -1214,13 +2290,14 @@ impl PostgresCanonicalStore {
                 requested_role, visibility_label, visibility_subject, provenance_kind,
                 provenance_reference, provenance_recorded_by, decision,
                 openfga_decision_id, openfga_policy_revision, opa_decision_id,
-                opa_policy_revision, trace_id, event_batch_hash,
+                opa_policy_revision, trace_id, correlation_id, causation_id,
+                event_batch_hash,
                 witness_prepare_sequence, witness_prepare_hash, occurred_at,
                 integrity_version, integrity_key_id, previous_hash, record_hash
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
                 $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-                $25, $26, $27, $28, $29
+                $25, $26, $27, $28, $29, $30, $31
             ) RETURNING sequence
             "#,
         )
@@ -1245,6 +2322,8 @@ impl PostgresCanonicalStore {
         .bind(&record.opa_decision_id)
         .bind(&record.opa_policy_revision)
         .bind(&record.trace_id)
+        .bind(&record.correlation_id)
+        .bind(&record.causation_id)
         .bind(&record.event_batch_hash)
         .bind(record.witness_prepare_sequence)
         .bind(&record.witness_prepare_hash)
@@ -1286,6 +2365,26 @@ impl PostgresCanonicalStore {
         .execute(&mut *transaction)
         .await
         .map_err(|_| CanonicalStoreError::WitnessWrite { operation: "lock" })?;
+
+        // Re-verify under the same transaction-scoped lock that serializes the
+        // append. The earlier commit/recovery preflight protects the primary
+        // audit chain; this locked verification closes the witness TOCTOU
+        // window between that preflight and this mutation.
+        let chain_rows = sqlx::query(
+            r#"
+            SELECT sequence, commit_id, phase, primary_request_hash,
+                   primary_first_sequence, primary_last_sequence, reason,
+                   integrity_key_id, previous_hash, record_hash
+              FROM external_audit_witness ORDER BY sequence
+            "#,
+        )
+        .fetch_all(&mut *transaction)
+        .await
+        .map_err(|_| CanonicalStoreError::WitnessWrite {
+            operation: "load_locked_integrity_chain",
+        })?;
+        let chain = chain_rows.iter().map(witness_from_row).collect::<Vec<_>>();
+        verify_witness_chain(&chain, self.integrity_key())?;
 
         if let Some(row) = sqlx::query(
             r#"
@@ -1342,7 +2441,7 @@ impl PostgresCanonicalStore {
             previous_hash,
             record_hash: String::new(),
         };
-        record.record_hash = witness_record_hash(&self.integrity_key, &record);
+        record.record_hash = witness_record_hash(self.integrity_key(), &record);
 
         let inserted_sequence: i64 = sqlx::query_scalar(
             r#"
@@ -1469,6 +2568,13 @@ impl PostgresCanonicalStore {
         Ok(row.map(|row| persisted_from_row(&row)))
     }
 
+    async fn verify_cryptographic_chains(&self) -> Result<(), CanonicalStoreError> {
+        let witness_records = self.load_witness_records().await?;
+        verify_witness_chain(&witness_records, self.integrity_key())?;
+        let audit_records = self.load_audit_records().await?;
+        verify_audit_chain(&audit_records, self.integrity_key())
+    }
+
     async fn validate_existing_commit(
         &self,
         persisted: &PersistedCommit,
@@ -1541,7 +2647,8 @@ impl PostgresCanonicalStore {
                    requested_role, visibility_label, visibility_subject,
                    provenance_kind, provenance_reference, provenance_recorded_by,
                    decision, openfga_decision_id, openfga_policy_revision,
-                   opa_decision_id, opa_policy_revision, trace_id, event_batch_hash,
+                   opa_decision_id, opa_policy_revision, trace_id,
+                   correlation_id, causation_id, event_batch_hash,
                    witness_prepare_sequence, witness_prepare_hash, occurred_at,
                    integrity_version, integrity_key_id, previous_hash, record_hash
               FROM canonical_audit_log ORDER BY sequence
@@ -1576,6 +2683,8 @@ impl PostgresCanonicalStore {
                 opa_decision_id: row.get("opa_decision_id"),
                 opa_policy_revision: row.get("opa_policy_revision"),
                 trace_id: row.get("trace_id"),
+                correlation_id: row.get("correlation_id"),
+                causation_id: row.get("causation_id"),
                 event_batch_hash: row.get("event_batch_hash"),
                 witness_prepare_sequence: row.get("witness_prepare_sequence"),
                 witness_prepare_hash: row.get("witness_prepare_hash"),
@@ -1589,11 +2698,308 @@ impl PostgresCanonicalStore {
     }
 }
 
+fn nonempty_subject(value: &str) -> Option<&str> {
+    let value = value.trim();
+    (!value.is_empty() && value != "not_applicable").then_some(value)
+}
+
+fn subject_key_reference(subject_id: &str) -> String {
+    let digest = Sha256::digest(subject_id.as_bytes());
+    format!("subject_payload_{}", lowercase_hex(&digest))
+}
+
+fn subject_key_aad<'a>(subject_id: &'a str, key_reference: &'a str) -> [&'a str; 3] {
+    ["subject_payload_key_v1", subject_id, key_reference]
+}
+
+async fn load_or_create_subject_payload_cipher(
+    transaction: &mut Transaction<'_, Postgres>,
+    master_cipher: &PayloadCipher,
+    subject_id: &str,
+) -> Result<PayloadCipher, CanonicalStoreError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('privacy_subject_key:' || $1, 0))")
+        .bind(subject_id)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|_| CanonicalStoreError::PrimaryWrite {
+            operation: "lock_subject_payload_key",
+        })?;
+
+    let key_reference = subject_key_reference(subject_id);
+    let existing = sqlx::query(
+        "SELECT key_reference, wrapped_key, destroyed_at IS NOT NULL AS destroyed \
+         FROM privacy_subject_keys WHERE subject_id = $1 FOR UPDATE",
+    )
+    .bind(subject_id)
+    .fetch_optional(&mut **transaction)
+    .await
+    .map_err(|_| CanonicalStoreError::PrimaryWrite {
+        operation: "load_subject_payload_key",
+    })?;
+
+    let mut plaintext_key = Zeroizing::new([0_u8; 32]);
+    if let Some(row) = existing {
+        let persisted_reference: String = row.get("key_reference");
+        let destroyed: bool = row.get("destroyed");
+        let wrapped_key: Option<Vec<u8>> = row.get("wrapped_key");
+        if destroyed || persisted_reference != key_reference {
+            return Err(CanonicalStoreError::Validation("data_subject_deleted"));
+        }
+        let wrapped_key = wrapped_key.ok_or(CanonicalStoreError::IntegrityViolation(
+            "subject_key_material_missing",
+        ))?;
+        let envelope: Value = serde_json::from_slice(&wrapped_key)
+            .map_err(|_| CanonicalStoreError::IntegrityViolation("subject_key_envelope_invalid"))?;
+        let unwrapped = master_cipher
+            .decrypt_json(&envelope, &subject_key_aad(subject_id, &key_reference))
+            .map_err(|_| CanonicalStoreError::IntegrityViolation("subject_key_unwrap_failed"))?;
+        if unwrapped.as_bytes().len() != plaintext_key.len() {
+            return Err(CanonicalStoreError::IntegrityViolation(
+                "subject_key_length_invalid",
+            ));
+        }
+        plaintext_key.copy_from_slice(unwrapped.as_bytes());
+    } else {
+        SystemRandom::new()
+            .fill(plaintext_key.as_mut_slice())
+            .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                operation: "generate_subject_payload_key",
+            })?;
+        let wrapped = master_cipher
+            .encrypt_json_field(
+                plaintext_key.as_slice(),
+                &subject_key_aad(subject_id, &key_reference),
+            )
+            .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                operation: "wrap_subject_payload_key",
+            })?;
+        let encoded = serde_json::to_vec(wrapped.envelope()).map_err(|_| {
+            CanonicalStoreError::PrimaryWrite {
+                operation: "serialize_subject_payload_key",
+            }
+        })?;
+        sqlx::query(
+            "INSERT INTO privacy_subject_keys \
+             (subject_id, key_reference, wrapped_key) VALUES ($1, $2, $3)",
+        )
+        .bind(subject_id)
+        .bind(&key_reference)
+        .bind(encoded)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|_| CanonicalStoreError::PrimaryWrite {
+            operation: "persist_subject_payload_key",
+        })?;
+    }
+
+    PayloadCipher::new(key_reference, plaintext_key.as_slice())
+        .map_err(|_| CanonicalStoreError::IntegrityViolation("subject_payload_cipher_invalid"))
+}
+
+async fn load_subject_payload_cipher(
+    pool: &PgPool,
+    master_cipher: &PayloadCipher,
+    subject_id: &str,
+    event_key_reference: &str,
+) -> Result<Option<PayloadCipher>, CanonicalStoreError> {
+    if subject_id == "not_applicable" {
+        if event_key_reference != master_cipher.key_reference().as_str() {
+            return Err(CanonicalStoreError::IntegrityViolation(
+                "unscoped_payload_key_reference_mismatch",
+            ));
+        }
+        return Ok(None);
+    }
+    let expected_reference = subject_key_reference(subject_id);
+    if event_key_reference != expected_reference {
+        return Err(CanonicalStoreError::IntegrityViolation(
+            "subject_payload_key_reference_mismatch",
+        ));
+    }
+    let row = sqlx::query(
+        "SELECT key_reference, wrapped_key, destroyed_at IS NOT NULL AS destroyed \
+         FROM privacy_subject_keys WHERE subject_id = $1",
+    )
+    .bind(subject_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|_| CanonicalStoreError::PrimaryWrite {
+        operation: "load_subject_payload_key",
+    })?
+    .ok_or(CanonicalStoreError::IntegrityViolation(
+        "subject_payload_key_missing",
+    ))?;
+    let key_reference: String = row.get("key_reference");
+    let destroyed: bool = row.get("destroyed");
+    let wrapped_key: Option<Vec<u8>> = row.get("wrapped_key");
+    if destroyed {
+        return Err(CanonicalStoreError::Validation("data_subject_deleted"));
+    }
+    if key_reference != expected_reference {
+        return Err(CanonicalStoreError::IntegrityViolation(
+            "subject_payload_key_identity_mismatch",
+        ));
+    }
+    let envelope: Value = serde_json::from_slice(&wrapped_key.ok_or(
+        CanonicalStoreError::IntegrityViolation("subject_key_material_missing"),
+    )?)
+    .map_err(|_| CanonicalStoreError::IntegrityViolation("subject_key_envelope_invalid"))?;
+    let unwrapped = master_cipher
+        .decrypt_json(&envelope, &subject_key_aad(subject_id, &key_reference))
+        .map_err(|_| CanonicalStoreError::IntegrityViolation("subject_key_unwrap_failed"))?;
+    if unwrapped.as_bytes().len() != 32 {
+        return Err(CanonicalStoreError::IntegrityViolation(
+            "subject_key_length_invalid",
+        ));
+    }
+    PayloadCipher::new(key_reference, unwrapped.as_bytes())
+        .map(Some)
+        .map_err(|_| CanonicalStoreError::IntegrityViolation("subject_payload_cipher_invalid"))
+}
+
+fn persisted_provenance_kind(value: &str) -> Result<ProvenanceKind, CanonicalStoreError> {
+    match value {
+        "human_keeper_statement" => Ok(ProvenanceKind::HumanKeeperStatement),
+        "user_statement" => Ok(ProvenanceKind::UserStatement),
+        "rules_engine_decision" => Ok(ProvenanceKind::RulesEngineDecision),
+        "tool_result" => Ok(ProvenanceKind::ToolResult),
+        "agent_proposal" => Ok(ProvenanceKind::AgentProposal),
+        "imported_source" => Ok(ProvenanceKind::ImportedSource),
+        "system_fixture" => Ok(ProvenanceKind::SystemFixture),
+        _ => Err(CanonicalStoreError::Validation(
+            "committed_fact_provenance_invalid",
+        )),
+    }
+}
+
+fn valid_hmac_hash(value: &str) -> bool {
+    const PREFIX: &str = "hmac-sha256:";
+    value.len() == PREFIX.len() + 64
+        && value.starts_with(PREFIX)
+        && value[PREFIX.len()..]
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+async fn load_committed_events(
+    pool: &PgPool,
+    payload_cipher: &PayloadCipher,
+    persisted: &PersistedCommit,
+) -> Result<Vec<CanonicalCommittedEvent>, CanonicalStoreError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT event.sequence, event.stream_version, event.event_type,
+               event.payload_json, event.command_id, event.idempotency_key,
+               event.recorded_at, event.campaign_id, event.stream_id,
+               event.data_subject_id, event.payload_key_reference,
+               event.event_integrity_hash
+          FROM public.event_store AS event
+          JOIN public.event_outbox AS outbox
+            ON outbox.event_sequence = event.sequence
+         WHERE outbox.commit_id = $1
+         ORDER BY event.stream_version
+        "#,
+    )
+    .bind(&persisted.commit_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|_| CanonicalStoreError::PrimaryWrite {
+        operation: "load_committed_events",
+    })?;
+    let expected_count = persisted
+        .last_stream_version
+        .checked_sub(persisted.first_stream_version)
+        .and_then(|delta| delta.checked_add(1))
+        .and_then(|count| usize::try_from(count).ok())
+        .ok_or(CanonicalStoreError::IntegrityViolation(
+            "committed_event_range_invalid",
+        ))?;
+    if rows.len() != expected_count {
+        return Err(CanonicalStoreError::IntegrityViolation(
+            "committed_event_count_mismatch",
+        ));
+    }
+    let mut events = Vec::with_capacity(rows.len());
+    for row in rows {
+        let protected_payload: Json<Value> = row.get("payload_json");
+        let campaign_id: String = row.get("campaign_id");
+        let stream_id: String = row.get("stream_id");
+        let command_id: String = row.get("command_id");
+        let event_type: String = row.get("event_type");
+        let data_subject_id: String = row.get("data_subject_id");
+        let payload_key_reference: String = row.get("payload_key_reference");
+        let subject_cipher = load_subject_payload_cipher(
+            pool,
+            payload_cipher,
+            &data_subject_id,
+            &payload_key_reference,
+        )
+        .await?;
+        let resolved_cipher = subject_cipher.as_ref().unwrap_or(payload_cipher);
+        let plaintext = resolved_cipher
+            .decrypt_json(
+                &protected_payload.0,
+                &[&campaign_id, &stream_id, &command_id, &event_type],
+            )
+            .map_err(|_| {
+                CanonicalStoreError::IntegrityViolation("committed_event_decryption_failed")
+            })?;
+        let payload: Value = serde_json::from_slice(plaintext.as_bytes()).map_err(|_| {
+            CanonicalStoreError::IntegrityViolation("committed_event_payload_invalid")
+        })?;
+        let recorded_at: DateTime<Utc> = row.get("recorded_at");
+        events.push(CanonicalCommittedEvent {
+            sequence: u64::try_from(row.get::<i64, _>("sequence")).map_err(|_| {
+                CanonicalStoreError::IntegrityViolation("committed_event_sequence_invalid")
+            })?,
+            stream_version: u64::try_from(row.get::<i64, _>("stream_version")).map_err(|_| {
+                CanonicalStoreError::IntegrityViolation("committed_stream_version_invalid")
+            })?,
+            event_type,
+            payload_json: serde_json::to_string(&payload).map_err(|_| {
+                CanonicalStoreError::IntegrityViolation("committed_event_payload_invalid")
+            })?,
+            command_id,
+            idempotency_key: row.get("idempotency_key"),
+            occurred_at_unix_ms: u64::try_from(recorded_at.timestamp_millis()).map_err(|_| {
+                CanonicalStoreError::IntegrityViolation("committed_event_timestamp_invalid")
+            })?,
+            event_integrity_hash: row
+                .try_get::<Option<String>, _>("event_integrity_hash")
+                .map_err(|_| {
+                    CanonicalStoreError::IntegrityViolation("committed_event_hash_invalid")
+                })?
+                .filter(|hash| valid_hmac_hash(hash))
+                .ok_or(CanonicalStoreError::IntegrityViolation(
+                    "committed_event_hash_invalid",
+                ))?,
+        });
+    }
+    let range_matches = events
+        .first()
+        .zip(events.last())
+        .map(|(first, last)| {
+            first.sequence == persisted.first_event_sequence as u64
+                && last.sequence == persisted.last_event_sequence as u64
+                && first.stream_version == persisted.first_stream_version as u64
+                && last.stream_version == persisted.last_stream_version as u64
+        })
+        .unwrap_or(false);
+    if !range_matches {
+        return Err(CanonicalStoreError::IntegrityViolation(
+            "committed_event_range_mismatch",
+        ));
+    }
+    Ok(events)
+}
+
 /// Production replay query shared by the canonical store and migration
-/// verification. Historical unsigned rows remain replayable, but their absent
-/// HMAC and unavailable request binding are explicit in every returned record.
+/// verification. Only encrypted events bound to a formal commit and verified
+/// HMAC are eligible; unverified history remains in Event Store for audit but
+/// cannot enter production replay or downstream read models.
 pub async fn load_canonical_replay_page(
     pool: &PgPool,
+    payload_cipher: &PayloadCipher,
     campaign_id: &str,
     after_sequence: i64,
     limit: i64,
@@ -1614,16 +3020,34 @@ pub async fn load_canonical_replay_page(
     let rows = sqlx::query(
         r#"
         SELECT sequence, stream_version, stream_id, event_type, event_schema_version, campaign_id,
-               authenticated_actor_id, resource_type, resource_id,
+               expected_version, authority_mode,
+               authenticated_actor_id, authenticated_actor_role,
+               authenticated_actor_origin, resource_type, resource_id,
                authority_contract_id, authority_owner, command_id,
-               idempotency_key, authority_contract_version,
+               idempotency_key, idempotency_operation, authority_contract_version,
                visibility_label, visibility_subject,
                fact_provenance_kind, fact_provenance_reference,
                fact_recorded_by, correlation_id, causation_id, trace_id,
-               payload_json, event_integrity_hash, request_hash,
-               request_hash_source, integrity_status
+               payload_json, recorded_at, event_integrity_hash,
+               request_hash, request_hash_source, integrity_status,
+               payload_integrity_source, data_subject_id, payload_key_reference,
+               event_integrity_version
           FROM event_store
          WHERE campaign_id = $1 AND sequence > $2
+           AND integrity_status = 'verified_hmac'
+           AND request_hash_source = 'formal_commit'
+           AND event_integrity_hash IS NOT NULL
+           AND payload_json ? 'protected_payload'
+           AND (
+               data_subject_id = 'not_applicable'
+               OR EXISTS (
+                   SELECT 1 FROM privacy_subject_keys AS subject_key
+                    WHERE subject_key.subject_id = event_store.data_subject_id
+                      AND subject_key.key_reference = event_store.payload_key_reference
+                      AND subject_key.wrapped_key IS NOT NULL
+                      AND subject_key.destroyed_at IS NULL
+               )
+           )
          ORDER BY sequence
          LIMIT $3
         "#,
@@ -1637,58 +3061,96 @@ pub async fn load_canonical_replay_page(
         operation: "load_replay_page",
     })?;
 
-    rows.into_iter()
-        .map(|row| {
-            let payload: Json<Value> = row.get("payload_json");
-            let event_type: String = row.get("event_type");
-            let upcasted = crate::persistence::EventPayloadUpcaster::canonical()
-                .upcast(&event_type, row.get("event_schema_version"), payload.0)
-                .map_err(|_| {
-                    CanonicalStoreError::IntegrityViolation("event_schema_version_unknown")
-                })?;
-            let event_integrity_hash: Option<String> = row.get("event_integrity_hash");
-            let request_hash: String = row.get("request_hash");
-            let request_hash_source: String = row.get("request_hash_source");
-            let integrity_status: String = row.get("integrity_status");
-            if !replay_integrity_metadata_is_valid(
-                &integrity_status,
-                &request_hash_source,
-                &request_hash,
-                event_integrity_hash.as_deref(),
-            ) {
-                return Err(CanonicalStoreError::IntegrityViolation(
-                    "event_integrity_metadata_invalid",
-                ));
-            }
-            Ok(CanonicalReplayEvent {
-                sequence: row.get("sequence"),
-                stream_version: row.get("stream_version"),
-                stream_id: row.get("stream_id"),
-                event_type,
-                campaign_id: row.get("campaign_id"),
-                authenticated_actor_id: row.get("authenticated_actor_id"),
-                resource_type: row.get("resource_type"),
-                resource_id: row.get("resource_id"),
-                authority_contract_id: row.get("authority_contract_id"),
-                authority_owner: row.get("authority_owner"),
-                command_id: row.get("command_id"),
-                idempotency_key: row.get("idempotency_key"),
-                authority_contract_version: row.get("authority_contract_version"),
-                visibility_label: row.get("visibility_label"),
-                visibility_subject: row.get("visibility_subject"),
-                provenance_kind: row.get("fact_provenance_kind"),
-                provenance_reference: row.get("fact_provenance_reference"),
-                provenance_recorded_by: row.get("fact_recorded_by"),
-                correlation_id: row.get("correlation_id"),
-                causation_id: row.get("causation_id"),
-                trace_id: row.get("trace_id"),
-                payload: upcasted.payload,
-                event_integrity_hash,
-                request_hash_source,
-                integrity_status,
-            })
-        })
-        .collect()
+    let mut events = Vec::with_capacity(rows.len());
+    for row in rows {
+        let protected_payload: Json<Value> = row.get("payload_json");
+        let event_type: String = row.get("event_type");
+        let stream_id: String = row.get("stream_id");
+        let stored_campaign_id: String = row.get("campaign_id");
+        let command_id: String = row.get("command_id");
+        let integrity_status: String = row.get("integrity_status");
+        if protected_payload.0.get("protected_payload").is_none() {
+            return Err(CanonicalStoreError::IntegrityViolation(
+                "verified_event_payload_not_encrypted",
+            ));
+        }
+        let data_subject_id: String = row.get("data_subject_id");
+        let payload_key_reference: String = row.get("payload_key_reference");
+        let subject_cipher = load_subject_payload_cipher(
+            pool,
+            payload_cipher,
+            &data_subject_id,
+            &payload_key_reference,
+        )
+        .await?;
+        let resolved_cipher = subject_cipher.as_ref().unwrap_or(payload_cipher);
+        let plaintext = resolved_cipher
+            .decrypt_json(
+                &protected_payload.0,
+                &[&stored_campaign_id, &stream_id, &command_id, &event_type],
+            )
+            .map_err(|_| {
+                CanonicalStoreError::IntegrityViolation("event_payload_decryption_failed")
+            })?;
+        let payload = serde_json::from_slice(plaintext.as_bytes())
+            .map_err(|_| CanonicalStoreError::IntegrityViolation("event_payload_json_invalid"))?;
+        let upcasted = crate::persistence::EventPayloadUpcaster::canonical()
+            .upcast(&event_type, row.get("event_schema_version"), payload)
+            .map_err(|_| CanonicalStoreError::IntegrityViolation("event_schema_version_unknown"))?;
+        let event_integrity_hash: Option<String> = row.get("event_integrity_hash");
+        let request_hash: String = row.get("request_hash");
+        let request_hash_source: String = row.get("request_hash_source");
+        if !replay_integrity_metadata_is_valid(
+            &integrity_status,
+            &request_hash_source,
+            &request_hash,
+            event_integrity_hash.as_deref(),
+            row.get("event_integrity_version"),
+        ) {
+            return Err(CanonicalStoreError::IntegrityViolation(
+                "event_integrity_metadata_invalid",
+            ));
+        }
+        events.push(CanonicalReplayEvent {
+            sequence: row.get("sequence"),
+            stream_version: row.get("stream_version"),
+            stream_id,
+            event_type,
+            event_schema_version: upcasted.event_schema_version,
+            campaign_id: stored_campaign_id,
+            expected_version: row.get("expected_version"),
+            authority_mode: row.get("authority_mode"),
+            authenticated_actor_id: row.get("authenticated_actor_id"),
+            authenticated_actor_role: row.get("authenticated_actor_role"),
+            authenticated_actor_origin: row
+                .get::<Json<EventActorOriginWire>, _>("authenticated_actor_origin")
+                .0,
+            resource_type: row.get("resource_type"),
+            resource_id: row.get("resource_id"),
+            authority_contract_id: row.get("authority_contract_id"),
+            authority_owner: row.get("authority_owner"),
+            command_id,
+            idempotency_key: row.get("idempotency_key"),
+            idempotency_operation: row.get("idempotency_operation"),
+            authority_contract_version: row.get("authority_contract_version"),
+            visibility_label: row.get("visibility_label"),
+            visibility_subject: row.get("visibility_subject"),
+            provenance_kind: row.get("fact_provenance_kind"),
+            provenance_reference: row.get("fact_provenance_reference"),
+            provenance_recorded_by: row.get("fact_recorded_by"),
+            correlation_id: row.get("correlation_id"),
+            causation_id: row.get("causation_id"),
+            trace_id: row.get("trace_id"),
+            payload: upcasted.payload,
+            recorded_at: row.get("recorded_at"),
+            event_integrity_hash,
+            request_hash,
+            request_hash_source,
+            integrity_status,
+            payload_integrity_source: row.get("payload_integrity_source"),
+        });
+    }
+    Ok(events)
 }
 
 async fn load_existing_commit_in_transaction(
@@ -1822,11 +3284,13 @@ fn normalize_and_validate(
         draft.idempotency_key.as_str(),
         draft.command_id.as_str(),
         draft.authenticated_actor_id.as_str(),
+        draft.authenticated_actor_role.as_str(),
         draft.authority_mode.as_str(),
         draft.authority_contract_id.as_str(),
         draft.authority_owner.as_str(),
         draft.visibility_label.as_str(),
         draft.visibility_subject.as_str(),
+        draft.data_subject_id.as_str(),
         draft.provenance_kind.as_str(),
         draft.provenance_reference.as_str(),
         draft.provenance_recorded_by.as_str(),
@@ -1851,6 +3315,15 @@ fn normalize_and_validate(
     if !matches!(draft.authority_mode.as_str(), "human_kp" | "ai_kp") {
         return Err(CanonicalStoreError::Validation("unknown_authority_mode"));
     }
+    if !actor_origin_matches_role_and_campaign(
+        &draft.authenticated_actor_role,
+        &draft.authenticated_actor_origin,
+        &draft.campaign_id,
+    ) {
+        return Err(CanonicalStoreError::Validation(
+            "authenticated_actor_origin_mismatch",
+        ));
+    }
     if draft.audit.resource_type == "campaign" && draft.audit.resource_id != draft.campaign_id {
         return Err(CanonicalStoreError::Validation(
             "audit_campaign_resource_mismatch",
@@ -1865,27 +3338,34 @@ fn normalize_and_validate(
         draft.visibility_label.as_str(),
         "public"
             | "party_visible"
-            | "keeper_only"
             | "private_to_player"
+            | "private_to_group"
+            | "keeper_only"
             | "investigator_private"
             | "ai_internal"
             | "system_only"
+            | "spectator_visible"
+            | "spectator_hidden"
             | "system_private"
     ) {
         return Err(CanonicalStoreError::Validation("unknown_visibility_label"));
     }
     if matches!(
         draft.visibility_label.as_str(),
-        "private_to_player" | "investigator_private"
+        "private_to_player" | "private_to_group" | "investigator_private"
     ) == (draft.visibility_subject == "not_applicable")
     {
         return Err(CanonicalStoreError::Validation(
             "visibility_subject_mismatch",
         ));
     }
+    if draft.data_subject_id != "not_applicable" && EntityId::new(&draft.data_subject_id).is_err() {
+        return Err(CanonicalStoreError::Validation("data_subject_invalid"));
+    }
     if !matches!(
         draft.provenance_kind.as_str(),
-        "human_keeper_statement"
+        "user_statement"
+            | "human_keeper_statement"
             | "rules_engine_decision"
             | "tool_result"
             | "agent_proposal"
@@ -1922,12 +3402,14 @@ fn request_hash(draft: &AtomicCommitDraft) -> String {
         draft.expected_version.to_string(),
         draft.command_id.clone(),
         draft.authenticated_actor_id.clone(),
+        draft.authenticated_actor_role.clone(),
         draft.authority_mode.clone(),
         draft.authority_contract_version.to_string(),
         draft.authority_contract_id.clone(),
         draft.authority_owner.clone(),
         draft.visibility_label.clone(),
         draft.visibility_subject.clone(),
+        draft.data_subject_id.clone(),
         draft.provenance_kind.clone(),
         draft.provenance_reference.clone(),
         draft.provenance_recorded_by.clone(),
@@ -1947,6 +3429,26 @@ fn request_hash(draft: &AtomicCommitDraft) -> String {
         draft.audit.opa_policy_revision.clone(),
         draft.events.len().to_string(),
     ];
+    match &draft.authenticated_actor_origin {
+        EventActorOriginWire::UserSession { session_id } => {
+            fields.push("user_session".to_owned());
+            fields.push(session_id.clone());
+        }
+        EventActorOriginWire::Workload { role } => {
+            fields.push("workload".to_owned());
+            fields.push(role.clone());
+        }
+        EventActorOriginWire::AgentRun {
+            run_id,
+            class,
+            campaign_id,
+        } => {
+            fields.push("agent_run".to_owned());
+            fields.push(run_id.clone());
+            fields.push(class.clone());
+            fields.push(campaign_id.clone());
+        }
+    }
     for event in &draft.events {
         fields.push(event.event_type.clone());
         fields.push(event.payload_json.clone());
@@ -1954,7 +3456,55 @@ fn request_hash(draft: &AtomicCommitDraft) -> String {
     sha256_fields(&fields)
 }
 
-fn event_integrity_hash(
+fn actor_origin_matches_role_and_campaign(
+    actor_role: &str,
+    origin: &EventActorOriginWire,
+    campaign_id: &str,
+) -> bool {
+    match origin {
+        EventActorOriginWire::UserSession { session_id } => {
+            !session_id.trim().is_empty()
+                && matches!(
+                    actor_role,
+                    "server_owner"
+                        | "campaign_owner"
+                        | "human_keeper"
+                        | "investigator"
+                        | "moderator"
+                        | "spectator"
+                )
+        }
+        EventActorOriginWire::Workload { role } => {
+            !role.trim().is_empty()
+                && matches!(
+                    (actor_role, role.as_str()),
+                    ("workflow", "workflow_engine")
+                        | ("rules_engine", "rules_engine")
+                        | ("system", "api_server")
+                        | ("system", "realtime_server")
+                        | ("system", "agent_worker")
+                        | ("system", "audit_writer")
+                )
+        }
+        EventActorOriginWire::AgentRun {
+            run_id,
+            class,
+            campaign_id: actor_campaign_id,
+        } => {
+            !run_id.trim().is_empty()
+                && actor_campaign_id == campaign_id
+                && matches!(
+                    (actor_role, class.as_str()),
+                    ("ai_keeper", "ai_keeper_orchestrator")
+                        | ("investigator", "keeper_copilot")
+                        | ("investigator", "atmosphere_writer")
+                        | ("investigator", "memory_curator")
+                )
+        }
+    }
+}
+
+fn legacy_event_integrity_hash(
     key: &[u8; 32],
     request_hash: &str,
     index: usize,
@@ -1968,6 +3518,67 @@ fn event_integrity_hash(
             index.to_string(),
             event_type.to_owned(),
             payload_json.to_owned(),
+        ],
+    )
+}
+
+fn event_integrity_hash_v2(key: &[u8; 32], record: &CanonicalEventIntegrityRecord) -> String {
+    hmac_fields(
+        key,
+        &[
+            "canonical_event_integrity_v2".to_owned(),
+            CURRENT_EVENT_INTEGRITY_VERSION.to_string(),
+            record.sequence.to_string(),
+            record.event_index.to_string(),
+            record.stream_version.to_string(),
+            record.event_type.clone(),
+            record.command_id.clone(),
+            record.idempotency_key.clone(),
+            record.expected_version.to_string(),
+            record.authority_mode.clone(),
+            record.authority_contract_version.to_string(),
+            record.visibility_label.clone(),
+            record.provenance_kind.clone(),
+            record.provenance_reference.clone(),
+            record.provenance_recorded_by.clone(),
+            record.correlation_id.clone(),
+            record.causation_id.clone(),
+            record.campaign_id.clone(),
+            record.authenticated_actor_id.clone(),
+            record.authenticated_actor_role.clone(),
+            record.authenticated_actor_origin.clone(),
+            record.resource_type.clone(),
+            record.resource_id.clone(),
+            record.authority_contract_id.clone(),
+            record.authority_owner.clone(),
+            record.visibility_subject.clone(),
+            record.trace_id.clone(),
+            record.stream_id.clone(),
+            record.event_schema_version.to_string(),
+            record.idempotency_operation.clone(),
+            record.request_hash.clone(),
+            record.request_hash_source.clone(),
+            record.integrity_status.clone(),
+            record.payload_integrity_source.clone(),
+            option_bytes(record.payload_ciphertext.as_deref()),
+            option_string(record.payload_key_reference.as_deref()),
+            option_bytes(record.payload_nonce.as_deref()),
+            record.data_subject_id.clone(),
+            record.recorded_at_micros.to_string(),
+            integrity_option_i64(record.derived_source_event_sequence),
+            option_string(record.derived_snapshot_id.as_deref()),
+            option_string(record.derived_chunk_id.as_deref()),
+            option_string(record.derived_content_hash.as_deref()),
+            option_string(record.derived_source_type.as_deref()),
+            option_string(record.derived_copyright_status.as_deref()),
+            option_string(record.derived_allowed_use.as_deref()),
+            option_string(record.derived_embedding_model.as_deref()),
+            option_i32(record.derived_embedding_dimensions),
+            option_string(record.derived_embedding_hash.as_deref()),
+            option_string(record.deletion_job_id.as_deref()),
+            option_string(record.deletion_subject_id.as_deref()),
+            option_string(record.deletion_requested_by.as_deref()),
+            option_string(record.deletion_retention_policy.as_deref()),
         ],
     )
 }
@@ -2016,7 +3627,11 @@ fn audit_record_hash(key: &[u8; 32], record: &AuditRecord) -> String {
         record.witness_prepare_sequence.to_string(),
         record.witness_prepare_hash.clone(),
     ];
-    if record.integrity_version == 2 {
+    if record.integrity_version == 3 {
+        fields.push(record.correlation_id.clone());
+        fields.push(record.causation_id.clone());
+    }
+    if matches!(record.integrity_version, 2 | 3) {
         // PostgreSQL stores TIMESTAMPTZ at microsecond precision. Hash the same
         // integer representation before insertion and after reloading so the
         // database round-trip cannot change the signed bytes.
@@ -2052,7 +3667,7 @@ fn verify_witness_chain(
 fn verify_audit_chain(records: &[AuditRecord], key: &[u8; 32]) -> Result<(), CanonicalStoreError> {
     let mut previous = GENESIS_HASH.to_owned();
     for (index, record) in records.iter().enumerate() {
-        if !matches!(record.integrity_version, 1 | 2) {
+        if !matches!(record.integrity_version, 1..=3) {
             return Err(CanonicalStoreError::IntegrityViolation(
                 "unsupported_canonical_audit_integrity_version",
             ));
@@ -2107,21 +3722,50 @@ fn option_i64(value: Option<i64>) -> String {
     value.map_or_else(|| "none".to_owned(), |value| value.to_string())
 }
 
+fn integrity_option_i64(value: Option<i64>) -> String {
+    value.map_or_else(|| "absent".to_owned(), |value| format!("present:{value}"))
+}
+
+fn option_i32(value: Option<i32>) -> String {
+    value.map_or_else(|| "absent".to_owned(), |value| format!("present:{value}"))
+}
+
+fn option_string(value: Option<&str>) -> String {
+    value.map_or_else(
+        || "absent".to_owned(),
+        |value| format!("present:{}:{value}", value.len()),
+    )
+}
+
+fn option_bytes(value: Option<&[u8]>) -> String {
+    value.map_or_else(
+        || "absent".to_owned(),
+        |value| format!("present:{}:{}", value.len(), lowercase_hex(value)),
+    )
+}
+
 fn replay_integrity_metadata_is_valid(
     integrity_status: &str,
     request_hash_source: &str,
     request_hash: &str,
     event_integrity_hash: Option<&str>,
+    event_integrity_version: i32,
 ) -> bool {
     match (integrity_status, request_hash_source) {
         ("verified_hmac", "formal_commit") => {
-            event_integrity_hash.is_some() && request_hash != ZERO_REQUEST_HASH
+            event_integrity_version == CURRENT_EVENT_INTEGRITY_VERSION
+                && event_integrity_hash.is_some()
+                && request_hash != ZERO_REQUEST_HASH
         }
         ("historical_unverified_hmac", "formal_commit") => {
-            event_integrity_hash.is_some() && request_hash != ZERO_REQUEST_HASH
+            event_integrity_version == 1
+                && event_integrity_hash.is_some()
+                && request_hash != ZERO_REQUEST_HASH
         }
         ("historical_unsigned", "historical_unavailable") => {
-            event_integrity_hash.is_none() && request_hash == ZERO_REQUEST_HASH
+            event_integrity_version == 0
+                && event_integrity_hash.is_none()
+                && request_hash == ZERO_REQUEST_HASH
         }
         _ => false,
     }
@@ -2149,12 +3793,17 @@ mod tests {
             expected_version: 0,
             command_id: "command_mapping".to_owned(),
             authenticated_actor_id: "workflow_mapping".to_owned(),
+            authenticated_actor_role: "workflow".to_owned(),
+            authenticated_actor_origin: EventActorOriginWire::Workload {
+                role: "workflow_engine".to_owned(),
+            },
             authority_mode: "human_kp".to_owned(),
             authority_contract_version: 1,
             authority_contract_id: "authority_mapping".to_owned(),
             authority_owner: "keeper_mapping".to_owned(),
             visibility_label: "party_visible".to_owned(),
             visibility_subject: "not_applicable".to_owned(),
+            data_subject_id: "not_applicable".to_owned(),
             provenance_kind: "rules_engine_decision".to_owned(),
             provenance_reference: "decision_mapping".to_owned(),
             provenance_recorded_by: "rules_engine_mapping".to_owned(),
@@ -2210,6 +3859,8 @@ mod tests {
             opa_decision_id: "opa_success".to_owned(),
             opa_policy_revision: "opa_bundle_atomic_commit".to_owned(),
             trace_id: "trace_success".to_owned(),
+            correlation_id: "correlation_success".to_owned(),
+            causation_id: "causation_success".to_owned(),
             event_batch_hash:
                 "sha256:f84537114f6cf20ae34cf69c92384ecc45b7247fea73d4aac7deb76eb34d4cc3".to_owned(),
             witness_prepare_sequence: 1,
@@ -2230,6 +3881,52 @@ mod tests {
         // binding begins only at v2 so old signed records do not need re-signing.
         record.occurred_at += chrono::TimeDelta::days(1);
         assert_eq!(audit_record_hash(&[0x9c; 32], &record), expected);
+    }
+
+    #[test]
+    fn current_audit_hash_binds_correlation_and_causation_without_resigning_history() {
+        let mut record = AuditRecord {
+            sequence: 1,
+            commit_id: "commit_observability".to_owned(),
+            campaign_id: "campaign_observability".to_owned(),
+            actor_id: "keeper_observability".to_owned(),
+            actor_origin: "user_session".to_owned(),
+            authentication_reference: "session_observability".to_owned(),
+            resource_type: "campaign".to_owned(),
+            resource_id: "campaign_observability".to_owned(),
+            action: "write_official_state".to_owned(),
+            requested_role: "human_keeper".to_owned(),
+            visibility_label: "keeper_only".to_owned(),
+            visibility_subject: "not_applicable".to_owned(),
+            provenance_kind: "rules_engine_decision".to_owned(),
+            provenance_reference: "decision_observability".to_owned(),
+            provenance_recorded_by: "rules_engine_observability".to_owned(),
+            decision: "PERMIT".to_owned(),
+            openfga_decision_id: "fga_observability".to_owned(),
+            openfga_policy_revision: "fga_revision_observability".to_owned(),
+            opa_decision_id: "opa_observability".to_owned(),
+            opa_policy_revision: "opa_revision_observability".to_owned(),
+            trace_id: "trace_observability".to_owned(),
+            correlation_id: "correlation_observability".to_owned(),
+            causation_id: "causation_observability".to_owned(),
+            event_batch_hash:
+                "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+            witness_prepare_sequence: 1,
+            witness_prepare_hash:
+                "hmac-sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    .to_owned(),
+            occurred_at: "2026-07-19T00:00:00Z".parse().unwrap(),
+            integrity_version: 3,
+            key_id: "p04-observability-key".to_owned(),
+            previous_hash: GENESIS_HASH.to_owned(),
+            record_hash: String::new(),
+        };
+        let original = audit_record_hash(&[0xd4; 32], &record);
+        record.correlation_id = "correlation_tampered".to_owned();
+        assert_ne!(audit_record_hash(&[0xd4; 32], &record), original);
+        record.correlation_id = "correlation_observability".to_owned();
+        record.causation_id = "causation_tampered".to_owned();
+        assert_ne!(audit_record_hash(&[0xd4; 32], &record), original);
     }
 
     #[test]
@@ -2261,36 +3958,49 @@ mod tests {
             "formal_commit",
             &formal_hash,
             Some(&verified_hash),
+            CURRENT_EVENT_INTEGRITY_VERSION,
         ));
         assert!(replay_integrity_metadata_is_valid(
             "historical_unsigned",
             "historical_unavailable",
             ZERO_REQUEST_HASH,
             None,
+            0,
         ));
         assert!(replay_integrity_metadata_is_valid(
             "historical_unverified_hmac",
             "formal_commit",
             &formal_hash,
             Some(&verified_hash),
+            1,
         ));
         assert!(!replay_integrity_metadata_is_valid(
             "verified_hmac",
             "historical_unavailable",
             ZERO_REQUEST_HASH,
             Some(&verified_hash),
+            CURRENT_EVENT_INTEGRITY_VERSION,
         ));
         assert!(!replay_integrity_metadata_is_valid(
             "historical_unsigned",
             "formal_commit",
             &formal_hash,
             None,
+            0,
         ));
         assert!(!replay_integrity_metadata_is_valid(
             "unknown",
             "formal_commit",
             &formal_hash,
             Some(&verified_hash),
+            CURRENT_EVENT_INTEGRITY_VERSION,
+        ));
+        assert!(!replay_integrity_metadata_is_valid(
+            "verified_hmac",
+            "formal_commit",
+            &formal_hash,
+            Some(&verified_hash),
+            1,
         ));
     }
 }

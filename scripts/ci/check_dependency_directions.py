@@ -27,16 +27,36 @@ ALLOWED_NORMAL_DEPENDENCIES: dict[str, set[str]] = {
         "trpg-shared-kernel",
     },
     "trpg-ruleset-coc7": {"trpg-contracts", "trpg-shared-kernel"},
-    "trpg-data-eventing": {"trpg-contracts", "trpg-shared-kernel"},
+    # Concrete adapters point inward to the domain/capability types they
+    # implement. The inverse edges remain absent, so domain code cannot reach
+    # PostgreSQL, Redis, NATS, or privacy surface implementations.
+    "trpg-data-eventing": {
+        "trpg-contracts",
+        "trpg-domain-core",
+        "trpg-identity",
+        "trpg-shared-kernel",
+    },
     "trpg-api": {"trpg-contracts", "trpg-shared-kernel"},
-    "trpg-platform": {"trpg-contracts", "trpg-shared-kernel"},
+    "trpg-platform": {
+        "trpg-contracts",
+        "trpg-identity",
+        "trpg-security-governance",
+        "trpg-shared-kernel",
+    },
     "trpg-security-governance": {
         "trpg-contracts",
+        "trpg-domain-core",
         "trpg-identity",
         "trpg-shared-kernel",
     },
     "trpg-ops": {"trpg-contracts", "trpg-shared-kernel"},
-    "trpg-extension-sdk": {"trpg-contracts", "trpg-shared-kernel"},
+    "trpg-extension-sdk": {
+        "trpg-contracts",
+        "trpg-domain-core",
+        "trpg-identity",
+        "trpg-security-governance",
+        "trpg-shared-kernel",
+    },
     "trpg-test-support": {
         "trpg-contracts",
         "trpg-identity",
@@ -45,6 +65,8 @@ ALLOWED_NORMAL_DEPENDENCIES: dict[str, set[str]] = {
     "trpg-testing": {
         "trpg-agent-runtime",
         "trpg-contracts",
+        "trpg-domain-core",
+        "trpg-security-governance",
         "trpg-shared-kernel",
         "trpg-test-support",
     },
@@ -54,20 +76,31 @@ ALLOWED_NORMAL_DEPENDENCIES: dict[str, set[str]] = {
         "trpg-contracts",
         "trpg-data-eventing",
         "trpg-identity",
+        "trpg-platform",
         "trpg-runtime",
         "trpg-security-governance",
         "trpg-shared-kernel",
     },
-    "realtime-server": {"trpg-api", "trpg-contracts", "trpg-data-eventing"},
+    "realtime-server": {
+        "trpg-api",
+        "trpg-contracts",
+        "trpg-data-eventing",
+        "trpg-security-governance",
+    },
     "agent-worker": {
         "trpg-agent-runtime",
         "trpg-contracts",
         "trpg-data-eventing",
         "trpg-extension-sdk",
         "trpg-runtime",
+        "trpg-security-governance",
     },
     "admin-server": {"trpg-contracts", "trpg-platform"},
-    "migration-runner": {"trpg-contracts", "trpg-data-eventing"},
+    "migration-runner": {
+        "trpg-contracts",
+        "trpg-data-eventing",
+        "trpg-security-governance",
+    },
 }
 
 PRODUCT_BINARIES = {

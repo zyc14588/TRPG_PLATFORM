@@ -1,7 +1,9 @@
 pub mod adr_0006_openfga_opa;
 pub mod audit_log_contract;
+pub mod cloud_egress;
 pub mod copyright_boundary;
 pub mod data_retention_deletion;
+pub mod derived_visibility;
 pub mod formal_commit_audit;
 pub mod permission_matrix;
 pub mod policy_adapter;
@@ -10,11 +12,13 @@ pub mod policy_authz;
 pub mod policy_openfga_opa;
 pub mod privacy_copyright;
 pub mod readme;
+pub mod secret;
 pub mod security_privacy;
 pub mod security_privacy_copyright;
 pub mod tamper_evident_audit;
 pub mod visibility_enforcement_points;
 
+use sha2::{Digest, Sha256};
 use trpg_identity::{
     AuthenticationContext, CampaignMembership, CampaignRole, GlobalRole, IdentityVerifier,
     PrincipalKind,
@@ -27,6 +31,14 @@ use trpg_shared_kernel::{
 
 use crate::policy_adapter::{OpenFgaOpaPolicyAdapter, PolicyAuthorizationRequest};
 use crate::tamper_evident_audit::{AuditDecision, AuditRecordDraft, AuditSink, FileAuditLog};
+
+pub use cloud_egress::{
+    authorize_cloud_egress, CloudEgressAttempt, CloudEgressAuthorization, CloudEgressDecision,
+    CloudEgressDenial, CloudEgressLedger, CloudEgressOutcome, CloudEgressRequest,
+};
+pub use derived_visibility::{
+    evaluate_derived_visibility, DerivationRequest, DerivedVisibilityDecision,
+};
 
 pub const SECURITY_GOVERNANCE_DECISION_RECORDED_EVENT: &str =
     "security_governance.decision_recorded";
@@ -69,7 +81,7 @@ pub enum SecurityGovernanceAction {
     GeneratePartySummary,
     IndexRagChunk,
     ConnectProvider,
-    DeleteRetainedData,
+    DeletePersonalData,
     RecordAudit,
     ImportCopyrightedFullText,
     ManageCampaignMembership,
@@ -79,7 +91,6 @@ pub enum SecurityGovernanceAction {
 pub struct SecurityGovernanceCommand {
     pub action: SecurityGovernanceAction,
     pub target_visibility: Visibility,
-    pub legal_hold: bool,
 }
 
 impl SecurityGovernanceCommand {
@@ -87,7 +98,6 @@ impl SecurityGovernanceCommand {
         Self {
             action,
             target_visibility: Visibility::new(VisibilityLabel::SystemOnly),
-            legal_hold: false,
         }
     }
 }
@@ -172,7 +182,7 @@ pub fn evaluate_security_governance_with_policy(
         target_visibility_subject: command
             .payload
             .target_visibility
-            .player_id()
+            .subject_id()
             .map(ToString::to_string),
         trace_id: context.trace_id().as_str().to_owned(),
     };
@@ -446,7 +456,7 @@ fn append_policy_audit(
         visibility_label: visibility_name(command.visibility.label()).to_owned(),
         visibility_subject: command
             .visibility
-            .player_id()
+            .subject_id()
             .map(ToString::to_string)
             .unwrap_or_else(|| "not_applicable".to_owned()),
         provenance_kind: provenance_kind_name(&command.fact_provenance.kind).to_owned(),
@@ -472,11 +482,6 @@ fn validate_security_governance_preflight(
     validate_command_envelope(command)?;
     if !command.payload.target_visibility.is_well_formed() {
         return Err(TrpgError::VisibilityDenied);
-    }
-    if command.payload.legal_hold
-        && command.payload.action == SecurityGovernanceAction::DeleteRetainedData
-    {
-        return Err(TrpgError::PolicyDenied);
     }
     Ok(())
 }
@@ -535,7 +540,7 @@ impl SecurityGovernanceAction {
             Self::GeneratePartySummary => "generate_party_summary",
             Self::IndexRagChunk => "index_rag_chunk",
             Self::ConnectProvider => "connect_provider",
-            Self::DeleteRetainedData => "delete_retained_data",
+            Self::DeletePersonalData => "delete_personal_data",
             Self::RecordAudit => "record_audit",
             Self::ImportCopyrightedFullText => "import_copyrighted_full_text",
             Self::ManageCampaignMembership => "manage_campaign_membership",
@@ -560,20 +565,12 @@ fn authentication_reference(actor: &trpg_shared_kernel::Actor) -> String {
 }
 
 fn visibility_name(label: &VisibilityLabel) -> &'static str {
-    match label {
-        VisibilityLabel::Public => "public",
-        VisibilityLabel::PartyVisible => "party_visible",
-        VisibilityLabel::KeeperOnly => "keeper_only",
-        VisibilityLabel::PrivateToPlayer => "private_to_player",
-        VisibilityLabel::InvestigatorPrivate => "investigator_private",
-        VisibilityLabel::AiInternal => "ai_internal",
-        VisibilityLabel::SystemOnly => "system_only",
-        VisibilityLabel::SystemPrivate => "system_private",
-    }
+    label.as_str()
 }
 
 fn provenance_kind_name(kind: &trpg_shared_kernel::ProvenanceKind) -> &'static str {
     match kind {
+        trpg_shared_kernel::ProvenanceKind::UserStatement => "user_statement",
         trpg_shared_kernel::ProvenanceKind::HumanKeeperStatement => "human_keeper_statement",
         trpg_shared_kernel::ProvenanceKind::RulesEngineDecision => "rules_engine_decision",
         trpg_shared_kernel::ProvenanceKind::ToolResult => "tool_result",
@@ -622,7 +619,7 @@ pub fn permission_allows(
         }
         (Player, OverrideAiDecision) => false,
         (Workflow | RulesEngine | System, WriteOfficialState | RecordAudit) => true,
-        (Workflow | System, DeleteRetainedData) => true,
+        (Workflow | System, DeletePersonalData) => true,
         (Workflow | System, ExportPlayerReport | GeneratePartySummary | IndexRagChunk) => true,
         (System, ConnectProvider) => true,
         (Agent | Provider, WriteOfficialState) => false,
@@ -660,66 +657,29 @@ pub fn evaluate_visibility_derivation(
     principal: &PrincipalScope,
     target: DerivedObject,
 ) -> RedactionDecision {
-    if *source.label() == VisibilityLabel::AiInternal
-        && matches!(
-            target,
-            DerivedObject::PlayerExport | DerivedObject::PartySummary | DerivedObject::RagChunk
-        )
-    {
-        return RedactionDecision {
-            outcome: RedactionOutcome::Redacted,
-            result_visibility: VisibilityLabel::AiInternal,
-            error_code: Some("AI_INTERNAL_EXPORT_FORBIDDEN"),
-        };
-    }
-
-    if source.can_view(principal) {
-        return RedactionDecision {
-            outcome: RedactionOutcome::Visible,
-            result_visibility: source.label().clone(),
-            error_code: None,
-        };
-    }
-
-    let error_code = match (source.label(), target) {
-        (VisibilityLabel::KeeperOnly, DerivedObject::PlayerExport) => {
-            "VISIBILITY_DOWNGRADE_FORBIDDEN"
-        }
-        (VisibilityLabel::PrivateToPlayer, DerivedObject::PartySummary) => {
-            "VISIBILITY_SCOPE_VIOLATION"
-        }
-        _ => "VISIBILITY_LEAKAGE_DETECTED",
-    };
-    let outcome = if target == DerivedObject::RagChunk {
-        RedactionOutcome::Omitted
-    } else {
-        RedactionOutcome::Redacted
-    };
-
+    let sources = [source.clone()];
+    let decision = evaluate_derived_visibility(DerivationRequest {
+        sources: &sources,
+        // This compatibility facade represents the trusted governance worker.
+        // The supplied principal remains exclusively the output audience;
+        // processor authority cannot make the result player-visible.
+        processor: &PrincipalScope::System,
+        target_audience: principal,
+        target,
+    });
     RedactionDecision {
-        outcome,
-        result_visibility: source.label().clone(),
-        error_code: Some(error_code),
+        outcome: decision.outcome,
+        result_visibility: decision.result_visibility.label().clone(),
+        error_code: decision.error_code,
     }
 }
 
 pub fn most_restrictive_visibility(labels: &[VisibilityLabel]) -> VisibilityLabel {
     labels
         .iter()
-        .max_by_key(|label| visibility_rank(label))
         .cloned()
+        .reduce(|current, candidate| current.conservative_merge(&candidate))
         .unwrap_or(VisibilityLabel::Public)
-}
-
-fn visibility_rank(label: &VisibilityLabel) -> u8 {
-    match label {
-        VisibilityLabel::Public => 0,
-        VisibilityLabel::PartyVisible => 1,
-        VisibilityLabel::PrivateToPlayer | VisibilityLabel::InvestigatorPrivate => 2,
-        VisibilityLabel::KeeperOnly => 3,
-        VisibilityLabel::AiInternal => 4,
-        VisibilityLabel::SystemOnly | VisibilityLabel::SystemPrivate => 5,
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -728,38 +688,217 @@ pub enum DeploymentEnvironment {
     Production,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProviderEndpoint {
-    pub provider_type: String,
-    pub base_url: String,
-    pub api_key: String,
-    pub environment: DeploymentEnvironment,
-    pub authenticated: bool,
+impl DeploymentEnvironment {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Development => "development",
+            Self::Production => "production",
+        }
+    }
 }
 
-pub fn validate_provider_boundary(endpoint: &ProviderEndpoint) -> KernelResult<()> {
+#[derive(Clone, PartialEq, Eq)]
+pub struct ProviderEndpoint {
+    provider_type: String,
+    base_url: String,
+    credential: secret::SecretReference,
+    environment: DeploymentEnvironment,
+    model_id: String,
+    model_artifact_sha256: String,
+}
+
+impl ProviderEndpoint {
+    pub fn new(
+        provider_type: impl Into<String>,
+        base_url: impl Into<String>,
+        credential: secret::SecretReference,
+        environment: DeploymentEnvironment,
+        model_id: impl Into<String>,
+        model_artifact_sha256: impl Into<String>,
+    ) -> KernelResult<Self> {
+        let endpoint = Self {
+            provider_type: provider_type.into(),
+            base_url: base_url.into(),
+            credential,
+            environment,
+            model_id: model_id.into(),
+            model_artifact_sha256: model_artifact_sha256.into(),
+        };
+        endpoint.validate_model_identity()?;
+        Ok(endpoint)
+    }
+
+    pub fn provider_type(&self) -> &str {
+        &self.provider_type
+    }
+
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    pub fn credential(&self) -> &secret::SecretReference {
+        &self.credential
+    }
+
+    pub const fn environment(&self) -> DeploymentEnvironment {
+        self.environment
+    }
+
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+
+    pub fn model_artifact_sha256(&self) -> &str {
+        &self.model_artifact_sha256
+    }
+
+    fn validate_model_identity(&self) -> KernelResult<()> {
+        if self.model_id.trim().is_empty()
+            || self.model_id.len() > 256
+            || self.model_artifact_sha256.len() != 71
+            || !self.model_artifact_sha256.starts_with("sha256:")
+            || !self.model_artifact_sha256[7..]
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(TrpgError::InvalidConfiguration(
+                "provider_model_identity_invalid",
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Debug for ProviderEndpoint {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ProviderEndpoint")
+            .field("provider_type", &self.provider_type)
+            .field("base_url", &"[redacted endpoint]")
+            .field("credential", &self.credential)
+            .field("environment", &self.environment)
+            .field("model_id", &self.model_id)
+            .field("model_artifact_sha256", &self.model_artifact_sha256)
+            .finish()
+    }
+}
+
+/// Opaque proof that the exact provider endpoint, model artifact and active
+/// secret version were validated together. Callers can persist only the
+/// digest; they cannot manufacture an "authenticated" boolean.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProviderBoundaryAttestation {
+    security_snapshot_digest: String,
+}
+
+impl ProviderBoundaryAttestation {
+    pub fn security_snapshot_digest(&self) -> &str {
+        &self.security_snapshot_digest
+    }
+}
+
+pub fn validate_provider_boundary<R: secret::SecretResolver>(
+    endpoint: &ProviderEndpoint,
+    secret_manager: &secret::SecretManager<R>,
+) -> KernelResult<ProviderBoundaryAttestation> {
+    endpoint.validate_model_identity()?;
     if endpoint.environment == DeploymentEnvironment::Production
-        && endpoint.base_url.contains("0.0.0.0")
-        && !endpoint.authenticated
+        && !endpoint.credential.production_eligible()
     {
+        return Err(TrpgError::InvalidConfiguration(
+            "production_secret_backend_required",
+        ));
+    }
+    let local_provider = match endpoint.provider_type.trim().to_ascii_lowercase().as_str() {
+        "cloud" | "cloud-provider" | "openai" | "anthropic" => false,
+        "ollama"
+        | "llama_cpp"
+        | "llama.cpp"
+        | "local-model-provider"
+        | "local-openai-compatible" => true,
+        _ => {
+            return Err(TrpgError::InvalidConfiguration(
+                "unknown_provider_classification",
+            ))
+        }
+    };
+    let base_url = url::Url::parse(&endpoint.base_url)
+        .map_err(|_| TrpgError::InvalidConfiguration("provider_endpoint_invalid"))?;
+    if base_url.host_str().is_none()
+        || !base_url.username().is_empty()
+        || base_url.password().is_some()
+        || base_url.query().is_some()
+        || base_url.fragment().is_some()
+    {
+        return Err(TrpgError::InvalidConfiguration(
+            "provider_endpoint_must_not_contain_credentials",
+        ));
+    }
+    let host_is_loopback = matches!(base_url.host_str(), Some("localhost" | "127.0.0.1" | "::1"));
+    if local_provider && !host_is_loopback {
         return Err(TrpgError::InvalidConfiguration(
             "unauthenticated_local_provider_exposed",
         ));
     }
-    if endpoint.environment == DeploymentEnvironment::Production
-        && is_placeholder_api_key(&endpoint.api_key)
-    {
-        return Err(TrpgError::InvalidConfiguration("placeholder_api_key"));
+    if !local_provider && host_is_loopback {
+        return Err(TrpgError::InvalidConfiguration(
+            "cloud_provider_endpoint_must_be_remote",
+        ));
+    }
+    if endpoint.environment == DeploymentEnvironment::Production && base_url.scheme() != "https" {
+        return Err(TrpgError::InvalidConfiguration(
+            "production_provider_https_required",
+        ));
     }
 
-    Ok(())
+    // Resolution is deliberately performed at the configuration boundary.
+    // Merely naming a production-capable backend does not prove that the
+    // version exists, remains active, or can be decrypted/read.
+    let resolved_secret = secret_manager.resolve(&endpoint.credential)?;
+    drop(resolved_secret);
+
+    let mut digest = Sha256::new();
+    append_provider_snapshot_field(&mut digest, b"trpg-provider-security-snapshot-v1");
+    append_provider_snapshot_field(&mut digest, endpoint.environment.as_str().as_bytes());
+    append_provider_snapshot_field(
+        &mut digest,
+        endpoint
+            .provider_type
+            .trim()
+            .to_ascii_lowercase()
+            .as_bytes(),
+    );
+    append_provider_snapshot_field(&mut digest, base_url.as_str().as_bytes());
+    append_provider_snapshot_field(&mut digest, endpoint.model_id.as_bytes());
+    append_provider_snapshot_field(
+        &mut digest,
+        endpoint
+            .model_artifact_sha256
+            .to_ascii_lowercase()
+            .as_bytes(),
+    );
+    append_provider_snapshot_field(
+        &mut digest,
+        match endpoint.credential.backend() {
+            secret::SecretBackend::Kms => b"kms",
+            secret::SecretBackend::MountedFile => b"mounted_file",
+            secret::SecretBackend::DevelopmentMemory => b"development_memory",
+        },
+    );
+    append_provider_snapshot_field(&mut digest, endpoint.credential.secret_id().as_bytes());
+    append_provider_snapshot_field(
+        &mut digest,
+        endpoint.credential.version().to_string().as_bytes(),
+    );
+
+    Ok(ProviderBoundaryAttestation {
+        security_snapshot_digest: format!("sha256:{:x}", digest.finalize()),
+    })
 }
 
-pub fn is_placeholder_api_key(api_key: &str) -> bool {
-    matches!(
-        api_key.trim(),
-        "" | "ollama" | "sk-no-key-required" | "changeme" | "placeholder"
-    )
+fn append_provider_snapshot_field(digest: &mut Sha256, value: &[u8]) {
+    digest.update((value.len() as u64).to_be_bytes());
+    digest.update(value);
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -787,31 +926,6 @@ pub fn certify_local_model(input: LocalModelCertificationInput) -> LocalModelCer
         LocalModelCertificationLevel::LocalModelLevel4
     } else {
         LocalModelCertificationLevel::LocalModelLevel1
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CloudFallbackDecision {
-    Allow,
-    DenyAndAudit,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CloudFallbackRequest {
-    pub cloud_fallback_enabled: bool,
-    pub cloud_call_attempted: bool,
-    pub user_notice: bool,
-    pub snapshot_recorded: bool,
-}
-
-pub fn evaluate_cloud_fallback(request: CloudFallbackRequest) -> CloudFallbackDecision {
-    if request.cloud_call_attempted && !request.cloud_fallback_enabled {
-        return CloudFallbackDecision::DenyAndAudit;
-    }
-    if request.cloud_fallback_enabled && request.user_notice && request.snapshot_recorded {
-        CloudFallbackDecision::Allow
-    } else {
-        CloudFallbackDecision::DenyAndAudit
     }
 }
 

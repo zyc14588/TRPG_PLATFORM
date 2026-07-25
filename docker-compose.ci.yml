@@ -1,122 +1,179 @@
-name: coc-ai-trpg-s09
-
+# Runtime security override. The production model remains in compose.yml;
+# this file only publishes isolated CI ports and replaces platform-managed
+# external secrets with ephemeral files created by production-security-smoke.sh.
 services:
-  web:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/index.html && nginx -g 'daemon off;'"]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
-  api:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    ports:
-      - "8080:80"
-    command:
-      - sh
-      - -c
-      - |
-        mkdir -p /usr/share/nginx/html/admin/init
-        printf '{"status":"not_implemented","placeholder":true,"service":"api"}\n' > /usr/share/nginx/html/healthz
-        for check in healthz admin provider rules database websocket rag dice; do
-          printf '{"status":"not_implemented","placeholder":true,"check":"%s"}\n' "$$check" > "/usr/share/nginx/html/admin/init/$$check"
-        done
-        nginx -g 'daemon off;'
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
-  realtime:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
-  agent-worker:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
   postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: coc_ai_trpg
-      POSTGRES_PASSWORD: coc_ai_trpg
-      POSTGRES_USER: coc_ai_trpg
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U coc_ai_trpg -d coc_ai_trpg"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
+    ports:
+      - "127.0.0.1:25432:5432"
+  postgres-witness:
+    ports:
+      - "127.0.0.1:25433:5432"
   redis:
-    image: redis:7-alpine
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
+    ports:
+      - "127.0.0.1:26379:6379"
   nats:
-    image: nats:2-alpine
-    command: ["-js", "-m", "8222"]
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-
+    ports:
+      - "127.0.0.1:24222:4222"
   minio:
-    image: minio/minio:latest
-    command: ["server", "/data", "--console-address", ":9001"]
-    environment:
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_ROOT_USER: minioadmin
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
+    ports:
+      - "127.0.0.1:29000:9000"
 
-  reverse-proxy:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
+# Production keeps the backend network internal. The isolated runtime smoke
+# must publish loopback-only ports to prove plaintext rejection and TLS/mTLS
+# acceptance from outside each container, which Docker suppresses on an
+# internal network.
+networks:
+  backend:
+    internal: false
 
-  admin:
-    image: nginx:alpine
-    labels:
-      coc_ai_trpg.placeholder: "true"
-    command: ["sh", "-c", "printf '{\"status\":\"not_implemented\",\"placeholder\":true}\n' > /usr/share/nginx/html/healthz && nginx -g 'daemon off;'"]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
+secrets:
+  postgres_bootstrap_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_bootstrap_password
+  postgres_witness_owner_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_witness_owner_password
+  postgres_witness_append_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_witness_append_password
+  postgres_witness_read_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_witness_read_password
+  postgres_api_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_api_password
+  postgres_canonical_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_canonical_password
+  postgres_worker_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_worker_password
+  postgres_realtime_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_realtime_password
+  owner_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/owner_database_url
+  api_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/api_database_url
+  canonical_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/canonical_database_url
+  worker_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/worker_database_url
+  realtime_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/realtime_database_url
+  witness_owner_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/witness_owner_database_url
+  witness_append_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/witness_append_database_url
+  witness_read_database_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/witness_read_database_url
+  identity_signing_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/identity_signing_key
+  canonical_hmac_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/canonical_hmac_key
+  payload_encryption_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/payload_encryption_key
+  audit_hmac_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/audit_hmac_key
+  redis_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_url
+  nats_url:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_url
+  realtime_cache_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/realtime_cache_key
+  object_storage_access_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/object_storage_access_key
+  object_storage_secret_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/object_storage_secret_key
+  postgres_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_tls_certificate
+  postgres_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_tls_private_key
+  postgres_ca_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_ca_certificate
+  redis_acl:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_acl
+  redis_healthcheck_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_healthcheck_password
+  redis_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_tls_certificate
+  redis_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_tls_private_key
+  redis_tls_ca_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_tls_ca_certificate
+  redis_client_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_client_tls_certificate
+  redis_client_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_client_tls_private_key
+  redis_healthcheck_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_healthcheck_tls_certificate
+  redis_healthcheck_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_healthcheck_tls_private_key
+  nats_authorization:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_authorization
+  nats_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_tls_certificate
+  nats_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_tls_private_key
+  nats_tls_ca_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_tls_ca_certificate
+  nats_client_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_client_tls_certificate
+  nats_client_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/nats_client_tls_private_key
+  minio_root_user:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/minio_root_user
+  minio_root_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/minio_root_password
+  minio_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/minio_tls_certificate
+  minio_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/minio_tls_private_key
+  minio_tls_ca_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/minio_tls_ca_certificate
+  reverse_proxy_tls_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/reverse_proxy_tls_certificate
+  reverse_proxy_tls_private_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/reverse_proxy_tls_private_key

@@ -232,6 +232,8 @@ impl PostgresBackupExecutor {
         command
             .arg("--exit-on-error")
             .arg("--single-transaction")
+            .arg("--clean")
+            .arg("--if-exists")
             .arg("--no-owner")
             .arg("--no-privileges")
             .arg("--dbname")

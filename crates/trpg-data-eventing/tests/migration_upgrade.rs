@@ -8,6 +8,8 @@ use sqlx::migrate::Migrator;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgQueryResult};
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::load_canonical_replay_page;
+use trpg_data_eventing::event_store_sqlx_outbox_projection::PayloadCipher;
+use trpg_data_eventing::outbox_projection_workers::PostgresProjectionWorker;
 use trpg_data_eventing::persistence::{
     EventOutboxRecord, EventPayloadUpcaster, EventStoreRecord, ProjectionCheckpointRecord,
     CURRENT_EVENT_SCHEMA_VERSION,
@@ -20,6 +22,7 @@ const REQUEST_HASH_A: &str =
     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const REQUEST_HASH_B: &str =
     "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const PROTECTED_PAYLOAD_FIXTURE: &str = r#"{"protected_payload":{"algorithm":"AES-256-GCM","key_reference":"migration_fixture_key","nonce":"AAAAAAAAAAAAAAAA","ciphertext":"AAAAAAAAAAAAAAAAAAAAAA=="}}"#;
 
 fn checksum_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
@@ -74,6 +77,19 @@ fn migrator_before_p03(current: &Migrator) -> Migrator {
             current
                 .iter()
                 .filter(|migration| migration.version < 20260716000100)
+                .cloned()
+                .collect(),
+        ),
+        ..Migrator::DEFAULT
+    }
+}
+
+fn migrator_through(current: &Migrator, maximum_version: i64) -> Migrator {
+    Migrator {
+        migrations: Cow::Owned(
+            current
+                .iter()
+                .filter(|migration| migration.version <= maximum_version)
                 .cloned()
                 .collect(),
         ),
@@ -242,10 +258,18 @@ async fn assert_schema(pool: &PgPool) {
 }
 
 async fn assert_schema_rejects(pool: &PgPool, expected: &str) {
+    let mut connection = pool
+        .acquire()
+        .await
+        .expect("acquire dedicated schema-assertion connection");
     let error = sqlx::raw_sql(&schema_assertion_sql())
-        .execute(pool)
+        .execute(&mut *connection)
         .await
         .expect_err("drifted P03 schema must fail the machine assertion");
+    sqlx::query("ROLLBACK")
+        .execute(&mut *connection)
+        .await
+        .expect("rollback failed schema assertion transaction");
     assert!(
         error.to_string().contains(expected),
         "unexpected schema assertion error: {error}"
@@ -281,8 +305,8 @@ impl<'a> EventInsert<'a> {
             visibility_label: "party_visible",
             provenance_kind: "rules_engine_decision",
             event_schema_version: CURRENT_EVENT_SCHEMA_VERSION,
-            payload_json: "{}",
-            payload_integrity_source: "{}",
+            payload_json: PROTECTED_PAYLOAD_FIXTURE,
+            payload_integrity_source: PROTECTED_PAYLOAD_FIXTURE,
         }
     }
 }
@@ -295,19 +319,24 @@ async fn insert_event(pool: &PgPool, event: EventInsert<'_>) -> Result<PgQueryRe
             authority_mode, authority_contract_version, visibility_label,
             fact_provenance_kind, fact_provenance_reference, fact_recorded_by,
             correlation_id, causation_id, payload_json, campaign_id,
-            stream_version, authenticated_actor_id, resource_type, resource_id,
+            stream_version, authenticated_actor_id, authenticated_actor_role,
+            authenticated_actor_origin, resource_type, resource_id,
             authority_contract_id, authority_owner, visibility_subject, trace_id,
             event_integrity_hash, stream_id, event_schema_version,
             idempotency_operation, request_hash, request_hash_source,
-            integrity_status, payload_integrity_source
+            integrity_status, payload_integrity_source, payload_ciphertext,
+            payload_key_reference, payload_nonce
         ) VALUES (
             'MigrationUpgradeProbe', 'command_probe', $4, $6, $7, 1, $8,
             $9, 'fixture_reference', 'migration_upgrade', 'correlation_probe',
-            'causation_probe', $11::jsonb, $1, $3, 'actor_probe', 'campaign',
+            'causation_probe', $11::jsonb, $1, $3, 'actor_probe', 'workflow',
+            '{"kind":"workload","role":"workflow_engine"}'::jsonb, 'campaign',
             $1, 'authority_contract_probe', 'keeper_probe', 'not_applicable',
             'trace_probe',
             'hmac-sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
-            $2, $10, $5, $12, 'formal_commit', 'verified_hmac', $13
+            $2, $10, $5, $12, 'formal_commit', 'verified_hmac', $13,
+            decode(repeat('00', 16), 'hex'), 'migration_fixture_key',
+            decode(repeat('00', 12), 'hex')
         )
         "#,
     )
@@ -340,7 +369,8 @@ async fn try_insert_historical_probe_event(
             authority_mode, authority_contract_version, visibility_label,
             fact_provenance_kind, fact_provenance_reference, fact_recorded_by,
             correlation_id, causation_id, payload_json, campaign_id,
-            stream_version, authenticated_actor_id, resource_type, resource_id,
+            stream_version, authenticated_actor_id, authenticated_actor_role,
+            authenticated_actor_origin, resource_type, resource_id,
             authority_contract_id, authority_owner, visibility_subject, trace_id,
             event_integrity_hash, stream_id, event_schema_version,
             idempotency_operation, request_hash, request_hash_source,
@@ -350,7 +380,8 @@ async fn try_insert_historical_probe_event(
             'human_kp', 1, 'party_visible', 'imported_source',
             'migration_constraint_probe', 'migration_upgrade',
             'correlation_probe', 'causation_probe', '{}'::jsonb,
-            'historical_unscoped', $2, 'historical_unknown',
+            'historical_unscoped', $2, 'historical_unknown', 'historical_unknown',
+            '{"kind":"workload","role":"historical_unknown"}'::jsonb,
             'historical_unknown', 'historical_unknown', 'historical_unknown',
             'historical_unknown', 'not_applicable', 'historical_unknown', NULL,
             'historical_unscoped', 1, 'canonical_commit', $3,
@@ -379,20 +410,26 @@ async fn try_insert_hmac_probe_event(
             authority_mode, authority_contract_version, visibility_label,
             fact_provenance_kind, fact_provenance_reference, fact_recorded_by,
             correlation_id, causation_id, payload_json, campaign_id,
-            stream_version, authenticated_actor_id, resource_type, resource_id,
+            stream_version, authenticated_actor_id, authenticated_actor_role,
+            authenticated_actor_origin, resource_type, resource_id,
             authority_contract_id, authority_owner, visibility_subject, trace_id,
             event_integrity_hash, stream_id, event_schema_version,
             idempotency_operation, request_hash, request_hash_source,
-            integrity_status, payload_integrity_source
+            integrity_status, payload_integrity_source, payload_ciphertext,
+            payload_key_reference, payload_nonce
         ) VALUES (
             'FormalConstraintProbe', 'formal_probe_command', $1, 0,
             'human_kp', 1, 'party_visible', 'rules_engine_decision',
             'migration_constraint_probe', 'migration_upgrade',
-            'correlation_probe', 'causation_probe', '{}'::jsonb, $2, 1,
-            'actor_probe', 'campaign', $2, 'authority_contract_probe',
+            'correlation_probe', 'causation_probe', $6::jsonb, $2, 1,
+            'actor_probe', 'workflow',
+            '{"kind":"workload","role":"workflow_engine"}'::jsonb,
+            'campaign', $2, 'authority_contract_probe',
             'keeper_probe', 'not_applicable', 'trace_probe',
             'hmac-sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
-            $3, 1, 'canonical_commit', $4, 'formal_commit', $5, '{}'
+            $3, 1, 'canonical_commit', $4, 'formal_commit', $5, $6,
+            decode(repeat('00', 16), 'hex'), 'migration_fixture_key',
+            decode(repeat('00', 12), 'hex')
         ) RETURNING sequence
         "#,
     )
@@ -401,6 +438,7 @@ async fn try_insert_hmac_probe_event(
     .bind(stream_id)
     .bind(REQUEST_HASH_A)
     .bind(integrity_status)
+    .bind(PROTECTED_PAYLOAD_FIXTURE)
     .fetch_one(&mut **transaction)
     .await
 }
@@ -474,6 +512,144 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
         .unwrap();
     assert_eq!(ledger_before, ledger_after);
 
+    // A forward upgrade can contain append-only cloud-route evidence created
+    // after the first P05 hardening migration. The route-binding migration
+    // must lock the tables, perform its owner-authorized backfill, and restore
+    // the append-only guards before commit.
+    reset_database(&pool).await;
+    migrator_through(current, 20260721000200)
+        .run(&pool)
+        .await
+        .expect("apply through append-only cloud evidence schema");
+    sqlx::raw_sql(
+        r#"
+        INSERT INTO cloud_egress_route_snapshots (
+            snapshot_id, subject_id, consent_id, source_provider,
+            target_provider, purpose, policy_version, notice_reference,
+            context_manifest_hash, allowed_fact_ids, decision, denial_code,
+            created_at_unix_ms
+        ) VALUES (
+            'populated_upgrade_route', 'subject_upgrade', NULL,
+            'local-provider', 'cloud-provider', 'model_assistance',
+            'privacy-v1', NULL,
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            '[]'::jsonb, 'deny', 'CONSENT_REQUIRED', 1000
+        );
+        INSERT INTO cloud_egress_audit (
+            audit_id, snapshot_id, subject_id, decision, denial_code,
+            context_manifest_hash, created_at_unix_ms
+        ) VALUES (
+            'populated_upgrade_audit', 'populated_upgrade_route',
+            'subject_upgrade', 'deny', 'CONSENT_REQUIRED',
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            1000
+        );
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("seed retained append-only cloud evidence");
+    current
+        .run(&pool)
+        .await
+        .expect("populated append-only cloud evidence upgrades to HEAD");
+    let upgraded_route: (String, String, String, String) = sqlx::query_as(
+        "SELECT source_endpoint, target_endpoint, fallback_policy, privacy_boundary \
+           FROM cloud_egress_route_snapshots \
+          WHERE snapshot_id = 'populated_upgrade_route'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        upgraded_route,
+        (
+            "http://127.0.0.1/historical-unavailable".to_owned(),
+            "https://historical.invalid".to_owned(),
+            "historical_unavailable".to_owned(),
+            "historical_unavailable".to_owned(),
+        )
+    );
+    assert!(sqlx::query(
+        "UPDATE cloud_egress_route_snapshots \
+            SET target_endpoint = 'https://mutated.invalid' \
+          WHERE snapshot_id = 'populated_upgrade_route'",
+    )
+    .execute(&pool)
+    .await
+    .is_err());
+
+    // A legacy schema may have lost the original anonymous key-material
+    // constraint. The lease migration must not silently destroy material to
+    // make such drift pass: it fails before recording success and leaves the
+    // incident row untouched for authorized remediation.
+    reset_database(&pool).await;
+    migrator_through(current, 20260724000300)
+        .run(&pool)
+        .await
+        .expect("apply through the migration before deletion leases");
+    pool.execute(
+        "ALTER TABLE privacy_subject_keys \
+             DROP CONSTRAINT privacy_subject_keys_check",
+    )
+    .await
+    .expect("simulate a legacy schema missing the anonymous material check");
+    sqlx::query(
+        r#"
+        INSERT INTO privacy_subject_keys (
+            subject_id, key_reference, wrapped_key, destroyed_at
+        ) VALUES (
+            'legacy_invalid_destroyed_subject', 'legacy_key_reference',
+            decode('aabbccdd', 'hex'), statement_timestamp()
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("seed a claimed-destroyed key that still contains material");
+    let invalid_key_error = current
+        .run(&pool)
+        .await
+        .expect_err("migration must reject retained destroyed key material");
+    assert!(
+        invalid_key_error
+            .to_string()
+            .contains("privacy subject key material remains after a claimed destruction"),
+        "unexpected key-material preflight error: {invalid_key_error}"
+    );
+    let retained_material: Option<Vec<u8>> = sqlx::query_scalar(
+        "SELECT wrapped_key FROM privacy_subject_keys \
+          WHERE subject_id = 'legacy_invalid_destroyed_subject'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        retained_material,
+        Some(vec![0xaa, 0xbb, 0xcc, 0xdd]),
+        "failed migration must not silently destroy legacy key material"
+    );
+    let lease_migration_success: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM _sqlx_migrations \
+          WHERE version = 20260725000100 AND success",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        lease_migration_success, 0,
+        "failed key-material preflight must not record migration success"
+    );
+    pool.close().await;
+    pool = test_pool().await;
+
+    // Restore a clean HEAD schema for the independent drift probes below.
+    reset_database(&pool).await;
+    current
+        .run(&pool)
+        .await
+        .expect("restore clean HEAD after populated cloud upgrade probe");
+
     // Exact trigger fingerprints must include the WHEN predicate. The
     // trigger type and target function OID are unchanged by this bypass.
     sqlx::raw_sql(
@@ -527,6 +703,11 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
         Err(sqlx::migrate::MigrateError::VersionMismatch(version))
             if version == sqlx_migrations_contract::FROZEN_EVENT_STORE_MIGRATION_VERSION
     ));
+    // A migration checksum mismatch can return before SQLx releases its
+    // session-level advisory lock. This dedicated test must not reuse that
+    // pooled session for the next independent upgrade scenario.
+    pool.close().await;
+    pool = test_pool().await;
 
     // The old IF NOT EXISTS path must no longer turn a drifted historical
     // schema into success.  Start from a valid b-24 ledger, alter a critical
@@ -800,25 +981,32 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
             authority_mode, authority_contract_version, visibility_label,
             fact_provenance_kind, fact_provenance_reference, fact_recorded_by,
             correlation_id, causation_id, payload_json, campaign_id,
-            stream_version, authenticated_actor_id, resource_type, resource_id,
+            stream_version, authenticated_actor_id, authenticated_actor_role,
+            authenticated_actor_origin, resource_type, resource_id,
             authority_contract_id, authority_owner, visibility_subject, trace_id,
             event_integrity_hash, stream_id, event_schema_version,
             idempotency_operation, request_hash, request_hash_source,
-            integrity_status, payload_integrity_source
+            integrity_status, payload_integrity_source, payload_ciphertext,
+            payload_key_reference, payload_nonce
         ) VALUES (
             'CommitReuseProbe', 'commit_reuse_command', 'commit_reuse_event', 2,
             'human_kp', 1, 'party_visible', 'rules_engine_decision',
             'commit_reuse_probe', 'migration_upgrade', 'commit_reuse_correlation',
-            'commit_reuse_causation', '{}'::jsonb, 'campaign_interleave_a', 3,
-            'keeper', 'campaign', 'campaign_interleave_a', 'authority_fixture',
+            'commit_reuse_causation', $2::jsonb, 'campaign_interleave_a', 3,
+            'keeper', 'workflow',
+            '{"kind":"workload","role":"workflow_engine"}'::jsonb,
+            'campaign', 'campaign_interleave_a', 'authority_fixture',
             'keeper', 'not_applicable', 'commit_reuse_trace',
             'hmac-sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
             'campaign_interleave_a', 1, 'canonical_commit', $1,
-            'formal_commit', 'verified_hmac', '{}'
+            'formal_commit', 'verified_hmac', $2,
+            decode(repeat('00', 16), 'hex'), 'migration_fixture_key',
+            decode(repeat('00', 12), 'hex')
         ) RETURNING sequence
         "#,
     )
     .bind(REQUEST_HASH_A)
+    .bind(PROTECTED_PAYLOAD_FIXTURE)
     .fetch_one(&mut *commit_reuse_transaction)
     .await
     .unwrap();
@@ -829,18 +1017,22 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
             visibility_label, correlation_id, causation_id, payload_json,
             commit_id, campaign_id, stream_id, event_schema_version,
             idempotency_operation, request_hash, request_hash_source,
-            integrity_status
+            integrity_status, visibility_subject, payload_ciphertext,
+            payload_key_reference, payload_nonce
         ) VALUES (
             $1, $1, 'trpg.events.appended', 'commit_reuse_outbox',
             'party_visible', 'commit_reuse_correlation',
-            'commit_reuse_causation', '{}'::jsonb, 'commit_a',
+            'commit_reuse_causation', $3::jsonb, 'commit_a',
             'campaign_interleave_a', 'campaign_interleave_a', 1,
-            'canonical_commit', $2, 'formal_commit', 'verified_hmac'
+            'canonical_commit', $2, 'formal_commit', 'verified_hmac',
+            'not_applicable', decode(repeat('00', 16), 'hex'),
+            'migration_fixture_key', decode(repeat('00', 12), 'hex')
         )
         "#,
     )
     .bind(reused_sequence)
     .bind(REQUEST_HASH_A)
+    .bind(PROTECTED_PAYLOAD_FIXTURE)
     .execute(&mut *commit_reuse_transaction)
     .await
     .unwrap();
@@ -932,6 +1124,14 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
     assert_eq!(outbox.payload_json, json!({"legacy": true}));
     assert_eq!(outbox.request_hash_source, "historical_unavailable");
     assert_eq!(outbox.integrity_status, "historical_unsigned");
+    assert_eq!(outbox.delivery_status, "dead_lettered");
+    assert_eq!(
+        outbox.last_error.as_deref(),
+        Some("UNVERIFIED_HISTORY_QUARANTINED")
+    );
+    assert!(outbox.dead_lettered_at.is_some());
+    assert!(outbox.locked_until.is_none());
+    assert!(outbox.claim_token.is_none());
     let outbox_serde_round_trip: EventOutboxRecord =
         serde_json::from_value(serde_json::to_value(&outbox).unwrap()).unwrap();
     assert_eq!(outbox_serde_round_trip, outbox);
@@ -946,15 +1146,16 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
         .execute(&pool)
         .await
         .is_err());
-    let mut delivery_state_transaction = pool.begin().await.unwrap();
-    sqlx::query(
-        "UPDATE event_outbox SET claimed_at = now(), claim_owner = 'p03_probe', retry_count = retry_count + 1 WHERE event_sequence = $1",
+    let delivery_state_error = sqlx::query(
+        "UPDATE event_outbox SET delivery_status = 'claimed', claimed_at = now(), claim_owner = 'p04_probe', claim_token = 'claim-sha256:migration-upgrade-probe', locked_until = now() + interval '60 seconds' WHERE event_sequence = $1",
     )
     .bind(legacy_sequence)
-    .execute(&mut *delivery_state_transaction)
+    .execute(&pool)
     .await
-    .expect("delivery state remains mutable");
-    delivery_state_transaction.rollback().await.unwrap();
+    .expect_err("quarantined historical delivery cannot be reclaimed");
+    assert!(delivery_state_error
+        .to_string()
+        .contains("terminal outbox delivery evidence is immutable"));
     for identity_mutation in [
         "UPDATE event_outbox SET outbox_id = outbox_id + 1000 WHERE event_sequence = $1",
         "UPDATE event_outbox SET idempotency_key = idempotency_key || ':rebound' WHERE event_sequence = $1",
@@ -976,8 +1177,13 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
     .fetch_one(&pool)
     .await
     .expect("lossless SQLx checkpoint mapping");
-    assert_eq!(checkpoint.version, legacy_sequence);
-    assert_eq!(checkpoint.stream_id, "legacy_projection");
+    assert_eq!(checkpoint.version, 0);
+    assert_eq!(checkpoint.last_event_sequence, 0);
+    assert_eq!(checkpoint.stream_id, "historical_unscoped");
+    assert_eq!(
+        checkpoint.projection_hash,
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    );
     let checkpoint_serde_round_trip: ProjectionCheckpointRecord =
         serde_json::from_value(serde_json::to_value(&checkpoint).unwrap()).unwrap();
     assert_eq!(checkpoint_serde_round_trip, checkpoint);
@@ -995,20 +1201,27 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
         .upcast("CampaignStarted", 99, Value::Null)
         .is_err());
 
-    let replayed = load_canonical_replay_page(&pool, "historical_unscoped", 0, 100)
+    let payload_cipher = PayloadCipher::new("migration_test_payload", &[0x91; 32]).unwrap();
+    let replayed =
+        load_canonical_replay_page(&pool, &payload_cipher, "historical_unscoped", 0, 100)
+            .await
+            .expect("production replay path omits explicitly unsigned historical data");
+    assert!(replayed.is_empty());
+    let legacy_projection = PostgresProjectionWorker::new(pool.clone(), "legacy_projection", 100)
+        .expect("construct upgraded projection worker");
+    let rebuilt = legacy_projection
+        .rebuild_to_tip("historical_unscoped", "historical_unscoped")
         .await
-        .expect("production replay path accepts explicitly unsigned historical data");
-    let replayed_legacy = replayed
-        .iter()
-        .find(|candidate| candidate.sequence == legacy_sequence)
-        .expect("upgraded b-24 event is returned by production replay");
-    assert_eq!(replayed_legacy.payload, json!({"legacy": true}));
-    assert_eq!(replayed_legacy.event_integrity_hash, None);
-    assert_eq!(
-        replayed_legacy.request_hash_source,
-        "historical_unavailable"
-    );
-    assert_eq!(replayed_legacy.integrity_status, "historical_unsigned");
+        .expect("genesis-reset legacy checkpoint quarantines unverified history");
+    assert_eq!(rebuilt.version, 0);
+    assert_eq!(rebuilt.last_event_sequence, 0);
+    let projected_legacy_rows: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM canonical_event_projection WHERE projection_name = 'legacy_projection'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(projected_legacy_rows, 0);
 
     // Invalid JSON, enum, negative version, and blank IDs are rejected by the
     // database. Scoped idempotency is covered by the exact constraint
@@ -1020,7 +1233,8 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
             authority_mode, authority_contract_version, visibility_label,
             fact_provenance_kind, fact_provenance_reference, fact_recorded_by,
             correlation_id, causation_id, payload_json, campaign_id,
-            stream_version, authenticated_actor_id, resource_type, resource_id,
+            stream_version, authenticated_actor_id, authenticated_actor_role,
+            authenticated_actor_origin, resource_type, resource_id,
             authority_contract_id, authority_owner, visibility_subject, trace_id,
             event_integrity_hash, stream_id, event_schema_version,
             idempotency_operation, request_hash, request_hash_source,
@@ -1031,6 +1245,8 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
             'imported_source', 'migration_constraint_probe', 'migration_upgrade',
             'mixed_integrity_correlation', 'mixed_integrity_causation', '{}'::jsonb,
             'historical_unscoped', $1, 'historical_unknown', 'historical_unknown',
+            '{"kind":"workload","role":"historical_unknown"}'::jsonb,
+            'historical_unknown',
             'historical_unknown', 'historical_unknown', 'historical_unknown',
             'not_applicable', 'historical_unknown',
             'hmac-sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
@@ -1207,17 +1423,21 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
             visibility_label, correlation_id, causation_id, payload_json,
             retry_count, campaign_id, stream_id, event_schema_version,
             idempotency_operation, request_hash, request_hash_source,
-            integrity_status
+            integrity_status, visibility_subject, payload_ciphertext,
+            payload_key_reference, payload_nonce
         ) VALUES (
             $1, $1, 'trpg.events.appended', 'negative_retry',
-            'party_visible', 'correlation_probe', 'causation_probe', '{}'::jsonb, -1,
+            'party_visible', 'correlation_probe', 'causation_probe', $3::jsonb, -1,
             'negative_retry_campaign', 'negative_retry_stream', 1,
-            'canonical_commit', $2, 'formal_commit', 'verified_hmac'
+            'canonical_commit', $2, 'formal_commit', 'verified_hmac',
+            'not_applicable', decode(repeat('00', 16), 'hex'),
+            'migration_fixture_key', decode(repeat('00', 12), 'hex')
         )
         "#,
     )
     .bind(negative_retry_event)
     .bind(REQUEST_HASH_A)
+    .bind(PROTECTED_PAYLOAD_FIXTURE)
     .execute(&mut *negative_retry_transaction)
     .await;
     assert!(negative_retry.is_err());
@@ -1238,17 +1458,21 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
             visibility_label, correlation_id, causation_id, payload_json,
             retry_count, campaign_id, stream_id, event_schema_version,
             idempotency_operation, request_hash, request_hash_source,
-            integrity_status
+            integrity_status, visibility_subject, payload_ciphertext,
+            payload_key_reference, payload_nonce
         ) VALUES (
             $1, $1, 'trpg.events.forged', 'invalid_subject',
-            'party_visible', 'correlation_probe', 'causation_probe', '{}'::jsonb, 0,
+            'party_visible', 'correlation_probe', 'causation_probe', $3::jsonb, 0,
             'invalid_subject_campaign', 'invalid_subject_stream', 1,
-            'canonical_commit', $2, 'formal_commit', 'verified_hmac'
+            'canonical_commit', $2, 'formal_commit', 'verified_hmac',
+            'not_applicable', decode(repeat('00', 16), 'hex'),
+            'migration_fixture_key', decode(repeat('00', 12), 'hex')
         )
         "#,
     )
     .bind(invalid_subject_event)
     .bind(REQUEST_HASH_A)
+    .bind(PROTECTED_PAYLOAD_FIXTURE)
     .execute(&mut *invalid_subject_transaction)
     .await;
     assert!(invalid_subject.is_err());
@@ -1269,17 +1493,21 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
             visibility_label, correlation_id, causation_id, payload_json,
             retry_count, campaign_id, stream_id, event_schema_version,
             idempotency_operation, request_hash, request_hash_source,
-            integrity_status
+            integrity_status, visibility_subject, payload_ciphertext,
+            payload_key_reference, payload_nonce
         ) VALUES (
             $1, $1, 'trpg.events.appended', 'mismatched_outbox',
-            'keeper_only', 'correlation_probe', 'causation_probe', '{}'::jsonb, 0,
+            'keeper_only', 'correlation_probe', 'causation_probe', $3::jsonb, 0,
             'mismatched_outbox_campaign', 'mismatched_outbox_stream', 1,
-            'canonical_commit', $2, 'formal_commit', 'verified_hmac'
+            'canonical_commit', $2, 'formal_commit', 'verified_hmac',
+            'not_applicable', decode(repeat('00', 16), 'hex'),
+            'migration_fixture_key', decode(repeat('00', 12), 'hex')
         )
         "#,
     )
     .bind(mismatched_outbox_event)
     .bind(REQUEST_HASH_A)
+    .bind(PROTECTED_PAYLOAD_FIXTURE)
     .execute(&mut *mismatched_outbox_transaction)
     .await;
     assert!(mismatched_outbox.is_err());

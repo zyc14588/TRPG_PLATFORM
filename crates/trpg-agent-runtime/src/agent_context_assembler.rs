@@ -3,7 +3,8 @@ use trpg_shared_kernel::PrincipalScope;
 
 pub fn assemble_agent_context(
     facts: &[ContextFact],
-    principal: &PrincipalScope,
+    processor: &PrincipalScope,
+    target_audience: &PrincipalScope,
 ) -> AssembledAgentContext {
-    assemble_context(facts, principal)
+    assemble_context(facts, processor, target_audience)
 }

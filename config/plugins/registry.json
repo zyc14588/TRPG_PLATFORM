@@ -1,0 +1,5 @@
+{
+  "fuel_limit": 200000,
+  "memory_limit_bytes": 4194304,
+  "plugins": []
+}

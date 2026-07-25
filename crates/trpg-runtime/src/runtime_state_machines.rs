@@ -420,13 +420,14 @@ impl HumanConfirmationGate {
 
     pub fn create_pending(
         &self,
-        campaign_id: &EntityId,
-        decision: RuntimeDecision,
+        command: &CommandEnvelope<RuntimeDecision>,
         created_at_unix_ms: u64,
         expires_at_unix_ms: u64,
     ) -> RuntimeResult<PendingDecision> {
+        let campaign_id = command.authenticated_context().resource().campaign_id();
         let contract = canonical_contract(&self.identity_verifier, campaign_id)?;
-        let draft_hash = decision_hash(&decision);
+        contract.validate_command(command)?;
+        let draft_hash = canonical_commit_draft_hash(command);
         let mut state = self.confirmation_state.lock().map_err(|_| {
             RuntimeError::Core(TrpgError::InvalidConfiguration(
                 "confirmation_state_unavailable",
@@ -448,7 +449,7 @@ impl HumanConfirmationGate {
         );
         let pending = create_governed_pending_decision(
             &contract,
-            decision,
+            command,
             created_at_unix_ms,
             expires_at_unix_ms,
             confirmation_id,
@@ -463,7 +464,7 @@ impl HumanConfirmationGate {
         &self,
         pending: &PendingDecision,
         authentication: &AuthenticationContext,
-        submitted_decision: &RuntimeDecision,
+        submitted_command: &CommandEnvelope<RuntimeDecision>,
         now_unix_ms: u64,
     ) -> RuntimeResult<ConfirmedPendingDecision> {
         let binding = pending
@@ -478,7 +479,7 @@ impl HumanConfirmationGate {
             &contract,
             &self.identity_verifier,
             authentication,
-            submitted_decision,
+            submitted_command,
             now_unix_ms,
         )?;
         let mut state = self.confirmation_state.lock().map_err(|_| {
@@ -541,10 +542,10 @@ impl HumanConfirmationGate {
             ConfirmationLifecycle::Awaiting => {
                 return Err(RuntimeError::Core(TrpgError::DecisionConfirmationRequired));
             }
-            ConfirmationLifecycle::Committed => {
-                return Err(RuntimeError::Core(TrpgError::DecisionAlreadyCommitted));
-            }
-            ConfirmationLifecycle::Confirmed => {}
+            // A committed confirmation may reach the canonical Event Store
+            // again. Its exact request hash returns the original durable
+            // events; any changed draft or command is still rejected below.
+            ConfirmationLifecycle::Committed | ConfirmationLifecycle::Confirmed => {}
         }
         let events = commit_confirmed_decision(
             store,
@@ -592,7 +593,7 @@ pub fn create_pending_decision(
 
 fn create_governed_pending_decision(
     contract: &AuthorityContract,
-    decision: RuntimeDecision,
+    command: &CommandEnvelope<RuntimeDecision>,
     created_at_unix_ms: u64,
     expires_at_unix_ms: u64,
     confirmation_id: [u8; 32],
@@ -600,7 +601,7 @@ fn create_governed_pending_decision(
     if created_at_unix_ms == 0 || expires_at_unix_ms <= created_at_unix_ms {
         return Err(RuntimeError::Core(TrpgError::DecisionExpired));
     }
-    let mut pending = create_pending_decision(contract.mode(), decision);
+    let mut pending = create_pending_decision(contract.mode(), command.payload.clone());
     if contract.mode() == &AuthorityMode::HumanKp
         && pending.decision.tool_request.is_formal_state_change()
     {
@@ -612,7 +613,7 @@ fn create_governed_pending_decision(
         authority_contract_id: contract.contract_id().clone(),
         authority_contract_version: contract.version(),
         authority_owner: contract.authority_owner().clone(),
-        draft_hash: decision_hash(&pending.decision),
+        draft_hash: canonical_commit_draft_hash(command),
         expires_at_unix_ms,
     });
     Ok(pending)
@@ -643,7 +644,7 @@ fn confirm_pending_decision(
     contract: &AuthorityContract,
     identity_verifier: &IdentityVerifier,
     authentication: &AuthenticationContext,
-    submitted_decision: &RuntimeDecision,
+    submitted_command: &CommandEnvelope<RuntimeDecision>,
     now_unix_ms: u64,
 ) -> RuntimeResult<ConfirmedPendingDecision> {
     if pending.status != PendingDecisionStatus::AwaitingHumanConfirmation {
@@ -664,7 +665,9 @@ fn confirm_pending_decision(
         ActorRole::HumanKeeper,
         session_id.as_str(),
     )?;
-    if decision_hash(submitted_decision) != binding.draft_hash {
+    if canonical_commit_draft_hash(submitted_command) != binding.draft_hash
+        || submitted_command.payload != pending.decision
+    {
         return Err(RuntimeError::Core(TrpgError::DecisionDraftChanged));
     }
     let mut confirmed_pending = pending.clone();
@@ -687,12 +690,9 @@ fn commit_confirmed_decision(
     submitted_decision: RuntimeDecision,
     now_unix_ms: u64,
 ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
-    if confirmed.committed || confirmed.pending.status == PendingDecisionStatus::Committed {
-        return Err(RuntimeError::Core(TrpgError::DecisionAlreadyCommitted));
-    }
     let binding = validate_pending_binding(&confirmed.pending, contract, now_unix_ms)?;
-    let submitted_hash = decision_hash(&submitted_decision);
-    if submitted_hash != binding.draft_hash || decision_hash(&command.payload) != binding.draft_hash
+    if canonical_commit_draft_hash(command) != binding.draft_hash
+        || command.payload != submitted_decision
     {
         return Err(RuntimeError::Core(TrpgError::DecisionDraftChanged));
     }
@@ -702,7 +702,6 @@ fn commit_confirmed_decision(
         return Err(RuntimeError::Core(TrpgError::AuthorityOwnerMismatch));
     }
     validate_runtime_command(contract, command)?;
-    ensure_expected_version(store, command)?;
     let events = append_committed_decision_events(
         store,
         command,
@@ -746,8 +745,49 @@ fn validate_pending_binding<'a>(
     Ok(binding)
 }
 
-fn decision_hash(decision: &RuntimeDecision) -> String {
+fn canonical_commit_draft_hash(command: &CommandEnvelope<RuntimeDecision>) -> String {
     let mut hasher = Sha256::new();
+    let context = command.authenticated_context();
+    let actor_origin = serde_json::to_string(&command.actor.canonical_origin_wire())
+        .expect("canonical actor origin is serializable");
+    for value in [
+        "trpg-confirmed-canonical-commit-draft-v1",
+        command.command_id.as_str(),
+        command.idempotency_key.as_str(),
+        &command.expected_version.to_string(),
+        command.actor.id().as_str(),
+        actor_role_name(command.actor.role()),
+        actor_origin.as_str(),
+        authority_mode_name(&command.authority_mode),
+        &command.authority_contract_version.to_string(),
+        visibility_name(command.visibility.label()),
+        command
+            .visibility
+            .subject_id()
+            .map(EntityId::as_str)
+            .unwrap_or("not_applicable"),
+        provenance_kind_name(&command.fact_provenance.kind),
+        command.fact_provenance.reference.as_str(),
+        command.fact_provenance.recorded_by.as_str(),
+        command.correlation_id.as_str(),
+        command.causation_id.as_str(),
+        formal_write_path_name(&command.write_path),
+        context.resource().campaign_id().as_str(),
+        context.resource().resource_type().as_str(),
+        context.resource().resource_id().as_str(),
+        context.authority().contract_id().as_str(),
+        context.authority().authority_owner().as_str(),
+        &context.authority().contract_version().to_string(),
+        context.trace_id().as_str(),
+    ] {
+        hasher.update(value.len().to_be_bytes());
+        hasher.update(value.as_bytes());
+    }
+    hash_runtime_decision(&mut hasher, &command.payload);
+    format!("sha256:{:x}", hasher.finalize())
+}
+
+fn hash_runtime_decision(hasher: &mut Sha256, decision: &RuntimeDecision) {
     for value in [
         decision.decision_id.as_str(),
         decision.decision_summary.as_str(),
@@ -772,7 +812,16 @@ fn decision_hash(decision: &RuntimeDecision) -> String {
         hasher.update(value.len().to_be_bytes());
         hasher.update(value.as_bytes());
     }
-    format!("sha256:{:x}", hasher.finalize())
+}
+
+fn formal_write_path_name(path: &FormalWritePath) -> &'static str {
+    match path {
+        FormalWritePath::WorkflowDecision => "workflow_decision",
+        FormalWritePath::RulesDecision => "rules_decision",
+        FormalWritePath::ToolDecision => "tool_decision",
+        FormalWritePath::DirectAgent => "direct_agent",
+        FormalWritePath::DirectBusiness => "direct_business",
+    }
 }
 
 impl RuntimeAgent {
@@ -789,16 +838,7 @@ impl RuntimeAgent {
 }
 
 fn visibility_name(label: &VisibilityLabel) -> &'static str {
-    match label {
-        VisibilityLabel::Public => "public",
-        VisibilityLabel::PartyVisible => "party_visible",
-        VisibilityLabel::KeeperOnly => "keeper_only",
-        VisibilityLabel::PrivateToPlayer => "private_to_player",
-        VisibilityLabel::InvestigatorPrivate => "investigator_private",
-        VisibilityLabel::AiInternal => "ai_internal",
-        VisibilityLabel::SystemOnly => "system_only",
-        VisibilityLabel::SystemPrivate => "system_private",
-    }
+    label.as_str()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -867,7 +907,10 @@ fn ensure_expected_version<T>(
     store: &EventStore<RuntimeEventPayload>,
     command: &CommandEnvelope<T>,
 ) -> RuntimeResult<()> {
-    let actual = store.inner.current_stream_version();
+    let resource = command.authenticated_context().resource();
+    let actual = store
+        .inner
+        .current_stream_version(resource.campaign_id(), resource.resource_id());
     if store.has_canonical_custody() && store.events().is_empty() {
         return Ok(());
     }
@@ -936,7 +979,6 @@ pub fn commit_decision(
     now_unix_ms: u64,
 ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
     validate_runtime_command(contract, command)?;
-    ensure_expected_version(store, command)?;
     if command.payload != decision {
         return Err(RuntimeError::Core(TrpgError::DecisionDraftChanged));
     }
@@ -972,19 +1014,12 @@ fn append_committed_decision_events(
         approve_tool_request(&command.authority_mode, &decision.tool_request)?
     };
 
-    let next_version = if store.has_canonical_custody() && store.events().is_empty() {
-        command.expected_version
-    } else {
-        store.inner.current_stream_version()
-    };
+    // Derived event versions are part of the original request hash. Keeping
+    // them anchored to the caller's expected_version lets EventStore return
+    // the original events before checking the now-advanced stream version.
+    let next_version = command.expected_version;
     let tool_command = derived_command(command, "tool", next_version)?;
     let decision_command = derived_command(command, "decision", next_version + 1)?;
-    if store.events().iter().any(|event| {
-        event.idempotency_key == tool_command.idempotency_key
-            || event.idempotency_key == decision_command.idempotency_key
-    }) {
-        return Err(RuntimeError::Core(TrpgError::DuplicateCommand));
-    }
     let requested_role = if human_confirmed {
         "human_keeper"
     } else {
@@ -1044,15 +1079,6 @@ fn persist_runtime_formal_batch(
         RuntimeEventPayload,
     ); 2],
 ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
-    let mut candidate = if store.events().is_empty() && command.expected_version > 0 {
-        KernelEventStore::with_stream_base_version(command.expected_version)
-    } else {
-        store.inner.clone()
-    };
-    let mut appended = Vec::with_capacity(events.len());
-    for (event_command, event_type, payload) in events {
-        appended.push(candidate.append(&event_command, event_type, payload)?);
-    }
     let contract = authorization.contract();
     let request = CanonicalCommitRequest {
         commit_id: format!(
@@ -1065,6 +1091,8 @@ fn persist_runtime_formal_batch(
         expected_version: command.expected_version,
         command_id: command.command_id.to_string(),
         authenticated_actor_id: command.actor.id().to_string(),
+        authenticated_actor_role: command.actor.canonical_role_name().to_owned(),
+        authenticated_actor_origin: command.actor.canonical_origin_wire(),
         authority_mode: authority_mode_name(&command.authority_mode).to_owned(),
         authority_contract_version: contract.version(),
         authority_contract_id: contract.contract_id().to_string(),
@@ -1072,21 +1100,22 @@ fn persist_runtime_formal_batch(
         visibility_label: command.visibility.label().as_str().to_owned(),
         visibility_subject: command
             .visibility
-            .player_id()
+            .subject_id()
             .map(ToString::to_string)
             .unwrap_or_else(|| "not_applicable".to_owned()),
+        data_subject_id: "not_applicable".to_owned(),
         provenance_kind: provenance_kind_name(&command.fact_provenance.kind).to_owned(),
         provenance_reference: command.fact_provenance.reference.to_string(),
         provenance_recorded_by: command.fact_provenance.recorded_by.to_string(),
         correlation_id: command.correlation_id.to_string(),
         causation_id: command.causation_id.to_string(),
         trace_id: command.authenticated_context().trace_id().to_string(),
-        events: appended
+        events: events
             .iter()
-            .map(|event| {
+            .map(|(_, event_type, payload)| {
                 Ok(CanonicalCommitEvent {
-                    event_type: event.event_type.to_owned(),
-                    payload_json: serde_json::to_string(&event.payload)
+                    event_type: (*event_type).to_owned(),
+                    payload_json: serde_json::to_string(payload)
                         .map_err(|_| TrpgError::AuditIntegrityViolation)?,
                 })
             })
@@ -1094,18 +1123,55 @@ fn persist_runtime_formal_batch(
         audit: authorization.canonical_audit().clone(),
     };
     let receipt = canonical.commit(&request)?;
+    canonical.verify_receipt(&request, &receipt)?;
     let expected_first = command
         .expected_version
         .checked_add(1)
         .ok_or(TrpgError::AuditIntegrityViolation)?;
     let expected_last = command
         .expected_version
-        .checked_add(appended.len() as u64)
+        .checked_add(events.len() as u64)
         .ok_or(TrpgError::AuditIntegrityViolation)?;
     if receipt.first_stream_version != expected_first
         || receipt.last_stream_version != expected_last
+        || receipt.events.len() != events.len()
     {
         return Err(RuntimeError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    // Validate the complete durable receipt before publishing any part of the
+    // formal batch into the process-local read model. A faulty adapter must
+    // not make event one visible when event two is malformed.
+    let mut previous_sequence = 0;
+    for (index, ((_, event_type, payload), durable)) in
+        events.iter().zip(receipt.events.iter()).enumerate()
+    {
+        let expected_payload =
+            serde_json::to_value(payload).map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let durable_payload: serde_json::Value = serde_json::from_str(&durable.payload_json)
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let expected_version = expected_first
+            .checked_add(index as u64)
+            .ok_or(TrpgError::AuditIntegrityViolation)?;
+        if durable.sequence == 0
+            || durable.sequence <= previous_sequence
+            || durable.occurred_at_unix_ms == 0
+            || durable.stream_version != expected_version
+            || durable.event_type != *event_type
+            || durable_payload != expected_payload
+            || durable.command_id != request.command_id
+            || durable.idempotency_key != format!("{}:{index:04}", request.idempotency_key)
+        {
+            return Err(RuntimeError::Core(TrpgError::AuditIntegrityViolation));
+        }
+        previous_sequence = durable.sequence;
+    }
+
+    let mut candidate = store.inner.clone();
+    let mut appended = Vec::with_capacity(events.len());
+    for ((event_command, event_type, payload), durable) in
+        events.into_iter().zip(receipt.events.iter())
+    {
+        appended.push(candidate.record_canonical(&event_command, event_type, payload, durable)?);
     }
     store.inner = candidate;
     Ok(appended)
@@ -1120,6 +1186,7 @@ fn authority_mode_name(mode: &AuthorityMode) -> &'static str {
 
 fn provenance_kind_name(kind: &ProvenanceKind) -> &'static str {
     match kind {
+        ProvenanceKind::UserStatement => "user_statement",
         ProvenanceKind::HumanKeeperStatement => "human_keeper_statement",
         ProvenanceKind::RulesEngineDecision => "rules_engine_decision",
         ProvenanceKind::ToolResult => "tool_result",

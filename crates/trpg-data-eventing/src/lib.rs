@@ -39,9 +39,9 @@ pub mod sqlx_migrations;
 pub mod sqlx_migrations_contract;
 
 pub use trpg_shared_kernel::{
-    ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventEnvelope,
-    EventStore, FactProvenance, FormalWritePath, PrincipalScope, ProvenanceKind, TrpgError,
-    Visibility, VisibilityLabel,
+    ActorOrigin, ActorRole, AgentClass, AuthorityContract, AuthorityMode, CommandEnvelope,
+    EntityId, EventEnvelope, EventStore, FactProvenance, FormalWritePath, PrincipalScope,
+    ProvenanceKind, TrpgError, Visibility, VisibilityLabel, WorkloadRole,
 };
 
 pub type DataEventResult<T> = Result<T, TrpgError>;
@@ -211,39 +211,76 @@ pub struct ProjectionSnapshot {
     pub projection_hash: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OutboxMessage {
-    pub event_id: u64,
-    pub correlation_id: EntityId,
-    pub causation_id: EntityId,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OutboxDeliveryStatus {
+    Pending,
+    Claimed,
+    Retrying,
+    Published,
+    DeadLettered,
 }
 
-impl<P> From<&EventEnvelope<P>> for OutboxMessage {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutboxMessage<P> {
+    pub event_id: u64,
+    pub event_sequence: u64,
+    pub campaign_id: EntityId,
+    pub stream_id: EntityId,
+    pub subject: &'static str,
+    pub idempotency_key: String,
+    pub visibility: Visibility,
+    pub fact_provenance: FactProvenance,
+    pub correlation_id: EntityId,
+    pub causation_id: EntityId,
+    pub payload: P,
+    pub delivery_status: OutboxDeliveryStatus,
+}
+
+impl<P: Clone> From<&EventEnvelope<P>> for OutboxMessage<P> {
     fn from(event: &EventEnvelope<P>) -> Self {
         Self {
             event_id: event.sequence,
+            event_sequence: event.sequence,
+            campaign_id: event.campaign_id.clone(),
+            stream_id: event.stream_id.clone(),
+            subject: NATS_EVENTS_APPENDED,
+            idempotency_key: event.idempotency_key.clone(),
+            visibility: event.visibility.clone(),
+            fact_provenance: event.fact_provenance.clone(),
             correlation_id: event.correlation_id.clone(),
             causation_id: event.causation_id.clone(),
+            payload: event.payload.clone(),
+            delivery_status: OutboxDeliveryStatus::Pending,
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectionCheckpoint {
+    pub projection_name: String,
+    pub campaign_id: EntityId,
     pub stream_id: EntityId,
     pub version: u64,
+    pub last_event_sequence: u64,
     pub projection_hash: String,
+    pub rebuilt_at_unix_ms: u64,
 }
 
 impl ProjectionCheckpoint {
     pub fn from_snapshot(
+        campaign_id: EntityId,
         stream_id: EntityId,
+        stream_version: u64,
         snapshot: &ProjectionSnapshot,
     ) -> ProjectionCheckpoint {
         Self {
+            projection_name: "data_event_projection".to_owned(),
+            campaign_id,
             stream_id,
-            version: snapshot.last_sequence,
+            version: stream_version,
+            last_event_sequence: snapshot.last_sequence,
             projection_hash: snapshot.projection_hash.clone(),
+            rebuilt_at_unix_ms: current_unix_time_ms(),
         }
     }
 }
@@ -405,18 +442,181 @@ fn has_long_hex_run(value: &str) -> bool {
 }
 
 fn projection_hash_input(events: &[EventEnvelope<DataEventPayload>]) -> Vec<u8> {
-    let mut input = String::new();
+    let mut input = Vec::new();
+    append_projection_hash_field(&mut input, 1, b"trpg-data-event-projection-v1");
+    append_projection_hash_field(&mut input, 2, &(events.len() as u64).to_be_bytes());
     for event in events {
-        input.push_str(&event.sequence.to_string());
-        input.push('|');
-        input.push_str(event.event_type);
-        input.push('|');
-        input.push_str(event.payload.module_name);
-        input.push('|');
-        input.push_str(event.payload.operation.as_str());
-        input.push('\n');
+        append_projection_hash_field(&mut input, 3, &event.sequence.to_be_bytes());
+        append_projection_hash_field(&mut input, 4, event.stream_id.as_str().as_bytes());
+        append_projection_hash_field(&mut input, 5, &event.stream_version.to_be_bytes());
+        append_projection_hash_field(&mut input, 6, event.event_type.as_bytes());
+        append_projection_hash_field(&mut input, 7, event.campaign_id.as_str().as_bytes());
+        append_projection_hash_field(
+            &mut input,
+            8,
+            event.authenticated_actor.id().as_str().as_bytes(),
+        );
+        append_projection_hash_field(
+            &mut input,
+            9,
+            actor_role_name(event.authenticated_actor.role()).as_bytes(),
+        );
+        append_actor_origin_hash_fields(&mut input, event.authenticated_actor.origin());
+        append_projection_hash_field(
+            &mut input,
+            14,
+            event.resource.campaign_id().as_str().as_bytes(),
+        );
+        append_projection_hash_field(
+            &mut input,
+            15,
+            event.resource.resource_type().as_str().as_bytes(),
+        );
+        append_projection_hash_field(
+            &mut input,
+            16,
+            event.resource.resource_id().as_str().as_bytes(),
+        );
+        append_projection_hash_field(
+            &mut input,
+            17,
+            event.authority_contract_id.as_str().as_bytes(),
+        );
+        append_projection_hash_field(&mut input, 18, event.authority_owner.as_str().as_bytes());
+        append_projection_hash_field(&mut input, 19, event.command_id.as_str().as_bytes());
+        append_projection_hash_field(&mut input, 20, event.idempotency_key.as_bytes());
+        append_projection_hash_field(
+            &mut input,
+            21,
+            &event.authority_contract_version.to_be_bytes(),
+        );
+        append_projection_hash_field(&mut input, 22, event.visibility.label().as_str().as_bytes());
+        append_projection_hash_field(
+            &mut input,
+            23,
+            event
+                .visibility
+                .subject_id()
+                .map(EntityId::as_str)
+                .unwrap_or_default()
+                .as_bytes(),
+        );
+        append_projection_hash_field(
+            &mut input,
+            24,
+            provenance_kind_name(&event.fact_provenance.kind).as_bytes(),
+        );
+        append_projection_hash_field(
+            &mut input,
+            25,
+            event.fact_provenance.reference.as_str().as_bytes(),
+        );
+        append_projection_hash_field(
+            &mut input,
+            26,
+            event.fact_provenance.recorded_by.as_str().as_bytes(),
+        );
+        append_projection_hash_field(&mut input, 27, event.correlation_id.as_str().as_bytes());
+        append_projection_hash_field(&mut input, 28, event.causation_id.as_str().as_bytes());
+        append_projection_hash_field(&mut input, 29, event.trace_id.as_str().as_bytes());
+        append_projection_hash_field(&mut input, 30, event.payload.module_name.as_bytes());
+        append_projection_hash_field(&mut input, 31, event.payload.event_name.as_bytes());
+        append_projection_hash_field(&mut input, 32, event.payload.operation.as_str().as_bytes());
+        append_projection_hash_field(
+            &mut input,
+            33,
+            &(event.payload.read_models.len() as u64).to_be_bytes(),
+        );
+        for read_model in event.payload.read_models {
+            append_projection_hash_field(&mut input, 34, read_model.as_bytes());
+        }
     }
-    input.into_bytes()
+    input
+}
+
+fn append_projection_hash_field(input: &mut Vec<u8>, tag: u16, value: &[u8]) {
+    input.extend_from_slice(&tag.to_be_bytes());
+    input.extend_from_slice(&(value.len() as u64).to_be_bytes());
+    input.extend_from_slice(value);
+}
+
+fn append_actor_origin_hash_fields(input: &mut Vec<u8>, origin: &ActorOrigin) {
+    match origin {
+        ActorOrigin::UserSession { session_id } => {
+            append_projection_hash_field(input, 10, b"user_session");
+            append_projection_hash_field(input, 11, session_id.as_str().as_bytes());
+        }
+        ActorOrigin::Workload { role } => {
+            append_projection_hash_field(input, 10, b"workload");
+            append_projection_hash_field(input, 11, workload_role_name(*role).as_bytes());
+        }
+        ActorOrigin::AgentRun {
+            run_id,
+            class,
+            campaign_id,
+        } => {
+            append_projection_hash_field(input, 10, b"agent_run");
+            append_projection_hash_field(input, 11, run_id.as_str().as_bytes());
+            append_projection_hash_field(input, 12, agent_class_name(*class).as_bytes());
+            append_projection_hash_field(input, 13, campaign_id.as_str().as_bytes());
+        }
+    }
+}
+
+fn actor_role_name(role: &ActorRole) -> &'static str {
+    match role {
+        ActorRole::ServerOwner => "server_owner",
+        ActorRole::CampaignOwner => "campaign_owner",
+        ActorRole::HumanKeeper => "human_keeper",
+        ActorRole::AiKeeper => "ai_keeper",
+        ActorRole::Investigator => "investigator",
+        ActorRole::Moderator => "moderator",
+        ActorRole::Spectator => "spectator",
+        ActorRole::Workflow => "workflow",
+        ActorRole::RulesEngine => "rules_engine",
+        ActorRole::System => "system",
+    }
+}
+
+fn workload_role_name(role: WorkloadRole) -> &'static str {
+    match role {
+        WorkloadRole::ApiServer => "api_server",
+        WorkloadRole::RealtimeServer => "realtime_server",
+        WorkloadRole::AgentWorker => "agent_worker",
+        WorkloadRole::WorkflowEngine => "workflow_engine",
+        WorkloadRole::RulesEngine => "rules_engine",
+        WorkloadRole::AuditWriter => "audit_writer",
+    }
+}
+
+fn agent_class_name(class: AgentClass) -> &'static str {
+    match class {
+        AgentClass::AiKeeperOrchestrator => "ai_keeper_orchestrator",
+        AgentClass::KeeperCopilot => "keeper_copilot",
+        AgentClass::AtmosphereWriter => "atmosphere_writer",
+        AgentClass::MemoryCurator => "memory_curator",
+    }
+}
+
+fn provenance_kind_name(kind: &ProvenanceKind) -> &'static str {
+    match kind {
+        ProvenanceKind::UserStatement => "user_statement",
+        ProvenanceKind::HumanKeeperStatement => "human_keeper_statement",
+        ProvenanceKind::RulesEngineDecision => "rules_engine_decision",
+        ProvenanceKind::ToolResult => "tool_result",
+        ProvenanceKind::AgentProposal => "agent_proposal",
+        ProvenanceKind::ImportedSource => "imported_source",
+        ProvenanceKind::SystemFixture => "system_fixture",
+    }
+}
+
+fn current_unix_time_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
 }
 
 fn sha256_hex(input: &[u8]) -> String {

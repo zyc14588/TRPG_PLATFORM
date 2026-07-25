@@ -34,7 +34,7 @@ S01/S02 通过；domain events 与 command envelopes 已稳定。
 
 ## 5. 测试重点
 
-- SQLx migration 正反向
+- SQLx migration 分类验证：forward apply、重复 no-op、旧库 upgrade、备份/恢复与应用回滚
 - Event Store append expected_version 冲突
 - idempotency key 重放
 - outbox exactly-once-ish 发布
@@ -43,7 +43,8 @@ S01/S02 通过；domain events 与 command envelopes 已稳定。
 
 ## 6. 推荐命令
 
-- `sqlx migrate run`
+- `sqlx migrate info --source migrations`
+- `sqlx migrate run --source migrations`（连续两次，第二次必须为 no-op）
 - `cargo test -p trpg-data-eventing --all-features`
 - `cargo test --test event_store_contract`
 - `cargo test --test projection_replay`
@@ -54,12 +55,16 @@ S01/S02 通过；domain events 与 command envelopes 已稳定。
 - `test-data/rag_snapshot_cases.md`
 - `test-data/api_ws_contract_samples.md`
 
+正式正史/授权/审计迁移一律 forward-only；“反向”门禁通过应用版本回滚且保留 schema、备份恢复、
+forward re-apply 与 Event Store replay 完成。仅显式分类为可逆且不承载正史/安全约束的迁移，才可
+在专用空库执行 `run -> revert -> run`；不得把历史基础迁移的 revert 结果外推为全部迁移可下行。
+
 ## 8. 阶段验收清单
 
 - [ ] Event Store 是唯一正史；Projection/Cache/RAG 均可重建
 - [ ] 所有正式写入在 transaction 内完成 event append 与 outbox
 - [ ] NATS 只发布 Event Store 派生事件，不替代正史
-- [ ] RAG chunk 携带 source_type、visibility、version、owner、allowed_use
+- [ ] RAG chunk 携带 source_type、visibility、copyright_status、version、owner、allowed_use
 
 ## 9. 使用方式
 

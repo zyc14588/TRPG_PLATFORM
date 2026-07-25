@@ -43,7 +43,7 @@
     },
     {
       "type": "ProjectionRebuilt",
-      "hash": "sha256:a83861bce178f274e6a2e809c790770577445268b48fedfb889af4b87f8c1c50"
+      "hash": "sha256:6d967a6be23067c845a53f640c9d0092a3ec5ecfc2f88edb5c94bb4471def297"
     }
   ],
   "expected_records": [
@@ -84,7 +84,7 @@
     "evidence/stages/S03/event-store-contract.txt",
     "evidence/stages/S03/projection-replay-hash.txt"
   ],
-  "automation_target": "cargo test -p trpg-storage event_store projection_replay outbox --all-features",
+  "automation_target": "cargo test --locked -p trpg-data-eventing --test event_store_contract --test projection_replay",
   "pass_criteria": [
     "append_only",
     "version_conflict_detected",

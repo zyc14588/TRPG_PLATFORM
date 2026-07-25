@@ -6,7 +6,7 @@
 
 ## 测试目标
 
-- SQLx migration 正反向
+- SQLx migration 分类验证：forward apply、重复 no-op、旧库 upgrade、备份/恢复与应用回滚
 - Event Store append expected_version 冲突
 - idempotency key 重放
 - outbox exactly-once-ish 发布
@@ -15,10 +15,20 @@
 
 ## 推荐命令
 
-- `sqlx migrate run`
+- `sqlx migrate info --source migrations`
+- `sqlx migrate run --source migrations`（连续执行两次，第二次必须为 no-op）
 - `cargo test -p trpg-data-eventing --all-features`
 - `cargo test --test event_store_contract`
 - `cargo test --test projection_replay`
+
+## Migration 回滚口径
+
+- Event Store、Authority/Identity、审计、Projection checkpoint 与 RAG 来源约束属于
+  forward-only 正史/安全迁移，不得用 down migration 删除历史或约束。
+- 这类迁移的“反向”验收是：保留已升级 schema，回滚应用二进制或停用 worker，随后用
+  备份恢复、forward re-apply 与 replay 验证可恢复性。
+- 只有被单独标记为 `reversible`、且不包含正史或安全边界的迁移，才允许在专用空测试库执行
+  `run -> revert -> run`。历史 `20260705000100` 的可逆测试不能替代后续 forward-only 迁移验收。
 
 ## 必须补齐的测试类型
 

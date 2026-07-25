@@ -10,6 +10,7 @@ fn visibility_enforcement_points_deny_restricted_summary() {
     assert!(enforce_visibility_at(
         VisibilityEnforcementPoint::Summary,
         &visibility,
+        &PrincipalScope::System,
         &PrincipalScope::PartyMember
     )
     .is_err());
@@ -23,6 +24,7 @@ fn visibility_enforcement_points_allow_matching_private_player() {
     assert!(enforce_visibility_at(
         VisibilityEnforcementPoint::ApiResponse,
         &visibility,
+        &PrincipalScope::System,
         &PrincipalScope::Player(player)
     )
     .is_ok());

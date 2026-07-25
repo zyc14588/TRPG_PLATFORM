@@ -40,6 +40,10 @@ pub mod visibility_fact_provenance_impl;
 pub mod visibility_leakage_tests;
 
 pub use ddd::{DomainError, DomainResult, FactSource};
+pub use visibility_fact_provenance::CommittedFactEvidence;
+#[cfg(feature = "canonical-store-internal")]
+#[doc(hidden)]
+pub use visibility_fact_provenance::PersistedFactEvidenceRecord;
 
 pub const PUBLIC_COMPATIBILITY_MODULES: &[&str] = &[
     "character_combat_san_chase_impl",
