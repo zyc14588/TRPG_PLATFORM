@@ -1,5 +1,5 @@
 {
-  "schema_version": "p00-5",
+  "schema_version": "p00-6",
   "required": [
     "base_commit",
     "worktree_diff_sha256",
@@ -13,6 +13,7 @@
     "command_output",
     "exit_code",
     "artifact_sha256",
+    "command_artifact_sha256",
     "generated_artifact_sha256",
     "report_files",
     "repository",

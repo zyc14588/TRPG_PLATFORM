@@ -24,8 +24,8 @@ MANIFEST_OUTPUTS = {
     "manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md",
 }
 PRODUCT_SERVICES = ("web", "api", "realtime", "agent-worker", "admin")
-EVIDENCE_SCHEMA_VERSION = "p00-5"
-EVIDENCE_GENERATOR_VERSION = "p00-5"
+EVIDENCE_SCHEMA_VERSION = "p00-6"
+EVIDENCE_GENERATOR_VERSION = "p00-6"
 EVIDENCE_REQUIRED = (
     "base_commit",
     "worktree_diff_sha256",
@@ -39,6 +39,7 @@ EVIDENCE_REQUIRED = (
     "command_output",
     "exit_code",
     "artifact_sha256",
+    "command_artifact_sha256",
     "generated_artifact_sha256",
     "report_files",
     "repository",
@@ -599,13 +600,6 @@ def validate_evidence(
     if not isinstance(generated, dict) or not generated:
         errors.append("generated_artifact_sha256 must be a non-empty object")
     else:
-        generated_by_suffix = {
-            suffix: [name for name in generated if name.endswith(suffix)]
-            for suffix in (".log", ".junit.xml", ".sarif")
-        }
-        for suffix, names in generated_by_suffix.items():
-            if len(names) != 1:
-                errors.append(f"expected exactly one generated artifact: *{suffix}")
         for name, expected in generated.items():
             candidate = artifact_base / name if artifact_base is not None else None
             if Path(name).name != name or artifact_base is None:
@@ -618,9 +612,31 @@ def validate_evidence(
                 errors.append(f"invalid generated artifact hash: {name}")
             elif not candidate.is_file() or sha256_file(candidate) != expected:
                 errors.append(f"generated artifact hash mismatch: {name}")
-        if artifact_base is not None:
+
+    command_artifacts = data.get("command_artifact_sha256")
+    if not isinstance(command_artifacts, dict) or not command_artifacts:
+        errors.append("command_artifact_sha256 must be a non-empty object")
+    else:
+        command_by_suffix = {
+            suffix: [name for name in command_artifacts if name.endswith(suffix)]
+            for suffix in (".log", ".junit.xml", ".sarif")
+        }
+        if len(command_artifacts) != 3:
+            errors.append("command_artifact_sha256 must contain exactly three artifacts")
+        for suffix, names in command_by_suffix.items():
+            if len(names) != 1:
+                errors.append(f"expected exactly one command artifact: *{suffix}")
+        if isinstance(generated, dict):
+            for name, expected in command_artifacts.items():
+                if name not in generated:
+                    errors.append(f"command artifact is not a generated artifact: {name}")
+                elif generated[name] != expected:
+                    errors.append(f"command artifact hash mismatch: {name}")
+        if artifact_base is not None and all(
+            len(names) == 1 for names in command_by_suffix.values()
+        ):
             bound_outputs = []
-            for name in generated_by_suffix[".log"]:
+            for name in command_by_suffix[".log"]:
                 raw_path = artifact_base / name
                 if raw_path.is_file():
                     parsed = parse_bound_raw_output(
@@ -645,43 +661,42 @@ def validate_evidence(
                     stderr_bytes.decode("utf-8", errors="replace"),
                 ):
                     errors.append("passing evidence contains a deceptive skip marker")
-                if len(generated_by_suffix[".junit.xml"]) == 1:
-                    junit_path = artifact_base / generated_by_suffix[".junit.xml"][0]
-                    try:
-                        suite = ET.parse(junit_path).getroot()
-                    except (OSError, ET.ParseError):
-                        errors.append("generated JUnit is not valid XML")
-                    else:
-                        expected_cases = evidence_test_cases(
-                            str(data.get("command", "")),
-                            exit_code if type(exit_code) is int else -1,
-                            stdout_bytes.decode("utf-8", errors="replace"),
-                            stderr_bytes.decode("utf-8", errors="replace"),
+                junit_path = artifact_base / command_by_suffix[".junit.xml"][0]
+                try:
+                    suite = ET.parse(junit_path).getroot()
+                except (OSError, ET.ParseError):
+                    errors.append("generated JUnit is not valid XML")
+                else:
+                    expected_cases = evidence_test_cases(
+                        str(data.get("command", "")),
+                        exit_code if type(exit_code) is int else -1,
+                        stdout_bytes.decode("utf-8", errors="replace"),
+                        stderr_bytes.decode("utf-8", errors="replace"),
+                    )
+                    actual_cases = []
+                    for case in suite.findall("testcase"):
+                        status = (
+                            "FAILED"
+                            if case.find("failure") is not None
+                            else "ignored"
+                            if case.find("skipped") is not None
+                            else "ok"
                         )
-                        actual_cases = []
-                        for case in suite.findall("testcase"):
-                            status = (
-                                "FAILED"
-                                if case.find("failure") is not None
-                                else "ignored"
-                                if case.find("skipped") is not None
-                                else "ok"
-                            )
-                            actual_cases.append((case.get("name", ""), status))
-                        if actual_cases != expected_cases:
-                            errors.append("JUnit test details do not match bound raw output")
-                        expected_failures = sum(
-                            status == "FAILED" for _, status in expected_cases
-                        )
-                        expected_skipped = sum(
-                            status == "ignored" for _, status in expected_cases
-                        )
-                        if suite.get("tests") != str(len(expected_cases)):
-                            errors.append("JUnit test count does not match bound raw output")
-                        if suite.get("failures") != str(expected_failures):
-                            errors.append("JUnit failure count does not match bound raw output")
-                        if suite.get("skipped", "0") != str(expected_skipped):
-                            errors.append("JUnit skipped count does not match bound raw output")
+                        actual_cases.append((case.get("name", ""), status))
+                    if actual_cases != expected_cases:
+                        errors.append("JUnit test details do not match bound raw output")
+                    expected_failures = sum(
+                        status == "FAILED" for _, status in expected_cases
+                    )
+                    expected_skipped = sum(
+                        status == "ignored" for _, status in expected_cases
+                    )
+                    if suite.get("tests") != str(len(expected_cases)):
+                        errors.append("JUnit test count does not match bound raw output")
+                    if suite.get("failures") != str(expected_failures):
+                        errors.append("JUnit failure count does not match bound raw output")
+                    if suite.get("skipped", "0") != str(expected_skipped):
+                        errors.append("JUnit skipped count does not match bound raw output")
     reports = data.get("report_files")
     if not isinstance(reports, dict) or not reports:
         errors.append("report_files must be a non-empty object")

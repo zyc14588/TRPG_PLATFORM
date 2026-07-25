@@ -276,9 +276,13 @@ def main() -> int:
         "variables": environment_variables,
         "service_versions": service_versions,
     }
-    generated_files = [raw_path, junit_path, sarif_path]
+    command_generated_files = [raw_path, junit_path, sarif_path]
+    generated_files = list(command_generated_files)
     generated_files.extend(path for path in generated_paths if path.is_file())
     generated = {path.name: sha256_file(path) for path in generated_files if path.is_file()}
+    command_generated = {
+        path.name: generated[path.name] for path in command_generated_files
+    }
     report_files = {
         path.name: {
             "path": path.name,
@@ -302,6 +306,7 @@ def main() -> int:
         "command_output": command_output,
         "exit_code": exit_code,
         "artifact_sha256": artifacts,
+        "command_artifact_sha256": command_generated,
         "generated_artifact_sha256": generated,
         "report_files": report_files,
         "repository": os.environ.get("GITHUB_REPOSITORY", repository_slug()),

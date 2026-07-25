@@ -245,6 +245,14 @@ jobs:\n  negative:\n    runs-on: ubuntu-latest\n    timeout-minutes: 1
             self.assertEqual(payload["semantic_status"], "FAIL")
             self.assertEqual(payload["github_sha"], payload["base_commit"])
             self.assertEqual(set(payload["report_files"]), set(payload["generated_artifact_sha256"]))
+            self.assertEqual(
+                set(payload["command_artifact_sha256"]),
+                {
+                    report.with_suffix(".log").name,
+                    report.with_suffix(".junit.xml").name,
+                    report.with_suffix(".sarif").name,
+                },
+            )
             self.assertEqual(validate_evidence(payload, artifact_base=report.parent), [])
             live = {
                 "GITHUB_REPOSITORY": payload["repository"],
@@ -327,6 +335,97 @@ jobs:\n  negative:\n    runs-on: ubuntu-latest\n    timeout-minutes: 1
                 "tool version not verified: pnpm",
                 validate_evidence(payload, artifact_base=report.parent),
             )
+
+    def test_aggregate_evidence_separates_command_artifacts_from_hashed_attachments(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_root = Path(directory)
+            child = artifact_root / "child.json"
+            child_result = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/ci/generate_evidence.py",
+                    "--report",
+                    str(child),
+                    "--artifact",
+                    "MANIFEST.md",
+                    "--",
+                    sys.executable,
+                    "-c",
+                    "print('test child::passes ... ok')",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(child_result.returncode, 0, child_result.stderr)
+
+            aggregate = artifact_root / "aggregate.json"
+            command = [
+                sys.executable,
+                "scripts/ci/generate_evidence.py",
+                "--report",
+                str(aggregate),
+                "--artifact",
+                "MANIFEST.md",
+            ]
+            for path in (
+                child,
+                child.with_suffix(".log"),
+                child.with_suffix(".junit.xml"),
+                child.with_suffix(".sarif"),
+            ):
+                command.extend(("--generated-artifact", str(path)))
+            command.extend(
+                (
+                    "--",
+                    sys.executable,
+                    "-c",
+                    "print('test aggregate::passes ... ok')",
+                )
+            )
+            aggregate_result = subprocess.run(
+                command,
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(aggregate_result.returncode, 0, aggregate_result.stderr)
+
+            payload = json.loads(aggregate.read_text(encoding="utf-8"))
+            self.assertEqual(validate_evidence(payload, artifact_base=artifact_root), [])
+            self.assertEqual(len(payload["command_artifact_sha256"]), 3)
+            self.assertEqual(len(payload["generated_artifact_sha256"]), 7)
+            self.assertEqual(
+                len(
+                    [
+                        name
+                        for name in payload["generated_artifact_sha256"]
+                        if name.endswith(".log")
+                    ]
+                ),
+                2,
+            )
+
+            primary_log = aggregate.with_suffix(".log").name
+            child_log = child.with_suffix(".log").name
+            primary_hash = payload["command_artifact_sha256"].pop(primary_log)
+            payload["command_artifact_sha256"][child_log] = payload[
+                "generated_artifact_sha256"
+            ][child_log]
+            self.assertIn(
+                "expected exactly one raw output bound to command and exit_code",
+                validate_evidence(payload, artifact_base=artifact_root),
+            )
+            payload["command_artifact_sha256"].pop(child_log)
+            payload["command_artifact_sha256"][primary_log] = "0" * 64
+            self.assertIn(
+                f"command artifact hash mismatch: {primary_log}",
+                validate_evidence(payload, artifact_base=artifact_root),
+            )
+            payload["command_artifact_sha256"][primary_log] = primary_hash
+            self.assertEqual(validate_evidence(payload, artifact_base=artifact_root), [])
 
     def test_evidence_generator_rejects_command_worktree_mutation(self) -> None:
         relative = "p00-evidence-mutation.tmp"

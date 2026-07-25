@@ -89,14 +89,14 @@ def release_evidence_errors(data: dict, root: Path, artifact_base: Path) -> list
     artifacts = data.get("artifact_sha256")
     if not isinstance(artifacts, dict) or "MANIFEST.md" not in artifacts:
         errors.append("release evidence must bind MANIFEST.md")
-    generated = data.get("generated_artifact_sha256")
+    generated = data.get("command_artifact_sha256")
     junit_names = (
         [name for name in generated if name.endswith(".junit.xml")]
         if isinstance(generated, dict)
         else []
     )
     if len(junit_names) != 1:
-        errors.append("release evidence must contain exactly one JUnit report")
+        errors.append("release evidence must contain exactly one command JUnit report")
     else:
         try:
             suite = ET.parse(artifact_base / junit_names[0]).getroot()

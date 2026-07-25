@@ -3021,7 +3021,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `scripts/ci/check_dependency_directions.py` | 8490 | `ad2b54f824066722ca25aea9be3023d636bcf49330472c512b577b34423a867a` | `100644` |
 | `scripts/ci/check_product_boundaries.py` | 5989 | `c4cf9bdb02a872d1ee43552e0c3b1e54a39617ed476feb3a0020ce300a0b6188` | `100755` |
 | `scripts/ci/discover_tests.py` | 595 | `1748a5ecf19e70c9a7c1a050a0fc44e20dd642c9a71a864c2a97192d3c82b838` | `100644` |
-| `scripts/ci/evidence.schema.json` | 560 | `bdfd8af254fef23a53e29f4695fd011189dccdbbd64a093045e8c0deb75312e7` | `100644` |
+| `scripts/ci/evidence.schema.json` | 591 | `19b9be430529ec6b9300fb26b5180f3a380ead415bd7c624462aa06737784096` | `100644` |
 | `scripts/ci/fixtures/p02-boundary/agent_generic_store.rs` | 96 | `35a19b1a44245bec47567e2ac6f30396fcd1b5895f185ecf43ecade562a31929` | `100644` |
 | `scripts/ci/fixtures/p02-boundary/caller_authority_root.rs` | 335 | `ca6da6b165774f2429518c7a870d915db7a8ebc4a509b333cd6cf2604413e6ec` | `100644` |
 | `scripts/ci/fixtures/p02-boundary/caller_selected_canonical_event.rs` | 98 | `f9fa6aaec14487ed97f18ecb9f600fb6983989f8effb4e021efec9fedbe5e0f8` | `100644` |
@@ -3034,7 +3034,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `scripts/ci/fixtures/p02-boundary/runtime_replay_untrusted_scope.rs` | 195 | `68842c4942720da2fe324bb36700e70913786795caaf330caf1c734b127edad0` | `100644` |
 | `scripts/ci/fixtures/p02-boundary/synthetic_formal_permit.rs` | 142 | `02d70bbaa1c4f50bac08b63e223d40d92db0140114653cbd8549f5b12e61da89` | `100644` |
 | `scripts/ci/generate-integration-evidence.sh` | 2527 | `19afd221280a9cf67667aebfb59a0122e60d22efe12ab772fa00da1471ee8754` | `100755` |
-| `scripts/ci/generate_evidence.py` | 12645 | `b3d6e1b5633e824116f2ce0231e9865f5a3a231a715bfe88cda8be5e03a255f7` | `100644` |
+| `scripts/ci/generate_evidence.py` | 12867 | `1116c982e4daee8ddc1e61b8d6c229f27f6376d948be7b3624c0bdec24a0f1c3` | `100644` |
 | `scripts/ci/init-smoke.sh` | 168 | `88b4439abb55f867eb91659f2f71a6db85625a4892a2411eac769cb683849684` | `100755` |
 | `scripts/ci/integration-services.sh` | 12496 | `818443cfc5ea07724fd0005ab589f6f5eb039f3cbc138d912354e6a86f5d6636` | `100755` |
 | `scripts/ci/manifest.py` | 3613 | `002c824349e7dada613a4dcfc5c20c824e16c228271a17b7c6c81628a758ea31` | `100644` |
@@ -3042,13 +3042,13 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `scripts/ci/p02_boundary_regression.py` | 3376 | `026d5c444a59c37445ab206a7a7871aeb38a80e337e9e6de4aa80a2101e5c6e4` | `100644` |
 | `scripts/ci/p02_policy_bootstrap.py` | 7296 | `d69df3affb645c7519eca85877e53cf41e5be5a0d600e2a96e74f4f8488e694d` | `100644` |
 | `scripts/ci/production-security-smoke.sh` | 18310 | `af56a8e673a8fe131f90275ac28767218281d5443271df82e30b650b9779db36` | `100755` |
-| `scripts/ci/release_readiness.py` | 12901 | `28f828cbed337ce59e8d087218dd6f65eaa2322c5458cca39f54040b845a4e69` | `100644` |
-| `scripts/ci/repo_truth.py` | 32085 | `2e22920325e26441f683ce99b1f5580a3d7cd77aac480bc799dcab2103dfa231` | `100644` |
+| `scripts/ci/release_readiness.py` | 12907 | `349d22306d5de00540aa09250c6d8d443eeb56681df369e2b9a308f9aa69dd2b` | `100644` |
+| `scripts/ci/repo_truth.py` | 32704 | `404ceadb0756c2f77ca5a068d2ce1a161828392d930465e34fef6e328a4a8255` | `100644` |
 | `scripts/ci/service-process-smoke.sh` | 12098 | `83982657e5d2ddaf7cc19b3a6b7f0e28ade9935604d49a2f30406573bacd993e` | `100755` |
 | `scripts/ci/test-all.sh` | 8003 | `e5003f03cdfa177a9b322eb206e6e768a144bd0784b6397d1953c88236d7d806` | `100755` |
 | `scripts/ci/test_dependency_directions.py` | 3585 | `9415e655efcd1438620bc97446396448298c6538758bf70f2546cd72f6d0bfac` | `100644` |
 | `scripts/ci/test_product_boundaries.py` | 3033 | `4cc23ff94d0f343b9ad6ce35dd5bd2c3e5a51dfe30dddc346af6a0c147c33444` | `100755` |
-| `scripts/ci/test_repo_truth.py` | 24603 | `7b6f04e6e2d7f227d914a6b9ec01e2ad7cb7e31fc24f2a47262ab4b8f2c17299` | `100644` |
+| `scripts/ci/test_repo_truth.py` | 28481 | `1990db0bd40284261b3d172eae976d3492b3ae22fe4c7dfc8b18ad2f8a724bea` | `100644` |
 | `scripts/ci/validate_workflows.py` | 6981 | `fc6e470f0ba195b2b792240a3337f90898eb400563d8405fd48baa5d268770ba` | `100644` |
 | `scripts/ci/verify_compose_security.py` | 10938 | `172da9cc25c5c2067822fc16385a035b97425ed3755efb9578ea81955dec0e4e` | `100755` |
 | `scripts/ci/verify_evidence_schema.py` | 1900 | `9eab4cc21adcb773c4fdda4f283004795f1c6c20b00c2cfb67edceb89c7ecc83` | `100644` |
