@@ -49,6 +49,7 @@ bash -n scripts/ci/init-smoke.sh
 bash -n scripts/ci/test-all.sh
 bash -n scripts/ci/service-process-smoke.sh
 bash -n scripts/ci/integration-services.sh
+bash -n scripts/ci/postgres-container-client.sh
 bash -n scripts/ci/p07-integration-services.sh
 bash -n scripts/ci/p07-stop-integration-services.sh
 bash -n scripts/ci/generate-integration-evidence.sh

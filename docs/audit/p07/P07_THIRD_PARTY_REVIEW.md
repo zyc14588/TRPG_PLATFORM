@@ -15,6 +15,12 @@ SEMGREP_RULES_RUN = 13
 SEMGREP_FINDINGS = 0
 SEMGREP_ERRORS = 0
 SEMGREP_EXIT = 0
+CI_REPAIR_SEMGREP_BASELINE = 6657d90a47110e3df4ce4f0e53f1e78e2b661a4c
+CI_REPAIR_SEMGREP_SCOPE = 4_SHELL_FILES
+CI_REPAIR_SEMGREP_RULES_RUN = 3
+CI_REPAIR_SEMGREP_FINDINGS = 0
+CI_REPAIR_SEMGREP_ERRORS = 0
+CI_REPAIR_SEMGREP_EXIT = 0
 CODERABBIT_EXTERNAL_REVIEW = BLOCKED_BEFORE_SOURCE_UPLOAD
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
@@ -38,6 +44,13 @@ Semgrep 1.171.0 安装在 `/tmp` 隔离虚拟环境中。扫描关闭 metrics，
 原始机器可读结果保存在本次会话临时文件 `/tmp/p07-semgrep.json`；它不是仓库发布
 artifact，也不包含秘密。
 
+P07 实现发布后，托管 CI 暴露 PostgreSQL 客户端 16/服务端 18 的环境不匹配。对该
+follow-up 以实现 commit 为 baseline，精确扫描
+`postgres-container-client.sh`、`integration-services.sh`、
+`generate-integration-evidence.sh` 与 `test-all.sh`。单并发、metrics off 的本机扫描
+实际运行 3 条适用规则，4/4 文件约 100% parsed，0 finding、0 engine error、exit `0`；
+机器可读结果位于临时文件 `/tmp/p07-ci-fix-semgrep.json`。
+
 ## CodeRabbit 边界
 
 已按 CodeRabbit review skill 检查 CLI 版本与认证状态，并尝试
@@ -56,5 +69,5 @@ artifact，也不包含秘密。
 `rsa 0.9.7` lockfile 残留。P07 新增的 NATS 测试依赖使用仓库已有
 `async-nats 0.49.1`，没有引入第二版本或新增 RustSec finding。
 
-因此，本报告证明“P07 精确差异没有 Semgrep finding”，不声称依赖审计通过，也不声称
-产品或当前未提交工作树已达到发布状态。
+因此，本报告证明 P07 实现差异及其 CI follow-up 精确差异均没有 Semgrep finding；不
+声称依赖审计通过，也不以第三方扫描代替 Hosted CI 或产品发布签署。

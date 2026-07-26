@@ -7,8 +7,10 @@ BATCH_ID: P07
 
 ```text
 BASE_HEAD = b2793988c5e2e021d556635d19e8d110a99ece8a
-BRANCH = master
-CURRENT_WORKTREE = UNCOMMITTED_INTENDED_P06_AND_P07_CHANGES
+P07_IMPLEMENTATION_COMMIT = 6657d90a47110e3df4ce4f0e53f1e78e2b661a4c
+PUBLICATION_BRANCH = agent/p06-p07-core-player-action
+PUBLICATION_PR = 8
+DOCUMENT_SCOPE = LOCAL_ACCEPTANCE_AND_PRE_MERGE_CI_REPAIR
 P04_P05_P06_PREREQUISITES = SATISFIED
 AUD_006 = CLOSED_PASS
 AUD_008 = CLOSED_PASS
@@ -21,8 +23,10 @@ P07_SCHEMA_ASSERTION = PASS
 THIRD_PARTY_LOCAL_DIFF_SCAN = PASS_0_FINDINGS
 CODERABBIT_EXTERNAL_REVIEW = BLOCKED_BEFORE_SOURCE_UPLOAD
 DEPENDENCY_ADVISORY_SCAN = FAIL_3_DISCLOSED_PREEXISTING
-HOSTED_CI_CURRENT_PATCH = NOT_RUN
-COMMIT_BOUND_RELEASE_EVIDENCE = NOT_GENERATED
+HOSTED_CI_INITIAL_IMPLEMENTATION_COMMIT = FAIL_PG_DUMP_16_SERVER_18
+CI_REPAIR_LOCAL_BACKUP_RESTORE = PASS_POSTGRESQL_18_4
+CI_REPAIR_THIRD_PARTY_SCAN = PASS_0_FINDINGS
+HOSTED_CI_RECHECK_POLICY = MUST_PASS_BEFORE_MERGE
 PRODUCT_RELEASE_ATTESTATION = NOT_CLAIMED
 P08_P07_PREREQUISITE = SATISFIED
 P08_IMPLEMENTATION = NOT_STARTED
@@ -57,19 +61,20 @@ publisher 在真实 NATS JetStream 上投递并取得 ACK。
 
 ## 变更范围审计
 
-`git diff --name-only`、`git status --porcelain=v1` 与 `git diff --check` 已实际执行。工作树
-在 P07 开始前即包含用户要求保留的未提交 P06 patch，因此当前列表同时出现 P06 的
-Campaign/Character/Session 基础实现和证据；它们不是本轮偷偷开始的 P08 功能，也未被
-撤销或覆盖。P07 新增/修改面限定为：
+`git diff --name-only`、`git status --porcelain=v1` 与 `git diff --check` 已实际执行。
+P07 开始前即存在且必须保留的 P06 patch 与 P07 实现随后共同发布为
+`6657d90a47110e3df4ce4f0e53f1e78e2b661a4c`；它们不是 P08 功能，也未被撤销或覆盖。
+P07 新增/修改面限定为：
 
 - Player Action API、生产 adapter/route、Runtime/Agent Tool 执行语义；
 - COC7 服务端骰、调查核心线索和 SAN 日初阈值；
 - canonical transaction、P07 state projection、migration 与最小权限；
 - 真实 HTTP/PostgreSQL/OpenFGA/OPA/JetStream 测试及必要 CI 环境接线；
+- 托管 runner 在 PostgreSQL 客户端与服务端主版本不同时使用同一摘要固定的 18.x
+  容器客户端，且只挂载本次作业专用临时目录；
 - P07 audit evidence、Cargo lock/manifests 和受影响旧测试的语义修正。
 
-没有新增 Combat/Chase/Fork/Reconsideration/Ending/Growth 的 P08 实现。真实 Git index
-保持为空；manifest 只使用会话临时 index/object database 生成。
+没有新增 Combat/Chase/Fork/Reconsideration/Ending/Growth 的 P08 实现。
 
 ## 回滚与运行边界
 
@@ -78,11 +83,12 @@ fail-closed 为 workflow unavailable；不删除或改写任何 Event Store 正�
 时保持当前启用行为；非法值会使服务启动失败，避免配置拼写导致静默状态漂移。已发布事件
 继续保留 schema version，后续格式变化必须以前向 migration/upcaster 兼容。
 
-当前工作树尚未提交，Hosted CI、commit-bound evidence 与发布签署均未执行。RustSec 的
-三个既有 advisory 保持显式失败/披露；它们不被 Semgrep 0 finding 覆盖。回滚不得删除
-测试、弱化 policy/Visibility gate、编辑 SQLx ledger、删除正史或使用破坏性 down
-migration。三份 generated source manifest 已通过隔离临时 index 绑定完整 patch 并相互
-一致；它们不是 commit 或发布签署。
+实现提交首次 Hosted CI 揭示 runner 自带 `pg_dump 16` 与固定 PostgreSQL 18 服务不匹配；
+该失败没有被改写为 PASS。后续 CI 修复已在本地用 PostgreSQL 18.4 完成真实 dump、
+`pg_restore --list`、P02 独立恢复及 P04 Event Store 灾备重建，并经 Semgrep 精确差异
+复扫；合并策略仍要求修复提交的 Hosted CI 全绿。RustSec 的三个既有 advisory 保持显式
+失败/披露；它们不被 Semgrep 0 finding 覆盖。回滚不得删除测试、弱化
+policy/Visibility gate、编辑 SQLx ledger、删除正史或使用破坏性 down migration。
 
 P07 migration SHA-384：
 `590d03cd0df1df8ff07a3fc5bd5c28b30027d526f662c0a31ec7c7eae0056c1b283c59855a482cb28bf6cdd7c25a3427`。

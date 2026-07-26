@@ -11,8 +11,11 @@ SCOPED_PREREQUISITE_REGRESSION = PASS
 FORMAT_CHECK_CLIPPY_RELEASE_BUILD = PASS
 THIRD_PARTY_LOCAL_DIFF_SCAN = PASS_0_FINDINGS
 DEPENDENCY_ADVISORY_SCAN = FAIL_3_DISCLOSED_PREEXISTING
-HOSTED_CI_CURRENT_PATCH = NOT_RUN
-COMMIT_BOUND_EVIDENCE = NOT_GENERATED
+P07_IMPLEMENTATION_COMMIT = 6657d90a47110e3df4ce4f0e53f1e78e2b661a4c
+HOSTED_CI_INITIAL_IMPLEMENTATION_COMMIT = FAIL_PG_DUMP_16_SERVER_18
+CI_REPAIR_LOCAL_BACKUP_RESTORE = PASS_POSTGRESQL_18_4
+CI_REPAIR_THIRD_PARTY_SCAN = PASS_0_FINDINGS
+HOSTED_CI_RECHECK_POLICY = MUST_PASS_BEFORE_MERGE
 ```
 
 ## 修改前真实基线
@@ -60,8 +63,33 @@ envelope。它不是只断言内存 helper 或合成字符串。
 此外，本轮对受影响 crate 的完整测试集合分组执行并通过，包括
 `trpg-agent-runtime`、`trpg-runtime`、`trpg-ruleset-coc7`、`trpg-domain-core`、
 `trpg-api`、`trpg-data-eventing`、`trpg-testing` 与 `api-server` 的相关 target。
-最终 Realtime 强化后重新执行了五条强制命令、上述回归及编译门禁；未把未执行的 Hosted
-CI 或单次 monolithic workspace test 冒充为当前 patch 的发布证明。
+最终 Realtime 强化后重新执行了五条强制命令、上述回归及编译门禁；没有把局部测试或
+第三方扫描冒充为 Hosted CI/发布证明。
+
+## 发布后托管 CI 修复
+
+P06/P07 实现发布为 commit
+`6657d90a47110e3df4ce4f0e53f1e78e2b661a4c` 后，PR #8 的 `workspace-ci` 与
+`release-readiness-evidence` 均在“Start pinned integration services”失败。作业日志的
+共同根因是 runner 的 `pg_dump 16` 连接固定 PostgreSQL 18 主服务；产品测试尚未开始，
+不是业务断言失败。
+
+修复不改变数据库服务版本，也不放松版本门禁：宿主 `pg_dump`/`pg_restore` 只有均与主库
+同主版本时才使用，否则以主库同一 digest-pinned `pgvector` 镜像执行客户端。封装容器为
+只读 root filesystem、drop all capabilities、`no-new-privileges`、受限 PID，并只挂载
+每次运行新建的专用临时目录。提交前已实际验证：
+
+| 命令/场景 | 结果 |
+| --- | --- |
+| 容器封装 `pg_dump --version` / `pg_restore --version` | PASS，均为 PostgreSQL `18.4` |
+| 对 P07 真实数据库执行 custom dump 与 `pg_restore --list` | PASS |
+| 路径逃逸、父目录逃逸、未固定镜像负例 | PASS，均 exit `2` |
+| `cargo test --locked -p trpg-ops --test postgres_backup_restore_integration` | PASS，`1/1`；独立恢复与重复恢复 |
+| `cargo test --locked -p trpg-data-eventing --test postgres_event_store_integration` | PASS，`1/1`；两次灾备重建与 hash 一致 |
+| ShellCheck `0.10.0`（仓库固定校验和） | PASS |
+| Semgrep `1.171.0`，4 个 CI 差异文件、3 条适用规则 | PASS，0 finding/0 error |
+
+修复提交在合并前仍必须通过 GitHub Hosted CI；本节不预写其结果。
 
 ## Schema、构建与结构门禁
 
@@ -77,13 +105,14 @@ CI 或单次 monolithic workspace test 冒充为当前 patch 的发布证明。
 | `python3 scripts/ci/verify_test_inventory.py --report /tmp/p07-test-inventory.json` | PASS，`49` fixtures、`0` orphan |
 | `git diff --check` | PASS |
 
-提示词要求的 `git diff --name-only` 与 `git status --porcelain=v1` 也已执行；输出包含进入
-P07 前必须保留的未提交 P06 patch，以及当前 P07 代码/测试/证据。范围审计确认没有 P08
-Combat/Chase/Fork/Reconsideration/Ending/Growth 的新实现；真实暂存区为空。
+提示词要求的 `git diff --name-only` 与 `git status --porcelain=v1` 也已执行。P06/P07
+实现已绑定上述实现 commit；CI follow-up 的范围审计确认没有 P08
+Combat/Chase/Fork/Reconsideration/Ending/Growth 的新实现。
 
-三份 generated source manifest 使用隔离临时 Git index/object database 绑定当前完整
-P06+P07 patch，真实用户 index 未改变；`manifest.py --check` 验证为 `3945` 行，三份文件
-SHA-256 相同。该 snapshot 仍不等于 commit-bound 或 Hosted CI evidence。
+实现 commit 中三份 generated source manifest 使用隔离临时 Git index/object database
+绑定完整 P06+P07 patch；`manifest.py --check` 验证为 `3945` 行且三份文件 SHA-256
+相同。CI follow-up 的提交前流程要求重新生成并验证 manifest；manifest 本身不等于
+Hosted CI 或发布签署。
 
 宿主机直接执行 `psql` 曾真实返回 `127`（客户端未安装），该次未计为 PASS；随后使用固定
 PostgreSQL 容器内置客户端执行完全相同的断言文件并通过。Semgrep 首次并行运行因
