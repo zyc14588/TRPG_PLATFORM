@@ -15,9 +15,11 @@ trpg-contracts = { path = "../../crates/trpg-contracts" }
 trpg-data-eventing = { path = "../../crates/trpg-data-eventing" }
 trpg-identity = { path = "../../crates/trpg-identity" }
 trpg-platform = { path = "../../crates/trpg-platform" }
+trpg-ruleset-coc7 = { path = "../../crates/trpg-ruleset-coc7" }
 trpg-runtime = { path = "../../crates/trpg-runtime" }
 trpg-security-governance = { path = "../../crates/trpg-security-governance" }
 trpg-shared-kernel = { path = "../../crates/trpg-shared-kernel" }
 
 [dev-dependencies]
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres"] }
 trpg-test-support = { path = "../../crates/trpg-contracts/test-support" }

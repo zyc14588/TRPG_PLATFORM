@@ -240,13 +240,24 @@ pub fn audited_store_with_canonical(
     contract: &AuthorityContract,
     canonical: Arc<dyn CanonicalCommitPort>,
 ) -> (AgentEventStore<AgentEventPayload>, FormalCommitAudit) {
+    audited_store_with_policy_endpoints(
+        contract,
+        canonical,
+        trpg_test_support::formal_commit_policy_endpoints(),
+    )
+}
+
+pub fn audited_store_with_policy_endpoints(
+    contract: &AuthorityContract,
+    canonical: Arc<dyn CanonicalCommitPort>,
+    endpoints: trpg_test_support::TestPolicyEndpoints,
+) -> (AgentEventStore<AgentEventPayload>, FormalCommitAudit) {
     let audit_id = NEXT_AUDIT_ID.fetch_add(1, Ordering::Relaxed);
     let path = std::env::temp_dir().join(format!(
         "p02-agent-integration-audit-{}-{audit_id}.jsonl",
         std::process::id()
     ));
     let audit = FormalCommitAudit::open(path, "agent-integration-test-v1", &[0x85; 32]).unwrap();
-    let endpoints = trpg_test_support::formal_commit_policy_endpoints();
     let policy = OpenFgaOpaPolicyAdapter::new(
         HttpPolicyEndpoint::new(
             endpoints.openfga,

@@ -11,9 +11,9 @@ use trpg_security_governance::{
     RedactionOutcome as SecurityRedactionOutcome,
 };
 use trpg_shared_kernel::{
-    AuthorityContract, AuthorityMode, CanonicalCommitEvent, CanonicalCommitPort,
-    CanonicalCommitRequest, CommandEnvelope, EntityId, EventEnvelope,
-    EventStore as KernelEventStore, FactProvenance, FormalWritePath, PrincipalScope,
+    AuthorityContract, AuthorityMode, CanonicalCommitEvent, CanonicalCommitKey,
+    CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest, CommandEnvelope, EntityId,
+    EventEnvelope, EventStore as KernelEventStore, FactProvenance, FormalWritePath, PrincipalScope,
     ProvenanceKind, TrpgError, Visibility, VisibilityLabel,
 };
 
@@ -258,6 +258,7 @@ impl ToolRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct ToolDecision {
+    pub tool_authorized: bool,
     pub tool_executed: bool,
     pub downgraded_to: Option<AgentTool>,
     pub requires_human_confirmation: bool,
@@ -268,7 +269,8 @@ pub struct ToolDecision {
 impl ToolDecision {
     fn allow() -> Self {
         Self {
-            tool_executed: true,
+            tool_authorized: true,
+            tool_executed: false,
             downgraded_to: None,
             requires_human_confirmation: false,
             draft_only: false,
@@ -278,6 +280,7 @@ impl ToolDecision {
 
     fn deny(error: AgentError) -> Self {
         Self {
+            tool_authorized: false,
             tool_executed: false,
             downgraded_to: None,
             requires_human_confirmation: false,
@@ -303,6 +306,7 @@ pub fn evaluate_agent_tool_request(
             if request.requested_by().is_ai() && request.is_formal_state_change() =>
         {
             ToolDecision {
+                tool_authorized: false,
                 tool_executed: false,
                 downgraded_to: Some(match request.tool() {
                     AgentTool::ApplySanLoss => AgentTool::DraftSanLoss,
@@ -412,6 +416,12 @@ pub enum AgentEventPayload {
         decision: ToolDecision,
         seal: AgentFormalEventSeal,
     },
+    ToolExecutionSucceeded {
+        tool: &'static str,
+        execution_id: EntityId,
+        result_hash: String,
+        seal: AgentFormalEventSeal,
+    },
     DecisionCommitted {
         decision_id: EntityId,
         player_visible_text: String,
@@ -462,14 +472,57 @@ fn derived_command<T: Clone>(
     Ok(derived)
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AgentToolExecutionOutput {
+    pub execution_id: String,
+    pub result_hash: String,
+}
+
+pub trait AgentToolExecutor: Send + Sync {
+    fn execute(&self, decision: &AgentDecision) -> AgentResult<AgentToolExecutionOutput>;
+}
+
+#[derive(Debug)]
+struct RejectingAgentToolExecutor;
+
+impl AgentToolExecutor for RejectingAgentToolExecutor {
+    fn execute(&self, _decision: &AgentDecision) -> AgentResult<AgentToolExecutionOutput> {
+        Err(AgentError::ToolPermissionDenied)
+    }
+}
+
+#[derive(Clone)]
 pub struct AgentDecisionCommitter {
     identity_verifier: IdentityVerifier,
+    tool_executor: Arc<dyn AgentToolExecutor>,
+}
+
+impl std::fmt::Debug for AgentDecisionCommitter {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AgentDecisionCommitter")
+            .field("identity_verifier", &self.identity_verifier)
+            .field("tool_executor", &"[TRUSTED TOOL EXECUTOR]")
+            .finish()
+    }
 }
 
 impl AgentDecisionCommitter {
     pub fn new(identity_verifier: IdentityVerifier) -> AgentResult<Self> {
-        Ok(Self { identity_verifier })
+        Ok(Self {
+            identity_verifier,
+            tool_executor: Arc::new(RejectingAgentToolExecutor),
+        })
+    }
+
+    pub fn with_tool_executor(
+        identity_verifier: IdentityVerifier,
+        tool_executor: Arc<dyn AgentToolExecutor>,
+    ) -> AgentResult<Self> {
+        Ok(Self {
+            identity_verifier,
+            tool_executor,
+        })
     }
 
     pub fn commit(
@@ -563,13 +616,13 @@ impl AgentDecisionCommitter {
             });
         }
 
-        // Identity, authority, and tool checks must complete before the event-store capability is used.
         // Preserve the original derived request hashes so an exact network
         // retry resolves through EventStore's scoped idempotency index before
         // optimistic concurrency is evaluated.
         let next_version = command.expected_version;
         let tool_command = derived_command(command, "tool", next_version)?;
-        let decision_command = derived_command(command, "decision", next_version + 1)?;
+        let execution_command = derived_command(command, "execution", next_version + 1)?;
+        let decision_command = derived_command(command, "decision", next_version + 2)?;
         let requested_role = match decision.authentication.kind() {
             PrincipalKind::AgentRun { class, .. } => match class {
                 IdentityAgentClass::AiKeeperOrchestrator => "ai_keeper_orchestrator",
@@ -592,18 +645,65 @@ impl AgentDecisionCommitter {
                 Arc::clone(&custody.canonical),
             )
         };
+        // Formal OpenFGA/OPA authorization is deliberately complete before
+        // any tool side effect. A durable receipt lookup also precedes tool
+        // execution so an exact or cold retry reuses the canonical result.
+        let commit_key = CanonicalCommitKey {
+            commit_id: format!(
+                "{}_{}",
+                contract.campaign_id().as_str(),
+                command.command_id.as_str()
+            ),
+            campaign_id: contract.campaign_id().to_string(),
+            stream_id: command
+                .authenticated_context()
+                .resource()
+                .resource_id()
+                .to_string(),
+            idempotency_key: command.idempotency_key.clone(),
+            expected_version: command.expected_version,
+        };
+        let execution = match canonical.load_receipt(&commit_key)? {
+            Some(receipt) => {
+                agent_execution_from_receipt(&receipt, decision.tool_request.tool().as_str())?
+            }
+            None => self.tool_executor.execute(&decision)?,
+        };
+        let execution_id = EntityId::new(&execution.execution_id)?;
+        if !execution.result_hash.starts_with("sha256:")
+            || execution.result_hash.len() != 71
+            || !execution
+                .result_hash
+                .bytes()
+                .skip(7)
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(AgentError::Core(TrpgError::InvalidConfiguration(
+                "agent_tool_execution_result",
+            )));
+        }
         persist_agent_formal_batch(
             store,
             command,
             &authorization,
             &canonical,
-            [
+            vec![
                 (
                     tool_command,
                     "ToolRequestApproved",
                     AgentEventPayload::ToolRequestApproved {
                         tool: decision.tool_request.tool().as_str(),
                         decision: tool_decision,
+                        seal: AgentFormalEventSeal::new(),
+                    },
+                ),
+                (
+                    execution_command,
+                    "ToolExecutionSucceeded",
+                    AgentEventPayload::ToolExecutionSucceeded {
+                        tool: decision.tool_request.tool().as_str(),
+                        execution_id,
+                        result_hash: execution.result_hash,
                         seal: AgentFormalEventSeal::new(),
                     },
                 ),
@@ -625,16 +725,57 @@ impl AgentDecisionCommitter {
     }
 }
 
+fn agent_execution_from_receipt(
+    receipt: &CanonicalCommitReceipt,
+    expected_tool: &str,
+) -> AgentResult<AgentToolExecutionOutput> {
+    if receipt.events.len() != 3 {
+        return Err(AgentError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    let event = receipt
+        .events
+        .get(1)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    if event.event_type != "ToolExecutionSucceeded" {
+        return Err(AgentError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    let payload: serde_json::Value = serde_json::from_str(&event.payload_json)
+        .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+    let execution = payload
+        .get("ToolExecutionSucceeded")
+        .and_then(serde_json::Value::as_object)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let tool = execution
+        .get("tool")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let execution_id = execution
+        .get("execution_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let result_hash = execution
+        .get("result_hash")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    if tool != expected_tool {
+        return Err(AgentError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    Ok(AgentToolExecutionOutput {
+        execution_id: execution_id.to_owned(),
+        result_hash: result_hash.to_owned(),
+    })
+}
+
 fn persist_agent_formal_batch(
     store: &mut EventStore<AgentEventPayload>,
     command: &CommandEnvelope<AgentDecision>,
     authorization: &FormalAuthorization,
     canonical: &Arc<dyn CanonicalCommitPort>,
-    events: [(
+    events: Vec<(
         CommandEnvelope<AgentDecision>,
         &'static str,
         AgentEventPayload,
-    ); 2],
+    )>,
 ) -> AgentResult<Vec<EventEnvelope<AgentEventPayload>>> {
     let contract = authorization.contract();
     let request = CanonicalCommitRequest {

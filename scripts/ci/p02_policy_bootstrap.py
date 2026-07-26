@@ -143,6 +143,16 @@ def bootstrap(
                             "object": "campaign:camp_ai_harbor",
                         },
                         {
+                            "user": "principal:api_player_action_workflow",
+                            "relation": "workflow",
+                            "object": "campaign:campaign_p07_http",
+                        },
+                        {
+                            "user": "principal:workflow_p07_api",
+                            "relation": "workflow",
+                            "object": "campaign:campaign_p07_http",
+                        },
+                        {
                             "user": "principal:owner_a",
                             "relation": "server_owner",
                             "object": "campaign:campaign_a",

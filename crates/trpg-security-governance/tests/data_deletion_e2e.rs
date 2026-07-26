@@ -112,6 +112,7 @@ fn private_event_draft(nonce: u128, subject_id: &str) -> AtomicCommitDraft {
         events: vec![CanonicalEventDraft {
             event_type: "PrivatePlayerMemoryRecorded".to_owned(),
             payload_json: format!(r#"{{"private_memory":"deletion-secret-{nonce}"}}"#),
+            projection_targets: Vec::new(),
         }],
         audit: PolicyAuditDraft {
             actor_id: "privacy_officer".to_owned(),
@@ -168,6 +169,7 @@ fn deletion_request_draft(nonce: u128, subject_id: &str, job_id: &str) -> Atomic
                 }
             })
             .to_string(),
+            projection_targets: Vec::new(),
         }],
         audit: PolicyAuditDraft {
             actor_id: "privacy_officer".to_owned(),
@@ -327,6 +329,7 @@ async fn data_deletion_persists_blocks_on_hold_and_verifies_every_real_surface()
             "embedding_hash": rag_chunk.embedding_hash(),
         })
         .to_string(),
+        projection_targets: Vec::new(),
     }];
     let derivation = store
         .commit(&derivation_draft)

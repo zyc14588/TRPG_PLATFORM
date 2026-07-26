@@ -56,16 +56,17 @@ fn runtime_workflow_state_machines_preserves_governed_decision_event_contract() 
     )
     .unwrap();
 
-    assert_eq!(store.events().len(), 2);
+    assert_eq!(store.events().len(), 3);
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
     for event in &events {
         assert_eq!(event.authority_contract_version, 1);
         assert_eq!(event.visibility.label(), &VisibilityLabel::KeeperOnly);
         assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
         assert_eq!(event.fact_provenance.recorded_by.as_str(), "rules_001");
     }
-    match &events[1].payload {
+    match &events[2].payload {
         RuntimeEventPayload::DecisionCommitted {
             linked_records,
             audit_fields,
@@ -95,7 +96,7 @@ fn runtime_workflow_state_machines_preserves_governed_decision_event_contract() 
         )
         .unwrap()
         .len(),
-        2
+        3
     );
 }
 

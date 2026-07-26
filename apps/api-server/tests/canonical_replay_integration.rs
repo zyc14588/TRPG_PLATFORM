@@ -343,6 +343,7 @@ fn draft(
         events: vec![CanonicalEventDraft {
             event_type: "ReplayProbeRecorded".to_owned(),
             payload_json: format!(r#"{{"commit":"{commit_id}"}}"#),
+            projection_targets: Vec::new(),
         }],
         audit: PolicyAuditDraft {
             actor_id: "keeper_replay".to_owned(),

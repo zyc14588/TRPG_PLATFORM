@@ -72,9 +72,10 @@ fn runtime_commits_ai_kp_decision_through_evented_pipeline() {
     )
     .unwrap();
 
-    assert_eq!(events.len(), 2);
+    assert_eq!(events.len(), 3);
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
 }
 
 #[test]
@@ -156,7 +157,7 @@ fn runtime_replay_does_not_expose_keeper_only_events_to_public() {
         runtime::replay_runtime_for_principal(&store, &system, 206)
             .unwrap()
             .len(),
-        2
+        3
     );
 }
 

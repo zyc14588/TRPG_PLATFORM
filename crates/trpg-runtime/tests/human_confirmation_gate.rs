@@ -4,10 +4,11 @@ use std::thread;
 use trpg_identity::{AuthenticationContext, GlobalRole, IdentityError, IdentityService};
 use trpg_runtime::runtime_state_machines::{
     commit_decision, HumanConfirmationGate, PendingDecisionStatus, RuntimeAgent, RuntimeDecision,
-    RuntimeError, RuntimeTool, ToolRequest,
+    RuntimeError, RuntimeResult, RuntimeTool, ToolRequest,
 };
 use trpg_runtime::{
-    ActorRole, AuthorityMode, EventStore, FormalCommitAudit, FormalCommitAuthorizer, TrpgError,
+    ActorRole, AuthorityMode, EventStore, FormalCommitAudit, FormalCommitAuthorizer,
+    RuntimeToolExecutionOutput, RuntimeToolExecutor, TrpgError,
 };
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
@@ -31,6 +32,18 @@ fn decision() -> RuntimeDecision {
         ToolRequest::formal(RuntimeAgent::KeeperCopilot, RuntimeTool::CommitDecision),
     )
     .unwrap()
+}
+
+struct SuccessfulRuntimeToolExecutor;
+
+impl RuntimeToolExecutor for SuccessfulRuntimeToolExecutor {
+    fn execute(&self, decision: &RuntimeDecision) -> RuntimeResult<RuntimeToolExecutionOutput> {
+        Ok(RuntimeToolExecutionOutput {
+            execution_id: format!("execution_{}", decision.decision_id.as_str()),
+            result_hash: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+                .to_owned(),
+        })
+    }
 }
 
 fn authentication(identity: &mut IdentityService, subject: &str) -> AuthenticationContext {
@@ -184,9 +197,10 @@ fn owner_confirmation_commits_exact_draft_once() {
 
     let audit = formal_audit("owner-confirmation");
     let workflow_authentication = trpg_test_support::workflow_authentication();
-    let mut store = EventStore::with_formal_custody(
+    let mut store = EventStore::with_formal_custody_and_executor(
         formal_authorizer(identity.verifier(), audit.clone()),
         trpg_test_support::test_canonical_commit_port(),
+        Arc::new(SuccessfulRuntimeToolExecutor),
     );
     assert_eq!(
         gate.commit(
@@ -211,7 +225,7 @@ fn owner_confirmation_commits_exact_draft_once() {
             160,
         )
         .unwrap();
-    assert_eq!(events.len(), 2);
+    assert_eq!(events.len(), 3);
     assert!(confirmed.is_committed());
     assert_eq!(confirmed.status(), PendingDecisionStatus::Committed);
 
@@ -226,7 +240,7 @@ fn owner_confirmation_commits_exact_draft_once() {
         )
         .unwrap();
     assert_eq!(retried, events);
-    assert_eq!(store.events().len(), 2);
+    assert_eq!(store.events().len(), 3);
 
     let mut changed_retry = decision;
     changed_retry
@@ -244,7 +258,7 @@ fn owner_confirmation_commits_exact_draft_once() {
         .unwrap_err(),
         RuntimeError::Core(TrpgError::DecisionDraftChanged)
     );
-    assert_eq!(store.events().len(), 2);
+    assert_eq!(store.events().len(), 3);
     let records = audit.verify().unwrap();
     // Both authenticated write attempts are auditable, while Event Store
     // idempotency keeps the canonical event batch single-copy.

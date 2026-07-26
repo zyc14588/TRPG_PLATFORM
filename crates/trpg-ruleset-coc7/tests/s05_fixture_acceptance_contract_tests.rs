@@ -146,10 +146,10 @@ fn s05_character_and_dice_fixtures_map_to_ruleset_assertions() {
 
 #[test]
 fn s05_san_combat_chase_and_clue_fixtures_map_to_evented_assertions() {
-    let san_success = resolve_san_check(41, 55, 0, 2, 0).unwrap();
+    let san_success = resolve_san_check(41, 55, 0, 2, 0, 55).unwrap();
     assert_eq!(san_success.loss, 0);
 
-    let san_failure = resolve_san_check(81, 55, 1, 3, 0).unwrap();
+    let san_failure = resolve_san_check(81, 55, 1, 3, 0, 55).unwrap();
     assert_eq!(san_failure.loss, 3);
 
     let contract = common::human_contract();
@@ -208,7 +208,7 @@ fn s05_visibility_provenance_and_private_leakage_assertions_are_event_bound() {
 
     let contract = common::human_contract();
     let mut store = common::event_store();
-    let transition = resolve_san_check(81, 55, 1, 3, 0).unwrap();
+    let transition = resolve_san_check(81, 55, 1, 3, 0, 55).unwrap();
     let command = common::rules_command("san");
     let event = record_san_decision(&contract, &mut store, &command, &transition).unwrap();
 

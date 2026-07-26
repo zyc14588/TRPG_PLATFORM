@@ -11,6 +11,7 @@ fn command_with_binding(
     campaign_id: &str,
     authority_owner: &str,
     contract_version: u64,
+    binding_mode: AuthorityMode,
     actor: Actor,
 ) -> CommandEnvelope<&'static str> {
     let context = AuthenticatedCommandContext::new(
@@ -19,6 +20,7 @@ fn command_with_binding(
         AuthorityBinding::new(
             contract.contract_id().as_str(),
             authority_owner,
+            binding_mode,
             contract_version,
         )
         .unwrap(),
@@ -61,7 +63,14 @@ fn authority_rejects_cross_campaign_wrong_owner_and_stale_version() {
 
     let owner =
         Actor::authenticated_user("keeper_a", ActorRole::HumanKeeper, "session_owner").unwrap();
-    let cross_campaign = command_with_binding(&contract, "campaign_b", "keeper_a", 7, owner);
+    let cross_campaign = command_with_binding(
+        &contract,
+        "campaign_b",
+        "keeper_a",
+        7,
+        contract.mode().clone(),
+        owner,
+    );
     let error = contract.validate_command(&cross_campaign).unwrap_err();
     assert_eq!(error, TrpgError::CampaignScopeMismatch);
     assert_eq!(error.http_status(), 403);
@@ -71,7 +80,14 @@ fn authority_rejects_cross_campaign_wrong_owner_and_stale_version() {
         trpg_domain_core::ddd::WorkloadRole::WorkflowEngine,
     )
     .unwrap();
-    let wrong_binding = command_with_binding(&contract, "campaign_a", "keeper_b", 7, workflow);
+    let wrong_binding = command_with_binding(
+        &contract,
+        "campaign_a",
+        "keeper_b",
+        7,
+        contract.mode().clone(),
+        workflow,
+    );
     let error = contract.validate_command(&wrong_binding).unwrap_err();
     assert_eq!(error, TrpgError::AuthorityOwnerMismatch);
     assert_eq!(error.http_status(), 403);
@@ -81,10 +97,34 @@ fn authority_rejects_cross_campaign_wrong_owner_and_stale_version() {
         trpg_domain_core::ddd::WorkloadRole::WorkflowEngine,
     )
     .unwrap();
-    let stale = command_with_binding(&contract, "campaign_a", "keeper_a", 6, workflow);
+    let stale = command_with_binding(
+        &contract,
+        "campaign_a",
+        "keeper_a",
+        6,
+        contract.mode().clone(),
+        workflow,
+    );
     let error = contract.validate_command(&stale).unwrap_err();
     assert_eq!(error, TrpgError::AuthorityContractVersionConflict);
     assert_eq!(error.http_status(), 409);
+
+    let workflow = Actor::verified_workload(
+        "workflow_authority_test",
+        trpg_domain_core::ddd::WorkloadRole::WorkflowEngine,
+    )
+    .unwrap();
+    let wrong_mode = command_with_binding(
+        &contract,
+        "campaign_a",
+        "keeper_a",
+        7,
+        AuthorityMode::AiKp,
+        workflow,
+    );
+    let error = contract.validate_command(&wrong_mode).unwrap_err();
+    assert_eq!(error, TrpgError::AuthorityViolation);
+    assert_eq!(error.http_status(), 403);
 }
 
 #[test]
@@ -98,7 +138,14 @@ fn authority_rejects_non_owner_and_in_place_mode_change() {
     .unwrap();
     let attacker =
         Actor::authenticated_user("keeper_b", ActorRole::HumanKeeper, "session_attacker").unwrap();
-    let command = command_with_binding(&contract, "campaign_a", "keeper_a", 1, attacker);
+    let command = command_with_binding(
+        &contract,
+        "campaign_a",
+        "keeper_a",
+        1,
+        contract.mode().clone(),
+        attacker,
+    );
     assert_eq!(
         contract.validate_command(&command).unwrap_err(),
         TrpgError::AuthorityOwnerMismatch
@@ -132,8 +179,14 @@ fn canonical_registry_rejects_caller_supplied_conflicting_authority() {
         trpg_domain_core::ddd::WorkloadRole::WorkflowEngine,
     )
     .unwrap();
-    let forged_command =
-        command_with_binding(&forged, "campaign_a", "keeper_attacker", 1, workflow);
+    let forged_command = command_with_binding(
+        &forged,
+        "campaign_a",
+        "keeper_attacker",
+        1,
+        forged.mode().clone(),
+        workflow,
+    );
     let mut registry = AuthorityRegistry::from_contracts([canonical]).unwrap();
 
     assert_eq!(

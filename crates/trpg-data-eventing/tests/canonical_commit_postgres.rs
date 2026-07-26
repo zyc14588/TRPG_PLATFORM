@@ -1,16 +1,19 @@
 use std::env;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use sqlx::postgres::PgConnectOptions;
 use sqlx::{Connection, PgConnection, PgPool, Row};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     AtomicCommitDraft, CanonicalEventDraft, CanonicalStoreError, PolicyAuditDraft,
-    PostgresCanonicalStore, RecoveryReport,
+    PostgresCanonicalCommitPort, PostgresCanonicalStore, RecoveryReport,
 };
 use trpg_data_eventing::persistence::FormalCommitRecord;
 use trpg_domain_core::ddd::FactSource;
-use trpg_shared_kernel::EventActorOriginWire;
+use trpg_shared_kernel::{
+    CanonicalCommitKey, CanonicalCommitPort, EventActorOriginWire, TrpgError,
+};
 
 const KEY: &[u8; 32] = &[0x9c; 32];
 const PAYLOAD_KEY: &[u8; 32] = &[0xad; 32];
@@ -79,7 +82,10 @@ async fn reset_dedicated_database(database_url: &str, authorized_database_variab
         .await
         .expect("connect to dedicated canonical integration database");
     sqlx::raw_sql(
-        "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;",
+        "DROP SCHEMA IF EXISTS core_domain CASCADE; \
+         DROP SCHEMA public CASCADE; \
+         CREATE SCHEMA public; \
+         GRANT ALL ON SCHEMA public TO public;",
     )
     .execute(&pool)
     .await
@@ -119,6 +125,7 @@ fn draft(commit_id: &str, expected_version: i64, event_types: &[&str]) -> Atomic
             .map(|(index, event_type)| CanonicalEventDraft {
                 event_type: (*event_type).to_owned(),
                 payload_json: format!(r#"{{"index":{index},"commit":"{commit_id}"}}"#),
+                projection_targets: Vec::new(),
             })
             .collect(),
         audit: PolicyAuditDraft {
@@ -184,6 +191,59 @@ async fn canonical_commit_is_atomic_recoverable_and_externally_witnessed() {
     let success = store.commit(&success_draft).await.unwrap();
     assert_eq!(success.first_stream_version, 1);
     assert_eq!(success.last_stream_version, 2);
+
+    // The synchronous production port resolves committed custody before a
+    // caller repeats any non-idempotent external work. A miss also preflights
+    // the stream version so stale commands fail before their executor runs.
+    let retained_runtime = Arc::new(Mutex::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap(),
+    ));
+    let canonical_port =
+        PostgresCanonicalCommitPort::new(Arc::clone(&retained_runtime), store.clone());
+    let exact_receipt = canonical_port
+        .load_receipt(&CanonicalCommitKey {
+            commit_id: success_draft.commit_id.clone(),
+            campaign_id: success_draft.campaign_id.clone(),
+            stream_id: success_draft.stream_id.clone(),
+            idempotency_key: success_draft.idempotency_key.clone(),
+            expected_version: 0,
+        })
+        .unwrap()
+        .expect("committed canonical receipt must be reusable");
+    assert_eq!(exact_receipt.first_stream_version, 1);
+    assert_eq!(exact_receipt.last_stream_version, 2);
+    assert_eq!(exact_receipt.events.len(), 2);
+    assert!(canonical_port
+        .load_receipt(&CanonicalCommitKey {
+            commit_id: "future_commit".to_owned(),
+            campaign_id: success_draft.campaign_id.clone(),
+            stream_id: success_draft.stream_id.clone(),
+            idempotency_key: "future_idempotency".to_owned(),
+            expected_version: 2,
+        })
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        canonical_port.load_receipt(&CanonicalCommitKey {
+            commit_id: "stale_commit".to_owned(),
+            campaign_id: success_draft.campaign_id.clone(),
+            stream_id: success_draft.stream_id.clone(),
+            idempotency_key: "stale_idempotency".to_owned(),
+            expected_version: 1,
+        }),
+        Err(TrpgError::ExpectedVersionConflict {
+            expected: 1,
+            actual: 2,
+        })
+    );
+    drop(canonical_port);
+    std::thread::spawn(move || drop(retained_runtime))
+        .join()
+        .unwrap();
+
     assert_eq!(
         scalar(&primary, "SELECT count(*) FROM event_store").await,
         2

@@ -61,6 +61,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "sqlx",
  "tokio",
  "trpg-agent-runtime",
  "trpg-api",
@@ -68,6 +69,7 @@ dependencies = [
  "trpg-data-eventing",
  "trpg-identity",
  "trpg-platform",
+ "trpg-ruleset-coc7",
  "trpg-runtime",
  "trpg-security-governance",
  "trpg-shared-kernel",
@@ -2230,6 +2232,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_yaml"
+version = "0.9.34+deprecated"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
+dependencies = [
+ "indexmap",
+ "itoa",
+ "ryu",
+ "serde",
+ "unsafe-libyaml",
+]
+
+[[package]]
 name = "sha1"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2933,8 +2948,21 @@ dependencies = [
 name = "trpg-api"
 version = "0.1.0"
 dependencies = [
+ "async-nats",
+ "futures-util",
  "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sqlx",
+ "tempfile",
+ "tokio",
  "trpg-contracts",
+ "trpg-data-eventing",
+ "trpg-domain-core",
+ "trpg-identity",
+ "trpg-ruleset-coc7",
+ "trpg-runtime",
+ "trpg-security-governance",
  "trpg-shared-kernel",
  "trpg-test-support",
 ]
@@ -2967,6 +2995,7 @@ dependencies = [
  "trpg-contracts",
  "trpg-domain-core",
  "trpg-identity",
+ "trpg-ruleset-coc7",
  "trpg-shared-kernel",
  "trpg-test-support",
  "url",
@@ -3050,6 +3079,9 @@ version = "0.1.0"
 dependencies = [
  "rand_core 0.6.4",
  "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2 0.10.9",
  "trpg-contracts",
  "trpg-shared-kernel",
  "trpg-test-support",
@@ -3066,7 +3098,10 @@ dependencies = [
  "sqlx",
  "tokio",
  "trpg-contracts",
+ "trpg-data-eventing",
+ "trpg-domain-core",
  "trpg-identity",
+ "trpg-ruleset-coc7",
  "trpg-security-governance",
  "trpg-shared-kernel",
  "trpg-test-support",
@@ -3122,9 +3157,13 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "serde",
+ "serde_json",
  "tokio",
  "trpg-agent-runtime",
+ "trpg-api",
  "trpg-domain-core",
+ "trpg-ruleset-coc7",
+ "trpg-runtime",
  "trpg-security-governance",
  "trpg-shared-kernel",
  "trpg-test-support",
@@ -3184,6 +3223,12 @@ name = "unicode-width"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
+
+[[package]]
+name = "unsafe-libyaml"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
 
 [[package]]
 name = "untrusted"

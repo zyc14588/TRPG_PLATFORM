@@ -7,7 +7,7 @@ use trpg_ruleset_coc7::sanity_madness_state_machine::MadnessState;
 fn san_check_applies_success_and_failure_loss() {
     assert!(san_check_succeeds(20, 60).unwrap());
 
-    let transition = resolve_san_check(80, 60, 1, 6, 0).unwrap();
+    let transition = resolve_san_check(80, 60, 1, 6, 0, 60).unwrap();
 
     assert_eq!(transition.loss, 6);
     assert_eq!(transition.state, MadnessState::TemporaryInsanity);
@@ -18,7 +18,7 @@ fn san_decision_keeps_event_visibility_and_provenance() {
     let contract = common::human_contract();
     let mut store = common::event_store();
     let command = common::rules_command("san");
-    let transition = resolve_san_check(20, 60, 1, 6, 0).unwrap();
+    let transition = resolve_san_check(20, 60, 1, 6, 0, 60).unwrap();
 
     let event = record_san_decision(&contract, &mut store, &command, &transition).unwrap();
 

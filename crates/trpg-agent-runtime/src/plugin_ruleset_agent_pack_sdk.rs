@@ -21,6 +21,7 @@ impl PluginRulesetAgentPackPolicy {
 
 fn deny_tool() -> ToolDecision {
     ToolDecision {
+        tool_authorized: false,
         tool_executed: false,
         downgraded_to: None,
         requires_human_confirmation: false,

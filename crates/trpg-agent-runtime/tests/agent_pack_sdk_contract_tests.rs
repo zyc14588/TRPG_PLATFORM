@@ -42,7 +42,8 @@ fn agent_pack_sdk_requires_current_safe_manifest_and_tool_grant() {
         &manifest,
         &allowed_request,
     );
-    assert!(allowed.tool_executed);
+    assert!(allowed.tool_authorized);
+    assert!(!allowed.tool_executed);
     assert!(allowed.error.is_none());
 }
 

@@ -13,6 +13,7 @@ crate::define_data_event_module!(
     ]
 );
 
+use std::collections::BTreeSet;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -32,9 +33,9 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 use trpg_domain_core::command_cqrs::CommandAcceptedPayload;
 use trpg_domain_core::{CommittedFactEvidence, PersistedFactEvidenceRecord};
 use trpg_shared_kernel::{
-    CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest, CanonicalCommittedEvent,
-    EntityId, EventActorOriginWire, FactProvenance, KernelResult, ProvenanceKind, TrpgError,
-    Visibility,
+    CanonicalCommitKey, CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest,
+    CanonicalCommittedEvent, EntityId, EventActorOriginWire, FactProvenance, KernelResult,
+    ProvenanceKind, TrpgError, Visibility,
 };
 use zeroize::{Zeroize, Zeroizing};
 
@@ -43,7 +44,7 @@ const GENESIS_HASH: &str =
 const ZERO_REQUEST_HASH: &str =
     "sha256:0000000000000000000000000000000000000000000000000000000000000000";
 const CANONICAL_IDEMPOTENCY_OPERATION: &str = "canonical_commit";
-const CURRENT_EVENT_INTEGRITY_VERSION: i32 = 2;
+const CURRENT_EVENT_INTEGRITY_VERSION: i32 = 3;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -266,6 +267,25 @@ fn payload_associated_data(fields: &[&str]) -> Result<Zeroizing<Vec<u8>>, Payloa
 pub struct CanonicalEventDraft {
     pub event_type: String,
     pub payload_json: String,
+    /// Exact read-model rows this event is allowed to insert or advance.
+    /// The list is persisted beside the encrypted payload and covered by the
+    /// versioned event HMAC; projection triggers reject every other row.
+    pub projection_targets: Vec<CanonicalProjectionTarget>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CanonicalProjectionTarget {
+    pub relation: String,
+    pub row_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct PersistedCanonicalProjectionTarget {
+    relation: String,
+    row_id: String,
+    capability_hash: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -335,6 +355,7 @@ struct CanonicalEventIntegrityRecord {
     payload_key_reference: Option<String>,
     payload_nonce: Option<Vec<u8>>,
     data_subject_id: String,
+    projection_targets_json: String,
     recorded_at_micros: i64,
     derived_source_event_sequence: Option<i64>,
     derived_snapshot_id: Option<String>,
@@ -724,6 +745,30 @@ impl fmt::Debug for PostgresCanonicalCommitPort {
 }
 
 impl CanonicalCommitPort for PostgresCanonicalCommitPort {
+    fn load_receipt(
+        &self,
+        key: &CanonicalCommitKey,
+    ) -> KernelResult<Option<CanonicalCommitReceipt>> {
+        let runtime = Arc::clone(&self.runtime);
+        let store = self.store.clone();
+        let key = key.clone();
+        let load = move || {
+            let runtime = runtime
+                .lock()
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+            load_receipt_on_runtime(&runtime, &store, &key)
+        };
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return std::thread::Builder::new()
+                .name("canonical-receipt-lookup-bridge".to_owned())
+                .spawn(load)
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?
+                .join()
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        }
+        load()
+    }
+
     fn commit(&self, request: &CanonicalCommitRequest) -> KernelResult<CanonicalCommitReceipt> {
         let draft = canonical_request_draft(request)?;
         self.commit_draft(draft)
@@ -756,6 +801,89 @@ impl CanonicalCommitPort for PostgresCanonicalCommitPort {
         }
         verify()
     }
+}
+
+fn load_receipt_on_runtime(
+    runtime: &tokio::runtime::Runtime,
+    store: &PostgresCanonicalStore,
+    key: &CanonicalCommitKey,
+) -> KernelResult<Option<CanonicalCommitReceipt>> {
+    if key.commit_id.trim().is_empty()
+        || key.campaign_id.trim().is_empty()
+        || key.stream_id.trim().is_empty()
+        || key.idempotency_key.trim().is_empty()
+    {
+        return Err(TrpgError::AuditIntegrityViolation);
+    }
+    runtime
+        .block_on(async {
+            store.verify_integrity().await?;
+            let Some(persisted) = store
+                .load_existing_commit(
+                    &key.commit_id,
+                    &key.campaign_id,
+                    &key.stream_id,
+                    &key.idempotency_key,
+                )
+                .await?
+            else {
+                let expected_version = i64::try_from(key.expected_version).map_err(|_| {
+                    CanonicalStoreError::IntegrityViolation("expected_version_invalid")
+                })?;
+                let actual_version: i64 = sqlx::query_scalar(
+                    "SELECT COALESCE(max(stream_version), 0) \
+                     FROM event_store WHERE campaign_id = $1 AND stream_id = $2",
+                )
+                .bind(&key.campaign_id)
+                .bind(&key.stream_id)
+                .fetch_one(&store.primary)
+                .await
+                .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                    operation: "preflight_stream_version",
+                })?;
+                if actual_version != expected_version {
+                    return Err(CanonicalStoreError::VersionConflict {
+                        expected: expected_version,
+                        actual: actual_version,
+                    });
+                }
+                return Ok(None);
+            };
+            if persisted.commit_id != key.commit_id {
+                return Err(CanonicalStoreError::IdempotencyConflict);
+            }
+            let stored_scope: (String, String, String) = sqlx::query_as(
+                "SELECT campaign_id, stream_id, idempotency_key \
+                 FROM formal_commits WHERE commit_id = $1",
+            )
+            .bind(&persisted.commit_id)
+            .fetch_one(&store.primary)
+            .await
+            .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                operation: "load_receipt_scope",
+            })?;
+            if stored_scope
+                != (
+                    key.campaign_id.clone(),
+                    key.stream_id.clone(),
+                    key.idempotency_key.clone(),
+                )
+            {
+                return Err(CanonicalStoreError::IdempotencyConflict);
+            }
+            let events =
+                load_committed_events(&store.primary, &store.payload_cipher, &persisted).await?;
+            Ok(Some(CanonicalCommitReceipt {
+                first_stream_version: u64::try_from(persisted.first_stream_version).map_err(
+                    |_| CanonicalStoreError::IntegrityViolation("receipt_version_invalid"),
+                )?,
+                last_stream_version: u64::try_from(persisted.last_stream_version).map_err(
+                    |_| CanonicalStoreError::IntegrityViolation("receipt_version_invalid"),
+                )?,
+                events,
+            }))
+        })
+        .map_err(map_canonical_port_error)
 }
 
 fn commit_on_runtime(
@@ -807,7 +935,7 @@ async fn verify_receipt_on_store(
             .map_err(|_| CanonicalStoreError::PrimaryWrite {
                 operation: "verify_receipt_request_hash",
             })?;
-    if persisted_request_hash != request_hash(&normalized) {
+    if !stored_request_hash_matches(&normalized, &persisted_request_hash) {
         return Err(CanonicalStoreError::IntegrityViolation(
             "canonical_receipt_request_mismatch",
         ));
@@ -866,6 +994,7 @@ fn canonical_request_draft(request: &CanonicalCommitRequest) -> KernelResult<Ato
             .map(|event| CanonicalEventDraft {
                 event_type: event.event_type.clone(),
                 payload_json: event.payload_json.clone(),
+                projection_targets: Vec::new(),
             })
             .collect(),
         audit: PolicyAuditDraft {
@@ -904,6 +1033,12 @@ enum WitnessPhase {
     Prepared,
     Committed,
     Aborted,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum AtomicProjection<'a> {
+    PlayerAction(&'a serde_json::Value),
+    CampaignInviteAcceptance(&'a serde_json::Value),
 }
 
 impl WitnessPhase {
@@ -1043,6 +1178,82 @@ impl PostgresCanonicalStore {
         self.primary.clone()
     }
 
+    /// Derives a retry-stable, non-persisted invitation bearer token from the
+    /// canonical integrity secret with an explicit domain separator. Only the
+    /// P06 repository can call this crate-private helper; logs and Debug output
+    /// never receive the result.
+    pub(crate) fn derive_campaign_invite_token(
+        &self,
+        campaign_id: &str,
+        invite_id: &str,
+        invited_user_id: &str,
+        role: &str,
+        expires_at_unix_ms: u64,
+        idempotency_key: &str,
+    ) -> Result<String, CanonicalStoreError> {
+        let fields = [
+            "campaign_invite_token_v1",
+            campaign_id,
+            invite_id,
+            invited_user_id,
+            role,
+            idempotency_key,
+        ];
+        if fields.iter().any(|field| field.trim().is_empty()) {
+            return Err(CanonicalStoreError::Validation(
+                "invite_token_binding_invalid",
+            ));
+        }
+        let sealed = hmac_fields(
+            self.integrity_key(),
+            &[
+                fields[0].to_owned(),
+                fields[1].to_owned(),
+                fields[2].to_owned(),
+                fields[3].to_owned(),
+                fields[4].to_owned(),
+                expires_at_unix_ms.to_string(),
+                fields[5].to_owned(),
+            ],
+        );
+        sealed
+            .strip_prefix("hmac-sha256:")
+            .map(str::to_owned)
+            .ok_or(CanonicalStoreError::IntegrityViolation(
+                "invite_token_derivation_invalid",
+            ))
+    }
+
+    /// Derives the one-time projection capability for a canonical commit. Only
+    /// the trusted repository process receives the preimage; Event Store keeps
+    /// a SHA-256 verifier inside the HMAC-protected target list. A database role
+    /// that can read the event and write a projection therefore still cannot
+    /// consume the target without the canonical integrity secret.
+    pub(crate) fn derive_core_projection_capability(
+        &self,
+        commit_id: &str,
+    ) -> Result<Zeroizing<String>, CanonicalStoreError> {
+        if commit_id.trim().is_empty() || commit_id.len() > 160 {
+            return Err(CanonicalStoreError::Validation(
+                "projection_capability_binding_invalid",
+            ));
+        }
+        let sealed = hmac_fields(
+            self.integrity_key(),
+            &[
+                "core_projection_capability_v1".to_owned(),
+                commit_id.to_owned(),
+            ],
+        );
+        let capability =
+            sealed
+                .strip_prefix("hmac-sha256:")
+                .ok_or(CanonicalStoreError::IntegrityViolation(
+                    "projection_capability_derivation_invalid",
+                ))?;
+        Ok(Zeroizing::new(capability.to_owned()))
+    }
+
     pub async fn apply_migrations(&self) -> Result<(), CanonicalStoreError> {
         crate::persistence_migrations::migrator()
             .run(&self.primary)
@@ -1098,6 +1309,42 @@ impl PostgresCanonicalStore {
         &self,
         draft: &AtomicCommitDraft,
     ) -> Result<PersistedCommit, CanonicalStoreError> {
+        self.commit_with_projection(draft, None).await
+    }
+
+    /// P07 canonical commit path. The supplied projection is applied by a
+    /// narrowly granted SECURITY DEFINER function before the Event Store
+    /// transaction commits. Its canonical JSON hash must already be present
+    /// as an HMAC-bound projection target in the event draft.
+    pub(crate) async fn commit_player_action_projection(
+        &self,
+        draft: &AtomicCommitDraft,
+        projection: &serde_json::Value,
+    ) -> Result<PersistedCommit, CanonicalStoreError> {
+        self.commit_with_projection(draft, Some(AtomicProjection::PlayerAction(projection)))
+            .await
+    }
+
+    /// Atomically appends CampaignInviteAccepted and creates the invited
+    /// membership. A uniqueness or role conflict aborts the entire canonical
+    /// transaction, so an invite can never be consumed without its projection.
+    pub(crate) async fn commit_campaign_invite_acceptance(
+        &self,
+        draft: &AtomicCommitDraft,
+        projection: &serde_json::Value,
+    ) -> Result<PersistedCommit, CanonicalStoreError> {
+        self.commit_with_projection(
+            draft,
+            Some(AtomicProjection::CampaignInviteAcceptance(projection)),
+        )
+        .await
+    }
+
+    async fn commit_with_projection(
+        &self,
+        draft: &AtomicCommitDraft,
+        atomic_projection: Option<AtomicProjection<'_>>,
+    ) -> Result<PersistedCommit, CanonicalStoreError> {
         let normalized = normalize_and_validate(draft)?;
         self.verify_cryptographic_chains().await?;
         let request_hash = request_hash(&normalized);
@@ -1111,9 +1358,11 @@ impl PostgresCanonicalStore {
             )
             .await?
         {
-            self.validate_existing_commit(&existing, &normalized, &request_hash)
+            let stored_request_hash = self
+                .validate_existing_commit(&existing, &normalized, &request_hash)
                 .await?;
-            self.finalize_witness(&existing, &request_hash).await?;
+            self.finalize_witness(&existing, &stored_request_hash)
+                .await?;
             return Ok(existing);
         }
 
@@ -1128,15 +1377,16 @@ impl PostgresCanonicalStore {
             )
             .await?;
 
-        let persisted = match self
-            .commit_primary(&normalized, &request_hash, &prepared)
+        let (persisted, persisted_request_hash) = match self
+            .commit_primary(&normalized, &request_hash, &prepared, atomic_projection)
             .await
         {
             Ok(persisted) => persisted,
             Err(error) => return Err(error),
         };
 
-        self.finalize_witness(&persisted, &request_hash).await?;
+        self.finalize_witness(&persisted, &persisted_request_hash)
+            .await?;
         Ok(persisted)
     }
 
@@ -1400,6 +1650,7 @@ impl PostgresCanonicalStore {
                        event.integrity_status, event.payload_integrity_source,
                        event.payload_ciphertext, event.payload_key_reference,
                        event.payload_nonce, event.data_subject_id,
+                       event.projection_targets,
                        event.recorded_at, event.event_integrity_version,
                        event.derived_source_event_sequence,
                        event.derived_snapshot_id, event.derived_chunk_id,
@@ -1501,6 +1752,12 @@ impl PostgresCanonicalStore {
                     event.get("payload_key_reference");
                 let event_payload_nonce: Option<Vec<u8>> = event.get("payload_nonce");
                 let event_data_subject_id: String = event.get("data_subject_id");
+                let event_projection_targets: Json<Vec<PersistedCanonicalProjectionTarget>> =
+                    event.get("projection_targets");
+                let event_projection_targets_json =
+                    serde_json::to_string(&event_projection_targets.0).map_err(|_| {
+                        CanonicalStoreError::IntegrityViolation("event_projection_targets_invalid")
+                    })?;
                 let expected_event_idempotency_key =
                     format!("{}:{index:04}", formal_idempotency_key);
 
@@ -1511,7 +1768,8 @@ impl PostgresCanonicalStore {
                     || event_integrity_status != outbox_integrity_status
                     || !matches!(
                         (event_integrity_status.as_str(), event_integrity_version),
-                        ("verified_hmac", CURRENT_EVENT_INTEGRITY_VERSION)
+                        ("verified_hmac", 2)
+                            | ("verified_hmac", CURRENT_EVENT_INTEGRITY_VERSION)
                             | ("historical_unverified_hmac", 1)
                     )
                     || event_sequence != event.get::<i64, _>("outbox_event_id")
@@ -1596,65 +1854,71 @@ impl PostgresCanonicalStore {
                             "authenticated_actor_origin_invalid",
                         )
                     })?;
-                    event_integrity_hash_v2(
-                        self.integrity_key(),
-                        &CanonicalEventIntegrityRecord {
-                            sequence: event_sequence,
-                            event_index: index,
-                            stream_version: event_stream_version,
-                            event_type,
-                            command_id: event.get("command_id"),
-                            idempotency_key: event_idempotency_key,
-                            expected_version: event.get("expected_version"),
-                            authority_mode: event.get("authority_mode"),
-                            authority_contract_version: event.get("authority_contract_version"),
-                            visibility_label: event_visibility_label,
-                            provenance_kind: event.get("fact_provenance_kind"),
-                            provenance_reference: event.get("fact_provenance_reference"),
-                            provenance_recorded_by: event.get("fact_recorded_by"),
-                            correlation_id: event_correlation_id,
-                            causation_id: event_causation_id,
-                            campaign_id: event_campaign_id,
-                            authenticated_actor_id: event.get("authenticated_actor_id"),
-                            authenticated_actor_role: event.get("authenticated_actor_role"),
-                            authenticated_actor_origin,
-                            resource_type: event.get("resource_type"),
-                            resource_id: event.get("resource_id"),
-                            authority_contract_id: event.get("authority_contract_id"),
-                            authority_owner: event.get("authority_owner"),
-                            visibility_subject: event_visibility_subject,
-                            trace_id: event.get("trace_id"),
-                            stream_id: event_stream_id,
-                            event_schema_version,
-                            idempotency_operation: event_idempotency_operation,
-                            request_hash: request_hash.clone(),
-                            request_hash_source: event.get("request_hash_source"),
-                            integrity_status: event_integrity_status,
-                            payload_integrity_source,
-                            payload_ciphertext: event_payload_ciphertext,
-                            payload_key_reference: event_payload_key_reference,
-                            payload_nonce: event_payload_nonce,
-                            data_subject_id: event_data_subject_id,
-                            recorded_at_micros: event
-                                .get::<DateTime<Utc>, _>("recorded_at")
-                                .timestamp_micros(),
-                            derived_source_event_sequence: event
-                                .get("derived_source_event_sequence"),
-                            derived_snapshot_id: event.get("derived_snapshot_id"),
-                            derived_chunk_id: event.get("derived_chunk_id"),
-                            derived_content_hash: event.get("derived_content_hash"),
-                            derived_source_type: event.get("derived_source_type"),
-                            derived_copyright_status: event.get("derived_copyright_status"),
-                            derived_allowed_use: event.get("derived_allowed_use"),
-                            derived_embedding_model: event.get("derived_embedding_model"),
-                            derived_embedding_dimensions: event.get("derived_embedding_dimensions"),
-                            derived_embedding_hash: event.get("derived_embedding_hash"),
-                            deletion_job_id: event.get("deletion_job_id"),
-                            deletion_subject_id: event.get("deletion_subject_id"),
-                            deletion_requested_by: event.get("deletion_requested_by"),
-                            deletion_retention_policy: event.get("deletion_retention_policy"),
-                        },
-                    )
+                    let integrity_record = CanonicalEventIntegrityRecord {
+                        sequence: event_sequence,
+                        event_index: index,
+                        stream_version: event_stream_version,
+                        event_type,
+                        command_id: event.get("command_id"),
+                        idempotency_key: event_idempotency_key,
+                        expected_version: event.get("expected_version"),
+                        authority_mode: event.get("authority_mode"),
+                        authority_contract_version: event.get("authority_contract_version"),
+                        visibility_label: event_visibility_label,
+                        provenance_kind: event.get("fact_provenance_kind"),
+                        provenance_reference: event.get("fact_provenance_reference"),
+                        provenance_recorded_by: event.get("fact_recorded_by"),
+                        correlation_id: event_correlation_id,
+                        causation_id: event_causation_id,
+                        campaign_id: event_campaign_id,
+                        authenticated_actor_id: event.get("authenticated_actor_id"),
+                        authenticated_actor_role: event.get("authenticated_actor_role"),
+                        authenticated_actor_origin,
+                        resource_type: event.get("resource_type"),
+                        resource_id: event.get("resource_id"),
+                        authority_contract_id: event.get("authority_contract_id"),
+                        authority_owner: event.get("authority_owner"),
+                        visibility_subject: event_visibility_subject,
+                        trace_id: event.get("trace_id"),
+                        stream_id: event_stream_id,
+                        event_schema_version,
+                        idempotency_operation: event_idempotency_operation,
+                        request_hash: request_hash.clone(),
+                        request_hash_source: event.get("request_hash_source"),
+                        integrity_status: event_integrity_status,
+                        payload_integrity_source,
+                        payload_ciphertext: event_payload_ciphertext,
+                        payload_key_reference: event_payload_key_reference,
+                        payload_nonce: event_payload_nonce,
+                        data_subject_id: event_data_subject_id,
+                        projection_targets_json: event_projection_targets_json,
+                        recorded_at_micros: event
+                            .get::<DateTime<Utc>, _>("recorded_at")
+                            .timestamp_micros(),
+                        derived_source_event_sequence: event.get("derived_source_event_sequence"),
+                        derived_snapshot_id: event.get("derived_snapshot_id"),
+                        derived_chunk_id: event.get("derived_chunk_id"),
+                        derived_content_hash: event.get("derived_content_hash"),
+                        derived_source_type: event.get("derived_source_type"),
+                        derived_copyright_status: event.get("derived_copyright_status"),
+                        derived_allowed_use: event.get("derived_allowed_use"),
+                        derived_embedding_model: event.get("derived_embedding_model"),
+                        derived_embedding_dimensions: event.get("derived_embedding_dimensions"),
+                        derived_embedding_hash: event.get("derived_embedding_hash"),
+                        deletion_job_id: event.get("deletion_job_id"),
+                        deletion_subject_id: event.get("deletion_subject_id"),
+                        deletion_requested_by: event.get("deletion_requested_by"),
+                        deletion_retention_policy: event.get("deletion_retention_policy"),
+                    };
+                    match event_integrity_version {
+                        2 => event_integrity_hash_v2(self.integrity_key(), &integrity_record),
+                        3 => event_integrity_hash_v3(self.integrity_key(), &integrity_record),
+                        _ => {
+                            return Err(CanonicalStoreError::IntegrityViolation(
+                                "event_integrity_version_invalid",
+                            ))
+                        }
+                    }
                 };
                 if stored_hash.as_deref() != Some(expected_hash.as_str()) {
                     return Err(CanonicalStoreError::IntegrityViolation(
@@ -1816,7 +2080,8 @@ impl PostgresCanonicalStore {
         draft: &AtomicCommitDraft,
         request_hash: &str,
         prepared: &WitnessRecord,
-    ) -> Result<PersistedCommit, CanonicalStoreError> {
+        atomic_projection: Option<AtomicProjection<'_>>,
+    ) -> Result<(PersistedCommit, String), CanonicalStoreError> {
         let mut transaction =
             self.primary
                 .begin()
@@ -1842,9 +2107,9 @@ impl PostgresCanonicalStore {
         )
         .await?
         {
-            if load_request_hash_in_transaction(&mut transaction, &existing.commit_id).await?
-                != request_hash
-            {
+            let stored_request_hash =
+                load_request_hash_in_transaction(&mut transaction, &existing.commit_id).await?;
+            if !stored_request_hash_matches(draft, &stored_request_hash) {
                 return Err(CanonicalStoreError::IdempotencyConflict);
             }
             transaction
@@ -1853,7 +2118,7 @@ impl PostgresCanonicalStore {
                 .map_err(|_| CanonicalStoreError::PrimaryWrite {
                     operation: "commit_idempotent_transaction",
                 })?;
-            return Ok(existing);
+            return Ok((existing, stored_request_hash));
         }
 
         let actual_version: i64 = sqlx::query_scalar(
@@ -1937,6 +2202,31 @@ impl PostgresCanonicalStore {
                         operation: "serialize_protected_payload",
                     }
                 })?;
+            let projection_capability = self.derive_core_projection_capability(&draft.commit_id)?;
+            let projection_capability_hash = format!(
+                "sha256:{:x}",
+                Sha256::digest(projection_capability.as_bytes())
+            );
+            let projection_targets = event
+                .projection_targets
+                .iter()
+                .map(|target| PersistedCanonicalProjectionTarget {
+                    relation: target.relation.clone(),
+                    row_id: target.row_id.clone(),
+                    capability_hash: projection_capability_hash.clone(),
+                })
+                .collect::<Vec<_>>();
+            let projection_targets_json =
+                serde_json::to_string(&projection_targets).map_err(|_| {
+                    CanonicalStoreError::PrimaryWrite {
+                        operation: "serialize_projection_targets",
+                    }
+                })?;
+            let projection_targets = serde_json::to_value(&projection_targets).map_err(|_| {
+                CanonicalStoreError::PrimaryWrite {
+                    operation: "serialize_projection_targets",
+                }
+            })?;
             let event_idempotency_key = format!("{}:{index:04}", draft.idempotency_key);
             let sequence: i64 =
                 sqlx::query_scalar("SELECT nextval('event_store_sequence_seq'::regclass)")
@@ -1989,6 +2279,7 @@ impl PostgresCanonicalStore {
                 payload_key_reference: Some(encrypted_payload.key_reference().as_str().to_owned()),
                 payload_nonce: Some(encrypted_payload.nonce().as_slice().to_vec()),
                 data_subject_id: data_subject_id.to_owned(),
+                projection_targets_json: projection_targets_json.clone(),
                 recorded_at_micros: recorded_at.timestamp_micros(),
                 derived_source_event_sequence: derivation.source_event_sequence,
                 derived_snapshot_id: derivation.snapshot_id.clone(),
@@ -2005,7 +2296,7 @@ impl PostgresCanonicalStore {
                 deletion_requested_by: deletion_requested_by.clone(),
                 deletion_retention_policy: deletion_retention_policy.clone(),
             };
-            let event_hash = event_integrity_hash_v2(self.integrity_key(), &integrity_record);
+            let event_hash = event_integrity_hash_v3(self.integrity_key(), &integrity_record);
             let sequence: i64 = sqlx::query_scalar(
                 r#"
                 INSERT INTO event_store (
@@ -2027,13 +2318,14 @@ impl PostgresCanonicalStore {
                     derived_allowed_use, derived_embedding_model,
                     derived_embedding_dimensions, derived_embedding_hash,
                     deletion_job_id, deletion_subject_id, deletion_requested_by,
-                    deletion_retention_policy, event_integrity_version, recorded_at
+                    deletion_retention_policy, projection_targets,
+                    event_integrity_version, recorded_at
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                     $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23,
                     $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34,
                     $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45,
-                    $46, $47, $48, $49, $50, $51, $52, $53
+                    $46, $47, $48, $49, $50, $51, $52, $53, $54
                 ) RETURNING sequence
                 "#,
             )
@@ -2088,6 +2380,7 @@ impl PostgresCanonicalStore {
             .bind(deletion_subject_id)
             .bind(deletion_requested_by)
             .bind(deletion_retention_policy)
+            .bind(Json(projection_targets))
             .bind(CURRENT_EVENT_INTEGRITY_VERSION)
             .bind(recorded_at)
             .fetch_one(&mut *transaction)
@@ -2202,6 +2495,45 @@ impl PostgresCanonicalStore {
             operation: "insert_formal_commit",
         })?;
 
+        if let Some(atomic_projection) = atomic_projection {
+            let (projection, validation_error, capability_operation, apply_operation, statement) =
+                match atomic_projection {
+                    AtomicProjection::PlayerAction(projection) => (
+                        projection,
+                        "player_action_projection_must_be_object",
+                        "set_player_action_projection_capability",
+                        "apply_player_action_projection",
+                        "SELECT core_domain.apply_player_action_projection($1, $2::JSONB)",
+                    ),
+                    AtomicProjection::CampaignInviteAcceptance(projection) => (
+                        projection,
+                        "campaign_invite_projection_must_be_object",
+                        "set_campaign_invite_projection_capability",
+                        "apply_campaign_invite_acceptance",
+                        "SELECT core_domain.apply_campaign_invite_acceptance($1, $2::JSONB)",
+                    ),
+                };
+            if !projection.is_object() {
+                return Err(CanonicalStoreError::Validation(validation_error));
+            }
+            let projection_capability = self.derive_core_projection_capability(&draft.commit_id)?;
+            sqlx::query("SELECT set_config('trpg.projection_capability', $1, TRUE)")
+                .bind(projection_capability.as_str())
+                .execute(&mut *transaction)
+                .await
+                .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                    operation: capability_operation,
+                })?;
+            sqlx::query(statement)
+                .bind(&draft.commit_id)
+                .bind(Json(projection.clone()))
+                .execute(&mut *transaction)
+                .await
+                .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                    operation: apply_operation,
+                })?;
+        }
+
         transaction
             .commit()
             .await
@@ -2209,16 +2541,19 @@ impl PostgresCanonicalStore {
                 operation: "commit_transaction",
             })?;
 
-        Ok(PersistedCommit {
-            commit_id: draft.commit_id.clone(),
-            first_event_sequence,
-            last_event_sequence,
-            first_stream_version,
-            last_stream_version,
-            audit_sequence,
-            witness_prepare_sequence: prepared.sequence,
-            witness_prepare_hash: prepared.record_hash.clone(),
-        })
+        Ok((
+            PersistedCommit {
+                commit_id: draft.commit_id.clone(),
+                first_event_sequence,
+                last_event_sequence,
+                first_stream_version,
+                last_stream_version,
+                audit_sequence,
+                witness_prepare_sequence: prepared.sequence,
+                witness_prepare_hash: prepared.record_hash.clone(),
+            },
+            request_hash.to_owned(),
+        ))
     }
 
     async fn insert_audit(
@@ -2580,7 +2915,7 @@ impl PostgresCanonicalStore {
         persisted: &PersistedCommit,
         draft: &AtomicCommitDraft,
         request_hash: &str,
-    ) -> Result<(), CanonicalStoreError> {
+    ) -> Result<String, CanonicalStoreError> {
         if persisted.commit_id != draft.commit_id {
             return Err(CanonicalStoreError::IdempotencyConflict);
         }
@@ -2592,7 +2927,7 @@ impl PostgresCanonicalStore {
                 .map_err(|_| CanonicalStoreError::PrimaryWrite {
                     operation: "load_existing_request_hash",
                 })?;
-        if stored_hash != request_hash {
+        if stored_hash != request_hash && !stored_request_hash_matches(draft, &stored_hash) {
             return Err(CanonicalStoreError::IdempotencyConflict);
         }
         let prepared = sqlx::query(
@@ -2613,13 +2948,13 @@ impl PostgresCanonicalStore {
         ))?;
         if prepared.get::<i64, _>("sequence") != persisted.witness_prepare_sequence
             || prepared.get::<String, _>("record_hash") != persisted.witness_prepare_hash
-            || prepared.get::<String, _>("primary_request_hash") != request_hash
+            || prepared.get::<String, _>("primary_request_hash") != stored_hash
         {
             return Err(CanonicalStoreError::IntegrityViolation(
                 "primary_witness_prepare_binding_mismatch",
             ));
         }
-        Ok(())
+        Ok(stored_hash)
     }
 
     async fn load_witness_records(&self) -> Result<Vec<WitnessRecord>, CanonicalStoreError> {
@@ -3389,11 +3724,36 @@ fn normalize_and_validate(
             .map_err(|_| CanonicalStoreError::Validation("event_payload_must_be_json"))?;
         event.payload_json = serde_json::to_string(&value)
             .map_err(|_| CanonicalStoreError::Validation("event_payload_must_be_json"))?;
+        if event.projection_targets.len() > 32 {
+            return Err(CanonicalStoreError::Validation(
+                "projection_target_limit_exceeded",
+            ));
+        }
+        let mut unique_targets = BTreeSet::new();
+        for target in &event.projection_targets {
+            let valid_relation = !target.relation.is_empty()
+                && target.relation.len() <= 128
+                && target.relation.contains('.')
+                && target.relation.bytes().all(|byte| {
+                    byte.is_ascii_lowercase()
+                        || byte.is_ascii_digit()
+                        || matches!(byte, b'_' | b'.')
+                });
+            if !valid_relation
+                || EntityId::new(&target.row_id).is_err()
+                || !unique_targets.insert((target.relation.clone(), target.row_id.clone()))
+            {
+                return Err(CanonicalStoreError::Validation("projection_target_invalid"));
+            }
+        }
+        event.projection_targets.sort_by(|left, right| {
+            (&left.relation, &left.row_id).cmp(&(&right.relation, &right.row_id))
+        });
     }
     Ok(normalized)
 }
 
-fn request_hash(draft: &AtomicCommitDraft) -> String {
+fn request_hash_base_fields(draft: &AtomicCommitDraft) -> Vec<String> {
     let mut fields = vec![
         draft.commit_id.clone(),
         draft.campaign_id.clone(),
@@ -3449,11 +3809,39 @@ fn request_hash(draft: &AtomicCommitDraft) -> String {
             fields.push(campaign_id.clone());
         }
     }
+    fields
+}
+
+fn legacy_request_hash_without_projection_targets(draft: &AtomicCommitDraft) -> String {
+    let mut fields = request_hash_base_fields(draft);
     for event in &draft.events {
         fields.push(event.event_type.clone());
         fields.push(event.payload_json.clone());
     }
     sha256_fields(&fields)
+}
+
+fn request_hash(draft: &AtomicCommitDraft) -> String {
+    let mut fields = request_hash_base_fields(draft);
+    for event in &draft.events {
+        fields.push(event.event_type.clone());
+        fields.push(event.payload_json.clone());
+        fields.push(event.projection_targets.len().to_string());
+        for target in &event.projection_targets {
+            fields.push(target.relation.clone());
+            fields.push(target.row_id.clone());
+        }
+    }
+    sha256_fields(&fields)
+}
+
+fn stored_request_hash_matches(draft: &AtomicCommitDraft, stored_hash: &str) -> bool {
+    stored_hash == request_hash(draft)
+        || (draft
+            .events
+            .iter()
+            .all(|event| event.projection_targets.is_empty())
+            && stored_hash == legacy_request_hash_without_projection_targets(draft))
 }
 
 fn actor_origin_matches_role_and_campaign(
@@ -3522,65 +3910,80 @@ fn legacy_event_integrity_hash(
     )
 }
 
+fn event_integrity_fields(
+    record: &CanonicalEventIntegrityRecord,
+    version: i32,
+    include_projection_targets: bool,
+) -> Vec<String> {
+    let mut fields = vec![
+        format!("canonical_event_integrity_v{version}"),
+        version.to_string(),
+        record.sequence.to_string(),
+        record.event_index.to_string(),
+        record.stream_version.to_string(),
+        record.event_type.clone(),
+        record.command_id.clone(),
+        record.idempotency_key.clone(),
+        record.expected_version.to_string(),
+        record.authority_mode.clone(),
+        record.authority_contract_version.to_string(),
+        record.visibility_label.clone(),
+        record.provenance_kind.clone(),
+        record.provenance_reference.clone(),
+        record.provenance_recorded_by.clone(),
+        record.correlation_id.clone(),
+        record.causation_id.clone(),
+        record.campaign_id.clone(),
+        record.authenticated_actor_id.clone(),
+        record.authenticated_actor_role.clone(),
+        record.authenticated_actor_origin.clone(),
+        record.resource_type.clone(),
+        record.resource_id.clone(),
+        record.authority_contract_id.clone(),
+        record.authority_owner.clone(),
+        record.visibility_subject.clone(),
+        record.trace_id.clone(),
+        record.stream_id.clone(),
+        record.event_schema_version.to_string(),
+        record.idempotency_operation.clone(),
+        record.request_hash.clone(),
+        record.request_hash_source.clone(),
+        record.integrity_status.clone(),
+        record.payload_integrity_source.clone(),
+        option_bytes(record.payload_ciphertext.as_deref()),
+        option_string(record.payload_key_reference.as_deref()),
+        option_bytes(record.payload_nonce.as_deref()),
+        record.data_subject_id.clone(),
+    ];
+    if include_projection_targets {
+        fields.push(record.projection_targets_json.clone());
+    }
+    fields.extend([
+        record.recorded_at_micros.to_string(),
+        integrity_option_i64(record.derived_source_event_sequence),
+        option_string(record.derived_snapshot_id.as_deref()),
+        option_string(record.derived_chunk_id.as_deref()),
+        option_string(record.derived_content_hash.as_deref()),
+        option_string(record.derived_source_type.as_deref()),
+        option_string(record.derived_copyright_status.as_deref()),
+        option_string(record.derived_allowed_use.as_deref()),
+        option_string(record.derived_embedding_model.as_deref()),
+        option_i32(record.derived_embedding_dimensions),
+        option_string(record.derived_embedding_hash.as_deref()),
+        option_string(record.deletion_job_id.as_deref()),
+        option_string(record.deletion_subject_id.as_deref()),
+        option_string(record.deletion_requested_by.as_deref()),
+        option_string(record.deletion_retention_policy.as_deref()),
+    ]);
+    fields
+}
+
 fn event_integrity_hash_v2(key: &[u8; 32], record: &CanonicalEventIntegrityRecord) -> String {
-    hmac_fields(
-        key,
-        &[
-            "canonical_event_integrity_v2".to_owned(),
-            CURRENT_EVENT_INTEGRITY_VERSION.to_string(),
-            record.sequence.to_string(),
-            record.event_index.to_string(),
-            record.stream_version.to_string(),
-            record.event_type.clone(),
-            record.command_id.clone(),
-            record.idempotency_key.clone(),
-            record.expected_version.to_string(),
-            record.authority_mode.clone(),
-            record.authority_contract_version.to_string(),
-            record.visibility_label.clone(),
-            record.provenance_kind.clone(),
-            record.provenance_reference.clone(),
-            record.provenance_recorded_by.clone(),
-            record.correlation_id.clone(),
-            record.causation_id.clone(),
-            record.campaign_id.clone(),
-            record.authenticated_actor_id.clone(),
-            record.authenticated_actor_role.clone(),
-            record.authenticated_actor_origin.clone(),
-            record.resource_type.clone(),
-            record.resource_id.clone(),
-            record.authority_contract_id.clone(),
-            record.authority_owner.clone(),
-            record.visibility_subject.clone(),
-            record.trace_id.clone(),
-            record.stream_id.clone(),
-            record.event_schema_version.to_string(),
-            record.idempotency_operation.clone(),
-            record.request_hash.clone(),
-            record.request_hash_source.clone(),
-            record.integrity_status.clone(),
-            record.payload_integrity_source.clone(),
-            option_bytes(record.payload_ciphertext.as_deref()),
-            option_string(record.payload_key_reference.as_deref()),
-            option_bytes(record.payload_nonce.as_deref()),
-            record.data_subject_id.clone(),
-            record.recorded_at_micros.to_string(),
-            integrity_option_i64(record.derived_source_event_sequence),
-            option_string(record.derived_snapshot_id.as_deref()),
-            option_string(record.derived_chunk_id.as_deref()),
-            option_string(record.derived_content_hash.as_deref()),
-            option_string(record.derived_source_type.as_deref()),
-            option_string(record.derived_copyright_status.as_deref()),
-            option_string(record.derived_allowed_use.as_deref()),
-            option_string(record.derived_embedding_model.as_deref()),
-            option_i32(record.derived_embedding_dimensions),
-            option_string(record.derived_embedding_hash.as_deref()),
-            option_string(record.deletion_job_id.as_deref()),
-            option_string(record.deletion_subject_id.as_deref()),
-            option_string(record.deletion_requested_by.as_deref()),
-            option_string(record.deletion_retention_policy.as_deref()),
-        ],
-    )
+    hmac_fields(key, &event_integrity_fields(record, 2, false))
+}
+
+fn event_integrity_hash_v3(key: &[u8; 32], record: &CanonicalEventIntegrityRecord) -> String {
+    hmac_fields(key, &event_integrity_fields(record, 3, true))
 }
 
 fn witness_record_hash(key: &[u8; 32], record: &WitnessRecord) -> String {
@@ -3753,7 +4156,7 @@ fn replay_integrity_metadata_is_valid(
 ) -> bool {
     match (integrity_status, request_hash_source) {
         ("verified_hmac", "formal_commit") => {
-            event_integrity_version == CURRENT_EVENT_INTEGRITY_VERSION
+            matches!(event_integrity_version, 2 | CURRENT_EVENT_INTEGRITY_VERSION)
                 && event_integrity_hash.is_some()
                 && request_hash != ZERO_REQUEST_HASH
         }
@@ -3833,6 +4236,66 @@ mod tests {
         assert_eq!(draft.stream_id, "scene_alpha");
         assert_eq!(draft.stream_id, draft.audit.resource_id);
         assert!(normalize_and_validate(&draft).is_ok());
+    }
+
+    #[test]
+    fn zero_target_legacy_request_hash_remains_retry_compatible() {
+        let request = CanonicalCommitRequest {
+            commit_id: "commit_legacy_retry".to_owned(),
+            campaign_id: "campaign_legacy_retry".to_owned(),
+            idempotency_key: "legacy_retry_key".to_owned(),
+            expected_version: 0,
+            command_id: "command_legacy_retry".to_owned(),
+            authenticated_actor_id: "workflow_legacy_retry".to_owned(),
+            authenticated_actor_role: "workflow".to_owned(),
+            authenticated_actor_origin: EventActorOriginWire::Workload {
+                role: "workflow_engine".to_owned(),
+            },
+            authority_mode: "human_kp".to_owned(),
+            authority_contract_version: 1,
+            authority_contract_id: "authority_legacy_retry".to_owned(),
+            authority_owner: "keeper_legacy_retry".to_owned(),
+            visibility_label: "party_visible".to_owned(),
+            visibility_subject: "not_applicable".to_owned(),
+            data_subject_id: "not_applicable".to_owned(),
+            provenance_kind: "rules_engine_decision".to_owned(),
+            provenance_reference: "decision_legacy_retry".to_owned(),
+            provenance_recorded_by: "rules_engine_legacy_retry".to_owned(),
+            correlation_id: "correlation_legacy_retry".to_owned(),
+            causation_id: "causation_legacy_retry".to_owned(),
+            trace_id: "trace_legacy_retry".to_owned(),
+            events: vec![CanonicalCommitEvent {
+                event_type: "SceneAdvanced".to_owned(),
+                payload_json: "{}".to_owned(),
+            }],
+            audit: CanonicalPolicyAudit {
+                actor_id: "workflow_legacy_retry".to_owned(),
+                actor_origin: "workload".to_owned(),
+                authentication_reference: "workflow_legacy_retry".to_owned(),
+                resource_type: "scene".to_owned(),
+                resource_id: "scene_legacy_retry".to_owned(),
+                action: "write_official_state".to_owned(),
+                requested_role: "workflow".to_owned(),
+                openfga_decision_id: "fga_legacy_retry".to_owned(),
+                openfga_policy_revision: "fga_revision_legacy_retry".to_owned(),
+                opa_decision_id: "opa_legacy_retry".to_owned(),
+                opa_policy_revision: "opa_revision_legacy_retry".to_owned(),
+            },
+        };
+        let mut draft =
+            normalize_and_validate(&canonical_request_draft(&request).unwrap()).unwrap();
+        let legacy_hash = legacy_request_hash_without_projection_targets(&draft);
+        assert_ne!(legacy_hash, request_hash(&draft));
+        assert!(stored_request_hash_matches(&draft, &legacy_hash));
+
+        draft.events[0]
+            .projection_targets
+            .push(CanonicalProjectionTarget {
+                relation: "public.scenes".to_owned(),
+                row_id: "scene_legacy_retry".to_owned(),
+            });
+        let draft = normalize_and_validate(&draft).unwrap();
+        assert!(!stored_request_hash_matches(&draft, &legacy_hash));
     }
 
     #[test]

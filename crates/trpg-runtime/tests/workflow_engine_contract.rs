@@ -33,9 +33,10 @@ fn workflow_engine_contract_commits_decision_event_chain() {
     .unwrap();
 
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
     assert!(matches!(
-        events[1].payload,
+        events[2].payload,
         RuntimeEventPayload::DecisionCommitted { .. }
     ));
 }

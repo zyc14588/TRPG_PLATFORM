@@ -7,17 +7,21 @@ if [[ -z "$github_env" ]]; then
   printf 'usage: %s GITHUB_ENV_PATH\n' "$0" >&2
   exit 2
 fi
+touch "$github_env"
+chmod 0600 "$github_env"
 
-postgres_image="postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
-pgvector_image="pgvector/pgvector@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb"
+postgres_image="${TRPG_INTEGRATION_POSTGRES_IMAGE:-postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777}"
+pgvector_image="${TRPG_INTEGRATION_PGVECTOR_IMAGE:-pgvector/pgvector@sha256:12a379b47ad65289572ea0756efc11b7c241a6662833e8af7038cd3b73d647e0}"
+postgres_client_image="${TRPG_INTEGRATION_POSTGRES_CLIENT_IMAGE:-$pgvector_image}"
 redis_image="redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"
 nats_image="nats@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0"
 openfga_image="openfga/openfga@sha256:8543200bf85878c968d73da46c4f0e31ba1f63ed3675b71122f1133b0e9d97eb"
 opa_image="openpolicyagent/opa@sha256:cba27d3c6af2feba1e4d6e6b5e24df5b53db332420d4148a90acccd12efae6ed"
 minio_image="minio/minio@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e"
 minio_client_image="minio/mc@sha256:aead63c77f9db9107f1696fb08ecb0faeda23729cde94b0f663edf4fe09728e3"
-runtime_root="${RUNNER_TEMP:-}"
-if [[ -z "$runtime_root" ]]; then
+if [[ -n "${RUNNER_TEMP:-}" ]]; then
+  runtime_root="$(mktemp -d "$RUNNER_TEMP/trpg-integration.XXXXXX")"
+else
   runtime_root="$(mktemp -d)"
 fi
 tls_directory="$(mktemp -d "$runtime_root/trpg-postgres-tls.XXXXXX")"
@@ -128,6 +132,8 @@ for database in \
   p04_eventing \
   p04_eventing_recovery \
   p05_privacy \
+  p06_core_domain \
+  p07_player_action \
   trpg_backup_source \
   trpg_backup_target; do
   docker exec trpg-primary-postgres createdb -U postgres "$database"
@@ -139,7 +145,9 @@ for database in \
   p02_formal_commit_witness \
   p02_service_witness \
   p04_eventing_witness \
-  p05_privacy_witness; do
+  p05_privacy_witness \
+  p06_core_domain_witness \
+  p07_player_action_witness; do
   docker exec trpg-witness-postgres createdb -U postgres "$database"
 done
 
@@ -209,23 +217,71 @@ docker run --rm --network host \
   "$minio_client_image" \
   mb --ignore-existing "trpg/$minio_bucket"
 
-postgres_bindir="$(pg_config --bindir)"
-pg_dump_path="$postgres_bindir/pg_dump"
-pg_restore_path="$postgres_bindir/pg_restore"
+server_major="$(
+  docker exec trpg-primary-postgres postgres --version |
+    sed -E 's/.* ([0-9]+)([.].*)?$/\1/'
+)"
+postgres_bindir=""
+if [[ -n "${TRPG_POSTGRES_BINDIR:-}" ]]; then
+  postgres_bindir="$TRPG_POSTGRES_BINDIR"
+elif command -v pg_config >/dev/null 2>&1; then
+  postgres_bindir="$(pg_config --bindir)"
+fi
+
+use_container_client=true
+if [[ -n "$postgres_bindir" ]]; then
+  host_pg_dump="$postgres_bindir/pg_dump"
+  host_pg_restore="$postgres_bindir/pg_restore"
+  if [[ -f "$host_pg_dump" && ! -L "$host_pg_dump" &&
+        -f "$host_pg_restore" && ! -L "$host_pg_restore" ]]; then
+    host_dump_major="$(
+      "$host_pg_dump" --version |
+        sed -E 's/.* ([0-9]+)([.].*)?$/\1/'
+    )"
+    host_restore_major="$(
+      "$host_pg_restore" --version |
+        sed -E 's/.* ([0-9]+)([.].*)?$/\1/'
+    )"
+    if [[ "$host_dump_major" == "$server_major" &&
+          "$host_restore_major" == "$server_major" ]]; then
+      pg_dump_path="$host_pg_dump"
+      pg_restore_path="$host_pg_restore"
+      use_container_client=false
+    elif [[ -n "${TRPG_POSTGRES_BINDIR:-}" ]]; then
+      printf 'explicit PostgreSQL client majors %s/%s do not match server major %s\n' \
+        "$host_dump_major" "$host_restore_major" "$server_major" >&2
+      exit 1
+    fi
+  elif [[ -n "${TRPG_POSTGRES_BINDIR:-}" ]]; then
+    printf 'explicit PostgreSQL bindir does not contain regular non-symlink tools\n' >&2
+    exit 1
+  fi
+fi
+
+export TRPG_POSTGRES_CLIENT_IMAGE="$postgres_client_image"
+export TRPG_POSTGRES_CLIENT_MOUNT_ROOT="$runtime_root"
+if [[ "$use_container_client" == true ]]; then
+  postgres_wrapper_directory="$backup_directory/postgres-client"
+  install -d -m 0700 "$postgres_wrapper_directory"
+  install -m 0755 "$root/scripts/ci/postgres-container-client.sh" \
+    "$postgres_wrapper_directory/pg_dump"
+  install -m 0755 "$root/scripts/ci/postgres-container-client.sh" \
+    "$postgres_wrapper_directory/pg_restore"
+  pg_dump_path="$postgres_wrapper_directory/pg_dump"
+  pg_restore_path="$postgres_wrapper_directory/pg_restore"
+fi
+
 for postgres_program in "$pg_dump_path" "$pg_restore_path"; do
   if [[ ! -f "$postgres_program" || -L "$postgres_program" ]]; then
     printf 'PostgreSQL tool must be a regular non-symlink file: %s\n' "$postgres_program" >&2
     exit 1
   fi
 done
-server_major="$(
-  docker exec trpg-primary-postgres postgres --version |
-    sed -E 's/.* ([0-9]+)([.].*)?$/\1/'
-)"
-client_major="$("$pg_dump_path" --version | sed -E 's/.* ([0-9]+)([.].*)?$/\1/')"
-if [[ "$client_major" != "$server_major" ]]; then
-  printf 'pg_dump major %s does not match PostgreSQL server major %s\n' \
-    "$client_major" "$server_major" >&2
+dump_major="$("$pg_dump_path" --version | sed -E 's/.* ([0-9]+)([.].*)?$/\1/')"
+restore_major="$("$pg_restore_path" --version | sed -E 's/.* ([0-9]+)([.].*)?$/\1/')"
+if [[ "$dump_major" != "$server_major" || "$restore_major" != "$server_major" ]]; then
+  printf 'PostgreSQL client majors %s/%s do not match server major %s\n' \
+    "$dump_major" "$restore_major" "$server_major" >&2
   exit 1
 fi
 
@@ -277,6 +333,20 @@ P04_ADMIN_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:1543
 P04_RECOVERY_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/p04_eventing_recovery
 P05_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/p05_privacy
 P05_WITNESS_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15433/p05_privacy_witness
+P06_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/p06_core_domain
+P06_WITNESS_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15433/p06_core_domain_witness
+P06_ALLOW_DATABASE_RESET=1
+P06_RESET_DATABASE=p06_core_domain
+P06_WITNESS_RESET_DATABASE=p06_core_domain_witness
+P07_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/p07_player_action
+P07_WITNESS_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15433/p07_player_action_witness
+P07_ALLOW_DATABASE_RESET=1
+P07_RESET_DATABASE=p07_player_action
+P07_WITNESS_RESET_DATABASE=p07_player_action_witness
+P07_NATS_URL=nats://127.0.0.1:14222
+TRPG_POSTGRES_CLIENT_IMAGE=${postgres_client_image}
+TRPG_POSTGRES_CLIENT_MOUNT_ROOT=${runtime_root}
+TMPDIR=${runtime_root}
 P05_REDIS_URL=redis://127.0.0.1:16379
 P05_NATS_URL=nats://127.0.0.1:14222
 P05_MINIO_ENDPOINT=http://127.0.0.1:19000

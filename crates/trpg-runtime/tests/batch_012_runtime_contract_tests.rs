@@ -20,7 +20,8 @@ use trpg_runtime::session_runtime;
 use trpg_runtime::workflow_engine;
 use trpg_runtime::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventStore,
-    FormalCommitAudit, FormalCommitAuthorizer, FormalWritePath, Visibility, VisibilityLabel,
+    FormalCommitAudit, FormalCommitAuthorizer, FormalWritePath, RuntimeToolExecutionOutput,
+    RuntimeToolExecutor, Visibility, VisibilityLabel,
 };
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
@@ -29,6 +30,35 @@ use trpg_shared_kernel::CanonicalCommitPort;
 
 static NEXT_AUDIT_ID: AtomicU64 = AtomicU64::new(1);
 
+struct SuccessfulRuntimeToolExecutor;
+
+impl RuntimeToolExecutor for SuccessfulRuntimeToolExecutor {
+    fn execute(
+        &self,
+        decision: &RuntimeDecision,
+    ) -> trpg_runtime::runtime_state_machines::RuntimeResult<RuntimeToolExecutionOutput> {
+        Ok(RuntimeToolExecutionOutput {
+            execution_id: format!("execution_{}", decision.decision_id.as_str()),
+            result_hash: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+                .to_owned(),
+        })
+    }
+}
+
+struct CountingRuntimeToolExecutor {
+    calls: Arc<AtomicU64>,
+}
+
+impl RuntimeToolExecutor for CountingRuntimeToolExecutor {
+    fn execute(
+        &self,
+        decision: &RuntimeDecision,
+    ) -> trpg_runtime::runtime_state_machines::RuntimeResult<RuntimeToolExecutionOutput> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        SuccessfulRuntimeToolExecutor.execute(decision)
+    }
+}
+
 fn audited_store(contract: &AuthorityContract) -> EventStore<RuntimeEventPayload> {
     audited_store_with_canonical(contract, trpg_test_support::test_canonical_commit_port())
 }
@@ -36,6 +66,18 @@ fn audited_store(contract: &AuthorityContract) -> EventStore<RuntimeEventPayload
 fn audited_store_with_canonical(
     contract: &AuthorityContract,
     canonical: Arc<dyn CanonicalCommitPort>,
+) -> EventStore<RuntimeEventPayload> {
+    audited_store_with_canonical_and_executor(
+        contract,
+        canonical,
+        Arc::new(SuccessfulRuntimeToolExecutor),
+    )
+}
+
+fn audited_store_with_canonical_and_executor(
+    contract: &AuthorityContract,
+    canonical: Arc<dyn CanonicalCommitPort>,
+    executor: Arc<dyn RuntimeToolExecutor>,
 ) -> EventStore<RuntimeEventPayload> {
     let audit_id = NEXT_AUDIT_ID.fetch_add(1, Ordering::Relaxed);
     let path = std::env::temp_dir().join(format!(
@@ -62,9 +104,10 @@ fn audited_store_with_canonical(
     )
     .unwrap();
     let (identity_verifier, _) = trpg_test_support::formal_commit_identity_for_contract(contract);
-    EventStore::with_formal_custody(
+    EventStore::with_formal_custody_and_executor(
         FormalCommitAuthorizer::new(identity_verifier, policy, audit),
         canonical,
+        executor,
     )
 }
 
@@ -217,10 +260,11 @@ fn ai_kp_orchestrator_commits_decision_through_tool_and_event_log() {
     )
     .unwrap();
 
-    assert_eq!(events.len(), 2);
+    assert_eq!(events.len(), 3);
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
-    match &events[1].payload {
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
+    match &events[2].payload {
         RuntimeEventPayload::DecisionCommitted {
             linked_records,
             audit_fields,
@@ -264,8 +308,9 @@ fn decision_pipeline_fixture_expected_records_are_asserted() {
     .unwrap();
 
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
-    match &events[1].payload {
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
+    match &events[2].payload {
         RuntimeEventPayload::DecisionCommitted {
             linked_records,
             audit_fields,
@@ -364,8 +409,8 @@ fn runtime_pending_decision_wrapper_opens_and_commits_governed_decisions() {
     )
     .unwrap();
 
-    assert_eq!(events.len(), 2);
-    assert_eq!(events[1].event_type, "DecisionCommitted");
+    assert_eq!(events.len(), 3);
+    assert_eq!(events[2].event_type, "DecisionCommitted");
 }
 
 #[test]
@@ -503,7 +548,7 @@ fn keeper_only_runtime_events_do_not_sync_to_public_room() {
         realtime_room_sync::sync_visible_room_events(&store, &system, 206)
             .unwrap()
             .len(),
-        2
+        3
     );
 }
 
@@ -543,7 +588,7 @@ fn realtime_runtime_binding_respects_private_player_visibility() {
         realtime_runtime_binding::visible_runtime_deltas(&store, &player_a_authorization, 206)
             .unwrap()
             .len(),
-        2
+        3
     );
     assert!(
         realtime_runtime_binding::visible_runtime_deltas(&store, &player_b_authorization, 206,)
@@ -567,7 +612,15 @@ fn expected_version_and_idempotency_are_enforced() {
     command.expected_version = 1;
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
-    let mut store = audited_store(&contract);
+    let canonical = trpg_test_support::test_canonical_commit_port();
+    let calls = Arc::new(AtomicU64::new(0));
+    let mut store = audited_store_with_canonical_and_executor(
+        &contract,
+        canonical.clone(),
+        Arc::new(CountingRuntimeToolExecutor {
+            calls: calls.clone(),
+        }),
+    );
 
     assert_eq!(
         runtime_workflow_engine::commit_runtime_workflow_decision(
@@ -604,7 +657,31 @@ fn expected_version_and_idempotency_are_enforced() {
     )
     .expect("an exact network retry must return the original formal result");
     assert_eq!(replayed_result, first_result);
-    assert_eq!(store.events().len(), 2);
+    assert_eq!(store.events().len(), 3);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "an exact retry must not repeat the runtime tool side effect"
+    );
+
+    let mut restarted_store = audited_store_with_canonical_and_executor(
+        &contract,
+        canonical,
+        Arc::new(CountingRuntimeToolExecutor {
+            calls: calls.clone(),
+        }),
+    );
+    let cold_replayed_result = runtime_workflow_engine::commit_runtime_workflow_decision(
+        &mut restarted_store,
+        &contract,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision.clone(),
+        2,
+    )
+    .expect("a cold exact retry must resolve the durable runtime result");
+    assert_eq!(cold_replayed_result, first_result);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
 
     command.expected_version = 2;
     assert_eq!(

@@ -39,6 +39,7 @@ fn runtime_pending_decision_target_commits_ready_decision() {
     )
     .unwrap();
 
-    assert_eq!(events.len(), 2);
-    assert_eq!(events[1].event_type, "DecisionCommitted");
+    assert_eq!(events.len(), 3);
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
 }
