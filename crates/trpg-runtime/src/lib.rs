@@ -26,7 +26,9 @@ pub mod session_runtime_impl;
 pub mod workflow_engine;
 pub mod workflow_engine_impl;
 
-pub use runtime_state_machines::{EventStore, RuntimeEventPayload};
+pub use runtime_state_machines::{
+    EventStore, RuntimeEventPayload, RuntimeToolExecutionOutput, RuntimeToolExecutor,
+};
 pub use trpg_identity::ReplayAuthorization;
 pub use trpg_security_governance::formal_commit_audit::{
     FormalCommitAudit, FormalCommitAuthorizer,

@@ -3,6 +3,7 @@ use std::process::ExitCode;
 use api_server::ApiApplication;
 use trpg_contracts::{run_service_with_handler, RoleRuntimeProbe, ServiceKind, ServiceSpec};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::PostgresCanonicalStore;
+use trpg_data_eventing::persistence_postgresql::CoreDomainRepository;
 use trpg_identity::IdentityService;
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
@@ -132,15 +133,50 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         };
-    let application = ApiApplication::new_production_governed(
-        identity,
-        policy,
-        audit,
-        canonical_runtime,
-        canonical_store,
-        privacy_runtime,
-        deletion_repository,
-    );
+    let player_action_writes_enabled = match player_action_writes_enabled(
+        std::env::var("TRPG_PLAYER_ACTION_WRITES_ENABLED")
+            .ok()
+            .as_deref(),
+    ) {
+        Ok(enabled) => enabled,
+        Err(error) => {
+            eprintln!("service=api-server error={error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let application = if player_action_writes_enabled {
+        let player_action_repository = match core_domain_repository_from_environment(
+            &database_url,
+            &canonical_runtime,
+            canonical_store.clone(),
+        ) {
+            Ok(repository) => repository,
+            Err(error) => {
+                eprintln!("service=api-server error={error}");
+                return ExitCode::FAILURE;
+            }
+        };
+        ApiApplication::new_production_governed_with_player_actions(
+            identity,
+            policy,
+            audit,
+            canonical_runtime,
+            canonical_store,
+            privacy_runtime,
+            deletion_repository,
+            player_action_repository,
+        )
+    } else {
+        ApiApplication::new_production_governed(
+            identity,
+            policy,
+            audit,
+            canonical_runtime,
+            canonical_store,
+            privacy_runtime,
+            deletion_repository,
+        )
+    };
     let readiness_application = application.clone();
     run(
         ServiceKind::ApiServer,
@@ -151,6 +187,23 @@ fn main() -> ExitCode {
         }),
         application,
     )
+}
+
+fn core_domain_repository_from_environment(
+    database_url: &SecretValue,
+    runtime: &tokio::runtime::Runtime,
+    canonical_store: PostgresCanonicalStore,
+) -> Result<CoreDomainRepository, String> {
+    let mut connection = None;
+    database_url
+        .expose_utf8_to(|database| {
+            connection =
+                Some(runtime.block_on(CoreDomainRepository::connect(database, canonical_store)));
+        })
+        .map_err(|_| "DATABASE_URL_SECRET_INVALID".to_owned())?;
+    connection
+        .ok_or_else(|| "CORE_DOMAIN_DATABASE_CONNECTION_NOT_ATTEMPTED".to_owned())?
+        .map_err(|_| "CORE_DOMAIN_DATABASE_CONNECTION_FAILED".to_owned())
 }
 
 fn deletion_repository_from_environment(
@@ -353,6 +406,14 @@ fn required_environment(name: &str) -> Result<String, &'static str> {
         .ok_or("REQUIRED_ENVIRONMENT_MISSING")
 }
 
+fn player_action_writes_enabled(value: Option<&str>) -> Result<bool, &'static str> {
+    match value {
+        None | Some("1" | "true") => Ok(true),
+        Some("0" | "false") => Ok(false),
+        Some(_) => Err("PLAYER_ACTION_WRITES_FLAG_INVALID"),
+    }
+}
+
 fn required_environment_or_file(name: &str, file_name: &str) -> Result<String, &'static str> {
     if let Some(value) = std::env::var(name)
         .ok()
@@ -397,5 +458,23 @@ fn run(
             eprintln!("service={} error={}", kind.as_str(), error.code);
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::player_action_writes_enabled;
+
+    #[test]
+    fn player_action_write_flag_defaults_on_and_fails_closed_on_invalid_values() {
+        assert_eq!(player_action_writes_enabled(None), Ok(true));
+        assert_eq!(player_action_writes_enabled(Some("1")), Ok(true));
+        assert_eq!(player_action_writes_enabled(Some("true")), Ok(true));
+        assert_eq!(player_action_writes_enabled(Some("0")), Ok(false));
+        assert_eq!(player_action_writes_enabled(Some("false")), Ok(false));
+        assert_eq!(
+            player_action_writes_enabled(Some("TRUE")),
+            Err("PLAYER_ACTION_WRITES_FLAG_INVALID")
+        );
     }
 }

@@ -1,10 +1,35 @@
 pub mod common;
 
+use std::sync::Arc;
+
 use trpg_agent_runtime::ai_agent;
 use trpg_agent_runtime::{
     ActorRole, AgentDecision, AgentDecisionCommitter, AgentEventPayload, AgentKind, AgentTool,
-    AuthorityMode, CommandEnvelope, ToolRequest,
+    AgentToolExecutionOutput, AgentToolExecutor, AuthorityMode, CommandEnvelope, ToolRequest,
 };
+
+struct SuccessfulToolExecutor;
+
+impl AgentToolExecutor for SuccessfulToolExecutor {
+    fn execute(
+        &self,
+        decision: &AgentDecision,
+    ) -> trpg_agent_runtime::agent_runtime::AgentResult<AgentToolExecutionOutput> {
+        Ok(AgentToolExecutionOutput {
+            execution_id: format!("execution_{}", decision.decision_id.as_str()),
+            result_hash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                .to_owned(),
+        })
+    }
+}
+
+fn committer(contract: &trpg_agent_runtime::AuthorityContract) -> AgentDecisionCommitter {
+    AgentDecisionCommitter::with_tool_executor(
+        trpg_test_support::identity_verifier_for_contract(contract),
+        Arc::new(SuccessfulToolExecutor),
+    )
+    .unwrap()
+}
 
 fn ai_kp_command(payload: AgentDecision) -> CommandEnvelope<AgentDecision> {
     trpg_test_support::governed_command(payload, ActorRole::Workflow, AuthorityMode::AiKp)
@@ -44,9 +69,7 @@ fn ai_agent_commits_only_through_event_store_with_provenance() {
         ActorRole::Workflow,
     );
     let (mut store, audit) = common::audited_store_with_handle(&contract);
-    let committer =
-        AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
-            .unwrap();
+    let committer = committer(&contract);
 
     let mut unaudited_store = trpg_agent_runtime::AgentEventStore::default();
     let unaudited_error = ai_agent::submit_ai_agent_decision(
@@ -71,12 +94,13 @@ fn ai_agent_commits_only_through_event_store_with_provenance() {
     )
     .unwrap();
 
-    assert_eq!(events.len(), 2);
-    assert_eq!(store.events().len(), 2);
+    assert_eq!(events.len(), 3);
+    assert_eq!(store.events().len(), 3);
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
-    assert_eq!(events[1].fact_provenance, command.fact_provenance);
-    match &events[1].payload {
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
+    assert_eq!(events[2].fact_provenance, command.fact_provenance);
+    match &events[2].payload {
         AgentEventPayload::DecisionCommitted {
             linked_records,
             audit_fields,
@@ -120,9 +144,7 @@ fn ai_agent_exact_retry_returns_original_formal_events() {
         ActorRole::Workflow,
     );
     let mut store = common::audited_store(&contract);
-    let committer =
-        AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
-            .unwrap();
+    let committer = committer(&contract);
 
     let first = ai_agent::submit_ai_agent_decision(
         &committer,
@@ -144,7 +166,7 @@ fn ai_agent_exact_retry_returns_original_formal_events() {
     .expect("exact retry returns the first formal result");
 
     assert_eq!(replayed, first);
-    assert_eq!(store.events().len(), 2);
+    assert_eq!(store.events().len(), 3);
 }
 
 #[test]
@@ -175,9 +197,7 @@ fn cold_retry_returns_canonical_event_identities() {
     );
     let canonical = trpg_test_support::test_canonical_commit_port();
     let (mut first_store, _) = common::audited_store_with_canonical(&contract, canonical.clone());
-    let committer =
-        AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
-            .unwrap();
+    let committer = committer(&contract);
 
     let first = ai_agent::submit_ai_agent_decision(
         &committer,
@@ -235,9 +255,7 @@ fn corrupt_batch_receipt_is_rejected_without_partial_local_events() {
         &contract,
         trpg_test_support::corrupt_second_event_receipt_port(),
     );
-    let committer =
-        AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
-            .unwrap();
+    let committer = committer(&contract);
 
     let error = ai_agent::submit_ai_agent_decision(
         &committer,

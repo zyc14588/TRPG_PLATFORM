@@ -77,6 +77,7 @@ ALLOWED_NORMAL_DEPENDENCIES: dict[str, set[str]] = {
         "trpg-data-eventing",
         "trpg-identity",
         "trpg-platform",
+        "trpg-ruleset-coc7",
         "trpg-runtime",
         "trpg-security-governance",
         "trpg-shared-kernel",

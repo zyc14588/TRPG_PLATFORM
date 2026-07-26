@@ -1,5 +1,7 @@
 pub mod common;
 
+use std::sync::Arc;
+
 use trpg_agent_runtime::adr_0009_agent_governance_agent_governance;
 use trpg_agent_runtime::agent_context_assembler;
 use trpg_agent_runtime::agent_evaluation_golden_scenario;
@@ -25,8 +27,8 @@ use trpg_agent_runtime::tool_protocol;
 use trpg_agent_runtime::working_memory_long_memory_rag;
 use trpg_agent_runtime::working_memory_rag_rag_snapshot;
 use trpg_agent_runtime::{
-    ActorRole, AuthorityMode, CommandEnvelope, EntityId, FormalWritePath, PrincipalScope,
-    Visibility, VisibilityLabel,
+    ActorRole, AgentToolExecutionOutput, AgentToolExecutor, AuthorityMode, CommandEnvelope,
+    EntityId, FormalWritePath, PrincipalScope, Visibility, VisibilityLabel,
 };
 
 const RESTRICTED_PLAYER_VISIBLE_TOKENS: &[&str] = &[
@@ -75,9 +77,27 @@ fn ai_kp_command(payload: AgentDecision) -> CommandEnvelope<AgentDecision> {
     trpg_test_support::governed_command(payload, ActorRole::Workflow, AuthorityMode::AiKp)
 }
 
+struct SuccessfulToolExecutor;
+
+impl AgentToolExecutor for SuccessfulToolExecutor {
+    fn execute(
+        &self,
+        decision: &AgentDecision,
+    ) -> agent_runtime::AgentResult<AgentToolExecutionOutput> {
+        Ok(AgentToolExecutionOutput {
+            execution_id: format!("execution_{}", decision.decision_id.as_str()),
+            result_hash: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                .to_owned(),
+        })
+    }
+}
+
 fn committer(contract: trpg_agent_runtime::AuthorityContract) -> AgentDecisionCommitter {
-    AgentDecisionCommitter::new(trpg_test_support::identity_verifier_for_contract(&contract))
-        .unwrap()
+    AgentDecisionCommitter::with_tool_executor(
+        trpg_test_support::identity_verifier_for_contract(&contract),
+        Arc::new(SuccessfulToolExecutor),
+    )
+    .unwrap()
 }
 
 fn assert_no_restricted_player_visible_tokens(text: &str) {
@@ -214,11 +234,12 @@ fn ai_kp_orchestrator_tool_request_commits_through_event_store() {
         )
         .unwrap();
 
-    assert_eq!(events.len(), 2);
+    assert_eq!(events.len(), 3);
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
-    assert_eq!(store.events().len(), 2);
-    match &events[1].payload {
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
+    assert_eq!(store.events().len(), 3);
+    match &events[2].payload {
         AgentEventPayload::DecisionCommitted {
             linked_records,
             audit_fields,
@@ -267,7 +288,7 @@ fn commit_agent_decision_redacts_restricted_fixture_tokens() {
         )
         .unwrap();
 
-    match &events[1].payload {
+    match &events[2].payload {
         AgentEventPayload::DecisionCommitted {
             player_visible_text,
             ..
@@ -632,7 +653,8 @@ fn s07_fixtures_drive_provider_model_rag_assertions() {
             AgentTool::RequestSkillCheck,
         ),
     );
-    assert!(ai_kp.tool_executed);
+    assert!(ai_kp.tool_authorized);
+    assert!(!ai_kp.tool_executed);
     assert!(ai_kp.error.is_none());
 
     let atmosphere = agent_runtime::evaluate_agent_tool_request(

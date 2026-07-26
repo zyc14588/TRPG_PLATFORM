@@ -93,6 +93,7 @@ pub fn draft(
             .map(|(index, event_type)| CanonicalEventDraft {
                 event_type: (*event_type).to_owned(),
                 payload_json: format!(r#"{{"commit":"{commit_id}","event_index":{index}}}"#),
+                projection_targets: Vec::new(),
             })
             .collect(),
         audit: PolicyAuditDraft {
@@ -131,7 +132,10 @@ pub async fn connect_pool(database_url: &str, maximum_connections: u32) -> PgPoo
 
 pub async fn reset_schema(pool: &PgPool) {
     sqlx::raw_sql(
-        "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;",
+        "DROP SCHEMA IF EXISTS core_domain CASCADE; \
+         DROP SCHEMA public CASCADE; \
+         CREATE SCHEMA public; \
+         GRANT ALL ON SCHEMA public TO public;",
     )
     .execute(pool)
     .await

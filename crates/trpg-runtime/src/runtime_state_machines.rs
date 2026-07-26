@@ -24,10 +24,22 @@ pub struct EventStore<P> {
     formal_custody: Option<FormalCommitCustody>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct FormalCommitCustody {
     authorizer: FormalCommitAuthorizer,
     canonical: Arc<dyn CanonicalCommitPort>,
+    tool_executor: Arc<dyn RuntimeToolExecutor>,
+}
+
+impl std::fmt::Debug for FormalCommitCustody {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("FormalCommitCustody")
+            .field("authorizer", &self.authorizer)
+            .field("canonical", &self.canonical)
+            .field("tool_executor", &"[TRUSTED TOOL EXECUTOR]")
+            .finish()
+    }
 }
 
 impl<P> Default for EventStore<P> {
@@ -49,6 +61,22 @@ impl<P: Clone + PartialEq + serde::Serialize> EventStore<P> {
             formal_custody: Some(FormalCommitCustody {
                 authorizer: formal_authorizer,
                 canonical,
+                tool_executor: Arc::new(RejectingRuntimeToolExecutor),
+            }),
+        }
+    }
+
+    pub fn with_formal_custody_and_executor(
+        formal_authorizer: FormalCommitAuthorizer,
+        canonical: Arc<dyn CanonicalCommitPort>,
+        tool_executor: Arc<dyn RuntimeToolExecutor>,
+    ) -> Self {
+        Self {
+            inner: KernelEventStore::default(),
+            formal_custody: Some(FormalCommitCustody {
+                authorizer: formal_authorizer,
+                canonical,
+                tool_executor,
             }),
         }
     }
@@ -288,6 +316,25 @@ pub struct RuntimeDecision {
     pub linked_records: Vec<&'static str>,
     pub player_visible_explanation: String,
     pub audit_fields: Vec<&'static str>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeToolExecutionOutput {
+    pub execution_id: String,
+    pub result_hash: String,
+}
+
+pub trait RuntimeToolExecutor: Send + Sync {
+    fn execute(&self, decision: &RuntimeDecision) -> RuntimeResult<RuntimeToolExecutionOutput>;
+}
+
+#[derive(Debug)]
+struct RejectingRuntimeToolExecutor;
+
+impl RuntimeToolExecutor for RejectingRuntimeToolExecutor {
+    fn execute(&self, _decision: &RuntimeDecision) -> RuntimeResult<RuntimeToolExecutionOutput> {
+        Err(RuntimeError::AgentToolNotAllowed)
+    }
 }
 
 impl RuntimeDecision {
@@ -848,6 +895,12 @@ pub enum RuntimeEventPayload {
         grant: ToolGrantDecision,
         seal: RuntimeFormalEventSeal,
     },
+    ToolExecutionSucceeded {
+        tool: &'static str,
+        execution_id: EntityId,
+        result_hash: String,
+        seal: RuntimeFormalEventSeal,
+    },
     DecisionCommitted {
         decision_id: EntityId,
         linked_records: Vec<&'static str>,
@@ -944,6 +997,7 @@ pub(crate) fn append_runtime_event<T: Clone>(
 ) -> RuntimeResult<EventEnvelope<RuntimeEventPayload>> {
     let expected_event_type = match &payload {
         RuntimeEventPayload::ToolRequestApproved { .. }
+        | RuntimeEventPayload::ToolExecutionSucceeded { .. }
         | RuntimeEventPayload::DecisionCommitted { .. } => {
             return Err(RuntimeError::Core(TrpgError::PolicyDenied));
         }
@@ -1019,13 +1073,12 @@ fn append_committed_decision_events(
     // the original events before checking the now-advanced stream version.
     let next_version = command.expected_version;
     let tool_command = derived_command(command, "tool", next_version)?;
-    let decision_command = derived_command(command, "decision", next_version + 1)?;
     let requested_role = if human_confirmed {
         "human_keeper"
     } else {
         actor_role_name(command.actor.role())
     };
-    let (authorization, canonical) = {
+    let (authorization, canonical, tool_executor) = {
         let custody = store.formal_custody()?;
         (
             custody.authorizer.authorize(
@@ -1036,20 +1089,47 @@ fn append_committed_decision_events(
                 now_unix_ms,
             )?,
             Arc::clone(&custody.canonical),
+            Arc::clone(&custody.tool_executor),
         )
     };
+    let execution = tool_executor.execute(&decision)?;
+    let execution_id = EntityId::new(&execution.execution_id)?;
+    if !execution.result_hash.starts_with("sha256:")
+        || execution.result_hash.len() != 71
+        || !execution
+            .result_hash
+            .bytes()
+            .skip(7)
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err(RuntimeError::Core(TrpgError::InvalidConfiguration(
+            "runtime_tool_execution_result",
+        )));
+    }
+    let execution_command = derived_command(command, "execution", next_version + 1)?;
+    let decision_command = derived_command(command, "decision", next_version + 2)?;
     persist_runtime_formal_batch(
         store,
         command,
         &authorization,
         &canonical,
-        [
+        vec![
             (
                 tool_command,
                 "ToolRequestApproved",
                 RuntimeEventPayload::ToolRequestApproved {
                     tool: decision.tool_request.tool().as_str(),
                     grant: grant.clone(),
+                    seal: RuntimeFormalEventSeal::new(),
+                },
+            ),
+            (
+                execution_command,
+                "ToolExecutionSucceeded",
+                RuntimeEventPayload::ToolExecutionSucceeded {
+                    tool: decision.tool_request.tool().as_str(),
+                    execution_id,
+                    result_hash: execution.result_hash,
                     seal: RuntimeFormalEventSeal::new(),
                 },
             ),
@@ -1073,11 +1153,11 @@ fn persist_runtime_formal_batch(
     command: &CommandEnvelope<RuntimeDecision>,
     authorization: &FormalAuthorization,
     canonical: &Arc<dyn CanonicalCommitPort>,
-    events: [(
+    events: Vec<(
         CommandEnvelope<RuntimeDecision>,
         &'static str,
         RuntimeEventPayload,
-    ); 2],
+    )>,
 ) -> RuntimeResult<Vec<EventEnvelope<RuntimeEventPayload>>> {
     let contract = authorization.contract();
     let request = CanonicalCommitRequest {

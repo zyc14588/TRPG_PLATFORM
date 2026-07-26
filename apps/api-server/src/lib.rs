@@ -1,14 +1,21 @@
+pub mod core_domain;
 pub mod middleware;
+pub mod player_action;
 
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
 use serde_json::json;
+use trpg_api::api_contracts::{
+    ApiCommandFields, AuthorizedCoreApiContext, ConfirmPlayerActionApiRequest, CoreApiError,
+    PlayerActionApi, SubmitPlayerActionApiRequest,
+};
 use trpg_contracts::{HttpRequest, HttpResponse};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     CanonicalReplayEvent, CanonicalStoreError, PostgresCanonicalCommitPort, PostgresCanonicalStore,
 };
+use trpg_data_eventing::persistence_postgresql::CoreDomainRepository;
 use trpg_identity::{
     CampaignRole, GlobalRole, IdentityError, IdentityService, PrincipalKind, ReplayAuthorization,
     WorkloadRole,
@@ -29,10 +36,11 @@ use trpg_shared_kernel::error_model::{
 use trpg_shared_kernel::{
     AuthenticatedCommandContext, AuthorityMode, CanonicalCommitPort, CommandEnvelope,
     CommandMetadata, EntityId, FactProvenance, FormalWritePath, ProvenanceKind, ResourceRef,
-    TrpgError, Visibility,
+    TrpgError, Visibility, VisibilityLabel,
 };
 
 use middleware::{ApiAuthError, AuthenticationMiddleware};
+use player_action::RepositoryPlayerActionPort;
 
 #[derive(Clone)]
 pub struct ApiApplication {
@@ -59,6 +67,7 @@ struct CanonicalCustody {
     deletion_repository: PostgresDeletionRepository,
     runtime_events: trpg_runtime::EventStore<trpg_runtime::RuntimeEventPayload>,
     agent_events: trpg_agent_runtime::AgentEventStore<trpg_agent_runtime::AgentEventPayload>,
+    player_action_port: Option<RepositoryPlayerActionPort>,
 }
 
 struct VisibleReplayPage {
@@ -104,6 +113,52 @@ impl ApiApplication {
         privacy_runtime: tokio::runtime::Runtime,
         deletion_repository: PostgresDeletionRepository,
     ) -> Self {
+        Self::new_production_governed_internal(
+            identity,
+            policy,
+            audit,
+            canonical_runtime,
+            canonical_store,
+            privacy_runtime,
+            deletion_repository,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_production_governed_with_player_actions(
+        identity: IdentityService,
+        policy: OpenFgaOpaPolicyAdapter,
+        audit: FileAuditLog,
+        canonical_runtime: tokio::runtime::Runtime,
+        canonical_store: PostgresCanonicalStore,
+        privacy_runtime: tokio::runtime::Runtime,
+        deletion_repository: PostgresDeletionRepository,
+        player_action_repository: CoreDomainRepository,
+    ) -> Self {
+        Self::new_production_governed_internal(
+            identity,
+            policy,
+            audit,
+            canonical_runtime,
+            canonical_store,
+            privacy_runtime,
+            deletion_repository,
+            Some(player_action_repository),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_production_governed_internal(
+        identity: IdentityService,
+        policy: OpenFgaOpaPolicyAdapter,
+        audit: FileAuditLog,
+        canonical_runtime: tokio::runtime::Runtime,
+        canonical_store: PostgresCanonicalStore,
+        privacy_runtime: tokio::runtime::Runtime,
+        deletion_repository: PostgresDeletionRepository,
+        player_action_repository: Option<CoreDomainRepository>,
+    ) -> Self {
         let identity_verifier = identity.verifier();
         let audit = FormalCommitAudit::from_file_log(audit);
         let runtime = Arc::new(Mutex::new(canonical_runtime));
@@ -134,6 +189,7 @@ impl ApiApplication {
                 agent_events: trpg_agent_runtime::AgentEventStore::with_formal_custody(
                     authorizer, canonical,
                 ),
+                player_action_port: player_action_repository.map(RepositoryPlayerActionPort::new),
             })),
         }
     }
@@ -256,11 +312,295 @@ impl ApiApplication {
             ("POST", ["campaigns", campaign_id, "privacy", "deletions"]) => {
                 Some(self.request_deletion(request, campaign_id))
             }
+            ("POST", ["campaigns", campaign_id, "player-actions"]) => {
+                Some(self.submit_player_action(request, campaign_id))
+            }
+            ("POST", ["campaigns", campaign_id, "player-actions", action_id, "confirm"]) => {
+                Some(self.confirm_player_action(request, campaign_id, action_id))
+            }
             ("GET", ["campaigns", campaign_id, "privacy", "deletions", job_id]) => {
                 Some(self.get_deletion_status(request, campaign_id, job_id))
             }
             _ => None,
         }
+    }
+
+    fn submit_player_action(&self, request: &HttpRequest, campaign_id: &str) -> HttpResponse {
+        let body: SubmitPlayerActionApiRequest = match parse_json(request) {
+            Ok(body) => body,
+            Err(response) => return response,
+        };
+        if body.campaign_id != campaign_id {
+            return HttpResponse::json(400, json!({"error": "PLAYER_ACTION_PATH_BODY_MISMATCH"}));
+        }
+        let now = match now_unix_ms() {
+            Ok(now) => now,
+            Err(response) => return response,
+        };
+        let context = match self.authorized_player_action_context(
+            request,
+            campaign_id,
+            &body.action_id,
+            &body.command,
+            now,
+        ) {
+            Ok(context) => context,
+            Err(response) => return response,
+        };
+        let Some(custody) = &self.canonical_custody else {
+            return HttpResponse::json(503, json!({"error": "PLAYER_ACTION_WORKFLOW_UNAVAILABLE"}));
+        };
+        let Some(port) = custody.player_action_port.as_ref() else {
+            return HttpResponse::json(503, json!({"error": "PLAYER_ACTION_WORKFLOW_UNAVAILABLE"}));
+        };
+        let api = PlayerActionApi::new(Arc::new(port.clone()));
+        let result = match custody.runtime.lock() {
+            Ok(runtime) => runtime.block_on(api.submit(&context, &body)),
+            Err(_) => return internal_error(),
+        };
+        match result {
+            Ok(receipt) => HttpResponse::json(
+                202,
+                json!({
+                    "first_event_sequence": receipt.first_event_sequence,
+                    "last_event_sequence": receipt.last_event_sequence,
+                    "aggregate_version": receipt.aggregate_version,
+                    "state": receipt.state,
+                    "realtime_delta_id": receipt.realtime_delta_id,
+                }),
+            ),
+            Err(error) => player_action_api_error(error),
+        }
+    }
+
+    fn confirm_player_action(
+        &self,
+        request: &HttpRequest,
+        campaign_id: &str,
+        action_id: &str,
+    ) -> HttpResponse {
+        let body: ConfirmPlayerActionApiRequest = match parse_json(request) {
+            Ok(body) => body,
+            Err(response) => return response,
+        };
+        if body.campaign_id != campaign_id || body.action_id != action_id {
+            return HttpResponse::json(400, json!({"error": "PLAYER_ACTION_PATH_BODY_MISMATCH"}));
+        }
+        let now = match now_unix_ms() {
+            Ok(now) => now,
+            Err(response) => return response,
+        };
+        let context = match self.authorized_player_action_context(
+            request,
+            campaign_id,
+            action_id,
+            &body.command,
+            now,
+        ) {
+            Ok(context) => context,
+            Err(response) => return response,
+        };
+        let Some(custody) = &self.canonical_custody else {
+            return HttpResponse::json(503, json!({"error": "PLAYER_ACTION_WORKFLOW_UNAVAILABLE"}));
+        };
+        let Some(port) = custody.player_action_port.as_ref() else {
+            return HttpResponse::json(503, json!({"error": "PLAYER_ACTION_WORKFLOW_UNAVAILABLE"}));
+        };
+        let api = PlayerActionApi::new(Arc::new(port.clone()));
+        let result = match custody.runtime.lock() {
+            Ok(runtime) => runtime.block_on(api.confirm(&context, &body)),
+            Err(_) => return internal_error(),
+        };
+        match result {
+            Ok(receipt) => HttpResponse::json(
+                200,
+                json!({
+                    "first_event_sequence": receipt.first_event_sequence,
+                    "last_event_sequence": receipt.last_event_sequence,
+                    "aggregate_version": receipt.aggregate_version,
+                    "state": receipt.state,
+                    "realtime_delta_id": receipt.realtime_delta_id,
+                }),
+            ),
+            Err(error) => player_action_api_error(error),
+        }
+    }
+
+    fn authorized_player_action_context(
+        &self,
+        request: &HttpRequest,
+        campaign_id: &str,
+        action_id: &str,
+        command: &ApiCommandFields,
+        now_unix_ms: u64,
+    ) -> Result<AuthorizedCoreApiContext, HttpResponse> {
+        let requesting_authentication = self
+            .authentication
+            .authenticate_bearer(request.header("authorization"), now_unix_ms)
+            .map_err(auth_error)?;
+        let campaign = EntityId::new(campaign_id)
+            .map_err(|_| HttpResponse::json(400, json!({"error": "INVALID_ENTITY_ID"})))?;
+        let resource = ResourceRef::new(campaign_id, "player_action", action_id)
+            .map_err(|_| HttpResponse::json(400, json!({"error": "INVALID_ENTITY_ID"})))?;
+        let (requesting_actor, workflow_authentication, workflow_actor, authority_contract) =
+            match self.authentication.identity().lock() {
+                Ok(mut identity) => {
+                    let requesting_actor = identity
+                        .command_actor(&requesting_authentication, &campaign, now_unix_ms)
+                        .map_err(identity_error)?;
+                    let expires_at = now_unix_ms.checked_add(60_000).ok_or_else(internal_error)?;
+                    let credential = identity
+                        .issue_workload_credential(
+                            "api_player_action_workflow",
+                            WorkloadRole::WorkflowEngine,
+                            now_unix_ms,
+                            expires_at,
+                        )
+                        .map_err(identity_error)?;
+                    let workflow_authentication = identity
+                        .authenticate_workload(&credential, now_unix_ms)
+                        .map_err(identity_error)?;
+                    let workflow_actor = identity
+                        .command_actor(&workflow_authentication, &campaign, now_unix_ms)
+                        .map_err(identity_error)?;
+                    let authority = identity
+                        .authority_contract(&campaign)
+                        .map_err(identity_error)?
+                        .ok_or_else(|| {
+                            HttpResponse::json(
+                                404,
+                                json!({"error": "AUTHORITY_CONTRACT_NOT_FOUND"}),
+                            )
+                        })?;
+                    (
+                        requesting_actor,
+                        workflow_authentication,
+                        workflow_actor,
+                        authority,
+                    )
+                }
+                Err(_) => return Err(internal_error()),
+            };
+        let authority_binding = authority_contract.binding().map_err(|error| {
+            kernel_error_response(
+                request,
+                &error,
+                "authorize_player_action",
+                action_id,
+                error.code(),
+            )
+        })?;
+        let requesting_context = AuthenticatedCommandContext::new(
+            requesting_actor.clone(),
+            resource.clone(),
+            authority_binding.clone(),
+            command.trace_id.clone(),
+            requesting_authentication.authenticated_at_unix_ms(),
+            requesting_authentication.expires_at_unix_ms(),
+        )
+        .map_err(|error| {
+            kernel_error_response(
+                request,
+                &error,
+                "authorize_player_action",
+                action_id,
+                error.code(),
+            )
+        })?;
+        let workflow_context = AuthenticatedCommandContext::new(
+            workflow_actor,
+            resource,
+            authority_binding,
+            command.trace_id.clone(),
+            workflow_authentication.authenticated_at_unix_ms(),
+            workflow_authentication.expires_at_unix_ms(),
+        )
+        .map_err(|error| {
+            kernel_error_response(
+                request,
+                &error,
+                "authorize_player_action",
+                action_id,
+                error.code(),
+            )
+        })?;
+        let expected_version = u64::try_from(command.expected_version).map_err(|_| {
+            HttpResponse::json(
+                400,
+                json!({"error": "PLAYER_ACTION_EXPECTED_VERSION_INVALID"}),
+            )
+        })?;
+        let provenance_kind =
+            if requesting_actor.role() == &trpg_shared_kernel::ActorRole::HumanKeeper {
+                ProvenanceKind::HumanKeeperStatement
+            } else {
+                ProvenanceKind::UserStatement
+            };
+        let policy_command = CommandEnvelope::new(
+            (),
+            CommandMetadata {
+                command_id: EntityId::new(&command.command_id).map_err(|_| {
+                    HttpResponse::json(400, json!({"error": "PLAYER_ACTION_COMMAND_ID_INVALID"}))
+                })?,
+                idempotency_key: command.idempotency_key.clone(),
+                expected_version,
+                authority_mode: authority_contract.mode().clone(),
+                visibility: Visibility::new(VisibilityLabel::PartyVisible),
+                fact_provenance: FactProvenance::new(
+                    provenance_kind,
+                    &command.command_id,
+                    requesting_actor.id().as_str(),
+                )
+                .map_err(|error| {
+                    kernel_error_response(
+                        request,
+                        &error,
+                        "authorize_player_action",
+                        action_id,
+                        error.code(),
+                    )
+                })?,
+                correlation_id: EntityId::new(&command.correlation_id).map_err(|_| {
+                    HttpResponse::json(
+                        400,
+                        json!({"error": "PLAYER_ACTION_CORRELATION_ID_INVALID"}),
+                    )
+                })?,
+                causation_id: EntityId::new(&command.causation_id).map_err(|_| {
+                    HttpResponse::json(400, json!({"error": "PLAYER_ACTION_CAUSATION_ID_INVALID"}))
+                })?,
+                write_path: FormalWritePath::WorkflowDecision,
+                authenticated_context: workflow_context.clone(),
+            },
+        );
+        let custody = self.canonical_custody.as_ref().ok_or_else(|| {
+            HttpResponse::json(503, json!({"error": "PLAYER_ACTION_WORKFLOW_UNAVAILABLE"}))
+        })?;
+        let authorization = custody
+            .authorizer
+            .authorize(
+                &workflow_authentication,
+                None,
+                &policy_command,
+                "workflow",
+                now_unix_ms,
+            )
+            .map_err(|error| {
+                kernel_error_response(
+                    request,
+                    &error,
+                    "authorize_player_action",
+                    action_id,
+                    error.code(),
+                )
+            })?;
+        AuthorizedCoreApiContext::from_authenticated_contexts(
+            requesting_context,
+            workflow_context,
+            &authority_contract,
+            authorization.canonical_audit().clone(),
+        )
+        .map_err(player_action_api_error)
     }
 
     fn request_deletion(&self, request: &HttpRequest, campaign_id: &str) -> HttpResponse {
@@ -1046,6 +1386,10 @@ fn identity_error(error: IdentityError) -> HttpResponse {
 
 fn auth_error(error: ApiAuthError) -> HttpResponse {
     HttpResponse::json(error.status, json!({"error": error.code}))
+}
+
+fn player_action_api_error(error: CoreApiError) -> HttpResponse {
+    HttpResponse::json(error.status_code(), json!({"error": error.to_string()}))
 }
 
 fn internal_error() -> HttpResponse {

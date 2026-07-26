@@ -356,12 +356,12 @@ fn production_privacy_api_binds_job_to_real_canonical_event_and_protects_status(
 }
 
 #[test]
-fn production_runtime_commit_reaches_atomic_canonical_store_and_external_witness() {
+fn production_runtime_without_a_bound_tool_executor_fails_closed() {
     let environment = RealEnvironment::load();
     let contract =
         trpg_test_support::authority_contract("camp_ai_harbor", AuthorityMode::AiKp, 1).unwrap();
     let (mut application, authentication) =
-        production_application(&environment, &contract, "success");
+        production_application(&environment, &contract, "missing-tool-executor");
 
     let version_before = campaign_version(&application, contract.campaign_id().as_str());
     let suffix = format!("{}_{version_before}", std::process::id());
@@ -384,7 +384,7 @@ fn production_runtime_commit_reaches_atomic_canonical_store_and_external_witness
     command.expected_version = version_before;
 
     let custody = Arc::get_mut(application.canonical_custody.as_mut().unwrap()).unwrap();
-    let committed = runtime::commit_runtime_decision(
+    let error = runtime::commit_runtime_decision(
         &mut custody.runtime_events,
         &contract,
         &command,
@@ -392,84 +392,12 @@ fn production_runtime_commit_reaches_atomic_canonical_store_and_external_witness
         decision.clone(),
         2,
     )
-    .unwrap();
-    assert_eq!(committed.len(), 2);
-    assert_eq!(committed[0].event_type, "ToolRequestApproved");
-    assert_eq!(committed[1].event_type, "DecisionCommitted");
-
-    let events = replay(&application, contract.campaign_id().as_str());
-    assert_eq!(events.len() as u64, version_before + 2);
+    .unwrap_err();
+    assert_eq!(error, RuntimeError::AgentToolNotAllowed);
+    assert!(custody.runtime_events.events().is_empty());
     assert_eq!(
-        &events[events.len() - 2..],
-        &["ToolRequestApproved", "DecisionCommitted"]
+        replay(&application, contract.campaign_id().as_str()).len() as u64,
+        version_before
     );
     verify_integrity(&application);
-
-    // A new process must return the exact durable identities of the first
-    // commit. Locally regenerated sequence/timestamp/hash values are forbidden.
-    let (mut cold_retry, cold_retry_authentication) =
-        production_application(&environment, &contract, "cold-retry");
-    let cold_retry_custody = Arc::get_mut(cold_retry.canonical_custody.as_mut().unwrap()).unwrap();
-    let replayed = runtime::commit_runtime_decision(
-        &mut cold_retry_custody.runtime_events,
-        &contract,
-        &command,
-        &cold_retry_authentication,
-        decision,
-        2,
-    )
-    .unwrap();
-    assert_eq!(replayed, committed);
-    assert_eq!(
-        replay(&cold_retry, contract.campaign_id().as_str()).len() as u64,
-        version_before + 2
-    );
-    verify_integrity(&cold_retry);
-
-    // A fresh composition root has no in-memory version to protect it. The
-    // canonical PostgreSQL stream must still reject a stale command, and the
-    // failed durable commit must not publish candidate events in memory.
-    let (mut restarted, restarted_authentication) =
-        production_application(&environment, &contract, "restart-conflict");
-    let conflicting_decision = RuntimeDecision::new(
-        format!("decision_conflict_{suffix}"),
-        "stale restart command",
-        ToolRequest::formal(
-            RuntimeAgent::AiKeeperOrchestrator,
-            RuntimeTool::RequestSkillCheck,
-        ),
-    )
-    .unwrap();
-    let mut conflicting_command = trpg_test_support::governed_command_for_contract(
-        &contract,
-        conflicting_decision.clone(),
-        ActorRole::Workflow,
-    );
-    conflicting_command.command_id = EntityId::new(format!("command_conflict_{suffix}")).unwrap();
-    conflicting_command.idempotency_key = format!("idempotency_conflict_{suffix}");
-    conflicting_command.expected_version = version_before;
-
-    let restarted_custody = Arc::get_mut(restarted.canonical_custody.as_mut().unwrap()).unwrap();
-    let error = runtime::commit_runtime_decision(
-        &mut restarted_custody.runtime_events,
-        &contract,
-        &conflicting_command,
-        &restarted_authentication,
-        conflicting_decision,
-        2,
-    )
-    .unwrap_err();
-    assert_eq!(
-        error,
-        RuntimeError::Core(TrpgError::ExpectedVersionConflict {
-            expected: version_before,
-            actual: version_before + 2,
-        })
-    );
-    assert!(restarted_custody.runtime_events.events().is_empty());
-    assert_eq!(
-        replay(&restarted, contract.campaign_id().as_str()).len() as u64,
-        version_before + 2
-    );
-    verify_integrity(&restarted);
 }

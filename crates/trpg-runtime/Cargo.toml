@@ -18,4 +18,7 @@ trpg-security-governance = { path = "../trpg-security-governance" }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
 
 [dev-dependencies]
+trpg-data-eventing = { path = "../trpg-data-eventing" }
+trpg-domain-core = { path = "../trpg-domain-core" }
+trpg-ruleset-coc7 = { path = "../trpg-ruleset-coc7" }
 trpg-test-support = { path = "../trpg-contracts/test-support" }

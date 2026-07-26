@@ -20,7 +20,8 @@ use trpg_runtime::session_runtime;
 use trpg_runtime::workflow_engine;
 use trpg_runtime::{
     ActorRole, AuthorityContract, AuthorityMode, CommandEnvelope, EntityId, EventStore,
-    FormalCommitAudit, FormalCommitAuthorizer, FormalWritePath, Visibility, VisibilityLabel,
+    FormalCommitAudit, FormalCommitAuthorizer, FormalWritePath, RuntimeToolExecutionOutput,
+    RuntimeToolExecutor, Visibility, VisibilityLabel,
 };
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
@@ -28,6 +29,21 @@ use trpg_security_governance::policy_adapter::{
 use trpg_shared_kernel::CanonicalCommitPort;
 
 static NEXT_AUDIT_ID: AtomicU64 = AtomicU64::new(1);
+
+struct SuccessfulRuntimeToolExecutor;
+
+impl RuntimeToolExecutor for SuccessfulRuntimeToolExecutor {
+    fn execute(
+        &self,
+        decision: &RuntimeDecision,
+    ) -> trpg_runtime::runtime_state_machines::RuntimeResult<RuntimeToolExecutionOutput> {
+        Ok(RuntimeToolExecutionOutput {
+            execution_id: format!("execution_{}", decision.decision_id.as_str()),
+            result_hash: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+                .to_owned(),
+        })
+    }
+}
 
 fn audited_store(contract: &AuthorityContract) -> EventStore<RuntimeEventPayload> {
     audited_store_with_canonical(contract, trpg_test_support::test_canonical_commit_port())
@@ -62,9 +78,10 @@ fn audited_store_with_canonical(
     )
     .unwrap();
     let (identity_verifier, _) = trpg_test_support::formal_commit_identity_for_contract(contract);
-    EventStore::with_formal_custody(
+    EventStore::with_formal_custody_and_executor(
         FormalCommitAuthorizer::new(identity_verifier, policy, audit),
         canonical,
+        Arc::new(SuccessfulRuntimeToolExecutor),
     )
 }
 
@@ -217,10 +234,11 @@ fn ai_kp_orchestrator_commits_decision_through_tool_and_event_log() {
     )
     .unwrap();
 
-    assert_eq!(events.len(), 2);
+    assert_eq!(events.len(), 3);
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
-    match &events[1].payload {
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
+    match &events[2].payload {
         RuntimeEventPayload::DecisionCommitted {
             linked_records,
             audit_fields,
@@ -264,8 +282,9 @@ fn decision_pipeline_fixture_expected_records_are_asserted() {
     .unwrap();
 
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
-    match &events[1].payload {
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
+    match &events[2].payload {
         RuntimeEventPayload::DecisionCommitted {
             linked_records,
             audit_fields,
@@ -364,8 +383,8 @@ fn runtime_pending_decision_wrapper_opens_and_commits_governed_decisions() {
     )
     .unwrap();
 
-    assert_eq!(events.len(), 2);
-    assert_eq!(events[1].event_type, "DecisionCommitted");
+    assert_eq!(events.len(), 3);
+    assert_eq!(events[2].event_type, "DecisionCommitted");
 }
 
 #[test]
@@ -503,7 +522,7 @@ fn keeper_only_runtime_events_do_not_sync_to_public_room() {
         realtime_room_sync::sync_visible_room_events(&store, &system, 206)
             .unwrap()
             .len(),
-        2
+        3
     );
 }
 
@@ -543,7 +562,7 @@ fn realtime_runtime_binding_respects_private_player_visibility() {
         realtime_runtime_binding::visible_runtime_deltas(&store, &player_a_authorization, 206)
             .unwrap()
             .len(),
-        2
+        3
     );
     assert!(
         realtime_runtime_binding::visible_runtime_deltas(&store, &player_b_authorization, 206,)
@@ -604,7 +623,7 @@ fn expected_version_and_idempotency_are_enforced() {
     )
     .expect("an exact network retry must return the original formal result");
     assert_eq!(replayed_result, first_result);
-    assert_eq!(store.events().len(), 2);
+    assert_eq!(store.events().len(), 3);
 
     command.expected_version = 2;
     assert_eq!(

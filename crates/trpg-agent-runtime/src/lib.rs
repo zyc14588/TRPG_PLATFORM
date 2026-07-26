@@ -32,7 +32,8 @@ pub use agent_runtime::{
     assemble_context, assemble_context_for_audience, evaluate_agent_tool_request,
     evaluate_prompt_injection, replay_agent_events_for_principal, AgentDecision,
     AgentDecisionCommitter, AgentError, AgentEventPayload, AgentKind, AgentResult, AgentTool,
-    AssembledAgentContext, ContextFact, PromptInjectionReport, ToolDecision, ToolRequest,
+    AgentToolExecutionOutput, AgentToolExecutor, AssembledAgentContext, ContextFact,
+    PromptInjectionReport, ToolDecision, ToolRequest,
 };
 pub use local_model_certification::{
     certify_local_model, ensure_ai_keeper_model, CertificationInput, LocalModelCertificate,

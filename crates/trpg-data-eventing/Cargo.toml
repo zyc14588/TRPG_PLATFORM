@@ -28,4 +28,5 @@ zeroize = "1.8"
 
 [dev-dependencies]
 futures-util = "0.3"
+trpg-ruleset-coc7 = { path = "../trpg-ruleset-coc7" }
 trpg-test-support = { path = "../trpg-contracts/test-support" }

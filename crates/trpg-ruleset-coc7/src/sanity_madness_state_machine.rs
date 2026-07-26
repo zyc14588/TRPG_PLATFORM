@@ -16,21 +16,30 @@ pub struct SanityTransition {
     pub after: u8,
     pub loss: u8,
     pub day_loss: u8,
+    pub day_start_sanity: u8,
+    pub indefinite_threshold: u8,
     pub state: MadnessState,
 }
 
+/// Applies one SAN-loss event against the immutable SAN value captured at the
+/// start of the in-game day.
+///
+/// COC 7 indefinite insanity is based on one fifth of day-start SAN.  It must
+/// not be recalculated from the current (already reduced) SAN after every
+/// event, otherwise splitting one loss into several events changes the result.
 pub fn apply_sanity_loss(
     current: u8,
     loss: u8,
     prior_day_loss: u8,
+    day_start_sanity: u8,
 ) -> KernelResult<SanityTransition> {
-    if current > 99 {
+    if current > 99 || day_start_sanity > 99 || current > day_start_sanity {
         return Err(TrpgError::InvalidConfiguration("sanity_range"));
     }
 
     let after = current.saturating_sub(loss);
     let day_loss = prior_day_loss.saturating_add(loss);
-    let indefinite_threshold = (current / 5).max(1);
+    let indefinite_threshold = (day_start_sanity / 5).max(1);
     let state = if day_loss >= indefinite_threshold {
         MadnessState::IndefiniteInsanity
     } else if loss >= 5 {
@@ -44,6 +53,8 @@ pub fn apply_sanity_loss(
         after,
         loss,
         day_loss,
+        day_start_sanity,
+        indefinite_threshold,
         state,
     })
 }

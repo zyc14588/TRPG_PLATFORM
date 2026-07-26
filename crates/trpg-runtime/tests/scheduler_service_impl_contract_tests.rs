@@ -73,24 +73,25 @@ fn scheduler_service_impl_preserves_governed_decision_event_contract() {
     let task_event = scheduler_service_impl::record_scheduler_service_impl_due_task(
         &mut store,
         &contract,
-        &string_command("record due task", 2, "idem_b014_scheduler"),
+        &string_command("record due task", 3, "idem_b014_scheduler"),
         due,
     )
     .unwrap();
 
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
     assert_eq!(task_event.event_type, "ScheduledTaskDue");
     let player = trpg_test_support::player_replay_authorization(&contract);
     let system = trpg_test_support::system_replay_authorization(&contract);
     assert!(store.replay_visible(&player, 206).unwrap().is_empty());
-    assert_eq!(store.replay_visible(&system, 206).unwrap().len(), 3);
+    assert_eq!(store.replay_visible(&system, 206).unwrap().len(), 4);
     for event in store.events() {
         assert_eq!(event.visibility.label(), &VisibilityLabel::KeeperOnly);
         assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
         assert_eq!(event.fact_provenance.recorded_by.as_str(), "rules_001");
     }
-    match &events[1].payload {
+    match &events[2].payload {
         RuntimeEventPayload::DecisionCommitted {
             linked_records,
             audit_fields,

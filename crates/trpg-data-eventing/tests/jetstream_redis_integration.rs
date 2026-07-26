@@ -50,9 +50,16 @@ async fn reset_dedicated_database(
         .await
         .expect("connect to dedicated eventing integration database");
     let reset_sql = if install_vector {
-        "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public; CREATE EXTENSION IF NOT EXISTS vector;"
+        "DROP SCHEMA IF EXISTS core_domain CASCADE; \
+         DROP SCHEMA public CASCADE; \
+         CREATE SCHEMA public; \
+         GRANT ALL ON SCHEMA public TO public; \
+         CREATE EXTENSION IF NOT EXISTS vector;"
     } else {
-        "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;"
+        "DROP SCHEMA IF EXISTS core_domain CASCADE; \
+         DROP SCHEMA public CASCADE; \
+         CREATE SCHEMA public; \
+         GRANT ALL ON SCHEMA public TO public;"
     };
     sqlx::raw_sql(reset_sql)
         .execute(&pool)
@@ -106,6 +113,7 @@ fn draft(suffix: u32) -> AtomicCommitDraft {
         events: vec![CanonicalEventDraft {
             event_type: "ClueDiscovered".to_owned(),
             payload_json: r#"{"clue":"harbor ledger"}"#.to_owned(),
+            projection_targets: Vec::new(),
         }],
         audit: PolicyAuditDraft {
             actor_id: "keeper_jetstream".to_owned(),

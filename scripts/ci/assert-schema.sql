@@ -26,8 +26,8 @@ BEGIN
     PERFORM set_config('search_path', 'pg_catalog, public, pg_temp', true);
     postgres_major := current_setting('server_version_num')::INTEGER / 10000;
     expected_constraint_signature := CASE postgres_major
-        WHEN 16 THEN '59d8ffeb4e0d69daf77dd3ee52293e54'
-        WHEN 18 THEN 'fb2c2e2c4235b06e356bdfbfa18b0d93'
+        WHEN 16 THEN '7d8f0c9f7bdd6fe7e2bb9f07d721dd98'
+        WHEN 18 THEN 'fade2b6f3356f1fc51d9256312511505'
         ELSE NULL
     END;
     IF expected_constraint_signature IS NULL THEN
@@ -96,6 +96,15 @@ BEGIN
     END IF;
     IF EXISTS (SELECT 1 FROM _sqlx_migrations WHERE NOT success) THEN
         RAISE EXCEPTION 'failed SQLx migration ledger row found';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM _sqlx_migrations
+         WHERE version = 20260726000100
+           AND success
+           AND encode(checksum, 'hex') =
+               '47774b27008ca0ed39188582d97edc21beb3f31ad739da688e0702854e25504e26169ab864624e584c61777f6691f424'
+    ) THEN
+        RAISE EXCEPTION 'P06 core-domain migration is missing, failed, or checksum-drifted';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
         RAISE EXCEPTION 'pgvector extension is missing';
@@ -348,7 +357,8 @@ BEGIN
         'derived_embedding_model:text:YES:-',
         'derived_embedding_dimensions:int4:YES:-',
         'derived_embedding_hash:text:YES:-',
-        'event_integrity_version:int4:NO:2'
+        'event_integrity_version:int4:NO:3',
+        'projection_targets:jsonb:NO:''[]''::jsonb'
     ]::TEXT[] THEN
         RAISE EXCEPTION 'event_store columns/types/nullability/defaults drifted: %', actual_columns;
     END IF;
@@ -1531,9 +1541,353 @@ BEGIN
     IF invalid_commit IS NOT NULL THEN
         RAISE EXCEPTION 'formal commit % is not bound to its exact event/outbox set', invalid_commit;
     END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('public', 'campaigns'),
+              ('public', 'rooms'),
+              ('core_domain', 'sessions'),
+              ('public', 'scenes'),
+              ('public', 'scenarios'),
+              ('public', 'characters'),
+              ('public', 'character_sheet_versions'),
+              ('public', 'campaign_forks'),
+              ('public', 'reconsiderations')
+          ) AS expected(schema_name, table_name)
+         WHERE to_regclass(
+             format('%I.%I', expected.schema_name, expected.table_name)
+         ) IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P06 core-domain table set is incomplete';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = 'sessions'
+           AND column_name = 'token_hash'
+    ) THEN
+        RAISE EXCEPTION 'P06 replaced or damaged the P02 login-session table';
+    END IF;
+    IF to_regnamespace('core_domain') IS NULL
+       OR EXISTS (
+           SELECT 1
+             FROM pg_namespace AS namespace,
+                  LATERAL aclexplode(namespace.nspacl) AS privilege
+            WHERE namespace.nspname = 'core_domain'
+              AND privilege.grantee = 0
+              AND privilege.privilege_type = 'USAGE'
+       )
+       OR NOT has_schema_privilege(
+           'trpg_api_service', 'core_domain', 'USAGE'
+       )
+       OR NOT has_schema_privilege(
+           'trpg_worker_service', 'core_domain', 'USAGE'
+       )
+    THEN
+        RAISE EXCEPTION 'P06 core-domain schema privilege boundary drifted';
+    END IF;
+    IF has_table_privilege(
+           'trpg_canonical_service', 'public.campaigns', 'SELECT'
+       )
+       OR has_table_privilege(
+           'trpg_canonical_service', 'core_domain.sessions', 'SELECT'
+       )
+       OR NOT has_table_privilege(
+           'trpg_api_service', 'public.campaigns', 'INSERT'
+       )
+       OR NOT has_table_privilege(
+           'trpg_api_service', 'public.characters', 'UPDATE'
+       )
+       OR NOT has_table_privilege(
+           'trpg_api_service', 'core_domain.sessions', 'UPDATE'
+       )
+       OR has_table_privilege(
+           'trpg_api_service', 'public.campaigns', 'DELETE'
+       )
+       OR has_table_privilege(
+           'trpg_api_service', 'public.characters', 'DELETE'
+       )
+       OR has_table_privilege(
+           'trpg_api_service', 'core_domain.sessions', 'DELETE'
+       )
+       OR NOT has_table_privilege(
+           'trpg_worker_service', 'public.scenarios', 'SELECT'
+       )
+       OR NOT has_table_privilege(
+           'trpg_worker_service', 'core_domain.sessions', 'SELECT'
+       )
+    THEN
+        RAISE EXCEPTION 'P06 service role privilege boundary drifted';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_indexes
+         WHERE schemaname = 'core_domain'
+           AND tablename = 'sessions'
+           AND indexname = 'sessions_one_live_per_room_idx'
+           AND indexdef LIKE '%WHERE (state = ANY%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_indexes
+         WHERE schemaname = 'public'
+           AND tablename = 'scenes'
+           AND indexname = 'scenes_one_active_per_session_room_idx'
+           AND indexdef LIKE '%WHERE (state = %'
+    ) THEN
+        RAISE EXCEPTION 'P06 active Session/Scene uniqueness is not physical';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('public', 'campaigns', 'campaigns_event_guard'),
+              ('public', 'rooms', 'rooms_event_guard'),
+              ('public', 'scenarios', 'scenarios_event_guard'),
+              ('public', 'characters', 'characters_event_guard'),
+              (
+                  'public',
+                  'character_sheet_versions',
+                  'character_sheet_versions_event_guard'
+              ),
+              ('core_domain', 'sessions', 'sessions_event_guard'),
+              ('public', 'scenes', 'scenes_event_guard'),
+              ('public', 'campaign_forks', 'campaign_forks_event_guard'),
+              (
+                  'public',
+                  'reconsiderations',
+                  'reconsiderations_event_guard'
+              )
+          ) AS expected(schema_name, table_name, trigger_name)
+          LEFT JOIN pg_namespace AS namespace
+            ON namespace.nspname = expected.schema_name
+          LEFT JOIN pg_class AS relation
+            ON relation.relnamespace = namespace.oid
+           AND relation.relname = expected.table_name
+          LEFT JOIN pg_trigger AS trigger
+            ON trigger.tgrelid = relation.oid
+           AND trigger.tgname = expected.trigger_name
+           AND NOT trigger.tgisinternal
+         WHERE trigger.oid IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P06 canonical-event projection guard is incomplete';
+    END IF;
+    SELECT pg_get_functiondef(
+               'public.enforce_core_projection_event()'::regprocedure
+           )
+      INTO trigger_function_signature;
+    IF strpos(
+           trigger_function_signature,
+           'canonical.authenticated_actor_role IS DISTINCT FROM ''workflow'''
+       ) = 0
+       OR strpos(
+           trigger_function_signature,
+           'audit.action = ''write_official_state'''
+       ) = 0
+       OR strpos(
+           trigger_function_signature,
+           'audit.decision = ''PERMIT'''
+       ) = 0
+       OR strpos(
+           trigger_function_signature,
+           'canonical.projection_targets'
+       ) = 0
+       OR strpos(
+           trigger_function_signature,
+           'trpg.projection_capability'
+       ) = 0
+       OR strpos(
+           trigger_function_signature,
+           'capability_hash'
+       ) = 0
+    THEN
+        RAISE EXCEPTION 'P06 projection guard does not require a formal workflow permit and secret capability';
+    END IF;
 END;
 $$;
 
-SELECT 'P05_SCHEMA_ASSERTION_OK' AS schema_assertion;
+SELECT 'P06_SCHEMA_ASSERTION_OK' AS schema_assertion;
+
+DO $$
+DECLARE
+    guarded_function TEXT;
+BEGIN
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('player_actions'),
+              ('decision_records'),
+              ('dice_rolls'),
+              ('clues'),
+              ('sanity_events')
+          ) AS expected(table_name)
+         WHERE to_regclass(format('public.%I', expected.table_name)) IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P07 player-action projection table set is incomplete';
+    END IF;
+    IF to_regprocedure(
+           'core_domain.player_action_projection_id(jsonb)'
+       ) IS NULL
+       OR to_regprocedure(
+           'core_domain.apply_player_action_projection(text,jsonb)'
+       ) IS NULL
+       OR NOT EXISTS (
+           SELECT 1
+             FROM pg_proc AS procedure
+             JOIN pg_namespace AS namespace
+               ON namespace.oid = procedure.pronamespace
+            WHERE namespace.nspname = 'core_domain'
+              AND procedure.proname = 'apply_player_action_projection'
+              AND procedure.prosecdef
+       )
+    THEN
+        RAISE EXCEPTION 'P07 guarded player-action projection functions are incomplete';
+    END IF;
+    IF NOT has_schema_privilege(
+           'trpg_canonical_service', 'core_domain', 'USAGE'
+       )
+       OR NOT has_function_privilege(
+           'trpg_canonical_service',
+           'core_domain.apply_player_action_projection(text,jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_canonical_service',
+           'core_domain.player_action_projection_id(jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_api_service',
+           'core_domain.apply_player_action_projection(text,jsonb)',
+           'EXECUTE'
+       )
+       OR NOT has_function_privilege(
+           'trpg_api_service',
+           'core_domain.player_action_projection_id(jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_worker_service',
+           'core_domain.apply_player_action_projection(text,jsonb)',
+           'EXECUTE'
+       )
+       OR EXISTS (
+           SELECT 1
+             FROM pg_proc AS procedure
+             JOIN pg_namespace AS namespace
+               ON namespace.oid = procedure.pronamespace,
+                  LATERAL aclexplode(procedure.proacl) AS privilege
+            WHERE namespace.nspname = 'core_domain'
+              AND procedure.proname IN (
+                  'apply_player_action_projection',
+                  'player_action_projection_id'
+              )
+              AND privilege.grantee = 0
+              AND privilege.privilege_type = 'EXECUTE'
+       )
+    THEN
+        RAISE EXCEPTION 'P07 projection function privilege boundary drifted';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('player_actions'),
+              ('decision_records'),
+              ('dice_rolls'),
+              ('clues'),
+              ('sanity_events')
+          ) AS expected(table_name)
+         WHERE has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'SELECT'
+               )
+            OR has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'INSERT'
+               )
+            OR has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'UPDATE'
+               )
+            OR has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'DELETE'
+               )
+            OR NOT has_table_privilege(
+                   'trpg_api_service',
+                   format('public.%I', expected.table_name),
+                   'SELECT'
+               )
+            OR has_table_privilege(
+                   'trpg_api_service',
+                   format('public.%I', expected.table_name),
+                   'INSERT'
+               )
+            OR has_table_privilege(
+                   'trpg_api_service',
+                   format('public.%I', expected.table_name),
+                   'UPDATE'
+               )
+            OR has_table_privilege(
+                   'trpg_api_service',
+                   format('public.%I', expected.table_name),
+                   'DELETE'
+               )
+    ) THEN
+        RAISE EXCEPTION 'P07 player-action table privilege boundary drifted';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('player_actions', 'player_actions_event_guard'),
+              ('decision_records', 'decision_records_event_guard'),
+              ('dice_rolls', 'dice_rolls_event_guard'),
+              ('clues', 'clues_event_guard'),
+              ('sanity_events', 'sanity_events_event_guard')
+          ) AS expected(table_name, trigger_name)
+          LEFT JOIN pg_class AS relation
+            ON relation.oid = to_regclass(
+                format('public.%I', expected.table_name)
+            )
+          LEFT JOIN pg_trigger AS trigger
+            ON trigger.tgrelid = relation.oid
+           AND trigger.tgname = expected.trigger_name
+           AND NOT trigger.tgisinternal
+         WHERE trigger.oid IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P07 canonical-event projection guard is incomplete';
+    END IF;
+    SELECT pg_get_functiondef(
+               'core_domain.apply_player_action_projection(text,jsonb)'::regprocedure
+           )
+      INTO guarded_function;
+    IF strpos(guarded_function, 'trpg.projection_capability') = 0
+       OR strpos(guarded_function, 'projection_capability_hash') = 0
+       OR strpos(guarded_function, 'canonical_audit_log') = 0
+       OR strpos(guarded_function, 'write_official_state') = 0
+       OR strpos(guarded_function, 'SERVER_OS_CSPRNG') = 0
+    THEN
+        RAISE EXCEPTION 'P07 guarded projection omits capability, policy, or server-RNG evidence';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint AS table_constraint
+          JOIN pg_class AS relation
+            ON relation.oid = table_constraint.conrelid
+         WHERE relation.oid = 'public.player_actions'::regclass
+           AND pg_get_constraintdef(table_constraint.oid) LIKE '%intent_json%'
+           AND pg_get_constraintdef(table_constraint.oid) LIKE '%dice_roll%'
+           AND pg_get_constraintdef(table_constraint.oid) LIKE '%random_value%'
+    ) THEN
+        RAISE EXCEPTION 'P07 player action intent does not reject client dice fields';
+    END IF;
+END;
+$$;
+
+SELECT 'P07_SCHEMA_ASSERTION_OK' AS schema_assertion;
 
 ROLLBACK;

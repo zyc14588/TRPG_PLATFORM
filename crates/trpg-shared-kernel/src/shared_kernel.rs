@@ -907,6 +907,7 @@ impl ResourceRef {
 pub struct AuthorityBinding {
     contract_id: EntityId,
     authority_owner: EntityId,
+    authority_mode: AuthorityMode,
     contract_version: u64,
 }
 
@@ -914,6 +915,7 @@ impl AuthorityBinding {
     pub fn new(
         contract_id: impl Into<String>,
         authority_owner: impl Into<String>,
+        authority_mode: AuthorityMode,
         contract_version: u64,
     ) -> KernelResult<Self> {
         if contract_version == 0 {
@@ -922,6 +924,7 @@ impl AuthorityBinding {
         Ok(Self {
             contract_id: EntityId::new(contract_id)?,
             authority_owner: EntityId::new(authority_owner)?,
+            authority_mode,
             contract_version,
         })
     }
@@ -932,6 +935,10 @@ impl AuthorityBinding {
 
     pub fn authority_owner(&self) -> &EntityId {
         &self.authority_owner
+    }
+
+    pub fn authority_mode(&self) -> &AuthorityMode {
+        &self.authority_mode
     }
 
     pub const fn contract_version(&self) -> u64 {
@@ -1182,6 +1189,7 @@ impl AuthorityContract {
         AuthorityBinding::new(
             self.contract_id.as_str(),
             self.authority_owner.as_str(),
+            self.mode.clone(),
             self.version,
         )
     }
@@ -1261,6 +1269,9 @@ impl AuthorityContract {
         }
         if context.authority().authority_owner() != &self.authority_owner {
             return Err(TrpgError::AuthorityOwnerMismatch);
+        }
+        if context.authority().authority_mode() != &self.mode {
+            return Err(TrpgError::AuthorityViolation);
         }
         if context.authority().contract_version() != self.version
             || command.authority_contract_version != self.version

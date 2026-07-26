@@ -49,19 +49,20 @@ fn pending_decision_impl_preserves_governed_decision_event_contract() {
     )
     .unwrap();
 
-    assert_eq!(store.events().len(), 2);
+    assert_eq!(store.events().len(), 3);
     assert_eq!(events[0].event_type, "ToolRequestApproved");
-    assert_eq!(events[1].event_type, "DecisionCommitted");
+    assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
+    assert_eq!(events[2].event_type, "DecisionCommitted");
     let player = trpg_test_support::player_replay_authorization(&contract);
     let system = trpg_test_support::system_replay_authorization(&contract);
     assert!(store.replay_visible(&player, 206).unwrap().is_empty());
-    assert_eq!(store.replay_visible(&system, 206).unwrap().len(), 2);
+    assert_eq!(store.replay_visible(&system, 206).unwrap().len(), 3);
     for event in &events {
         assert_eq!(event.visibility.label(), &VisibilityLabel::KeeperOnly);
         assert_eq!(event.fact_provenance.reference.as_str(), "fact_001");
         assert_eq!(event.fact_provenance.recorded_by.as_str(), "rules_001");
     }
-    match &events[1].payload {
+    match &events[2].payload {
         RuntimeEventPayload::DecisionCommitted {
             linked_records,
             audit_fields,

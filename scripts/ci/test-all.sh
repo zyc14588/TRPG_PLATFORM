@@ -49,6 +49,8 @@ bash -n scripts/ci/init-smoke.sh
 bash -n scripts/ci/test-all.sh
 bash -n scripts/ci/service-process-smoke.sh
 bash -n scripts/ci/integration-services.sh
+bash -n scripts/ci/p07-integration-services.sh
+bash -n scripts/ci/p07-stop-integration-services.sh
 bash -n scripts/ci/generate-integration-evidence.sh
 bash -n scripts/ci/production-security-smoke.sh
 bash -n scripts/backup_restore/smoke.sh
@@ -124,6 +126,17 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 : "${P05_MINIO_BUCKET:?P05_MINIO_BUCKET is required for the deletion object-store gate}"
 : "${P05_MINIO_ACCESS_KEY:?P05_MINIO_ACCESS_KEY is required for the deletion object-store gate}"
 : "${P05_MINIO_SECRET_KEY:?P05_MINIO_SECRET_KEY is required for the deletion object-store gate}"
+: "${P06_DATABASE_URL:?P06_DATABASE_URL is required for the real core-domain gate}"
+: "${P06_WITNESS_DATABASE_URL:?P06_WITNESS_DATABASE_URL is required for the independent core-domain witness gate}"
+: "${P06_ALLOW_DATABASE_RESET:?P06_ALLOW_DATABASE_RESET is required for the destructive core-domain gate}"
+: "${P06_RESET_DATABASE:?P06_RESET_DATABASE must name the dedicated core-domain database}"
+: "${P06_WITNESS_RESET_DATABASE:?P06_WITNESS_RESET_DATABASE must name the dedicated core-domain witness database}"
+: "${P07_DATABASE_URL:?P07_DATABASE_URL is required for the real player-action gate}"
+: "${P07_WITNESS_DATABASE_URL:?P07_WITNESS_DATABASE_URL is required for the player-action witness gate}"
+: "${P07_ALLOW_DATABASE_RESET:?P07_ALLOW_DATABASE_RESET is required for the destructive player-action gate}"
+: "${P07_RESET_DATABASE:?P07_RESET_DATABASE must name the dedicated player-action database}"
+: "${P07_WITNESS_RESET_DATABASE:?P07_WITNESS_RESET_DATABASE must name the dedicated player-action witness database}"
+: "${P07_NATS_URL:?P07_NATS_URL is required for the real player-action Realtime gate}"
 cargo test --workspace --all-features --locked --no-fail-fast -- --test-threads=1
 psql "$P03_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
   -f scripts/ci/assert-schema.sql

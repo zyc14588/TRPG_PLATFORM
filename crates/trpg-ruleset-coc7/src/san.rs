@@ -19,6 +19,7 @@ pub fn resolve_san_check(
     success_loss: u8,
     failure_loss: u8,
     prior_day_loss: u8,
+    day_start_sanity: u8,
 ) -> KernelResult<SanityTransition> {
     let loss = if san_check_succeeds(roll, current_sanity)? {
         success_loss
@@ -26,7 +27,7 @@ pub fn resolve_san_check(
         failure_loss
     };
 
-    apply_sanity_loss(current_sanity, loss, prior_day_loss)
+    apply_sanity_loss(current_sanity, loss, prior_day_loss, day_start_sanity)
 }
 
 pub fn record_san_decision<T>(

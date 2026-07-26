@@ -79,7 +79,10 @@ async fn reset_dedicated_database(database_url: &str, authorized_database_variab
         .await
         .expect("connect to dedicated canonical integration database");
     sqlx::raw_sql(
-        "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;",
+        "DROP SCHEMA IF EXISTS core_domain CASCADE; \
+         DROP SCHEMA public CASCADE; \
+         CREATE SCHEMA public; \
+         GRANT ALL ON SCHEMA public TO public;",
     )
     .execute(&pool)
     .await
@@ -119,6 +122,7 @@ fn draft(commit_id: &str, expected_version: i64, event_types: &[&str]) -> Atomic
             .map(|(index, event_type)| CanonicalEventDraft {
                 event_type: (*event_type).to_owned(),
                 payload_json: format!(r#"{{"index":{index},"commit":"{commit_id}"}}"#),
+                projection_targets: Vec::new(),
             })
             .collect(),
         audit: PolicyAuditDraft {

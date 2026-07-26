@@ -51,7 +51,11 @@ async fn test_pool() -> PgPool {
 
 async fn reset_database(pool: &PgPool) {
     sqlx::raw_sql(
-        "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public; CREATE EXTENSION IF NOT EXISTS vector;",
+        "DROP SCHEMA IF EXISTS core_domain CASCADE; \
+         DROP SCHEMA public CASCADE; \
+         CREATE SCHEMA public; \
+         GRANT ALL ON SCHEMA public TO public; \
+         CREATE EXTENSION IF NOT EXISTS vector;",
     )
     .execute(pool)
     .await
