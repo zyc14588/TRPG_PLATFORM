@@ -27,6 +27,8 @@ pub fn required_storage_tables() -> &'static [&'static str] {
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use chrono::{DateTime, TimeZone, Utc};
 use hmac::{Hmac, Mac};
@@ -273,7 +275,6 @@ pub struct IssueInviteRequest {
     pub invited_user_id: String,
     pub role: MembershipRole,
     pub expires_at_unix_ms: u64,
-    pub now_unix_ms: u64,
 }
 
 pub struct IssuedCampaignInvite {
@@ -301,7 +302,6 @@ pub struct AcceptInviteRequest {
     pub invite_id: String,
     pub accepting_user_id: String,
     pub raw_token: String,
-    pub accepted_at_unix_ms: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -571,10 +571,28 @@ impl From<CanonicalStoreError> for CoreDomainRepositoryError {
     }
 }
 
+pub trait CoreDomainClock: fmt::Debug + Send + Sync {
+    fn now_unix_ms(&self) -> Result<u64, CoreDomainRepositoryError>;
+}
+
+#[derive(Debug)]
+struct SystemCoreDomainClock;
+
+impl CoreDomainClock for SystemCoreDomainClock {
+    fn now_unix_ms(&self) -> Result<u64, CoreDomainRepositoryError> {
+        let elapsed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| CoreDomainRepositoryError::Integrity("trusted_clock_before_epoch"))?;
+        u64::try_from(elapsed.as_millis())
+            .map_err(|_| CoreDomainRepositoryError::Integrity("trusted_clock_out_of_range"))
+    }
+}
+
 #[derive(Clone)]
 pub struct CoreDomainRepository {
     primary: PgPool,
     canonical: PostgresCanonicalStore,
+    clock: Arc<dyn CoreDomainClock>,
 }
 
 impl fmt::Debug for CoreDomainRepository {
@@ -583,6 +601,7 @@ impl fmt::Debug for CoreDomainRepository {
             .debug_struct("CoreDomainRepository")
             .field("primary", &"[POSTGRESQL POOL]")
             .field("canonical", &self.canonical)
+            .field("clock", &"[TRUSTED SERVER CLOCK]")
             .finish()
     }
 }
@@ -592,9 +611,18 @@ impl CoreDomainRepository {
     /// canonical store. Production must not reuse the canonical service role
     /// for identity or business-table reads/writes.
     pub fn new(projection_pool: PgPool, canonical: PostgresCanonicalStore) -> Self {
+        Self::new_with_clock(projection_pool, canonical, Arc::new(SystemCoreDomainClock))
+    }
+
+    pub fn new_with_clock(
+        projection_pool: PgPool,
+        canonical: PostgresCanonicalStore,
+        clock: Arc<dyn CoreDomainClock>,
+    ) -> Self {
         Self {
             primary: projection_pool,
             canonical,
+            clock,
         }
     }
 
@@ -749,6 +777,19 @@ fn validate_server_dice_record(
 }
 
 impl CoreDomainRepository {
+    async fn campaign_invite_acceptance_projection_id(
+        &self,
+        projection: &serde_json::Value,
+    ) -> Result<String, CoreDomainRepositoryError> {
+        sqlx::query_scalar("SELECT core_domain.campaign_invite_acceptance_projection_id($1::JSONB)")
+            .bind(sqlx::types::Json(projection.clone()))
+            .fetch_one(&self.primary)
+            .await
+            .map_err(database_error(
+                "derive_campaign_invite_acceptance_projection_id",
+            ))
+    }
+
     async fn player_action_projection_id(
         &self,
         projection: &serde_json::Value,
@@ -2302,7 +2343,7 @@ impl CoreDomainRepository {
             request.role,
             &token_digest,
             request.expires_at_unix_ms,
-            request.now_unix_ms,
+            self.clock.now_unix_ms()?,
         )?;
         let event = CoreDomainEvent::CampaignInviteIssued {
             schema_version: CORE_EVENT_SCHEMA_VERSION,
@@ -2400,6 +2441,7 @@ impl CoreDomainRepository {
         }
         let accepting_user = UserId::new(&request.accepting_user_id)?;
         let mut issued = None;
+        let mut prior_acceptance = None;
         for replay in self.load_campaign_events(&request.campaign_id).await? {
             if replay.event_type == "CampaignInviteIssued" {
                 let event: CoreDomainEvent = serde_json::from_value(replay.payload)
@@ -2432,25 +2474,46 @@ impl CoreDomainRepository {
                 let event: CoreDomainEvent = serde_json::from_value(replay.payload)
                     .map_err(|_| CoreDomainRepositoryError::Integrity("invite_event_payload"))?;
                 if let CoreDomainEvent::CampaignInviteAccepted {
-                    invite_id, user_id, ..
+                    invite_id,
+                    campaign_id,
+                    user_id,
+                    role,
+                    accepted_at_unix_ms,
+                    ..
                 } = event
                 {
-                    if invite_id == request.invite_id
-                        && (user_id != request.accepting_user_id
+                    if invite_id == request.invite_id {
+                        if user_id != request.accepting_user_id
                             || !canonical_event_idempotency_matches(
                                 &replay.idempotency_key,
                                 &metadata.idempotency_key,
-                            ))
-                    {
-                        return Err(CoreDomainRepositoryError::Integrity(
-                            "invite_already_consumed",
-                        ));
+                            )
+                            || prior_acceptance.is_some()
+                        {
+                            return Err(CoreDomainRepositoryError::Integrity(
+                                "invite_already_consumed",
+                            ));
+                        }
+                        prior_acceptance = Some((campaign_id, role, accepted_at_unix_ms));
                     }
                 }
             }
         }
         let issued = issued.ok_or(CoreDomainRepositoryError::NotFound("campaign_invite"))?;
-        issued.validate_acceptance(&accepting_user, request.accepted_at_unix_ms)?;
+        let accepted_at_unix_ms = match prior_acceptance {
+            Some((campaign_id, role, accepted_at_unix_ms))
+                if campaign_id == request.campaign_id && role == issued.role =>
+            {
+                accepted_at_unix_ms
+            }
+            Some(_) => {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "invite_acceptance_binding_conflict",
+                ));
+            }
+            None => self.clock.now_unix_ms()?,
+        };
+        issued.validate_acceptance(&accepting_user, accepted_at_unix_ms)?;
         let supplied_digest = format!("sha256:{:x}", Sha256::digest(request.raw_token.as_bytes()));
         if !token_digest_matches(&supplied_digest, &issued.token_digest) {
             return Err(CoreDomainRepositoryError::Forbidden);
@@ -2462,39 +2525,39 @@ impl CoreDomainRepository {
             campaign_id: request.campaign_id.clone(),
             user_id: request.accepting_user_id.clone(),
             role: issued.role,
-            accepted_at_unix_ms: request.accepted_at_unix_ms,
+            accepted_at_unix_ms,
         };
-        let persisted = self
-            .commit_event(
-                metadata,
-                &request.campaign_id,
-                &request.invite_id,
-                ("campaign_invite", "campaign.invite.accept"),
-                &event,
-                Vec::new(),
-            )
+        let accepted_at = timestamp_from_unix_ms(accepted_at_unix_ms, "invite.accepted_at")?;
+        let projection = serde_json::json!({
+            "kind": "ACCEPT",
+            "invite_id": request.invite_id,
+            "campaign_id": request.campaign_id,
+            "user_id": request.accepting_user_id,
+            "role": issued.role.as_database_role(),
+            "granted_by": issued.issued_by.to_string(),
+            "granted_at_unix_ms": accepted_at_unix_ms,
+        });
+        let projection_id = self
+            .campaign_invite_acceptance_projection_id(&projection)
             .await?;
-        let accepted_at =
-            timestamp_from_unix_ms(request.accepted_at_unix_ms, "invite.accepted_at")?;
-        sqlx::query(
-            r#"
-            INSERT INTO public.campaign_memberships (
-                campaign_id, user_id, role, granted_by, granted_at
-            ) VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (campaign_id, user_id) DO NOTHING
-            "#,
-        )
-        .bind(&request.campaign_id)
-        .bind(&request.accepting_user_id)
-        .bind(issued.role.as_database_role())
-        .bind(issued.issued_by.to_string())
-        .bind(accepted_at)
-        .execute(&self.primary)
-        .await
-        .map_err(database_error("insert_invited_membership"))?;
+        let draft = metadata.to_draft(
+            &request.campaign_id,
+            &request.invite_id,
+            "campaign_invite",
+            "campaign.invite.accept",
+            &event,
+            vec![projection_target(
+                "core_domain.campaign_invite_acceptance",
+                &projection_id,
+            )],
+        )?;
+        let persisted = self
+            .canonical
+            .commit_campaign_invite_acceptance(&draft, &projection)
+            .await?;
         let membership = sqlx::query(
             r#"
-            SELECT role, revoked_at IS NULL AS active
+            SELECT role, granted_at, revoked_at IS NULL AS active
               FROM public.campaign_memberships
              WHERE campaign_id = $1 AND user_id = $2
             "#,
@@ -2509,6 +2572,7 @@ impl CoreDomainRepository {
         ))?;
         if membership.get::<String, _>("role") != issued.role.as_database_role()
             || !membership.get::<bool, _>("active")
+            || membership.get::<DateTime<Utc>, _>("granted_at") != accepted_at
         {
             return Err(CoreDomainRepositoryError::Integrity(
                 "membership_role_conflict",

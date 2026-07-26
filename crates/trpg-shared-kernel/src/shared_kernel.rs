@@ -1509,7 +1509,26 @@ pub struct CanonicalCommitReceipt {
     pub events: Vec<CanonicalCommittedEvent>,
 }
 
+/// Stable lookup scope used to resolve an already committed command before a
+/// caller repeats any non-idempotent external tool execution.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonicalCommitKey {
+    pub commit_id: String,
+    pub campaign_id: String,
+    pub stream_id: String,
+    pub idempotency_key: String,
+    pub expected_version: u64,
+}
+
 pub trait CanonicalCommitPort: fmt::Debug + Send + Sync {
+    /// Resolves a previously committed canonical batch without requiring the
+    /// caller to reconstruct tool-produced payload fields. Implementations
+    /// must return only receipts backed by their trusted canonical custody.
+    fn load_receipt(
+        &self,
+        key: &CanonicalCommitKey,
+    ) -> KernelResult<Option<CanonicalCommitReceipt>>;
+
     /// Atomically validates the campaign stream version and idempotency key,
     /// persists the complete formal batch, and returns its durable range.
     fn commit(&self, request: &CanonicalCommitRequest) -> KernelResult<CanonicalCommitReceipt>;

@@ -33,9 +33,9 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 use trpg_domain_core::command_cqrs::CommandAcceptedPayload;
 use trpg_domain_core::{CommittedFactEvidence, PersistedFactEvidenceRecord};
 use trpg_shared_kernel::{
-    CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest, CanonicalCommittedEvent,
-    EntityId, EventActorOriginWire, FactProvenance, KernelResult, ProvenanceKind, TrpgError,
-    Visibility,
+    CanonicalCommitKey, CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest,
+    CanonicalCommittedEvent, EntityId, EventActorOriginWire, FactProvenance, KernelResult,
+    ProvenanceKind, TrpgError, Visibility,
 };
 use zeroize::{Zeroize, Zeroizing};
 
@@ -745,6 +745,30 @@ impl fmt::Debug for PostgresCanonicalCommitPort {
 }
 
 impl CanonicalCommitPort for PostgresCanonicalCommitPort {
+    fn load_receipt(
+        &self,
+        key: &CanonicalCommitKey,
+    ) -> KernelResult<Option<CanonicalCommitReceipt>> {
+        let runtime = Arc::clone(&self.runtime);
+        let store = self.store.clone();
+        let key = key.clone();
+        let load = move || {
+            let runtime = runtime
+                .lock()
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+            load_receipt_on_runtime(&runtime, &store, &key)
+        };
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return std::thread::Builder::new()
+                .name("canonical-receipt-lookup-bridge".to_owned())
+                .spawn(load)
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?
+                .join()
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        }
+        load()
+    }
+
     fn commit(&self, request: &CanonicalCommitRequest) -> KernelResult<CanonicalCommitReceipt> {
         let draft = canonical_request_draft(request)?;
         self.commit_draft(draft)
@@ -777,6 +801,89 @@ impl CanonicalCommitPort for PostgresCanonicalCommitPort {
         }
         verify()
     }
+}
+
+fn load_receipt_on_runtime(
+    runtime: &tokio::runtime::Runtime,
+    store: &PostgresCanonicalStore,
+    key: &CanonicalCommitKey,
+) -> KernelResult<Option<CanonicalCommitReceipt>> {
+    if key.commit_id.trim().is_empty()
+        || key.campaign_id.trim().is_empty()
+        || key.stream_id.trim().is_empty()
+        || key.idempotency_key.trim().is_empty()
+    {
+        return Err(TrpgError::AuditIntegrityViolation);
+    }
+    runtime
+        .block_on(async {
+            store.verify_integrity().await?;
+            let Some(persisted) = store
+                .load_existing_commit(
+                    &key.commit_id,
+                    &key.campaign_id,
+                    &key.stream_id,
+                    &key.idempotency_key,
+                )
+                .await?
+            else {
+                let expected_version = i64::try_from(key.expected_version).map_err(|_| {
+                    CanonicalStoreError::IntegrityViolation("expected_version_invalid")
+                })?;
+                let actual_version: i64 = sqlx::query_scalar(
+                    "SELECT COALESCE(max(stream_version), 0) \
+                     FROM event_store WHERE campaign_id = $1 AND stream_id = $2",
+                )
+                .bind(&key.campaign_id)
+                .bind(&key.stream_id)
+                .fetch_one(&store.primary)
+                .await
+                .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                    operation: "preflight_stream_version",
+                })?;
+                if actual_version != expected_version {
+                    return Err(CanonicalStoreError::VersionConflict {
+                        expected: expected_version,
+                        actual: actual_version,
+                    });
+                }
+                return Ok(None);
+            };
+            if persisted.commit_id != key.commit_id {
+                return Err(CanonicalStoreError::IdempotencyConflict);
+            }
+            let stored_scope: (String, String, String) = sqlx::query_as(
+                "SELECT campaign_id, stream_id, idempotency_key \
+                 FROM formal_commits WHERE commit_id = $1",
+            )
+            .bind(&persisted.commit_id)
+            .fetch_one(&store.primary)
+            .await
+            .map_err(|_| CanonicalStoreError::PrimaryWrite {
+                operation: "load_receipt_scope",
+            })?;
+            if stored_scope
+                != (
+                    key.campaign_id.clone(),
+                    key.stream_id.clone(),
+                    key.idempotency_key.clone(),
+                )
+            {
+                return Err(CanonicalStoreError::IdempotencyConflict);
+            }
+            let events =
+                load_committed_events(&store.primary, &store.payload_cipher, &persisted).await?;
+            Ok(Some(CanonicalCommitReceipt {
+                first_stream_version: u64::try_from(persisted.first_stream_version).map_err(
+                    |_| CanonicalStoreError::IntegrityViolation("receipt_version_invalid"),
+                )?,
+                last_stream_version: u64::try_from(persisted.last_stream_version).map_err(
+                    |_| CanonicalStoreError::IntegrityViolation("receipt_version_invalid"),
+                )?,
+                events,
+            }))
+        })
+        .map_err(map_canonical_port_error)
 }
 
 fn commit_on_runtime(
@@ -828,7 +935,7 @@ async fn verify_receipt_on_store(
             .map_err(|_| CanonicalStoreError::PrimaryWrite {
                 operation: "verify_receipt_request_hash",
             })?;
-    if persisted_request_hash != request_hash(&normalized) {
+    if !stored_request_hash_matches(&normalized, &persisted_request_hash) {
         return Err(CanonicalStoreError::IntegrityViolation(
             "canonical_receipt_request_mismatch",
         ));
@@ -926,6 +1033,12 @@ enum WitnessPhase {
     Prepared,
     Committed,
     Aborted,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum AtomicProjection<'a> {
+    PlayerAction(&'a serde_json::Value),
+    CampaignInviteAcceptance(&'a serde_json::Value),
 }
 
 impl WitnessPhase {
@@ -1208,13 +1321,29 @@ impl PostgresCanonicalStore {
         draft: &AtomicCommitDraft,
         projection: &serde_json::Value,
     ) -> Result<PersistedCommit, CanonicalStoreError> {
-        self.commit_with_projection(draft, Some(projection)).await
+        self.commit_with_projection(draft, Some(AtomicProjection::PlayerAction(projection)))
+            .await
+    }
+
+    /// Atomically appends CampaignInviteAccepted and creates the invited
+    /// membership. A uniqueness or role conflict aborts the entire canonical
+    /// transaction, so an invite can never be consumed without its projection.
+    pub(crate) async fn commit_campaign_invite_acceptance(
+        &self,
+        draft: &AtomicCommitDraft,
+        projection: &serde_json::Value,
+    ) -> Result<PersistedCommit, CanonicalStoreError> {
+        self.commit_with_projection(
+            draft,
+            Some(AtomicProjection::CampaignInviteAcceptance(projection)),
+        )
+        .await
     }
 
     async fn commit_with_projection(
         &self,
         draft: &AtomicCommitDraft,
-        player_action_projection: Option<&serde_json::Value>,
+        atomic_projection: Option<AtomicProjection<'_>>,
     ) -> Result<PersistedCommit, CanonicalStoreError> {
         let normalized = normalize_and_validate(draft)?;
         self.verify_cryptographic_chains().await?;
@@ -1229,9 +1358,11 @@ impl PostgresCanonicalStore {
             )
             .await?
         {
-            self.validate_existing_commit(&existing, &normalized, &request_hash)
+            let stored_request_hash = self
+                .validate_existing_commit(&existing, &normalized, &request_hash)
                 .await?;
-            self.finalize_witness(&existing, &request_hash).await?;
+            self.finalize_witness(&existing, &stored_request_hash)
+                .await?;
             return Ok(existing);
         }
 
@@ -1246,20 +1377,16 @@ impl PostgresCanonicalStore {
             )
             .await?;
 
-        let persisted = match self
-            .commit_primary(
-                &normalized,
-                &request_hash,
-                &prepared,
-                player_action_projection,
-            )
+        let (persisted, persisted_request_hash) = match self
+            .commit_primary(&normalized, &request_hash, &prepared, atomic_projection)
             .await
         {
             Ok(persisted) => persisted,
             Err(error) => return Err(error),
         };
 
-        self.finalize_witness(&persisted, &request_hash).await?;
+        self.finalize_witness(&persisted, &persisted_request_hash)
+            .await?;
         Ok(persisted)
     }
 
@@ -1953,8 +2080,8 @@ impl PostgresCanonicalStore {
         draft: &AtomicCommitDraft,
         request_hash: &str,
         prepared: &WitnessRecord,
-        player_action_projection: Option<&serde_json::Value>,
-    ) -> Result<PersistedCommit, CanonicalStoreError> {
+        atomic_projection: Option<AtomicProjection<'_>>,
+    ) -> Result<(PersistedCommit, String), CanonicalStoreError> {
         let mut transaction =
             self.primary
                 .begin()
@@ -1980,9 +2107,9 @@ impl PostgresCanonicalStore {
         )
         .await?
         {
-            if load_request_hash_in_transaction(&mut transaction, &existing.commit_id).await?
-                != request_hash
-            {
+            let stored_request_hash =
+                load_request_hash_in_transaction(&mut transaction, &existing.commit_id).await?;
+            if !stored_request_hash_matches(draft, &stored_request_hash) {
                 return Err(CanonicalStoreError::IdempotencyConflict);
             }
             transaction
@@ -1991,7 +2118,7 @@ impl PostgresCanonicalStore {
                 .map_err(|_| CanonicalStoreError::PrimaryWrite {
                     operation: "commit_idempotent_transaction",
                 })?;
-            return Ok(existing);
+            return Ok((existing, stored_request_hash));
         }
 
         let actual_version: i64 = sqlx::query_scalar(
@@ -2368,11 +2495,26 @@ impl PostgresCanonicalStore {
             operation: "insert_formal_commit",
         })?;
 
-        if let Some(projection) = player_action_projection {
+        if let Some(atomic_projection) = atomic_projection {
+            let (projection, validation_error, capability_operation, apply_operation, statement) =
+                match atomic_projection {
+                    AtomicProjection::PlayerAction(projection) => (
+                        projection,
+                        "player_action_projection_must_be_object",
+                        "set_player_action_projection_capability",
+                        "apply_player_action_projection",
+                        "SELECT core_domain.apply_player_action_projection($1, $2::JSONB)",
+                    ),
+                    AtomicProjection::CampaignInviteAcceptance(projection) => (
+                        projection,
+                        "campaign_invite_projection_must_be_object",
+                        "set_campaign_invite_projection_capability",
+                        "apply_campaign_invite_acceptance",
+                        "SELECT core_domain.apply_campaign_invite_acceptance($1, $2::JSONB)",
+                    ),
+                };
             if !projection.is_object() {
-                return Err(CanonicalStoreError::Validation(
-                    "player_action_projection_must_be_object",
-                ));
+                return Err(CanonicalStoreError::Validation(validation_error));
             }
             let projection_capability = self.derive_core_projection_capability(&draft.commit_id)?;
             sqlx::query("SELECT set_config('trpg.projection_capability', $1, TRUE)")
@@ -2380,15 +2522,15 @@ impl PostgresCanonicalStore {
                 .execute(&mut *transaction)
                 .await
                 .map_err(|_| CanonicalStoreError::PrimaryWrite {
-                    operation: "set_player_action_projection_capability",
+                    operation: capability_operation,
                 })?;
-            sqlx::query("SELECT core_domain.apply_player_action_projection($1, $2::JSONB)")
+            sqlx::query(statement)
                 .bind(&draft.commit_id)
                 .bind(Json(projection.clone()))
                 .execute(&mut *transaction)
                 .await
                 .map_err(|_| CanonicalStoreError::PrimaryWrite {
-                    operation: "apply_player_action_projection",
+                    operation: apply_operation,
                 })?;
         }
 
@@ -2399,16 +2541,19 @@ impl PostgresCanonicalStore {
                 operation: "commit_transaction",
             })?;
 
-        Ok(PersistedCommit {
-            commit_id: draft.commit_id.clone(),
-            first_event_sequence,
-            last_event_sequence,
-            first_stream_version,
-            last_stream_version,
-            audit_sequence,
-            witness_prepare_sequence: prepared.sequence,
-            witness_prepare_hash: prepared.record_hash.clone(),
-        })
+        Ok((
+            PersistedCommit {
+                commit_id: draft.commit_id.clone(),
+                first_event_sequence,
+                last_event_sequence,
+                first_stream_version,
+                last_stream_version,
+                audit_sequence,
+                witness_prepare_sequence: prepared.sequence,
+                witness_prepare_hash: prepared.record_hash.clone(),
+            },
+            request_hash.to_owned(),
+        ))
     }
 
     async fn insert_audit(
@@ -2770,7 +2915,7 @@ impl PostgresCanonicalStore {
         persisted: &PersistedCommit,
         draft: &AtomicCommitDraft,
         request_hash: &str,
-    ) -> Result<(), CanonicalStoreError> {
+    ) -> Result<String, CanonicalStoreError> {
         if persisted.commit_id != draft.commit_id {
             return Err(CanonicalStoreError::IdempotencyConflict);
         }
@@ -2782,7 +2927,7 @@ impl PostgresCanonicalStore {
                 .map_err(|_| CanonicalStoreError::PrimaryWrite {
                     operation: "load_existing_request_hash",
                 })?;
-        if stored_hash != request_hash {
+        if stored_hash != request_hash && !stored_request_hash_matches(draft, &stored_hash) {
             return Err(CanonicalStoreError::IdempotencyConflict);
         }
         let prepared = sqlx::query(
@@ -2803,13 +2948,13 @@ impl PostgresCanonicalStore {
         ))?;
         if prepared.get::<i64, _>("sequence") != persisted.witness_prepare_sequence
             || prepared.get::<String, _>("record_hash") != persisted.witness_prepare_hash
-            || prepared.get::<String, _>("primary_request_hash") != request_hash
+            || prepared.get::<String, _>("primary_request_hash") != stored_hash
         {
             return Err(CanonicalStoreError::IntegrityViolation(
                 "primary_witness_prepare_binding_mismatch",
             ));
         }
-        Ok(())
+        Ok(stored_hash)
     }
 
     async fn load_witness_records(&self) -> Result<Vec<WitnessRecord>, CanonicalStoreError> {
@@ -3608,7 +3753,7 @@ fn normalize_and_validate(
     Ok(normalized)
 }
 
-fn request_hash(draft: &AtomicCommitDraft) -> String {
+fn request_hash_base_fields(draft: &AtomicCommitDraft) -> Vec<String> {
     let mut fields = vec![
         draft.commit_id.clone(),
         draft.campaign_id.clone(),
@@ -3664,6 +3809,20 @@ fn request_hash(draft: &AtomicCommitDraft) -> String {
             fields.push(campaign_id.clone());
         }
     }
+    fields
+}
+
+fn legacy_request_hash_without_projection_targets(draft: &AtomicCommitDraft) -> String {
+    let mut fields = request_hash_base_fields(draft);
+    for event in &draft.events {
+        fields.push(event.event_type.clone());
+        fields.push(event.payload_json.clone());
+    }
+    sha256_fields(&fields)
+}
+
+fn request_hash(draft: &AtomicCommitDraft) -> String {
+    let mut fields = request_hash_base_fields(draft);
     for event in &draft.events {
         fields.push(event.event_type.clone());
         fields.push(event.payload_json.clone());
@@ -3674,6 +3833,15 @@ fn request_hash(draft: &AtomicCommitDraft) -> String {
         }
     }
     sha256_fields(&fields)
+}
+
+fn stored_request_hash_matches(draft: &AtomicCommitDraft, stored_hash: &str) -> bool {
+    stored_hash == request_hash(draft)
+        || (draft
+            .events
+            .iter()
+            .all(|event| event.projection_targets.is_empty())
+            && stored_hash == legacy_request_hash_without_projection_targets(draft))
 }
 
 fn actor_origin_matches_role_and_campaign(
@@ -4068,6 +4236,66 @@ mod tests {
         assert_eq!(draft.stream_id, "scene_alpha");
         assert_eq!(draft.stream_id, draft.audit.resource_id);
         assert!(normalize_and_validate(&draft).is_ok());
+    }
+
+    #[test]
+    fn zero_target_legacy_request_hash_remains_retry_compatible() {
+        let request = CanonicalCommitRequest {
+            commit_id: "commit_legacy_retry".to_owned(),
+            campaign_id: "campaign_legacy_retry".to_owned(),
+            idempotency_key: "legacy_retry_key".to_owned(),
+            expected_version: 0,
+            command_id: "command_legacy_retry".to_owned(),
+            authenticated_actor_id: "workflow_legacy_retry".to_owned(),
+            authenticated_actor_role: "workflow".to_owned(),
+            authenticated_actor_origin: EventActorOriginWire::Workload {
+                role: "workflow_engine".to_owned(),
+            },
+            authority_mode: "human_kp".to_owned(),
+            authority_contract_version: 1,
+            authority_contract_id: "authority_legacy_retry".to_owned(),
+            authority_owner: "keeper_legacy_retry".to_owned(),
+            visibility_label: "party_visible".to_owned(),
+            visibility_subject: "not_applicable".to_owned(),
+            data_subject_id: "not_applicable".to_owned(),
+            provenance_kind: "rules_engine_decision".to_owned(),
+            provenance_reference: "decision_legacy_retry".to_owned(),
+            provenance_recorded_by: "rules_engine_legacy_retry".to_owned(),
+            correlation_id: "correlation_legacy_retry".to_owned(),
+            causation_id: "causation_legacy_retry".to_owned(),
+            trace_id: "trace_legacy_retry".to_owned(),
+            events: vec![CanonicalCommitEvent {
+                event_type: "SceneAdvanced".to_owned(),
+                payload_json: "{}".to_owned(),
+            }],
+            audit: CanonicalPolicyAudit {
+                actor_id: "workflow_legacy_retry".to_owned(),
+                actor_origin: "workload".to_owned(),
+                authentication_reference: "workflow_legacy_retry".to_owned(),
+                resource_type: "scene".to_owned(),
+                resource_id: "scene_legacy_retry".to_owned(),
+                action: "write_official_state".to_owned(),
+                requested_role: "workflow".to_owned(),
+                openfga_decision_id: "fga_legacy_retry".to_owned(),
+                openfga_policy_revision: "fga_revision_legacy_retry".to_owned(),
+                opa_decision_id: "opa_legacy_retry".to_owned(),
+                opa_policy_revision: "opa_revision_legacy_retry".to_owned(),
+            },
+        };
+        let mut draft =
+            normalize_and_validate(&canonical_request_draft(&request).unwrap()).unwrap();
+        let legacy_hash = legacy_request_hash_without_projection_targets(&draft);
+        assert_ne!(legacy_hash, request_hash(&draft));
+        assert!(stored_request_hash_matches(&draft, &legacy_hash));
+
+        draft.events[0]
+            .projection_targets
+            .push(CanonicalProjectionTarget {
+                relation: "public.scenes".to_owned(),
+                row_id: "scene_legacy_retry".to_owned(),
+            });
+        let draft = normalize_and_validate(&draft).unwrap();
+        assert!(!stored_request_hash_matches(&draft, &legacy_hash));
     }
 
     #[test]

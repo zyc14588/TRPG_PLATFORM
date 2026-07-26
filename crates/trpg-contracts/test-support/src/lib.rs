@@ -6,10 +6,10 @@ use std::thread;
 
 use trpg_shared_kernel::{
     Actor, ActorRole, AgentClass, AuthenticatedCommandContext, AuthorityContract,
-    AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft, CanonicalCommitPort,
-    CanonicalCommitReceipt, CanonicalCommitRequest, CanonicalCommittedEvent, CommandEnvelope,
-    CommandMetadata, EntityId, FactProvenance, FormalWritePath, KernelResult, ProvenanceKind,
-    ResourceRef, TrpgError, Visibility, VisibilityLabel, WorkloadRole,
+    AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft, CanonicalCommitKey,
+    CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest, CanonicalCommittedEvent,
+    CommandEnvelope, CommandMetadata, EntityId, FactProvenance, FormalWritePath, KernelResult,
+    ProvenanceKind, ResourceRef, TrpgError, Visibility, VisibilityLabel, WorkloadRole,
 };
 
 const TEST_IDENTITY_SIGNING_KEY: [u8; 32] = [0x5a; 32];
@@ -28,6 +28,39 @@ struct TestCanonicalState {
 }
 
 impl CanonicalCommitPort for TestCanonicalCommitPort {
+    fn load_receipt(
+        &self,
+        key: &CanonicalCommitKey,
+    ) -> KernelResult<Option<CanonicalCommitReceipt>> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let scope = (
+            key.campaign_id.clone(),
+            key.stream_id.clone(),
+            key.idempotency_key.clone(),
+        );
+        let Some((request, receipt)) = state.idempotency_results.get(&scope) else {
+            let actual_version = state
+                .stream_versions
+                .get(&(key.campaign_id.clone(), key.stream_id.clone()))
+                .copied()
+                .unwrap_or(0);
+            if actual_version != key.expected_version {
+                return Err(TrpgError::ExpectedVersionConflict {
+                    expected: key.expected_version,
+                    actual: actual_version,
+                });
+            }
+            return Ok(None);
+        };
+        if request.commit_id != key.commit_id {
+            return Err(TrpgError::DuplicateCommand);
+        }
+        Ok(Some(receipt.clone()))
+    }
+
     fn commit(&self, request: &CanonicalCommitRequest) -> KernelResult<CanonicalCommitReceipt> {
         if request.events.is_empty() {
             return Err(TrpgError::AuditIntegrityViolation);
@@ -157,6 +190,13 @@ struct CorruptSecondEventReceiptPort {
 }
 
 impl CanonicalCommitPort for CorruptSecondEventReceiptPort {
+    fn load_receipt(
+        &self,
+        key: &CanonicalCommitKey,
+    ) -> KernelResult<Option<CanonicalCommitReceipt>> {
+        self.inner.load_receipt(key)
+    }
+
     fn commit(&self, request: &CanonicalCommitRequest) -> KernelResult<CanonicalCommitReceipt> {
         let mut receipt = self.inner.commit(request)?;
         let second = receipt
@@ -536,6 +576,22 @@ pub fn formal_commit_policy_endpoints() -> TestPolicyEndpoints {
         ),
         opa: spawn_test_policy_server(
             r#"{"result":{"allow":true,"decision_id":"test-opa-permit","policy_revision":"test-opa-v1"}}"#,
+            "",
+        ),
+        openfga_model: "test-openfga-model-v1",
+        opa_revision: "test-opa-v1",
+    })
+}
+
+pub fn denied_formal_commit_policy_endpoints() -> TestPolicyEndpoints {
+    static ENDPOINTS: OnceLock<TestPolicyEndpoints> = OnceLock::new();
+    *ENDPOINTS.get_or_init(|| TestPolicyEndpoints {
+        openfga: spawn_test_policy_server(
+            r#"{"allowed":false,"decision_id":"test-openfga-deny"}"#,
+            "X-Request-Id: test-openfga-deny\r\n",
+        ),
+        opa: spawn_test_policy_server(
+            r#"{"result":{"allow":false,"decision_id":"test-opa-deny","policy_revision":"test-opa-v1"}}"#,
             "",
         ),
         openfga_model: "test-openfga-model-v1",

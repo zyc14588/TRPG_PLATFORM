@@ -1711,6 +1711,7 @@ SELECT 'P06_SCHEMA_ASSERTION_OK' AS schema_assertion;
 DO $$
 DECLARE
     guarded_function TEXT;
+    invite_guarded_function TEXT;
 BEGIN
     IF EXISTS (
         SELECT 1
@@ -1731,6 +1732,12 @@ BEGIN
        OR to_regprocedure(
            'core_domain.apply_player_action_projection(text,jsonb)'
        ) IS NULL
+       OR to_regprocedure(
+           'core_domain.campaign_invite_acceptance_projection_id(jsonb)'
+       ) IS NULL
+       OR to_regprocedure(
+           'core_domain.apply_campaign_invite_acceptance(text,jsonb)'
+       ) IS NULL
        OR NOT EXISTS (
            SELECT 1
              FROM pg_proc AS procedure
@@ -1740,8 +1747,17 @@ BEGIN
               AND procedure.proname = 'apply_player_action_projection'
               AND procedure.prosecdef
        )
+       OR NOT EXISTS (
+           SELECT 1
+             FROM pg_proc AS procedure
+             JOIN pg_namespace AS namespace
+               ON namespace.oid = procedure.pronamespace
+            WHERE namespace.nspname = 'core_domain'
+              AND procedure.proname = 'apply_campaign_invite_acceptance'
+              AND procedure.prosecdef
+       )
     THEN
-        RAISE EXCEPTION 'P07 guarded player-action projection functions are incomplete';
+        RAISE EXCEPTION 'P07 guarded projection functions are incomplete';
     END IF;
     IF NOT has_schema_privilege(
            'trpg_canonical_service', 'core_domain', 'USAGE'
@@ -1766,10 +1782,40 @@ BEGIN
            'core_domain.player_action_projection_id(jsonb)',
            'EXECUTE'
        )
+       OR NOT has_function_privilege(
+           'trpg_canonical_service',
+           'core_domain.apply_campaign_invite_acceptance(text,jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_canonical_service',
+           'core_domain.campaign_invite_acceptance_projection_id(jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_api_service',
+           'core_domain.apply_campaign_invite_acceptance(text,jsonb)',
+           'EXECUTE'
+       )
+       OR NOT has_function_privilege(
+           'trpg_api_service',
+           'core_domain.campaign_invite_acceptance_projection_id(jsonb)',
+           'EXECUTE'
+       )
        OR has_function_privilege(
            'trpg_worker_service',
            'core_domain.apply_player_action_projection(text,jsonb)',
            'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_worker_service',
+           'core_domain.apply_campaign_invite_acceptance(text,jsonb)',
+           'EXECUTE'
+       )
+       OR has_table_privilege(
+           'trpg_canonical_service',
+           'public.campaign_memberships',
+           'INSERT'
        )
        OR EXISTS (
            SELECT 1
@@ -1780,7 +1826,9 @@ BEGIN
             WHERE namespace.nspname = 'core_domain'
               AND procedure.proname IN (
                   'apply_player_action_projection',
-                  'player_action_projection_id'
+                  'player_action_projection_id',
+                  'apply_campaign_invite_acceptance',
+                  'campaign_invite_acceptance_projection_id'
               )
               AND privilege.grantee = 0
               AND privilege.privilege_type = 'EXECUTE'
@@ -1872,6 +1920,19 @@ BEGIN
        OR strpos(guarded_function, 'SERVER_OS_CSPRNG') = 0
     THEN
         RAISE EXCEPTION 'P07 guarded projection omits capability, policy, or server-RNG evidence';
+    END IF;
+    SELECT pg_get_functiondef(
+               'core_domain.apply_campaign_invite_acceptance(text,jsonb)'::regprocedure
+           )
+      INTO invite_guarded_function;
+    IF strpos(invite_guarded_function, 'trpg.projection_capability') = 0
+       OR strpos(invite_guarded_function, 'projection_capability_hash') = 0
+       OR strpos(invite_guarded_function, 'canonical_audit_log') = 0
+       OR strpos(invite_guarded_function, 'write_official_state') = 0
+       OR strpos(invite_guarded_function, 'CampaignInviteAccepted') = 0
+       OR strpos(invite_guarded_function, 'campaign_memberships') = 0
+    THEN
+        RAISE EXCEPTION 'P07 invite acceptance is not an atomic guarded projection';
     END IF;
     IF NOT EXISTS (
         SELECT 1

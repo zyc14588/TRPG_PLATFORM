@@ -11,9 +11,9 @@ use trpg_security_governance::{
     RedactionOutcome as SecurityRedactionOutcome,
 };
 use trpg_shared_kernel::{
-    AuthorityContract, AuthorityMode, CanonicalCommitEvent, CanonicalCommitPort,
-    CanonicalCommitRequest, CommandEnvelope, EntityId, EventEnvelope,
-    EventStore as KernelEventStore, FactProvenance, FormalWritePath, PrincipalScope,
+    AuthorityContract, AuthorityMode, CanonicalCommitEvent, CanonicalCommitKey,
+    CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest, CommandEnvelope, EntityId,
+    EventEnvelope, EventStore as KernelEventStore, FactProvenance, FormalWritePath, PrincipalScope,
     ProvenanceKind, TrpgError, Visibility, VisibilityLabel,
 };
 
@@ -616,22 +616,6 @@ impl AgentDecisionCommitter {
             });
         }
 
-        let execution = self.tool_executor.execute(&decision)?;
-        let execution_id = EntityId::new(&execution.execution_id)?;
-        if !execution.result_hash.starts_with("sha256:")
-            || execution.result_hash.len() != 71
-            || !execution
-                .result_hash
-                .bytes()
-                .skip(7)
-                .all(|byte| byte.is_ascii_hexdigit())
-        {
-            return Err(AgentError::Core(TrpgError::InvalidConfiguration(
-                "agent_tool_execution_result",
-            )));
-        }
-
-        // Identity, authority, and tool checks must complete before the event-store capability is used.
         // Preserve the original derived request hashes so an exact network
         // retry resolves through EventStore's scoped idempotency index before
         // optimistic concurrency is evaluated.
@@ -661,6 +645,43 @@ impl AgentDecisionCommitter {
                 Arc::clone(&custody.canonical),
             )
         };
+        // Formal OpenFGA/OPA authorization is deliberately complete before
+        // any tool side effect. A durable receipt lookup also precedes tool
+        // execution so an exact or cold retry reuses the canonical result.
+        let commit_key = CanonicalCommitKey {
+            commit_id: format!(
+                "{}_{}",
+                contract.campaign_id().as_str(),
+                command.command_id.as_str()
+            ),
+            campaign_id: contract.campaign_id().to_string(),
+            stream_id: command
+                .authenticated_context()
+                .resource()
+                .resource_id()
+                .to_string(),
+            idempotency_key: command.idempotency_key.clone(),
+            expected_version: command.expected_version,
+        };
+        let execution = match canonical.load_receipt(&commit_key)? {
+            Some(receipt) => {
+                agent_execution_from_receipt(&receipt, decision.tool_request.tool().as_str())?
+            }
+            None => self.tool_executor.execute(&decision)?,
+        };
+        let execution_id = EntityId::new(&execution.execution_id)?;
+        if !execution.result_hash.starts_with("sha256:")
+            || execution.result_hash.len() != 71
+            || !execution
+                .result_hash
+                .bytes()
+                .skip(7)
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(AgentError::Core(TrpgError::InvalidConfiguration(
+                "agent_tool_execution_result",
+            )));
+        }
         persist_agent_formal_batch(
             store,
             command,
@@ -702,6 +723,47 @@ impl AgentDecisionCommitter {
             ],
         )
     }
+}
+
+fn agent_execution_from_receipt(
+    receipt: &CanonicalCommitReceipt,
+    expected_tool: &str,
+) -> AgentResult<AgentToolExecutionOutput> {
+    if receipt.events.len() != 3 {
+        return Err(AgentError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    let event = receipt
+        .events
+        .get(1)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    if event.event_type != "ToolExecutionSucceeded" {
+        return Err(AgentError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    let payload: serde_json::Value = serde_json::from_str(&event.payload_json)
+        .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+    let execution = payload
+        .get("ToolExecutionSucceeded")
+        .and_then(serde_json::Value::as_object)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let tool = execution
+        .get("tool")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let execution_id = execution
+        .get("execution_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let result_hash = execution
+        .get("result_hash")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    if tool != expected_tool {
+        return Err(AgentError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    Ok(AgentToolExecutionOutput {
+        execution_id: execution_id.to_owned(),
+        result_hash: result_hash.to_owned(),
+    })
 }
 
 fn persist_agent_formal_batch(

@@ -185,7 +185,6 @@ impl CampaignCharacterCommandPort for RepositoryCampaignCharacterPort {
                         invited_user_id: request.invited_user_id.clone(),
                         role,
                         expires_at_unix_ms: request.expires_at_unix_ms,
-                        now_unix_ms: request.now_unix_ms,
                     },
                 )
                 .await
@@ -219,7 +218,6 @@ impl CampaignCharacterCommandPort for RepositoryCampaignCharacterPort {
                         invite_id: request.invite_id.clone(),
                         accepting_user_id: request.accepting_user_id.clone(),
                         raw_token: request.raw_token.clone(),
-                        accepted_at_unix_ms: request.accepted_at_unix_ms,
                     },
                 )
                 .await

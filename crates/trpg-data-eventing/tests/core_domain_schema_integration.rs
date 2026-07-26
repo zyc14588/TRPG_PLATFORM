@@ -1,5 +1,7 @@
 use std::env;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -8,8 +10,8 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     PolicyAuditDraft, PostgresCanonicalStore,
 };
 use trpg_data_eventing::persistence_postgresql::{
-    AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainRepository,
-    CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest,
+    AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainClock,
+    CoreDomainRepository, CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest,
     ImportScenarioRequest, IssueInviteRequest, RecordCampaignForkRequest,
     RequestReconsiderationRequest, ReviewReconsiderationRequest, StartSessionRequest,
     SwitchSceneRequest,
@@ -28,6 +30,15 @@ const OTHER_ID: &str = "other_p06_schema";
 const AUTHORITY_ID: &str = "authority_campaign_p06_schema_1";
 const CHILD_AUTHORITY_ID: &str = "authority_campaign_p06_fork_child_1";
 const NOW_MS: u64 = 2_000_000_000_000;
+
+#[derive(Debug)]
+struct TestClock(AtomicU64);
+
+impl CoreDomainClock for TestClock {
+    fn now_unix_ms(&self) -> Result<u64, CoreDomainRepositoryError> {
+        Ok(self.0.load(Ordering::SeqCst))
+    }
+}
 
 async fn reset_database(url: &str, expected_database: &str, witness: bool) -> PgPool {
     assert_eq!(
@@ -213,7 +224,8 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .prepare_for_service()
         .await
         .expect("apply the complete forward migration chain");
-    let repository = CoreDomainRepository::new(primary.clone(), store);
+    let clock = Arc::new(TestClock(AtomicU64::new(NOW_MS)));
+    let repository = CoreDomainRepository::new_with_clock(primary.clone(), store, clock.clone());
 
     for (schema, table) in [
         ("public", "campaigns"),
@@ -241,6 +253,38 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .expect("query core table catalog");
         assert!(exists, "{schema}.{table} must exist after empty migration");
     }
+    let invite_projection_function: (bool, bool) = sqlx::query_as(
+        r#"
+        SELECT procedure.prosecdef,
+               NOT EXISTS (
+                   SELECT 1
+                     FROM aclexplode(
+                         COALESCE(
+                             procedure.proacl,
+                             acldefault('f', procedure.proowner)
+                         )
+                     ) AS privilege
+                    WHERE privilege.grantee = 0
+                      AND privilege.privilege_type = 'EXECUTE'
+               )
+          FROM pg_proc AS procedure
+          JOIN pg_namespace AS namespace
+            ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'core_domain'
+           AND procedure.proname = 'apply_campaign_invite_acceptance'
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .expect("invite acceptance projection function exists");
+    assert!(
+        invite_projection_function.0,
+        "invite projection must be SECURITY DEFINER"
+    );
+    assert!(
+        invite_projection_function.1,
+        "PUBLIC must not execute the invite projection"
+    );
     let login_session_has_token_hash: bool = sqlx::query_scalar(
         r#"
         SELECT EXISTS(
@@ -698,7 +742,6 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         invited_user_id: PLAYER_ID.to_owned(),
         role: MembershipRole::Player,
         expires_at_unix_ms: NOW_MS + 60_000,
-        now_unix_ms: NOW_MS,
     };
     let issued = repository
         .issue_invite(&invite_metadata, &invite_request)
@@ -739,6 +782,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         PLAYER_ID,
         "user_statement",
     );
+    clock.0.store(NOW_MS + 60_000, Ordering::SeqCst);
     assert!(matches!(
         repository
             .accept_invite(
@@ -748,12 +792,12 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                     invite_id: "invite_p06_player".to_owned(),
                     accepting_user_id: PLAYER_ID.to_owned(),
                     raw_token: issued.raw_token.clone(),
-                    accepted_at_unix_ms: NOW_MS + 60_000,
                 },
             )
             .await,
         Err(CoreDomainRepositoryError::Domain(_))
     ));
+    clock.0.store(NOW_MS + 1_000, Ordering::SeqCst);
     let wrong_subject_metadata = metadata(
         CAMPAIGN_ID,
         AUTHORITY_ID,
@@ -777,7 +821,6 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                     invite_id: "invite_p06_player".to_owned(),
                     accepting_user_id: OTHER_ID.to_owned(),
                     raw_token: issued.raw_token.clone(),
-                    accepted_at_unix_ms: NOW_MS + 1_000,
                 },
             )
             .await,
@@ -802,20 +845,123 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         invite_id: "invite_p06_player".to_owned(),
         accepting_user_id: PLAYER_ID.to_owned(),
         raw_token: issued.raw_token,
-        accepted_at_unix_ms: NOW_MS + 1_000,
     };
     let accepted = repository
         .accept_invite(&accept_metadata, &accept_request)
         .await
         .expect("accept valid invite into durable membership");
+    clock.0.store(NOW_MS + 60_000, Ordering::SeqCst);
     let accepted_retry = repository
         .accept_invite(&accept_metadata, &accept_request)
         .await
-        .expect("exact invite acceptance retry is idempotent");
+        .expect("exact retry remains idempotent after the invite expires");
     assert_eq!(
         accepted_retry.last_event_sequence,
         accepted.last_event_sequence
     );
+    clock.0.store(NOW_MS + 1_000, Ordering::SeqCst);
+
+    let conflict_invite_id = "invite_p07_membership_conflict";
+    let conflict_issue_metadata = metadata(
+        CAMPAIGN_ID,
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        conflict_invite_id,
+        "campaign_invite",
+        "campaign.invite.issue",
+        0,
+        "invite_conflict_issue",
+        "private_to_player",
+        OTHER_ID,
+        "human_keeper_statement",
+    );
+    let conflict_invite = repository
+        .issue_invite(
+            &conflict_issue_metadata,
+            &IssueInviteRequest {
+                invite_id: conflict_invite_id.to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                invited_user_id: OTHER_ID.to_owned(),
+                role: MembershipRole::Player,
+                expires_at_unix_ms: NOW_MS + 120_000,
+            },
+        )
+        .await
+        .expect("issue invite used by the atomic conflict probe");
+    sqlx::query(
+        r#"
+        INSERT INTO public.campaign_memberships (
+            campaign_id, user_id, role, granted_by, granted_at, revoked_at
+        ) VALUES ($1, $2, 'SPECTATOR', $3, to_timestamp($4 / 1000.0),
+                  to_timestamp($4 / 1000.0))
+        "#,
+    )
+    .bind(CAMPAIGN_ID)
+    .bind(OTHER_ID)
+    .bind(KEEPER_ID)
+    .bind(NOW_MS as f64)
+    .execute(&primary)
+    .await
+    .expect("seed a revoked conflicting membership");
+    let conflict_accept_metadata = metadata(
+        CAMPAIGN_ID,
+        AUTHORITY_ID,
+        OTHER_ID,
+        "investigator",
+        conflict_invite_id,
+        "campaign_invite",
+        "campaign.invite.accept",
+        1,
+        "invite_conflict_accept",
+        "private_to_player",
+        OTHER_ID,
+        "user_statement",
+    );
+    assert!(matches!(
+        repository
+            .accept_invite(
+                &conflict_accept_metadata,
+                &AcceptInviteRequest {
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    invite_id: conflict_invite_id.to_owned(),
+                    accepting_user_id: OTHER_ID.to_owned(),
+                    raw_token: conflict_invite.raw_token,
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::Canonical(_))
+    ));
+    let consumed_event_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 AND stream_id = $2 \
+           AND event_type = 'CampaignInviteAccepted'",
+    )
+    .bind(CAMPAIGN_ID)
+    .bind(conflict_invite_id)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let formal_commit_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM public.formal_commits WHERE commit_id = $1")
+            .bind(&conflict_accept_metadata.commit_id)
+            .fetch_one(&primary)
+            .await
+            .unwrap();
+    let conflict_membership = sqlx::query(
+        "SELECT role, revoked_at IS NOT NULL AS revoked \
+         FROM public.campaign_memberships \
+         WHERE campaign_id = $1 AND user_id = $2",
+    )
+    .bind(CAMPAIGN_ID)
+    .bind(OTHER_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(consumed_event_count, 0);
+    assert_eq!(formal_commit_count, 0);
+    assert_eq!(conflict_membership.get::<String, _>("role"), "SPECTATOR");
+    assert!(conflict_membership.get::<bool, _>("revoked"));
 
     let character_metadata = metadata(
         CAMPAIGN_ID,

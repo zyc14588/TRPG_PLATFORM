@@ -272,7 +272,6 @@ async fn seed_tutorial(repository: &CoreDomainRepository, primary: &PgPool) {
                 invited_user_id: PLAYER_ID.to_owned(),
                 role: MembershipRole::Player,
                 expires_at_unix_ms: NOW_MS + 60_000,
-                now_unix_ms: NOW_MS,
             },
         )
         .await
@@ -295,7 +294,6 @@ async fn seed_tutorial(repository: &CoreDomainRepository, primary: &PgPool) {
                 invite_id: "invite_p07_http".to_owned(),
                 accepting_user_id: PLAYER_ID.to_owned(),
                 raw_token: invite.raw_token,
-                accepted_at_unix_ms: NOW_MS + 1_000,
             },
         )
         .await

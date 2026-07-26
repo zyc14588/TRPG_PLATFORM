@@ -253,7 +253,6 @@ async fn production_adapter_executes_real_campaign_invite_and_character_reposito
         invited_user_id: PLAYER_ID.to_owned(),
         role: "PLAYER".to_owned(),
         expires_at_unix_ms: NOW_MS + 60_000,
-        now_unix_ms: NOW_MS,
     };
     let issued = api
         .issue_invite(&keeper_invite, &invite_request)
@@ -285,7 +284,6 @@ async fn production_adapter_executes_real_campaign_invite_and_character_reposito
             invite_id: invite_id.to_owned(),
             accepting_user_id: PLAYER_ID.to_owned(),
             raw_token: issued.raw_token,
-            accepted_at_unix_ms: NOW_MS + 1_000,
         },
     )
     .await

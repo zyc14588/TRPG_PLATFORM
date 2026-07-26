@@ -1,5 +1,6 @@
 pub mod common;
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use trpg_agent_runtime::ai_agent;
@@ -23,10 +24,35 @@ impl AgentToolExecutor for SuccessfulToolExecutor {
     }
 }
 
+struct CountingToolExecutor {
+    calls: Arc<AtomicU64>,
+}
+
+impl AgentToolExecutor for CountingToolExecutor {
+    fn execute(
+        &self,
+        decision: &AgentDecision,
+    ) -> trpg_agent_runtime::agent_runtime::AgentResult<AgentToolExecutionOutput> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        SuccessfulToolExecutor.execute(decision)
+    }
+}
+
 fn committer(contract: &trpg_agent_runtime::AuthorityContract) -> AgentDecisionCommitter {
     AgentDecisionCommitter::with_tool_executor(
         trpg_test_support::identity_verifier_for_contract(contract),
         Arc::new(SuccessfulToolExecutor),
+    )
+    .unwrap()
+}
+
+fn counting_committer(
+    contract: &trpg_agent_runtime::AuthorityContract,
+    calls: Arc<AtomicU64>,
+) -> AgentDecisionCommitter {
+    AgentDecisionCommitter::with_tool_executor(
+        trpg_test_support::identity_verifier_for_contract(contract),
+        Arc::new(CountingToolExecutor { calls }),
     )
     .unwrap()
 }
@@ -144,7 +170,8 @@ fn ai_agent_exact_retry_returns_original_formal_events() {
         ActorRole::Workflow,
     );
     let mut store = common::audited_store(&contract);
-    let committer = committer(&contract);
+    let calls = Arc::new(AtomicU64::new(0));
+    let committer = counting_committer(&contract, calls.clone());
 
     let first = ai_agent::submit_ai_agent_decision(
         &committer,
@@ -167,6 +194,11 @@ fn ai_agent_exact_retry_returns_original_formal_events() {
 
     assert_eq!(replayed, first);
     assert_eq!(store.events().len(), 3);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "an exact retry must not repeat the tool side effect"
+    );
 }
 
 #[test]
@@ -197,10 +229,11 @@ fn cold_retry_returns_canonical_event_identities() {
     );
     let canonical = trpg_test_support::test_canonical_commit_port();
     let (mut first_store, _) = common::audited_store_with_canonical(&contract, canonical.clone());
-    let committer = committer(&contract);
+    let calls = Arc::new(AtomicU64::new(0));
+    let first_committer = counting_committer(&contract, calls.clone());
 
     let first = ai_agent::submit_ai_agent_decision(
-        &committer,
+        &first_committer,
         &mut first_store,
         &command,
         &trpg_test_support::workflow_authentication(),
@@ -211,8 +244,9 @@ fn cold_retry_returns_canonical_event_identities() {
 
     std::thread::sleep(std::time::Duration::from_millis(2));
     let (mut restarted_store, _) = common::audited_store_with_canonical(&contract, canonical);
+    let restarted_committer = counting_committer(&contract, calls.clone());
     let replayed = ai_agent::submit_ai_agent_decision(
-        &committer,
+        &restarted_committer,
         &mut restarted_store,
         &command,
         &trpg_test_support::workflow_authentication(),
@@ -223,6 +257,59 @@ fn cold_retry_returns_canonical_event_identities() {
 
     assert_eq!(replayed, first);
     assert_eq!(restarted_store.events(), first.as_slice());
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "a cold retry must resolve the canonical execution result"
+    );
+}
+
+#[test]
+fn denied_formal_authorization_never_invokes_the_tool_executor() {
+    let request = ToolRequest::formal(
+        AgentKind::AiKeeperOrchestrator,
+        AgentTool::RequestSkillCheck,
+    );
+    let contract = trpg_test_support::authority_contract(
+        "campaign_b018_agent_policy_deny",
+        AuthorityMode::AiKp,
+        1,
+    )
+    .unwrap();
+    let authentication =
+        trpg_test_support::ai_keeper_authentication(contract.campaign_id().as_str());
+    let decision = AgentDecision::new(
+        "decision_b018_agent_policy_deny",
+        request,
+        "Spot Hidden",
+        &authentication,
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
+    let (mut store, _) = common::audited_store_with_policy_endpoints(
+        &contract,
+        trpg_test_support::test_canonical_commit_port(),
+        trpg_test_support::denied_formal_commit_policy_endpoints(),
+    );
+    let calls = Arc::new(AtomicU64::new(0));
+    let committer = counting_committer(&contract, calls.clone());
+
+    ai_agent::submit_ai_agent_decision(
+        &committer,
+        &mut store,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .expect_err("formal policy denial must fail closed");
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert!(store.events().is_empty());
 }
 
 #[test]

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::env;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -16,8 +17,9 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     PolicyAuditDraft, PostgresCanonicalStore,
 };
 use trpg_data_eventing::persistence_postgresql::{
-    AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainRepository,
-    CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest, IssueInviteRequest,
+    AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainClock,
+    CoreDomainRepository, CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest,
+    IssueInviteRequest,
 };
 use trpg_domain_core::domain_entities_value_objects::MembershipRole;
 use trpg_identity::{AuthenticationContext, CampaignRole, GlobalRole, WorkloadRole};
@@ -39,6 +41,15 @@ const AUTHORITY_ID: &str = "authority_contract_camp_human_archive_1";
 const KEEPER_ID: &str = "user_human_kp";
 const PLAYER_ID: &str = "player_p06_api";
 const NOW_MS: u64 = 2_200_000_000_000;
+
+#[derive(Debug)]
+struct TestClock(AtomicU64);
+
+impl CoreDomainClock for TestClock {
+    fn now_unix_ms(&self) -> Result<u64, CoreDomainRepositoryError> {
+        Ok(self.0.load(Ordering::SeqCst))
+    }
+}
 
 async fn reset_database(url: &str, expected_database: &str, witness: bool) -> PgPool {
     assert_eq!(
@@ -482,7 +493,6 @@ impl CampaignCharacterCommandPort for RepositoryCampaignCharacterPort {
                         invited_user_id: request.invited_user_id.clone(),
                         role,
                         expires_at_unix_ms: request.expires_at_unix_ms,
-                        now_unix_ms: request.now_unix_ms,
                     },
                 )
                 .await
@@ -519,7 +529,6 @@ impl CampaignCharacterCommandPort for RepositoryCampaignCharacterPort {
                         invite_id: request.invite_id.clone(),
                         accepting_user_id: request.accepting_user_id.clone(),
                         raw_token: request.raw_token.clone(),
-                        accepted_at_unix_ms: request.accepted_at_unix_ms,
                     },
                 )
                 .await
@@ -683,7 +692,8 @@ async fn campaign_invite_and_character_api_use_the_real_repository() {
         .prepare_for_service()
         .await
         .expect("migrate P06 API database");
-    let repository = CoreDomainRepository::new(primary.clone(), store);
+    let clock = Arc::new(TestClock(AtomicU64::new(NOW_MS)));
+    let repository = CoreDomainRepository::new_with_clock(primary.clone(), store, clock.clone());
     for (user_id, login) in [(KEEPER_ID, "keeper-p06-api"), (PLAYER_ID, "player-p06-api")] {
         sqlx::query(
             r#"
@@ -779,7 +789,6 @@ async fn campaign_invite_and_character_api_use_the_real_repository() {
                 invited_user_id: PLAYER_ID.to_owned(),
                 role: "PLAYER".to_owned(),
                 expires_at_unix_ms: NOW_MS + 60_000,
-                now_unix_ms: NOW_MS,
             },
         )
         .await
@@ -792,6 +801,7 @@ async fn campaign_invite_and_character_api_use_the_real_repository() {
         Some(PLAYER_ID),
         "player_expired_accept",
     );
+    clock.0.store(NOW_MS + 60_000, Ordering::SeqCst);
     assert!(api
         .accept_invite(
             &expired_invite_context,
@@ -801,11 +811,11 @@ async fn campaign_invite_and_character_api_use_the_real_repository() {
                 invite_id: issued.invite_id.clone(),
                 accepting_user_id: PLAYER_ID.to_owned(),
                 raw_token: issued.raw_token.clone(),
-                accepted_at_unix_ms: NOW_MS + 60_000,
             },
         )
         .await
         .is_err());
+    clock.0.store(NOW_MS + 1_000, Ordering::SeqCst);
     let valid_invite_context = decisions.context(
         PLAYER_ID,
         "campaign_invite",
@@ -822,7 +832,6 @@ async fn campaign_invite_and_character_api_use_the_real_repository() {
             invite_id: issued.invite_id,
             accepting_user_id: PLAYER_ID.to_owned(),
             raw_token: issued.raw_token,
-            accepted_at_unix_ms: NOW_MS + 1_000,
         },
     )
     .await

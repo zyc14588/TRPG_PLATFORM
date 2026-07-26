@@ -340,6 +340,13 @@ struct ForgedHashCanonicalPort {
 }
 
 impl trpg_shared_kernel::CanonicalCommitPort for ForgedHashCanonicalPort {
+    fn load_receipt(
+        &self,
+        key: &trpg_shared_kernel::CanonicalCommitKey,
+    ) -> trpg_shared_kernel::KernelResult<Option<trpg_shared_kernel::CanonicalCommitReceipt>> {
+        self.inner.load_receipt(key)
+    }
+
     fn commit(
         &self,
         request: &trpg_shared_kernel::CanonicalCommitRequest,

@@ -7,10 +7,10 @@ use trpg_contracts::WireErrorCode;
 use trpg_identity::{AuthenticationContext, IdentityVerifier, PrincipalKind, ReplayAuthorization};
 use trpg_security_governance::formal_commit_audit::{FormalAuthorization, FormalCommitAuthorizer};
 use trpg_shared_kernel::{
-    Actor, ActorRole, AuthorityContract, AuthorityMode, CanonicalCommitEvent, CanonicalCommitPort,
-    CanonicalCommitRequest, CommandEnvelope, EntityId, EventEnvelope,
-    EventStore as KernelEventStore, FormalWritePath, KernelResult, ProvenanceKind, TrpgError,
-    Visibility, VisibilityLabel,
+    Actor, ActorRole, AuthorityContract, AuthorityMode, CanonicalCommitEvent, CanonicalCommitKey,
+    CanonicalCommitPort, CanonicalCommitReceipt, CanonicalCommitRequest, CommandEnvelope, EntityId,
+    EventEnvelope, EventStore as KernelEventStore, FormalWritePath, KernelResult, ProvenanceKind,
+    TrpgError, Visibility, VisibilityLabel,
 };
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -1092,7 +1092,30 @@ fn append_committed_decision_events(
             Arc::clone(&custody.tool_executor),
         )
     };
-    let execution = tool_executor.execute(&decision)?;
+    // Resolve an exact prior command under canonical custody before repeating
+    // a non-idempotent tool (for example server dice). Authorization above is
+    // also guaranteed to complete before either lookup or execution.
+    let commit_key = CanonicalCommitKey {
+        commit_id: format!(
+            "{}_{}",
+            authorization.contract().campaign_id().as_str(),
+            command.command_id.as_str()
+        ),
+        campaign_id: authorization.contract().campaign_id().to_string(),
+        stream_id: command
+            .authenticated_context()
+            .resource()
+            .resource_id()
+            .to_string(),
+        idempotency_key: command.idempotency_key.clone(),
+        expected_version: command.expected_version,
+    };
+    let execution = match canonical.load_receipt(&commit_key)? {
+        Some(receipt) => {
+            runtime_execution_from_receipt(&receipt, decision.tool_request.tool().as_str())?
+        }
+        None => tool_executor.execute(&decision)?,
+    };
     let execution_id = EntityId::new(&execution.execution_id)?;
     if !execution.result_hash.starts_with("sha256:")
         || execution.result_hash.len() != 71
@@ -1146,6 +1169,47 @@ fn append_committed_decision_events(
             ),
         ],
     )
+}
+
+fn runtime_execution_from_receipt(
+    receipt: &CanonicalCommitReceipt,
+    expected_tool: &str,
+) -> RuntimeResult<RuntimeToolExecutionOutput> {
+    if receipt.events.len() != 3 {
+        return Err(RuntimeError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    let event = receipt
+        .events
+        .get(1)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    if event.event_type != "ToolExecutionSucceeded" {
+        return Err(RuntimeError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    let payload: serde_json::Value = serde_json::from_str(&event.payload_json)
+        .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+    let execution = payload
+        .get("ToolExecutionSucceeded")
+        .and_then(serde_json::Value::as_object)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let tool = execution
+        .get("tool")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let execution_id = execution
+        .get("execution_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let result_hash = execution
+        .get("result_hash")
+        .and_then(serde_json::Value::as_str)
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
+    if tool != expected_tool {
+        return Err(RuntimeError::Core(TrpgError::AuditIntegrityViolation));
+    }
+    Ok(RuntimeToolExecutionOutput {
+        execution_id: execution_id.to_owned(),
+        result_hash: result_hash.to_owned(),
+    })
 }
 
 fn persist_runtime_formal_batch(
