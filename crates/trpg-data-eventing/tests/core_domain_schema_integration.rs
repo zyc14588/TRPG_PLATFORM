@@ -3,7 +3,6 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{PgPool, Row};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
@@ -12,12 +11,23 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
 use trpg_data_eventing::persistence_postgresql::{
     AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainClock,
     CoreDomainRepository, CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest,
-    ImportScenarioRequest, IssueInviteRequest, RecordCampaignForkRequest,
-    RequestReconsiderationRequest, ReviewReconsiderationRequest, StartSessionRequest,
-    SwitchSceneRequest,
+    ImportScenarioRequest, IssueInviteRequest, RecordCampaignForkRequest, RecordChaseStateRequest,
+    RecordCombatStateRequest, RecordEndingRequest, RecordGrowthRequest,
+    RequestReconsiderationRequest, ResolveReconsiderationRequest, ReviewReconsiderationRequest,
+    StartSessionRequest, SwitchSceneRequest,
 };
-use trpg_domain_core::domain_entities_value_objects::{MembershipRole, SessionState};
+use trpg_domain_core::domain_entities_value_objects::{
+    MembershipRole, ReconsiderationOutcome, SessionState,
+};
+use trpg_domain_core::fork_canon_lineage::CopyScope;
 use trpg_ruleset_coc7::character_combat_san_chase::parse_scenario_yaml;
+use trpg_ruleset_coc7::chase_state_machine::{
+    ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
+};
+use trpg_ruleset_coc7::combat_state_machine::{
+    CombatCondition, CombatState, CombatStatus, CombatantState,
+};
+use trpg_ruleset_coc7::dice_roll_contract::server_roll_skill_growth;
 use trpg_shared_kernel::EventActorOriginWire;
 
 const INTEGRITY_KEY: &[u8; 32] = &[0x36; 32];
@@ -237,6 +247,10 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         ("public", "character_sheet_versions"),
         ("public", "campaign_forks"),
         ("public", "reconsiderations"),
+        ("public", "combat_states"),
+        ("public", "chase_states"),
+        ("public", "ending_events"),
+        ("public", "growth_events"),
     ] {
         let exists: bool = sqlx::query_scalar(
             r#"
@@ -986,7 +1000,9 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 owner_user_id: PLAYER_ID.to_owned(),
                 display_name: "Evelyn Hart".to_owned(),
                 sheet_version_id: "sheet_p06_player_v1".to_owned(),
-                sheet_json: r#"{"name":"Evelyn Hart","age":31,"ruleset":"coc7"}"#.to_owned(),
+                sheet_json:
+                    r#"{"name":"Evelyn Hart","age":31,"ruleset":"coc7","skills":{"Library Use":70}}"#
+                        .to_owned(),
             },
         )
         .await
@@ -1043,6 +1059,33 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         approved_retry.last_event_sequence,
         approved.last_event_sequence
     );
+    repository
+        .create_character(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "character_p08_keeper_private",
+                "character",
+                "character.create",
+                0,
+                "character_create_keeper_private",
+                "keeper_only",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &CreateCharacterRequest {
+                character_id: "character_p08_keeper_private".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                owner_user_id: KEEPER_ID.to_owned(),
+                display_name: "P08 Keeper Private Sentinel".to_owned(),
+                sheet_version_id: "sheet_p08_keeper_private_v1".to_owned(),
+                sheet_json: r#"{"keeper_only_fork_sentinel":true}"#.to_owned(),
+            },
+        )
+        .await
+        .expect("seed a keeper-only character that a default fork must exclude");
     let character_state = sqlx::query(
         r#"
         SELECT character.state, character.initial_version_locked,
@@ -1243,6 +1286,240 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("resume paused session");
+
+    let mut combat = CombatState::start(
+        "combat_p08_schema",
+        vec![
+            CombatantState::new("character_p06_player", 70, 10, 1).unwrap(),
+            CombatantState::new("npc_marta", 50, 8, 0).unwrap(),
+        ],
+    )
+    .unwrap();
+    repository
+        .record_combat_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_schema",
+                "combat_state",
+                "combat.state.start",
+                0,
+                "combat_p08_start",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: combat.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist started combat aggregate");
+    let combat_events_before_forgery: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 AND stream_id = 'combat_p08_schema'",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let mut foreign_lineage = CombatState::start(
+        "combat_p08_schema",
+        vec![
+            CombatantState::new("character_p06_player", 99, 30, 20).unwrap(),
+            CombatantState::new("npc_marta", 1, 30, 20).unwrap(),
+        ],
+    )
+    .unwrap();
+    foreign_lineage
+        .apply_damage("character_p06_player", 30)
+        .unwrap();
+    assert!(matches!(
+        repository
+            .record_combat_state(
+                &metadata(
+                    CAMPAIGN_ID,
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "combat_p08_schema",
+                    "combat_state",
+                    "combat.state.damage",
+                    1,
+                    "combat_p08_foreign_lineage",
+                    "party_visible",
+                    "not_applicable",
+                    "rules_engine_decision",
+                ),
+                &RecordCombatStateRequest {
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: "session_p06_schema".to_owned(),
+                    state_json: foreign_lineage.persistence_json().unwrap(),
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput("combat_transition"))
+    ));
+    let combat_events_after_forgery: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 AND stream_id = 'combat_p08_schema'",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        combat_events_after_forgery, combat_events_before_forgery,
+        "a same-ID aggregate from another lineage must be rejected before Event Store append"
+    );
+    let first_damage = combat.apply_damage("character_p06_player", 6).unwrap();
+    assert_eq!(first_damage.condition, CombatCondition::MajorWound);
+    repository
+        .record_combat_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_schema",
+                "combat_state",
+                "combat.state.damage",
+                1,
+                "combat_p08_major_wound",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: combat.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist MajorWound combat state");
+    let later_damage = combat.apply_damage("character_p06_player", 1).unwrap();
+    assert_eq!(
+        later_damage.condition,
+        CombatCondition::MajorWound,
+        "later small damage cannot clear an existing MajorWound"
+    );
+    repository
+        .record_combat_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_schema",
+                "combat_state",
+                "combat.state.damage",
+                2,
+                "combat_p08_wound_persists",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: combat.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist continuing MajorWound state");
+    combat.end().unwrap();
+    assert_eq!(combat.status(), CombatStatus::Ended);
+    repository
+        .record_combat_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_schema",
+                "combat_state",
+                "combat.state.end",
+                3,
+                "combat_p08_end",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: combat.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist terminal combat state");
+
+    let mut chase = ChaseState::start(
+        "chase_p08_schema",
+        vec![
+            ChaseParticipant::new("character_p06_player", ChaseRole::Quarry, 8).unwrap(),
+            ChaseParticipant::new("npc_marta", ChaseRole::Pursuer, 8).unwrap(),
+        ],
+        1,
+    )
+    .unwrap();
+    repository
+        .record_chase_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "chase_p08_schema",
+                "chase_state",
+                "chase.state.start",
+                0,
+                "chase_p08_start",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordChaseStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: chase.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist started chase aggregate");
+    chase.advance(false, true, None).unwrap();
+    assert_eq!(chase.status(), ChaseStatus::Caught);
+    repository
+        .record_chase_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "chase_p08_schema",
+                "chase_state",
+                "chase.state.advance",
+                1,
+                "chase_p08_caught",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordChaseStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: chase.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist terminal chase aggregate");
+    assert!(chase.advance(true, false, None).is_err());
+
     repository
         .change_session_state(
             &metadata(
@@ -1267,6 +1544,135 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .await
         .expect("end resumed session");
 
+    repository
+        .record_ending(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "ending_event_p08_schema",
+                "ending",
+                "ending.record",
+                0,
+                "ending_p08_record",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &RecordEndingRequest {
+                ending_event_id: "ending_event_p08_schema".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                ending_id: "ending_expose_marta".to_owned(),
+                summary: "The investigators expose Marta and preserve the archive.".to_owned(),
+                ended_at_unix_ms: NOW_MS + 7_000,
+            },
+        )
+        .await
+        .expect("append tutorial ending event");
+    let growth_roll = server_roll_skill_growth(70).unwrap();
+    let growth_outcome = *growth_roll.outcome();
+    repository
+        .record_growth(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "growth_event_p08_schema",
+                "growth",
+                "growth.record",
+                0,
+                "growth_p08_record",
+                "private_to_player",
+                PLAYER_ID,
+                "rules_engine_decision",
+            ),
+            &RecordGrowthRequest {
+                growth_event_id: "growth_event_p08_schema".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                ending_event_id: "ending_event_p08_schema".to_owned(),
+                character_id: "character_p06_player".to_owned(),
+                source_sheet_version_id: "sheet_p06_player_v1".to_owned(),
+                new_sheet_version_id: "sheet_p06_player_v2".to_owned(),
+                skill_name: "Library Use".to_owned(),
+                growth_rolls: growth_roll.evidence().clone(),
+            },
+        )
+        .await
+        .expect("apply server-generated tutorial growth to a new sheet version");
+    let persisted_combat: (String, i64, serde_json::Value) = sqlx::query_as(
+        "SELECT status, version, state_json FROM public.combat_states \
+         WHERE combat_id = 'combat_p08_schema'",
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(persisted_combat.0, "ENDED");
+    assert_eq!(persisted_combat.1, 4);
+    assert_eq!(
+        persisted_combat
+            .2
+            .pointer("/participants/0/condition")
+            .and_then(serde_json::Value::as_str),
+        Some("MAJOR_WOUND")
+    );
+    let persisted_chase: (String, i64) = sqlx::query_as(
+        "SELECT status, version FROM public.chase_states \
+         WHERE chase_id = 'chase_p08_schema'",
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(persisted_chase, ("CAUGHT".to_owned(), 2));
+    let persisted_growth: (
+        i64,
+        serde_json::Value,
+        String,
+        String,
+        Option<String>,
+        Option<i16>,
+    ) = sqlx::query_as(
+        r#"
+        SELECT character.current_sheet_version, sheet.sheet_json,
+               growth.random_source, growth.server_roll_id,
+               growth.increase_roll_id, growth.increase_roll
+          FROM public.characters AS character
+          JOIN public.character_sheet_versions AS sheet
+            ON sheet.character_id = character.character_id
+           AND sheet.version = character.current_sheet_version
+          JOIN public.growth_events AS growth
+            ON growth.new_sheet_version_id = sheet.sheet_version_id
+         WHERE character.character_id = 'character_p06_player'
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(persisted_growth.0, 2);
+    assert_eq!(
+        persisted_growth
+            .1
+            .pointer("/skills/Library Use")
+            .and_then(serde_json::Value::as_i64),
+        Some(i64::from(growth_outcome.skill_after))
+    );
+    assert_eq!(persisted_growth.2, "SERVER_OS_CSPRNG");
+    assert_eq!(
+        persisted_growth.3,
+        growth_roll.evidence().improvement_check().roll_id()
+    );
+    assert_eq!(
+        persisted_growth.4.as_deref(),
+        growth_roll.evidence().increase().map(|roll| roll.roll_id())
+    );
+    assert_eq!(
+        persisted_growth.5.map(|value| value as u8),
+        growth_outcome.increase_roll
+    );
+
     create_campaign(
         &repository,
         CHILD_CAMPAIGN_ID,
@@ -1275,15 +1681,57 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         "child_campaign_create",
     )
     .await;
-    let snapshot_hash = format!(
-        "sha256:{:x}",
-        Sha256::digest(b"session_p06_schema:event_snapshot_v1")
+    let snapshot = repository
+        .preview_campaign_fork(CAMPAIGN_ID, "session_p06_schema", KEEPER_ID)
+        .await
+        .expect("compute a canonical public-only fork snapshot");
+    assert!(
+        !snapshot
+            .canonical_snapshot_json
+            .contains("ScenarioImported"),
+        "keeper-only scenario payload metadata must not enter the public fork snapshot"
     );
+    assert!(
+        !snapshot
+            .canonical_snapshot_json
+            .contains("keeper_only_fork_sentinel"),
+        "keeper-only character sheets must not enter the default fork snapshot"
+    );
+    assert!(
+        !snapshot
+            .canonical_snapshot_json
+            .contains("P08 Keeper Private Sentinel"),
+        "keeper-only character rows must not enter the default fork snapshot"
+    );
+    assert!(
+        !snapshot.canonical_snapshot_json.contains("ai_internal"),
+        "AI-internal state must be excluded from the default fork snapshot"
+    );
+    for scope in [
+        CopyScope::CombatState,
+        CopyScope::ChaseState,
+        CopyScope::ConclusionState,
+    ] {
+        assert!(
+            snapshot.copy_scopes.contains(&scope),
+            "the declared copy scope must cover each P08 state embedded in the snapshot"
+        );
+    }
+    let snapshot_value: serde_json::Value =
+        serde_json::from_str(&snapshot.canonical_snapshot_json).unwrap();
+    for state_key in ["combat_state", "chase_state", "conclusion_state"] {
+        assert!(
+            snapshot_value["state"][state_key]
+                .as_array()
+                .is_some_and(|rows| !rows.is_empty()),
+            "the source snapshot must contain actual {state_key} rows"
+        );
+    }
     repository
         .record_campaign_fork(
             &metadata(
-                CAMPAIGN_ID,
-                AUTHORITY_ID,
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
                 KEEPER_ID,
                 "human_keeper",
                 "fork_p06_schema",
@@ -1300,39 +1748,242 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 parent_campaign_id: CAMPAIGN_ID.to_owned(),
                 child_campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
                 source_session_id: "session_p06_schema".to_owned(),
-                snapshot_hash,
+                snapshot_hash: snapshot.snapshot_hash.clone(),
                 reason: "Preserve an alternate ruling".to_owned(),
+                copy_scopes: snapshot.copy_scopes.clone(),
             },
         )
         .await
         .expect("record immutable fork lineage");
-
-    repository
-        .request_reconsideration(
-            &metadata(
-                CAMPAIGN_ID,
-                AUTHORITY_ID,
-                PLAYER_ID,
-                "investigator",
-                "reconsideration_p06_schema",
-                "reconsideration",
-                "reconsideration.request",
-                0,
-                "reconsideration_request",
-                "party_visible",
-                "not_applicable",
-                "user_statement",
-            ),
-            &RequestReconsiderationRequest {
-                reconsideration_id: "reconsideration_p06_schema".to_owned(),
-                campaign_id: CAMPAIGN_ID.to_owned(),
-                original_event_sequence: campaign_event_sequence,
-                requested_by: PLAYER_ID.to_owned(),
-                reason: "Review the opening ruling".to_owned(),
-            },
+    let fork_snapshot = sqlx::query(
+        r#"
+        SELECT campaign_id, source_snapshot_hash, child_snapshot_hash,
+               copy_scope_json, snapshot_json, materialization_version
+          FROM public.campaign_forks
+         WHERE fork_id = 'fork_p06_schema'
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        fork_snapshot.get::<String, _>("campaign_id"),
+        CHILD_CAMPAIGN_ID
+    );
+    assert_eq!(
+        fork_snapshot.get::<String, _>("source_snapshot_hash"),
+        snapshot.snapshot_hash
+    );
+    assert_ne!(
+        fork_snapshot.get::<String, _>("child_snapshot_hash"),
+        snapshot.snapshot_hash,
+        "the child hash must seal the child-owned IDs and materialized state, not alias the source hash"
+    );
+    assert_eq!(fork_snapshot.get::<i16, _>("materialization_version"), 2);
+    assert_eq!(
+        fork_snapshot.get::<serde_json::Value, _>("snapshot_json"),
+        serde_json::from_str::<serde_json::Value>(&snapshot.canonical_snapshot_json).unwrap()
+    );
+    let copied_scopes = fork_snapshot.get::<serde_json::Value, _>("copy_scope_json");
+    assert!(!copied_scopes
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|scope| matches!(
+            scope.as_str(),
+            Some("KEEPER_NOTES" | "HIDDEN_CLUES" | "PRIVATE_MESSAGES" | "AI_INTERNAL_MEMORY")
+        )));
+    let child_state_counts: (i64, i64, i64, i64, i64) = sqlx::query_as(
+        r#"
+        SELECT
+            (SELECT count(*) FROM public.scenarios WHERE campaign_id = $1),
+            (SELECT count(*) FROM public.characters WHERE campaign_id = $1),
+            (SELECT count(*) FROM core_domain.sessions WHERE campaign_id = $1),
+            (SELECT count(*) FROM public.scenes WHERE campaign_id = $1),
+            (SELECT count(*) FROM public.campaign_fork_materializations
+              WHERE campaign_id = $1)
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        child_state_counts,
+        (1, 1, 1, 2, 1),
+        "fork must create a replayable child scenario, character, session, scenes and manifest"
+    );
+    let child_event_types: Vec<String> = sqlx::query_scalar(
+        "SELECT event_type FROM public.event_store \
+         WHERE campaign_id = $1 AND stream_id = 'fork_p06_schema' \
+         ORDER BY stream_version",
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_all(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        child_event_types,
+        vec![
+            "CampaignForkRecorded",
+            "CampaignForkMaterializationRecorded",
+            "CampaignForkMaterialized",
+        ]
+    );
+    let child_projection_before: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT jsonb_build_object(
+            'fork', (SELECT to_jsonb(fork) FROM public.campaign_forks AS fork
+                      WHERE fork.fork_id = 'fork_p06_schema'),
+            'manifest', (SELECT to_jsonb(manifest)
+                           FROM public.campaign_fork_materializations AS manifest
+                          WHERE manifest.fork_id = 'fork_p06_schema'),
+            'scenario', (SELECT to_jsonb(scenario) FROM public.scenarios AS scenario
+                          WHERE scenario.campaign_id = $1),
+            'characters', (SELECT jsonb_agg(to_jsonb(character)
+                                            ORDER BY character.character_id)
+                             FROM public.characters AS character
+                            WHERE character.campaign_id = $1),
+            'sheets', (SELECT jsonb_agg(to_jsonb(sheet)
+                                        ORDER BY sheet.sheet_version_id)
+                         FROM public.character_sheet_versions AS sheet
+                        WHERE sheet.campaign_id = $1),
+            'sessions', (SELECT jsonb_agg(to_jsonb(session)
+                                          ORDER BY session.session_id)
+                           FROM core_domain.sessions AS session
+                          WHERE session.campaign_id = $1),
+            'scenes', (SELECT jsonb_agg(to_jsonb(scene) ORDER BY scene.scene_id)
+                         FROM public.scenes AS scene
+                        WHERE scene.campaign_id = $1)
         )
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let child_events_before_replay: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM public.event_store WHERE campaign_id = $1")
+            .bind(CHILD_CAMPAIGN_ID)
+            .fetch_one(&primary)
+            .await
+            .unwrap();
+    let mut remove_child_projection = primary.begin().await.unwrap();
+    sqlx::query("SET CONSTRAINTS ALL DEFERRED")
+        .execute(&mut *remove_child_projection)
+        .await
+        .unwrap();
+    for statement in [
+        "DELETE FROM public.campaign_fork_materializations WHERE campaign_id = $1",
+        "DELETE FROM public.character_sheet_versions WHERE campaign_id = $1",
+        "DELETE FROM public.characters WHERE campaign_id = $1",
+        "DELETE FROM public.scenes WHERE campaign_id = $1",
+        "DELETE FROM core_domain.sessions WHERE campaign_id = $1",
+        "DELETE FROM public.scenarios WHERE campaign_id = $1",
+        "DELETE FROM public.campaign_forks WHERE campaign_id = $1",
+    ] {
+        sqlx::query(statement)
+            .bind(CHILD_CAMPAIGN_ID)
+            .execute(&mut *remove_child_projection)
+            .await
+            .unwrap();
+    }
+    remove_child_projection.commit().await.unwrap();
+    let rebuilt_child = repository
+        .rebuild_p08_projections(CHILD_CAMPAIGN_ID)
+        .await
+        .expect("rebuild the entire child fork state solely from canonical P08 events");
+    assert_eq!(rebuilt_child.replayed_events, 3);
+    assert_eq!(rebuilt_child.campaign_forks, 1);
+    assert_eq!(rebuilt_child.fork_materializations, 1);
+    let child_projection_after: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT jsonb_build_object(
+            'fork', (SELECT to_jsonb(fork) FROM public.campaign_forks AS fork
+                      WHERE fork.fork_id = 'fork_p06_schema'),
+            'manifest', (SELECT to_jsonb(manifest)
+                           FROM public.campaign_fork_materializations AS manifest
+                          WHERE manifest.fork_id = 'fork_p06_schema'),
+            'scenario', (SELECT to_jsonb(scenario) FROM public.scenarios AS scenario
+                          WHERE scenario.campaign_id = $1),
+            'characters', (SELECT jsonb_agg(to_jsonb(character)
+                                            ORDER BY character.character_id)
+                             FROM public.characters AS character
+                            WHERE character.campaign_id = $1),
+            'sheets', (SELECT jsonb_agg(to_jsonb(sheet)
+                                        ORDER BY sheet.sheet_version_id)
+                         FROM public.character_sheet_versions AS sheet
+                        WHERE sheet.campaign_id = $1),
+            'sessions', (SELECT jsonb_agg(to_jsonb(session)
+                                          ORDER BY session.session_id)
+                           FROM core_domain.sessions AS session
+                          WHERE session.campaign_id = $1),
+            'scenes', (SELECT jsonb_agg(to_jsonb(scene) ORDER BY scene.scene_id)
+                         FROM public.scenes AS scene
+                        WHERE scene.campaign_id = $1)
+        )
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        child_projection_after, child_projection_before,
+        "fork replay must reproduce byte-equivalent child read-model facts"
+    );
+    let child_events_after_replay: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM public.event_store WHERE campaign_id = $1")
+            .bind(CHILD_CAMPAIGN_ID)
+            .fetch_one(&primary)
+            .await
+            .unwrap();
+    assert_eq!(
+        child_events_after_replay, child_events_before_replay,
+        "fork projection replay must never append or rewrite canonical history"
+    );
+    let source_after_fork = repository
+        .preview_campaign_fork(CAMPAIGN_ID, "session_p06_schema", KEEPER_ID)
+        .await
+        .expect("recompute source snapshot after creating child");
+    assert_eq!(
+        source_after_fork, snapshot,
+        "fork creation must not mutate the source campaign snapshot"
+    );
+
+    let reconsideration_request_metadata = metadata(
+        CAMPAIGN_ID,
+        AUTHORITY_ID,
+        PLAYER_ID,
+        "investigator",
+        "reconsideration_p06_schema",
+        "reconsideration",
+        "reconsideration.request",
+        0,
+        "reconsideration_request",
+        "party_visible",
+        "not_applicable",
+        "user_statement",
+    );
+    let reconsideration_request = RequestReconsiderationRequest {
+        reconsideration_id: "reconsideration_p06_schema".to_owned(),
+        campaign_id: CAMPAIGN_ID.to_owned(),
+        original_event_sequence: campaign_event_sequence,
+        requested_by: PLAYER_ID.to_owned(),
+        reason: "Review the opening ruling".to_owned(),
+    };
+    let reconsideration_requested = repository
+        .request_reconsideration(&reconsideration_request_metadata, &reconsideration_request)
         .await
         .expect("append reconsideration request");
+    let reconsideration_retry = repository
+        .request_reconsideration(&reconsideration_request_metadata, &reconsideration_request)
+        .await
+        .expect("exact repeated reconsideration request is idempotent");
+    assert_eq!(
+        reconsideration_retry.last_event_sequence,
+        reconsideration_requested.last_event_sequence
+    );
     repository
         .review_reconsideration(
             &metadata(
@@ -1353,15 +2004,45 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 reconsideration_id: "reconsideration_p06_schema".to_owned(),
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 review_event_id: "review_event_p06_schema".to_owned(),
-                resolved: true,
-                resolution: "Original ruling retained with explanation".to_owned(),
+                review_summary: "The original ruling omitted a material clue".to_owned(),
             },
         )
         .await
-        .expect("append review event and resolve reconsideration");
+        .expect("append review event without rewriting the original event");
+    repository
+        .resolve_reconsideration(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "reconsideration_p06_schema",
+                "reconsideration",
+                "reconsideration.resolve",
+                2,
+                "reconsideration_resolution",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &ResolveReconsiderationRequest {
+                reconsideration_id: "reconsideration_p06_schema".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                resolution_event_id: "resolution_event_p06_schema".to_owned(),
+                outcome: ReconsiderationOutcome::Corrected,
+                resolution: "Append a corrected ruling that includes the clue".to_owned(),
+                corrected_event_type: Some("RulingCorrected".to_owned()),
+                corrected_payload_json: Some(
+                    r#"{"ruling":"clue admitted","supersedes_sequence":1}"#.to_owned(),
+                ),
+            },
+        )
+        .await
+        .expect("append a correction event and resolve reconsideration");
     let reconsideration = sqlx::query(
         r#"
-        SELECT state, version, jsonb_array_length(event_chain) AS chain_length
+        SELECT state, outcome, version,
+               jsonb_array_length(event_chain) AS chain_length
           FROM public.reconsiderations
          WHERE reconsideration_id = 'reconsideration_p06_schema'
         "#,
@@ -1370,15 +2051,263 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .await
     .unwrap();
     assert_eq!(reconsideration.get::<String, _>("state"), "RESOLVED");
-    assert_eq!(reconsideration.get::<i64, _>("version"), 2);
-    assert_eq!(reconsideration.get::<i32, _>("chain_length"), 2);
+    assert_eq!(reconsideration.get::<String, _>("outcome"), "CORRECTED");
+    assert_eq!(reconsideration.get::<i64, _>("version"), 3);
+    assert_eq!(reconsideration.get::<i32, _>("chain_length"), 3);
+    let original_event_still_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM public.event_store WHERE sequence = $1)")
+            .bind(campaign_event_sequence)
+            .fetch_one(&primary)
+            .await
+            .unwrap();
+    assert!(
+        original_event_still_exists,
+        "a corrected reconsideration must never delete its original event"
+    );
 
+    repository
+        .request_reconsideration(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                "reconsideration_p08_upheld",
+                "reconsideration",
+                "reconsideration.request",
+                0,
+                "reconsideration_upheld_request",
+                "party_visible",
+                "not_applicable",
+                "user_statement",
+            ),
+            &RequestReconsiderationRequest {
+                reconsideration_id: "reconsideration_p08_upheld".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                original_event_sequence: campaign_event_sequence,
+                requested_by: PLAYER_ID.to_owned(),
+                reason: "Request a second review of the opening ruling".to_owned(),
+            },
+        )
+        .await
+        .expect("append reconsideration request for upheld path");
+    repository
+        .review_reconsideration(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "reconsideration_p08_upheld",
+                "reconsideration",
+                "reconsideration.review",
+                1,
+                "reconsideration_upheld_review",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &ReviewReconsiderationRequest {
+                reconsideration_id: "reconsideration_p08_upheld".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                review_event_id: "review_event_p08_upheld".to_owned(),
+                review_summary: "The original evidence and rule citation are complete".to_owned(),
+            },
+        )
+        .await
+        .expect("append review for upheld path");
+    repository
+        .resolve_reconsideration(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "reconsideration_p08_upheld",
+                "reconsideration",
+                "reconsideration.resolve",
+                2,
+                "reconsideration_upheld_resolution",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &ResolveReconsiderationRequest {
+                reconsideration_id: "reconsideration_p08_upheld".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                resolution_event_id: "resolution_event_p08_upheld".to_owned(),
+                outcome: ReconsiderationOutcome::Upheld,
+                resolution: "Original ruling upheld after review".to_owned(),
+                corrected_event_type: None,
+                corrected_payload_json: None,
+            },
+        )
+        .await
+        .expect("append upheld resolution without a correction payload");
+    let upheld_outcome: String = sqlx::query_scalar(
+        "SELECT outcome FROM public.reconsiderations \
+         WHERE reconsideration_id = 'reconsideration_p08_upheld'",
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(upheld_outcome, "UPHELD");
+
+    let p08_projection_before: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT jsonb_build_object(
+            'combat', (SELECT to_jsonb(combat) FROM public.combat_states AS combat
+                        WHERE combat.campaign_id = $1),
+            'chase', (SELECT to_jsonb(chase) FROM public.chase_states AS chase
+                       WHERE chase.campaign_id = $1),
+            'ending', (SELECT to_jsonb(ending) FROM public.ending_events AS ending
+                        WHERE ending.campaign_id = $1),
+            'growth', (SELECT to_jsonb(growth) FROM public.growth_events AS growth
+                        WHERE growth.campaign_id = $1),
+            'growth_sheet', (
+                SELECT to_jsonb(sheet)
+                  FROM public.character_sheet_versions AS sheet
+                 WHERE sheet.sheet_version_id = 'sheet_p06_player_v2'
+            ),
+            'character', (
+                SELECT to_jsonb(character)
+                  FROM public.characters AS character
+                 WHERE character.character_id = 'character_p06_player'
+            ),
+            'reconsiderations', (
+                SELECT jsonb_agg(to_jsonb(reconsideration)
+                                 ORDER BY reconsideration.reconsideration_id)
+                  FROM public.reconsiderations AS reconsideration
+                 WHERE reconsideration.campaign_id = $1
+            )
+        )
+        "#,
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
     let event_count_before: i64 =
         sqlx::query_scalar("SELECT count(*) FROM public.event_store WHERE campaign_id = $1")
             .bind(CAMPAIGN_ID)
             .fetch_one(&primary)
             .await
             .unwrap();
+    let approval_event_sequence: i64 = sqlx::query_scalar(
+        "SELECT sequence FROM public.event_store \
+         WHERE campaign_id = $1 AND stream_id = 'character_p06_player' \
+           AND event_type = 'CharacterInitialVersionApproved'",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let mut remove_p08_projection = primary.begin().await.unwrap();
+    sqlx::query("SET CONSTRAINTS ALL DEFERRED")
+        .execute(&mut *remove_p08_projection)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM public.growth_events WHERE campaign_id = $1")
+        .bind(CAMPAIGN_ID)
+        .execute(&mut *remove_p08_projection)
+        .await
+        .unwrap();
+    sqlx::query("ALTER TABLE public.characters DISABLE TRIGGER characters_event_guard")
+        .execute(&mut *remove_p08_projection)
+        .await
+        .unwrap();
+    sqlx::query(
+        r#"
+        UPDATE public.characters AS character
+           SET current_sheet_version = 1,
+               version = character.version - 1,
+               visibility_label = event.visibility_label::core_domain.visibility_label,
+               visibility_subject = event.visibility_subject,
+               provenance_kind = event.fact_provenance_kind::core_domain.provenance_kind,
+               provenance_reference = event.fact_provenance_reference,
+               provenance_recorded_by = event.fact_recorded_by,
+               last_event_sequence = event.sequence
+          FROM public.event_store AS event
+         WHERE character.character_id = 'character_p06_player'
+           AND event.sequence = $1
+        "#,
+    )
+    .bind(approval_event_sequence)
+    .execute(&mut *remove_p08_projection)
+    .await
+    .unwrap();
+    sqlx::query("ALTER TABLE public.characters ENABLE TRIGGER characters_event_guard")
+        .execute(&mut *remove_p08_projection)
+        .await
+        .unwrap();
+    sqlx::query(
+        "DELETE FROM public.character_sheet_versions \
+         WHERE sheet_version_id = 'sheet_p06_player_v2'",
+    )
+    .execute(&mut *remove_p08_projection)
+    .await
+    .unwrap();
+    for statement in [
+        "DELETE FROM public.ending_events WHERE campaign_id = $1",
+        "DELETE FROM public.reconsiderations WHERE campaign_id = $1",
+        "DELETE FROM public.combat_states WHERE campaign_id = $1",
+        "DELETE FROM public.chase_states WHERE campaign_id = $1",
+    ] {
+        sqlx::query(statement)
+            .bind(CAMPAIGN_ID)
+            .execute(&mut *remove_p08_projection)
+            .await
+            .unwrap();
+    }
+    remove_p08_projection.commit().await.unwrap();
+    let rebuilt_p08 = repository
+        .rebuild_p08_projections(CAMPAIGN_ID)
+        .await
+        .expect("rebuild all P08 projections solely from canonical Event Store history");
+    assert_eq!(rebuilt_p08.replayed_events, 14);
+    assert_eq!(rebuilt_p08.combat_states, 1);
+    assert_eq!(rebuilt_p08.chase_states, 1);
+    assert_eq!(rebuilt_p08.reconsiderations, 2);
+    assert_eq!(rebuilt_p08.ending_events, 1);
+    assert_eq!(rebuilt_p08.growth_events, 1);
+    let p08_projection_after: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT jsonb_build_object(
+            'combat', (SELECT to_jsonb(combat) FROM public.combat_states AS combat
+                        WHERE combat.campaign_id = $1),
+            'chase', (SELECT to_jsonb(chase) FROM public.chase_states AS chase
+                       WHERE chase.campaign_id = $1),
+            'ending', (SELECT to_jsonb(ending) FROM public.ending_events AS ending
+                        WHERE ending.campaign_id = $1),
+            'growth', (SELECT to_jsonb(growth) FROM public.growth_events AS growth
+                        WHERE growth.campaign_id = $1),
+            'growth_sheet', (
+                SELECT to_jsonb(sheet)
+                  FROM public.character_sheet_versions AS sheet
+                 WHERE sheet.sheet_version_id = 'sheet_p06_player_v2'
+            ),
+            'character', (
+                SELECT to_jsonb(character)
+                  FROM public.characters AS character
+                 WHERE character.character_id = 'character_p06_player'
+            ),
+            'reconsiderations', (
+                SELECT jsonb_agg(to_jsonb(reconsideration)
+                                 ORDER BY reconsideration.reconsideration_id)
+                  FROM public.reconsiderations AS reconsideration
+                 WHERE reconsideration.campaign_id = $1
+            )
+        )
+        "#,
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        p08_projection_after, p08_projection_before,
+        "P08 replay must reproduce the exact combat/chase/reconsideration/ending/growth projections"
+    );
     let rebuilt = repository
         .rebuild_session_scene_projection(CAMPAIGN_ID)
         .await

@@ -3008,6 +3008,7 @@ version = "0.1.0"
 dependencies = [
  "hmac 0.12.1",
  "serde",
+ "serde_json",
  "sha2 0.10.9",
  "trpg-shared-kernel",
  "trpg-test-support",
@@ -3136,6 +3137,7 @@ dependencies = [
 name = "trpg-shared-kernel"
 version = "0.1.0"
 dependencies = [
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -3158,9 +3160,11 @@ dependencies = [
  "async-trait",
  "serde",
  "serde_json",
+ "sqlx",
  "tokio",
  "trpg-agent-runtime",
  "trpg-api",
+ "trpg-data-eventing",
  "trpg-domain-core",
  "trpg-ruleset-coc7",
  "trpg-runtime",

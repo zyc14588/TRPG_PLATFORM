@@ -78,9 +78,25 @@ timeline:
     starts_at: 18:20
     fires_at: 20:00
     effect: Marta attempts to lock the investigators inside.
+encounters:
+  - id: encounter_basement_confrontation
+    type: combat
+    scene_id: scene_basement
+    participants: [investigator, npc_marta]
+  - id: encounter_archive_escape
+    type: chase
+    scene_id: scene_basement
+    participants: [investigator, npc_marta]
+    initial_range: 2
 endings:
   - id: ending_expose_marta
     condition: clue_wrong_signature and clue_salt_receipt discovered
+    growth_awards:
+      - skill_name: Library Use
+        reason: Correctly connected the archive records.
   - id: ending_salt_cellar_escape
     condition: scene_basement entered and danger resolved
+    growth_awards:
+      - skill_name: Dodge
+        reason: Escaped the collapsing salt cellar.
 ```

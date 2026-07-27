@@ -1,0 +1,1230 @@
+use std::collections::BTreeSet;
+use std::env;
+use std::str::FromStr;
+
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use sqlx::{PgPool, Row};
+use trpg_data_eventing::event_store_sqlx_outbox_projection::{
+    PolicyAuditDraft, PostgresCanonicalStore,
+};
+use trpg_data_eventing::persistence_postgresql::{
+    AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainRepository,
+    CreateCampaignRequest, CreateCharacterRequest, ImportScenarioRequest,
+    InvestigationExecutionRecord, IssueInviteRequest, PlayerActionDiceRecord,
+    PlayerActionIntentRecord, RecordCampaignForkRequest, RecordChaseStateRequest,
+    RecordCombatStateRequest, RecordEndingRequest, RecordGrowthRequest,
+    RequestReconsiderationRequest, ResolveReconsiderationRequest, ReviewReconsiderationRequest,
+    SanityExecutionRecord, StartSessionRequest, SubmitPlayerActionRequest, SwitchSceneRequest,
+};
+use trpg_domain_core::domain_entities_value_objects::{
+    MembershipRole, ReconsiderationOutcome, SessionState,
+};
+use trpg_ruleset_coc7::character_combat_san_chase::parse_scenario_yaml;
+use trpg_ruleset_coc7::chase_state_machine::{
+    ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
+};
+use trpg_ruleset_coc7::combat_state_machine::{
+    CombatCondition, CombatState, CombatStatus, CombatantState,
+};
+use trpg_ruleset_coc7::dice_roll_contract::{
+    server_roll_skill_check, server_roll_skill_growth, DiceAdjustment, ServerDiceRoll, SuccessLevel,
+};
+use trpg_shared_kernel::EventActorOriginWire;
+
+const TUTORIAL: &str =
+    include_str!("../../../fixtures/scenarios/tutorial_mist_archive.scenario.yaml");
+const INTEGRITY_KEY: &[u8; 32] = &[0x58; 32];
+const PAYLOAD_KEY: &[u8; 32] = &[0x69; 32];
+const CAMPAIGN_ID: &str = "campaign_p08_tutorial";
+const CHILD_CAMPAIGN_ID: &str = "campaign_p08_tutorial_fork";
+const AUTHORITY_ID: &str = "authority_campaign_p08_tutorial_1";
+const CHILD_AUTHORITY_ID: &str = "authority_campaign_p08_tutorial_fork_1";
+const KEEPER_ID: &str = "keeper_p08_tutorial";
+const PLAYER_ID: &str = "player_p08_tutorial";
+const CHARACTER_ID: &str = "character_p08_evelyn";
+const SESSION_ID: &str = "session_p08_tutorial";
+const NOW_MS: u64 = 2_800_000_000_000;
+
+async fn reset_database(url: &str, expected_database: &str, witness: bool) -> PgPool {
+    assert_eq!(
+        env::var("P08_ALLOW_DATABASE_RESET").as_deref(),
+        Ok("1"),
+        "P08 E2E requires explicit dedicated-database reset authorization"
+    );
+    let options = PgConnectOptions::from_str(url).expect("valid P08 PostgreSQL URL");
+    assert!(
+        matches!(options.get_host(), "localhost" | "127.0.0.1" | "::1"),
+        "P08 E2E refuses to reset a non-local database"
+    );
+    assert_eq!(
+        options.get_database(),
+        Some(expected_database),
+        "P08 E2E refuses to reset a non-dedicated database"
+    );
+    let pool = PgPoolOptions::new()
+        .max_connections(20)
+        .connect_with(options)
+        .await
+        .expect("connect dedicated P08 PostgreSQL");
+    let reset_sql = if witness {
+        "DROP SCHEMA public CASCADE; CREATE SCHEMA public; \
+         GRANT ALL ON SCHEMA public TO public;"
+    } else {
+        "DROP SCHEMA IF EXISTS core_domain CASCADE; \
+         DROP SCHEMA public CASCADE; CREATE SCHEMA public; \
+         GRANT ALL ON SCHEMA public TO public;"
+    };
+    sqlx::raw_sql(reset_sql)
+        .execute(&pool)
+        .await
+        .expect("reset dedicated P08 schemas");
+    pool
+}
+
+fn authority(contract_id: &str) -> AuthorityContractSnapshot {
+    AuthorityContractSnapshot {
+        contract_id: contract_id.to_owned(),
+        authority_mode: "HUMAN_KP".to_owned(),
+        authority_owner: KEEPER_ID.to_owned(),
+        ruleset_version: "coc7-1".to_owned(),
+        house_rules_version: "none-1".to_owned(),
+        scenario_version: "tutorial-0.1.0".to_owned(),
+        prompt_version: "p08-1".to_owned(),
+        agent_pack_version: "none-1".to_owned(),
+        tool_schema_version: "tools-1".to_owned(),
+        safety_profile_version: "safety-1".to_owned(),
+        ai_provider_snapshot: "not_applicable".to_owned(),
+        model_route_snapshot: "not_applicable".to_owned(),
+        character_sheet_template_version: "coc7-sheet-1".to_owned(),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn metadata(
+    authority_id: &str,
+    actor_id: &str,
+    actor_role: &str,
+    stream_id: &str,
+    resource_type: &str,
+    expected_version: i64,
+    suffix: &str,
+    visibility_label: &str,
+    visibility_subject: &str,
+    provenance_kind: &str,
+) -> CoreCommandMetadata {
+    CoreCommandMetadata {
+        commit_id: format!("commit_{suffix}"),
+        command_id: format!("command_{suffix}"),
+        idempotency_key: format!("idempotency_{suffix}"),
+        expected_version,
+        requesting_actor_id: actor_id.to_owned(),
+        requesting_actor_role: actor_role.to_owned(),
+        authenticated_actor_id: "workflow_p08_tutorial".to_owned(),
+        authenticated_actor_role: "workflow".to_owned(),
+        authenticated_actor_origin: EventActorOriginWire::Workload {
+            role: "workflow_engine".to_owned(),
+        },
+        authority_mode: "human_kp".to_owned(),
+        authority_contract_version: 1,
+        authority_contract_id: authority_id.to_owned(),
+        authority_owner: KEEPER_ID.to_owned(),
+        visibility_label: visibility_label.to_owned(),
+        visibility_subject: visibility_subject.to_owned(),
+        data_subject_id: if visibility_subject == "not_applicable" {
+            "not_applicable".to_owned()
+        } else {
+            visibility_subject.to_owned()
+        },
+        provenance_kind: provenance_kind.to_owned(),
+        provenance_reference: format!("source_{suffix}"),
+        provenance_recorded_by: actor_id.to_owned(),
+        correlation_id: format!("correlation_{suffix}"),
+        causation_id: format!("causation_{suffix}"),
+        trace_id: format!("trace_{suffix}"),
+        audit: PolicyAuditDraft {
+            actor_id: "workflow_p08_tutorial".to_owned(),
+            actor_origin: "workload".to_owned(),
+            authentication_reference: "workflow_p08_tutorial".to_owned(),
+            resource_type: resource_type.to_owned(),
+            resource_id: stream_id.to_owned(),
+            action: "write_official_state".to_owned(),
+            requested_role: "workflow".to_owned(),
+            openfga_decision_id: format!("openfga_{suffix}"),
+            openfga_policy_revision: "p08-e2e-formal-decision-v1".to_owned(),
+            opa_decision_id: format!("opa_{suffix}"),
+            opa_policy_revision: "p08-e2e-formal-decision-v1".to_owned(),
+        },
+    }
+}
+
+fn character_sheet() -> String {
+    serde_json::json!({
+        "name": "Evelyn Hart",
+        "age": 31,
+        "occupation": "Investigative journalist",
+        "era": "1920s",
+        "characteristics": {
+            "power": 65,
+            "dexterity": 60
+        },
+        "skills": {
+            "Library Use": 70,
+            "Psychology": 55
+        },
+        "backstory_anchors": [
+            "Protects confidential sources",
+            "Distrusts official explanations"
+        ]
+    })
+    .to_string()
+}
+
+fn success_level_name(level: SuccessLevel) -> &'static str {
+    match level {
+        SuccessLevel::Critical => "CRITICAL",
+        SuccessLevel::Extreme => "EXTREME",
+        SuccessLevel::Hard => "HARD",
+        SuccessLevel::Regular => "REGULAR",
+        SuccessLevel::Failure => "FAILURE",
+        SuccessLevel::Fumble => "FUMBLE",
+    }
+}
+
+fn server_dice_record(server_roll: &ServerDiceRoll) -> PlayerActionDiceRecord {
+    let outcome = server_roll.outcome();
+    let adjustment = match outcome.adjustment {
+        DiceAdjustment::None => "NONE",
+        DiceAdjustment::Bonus => "BONUS",
+        DiceAdjustment::Penalty => "PENALTY",
+    };
+    PlayerActionDiceRecord {
+        roll_id: server_roll.roll_id().to_owned(),
+        target_value: outcome.target,
+        rolled_value: outcome.roll,
+        success_level: success_level_name(outcome.success_level).to_owned(),
+        selected_tens_digit: outcome.selected_tens_digit,
+        ones_digit: outcome.ones_digit,
+        adjustment: adjustment.to_owned(),
+    }
+}
+
+fn succeeded(level: SuccessLevel) -> bool {
+    matches!(
+        level,
+        SuccessLevel::Critical | SuccessLevel::Extreme | SuccessLevel::Hard | SuccessLevel::Regular
+    )
+}
+
+async fn create_campaign(
+    repository: &CoreDomainRepository,
+    campaign_id: &str,
+    authority_id: &str,
+    room_id: &str,
+    suffix: &str,
+) -> i64 {
+    repository
+        .create_campaign(
+            &metadata(
+                authority_id,
+                KEEPER_ID,
+                "human_keeper",
+                campaign_id,
+                "campaign",
+                0,
+                suffix,
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &CreateCampaignRequest {
+                campaign_id: campaign_id.to_owned(),
+                owner_user_id: KEEPER_ID.to_owned(),
+                title: format!("P08 Tutorial {suffix}"),
+                room_id: room_id.to_owned(),
+                room_name: "Tutorial table".to_owned(),
+                created_at_unix_ms: NOW_MS,
+                authority: authority(authority_id),
+            },
+        )
+        .await
+        .expect("create event-backed Campaign")
+        .last_event_sequence
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() {
+    let primary_url =
+        env::var("P08_DATABASE_URL").expect("P08_DATABASE_URL is required for the real E2E gate");
+    let witness_url = env::var("P08_WITNESS_DATABASE_URL")
+        .expect("P08_WITNESS_DATABASE_URL is required for the independent witness gate");
+    let primary_database =
+        env::var("P08_RESET_DATABASE").expect("P08_RESET_DATABASE must name the dedicated DB");
+    let witness_database = env::var("P08_WITNESS_RESET_DATABASE")
+        .expect("P08_WITNESS_RESET_DATABASE must name the dedicated witness DB");
+    let primary = reset_database(&primary_url, &primary_database, false).await;
+    let witness = reset_database(&witness_url, &witness_database, true).await;
+    witness.close().await;
+
+    let canonical = PostgresCanonicalStore::connect(
+        &primary_url,
+        &witness_url,
+        "p08-tutorial-integrity-key",
+        INTEGRITY_KEY,
+        "p08-tutorial-payload-key",
+        PAYLOAD_KEY,
+    )
+    .await
+    .expect("connect independent primary and Witness services");
+    canonical
+        .prepare_for_service()
+        .await
+        .expect("apply the full forward migration chain");
+    let integrity_verifier = canonical.clone();
+    let repository = CoreDomainRepository::new(primary.clone(), canonical);
+
+    for (user_id, login) in [
+        (KEEPER_ID, "keeper-p08-tutorial"),
+        (PLAYER_ID, "player-p08-tutorial"),
+    ] {
+        sqlx::query(
+            "INSERT INTO public.users \
+             (user_id, login_normalized, password_hash, global_role) \
+             VALUES ($1, $2, 'not-used-by-p08-e2e', 'USER')",
+        )
+        .bind(user_id)
+        .bind(login)
+        .execute(&primary)
+        .await
+        .expect("seed an identity referenced by the production repository");
+    }
+
+    let campaign_event_sequence = create_campaign(
+        &repository,
+        CAMPAIGN_ID,
+        AUTHORITY_ID,
+        "room_p08_tutorial",
+        "p08_campaign_create",
+    )
+    .await;
+    let invite = repository
+        .issue_invite(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "invite_p08_tutorial",
+                "campaign_invite",
+                0,
+                "p08_invite_issue",
+                "private_to_player",
+                PLAYER_ID,
+                "human_keeper_statement",
+            ),
+            &IssueInviteRequest {
+                invite_id: "invite_p08_tutorial".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                invited_user_id: PLAYER_ID.to_owned(),
+                role: MembershipRole::Player,
+                expires_at_unix_ms: NOW_MS + 60_000,
+            },
+        )
+        .await
+        .expect("issue a real single-use Campaign invite");
+    repository
+        .accept_invite(
+            &metadata(
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                "invite_p08_tutorial",
+                "campaign_invite",
+                1,
+                "p08_invite_accept",
+                "private_to_player",
+                PLAYER_ID,
+                "user_statement",
+            ),
+            &AcceptInviteRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                invite_id: "invite_p08_tutorial".to_owned(),
+                accepting_user_id: PLAYER_ID.to_owned(),
+                raw_token: invite.raw_token,
+            },
+        )
+        .await
+        .expect("accept the invite into durable membership");
+    repository
+        .create_character(
+            &metadata(
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                CHARACTER_ID,
+                "character",
+                0,
+                "p08_character_create",
+                "private_to_player",
+                PLAYER_ID,
+                "user_statement",
+            ),
+            &CreateCharacterRequest {
+                character_id: CHARACTER_ID.to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                owner_user_id: PLAYER_ID.to_owned(),
+                display_name: "Evelyn Hart".to_owned(),
+                sheet_version_id: "sheet_p08_evelyn_v1".to_owned(),
+                sheet_json: character_sheet(),
+            },
+        )
+        .await
+        .expect("create the Tutorial investigator");
+    repository
+        .submit_character(
+            &metadata(
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                CHARACTER_ID,
+                "character",
+                1,
+                "p08_character_submit",
+                "private_to_player",
+                PLAYER_ID,
+                "user_statement",
+            ),
+            CAMPAIGN_ID,
+            CHARACTER_ID,
+        )
+        .await
+        .expect("submit the Tutorial investigator");
+    repository
+        .approve_character_initial_version(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                CHARACTER_ID,
+                "character",
+                2,
+                "p08_character_approve",
+                "private_to_player",
+                PLAYER_ID,
+                "human_keeper_statement",
+            ),
+            CAMPAIGN_ID,
+            CHARACTER_ID,
+        )
+        .await
+        .expect("approve and lock the initial Character Sheet");
+
+    let scenario = parse_scenario_yaml(TUTORIAL).expect("validate the actual Tutorial Scenario");
+    assert_eq!(scenario.opening_scene_id, "scene_archive_front");
+    assert!(scenario
+        .encounter_ids
+        .contains(&"encounter_basement_confrontation".to_owned()));
+    assert!(scenario
+        .encounter_ids
+        .contains(&"encounter_archive_escape".to_owned()));
+    assert!(scenario
+        .ending_ids
+        .contains(&"ending_expose_marta".to_owned()));
+    assert!(scenario.growth_skills.contains(&"Library Use".to_owned()));
+    repository
+        .import_scenario(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "scenario_p08_tutorial",
+                "scenario",
+                0,
+                "p08_scenario_import",
+                "keeper_only",
+                "not_applicable",
+                "imported_source",
+            ),
+            &ImportScenarioRequest {
+                scenario_id: "scenario_p08_tutorial".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                ruleset_id: scenario.ruleset_id,
+                format_version: scenario.format_version,
+                content_hash: scenario.content_hash,
+                document_json: scenario.canonical_json,
+            },
+        )
+        .await
+        .expect("import the validated Tutorial document");
+    repository
+        .start_session(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                SESSION_ID,
+                "session",
+                0,
+                "p08_session_start",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &StartSessionRequest {
+                session_id: SESSION_ID.to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                room_id: "room_p08_tutorial".to_owned(),
+                scenario_id: "scenario_p08_tutorial".to_owned(),
+                scene_id: "scene_p08_front".to_owned(),
+                scene_key: "scene_archive_front".to_owned(),
+                scene_name: "灰港市政档案室前厅".to_owned(),
+                started_at_unix_ms: NOW_MS + 2_000,
+            },
+        )
+        .await
+        .expect("start the real Tutorial Session");
+
+    repository
+        .submit_player_action(
+            &metadata(
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                "action_p08_investigation",
+                "player_action",
+                0,
+                "p08_investigation_submit",
+                "party_visible",
+                "not_applicable",
+                "user_statement",
+            ),
+            &SubmitPlayerActionRequest {
+                action_id: "action_p08_investigation".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                character_id: CHARACTER_ID.to_owned(),
+                scene_id: "scene_p08_front".to_owned(),
+                submitted_by: PLAYER_ID.to_owned(),
+                submitted_at_unix_ms: NOW_MS + 3_000,
+                intent: PlayerActionIntentRecord::Investigation {
+                    skill_name: "Library Use".to_owned(),
+                    clue_id: "clue_wrong_signature".to_owned(),
+                    clue_importance: "CORE".to_owned(),
+                    adjustment: "NONE".to_owned(),
+                },
+            },
+        )
+        .await
+        .expect("submit a real investigation action");
+    let investigation_roll =
+        server_roll_skill_check(70, DiceAdjustment::None).expect("server investigation roll");
+    let investigation_succeeded = succeeded(investigation_roll.outcome().success_level);
+    repository
+        .commit_investigation_execution(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "action_p08_investigation",
+                "player_action",
+                1,
+                "p08_investigation_confirm",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &InvestigationExecutionRecord {
+                action_id: "action_p08_investigation".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                character_id: CHARACTER_ID.to_owned(),
+                decision_id: "decision_p08_investigation".to_owned(),
+                tool_execution_id: "tool_execution_p08_investigation".to_owned(),
+                confirmed_by: KEEPER_ID.to_owned(),
+                resolved_at_unix_ms: NOW_MS + 4_000,
+                dice: server_dice_record(&investigation_roll),
+                skill_name: "Library Use".to_owned(),
+                clue_record_id: "clue_result_p08_wrong_signature".to_owned(),
+                clue_id: "clue_wrong_signature".to_owned(),
+                clue_importance: "CORE".to_owned(),
+                clue_outcome: if investigation_succeeded {
+                    "REVEALED"
+                } else {
+                    "REVEALED_WITH_COST"
+                }
+                .to_owned(),
+                clue_cost: (!investigation_succeeded).then_some("time_or_complication".to_owned()),
+                revealed_to_party: true,
+            },
+        )
+        .await
+        .expect("commit investigation Decision, Dice and Clue atomically");
+
+    repository
+        .submit_player_action(
+            &metadata(
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                "action_p08_sanity",
+                "player_action",
+                0,
+                "p08_sanity_submit",
+                "private_to_player",
+                PLAYER_ID,
+                "user_statement",
+            ),
+            &SubmitPlayerActionRequest {
+                action_id: "action_p08_sanity".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                character_id: CHARACTER_ID.to_owned(),
+                scene_id: "scene_p08_front".to_owned(),
+                submitted_by: PLAYER_ID.to_owned(),
+                submitted_at_unix_ms: NOW_MS + 5_000,
+                intent: PlayerActionIntentRecord::SanityCheck {
+                    success_loss: 0,
+                    failure_loss: 3,
+                    day_key: "tutorial_day_1".to_owned(),
+                },
+            },
+        )
+        .await
+        .expect("submit a real SAN action");
+    let sanity_roll = server_roll_skill_check(65, DiceAdjustment::None).expect("server SAN roll");
+    let sanity_loss = if succeeded(sanity_roll.outcome().success_level) {
+        0
+    } else {
+        3
+    };
+    repository
+        .commit_sanity_execution(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "action_p08_sanity",
+                "player_action",
+                1,
+                "p08_sanity_confirm",
+                "private_to_player",
+                PLAYER_ID,
+                "human_keeper_statement",
+            ),
+            &SanityExecutionRecord {
+                action_id: "action_p08_sanity".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                character_id: CHARACTER_ID.to_owned(),
+                decision_id: "decision_p08_sanity".to_owned(),
+                tool_execution_id: "tool_execution_p08_sanity".to_owned(),
+                confirmed_by: KEEPER_ID.to_owned(),
+                resolved_at_unix_ms: NOW_MS + 6_000,
+                dice: server_dice_record(&sanity_roll),
+                sanity_event_id: "sanity_event_p08".to_owned(),
+                sheet_version_id: "sheet_p08_evelyn_v2".to_owned(),
+                day_key: "tutorial_day_1".to_owned(),
+                day_start_sanity: 65,
+                sanity_before: 65,
+                sanity_after: 65 - sanity_loss,
+                sanity_loss,
+                day_loss: sanity_loss,
+                indefinite_threshold: 13,
+                madness_state: "STABLE".to_owned(),
+            },
+        )
+        .await
+        .expect("commit SAN Decision, Dice, event and new Sheet atomically");
+
+    repository
+        .switch_scene(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                SESSION_ID,
+                "session",
+                1,
+                "p08_scene_switch",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &SwitchSceneRequest {
+                session_id: SESSION_ID.to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                next_scene_id: "scene_p08_basement".to_owned(),
+                next_scene_key: "scene_basement".to_owned(),
+                next_scene_name: "地下盐窖".to_owned(),
+                switched_at_unix_ms: NOW_MS + 7_000,
+            },
+        )
+        .await
+        .expect("switch into the confrontation scene");
+
+    let mut combat = CombatState::start(
+        "combat_p08_tutorial",
+        vec![
+            CombatantState::new(CHARACTER_ID, 70, 10, 1).unwrap(),
+            CombatantState::new("npc_marta", 50, 8, 0).unwrap(),
+        ],
+    )
+    .expect("start rules-engine combat aggregate");
+    repository
+        .record_combat_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_tutorial",
+                "combat_state",
+                0,
+                "p08_combat_start",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: SESSION_ID.to_owned(),
+                state_json: combat.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist combat start");
+    let damage = combat.apply_damage(CHARACTER_ID, 6).unwrap();
+    assert_eq!(damage.condition, CombatCondition::MajorWound);
+    repository
+        .record_combat_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_tutorial",
+                "combat_state",
+                1,
+                "p08_combat_damage",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: SESSION_ID.to_owned(),
+                state_json: combat.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist combat damage transition");
+    combat.end().unwrap();
+    assert_eq!(combat.status(), CombatStatus::Ended);
+    repository
+        .record_combat_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_tutorial",
+                "combat_state",
+                2,
+                "p08_combat_end",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: SESSION_ID.to_owned(),
+                state_json: combat.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist terminal combat state");
+
+    let mut chase = ChaseState::start(
+        "chase_p08_tutorial",
+        vec![
+            ChaseParticipant::new(CHARACTER_ID, ChaseRole::Quarry, 8).unwrap(),
+            ChaseParticipant::new("npc_marta", ChaseRole::Pursuer, 8).unwrap(),
+        ],
+        1,
+    )
+    .expect("start rules-engine chase aggregate");
+    repository
+        .record_chase_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "chase_p08_tutorial",
+                "chase_state",
+                0,
+                "p08_chase_start",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordChaseStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: SESSION_ID.to_owned(),
+                state_json: chase.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist chase start");
+    chase.advance(false, true, None).unwrap();
+    assert_eq!(chase.status(), ChaseStatus::Caught);
+    repository
+        .record_chase_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "chase_p08_tutorial",
+                "chase_state",
+                1,
+                "p08_chase_caught",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordChaseStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: SESSION_ID.to_owned(),
+                state_json: chase.persistence_json().unwrap(),
+            },
+        )
+        .await
+        .expect("persist terminal chase state");
+    assert!(
+        chase.advance(true, false, None).is_err(),
+        "a terminal chase cannot resume under the same ID"
+    );
+
+    repository
+        .change_session_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                SESSION_ID,
+                "session",
+                2,
+                "p08_session_end",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            CAMPAIGN_ID,
+            SESSION_ID,
+            SessionState::Ended,
+            NOW_MS + 8_000,
+        )
+        .await
+        .expect("end the Tutorial Session");
+    repository
+        .record_ending(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "ending_event_p08_tutorial",
+                "ending",
+                0,
+                "p08_ending",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &RecordEndingRequest {
+                ending_event_id: "ending_event_p08_tutorial".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: SESSION_ID.to_owned(),
+                ending_id: "ending_expose_marta".to_owned(),
+                summary: "The investigators expose Marta and preserve the archive.".to_owned(),
+                ended_at_unix_ms: NOW_MS + 9_000,
+            },
+        )
+        .await
+        .expect("record an allowed Tutorial ending");
+    let growth_roll = server_roll_skill_growth(70).expect("server-owned COC7 growth rolls");
+    let growth_after = growth_roll.outcome().skill_after;
+    repository
+        .record_growth(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "growth_event_p08_tutorial",
+                "growth",
+                0,
+                "p08_growth",
+                "private_to_player",
+                PLAYER_ID,
+                "rules_engine_decision",
+            ),
+            &RecordGrowthRequest {
+                growth_event_id: "growth_event_p08_tutorial".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: SESSION_ID.to_owned(),
+                ending_event_id: "ending_event_p08_tutorial".to_owned(),
+                character_id: CHARACTER_ID.to_owned(),
+                source_sheet_version_id: "sheet_p08_evelyn_v2".to_owned(),
+                new_sheet_version_id: "sheet_p08_evelyn_v3".to_owned(),
+                skill_name: "Library Use".to_owned(),
+                growth_rolls: growth_roll.evidence().clone(),
+            },
+        )
+        .await
+        .expect("apply server-generated growth to a new locked Sheet version");
+
+    repository
+        .request_reconsideration(
+            &metadata(
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                "reconsideration_p08_tutorial",
+                "reconsideration",
+                0,
+                "p08_reconsideration_request",
+                "party_visible",
+                "not_applicable",
+                "user_statement",
+            ),
+            &RequestReconsiderationRequest {
+                reconsideration_id: "reconsideration_p08_tutorial".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                original_event_sequence: campaign_event_sequence,
+                requested_by: PLAYER_ID.to_owned(),
+                reason: "Review the opening archive ruling".to_owned(),
+            },
+        )
+        .await
+        .expect("append a reconsideration request without rewriting history");
+    repository
+        .review_reconsideration(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "reconsideration_p08_tutorial",
+                "reconsideration",
+                1,
+                "p08_reconsideration_review",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &ReviewReconsiderationRequest {
+                reconsideration_id: "reconsideration_p08_tutorial".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                review_event_id: "review_event_p08_tutorial".to_owned(),
+                review_summary: "The first ruling omitted the recovered signature".to_owned(),
+            },
+        )
+        .await
+        .expect("append the reconsideration review");
+    repository
+        .resolve_reconsideration(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "reconsideration_p08_tutorial",
+                "reconsideration",
+                2,
+                "p08_reconsideration_resolve",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &ResolveReconsiderationRequest {
+                reconsideration_id: "reconsideration_p08_tutorial".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                resolution_event_id: "resolution_event_p08_tutorial".to_owned(),
+                outcome: ReconsiderationOutcome::Corrected,
+                resolution: "Append a corrected ruling that admits the signature".to_owned(),
+                corrected_event_type: Some("RulingCorrected".to_owned()),
+                corrected_payload_json: Some(
+                    r#"{"ruling":"signature admitted","supersedes_sequence":1}"#.to_owned(),
+                ),
+            },
+        )
+        .await
+        .expect("append the correction while retaining the original event");
+
+    create_campaign(
+        &repository,
+        CHILD_CAMPAIGN_ID,
+        CHILD_AUTHORITY_ID,
+        "room_p08_tutorial_fork",
+        "p08_child_campaign_create",
+    )
+    .await;
+    let snapshot = repository
+        .preview_campaign_fork(CAMPAIGN_ID, SESSION_ID, KEEPER_ID)
+        .await
+        .expect("compute the canonical public fork snapshot");
+    assert!(
+        snapshot
+            .canonical_snapshot_json
+            .contains("ReconsiderationCorrected"),
+        "the fork cutoff must include a completed review of source-session history"
+    );
+    assert!(!snapshot.canonical_snapshot_json.contains("keeper_note"));
+    assert!(!snapshot.canonical_snapshot_json.contains("private_message"));
+    assert!(!snapshot.canonical_snapshot_json.contains("ai_internal"));
+    repository
+        .record_campaign_fork(
+            &metadata(
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "fork_p08_tutorial",
+                "campaign_fork",
+                0,
+                "p08_fork",
+                "keeper_only",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &RecordCampaignForkRequest {
+                fork_id: "fork_p08_tutorial".to_owned(),
+                parent_campaign_id: CAMPAIGN_ID.to_owned(),
+                child_campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                source_session_id: SESSION_ID.to_owned(),
+                snapshot_hash: snapshot.snapshot_hash.clone(),
+                reason: "Preserve the corrected public branch".to_owned(),
+                copy_scopes: snapshot.copy_scopes.clone(),
+            },
+        )
+        .await
+        .expect("materialize the fork as child-owned durable state");
+    let source_after_fork = repository
+        .preview_campaign_fork(CAMPAIGN_ID, SESSION_ID, KEEPER_ID)
+        .await
+        .expect("re-read the source after child materialization");
+    assert_eq!(
+        source_after_fork, snapshot,
+        "fork materialization must not mutate the source Campaign"
+    );
+
+    let parent_projection = sqlx::query(
+        r#"
+        SELECT
+          (SELECT status FROM public.combat_states
+            WHERE combat_id = 'combat_p08_tutorial') AS combat_status,
+          (SELECT state_json -> 'participants' -> 0 ->> 'condition'
+             FROM public.combat_states
+            WHERE combat_id = 'combat_p08_tutorial') AS combat_condition,
+          (SELECT status FROM public.chase_states
+            WHERE chase_id = 'chase_p08_tutorial') AS chase_status,
+          (SELECT state FROM public.reconsiderations
+            WHERE reconsideration_id = 'reconsideration_p08_tutorial')
+              AS reconsideration_state,
+          (SELECT outcome FROM public.reconsiderations
+            WHERE reconsideration_id = 'reconsideration_p08_tutorial')
+              AS reconsideration_outcome,
+          (SELECT sheet_json -> 'skills' ->> 'Library Use'
+             FROM public.character_sheet_versions
+            WHERE sheet_version_id = 'sheet_p08_evelyn_v3') AS growth_skill,
+          (SELECT random_source FROM public.growth_events
+            WHERE growth_event_id = 'growth_event_p08_tutorial')
+              AS growth_random_source,
+          (SELECT server_roll_id FROM public.growth_events
+            WHERE growth_event_id = 'growth_event_p08_tutorial')
+              AS growth_server_roll_id,
+          (SELECT increase_roll_id FROM public.growth_events
+            WHERE growth_event_id = 'growth_event_p08_tutorial')
+              AS growth_increase_roll_id
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .expect("load the completed Tutorial read models");
+    assert_eq!(parent_projection.get::<String, _>("combat_status"), "ENDED");
+    assert_eq!(
+        parent_projection.get::<String, _>("combat_condition"),
+        "MAJOR_WOUND"
+    );
+    assert_eq!(parent_projection.get::<String, _>("chase_status"), "CAUGHT");
+    assert_eq!(
+        parent_projection.get::<String, _>("reconsideration_state"),
+        "RESOLVED"
+    );
+    assert_eq!(
+        parent_projection.get::<String, _>("reconsideration_outcome"),
+        "CORRECTED"
+    );
+    assert_eq!(
+        parent_projection
+            .get::<String, _>("growth_skill")
+            .parse::<u8>()
+            .unwrap(),
+        growth_after
+    );
+    assert_eq!(
+        parent_projection.get::<String, _>("growth_random_source"),
+        "SERVER_OS_CSPRNG"
+    );
+    assert_eq!(
+        parent_projection.get::<String, _>("growth_server_roll_id"),
+        growth_roll.evidence().improvement_check().roll_id()
+    );
+    assert_eq!(
+        parent_projection
+            .get::<Option<String>, _>("growth_increase_roll_id")
+            .as_deref(),
+        growth_roll.evidence().increase().map(|roll| roll.roll_id())
+    );
+
+    let child_counts: (i64, i64, i64, i64, i64) = sqlx::query_as(
+        r#"
+        SELECT
+          (SELECT count(*) FROM public.scenarios WHERE campaign_id = $1),
+          (SELECT count(*) FROM public.characters WHERE campaign_id = $1),
+          (SELECT count(*) FROM core_domain.sessions WHERE campaign_id = $1),
+          (SELECT count(*) FROM public.scenes WHERE campaign_id = $1),
+          (SELECT count(*) FROM public.campaign_fork_materializations
+            WHERE campaign_id = $1)
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .expect("load child fork materialization");
+    assert_eq!(
+        child_counts,
+        (1, 1, 1, 2, 1),
+        "fork must materialize real child-owned scenario, character, session, scenes and manifest"
+    );
+
+    let actual_event_types = sqlx::query_scalar::<_, String>(
+        "SELECT DISTINCT event_type FROM public.event_store ORDER BY event_type",
+    )
+    .fetch_all(&primary)
+    .await
+    .expect("read the actual canonical event types")
+    .into_iter()
+    .collect::<BTreeSet<_>>();
+    for required in [
+        "CampaignCreated",
+        "CampaignInviteIssued",
+        "CampaignInviteAccepted",
+        "CharacterCreated",
+        "CharacterSubmitted",
+        "CharacterInitialVersionApproved",
+        "ScenarioImported",
+        "SessionStarted",
+        "PlayerActionSubmitted",
+        "DiceRolled",
+        "SkillCheckResolved",
+        "ClueRevealed",
+        "SanityLossApplied",
+        "DecisionCommitted",
+        "SceneSwitched",
+        "CombatStateRecorded",
+        "ChaseStateRecorded",
+        "SessionStateChanged",
+        "EndingRecorded",
+        "CharacterGrowthApplied",
+        "ReconsiderationRequested",
+        "ReconsiderationReviewed",
+        "ReconsiderationCorrected",
+        "CampaignForkRecorded",
+        "CampaignForkMaterializationRecorded",
+        "CampaignForkMaterialized",
+    ] {
+        assert!(
+            actual_event_types.contains(required),
+            "the production Event Store is missing required Tutorial event {required}; actual={actual_event_types:?}"
+        );
+    }
+
+    let canonical_counts = sqlx::query(
+        r#"
+        SELECT
+          count(*) AS events,
+          count(*) FILTER (
+            WHERE integrity_status = 'verified_hmac'
+              AND event_integrity_version = 3
+              AND payload_json ? 'protected_payload'
+          ) AS verified_events,
+          (SELECT count(*) FROM public.event_outbox) AS outbox,
+          (SELECT count(*) FROM public.event_outbox
+            WHERE integrity_status = 'verified_hmac'
+              AND payload_json ? 'protected_payload') AS protected_outbox,
+          (SELECT count(*) FROM public.formal_commits
+            WHERE status = 'committed') AS committed,
+          (SELECT count(*) FROM public.formal_commits) AS total_commits
+        FROM public.event_store
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .expect("verify Event Store, Outbox and formal commits");
+    let event_count = canonical_counts.get::<i64, _>("events");
+    assert!(event_count > 0);
+    assert_eq!(
+        canonical_counts.get::<i64, _>("verified_events"),
+        event_count
+    );
+    assert_eq!(canonical_counts.get::<i64, _>("outbox"), event_count);
+    assert_eq!(
+        canonical_counts.get::<i64, _>("protected_outbox"),
+        event_count
+    );
+    assert_eq!(
+        canonical_counts.get::<i64, _>("committed"),
+        canonical_counts.get::<i64, _>("total_commits")
+    );
+    integrity_verifier
+        .verify_integrity()
+        .await
+        .expect("verify primary audit/HMAC chains and independent Witness bindings");
+}
+
+#[test]
+fn tutorial_rejects_early_ending_and_private_fork_scope() {
+    use trpg_domain_core::ddd::AuthorityMode;
+    use trpg_domain_core::fork_canon_lineage::{
+        calculate_snapshot_hash, fork_campaign, CampaignForkRequest, CampaignForkSnapshot,
+        CanonStatus, CopyScope,
+    };
+    use trpg_runtime::session_runtime::{CampaignConclusion, DurableSessionState};
+
+    assert!(
+        CampaignConclusion::begin(CAMPAIGN_ID, SESSION_ID, DurableSessionState::Active).is_err(),
+        "an active Session cannot be declared concluded"
+    );
+
+    let parent = trpg_test_support::authority_contract_with_owner(
+        CAMPAIGN_ID,
+        AuthorityMode::HumanKp,
+        KEEPER_ID,
+        1,
+    )
+    .unwrap();
+    let state = r#"{"public_events":[]}"#;
+    let snapshot = CampaignForkSnapshot::verified(
+        CAMPAIGN_ID,
+        SESSION_ID,
+        state,
+        calculate_snapshot_hash(state),
+    )
+    .unwrap();
+    let request = CampaignForkRequest::new(
+        CAMPAIGN_ID,
+        SESSION_ID,
+        CHILD_CAMPAIGN_ID,
+        AuthorityMode::HumanKp,
+        KEEPER_ID,
+        "attempt private copy",
+        snapshot.snapshot_hash.clone(),
+    )
+    .unwrap()
+    .with_scope(
+        CanonStatus::WhatIf,
+        vec![CopyScope::PublicEvents, CopyScope::KeeperNotes],
+    )
+    .unwrap();
+    assert!(
+        fork_campaign(&parent, &request, &snapshot, &[]).is_err(),
+        "a fork cannot opt private Keeper notes back into the copy scope"
+    );
+}

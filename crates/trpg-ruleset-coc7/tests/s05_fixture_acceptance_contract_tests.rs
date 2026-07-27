@@ -4,7 +4,9 @@ use trpg_ruleset_coc7::character_combat_san_chase::{
     derive_character_stats, Coc7Characteristics, DamageBonus,
 };
 use trpg_ruleset_coc7::chase_state_machine::{advance_chase, record_chase_transition, ChaseStatus};
-use trpg_ruleset_coc7::combat_state_machine::{apply_damage, record_combat_transition};
+use trpg_ruleset_coc7::combat_state_machine::{
+    apply_damage, record_combat_transition, CombatCondition,
+};
 use trpg_ruleset_coc7::dice_roll_contract::{
     adjusted_percentile_roll, record_dice_roll_contract, server_roll_skill_check, success_level,
     DiceAdjustment, SuccessLevel,
@@ -158,7 +160,7 @@ fn s05_san_combat_chase_and_clue_fixtures_map_to_evented_assertions() {
     let san_event = record_san_decision(&contract, &mut store, &san_command, &san_failure).unwrap();
     assert_eq!(san_event.event_type, "SanityLossApplied");
 
-    let combat = apply_damage(12, 12, 5).unwrap();
+    let combat = apply_damage(12, 12, 5, CombatCondition::Able).unwrap();
     assert_eq!(combat.damage, 5);
     assert_eq!(combat.after_hp, 7);
     let mut combat_command = common::rules_command("combat");
@@ -168,9 +170,9 @@ fn s05_san_combat_chase_and_clue_fixtures_map_to_evented_assertions() {
         record_combat_transition(&contract, &mut store, &combat_command, &combat).unwrap();
     assert_eq!(combat_event.event_type, "CombatStateUpdated");
 
-    let lead_increases = advance_chase(2, true, false, 0).unwrap();
+    let lead_increases = advance_chase(2, ChaseStatus::Ongoing, true, false, 0).unwrap();
     assert_eq!(lead_increases.after_range, 3);
-    let caught = advance_chase(1, false, true, 0).unwrap();
+    let caught = advance_chase(1, ChaseStatus::Ongoing, false, true, 0).unwrap();
     assert_eq!(caught.after_range, 0);
     assert_eq!(caught.status, ChaseStatus::Caught);
     let mut chase_command = common::rules_command("chase");

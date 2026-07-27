@@ -14,6 +14,7 @@ pub mod open_source_reference_matrix_impl;
 pub mod readme;
 pub mod rust_cargo_workspace;
 pub mod rust_coding_model;
+pub mod server_random;
 pub mod shared_kernel;
 pub mod system_context;
 pub mod system_context_impl;
@@ -21,6 +22,10 @@ pub mod technology_selection_rust;
 pub mod technology_selection_rust_impl;
 pub mod workspace_and_governance;
 
+pub use server_random::{
+    server_d10_roll, server_percentile_roll, ServerD10Roll, ServerGrowthRollEvidence,
+    ServerPercentileRoll,
+};
 pub use shared_kernel::{
     validate_command_envelope, Actor, ActorOrigin, ActorRole, AgentClass,
     AuthenticatedCommandContext, AuthorityBinding, AuthorityContract, AuthorityContractDraft,

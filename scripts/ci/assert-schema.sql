@@ -1946,9 +1946,229 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'P07 player action intent does not reject client dice fields';
     END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000300
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 combat/chase/conclusion migration is not applied';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000400
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 fork materialization/replay migration is not applied';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('combat_states'),
+              ('chase_states'),
+              ('ending_events'),
+              ('growth_events'),
+              ('campaign_fork_materializations')
+          ) AS expected(table_name)
+         WHERE to_regclass(format('public.%I', expected.table_name)) IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P08 persistent aggregate table set is incomplete';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('campaign_forks', 'child_snapshot_hash'),
+              ('campaign_forks', 'copy_scope_json'),
+              ('campaign_forks', 'snapshot_json'),
+              ('campaign_forks', 'materialization_version'),
+              ('growth_events', 'increase_roll_id'),
+              ('reconsiderations', 'review_workflow_version'),
+              ('reconsiderations', 'review_summary'),
+              ('reconsiderations', 'outcome'),
+              ('reconsiderations', 'corrected_event_type'),
+              ('reconsiderations', 'corrected_payload')
+          ) AS expected(table_name, column_name)
+         WHERE NOT EXISTS (
+             SELECT 1
+               FROM information_schema.columns AS column_info
+              WHERE column_info.table_schema = 'public'
+                AND column_info.table_name = expected.table_name
+                AND column_info.column_name = expected.column_name
+         )
+    ) THEN
+        RAISE EXCEPTION 'P08 fork/reconsideration hardening columns are incomplete';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('combat_states', 'combat_states_event_guard'),
+              ('chase_states', 'chase_states_event_guard'),
+              ('ending_events', 'ending_events_event_guard'),
+              ('growth_events', 'growth_events_event_guard'),
+              ('campaign_fork_materializations',
+               'campaign_fork_materializations_event_guard')
+          ) AS expected(table_name, trigger_name)
+          LEFT JOIN pg_class AS relation
+            ON relation.oid = to_regclass(
+                format('public.%I', expected.table_name)
+            )
+          LEFT JOIN pg_trigger AS trigger
+            ON trigger.tgrelid = relation.oid
+           AND trigger.tgname = expected.trigger_name
+           AND NOT trigger.tgisinternal
+         WHERE trigger.oid IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P08 canonical-event projection guard is incomplete';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('scenarios', 'scenarios_event_guard'),
+              ('characters', 'characters_event_guard'),
+              ('character_sheet_versions',
+               'character_sheet_versions_event_guard'),
+              ('scenes', 'scenes_event_guard')
+          ) AS expected(table_name, trigger_name)
+         WHERE NOT EXISTS (
+             SELECT 1
+               FROM pg_trigger
+              WHERE tgrelid = to_regclass(
+                        format('public.%I', expected.table_name)
+                    )
+                AND tgname = expected.trigger_name
+                AND NOT tgisinternal
+                AND encode(tgargs, 'escape')
+                    LIKE '%CampaignForkMaterialized%'
+         )
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid = 'core_domain.sessions'::regclass
+           AND tgname = 'sessions_event_guard'
+           AND NOT tgisinternal
+           AND encode(tgargs, 'escape') LIKE '%CampaignForkMaterialized%'
+    ) THEN
+        RAISE EXCEPTION 'P08 fork materialization projection allow-list is incomplete';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid = 'public.reconsiderations'::regclass
+           AND tgname = 'reconsiderations_event_guard'
+           AND encode(tgargs, 'escape') LIKE '%ReconsiderationUpheld%'
+           AND encode(tgargs, 'escape') LIKE '%ReconsiderationCorrected%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid = 'public.characters'::regclass
+           AND tgname = 'characters_event_guard'
+           AND encode(tgargs, 'escape') LIKE '%SanityLossApplied%'
+           AND encode(tgargs, 'escape') LIKE '%CharacterGrowthApplied%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid = 'public.character_sheet_versions'::regclass
+           AND tgname = 'character_sheet_versions_event_guard'
+           AND encode(tgargs, 'escape') LIKE '%SanityLossApplied%'
+           AND encode(tgargs, 'escape') LIKE '%CharacterGrowthApplied%'
+    ) THEN
+        RAISE EXCEPTION 'P08 correction/growth event allow-list is incomplete';
+    END IF;
+    IF (
+        SELECT count(*)
+          FROM pg_constraint
+         WHERE conrelid IN (
+             'public.combat_states'::regclass,
+             'public.chase_states'::regclass,
+             'public.ending_events'::regclass,
+             'public.growth_events'::regclass
+         )
+           AND confrelid = 'core_domain.sessions'::regclass
+           AND contype = 'f'
+           AND condeferrable
+           AND condeferred
+    ) <> 4 THEN
+        RAISE EXCEPTION 'P08 session references would block projection rebuild';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('combat_states'),
+              ('chase_states'),
+              ('ending_events'),
+              ('growth_events'),
+              ('campaign_fork_materializations')
+          ) AS expected(table_name)
+         WHERE has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'SELECT'
+               )
+            OR has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'INSERT'
+               )
+            OR has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'UPDATE'
+               )
+            OR has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'DELETE'
+               )
+            OR NOT has_table_privilege(
+                   'trpg_api_service',
+                   format('public.%I', expected.table_name),
+                   'SELECT'
+               )
+            OR has_table_privilege(
+                   'trpg_api_service',
+                   format('public.%I', expected.table_name),
+                   'DELETE'
+               )
+    ) THEN
+        RAISE EXCEPTION 'P08 table privilege boundary drifted';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'public.campaign_forks'::regclass
+           AND pg_get_constraintdef(oid) LIKE '%child_snapshot_hash%'
+           AND pg_get_constraintdef(oid) LIKE '%AI_INTERNAL_MEMORY%'
+           AND pg_get_constraintdef(oid) LIKE '%materialization_version%'
+           AND pg_get_constraintdef(oid) LIKE '%child_campaign_id%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid =
+               'public.campaign_fork_materializations'::regclass
+           AND pg_get_constraintdef(oid) LIKE '%child_snapshot_hash%'
+           AND pg_get_constraintdef(oid) LIKE '%child_state_json%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'public.growth_events'::regclass
+           AND pg_get_constraintdef(oid) LIKE '%improvement_check_roll%'
+           AND pg_get_constraintdef(oid) LIKE '%increase_roll%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'public.growth_events'::regclass
+           AND pg_get_constraintdef(oid) LIKE '%increase_roll_id%'
+           AND pg_get_constraintdef(oid) LIKE '%increase_roll IS NULL%'
+           AND pg_get_constraintdef(oid) LIKE '%server_roll_id%'
+    ) THEN
+        RAISE EXCEPTION 'P08 snapshot scope or growth evidence is not physical';
+    END IF;
 END;
 $$;
 
 SELECT 'P07_SCHEMA_ASSERTION_OK' AS schema_assertion;
+SELECT 'P08_SCHEMA_ASSERTION_OK' AS schema_assertion;
 
 ROLLBACK;

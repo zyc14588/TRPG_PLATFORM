@@ -134,6 +134,7 @@ for database in \
   p05_privacy \
   p06_core_domain \
   p07_player_action \
+  p08_tutorial \
   trpg_backup_source \
   trpg_backup_target; do
   docker exec trpg-primary-postgres createdb -U postgres "$database"
@@ -147,7 +148,8 @@ for database in \
   p04_eventing_witness \
   p05_privacy_witness \
   p06_core_domain_witness \
-  p07_player_action_witness; do
+  p07_player_action_witness \
+  p08_tutorial_witness; do
   docker exec trpg-witness-postgres createdb -U postgres "$database"
 done
 
@@ -344,6 +346,11 @@ P07_ALLOW_DATABASE_RESET=1
 P07_RESET_DATABASE=p07_player_action
 P07_WITNESS_RESET_DATABASE=p07_player_action_witness
 P07_NATS_URL=nats://127.0.0.1:14222
+P08_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/p08_tutorial
+P08_WITNESS_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15433/p08_tutorial_witness
+P08_ALLOW_DATABASE_RESET=1
+P08_RESET_DATABASE=p08_tutorial
+P08_WITNESS_RESET_DATABASE=p08_tutorial_witness
 TRPG_POSTGRES_CLIENT_IMAGE=${postgres_client_image}
 TRPG_POSTGRES_CLIENT_MOUNT_ROOT=${runtime_root}
 TMPDIR=${runtime_root}

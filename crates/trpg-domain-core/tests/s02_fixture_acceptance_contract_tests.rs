@@ -6,7 +6,8 @@ use trpg_domain_core::ddd::{
     VisibilityLabel,
 };
 use trpg_domain_core::fork_canon_lineage::{
-    fork_campaign, CampaignForkRequest, CanonStatus, CopyScope,
+    calculate_snapshot_hash, fork_campaign, CampaignForkRequest, CampaignForkSnapshot, CanonStatus,
+    CopyScope,
 };
 use trpg_domain_core::visibility_fact_provenance::{
     most_restrictive_label, promote_fact_to_confirmed, redaction_for, DerivedObject,
@@ -119,6 +120,15 @@ fn s02_authority_and_fork_fixtures_map_to_domain_fork_contract() {
         1,
     )
     .unwrap();
+    let canonical_snapshot = r#"{"character_state":[],"discovered_clues":[],"public_events":[]}"#;
+    let snapshot_hash = calculate_snapshot_hash(canonical_snapshot);
+    let snapshot = CampaignForkSnapshot::verified(
+        "camp_ai_harbor",
+        "session_002",
+        canonical_snapshot,
+        snapshot_hash.clone(),
+    )
+    .unwrap();
     let request = CampaignForkRequest::new(
         "camp_ai_harbor",
         "session_002",
@@ -126,11 +136,11 @@ fn s02_authority_and_fork_fixtures_map_to_domain_fork_contract() {
         AuthorityMode::HumanKp,
         "user_human_kp",
         "player_requested_human_kp_branch",
-        "sha256_9e5d1b0c5d0838e2a81b72b3d3f361ba58ee03b06f6df5a0e93e1b93cf90b5ae",
+        snapshot_hash,
     )
     .unwrap();
 
-    let fork = fork_campaign(&parent, &request).unwrap();
+    let fork = fork_campaign(&parent, &request, &snapshot, &[]).unwrap();
     assert!(fork.parent_unchanged);
     assert_eq!(fork.canon_status, CanonStatus::WhatIf);
     assert_eq!(parent.authority_mode(), &AuthorityMode::AiKp);
@@ -139,9 +149,9 @@ fn s02_authority_and_fork_fixtures_map_to_domain_fork_contract() {
         &AuthorityMode::HumanKp
     );
     assert!(fork.child_authority_contract.is_locked());
-    assert!(fork.copied_by_default.contains(&CopyScope::PublicEvents));
+    assert!(fork.copied_scopes.contains(&CopyScope::PublicEvents));
     assert!(fork
-        .requires_explicit_permission
+        .excluded_private_scopes
         .contains(&CopyScope::AiInternalMemory));
 }
 
