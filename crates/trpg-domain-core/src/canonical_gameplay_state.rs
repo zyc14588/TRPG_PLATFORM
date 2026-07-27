@@ -148,6 +148,14 @@ impl CombatStatus {
 #[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
 enum CombatMutation {
     Started,
+    AttackMissed {
+        attacker_id: String,
+        target_id: String,
+        action: CombatActionKind,
+        defense: CombatDefense,
+        attacker_roll: PercentileRollEvidence,
+        defender_roll: Option<PercentileRollEvidence>,
+    },
     DamageApplied {
         attacker_id: String,
         target_id: String,
@@ -268,6 +276,27 @@ pub fn validate_combat_server_roll_evidence(
 ) -> Result<(), CanonicalGameplayStateError> {
     let state = parse_combat(state_json)?;
     match &state.last_transition {
+        CombatMutation::AttackMissed {
+            attacker_roll: recorded_attacker,
+            defender_roll: recorded_defender,
+            ..
+        } => {
+            let attacker_roll =
+                attacker_roll.ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if damage_roll.is_some()
+                || medical_roll.is_some()
+                || !percentile_evidence_matches_server(recorded_attacker, attacker_roll)
+                || !match (recorded_defender, defender_roll) {
+                    (Some(recorded), Some(server)) => {
+                        percentile_evidence_matches_server(recorded, server)
+                    }
+                    (None, None) => true,
+                    _ => false,
+                }
+            {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+        }
         CombatMutation::DamageApplied {
             attacker_roll: recorded_attacker,
             defender_roll: recorded_defender,
@@ -379,6 +408,59 @@ fn apply_combat_mutation(
     }
     match mutation {
         CombatMutation::Started => return Err(CanonicalGameplayStateError::InvalidTransition),
+        CombatMutation::AttackMissed {
+            attacker_id,
+            target_id,
+            action,
+            defense,
+            attacker_roll,
+            defender_roll,
+        } => {
+            let current_actor = state
+                .initiative_order
+                .get(state.current_turn_index)
+                .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if current_actor != attacker_id || attacker_id == target_id {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            let attacker = state
+                .participants
+                .iter()
+                .find(|participant| participant.participant_id == *attacker_id)
+                .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if !attacker.condition.can_act() {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            let attacker_target = attacker.skill_targets.attack_target(*action);
+            let defender = state
+                .participants
+                .iter()
+                .find(|participant| participant.participant_id == *target_id)
+                .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            let defender_target = defender.skill_targets.defense_target(*defense);
+            if *defense == CombatDefense::FightBack && *action != CombatActionKind::Melee {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            validate_percentile_evidence(attacker_roll, attacker_target)?;
+            if (*defense != CombatDefense::None) != defender_roll.is_some() {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            if let (Some(defender_roll), Some(defender_target)) = (defender_roll, defender_target) {
+                validate_percentile_evidence(defender_roll, defender_target)?;
+            }
+            if defender_roll
+                .as_ref()
+                .is_some_and(|roll| roll.roll_id == attacker_roll.roll_id)
+                || canonical_exchange_outcome(
+                    *defense,
+                    attacker_roll.success_level,
+                    defender_roll.as_ref().map(|roll| roll.success_level),
+                )?
+                .is_some()
+            {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+        }
         CombatMutation::DamageApplied {
             attacker_id,
             target_id,
@@ -1089,6 +1171,79 @@ mod tests {
 
         assert_eq!(
             validate_combat_state_transition(Some(&previous_json), &forged_successor),
+            Err(CanonicalGameplayStateError::InvalidTransition)
+        );
+    }
+
+    #[test]
+    fn serialized_replay_accepts_only_a_genuine_no_damage_miss() {
+        let mut next = CombatSnapshot {
+            combat_id: "combat_miss".to_owned(),
+            participants: vec![
+                Combatant {
+                    participant_id: "attacker".to_owned(),
+                    dexterity: 80,
+                    skill_targets: CombatSkillTargets {
+                        melee: 60,
+                        firearm: 50,
+                        dodge: 40,
+                    },
+                    current_hp: 10,
+                    max_hp: 10,
+                    armor: 0,
+                    condition: CombatCondition::Able,
+                },
+                Combatant {
+                    participant_id: "defender".to_owned(),
+                    dexterity: 50,
+                    skill_targets: CombatSkillTargets {
+                        melee: 45,
+                        firearm: 35,
+                        dodge: 25,
+                    },
+                    current_hp: 8,
+                    max_hp: 8,
+                    armor: 0,
+                    condition: CombatCondition::Able,
+                },
+            ],
+            initiative_order: vec!["attacker".to_owned(), "defender".to_owned()],
+            round: 1,
+            current_turn_index: 0,
+            status: CombatStatus::Ongoing,
+            version: 1,
+            last_transition: CombatMutation::Started,
+        };
+        let previous_json = serde_json::to_string(&next).unwrap();
+        next.version = 2;
+        next.last_transition = CombatMutation::AttackMissed {
+            attacker_id: "attacker".to_owned(),
+            target_id: "defender".to_owned(),
+            action: CombatActionKind::Firearm,
+            defense: CombatDefense::None,
+            attacker_roll: PercentileRollEvidence {
+                roll_id: "miss_roll".to_owned(),
+                target: 50,
+                roll: 80,
+                selected_tens_digit: 8,
+                ones_digit: 0,
+                success_level: SuccessLevel::Failure,
+            },
+            defender_roll: None,
+        };
+        let missed_json = serde_json::to_string(&next).unwrap();
+        validate_combat_state_transition(Some(&previous_json), &missed_json)
+            .expect("a failed roll must replay as an explicit no-damage mutation");
+
+        let CombatMutation::AttackMissed { attacker_roll, .. } = &mut next.last_transition else {
+            unreachable!("the test just constructed an attack miss");
+        };
+        attacker_roll.roll = 40;
+        attacker_roll.selected_tens_digit = 4;
+        attacker_roll.success_level = SuccessLevel::Regular;
+        let forged_miss = serde_json::to_string(&next).unwrap();
+        assert_eq!(
+            validate_combat_state_transition(Some(&previous_json), &forged_miss),
             Err(CanonicalGameplayStateError::InvalidTransition)
         );
     }

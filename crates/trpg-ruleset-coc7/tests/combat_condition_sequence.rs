@@ -123,7 +123,7 @@ fn armor_and_multi_character_turns_are_persistent_aggregate_state() {
             CombatDefense::None,
             &attack,
             None,
-            &damage_roll,
+            Some(&damage_roll),
         )
         .unwrap();
     assert_eq!(damage.armor_absorbed, 2);
@@ -138,7 +138,7 @@ fn armor_and_multi_character_turns_are_persistent_aggregate_state() {
             CombatDefense::None,
             &follow_up_attack,
             None,
-            &follow_up_roll,
+            Some(&follow_up_roll),
         )
         .unwrap();
     assert_eq!(follow_up.damage, 0);
@@ -153,7 +153,7 @@ fn armor_and_multi_character_turns_are_persistent_aggregate_state() {
                 CombatDefense::None,
                 &percentile_with_result(50, true),
                 None,
-                &forged_formula,
+                Some(&forged_formula),
             )
             .unwrap_err(),
         TrpgError::InvalidConfiguration("combat_damage_evidence")
@@ -200,20 +200,29 @@ fn formal_combat_uses_combat_skills_and_models_fight_back() {
         }
     };
     let before = skill_bound.persistence_json().unwrap();
-    assert_eq!(
-        skill_bound
-            .apply_damage(
-                "character_defender",
-                CombatActionKind::Firearm,
-                CombatDefense::None,
-                &dex_success_skill_failure,
-                None,
-                &firearm_damage_with_value(6),
-            )
-            .unwrap_err(),
-        TrpgError::InvalidConfiguration("combat_attack_missed")
+    let missed = skill_bound
+        .apply_damage(
+            "character_defender",
+            CombatActionKind::Firearm,
+            CombatDefense::None,
+            &dex_success_skill_failure,
+            None,
+            None,
+        )
+        .unwrap();
+    assert_eq!(missed.before_hp, missed.after_hp);
+    assert_eq!(missed.raw_damage, 0);
+    assert_eq!(missed.damage, 0);
+    assert_eq!(skill_bound.version(), 2);
+    let after = skill_bound.persistence_json().unwrap();
+    assert_ne!(after, before);
+    assert!(after.contains("\"kind\":\"ATTACK_MISSED\""));
+    CombatState::validate_serialized_persistence_transition(Some(&before), &after)
+        .expect("a failed attack is a canonical no-damage transition with roll evidence");
+    assert!(
+        after.contains(dex_success_skill_failure.roll_id()),
+        "the missed attack must retain its server-generated roll evidence"
     );
-    assert_eq!(skill_bound.persistence_json().unwrap(), before);
 
     let mut tied_fight_back = CombatState::start(
         "combat_fight_back_tie",
@@ -227,7 +236,7 @@ fn formal_combat_uses_combat_skills_and_models_fight_back() {
             CombatDefense::FightBack,
             &percentile_with_level(50, SuccessLevel::Regular),
             Some(&percentile_with_level(80, SuccessLevel::Regular)),
-            &server_damage_roll(1, 6, 0).unwrap(),
+            Some(&server_damage_roll(1, 6, 0).unwrap()),
         )
         .unwrap();
     assert_eq!(tied_fight_back.participants()[0].current_hp(), 12);
@@ -242,7 +251,7 @@ fn formal_combat_uses_combat_skills_and_models_fight_back() {
             CombatDefense::FightBack,
             &percentile_with_level(50, SuccessLevel::Regular),
             Some(&percentile_with_level(80, SuccessLevel::Hard)),
-            &server_damage_roll(1, 6, 0).unwrap(),
+            Some(&server_damage_roll(1, 6, 0).unwrap()),
         )
         .unwrap();
     assert!(winning_fight_back.participants()[0].current_hp() < 12);
@@ -262,7 +271,7 @@ fn formal_combat_uses_combat_skills_and_models_fight_back() {
             CombatDefense::FightBack,
             &percentile_with_level(50, SuccessLevel::Regular),
             Some(&percentile_with_level(80, SuccessLevel::Hard)),
-            &melee_damage_with_value(5),
+            Some(&melee_damage_with_value(5)),
         )
         .unwrap();
     assert!(!incapacitation.participants()[0].condition().can_act());
@@ -275,7 +284,7 @@ fn formal_combat_uses_combat_skills_and_models_fight_back() {
                 CombatDefense::None,
                 &percentile_with_level(50, SuccessLevel::Regular),
                 None,
-                &melee_damage_with_value(1),
+                Some(&melee_damage_with_value(1)),
             )
             .unwrap_err(),
         TrpgError::InvalidConfiguration("combat_actor_incapacitated")

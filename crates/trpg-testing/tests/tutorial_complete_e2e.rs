@@ -744,7 +744,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             CombatDefense::None,
             &combat_attack,
             None,
-            &combat_damage,
+            Some(&combat_damage),
         )
         .unwrap();
     assert_eq!(damage.condition, CombatCondition::MajorWound);

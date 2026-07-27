@@ -41,11 +41,13 @@ const INTEGRITY_KEY: &[u8; 32] = &[0x36; 32];
 const PAYLOAD_KEY: &[u8; 32] = &[0x47; 32];
 const CAMPAIGN_ID: &str = "campaign_p06_schema";
 const CHILD_CAMPAIGN_ID: &str = "campaign_p06_fork_child";
+const RACE_CHILD_CAMPAIGN_ID: &str = "campaign_p08_fork_race_child";
 const KEEPER_ID: &str = "keeper_p06_schema";
 const PLAYER_ID: &str = "player_p06_schema";
 const OTHER_ID: &str = "other_p06_schema";
 const AUTHORITY_ID: &str = "authority_campaign_p06_schema_1";
 const CHILD_AUTHORITY_ID: &str = "authority_campaign_p06_fork_child_1";
+const RACE_CHILD_AUTHORITY_ID: &str = "authority_campaign_p08_fork_race_child_1";
 const NOW_MS: u64 = 2_000_000_000_000;
 
 fn percentile_with_result(target: u8, succeeds: bool) -> ServerPercentileRoll {
@@ -276,6 +278,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .prepare_for_service()
         .await
         .expect("apply the complete forward migration chain");
+    let canonical_reader = store.clone();
     let clock = Arc::new(TestClock(AtomicU64::new(NOW_MS)));
     let repository = CoreDomainRepository::new_with_clock(primary.clone(), store, clock.clone());
 
@@ -1397,7 +1400,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             CombatDefense::None,
             &recorded_attack,
             None,
-            &recorded_damage,
+            Some(&recorded_damage),
         )
         .unwrap();
     assert!(matches!(
@@ -1463,7 +1466,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             CombatDefense::None,
             &foreign_attack,
             None,
-            &foreign_damage,
+            Some(&foreign_damage),
         )
         .unwrap();
     let foreign_state_json = foreign_lineage.persistence_json().unwrap();
@@ -1525,6 +1528,49 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         combat_events_after_forgery, combat_events_before_forgery,
         "a same-ID aggregate from another lineage must be rejected before Event Store append"
     );
+    let missed_attack = percentile_with_result(80, false);
+    let missed_transition = combat
+        .apply_damage(
+            "character_p06_player",
+            CombatActionKind::Firearm,
+            CombatDefense::None,
+            &missed_attack,
+            None,
+            None,
+        )
+        .unwrap();
+    assert_eq!(missed_transition.before_hp, missed_transition.after_hp);
+    assert_eq!(missed_transition.damage, 0);
+    let missed_state = combat.persistence_json().unwrap();
+    assert!(missed_state.contains("\"kind\":\"ATTACK_MISSED\""));
+    repository
+        .record_combat_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_schema",
+                "combat_state",
+                "combat.state.attack",
+                1,
+                "combat_p08_missed_attack",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: missed_state,
+                attacker_roll: Some(missed_attack),
+                defender_roll: None,
+                damage_roll: None,
+                medical_roll: None,
+            },
+        )
+        .await
+        .expect("persist a missed attack with server roll evidence and no damage evidence");
     let first_attack = percentile_with_result(80, true);
     let first_damage_roll = damage_with_value(1, 6, 5, 6);
     let first_damage = combat
@@ -1534,7 +1580,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             CombatDefense::None,
             &first_attack,
             None,
-            &first_damage_roll,
+            Some(&first_damage_roll),
         )
         .unwrap();
     assert_eq!(first_damage.condition, CombatCondition::MajorWound);
@@ -1548,7 +1594,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 "combat_p08_schema",
                 "combat_state",
                 "combat.state.damage",
-                1,
+                2,
                 "combat_p08_major_wound",
                 "party_visible",
                 "not_applicable",
@@ -1575,7 +1621,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             CombatDefense::None,
             &later_attack,
             None,
-            &later_damage_roll,
+            Some(&later_damage_roll),
         )
         .unwrap();
     assert_eq!(
@@ -1593,7 +1639,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 "combat_p08_schema",
                 "combat_state",
                 "combat.state.damage",
-                2,
+                3,
                 "combat_p08_wound_persists",
                 "party_visible",
                 "not_applicable",
@@ -1621,7 +1667,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             CombatDefense::FightBack,
             &fight_back_attack,
             Some(&fight_back_defense),
-            &fight_back_damage,
+            Some(&fight_back_damage),
         )
         .unwrap();
     let fight_back_state = combat.persistence_json().unwrap();
@@ -1645,7 +1691,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                     "combat_p08_schema",
                     "combat_state",
                     "combat.state.damage",
-                    3,
+                    4,
                     "combat_p08_forged_fight_back",
                     "party_visible",
                     "not_applicable",
@@ -1685,7 +1731,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 "combat_p08_schema",
                 "combat_state",
                 "combat.state.damage",
-                3,
+                4,
                 "combat_p08_fight_back",
                 "party_visible",
                 "not_applicable",
@@ -1715,7 +1761,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 "combat_p08_schema",
                 "combat_state",
                 "combat.state.end",
-                4,
+                5,
                 "combat_p08_end",
                 "party_visible",
                 "not_applicable",
@@ -1914,12 +1960,41 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 session_id: "session_p06_schema".to_owned(),
                 ending_id: "ending_expose_marta".to_owned(),
-                summary: "The investigators expose Marta and preserve the archive.".to_owned(),
+                summary: "  The investigators expose Marta and preserve the archive.  ".to_owned(),
                 ended_at_unix_ms: NOW_MS + 7_000,
             },
         )
         .await
         .expect("append tutorial ending event");
+    let normalized_ending_projection: String = sqlx::query_scalar(
+        "SELECT summary FROM public.ending_events \
+         WHERE ending_event_id = 'ending_event_p08_schema'",
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let normalized_ending_event = canonical_reader
+        .load_replay_page(CAMPAIGN_ID, 0, 500)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|event| event.event_type == "EndingRecorded")
+        .and_then(|event| {
+            event
+                .payload
+                .pointer("/data/summary")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        })
+        .expect("load the decrypted canonical ending summary");
+    assert_eq!(
+        normalized_ending_projection,
+        "The investigators expose Marta and preserve the archive."
+    );
+    assert_eq!(
+        normalized_ending_event, normalized_ending_projection,
+        "the canonical event and live ending projection must share one normalized summary"
+    );
     let growth_roll = server_roll_skill_growth(70).unwrap();
     let growth_outcome = *growth_roll.outcome();
     repository
@@ -1960,7 +2035,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .await
     .unwrap();
     assert_eq!(persisted_combat.0, "ENDED");
-    assert_eq!(persisted_combat.1, 5);
+    assert_eq!(persisted_combat.1, 6);
     assert_eq!(
         persisted_combat
             .2
@@ -2420,6 +2495,101 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         "fork creation must not mutate the source campaign snapshot"
     );
 
+    create_campaign(
+        &repository,
+        RACE_CHILD_CAMPAIGN_ID,
+        RACE_CHILD_AUTHORITY_ID,
+        "room_p08_fork_race_child",
+        "fork_race_child_create",
+    )
+    .await;
+    let race_metadata_a = metadata(
+        RACE_CHILD_CAMPAIGN_ID,
+        RACE_CHILD_AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "fork_p08_race_a",
+        "campaign_fork",
+        "campaign.fork.record",
+        0,
+        "fork_race_a",
+        "keeper_only",
+        "not_applicable",
+        "human_keeper_statement",
+    );
+    let race_metadata_b = metadata(
+        RACE_CHILD_CAMPAIGN_ID,
+        RACE_CHILD_AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "fork_p08_race_b",
+        "campaign_fork",
+        "campaign.fork.record",
+        0,
+        "fork_race_b",
+        "keeper_only",
+        "not_applicable",
+        "human_keeper_statement",
+    );
+    let race_request_a = RecordCampaignForkRequest {
+        fork_id: "fork_p08_race_a".to_owned(),
+        parent_campaign_id: CAMPAIGN_ID.to_owned(),
+        child_campaign_id: RACE_CHILD_CAMPAIGN_ID.to_owned(),
+        source_session_id: "session_p06_schema".to_owned(),
+        snapshot_hash: snapshot.snapshot_hash.clone(),
+        reason: "First concurrent lineage candidate".to_owned(),
+        copy_scopes: snapshot.copy_scopes.clone(),
+    };
+    let race_request_b = RecordCampaignForkRequest {
+        fork_id: "fork_p08_race_b".to_owned(),
+        parent_campaign_id: CAMPAIGN_ID.to_owned(),
+        child_campaign_id: RACE_CHILD_CAMPAIGN_ID.to_owned(),
+        source_session_id: "session_p06_schema".to_owned(),
+        snapshot_hash: snapshot.snapshot_hash.clone(),
+        reason: "Second concurrent lineage candidate".to_owned(),
+        copy_scopes: snapshot.copy_scopes.clone(),
+    };
+    let (race_a, race_b) = tokio::join!(
+        repository.record_campaign_fork(&race_metadata_a, &race_request_a),
+        repository.record_campaign_fork(&race_metadata_b, &race_request_b),
+    );
+    assert_eq!(
+        usize::from(race_a.is_ok()) + usize::from(race_b.is_ok()),
+        1,
+        "the child-scoped lock must allow exactly one concurrent fork lineage"
+    );
+    let rejected_race = if race_a.is_err() { race_a } else { race_b };
+    assert!(
+        matches!(
+            &rejected_race,
+            Err(CoreDomainRepositoryError::Integrity(
+                "campaign_fork_child_lineage_conflict"
+            ))
+        ),
+        "the losing fork must be rejected against canonical child lineage: {rejected_race:?}"
+    );
+    let race_lineage_counts: (i64, i64, i64) = sqlx::query_as(
+        r#"
+        SELECT
+            (SELECT count(*) FROM public.campaign_forks
+              WHERE child_campaign_id = $1),
+            (SELECT count(*) FROM public.event_store
+              WHERE campaign_id = $1 AND event_type = 'CampaignForkRecorded'),
+            (SELECT count(*) FROM pg_constraint
+              WHERE conname = 'campaign_forks_child_lineage_unique'
+                AND conrelid = 'public.campaign_forks'::regclass)
+        "#,
+    )
+    .bind(RACE_CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        race_lineage_counts,
+        (1, 1, 1),
+        "one child must have one projected lineage, one canonical lineage event, and one DB constraint"
+    );
+
     let reconsideration_request_metadata = metadata(
         CAMPAIGN_ID,
         AUTHORITY_ID,
@@ -2473,7 +2643,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 reconsideration_id: "reconsideration_p06_schema".to_owned(),
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 review_event_id: "review_event_p06_schema".to_owned(),
-                review_summary: "The original ruling omitted a material clue".to_owned(),
+                review_summary: "  The original ruling omitted a material clue  ".to_owned(),
             },
         )
         .await
@@ -2499,7 +2669,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 resolution_event_id: "resolution_event_p06_schema".to_owned(),
                 outcome: ReconsiderationOutcome::Corrected,
-                resolution: "Append a corrected ruling that includes the clue".to_owned(),
+                resolution: "  Append a corrected ruling that includes the clue  ".to_owned(),
                 corrected_event_type: Some("RulingCorrected".to_owned()),
                 corrected_payload_json: Some(
                     r#"{"ruling":"clue admitted","supersedes_sequence":1}"#.to_owned(),
@@ -2510,7 +2680,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .expect("append a correction event and resolve reconsideration");
     let reconsideration = sqlx::query(
         r#"
-        SELECT state, outcome, version,
+        SELECT state, outcome, review_summary, resolution, version,
                jsonb_array_length(event_chain) AS chain_length
           FROM public.reconsiderations
          WHERE reconsideration_id = 'reconsideration_p06_schema'
@@ -2521,8 +2691,58 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .unwrap();
     assert_eq!(reconsideration.get::<String, _>("state"), "RESOLVED");
     assert_eq!(reconsideration.get::<String, _>("outcome"), "CORRECTED");
+    assert_eq!(
+        reconsideration.get::<String, _>("review_summary"),
+        "The original ruling omitted a material clue"
+    );
+    assert_eq!(
+        reconsideration.get::<String, _>("resolution"),
+        "Append a corrected ruling that includes the clue"
+    );
     assert_eq!(reconsideration.get::<i64, _>("version"), 3);
     assert_eq!(reconsideration.get::<i32, _>("chain_length"), 3);
+    let reconsideration_events = canonical_reader
+        .load_replay_page(CAMPAIGN_ID, 0, 500)
+        .await
+        .unwrap();
+    let reconsideration_event_text = (
+        reconsideration_events
+            .iter()
+            .find(|event| {
+                event.event_type == "ReconsiderationReviewed"
+                    && event.stream_id == "reconsideration_p06_schema"
+            })
+            .and_then(|event| {
+                event
+                    .payload
+                    .pointer("/data/review_summary")
+                    .and_then(serde_json::Value::as_str)
+            })
+            .expect("load canonical reconsideration review")
+            .to_owned(),
+        reconsideration_events
+            .iter()
+            .find(|event| {
+                event.event_type == "ReconsiderationCorrected"
+                    && event.stream_id == "reconsideration_p06_schema"
+            })
+            .and_then(|event| {
+                event
+                    .payload
+                    .pointer("/data/resolution")
+                    .and_then(serde_json::Value::as_str)
+            })
+            .expect("load canonical reconsideration resolution")
+            .to_owned(),
+    );
+    assert_eq!(
+        reconsideration_event_text,
+        (
+            "The original ruling omitted a material clue".to_owned(),
+            "Append a corrected ruling that includes the clue".to_owned(),
+        ),
+        "reconsideration events must be normalized before their projections are written"
+    );
     let original_event_still_exists: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM public.event_store WHERE sequence = $1)")
             .bind(campaign_event_sequence)
@@ -2733,7 +2953,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .rebuild_p08_projections(CAMPAIGN_ID)
         .await
         .expect("rebuild all P08 projections solely from canonical Event Store history");
-    assert_eq!(rebuilt_p08.replayed_events, 15);
+    assert_eq!(rebuilt_p08.replayed_events, 16);
     assert_eq!(rebuilt_p08.combat_states, 1);
     assert_eq!(rebuilt_p08.chase_states, 1);
     assert_eq!(rebuilt_p08.reconsiderations, 2);

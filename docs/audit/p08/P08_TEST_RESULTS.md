@@ -36,6 +36,11 @@ Event Store。
 第五轮修复负例覆盖：第二 Session/Ending/Growth 已发生后才完成对旧公开事件的复议，
 旧 Session fork 仍单独包含完整复议链但不包含较新 Session/Ending 或第二轮角色卡；
 Fight Back 令当前攻击者失能后，规则聚合与独立 serialized replay 都拒绝其再次攻击。
+第六轮修复负例覆盖：攻击失败作为 `ATTACK_MISSED` 正式推进但 HP/condition 不变、
+miss 不得携带伤害骰、成功命中不得伪装成 miss；同一空 child 上两个不同 fork ID 的
+真实并发竞争只能产生一个 canonical/projection lineage；带首尾空白的 Ending summary、
+Reconsideration review/resolution 在 canonical event、live projection 与删除后 replay
+中保持同一规范值。
 
 ## 真实数据库、重放与迁移
 
@@ -52,8 +57,9 @@ Fight Back 令当前攻击者失能后，规则聚合与独立 serialized replay
 
 真实集成验证：
 
-- Combat v1→v5 后为 `ENDED`，MajorWound 仍存在；正式 Fight Back 反击经过独立重放，
-  伪造 outcome 和同 ID 异源状态均未进入 Event Store。
+- Combat v1→v6 后为 `ENDED`，其中失败攻击以 `ATTACK_MISSED` 保存服务端攻击骰而不
+  生成伤害，MajorWound 仍存在；正式 Fight Back 反击经过独立重放，伪造 outcome、
+  伪造 miss 和同 ID 异源状态均未进入 Event Store。
 - Chase v1→v2 后为 `CAUGHT`，终态不能再推进。
 - Reconsideration 的 Request/Review/Upheld/Corrected 全部追加，原事件保留。
 - Fork 来源 hash 精确匹配，记录事件保存有界内容寻址引用，物化批次受行数和字节数
@@ -68,7 +74,12 @@ Fight Back 令当前攻击者失能后，规则聚合与独立 serialized replay
 - Fork materialization 分别产生 keeper、party、private 三类事件 envelope；每个私密
   事件使用玩家 `data_subject_id` 和对应有效主体密钥，projection guard 继续验证
   Visibility 与主体完全一致。
+- Fork child lineage 的事务 advisory lock 覆盖 verified Event Store 检查、物化、
+  canonical commit 与 projection；两个不同 fork ID 对同一 child 的真实
+  `tokio::join!` 竞争仅一个成功，表约束与 Event Store 均只保留一条 lineage。
 - Ending 只绑定 `ENDED` session，且 ID 必须来自该 Session 的 Scenario `endings`。
+- Ending summary 与 Reconsideration review/resolution 在 canonical event 创建前
+  规范化；带空白输入的 live projection 和删除后 replay 逐字节一致。
 - Growth 从当前 sheet 与 opaque RNG evidence 重新计算；percentile 与可选 d10 ID、
   值和 presence 一致，新 locked sheet 成为 current，旧 sheet 保留。
 - Combat 的命中、闪避与伤害，以及 Chase 的每名参与者结果，均由共享内核不可构造的
@@ -122,14 +133,21 @@ package regression PASS；P08 对应的 `conclusion_growth_state_machine` 已单
 `combat_attack_missed`。测试改为按真实技能生成证据后，完整双数据库套件才获得上述
 最终通过；两次中间失败均未计作 PASS。
 
+第六轮修复的双数据库回归前两次失败均来自新增证据断言误用 Event Store 列/受保护
+payload JSON 路径；产品迁移与前置原子性测试当时已通过，但整套结果没有计为 PASS。
+断言改为通过 canonical replay API 读取解密后的正式事件后，完整套件重新从空库运行
+并全部通过。Semgrep 第一次受限于网络而停滞，第二次取得规则后因默认并行
+`io_uring_queue_init` 资源错误 exit `2`；最终固定 `--jobs 1` 后才取得 0 error 的
+正式结果，前两次均未冒充成功。
+
 ## 第三方与依赖检查
 
 | 门禁 | 结果 |
 | --- | --- |
-| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；32 targets、13 rules、0 finding、0 error、0 skipped |
+| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；33 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 第一至第四轮 4、5、5、4 项已修复；第五轮 2 项已本地修复，最新提交/复审 pending |
-| `cargo audit 0.22.2 --no-fetch --json` | exit `1`；381 dependencies、3 个基线 advisory |
+| GitHub PR #9 自动审查 | 第一至第五轮 4、5、5、4、2 项已修复；第六轮 3 项已本地修复，最新提交/复审 pending |
+| `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
 改用锁定版本的 `tempfile::Builder::tempdir()`，没有 suppress 规则。加入第三个 P08
@@ -142,11 +160,13 @@ migration 后，第三轮 30 目标复扫
 调用方决定正式结果、Growth 未绑定所选 Ending 的奖励，以及并发 Ending/Growth
 仍可能各自追加孤儿正史。第四轮继续真实指出：Combat 错用 DEX、Fight Back 缺失、
 非 ACTIVE Session 可写玩法正史、Scenario encounter 接受重复 participant。第五轮
-又指出相关复议扩大全局 Fork cutoff，以及失能的当前攻击者仍可行动。以上均已按问题
-根因修复；扩展到 32 目标的 Semgrep 复扫仍为 0 finding。本报告在最新远端 CI/复审
-完成前保持 pending，不以本地结果冒充远端通过。第三轮修复提交仅有 3/5 workflow
-完成通过后取消 2 项；第四轮修复提交 `ea760c1` 仅有 2/5 完成通过后取消 3 项，
-均未记为 5/5。
+又指出相关复议扩大全局 Fork cutoff，以及失能的当前攻击者仍可行动。第六轮继续指出
+miss 正史丢失、Fork child lineage 并发竞态，以及 Ending/Reconsideration 文本的
+event/projection 不一致。以上均已按问题根因修复；扩展到 33 目标的 Semgrep 复扫仍为
+0 finding。本报告在最新远端 CI/复审完成前保持 pending，不以本地结果冒充远端通过。
+第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
+仅有 2/5 完成通过后取消 3 项；第五轮修复提交 `fb3907e` 仅有 3/5 完成通过后取消
+workspace/release 两项，均未记为 5/5。
 
 RustSec 报告：
 
@@ -164,3 +184,5 @@ P08 migration SHA-384：
   `9468f0016859b00550a44290c832fc012702c74ef0837c30dfb28464b96d82e28ef83a055fe194d95c1fd49639e9027e`
 - `20260727000500`：
   `b9b54659f4e5189ca17fd38734934baf38fd12367bcf9d0bacf9ff754a4e9e234c6b6cee9bf4e068311565f471e7b644`
+- `20260727000600`：
+  `4aa250ec0b9020e80194bb87cf86891d06c26cc07f5400fc547ac6860ecc9f4443193e6ef56d4ba2ac438f9863407859`

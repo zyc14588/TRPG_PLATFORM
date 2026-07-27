@@ -2929,6 +2929,12 @@ async fn apply_reconsideration_replay_event(
             review_summary,
             ..
         } => {
+            let normalized_review_summary = review_summary.trim();
+            if normalized_review_summary.is_empty() || normalized_review_summary.len() > 512 {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "reconsideration_replay_review_shape",
+                ));
+            }
             let current_version: i64 = sqlx::query_scalar(
                 "SELECT version FROM public.reconsiderations WHERE reconsideration_id = $1",
             )
@@ -2957,7 +2963,7 @@ async fn apply_reconsideration_replay_event(
                        AND state = 'REQUESTED' AND version = 1
                     "#,
                 )
-                .bind(review_summary)
+                .bind(normalized_review_summary)
                 .bind(review_event_id)
                 .bind(&replay.visibility_label)
                 .bind(&replay.visibility_subject)
@@ -2983,7 +2989,7 @@ async fn apply_reconsideration_replay_event(
                 "#,
             )
             .bind(reconsideration_id)
-            .bind(review_summary)
+            .bind(normalized_review_summary)
             .bind(review_event_id)
             .bind(replay.sequence)
             .fetch_one(&mut **transaction)
@@ -3009,6 +3015,12 @@ async fn apply_reconsideration_replay_event(
             resolution,
             ..
         } => {
+            let normalized_resolution = resolution.trim();
+            if normalized_resolution.is_empty() || normalized_resolution.len() > 512 {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "reconsideration_replay_resolution_shape",
+                ));
+            }
             let current_version: i64 = sqlx::query_scalar(
                 "SELECT version FROM public.reconsiderations WHERE reconsideration_id = $1",
             )
@@ -3063,7 +3075,7 @@ async fn apply_reconsideration_replay_event(
                     "#,
                 )
                 .bind(outcome)
-                .bind(resolution)
+                .bind(normalized_resolution)
                 .bind(corrected_event_type)
                 .bind(corrected_payload_json)
                 .bind(resolution_event_id)
@@ -3101,7 +3113,7 @@ async fn apply_reconsideration_replay_event(
             )
             .bind(reconsideration_id)
             .bind(outcome)
-            .bind(resolution)
+            .bind(normalized_resolution)
             .bind(corrected_event_type)
             .bind(corrected_payload_json)
             .bind(resolution_event_id)
@@ -3146,7 +3158,7 @@ async fn apply_ending_replay_event(
     if campaign_id != &replay.campaign_id
         || ending_id.trim().is_empty()
         || summary.trim().is_empty()
-        || summary.len() > 1_024
+        || summary.trim().len() > 1_024
     {
         return Err(CoreDomainRepositoryError::Integrity(
             "ending_replay_event_shape",
@@ -3170,7 +3182,7 @@ async fn apply_ending_replay_event(
     .bind(campaign_id)
     .bind(session_id)
     .bind(ending_id)
-    .bind(summary)
+    .bind(summary.trim())
     .bind(ended_at)
     .bind(&replay.visibility_label)
     .bind(&replay.visibility_subject)
@@ -3196,7 +3208,7 @@ async fn apply_ending_replay_event(
     .bind(campaign_id)
     .bind(session_id)
     .bind(ending_id)
-    .bind(summary)
+    .bind(summary.trim())
     .bind(ended_at)
     .bind(replay.sequence)
     .fetch_one(&mut **transaction)
@@ -7909,6 +7921,82 @@ impl CoreDomainRepository {
             .await?;
         self.ensure_campaign_admin(&request.child_campaign_id, &metadata.requesting_actor_id)
             .await?;
+        let mut child_lineage_guard = self
+            .primary
+            .begin()
+            .await
+            .map_err(database_error("begin_campaign_fork_child_lock"))?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!(
+                "p08-campaign-fork-child:{}",
+                request.child_campaign_id
+            ))
+            .execute(&mut *child_lineage_guard)
+            .await
+            .map_err(database_error("lock_campaign_fork_child"))?;
+
+        let mut canonical_lineage = None;
+        for replay in self
+            .load_campaign_events(&request.child_campaign_id)
+            .await?
+            .into_iter()
+            .filter(|event| event.event_type == "CampaignForkRecorded")
+        {
+            let event: CoreDomainEvent = serde_json::from_value(replay.payload).map_err(|_| {
+                CoreDomainRepositoryError::Integrity("campaign_fork_lineage_payload")
+            })?;
+            event.validate_schema_version()?;
+            let CoreDomainEvent::CampaignForkRecorded {
+                fork_id,
+                parent_campaign_id,
+                child_campaign_id,
+                source_session_id,
+                snapshot_hash,
+                copy_scopes,
+                ..
+            } = event
+            else {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "campaign_fork_lineage_event_type",
+                ));
+            };
+            if replay.resource_id != fork_id
+                || replay.campaign_id != child_campaign_id
+                || child_campaign_id != request.child_campaign_id
+                || canonical_lineage.is_some()
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "campaign_fork_multiple_child_lineages",
+                ));
+            }
+            canonical_lineage = Some((
+                fork_id,
+                parent_campaign_id,
+                child_campaign_id,
+                source_session_id,
+                snapshot_hash,
+                copy_scopes,
+            ));
+        }
+        let retrying_canonical = if let Some(existing) = canonical_lineage {
+            if existing
+                != (
+                    request.fork_id.clone(),
+                    request.parent_campaign_id.clone(),
+                    request.child_campaign_id.clone(),
+                    request.source_session_id.clone(),
+                    request.snapshot_hash.clone(),
+                    request.copy_scopes.clone(),
+                )
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "campaign_fork_child_lineage_conflict",
+                ));
+            }
+            true
+        } else {
+            false
+        };
         let snapshot = self
             .load_public_campaign_fork_snapshot(
                 &request.parent_campaign_id,
@@ -7944,21 +8032,23 @@ impl CoreDomainRepository {
             ));
         }
 
-        let existing_fork: Option<(String, String, String, String)> = sqlx::query_as(
+        let existing_fork: Option<(String, String, String, String, String)> = sqlx::query_as(
             r#"
-            SELECT parent_campaign_id, child_campaign_id, source_session_id,
-                   source_snapshot_hash
+            SELECT fork_id, parent_campaign_id, child_campaign_id,
+                   source_session_id, source_snapshot_hash
               FROM public.campaign_forks
-             WHERE fork_id = $1
+             WHERE fork_id = $1 OR child_campaign_id = $2
             "#,
         )
         .bind(&request.fork_id)
+        .bind(&request.child_campaign_id)
         .fetch_optional(&self.primary)
         .await
         .map_err(database_error("load_existing_campaign_fork_identity"))?;
         let retrying_projection = if let Some(existing) = existing_fork {
             if existing
                 != (
+                    request.fork_id.clone(),
                     request.parent_campaign_id.clone(),
                     request.child_campaign_id.clone(),
                     request.source_session_id.clone(),
@@ -7973,7 +8063,7 @@ impl CoreDomainRepository {
         } else {
             false
         };
-        if !retrying_projection {
+        if !retrying_projection && !retrying_canonical {
             let child_has_gameplay_state: bool = sqlx::query_scalar(
                 r#"
                 SELECT EXISTS(
@@ -8130,6 +8220,10 @@ impl CoreDomainRepository {
             .commit()
             .await
             .map_err(database_error("commit_campaign_fork"))?;
+        child_lineage_guard
+            .commit()
+            .await
+            .map_err(database_error("commit_campaign_fork_child_lock"))?;
         Ok(persisted)
     }
 
@@ -8260,9 +8354,10 @@ impl CoreDomainRepository {
         metadata: &CoreCommandMetadata,
         request: &ReviewReconsiderationRequest,
     ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
+        let normalized_review_summary = request.review_summary.trim();
         if request.review_event_id.trim().is_empty()
-            || request.review_summary.trim().is_empty()
-            || request.review_summary.len() > 512
+            || normalized_review_summary.is_empty()
+            || normalized_review_summary.len() > 512
         {
             return Err(CoreDomainRepositoryError::InvalidInput(
                 "reconsideration_review",
@@ -8307,11 +8402,11 @@ impl CoreDomainRepository {
                 CoreDomainEvent::ReconsiderationReviewed {
                     reconsideration_id,
                     review_event_id,
-                    review_summary,
+                    review_summary: persisted_review_summary,
                     ..
                 } if reconsideration_id == &request.reconsideration_id
                     && review_event_id == &request.review_event_id
-                    && review_summary == &request.review_summary
+                    && persisted_review_summary == normalized_review_summary
             ) {
                 return Err(CoreDomainRepositoryError::Integrity(
                     "idempotent_reconsideration_request_conflict",
@@ -8345,7 +8440,7 @@ impl CoreDomainRepository {
             schema_version: CORE_EVENT_SCHEMA_VERSION,
             reconsideration_id: request.reconsideration_id.clone(),
             review_event_id: request.review_event_id.clone(),
-            review_summary: request.review_summary.clone(),
+            review_summary: normalized_review_summary.to_owned(),
         };
         let persisted = self
             .commit_event(
@@ -8381,7 +8476,7 @@ impl CoreDomainRepository {
                AND version = $10
             "#,
         )
-        .bind(request.review_summary.trim())
+        .bind(normalized_review_summary)
         .bind(&request.review_event_id)
         .bind(&metadata.visibility_label)
         .bind(&metadata.visibility_subject)
@@ -8411,9 +8506,10 @@ impl CoreDomainRepository {
         metadata: &CoreCommandMetadata,
         request: &ResolveReconsiderationRequest,
     ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
+        let normalized_resolution = request.resolution.trim();
         if request.resolution_event_id.trim().is_empty()
-            || request.resolution.trim().is_empty()
-            || request.resolution.len() > 512
+            || normalized_resolution.is_empty()
+            || normalized_resolution.len() > 512
         {
             return Err(CoreDomainRepositoryError::InvalidInput(
                 "reconsideration_resolution",
@@ -8498,7 +8594,7 @@ impl CoreDomainRepository {
                         reconsideration_id,
                         resolution_event_id,
                         original_event_sequence: persisted_original,
-                        resolution,
+                        resolution: persisted_resolution,
                         ..
                     },
                     ReconsiderationOutcome::Upheld,
@@ -8508,14 +8604,14 @@ impl CoreDomainRepository {
                         && resolution_event_id == &request.resolution_event_id
                         && *persisted_original
                             == u64::try_from(original_event_sequence).unwrap_or_default()
-                        && resolution == &request.resolution
+                        && persisted_resolution == normalized_resolution
                 }
                 (
                     CoreDomainEvent::ReconsiderationCorrected {
                         reconsideration_id,
                         resolution_event_id,
                         original_event_sequence: persisted_original,
-                        resolution,
+                        resolution: persisted_resolution,
                         corrected_event_type,
                         corrected_payload_json,
                         ..
@@ -8527,7 +8623,7 @@ impl CoreDomainRepository {
                         && resolution_event_id == &request.resolution_event_id
                         && *persisted_original
                             == u64::try_from(original_event_sequence).unwrap_or_default()
-                        && resolution == &request.resolution
+                        && persisted_resolution == normalized_resolution
                         && corrected_event_type == requested_event_type
                         && corrected_payload_json == requested_payload
                 }
@@ -8570,7 +8666,7 @@ impl CoreDomainRepository {
                 reconsideration_id: request.reconsideration_id.clone(),
                 resolution_event_id: request.resolution_event_id.clone(),
                 original_event_sequence,
-                resolution: request.resolution.clone(),
+                resolution: normalized_resolution.to_owned(),
             },
             Some((corrected_event_type, corrected_payload_json)) => {
                 CoreDomainEvent::ReconsiderationCorrected {
@@ -8578,7 +8674,7 @@ impl CoreDomainRepository {
                     reconsideration_id: request.reconsideration_id.clone(),
                     resolution_event_id: request.resolution_event_id.clone(),
                     original_event_sequence,
-                    resolution: request.resolution.clone(),
+                    resolution: normalized_resolution.to_owned(),
                     corrected_event_type: corrected_event_type.clone(),
                     corrected_payload_json: corrected_payload_json.clone(),
                 }
@@ -8630,7 +8726,7 @@ impl CoreDomainRepository {
             "#,
         )
         .bind(outcome)
-        .bind(request.resolution.trim())
+        .bind(normalized_resolution)
         .bind(corrected_event_type)
         .bind(corrected_payload_json)
         .bind(&request.resolution_event_id)
@@ -9075,10 +9171,11 @@ impl CoreDomainRepository {
         metadata: &CoreCommandMetadata,
         request: &RecordEndingRequest,
     ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
+        let normalized_summary = request.summary.trim();
         if metadata.expected_version != 0
             || request.ending_id.trim().is_empty()
-            || request.summary.trim().is_empty()
-            || request.summary.len() > 1_024
+            || normalized_summary.is_empty()
+            || normalized_summary.len() > 1_024
             || request.ended_at_unix_ms == 0
         {
             return Err(CoreDomainRepositoryError::InvalidInput("ending"));
@@ -9152,7 +9249,7 @@ impl CoreDomainRepository {
             campaign_id: request.campaign_id.clone(),
             session_id: request.session_id.clone(),
             ending_id: request.ending_id.clone(),
-            summary: request.summary.clone(),
+            summary: normalized_summary.to_owned(),
             ended_at_unix_ms: request.ended_at_unix_ms,
         };
         let persisted = self
@@ -9204,7 +9301,7 @@ impl CoreDomainRepository {
         .bind(&request.campaign_id)
         .bind(&request.session_id)
         .bind(&request.ending_id)
-        .bind(request.summary.trim())
+        .bind(normalized_summary)
         .bind(timestamp_from_unix_ms(
             request.ended_at_unix_ms,
             "ending_timestamp",

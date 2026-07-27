@@ -8,7 +8,7 @@ SEMGREP_VERSION = 1.171.0
 SEMGREP_EXECUTION = LOCAL_ISOLATED_VENV_SOURCE_ANALYSIS_METRICS_OFF_SINGLE_JOB
 SEMGREP_RULE_ORIGIN = COMMUNITY_REGISTRY
 SEMGREP_CONFIGS = p/rust,p/security-audit
-SEMGREP_SCOPE = 32_P08_RUST_SQL_CI_TARGETS
+SEMGREP_SCOPE = 33_P08_RUST_SQL_CI_TARGETS
 SEMGREP_RULES_RUN = 13
 SEMGREP_FINDINGS = 0
 SEMGREP_ERRORS = 0
@@ -28,9 +28,12 @@ GITHUB_THIRD_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FOURTH_REVIEW
 GITHUB_FOURTH_AUTOMATED_REVIEW = 4_ACTIONABLE
 GITHUB_FOURTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FIFTH_REVIEW
 GITHUB_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE
-GITHUB_FIFTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_FIFTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_SIXTH_REVIEW
+GITHUB_SIXTH_AUTOMATED_REVIEW = 3_ACTIONABLE
+GITHUB_SIXTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
+GITHUB_FIFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -40,7 +43,7 @@ CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
 
 Semgrep 1.171.0 安装在 `/tmp` 隔离虚拟环境中。运行时关闭 metrics，只联网获取
 社区规则；源码在本机分析，没有把仓库挂载给外部扫描容器。最终以 `--jobs 1`
-规避扫描引擎并发初始化的环境资源错误，并明确传入 32 个
+规避扫描引擎并发初始化的环境资源错误，并明确传入 33 个
 P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 
 - findings：0；
@@ -49,13 +52,18 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 - parsed lines：约 100%；
 - exit：0。
 
+本轮第一次在受限网络中拉取 registry 规则时停滞并被终止；联网重试取得规则后，
+默认并行度因 `io_uring_queue_init` 资源分配失败返回 exit `2` 和 engine error。
+只有固定 `--jobs 1` 后产生的 0 error JSON 被计为通过，前两次没有被覆盖或伪报。
+
 扩展范围首次复扫发现 `data_deletion_e2e.rs` 两处以可预测名称直接使用共享临时目录。
 测试改用 `tempfile::Builder::tempdir()` 安全创建唯一目录后，以相同规则重跑得到
-0 finding。本轮又把 Scenario participant 去重实现与负例加入范围，最终 32 个目标
-仍为 0 finding；没有通过 ignore、规则删减或降低 severity 获得通过。
+0 finding。本轮又把 Scenario participant 去重、miss 正史、Fork child lineage
+唯一性实现/负例和第四个 migration 加入范围，最终 33 个目标仍为 0 finding；
+没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-fifth-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-sixth-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -139,11 +147,29 @@ reconsideration ID，仅其公开 request/review/resolution 事件被额外纳�
 
 `ea760c1` 的 repository-truth 与 golden-scenarios 为 2/5 通过；第五轮阻断出现后，
 production-security、workspace 与 release 三个长任务被主动取消，未写成成功。
-第五轮修复提交仍须等待全新 5/5 Hosted CI 和精确 SHA 远端复审，才允许合并。
+第五轮修复提交 `fb3907e` 的精确 SHA 审查未重复上述两项，但继续发现 3 个有效问题：
+
+- 攻击失败或 Dodge 成功被当作错误，未形成正式 mutation，攻击/防御骰证据会丢失；
+- 两个不同 fork ID 可在同一空 child 上并发通过无锁 emptiness check，独立 stream
+  均可能先写正史；
+- Ending summary、Reconsideration review summary/resolution 在 canonical event
+  中保留首尾空白，而 live projection trim，删除重建后结果会漂移。
+
+第六轮修复加入 `ATTACK_MISSED` 无伤害转换，保存攻击/防御骰、拒绝伤害骰并由规则与
+独立领域 replay 重算；Fork 在 emptiness check 前获取 child-scoped transaction
+advisory lock，持有至 canonical commit/projection 完成，同时读取 verified Event
+Store lineage，并由 `UNIQUE(child_campaign_id)` 兜底；三个文本字段在 event 构造前
+统一规范化，idempotency/live projection/replay 共用同一值。真实双 PostgreSQL/Witness
+测试以 `tokio::join!` 验证两个不同 fork ID 只有一个成功，并用带空白输入验证删除后
+投影一致。
+
+`fb3907e` 的 repository-truth、golden-scenarios、production-security 为 3/5 通过；
+第六轮阻断出现后，workspace 与 release 两个长任务被主动取消，未写成成功。
+第六轮修复提交仍须等待全新 5/5 Hosted CI 和精确 SHA 远端复审，才允许合并。
 
 ## RustSec
 
-`cargo audit 0.22.2 --no-fetch --json` 使用本地 1169 条 advisory 数据检查
+`cargo audit 0.22.2 --no-fetch` 使用本地 1169 条 advisory 数据检查
 381 个 lockfile dependencies，exit `1`：
 
 - `RUSTSEC-2026-0194`、`RUSTSEC-2026-0195`：quick-xml `0.38.4`；
@@ -155,8 +181,8 @@ production-security、workspace 与 release 三个长任务被主动取消，未
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 五轮
-自动审查先后提出的 4、5、5、4、2 项阻断均已修复或完成本地验证，最新提交的远端
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 六轮
+自动审查先后提出的 4、5、5、4、2、3 项阻断均已修复或完成本地验证，最新提交的远端
 复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。
