@@ -68,8 +68,10 @@ GITHUB_TWENTY_SECOND_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_THIRD_REVIEW
 GITHUB_TWENTY_THIRD_AUTOMATED_REVIEW = 2_ACTIONABLE
 GITHUB_TWENTY_THIRD_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_FOURTH_REVIEW
 GITHUB_TWENTY_FOURTH_AUTOMATED_REVIEW = 3_ACTIONABLE
-GITHUB_TWENTY_FOURTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
-GITHUB_LATEST_REVIEWED_TARGET = b165094194cb8fc39a7bfa37bbc89074eed4686f
+GITHUB_TWENTY_FOURTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_FIFTH_REVIEW
+GITHUB_TWENTY_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE
+GITHUB_TWENTY_FIFTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_LATEST_REVIEWED_TARGET = 7acc802df979c8eb282ce2cc577e10d0a3b9f0b8
 GITHUB_NEXT_REVIEW_TARGET = PENDING_COMMIT
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -86,6 +88,7 @@ GITHUB_FOURTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_TWENTY_FIRST_REPAIR_HOSTED_CI = 5_PASS
 GITHUB_TWENTY_SECOND_REPAIR_HOSTED_CI = 3_PASS_2_RUNNING_AT_REVIEW_CUTOFF
 GITHUB_TWENTY_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_RUNNING_AT_REVIEW_CUTOFF
+GITHUB_TWENTY_FOURTH_REPAIR_HOSTED_CI = 3_PASS_2_RUNNING_AT_REVIEW_CUTOFF
 GITHUB_LATEST_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
@@ -525,7 +528,28 @@ child 重领 Library Use 返回 `growth_skill_already_recorded` 且不追加正�
 Psychology 仍成功。新增 Authority 负例最初令超长 async 集成测试越过默认栈；
 业务断言在诊断栈下通过后，仅把该负例 future 堆分配隔离，随后默认栈 `1/1` 通过。
 完整 ruleset、data-eventing lib `26/26`、Tutorial `2/2`、workspace check 与严格
-Clippy 均通过。新提交、Hosted CI 和第二十五轮精确 SHA review 仍为 pending。
+Clippy 均通过。修复提交 `7acc802df979c8eb282ce2cc577e10d0a3b9f0b8`
+的 repository-truth、golden-scenarios、production-security-runtime 已完成通过；
+workspace 与 release-readiness 在下一轮意见到达时仍运行，因此只记录 3/5 通过、
+2 项运行中。第二十五轮精确 SHA review `4789695257` 确认第二十四轮三项未重复，
+并提出一个 P1、一个 P2：
+
+- 旧 fork 把 `CampaignForkRecorded.campaign_id` 记为 parent，同一 parent 的多个
+  合法 child 会在 migration `20260727000700` 按 campaign_id 创建唯一索引时冲突，
+  阻断数据库升级；
+- Scenario 可接受超过 128 字节的 `growth_awards.skill_name`，但持久层请求检查和
+  `growth_events` schema 都会拒绝，该奖励永远无法正式结算。
+
+当前最小修复让新 child-owned v2 lineage 的首事件同时声明其合法 materialization
+projection row；该 target 被 request hash、event HMAC 与 formal commit 保护。Partial
+unique index 与 fork-empty trigger 只选择带此判别的 v2 事件，legacy parent-owned
+事件保持不可变且不参与 child 唯一约束。真实 migration gate 在仅到
+`20260727000600` 的 schema 中种入同 parent 两条旧 fork，再完整升级至 HEAD；两条
+都保留且新索引存在。函数定义变化第一次被 catalog fingerprint 正确拒绝，更新实际
+完整指纹后从空库重跑，legacy/B24/empty/repeat/drift/constraints `1/1` 通过。
+Scenario Ending 校验同步 `record_growth` 的 128 字节上限，并以 129 字节负例证明
+入口拒绝。场景 `5/5`、真实 core-domain `1/1`、Tutorial `2/2` 已通过；新提交、
+Hosted CI 和第二十六轮精确 SHA review 仍为 pending。
 
 ## RustSec
 
@@ -542,7 +566,7 @@ Clippy 均通过。新提交、Hosted CI 和第二十五轮精确 SHA review 仍
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-二十四轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+二十五轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
 用户门槛明确延期，没有冒充修复。当前最小修复的远端 CI/精确 SHA 复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖

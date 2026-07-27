@@ -1052,7 +1052,7 @@ BEGIN
          'compute_canonical_projection_hash_v3(text,event_store)'::regprocedure
     );
     IF trigger_function_signature IS NULL
-       OR trigger_function_signature <> 'f347c5ecf9667e152e078c6f2b67cc45' THEN
+       OR trigger_function_signature <> '2b4abc44080f278d09f382cd795cad32' THEN
         RAISE EXCEPTION 'event persistence trigger function definition/execution signature drifted: %',
             trigger_function_signature;
     END IF;
@@ -2318,6 +2318,15 @@ BEGIN
     ) IS NULL
     OR NOT EXISTS (
         SELECT 1
+          FROM pg_indexes
+         WHERE schemaname = 'public'
+           AND indexname =
+               'event_store_one_fork_lineage_per_child_idx'
+           AND indexdef LIKE '%projection_targets%'
+           AND indexdef LIKE '%public.campaign_fork_materializations%'
+    )
+    OR NOT EXISTS (
+        SELECT 1
           FROM pg_proc AS procedure
           JOIN pg_namespace AS namespace
             ON namespace.oid = procedure.pronamespace
@@ -2328,6 +2337,8 @@ BEGIN
                LIKE '%p08-campaign-fork-empty:%'
            AND pg_get_functiondef(procedure.oid)
                LIKE '%CampaignForkRecorded%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%public.campaign_fork_materializations%'
            AND pg_get_functiondef(procedure.oid)
                LIKE '%CampaignInviteAccepted%'
            AND pg_get_functiondef(procedure.oid)

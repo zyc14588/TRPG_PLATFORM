@@ -53,11 +53,18 @@ CREATE INDEX gameplay_roll_consumptions_aggregate_idx
 -- forks. This insert trigger additionally serializes every canonical write for
 -- one campaign across the fork-empty boundary, so an ordinary child write
 -- cannot slip between the preflight emptiness read and CampaignForkRecorded.
+-- The materialization projection target is the HMAC-bound discriminator for
+-- child-owned v2 lineage. Legacy parent-owned fork events can legitimately
+-- have the same campaign_id for different children and must not collide while
+-- this forward migration builds the index.
 CREATE UNIQUE INDEX event_store_one_fork_lineage_per_child_idx
     ON public.event_store(campaign_id)
     WHERE event_type = 'CampaignForkRecorded'
       AND integrity_status = 'verified_hmac'
-      AND request_hash_source = 'formal_commit';
+      AND request_hash_source = 'formal_commit'
+      AND projection_targets @> (
+          '[{"relation":"public.campaign_fork_materializations"}]'::JSONB
+      );
 
 CREATE FUNCTION public.enforce_campaign_fork_empty_child_history()
 RETURNS trigger
@@ -75,6 +82,9 @@ BEGIN
     IF NEW.event_type = 'CampaignForkRecorded'
        AND NEW.integrity_status = 'verified_hmac'
        AND NEW.request_hash_source = 'formal_commit'
+       AND NEW.projection_targets @> (
+           '[{"relation":"public.campaign_fork_materializations"}]'::JSONB
+       )
        AND EXISTS (
             SELECT 1
               FROM public.event_store AS prior

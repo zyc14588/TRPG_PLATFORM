@@ -100,6 +100,14 @@ Store 不增，Psychology 仍成功。另建的空 Campaign 使用非派生 Auth
 Tutorial 还在较晚 Session 建立未终止 Combat/Chase，fork preview 返回
 `fork_source_gameplay_not_terminal`；最终 materialization 保留同一检查。
 
+第二十五轮精确 SHA review `4789695257` 针对提交 `7acc802` 确认第二十四轮三项
+未重复，并新增一个 P1、一个 P2。迁移回归先只应用到 `20260727000600`，在关闭测试
+夹具写保护期间种入同一 parent stream 的两条 verified/formal-shape legacy
+`CampaignForkRecorded`，再恢复保护并升级 HEAD；两条旧分支都保留，新 partial
+unique index 只选择带 HMAC-bound materialization target 的 child-owned v2 事件。
+Scenario 回归另用 129 个 ASCII 字节的成长技能证明入口返回
+`InvalidScenarioField("endings")`，与 `record_growth` 上限一致。
+
 ## 真实数据库、重放与迁移
 
 临时环境使用固定 digest 的 PostgreSQL/pgvector 镜像、localhost 端口和每次生成的
@@ -118,6 +126,12 @@ Tutorial 还在较晚 Session 建立未终止 Combat/Chase，fork preview 返回
 退出，未计为通过。临时 `RUST_MIN_STACK=16777216` 运行证明全部业务断言通过后，只把
 新增负例放入 `Box::pin` 的独立 future，生产代码不变；随后删除栈参数并以默认环境
 重新运行，`1/1`、exit `0`。
+
+第二十五轮首次迁移重跑正确报告
+`event persistence trigger function definition/execution signature drifted`：fork-empty
+函数新增 v2 判别而受审计 catalog 指纹仍是旧值。该次未计通过；将 expected fingerprint
+更新为数据库输出的完整定义/执行属性指纹后，从空库重新执行，legacy 双分支、B24、
+repeat、drift 与 constraint 全部门禁 `1/1`、exit `0`。
 
 真实集成验证：
 
@@ -387,7 +401,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `b165094` 的第二十四轮精确 SHA review `4789452227` 确认 Ending ID 规范化与 participant ID 约束两项未重复，并提出 fork 成长消费继承、child Authority 派生校验、来源 gameplay 终态三项；均已完成本地修复和真库回归，待新提交/复审 |
+| GitHub PR #9 自动审查 | `7acc802` 的第二十五轮精确 SHA review `4789695257` 确认 fork 成长消费、child Authority、gameplay 终态三项未重复，并提出 legacy parent-owned 多分支升级冲突、成长技能超持久层上限两项；均已完成本地修复和真库回归，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -431,7 +445,10 @@ canonical append 后骰 ownership 可能随独立投影失败而丢失，以及 
 ENDED child Session；三项已由内容寻址消费 marker、`fork_for_child` 精确 SQL 校验
 和 preview/materialization 双重终态 gate 修复。场景校验 `5/5`、完整 ruleset、
 data-eventing lib `26/26`、默认栈真实 core-domain `1/1`、Tutorial `2/2`、
-workspace check 与严格 Clippy 均通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
+workspace check 与严格 Clippy 均通过。第二十五轮确认三项未重复，又指出 legacy
+parent-owned 多 child 历史会与新唯一索引冲突，以及超长成长技能无法结算；两项已由
+HMAC-bound child-owned v2 判别和入口 128 字节 gate 修复，真实迁移/core-domain/
+Tutorial 均通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
 本报告在最新本地修复提交、远端 CI/复审完成前保持 pending，不以历史扫描或旧提交的
 部分/完整 Hosted CI 冒充新代码远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
@@ -451,6 +468,8 @@ workspace/release 两项。第十一轮修复提交 `453b063` 也只有上述 3/
 workspace/release 两项。第二十三轮修复提交 `b165094` 在第二十四轮审查到达时，
 repository-truth、golden-scenarios、production-security 已完成通过，workspace 与
 release-readiness 仍运行，因此只记录 `3/5 + 2 running at review cutoff`。
+第二十四轮修复提交 `7acc802` 在第二十五轮审查到达时同样是上述三项完成通过、
+workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
 以上均未记为 5/5。
 
 RustSec 报告：
@@ -472,7 +491,7 @@ P08 migration SHA-384：
 - `20260727000600`：
   `4aa250ec0b9020e80194bb87cf86891d06c26cc07f5400fc547ac6860ecc9f4443193e6ef56d4ba2ac438f9863407859`
 - `20260727000700`：
-  `2a0535005ed362d661ac8131297b355eba2229610f2e38531ad7860c494993e3078850fbacf4f979b46320c1d78acfce`
+  `a10c00e0732bade6951844e67402744803a498bb7f4e9ec1e3145c170eb62c2a1a0fd967917b38cf2fea931ba95488c0`
 - `20260727000800`：
   `9e54aa67734dde88d0f34b62b9fb75630128305aa2c12e13783f2e644578dad77e79a5d6f8c068f74d7bbf7aa9875eb2`
 - `20260727000900`：

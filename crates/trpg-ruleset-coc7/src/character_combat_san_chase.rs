@@ -364,6 +364,7 @@ fn validate_scenario(
             || ending.growth_awards.iter().any(|award| {
                 award.skill_name.trim().is_empty()
                     || award.skill_name != award.skill_name.trim()
+                    || award.skill_name.len() > 128
                     || award.reason.trim().is_empty()
             })
         {

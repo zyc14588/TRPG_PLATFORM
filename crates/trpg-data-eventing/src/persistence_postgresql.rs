@@ -2211,6 +2211,7 @@ fn fork_materialized_growth_awards(
         || ending.growth_awards.iter().any(|award| {
             award.skill_name.trim().is_empty()
                 || award.skill_name != award.skill_name.trim()
+                || award.skill_name.len() > 128
                 || award.reason.trim().is_empty()
         })
     {
@@ -9970,7 +9971,14 @@ impl CoreDomainRepository {
         let mut events = vec![
             (
                 recorded,
-                vec![projection_target("public.campaign_forks", &request.fork_id)],
+                vec![
+                    projection_target("public.campaign_forks", &request.fork_id),
+                    // This legitimate command-owned row also acts as the
+                    // HMAC-bound discriminator for child-owned v2 lineage.
+                    // The migration's partial unique index can therefore
+                    // exclude legacy parent-owned fork history safely.
+                    projection_target("public.campaign_fork_materializations", &request.fork_id),
+                ],
             ),
             (
                 manifest,
