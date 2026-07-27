@@ -16,6 +16,7 @@ use trpg_data_eventing::persistence_postgresql::{
     RequestReconsiderationRequest, ResolveReconsiderationRequest, ReviewReconsiderationRequest,
     StartSessionRequest, SwitchSceneRequest,
 };
+use trpg_domain_core::canonical_gameplay_state::validate_combat_server_roll_evidence;
 use trpg_domain_core::domain_entities_value_objects::{
     MembershipRole, ReconsiderationOutcome, SessionState,
 };
@@ -25,10 +26,15 @@ use trpg_ruleset_coc7::chase_state_machine::{
     ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
 use trpg_ruleset_coc7::combat_state_machine::{
-    CombatCondition, CombatState, CombatStatus, CombatantState,
+    CombatActionKind, CombatCondition, CombatDefense, CombatState, CombatStatus, CombatantState,
 };
-use trpg_ruleset_coc7::dice_roll_contract::server_roll_skill_growth;
-use trpg_shared_kernel::EventActorOriginWire;
+use trpg_ruleset_coc7::dice_roll_contract::{
+    server_roll_skill_growth, success_level, SuccessLevel,
+};
+use trpg_shared_kernel::{
+    server_damage_roll, server_percentile_roll, EventActorOriginWire, ServerDamageRoll,
+    ServerPercentileRoll,
+};
 
 const INTEGRITY_KEY: &[u8; 32] = &[0x36; 32];
 const PAYLOAD_KEY: &[u8; 32] = &[0x47; 32];
@@ -40,6 +46,32 @@ const OTHER_ID: &str = "other_p06_schema";
 const AUTHORITY_ID: &str = "authority_campaign_p06_schema_1";
 const CHILD_AUTHORITY_ID: &str = "authority_campaign_p06_fork_child_1";
 const NOW_MS: u64 = 2_000_000_000_000;
+
+fn percentile_with_result(target: u8, succeeds: bool) -> ServerPercentileRoll {
+    loop {
+        let roll = server_percentile_roll().unwrap();
+        let outcome = success_level(roll.value(), target).unwrap();
+        let actual = matches!(
+            outcome,
+            SuccessLevel::Critical
+                | SuccessLevel::Extreme
+                | SuccessLevel::Hard
+                | SuccessLevel::Regular
+        );
+        if actual == succeeds {
+            return roll;
+        }
+    }
+}
+
+fn damage_with_value(dice_count: u8, die_sides: u8, flat_bonus: i8, value: u8) -> ServerDamageRoll {
+    loop {
+        let roll = server_damage_roll(dice_count, die_sides, flat_bonus).unwrap();
+        if roll.value() == value {
+            return roll;
+        }
+    }
+}
 
 #[derive(Debug)]
 struct TestClock(AtomicU64);
@@ -1291,7 +1323,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         "combat_p08_schema",
         vec![
             CombatantState::new("character_p06_player", 70, 10, 1).unwrap(),
-            CombatantState::new("npc_marta", 50, 8, 0).unwrap(),
+            CombatantState::new("npc_marta", 80, 8, 0).unwrap(),
         ],
     )
     .unwrap();
@@ -1315,6 +1347,10 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 session_id: "session_p06_schema".to_owned(),
                 state_json: combat.persistence_json().unwrap(),
+                attacker_roll: None,
+                defender_roll: None,
+                damage_roll: None,
+                medical_roll: None,
             },
         )
         .await
@@ -1327,16 +1363,18 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .fetch_one(&primary)
     .await
     .unwrap();
-    let mut foreign_lineage = CombatState::start(
-        "combat_p08_schema",
-        vec![
-            CombatantState::new("character_p06_player", 99, 30, 20).unwrap(),
-            CombatantState::new("npc_marta", 1, 30, 20).unwrap(),
-        ],
-    )
-    .unwrap();
-    foreign_lineage
-        .apply_damage("character_p06_player", 30)
+    let mut mismatched_evidence_state = combat.clone();
+    let recorded_attack = percentile_with_result(80, true);
+    let recorded_damage = damage_with_value(1, 6, 5, 6);
+    mismatched_evidence_state
+        .apply_damage(
+            "character_p06_player",
+            CombatActionKind::Firearm,
+            CombatDefense::None,
+            &recorded_attack,
+            None,
+            &recorded_damage,
+        )
         .unwrap();
     assert!(matches!(
         repository
@@ -1350,7 +1388,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                     "combat_state",
                     "combat.state.damage",
                     1,
-                    "combat_p08_foreign_lineage",
+                    "combat_p08_mismatched_roll",
                     "party_visible",
                     "not_applicable",
                     "rules_engine_decision",
@@ -1358,12 +1396,85 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 &RecordCombatStateRequest {
                     campaign_id: CAMPAIGN_ID.to_owned(),
                     session_id: "session_p06_schema".to_owned(),
-                    state_json: foreign_lineage.persistence_json().unwrap(),
+                    state_json: mismatched_evidence_state.persistence_json().unwrap(),
+                    attacker_roll: Some(percentile_with_result(80, true)),
+                    defender_roll: None,
+                    damage_roll: Some(recorded_damage),
+                    medical_roll: None,
                 },
             )
             .await,
-        Err(CoreDomainRepositoryError::InvalidInput("combat_transition"))
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "combat_roll_evidence"
+        ))
     ));
+    let mut foreign_lineage = CombatState::start(
+        "combat_p08_schema",
+        vec![
+            CombatantState::new("character_p06_player", 99, 30, 20).unwrap(),
+            CombatantState::new("npc_marta", 100, 30, 20).unwrap(),
+        ],
+    )
+    .unwrap();
+    let foreign_attack = percentile_with_result(100, true);
+    let foreign_damage = damage_with_value(1, 6, 5, 11);
+    foreign_lineage
+        .apply_damage(
+            "character_p06_player",
+            CombatActionKind::Firearm,
+            CombatDefense::None,
+            &foreign_attack,
+            None,
+            &foreign_damage,
+        )
+        .unwrap();
+    let foreign_state_json = foreign_lineage.persistence_json().unwrap();
+    let foreign_evidence_validation = validate_combat_server_roll_evidence(
+        &foreign_state_json,
+        Some(&foreign_attack),
+        None,
+        Some(&foreign_damage),
+        None,
+    );
+    assert!(
+        foreign_evidence_validation.is_ok(),
+        "foreign evidence should be internally consistent before lineage validation: \
+         {foreign_evidence_validation:?}; state={foreign_state_json}"
+    );
+    let foreign_lineage_result = repository
+        .record_combat_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_schema",
+                "combat_state",
+                "combat.state.damage",
+                1,
+                "combat_p08_foreign_lineage",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: foreign_state_json,
+                attacker_roll: Some(foreign_attack),
+                defender_roll: None,
+                damage_roll: Some(foreign_damage),
+                medical_roll: None,
+            },
+        )
+        .await;
+    assert!(
+        matches!(
+            foreign_lineage_result,
+            Err(CoreDomainRepositoryError::InvalidInput("combat_transition"))
+        ),
+        "unexpected foreign-lineage error: {foreign_lineage_result:?}"
+    );
     let combat_events_after_forgery: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM public.event_store \
          WHERE campaign_id = $1 AND stream_id = 'combat_p08_schema'",
@@ -1376,7 +1487,18 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         combat_events_after_forgery, combat_events_before_forgery,
         "a same-ID aggregate from another lineage must be rejected before Event Store append"
     );
-    let first_damage = combat.apply_damage("character_p06_player", 6).unwrap();
+    let first_attack = percentile_with_result(80, true);
+    let first_damage_roll = damage_with_value(1, 6, 5, 6);
+    let first_damage = combat
+        .apply_damage(
+            "character_p06_player",
+            CombatActionKind::Firearm,
+            CombatDefense::None,
+            &first_attack,
+            None,
+            &first_damage_roll,
+        )
+        .unwrap();
     assert_eq!(first_damage.condition, CombatCondition::MajorWound);
     repository
         .record_combat_state(
@@ -1398,11 +1520,26 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 session_id: "session_p06_schema".to_owned(),
                 state_json: combat.persistence_json().unwrap(),
+                attacker_roll: Some(first_attack),
+                defender_roll: None,
+                damage_roll: Some(first_damage_roll),
+                medical_roll: None,
             },
         )
         .await
         .expect("persist MajorWound combat state");
-    let later_damage = combat.apply_damage("character_p06_player", 1).unwrap();
+    let later_attack = percentile_with_result(80, true);
+    let later_damage_roll = damage_with_value(1, 6, 0, 1);
+    let later_damage = combat
+        .apply_damage(
+            "character_p06_player",
+            CombatActionKind::Melee,
+            CombatDefense::None,
+            &later_attack,
+            None,
+            &later_damage_roll,
+        )
+        .unwrap();
     assert_eq!(
         later_damage.condition,
         CombatCondition::MajorWound,
@@ -1428,6 +1565,10 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 session_id: "session_p06_schema".to_owned(),
                 state_json: combat.persistence_json().unwrap(),
+                attacker_roll: Some(later_attack),
+                defender_roll: None,
+                damage_roll: Some(later_damage_roll),
+                medical_roll: None,
             },
         )
         .await
@@ -1454,6 +1595,10 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 session_id: "session_p06_schema".to_owned(),
                 state_json: combat.persistence_json().unwrap(),
+                attacker_roll: None,
+                defender_roll: None,
+                damage_roll: None,
+                medical_roll: None,
             },
         )
         .await
@@ -1488,11 +1633,76 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 session_id: "session_p06_schema".to_owned(),
                 state_json: chase.persistence_json().unwrap(),
+                participant_rolls: Vec::new(),
             },
         )
         .await
         .expect("persist started chase aggregate");
-    chase.advance(false, true, None).unwrap();
+    let chase_events_before_forgery: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 AND stream_id = 'chase_p08_schema'",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let mut mismatched_chase = chase.clone();
+    let recorded_chase_rolls = vec![
+        percentile_with_result(40, false),
+        percentile_with_result(40, true),
+    ];
+    mismatched_chase
+        .advance(&recorded_chase_rolls, None)
+        .unwrap();
+    assert!(matches!(
+        repository
+            .record_chase_state(
+                &metadata(
+                    CAMPAIGN_ID,
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "chase_p08_schema",
+                    "chase_state",
+                    "chase.state.advance",
+                    1,
+                    "chase_p08_mismatched_roll",
+                    "party_visible",
+                    "not_applicable",
+                    "rules_engine_decision",
+                ),
+                &RecordChaseStateRequest {
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: "session_p06_schema".to_owned(),
+                    state_json: mismatched_chase.persistence_json().unwrap(),
+                    participant_rolls: vec![
+                        percentile_with_result(40, false),
+                        percentile_with_result(40, true),
+                    ],
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "chase_roll_evidence"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND stream_id = 'chase_p08_schema'",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        chase_events_before_forgery,
+        "mismatched chase roll evidence must fail before canonical append"
+    );
+    let chase_rolls = vec![
+        percentile_with_result(40, false),
+        percentile_with_result(40, true),
+    ];
+    chase.advance(&chase_rolls, None).unwrap();
     assert_eq!(chase.status(), ChaseStatus::Caught);
     repository
         .record_chase_state(
@@ -1514,11 +1724,20 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 session_id: "session_p06_schema".to_owned(),
                 state_json: chase.persistence_json().unwrap(),
+                participant_rolls: chase_rolls,
             },
         )
         .await
         .expect("persist terminal chase aggregate");
-    assert!(chase.advance(true, false, None).is_err());
+    assert!(chase
+        .advance(
+            &[
+                percentile_with_result(40, true),
+                percentile_with_result(40, false),
+            ],
+            None,
+        )
+        .is_err());
 
     repository
         .change_session_state(

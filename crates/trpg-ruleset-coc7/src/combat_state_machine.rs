@@ -1,10 +1,11 @@
-use crate::dice_roll_contract::{ServerDiceRoll, SuccessLevel};
+use crate::dice_roll_contract::{success_level, ServerDiceRoll, SuccessLevel};
 use crate::{append_coc7_event, Coc7EventPayload};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use trpg_contracts::EventType;
 use trpg_shared_kernel::{
-    AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError,
+    AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, ServerDamageRoll,
+    ServerPercentileRoll, TrpgError,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -61,6 +62,110 @@ pub struct CombatTransition {
     pub damage: u8,
     pub prior_condition: CombatCondition,
     pub condition: CombatCondition,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PercentileRollEvidence {
+    roll_id: String,
+    target: u8,
+    roll: u8,
+    selected_tens_digit: u8,
+    ones_digit: u8,
+    success_level: SuccessLevel,
+}
+
+impl PercentileRollEvidence {
+    fn from_server_roll(target: u8, roll: &ServerPercentileRoll) -> KernelResult<Self> {
+        Ok(Self {
+            roll_id: roll.roll_id().to_owned(),
+            target,
+            roll: roll.value(),
+            selected_tens_digit: roll.selected_tens_digit(),
+            ones_digit: roll.ones_digit(),
+            success_level: success_level(roll.value(), target)?,
+        })
+    }
+
+    fn validate(&self, expected_target: u8) -> KernelResult<()> {
+        let reconstructed = if self.selected_tens_digit == 0 && self.ones_digit == 0 {
+            100
+        } else {
+            self.selected_tens_digit * 10 + self.ones_digit
+        };
+        if !valid_combat_id(&self.roll_id)
+            || self.target != expected_target
+            || self.selected_tens_digit > 9
+            || self.ones_digit > 9
+            || reconstructed != self.roll
+            || success_level(self.roll, self.target)? != self.success_level
+        {
+            return Err(TrpgError::InvalidConfiguration(
+                "combat_percentile_evidence",
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DamageRollEvidence {
+    roll_id: String,
+    dice_count: u8,
+    die_sides: u8,
+    flat_bonus: i8,
+    dice_values: Vec<u8>,
+    raw_damage: u8,
+}
+
+impl DamageRollEvidence {
+    fn from_server_roll(roll: &ServerDamageRoll) -> Self {
+        Self {
+            roll_id: roll.roll_id().to_owned(),
+            dice_count: roll.dice_count(),
+            die_sides: roll.die_sides(),
+            flat_bonus: roll.flat_bonus(),
+            dice_values: roll.dice_values().to_vec(),
+            raw_damage: roll.value(),
+        }
+    }
+
+    fn validate(&self, action: CombatActionKind) -> KernelResult<()> {
+        let expected_formula = match action {
+            CombatActionKind::Melee => (1, 6, 0),
+            CombatActionKind::Firearm => (1, 6, 5),
+        };
+        let total = self
+            .dice_values
+            .iter()
+            .try_fold(i16::from(self.flat_bonus), |sum, value| {
+                sum.checked_add(i16::from(*value))
+            })
+            .and_then(|value| u8::try_from(value).ok());
+        if !valid_combat_id(&self.roll_id)
+            || (self.dice_count, self.die_sides, self.flat_bonus) != expected_formula
+            || self.dice_values.len() != usize::from(self.dice_count)
+            || self
+                .dice_values
+                .iter()
+                .any(|value| *value == 0 || *value > self.die_sides)
+            || total != Some(self.raw_damage)
+        {
+            return Err(TrpgError::InvalidConfiguration("combat_damage_evidence"));
+        }
+        Ok(())
+    }
+}
+
+struct VerifiedDamageInput<'a> {
+    attacker_id: &'a str,
+    target_id: &'a str,
+    action: CombatActionKind,
+    defense: CombatDefense,
+    attacker_roll: &'a PercentileRollEvidence,
+    defender_roll: Option<&'a PercentileRollEvidence>,
+    damage_roll: &'a DamageRollEvidence,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -129,12 +234,18 @@ impl CombatantState {
 enum CombatMutation {
     Started,
     DamageApplied {
+        attacker_id: String,
         target_id: String,
+        action: CombatActionKind,
+        defense: CombatDefense,
+        attacker_roll: PercentileRollEvidence,
+        defender_roll: Option<PercentileRollEvidence>,
+        damage_roll: DamageRollEvidence,
         raw_damage: u8,
     },
     MajorWoundRecovered {
         target_id: String,
-        medical_roll_id: String,
+        medical_roll: PercentileRollEvidence,
     },
     TurnAdvanced,
     Ended,
@@ -246,11 +357,98 @@ impl CombatState {
     pub fn apply_damage(
         &mut self,
         target_id: &str,
-        raw_damage: u8,
+        action: CombatActionKind,
+        defense: CombatDefense,
+        attacker_roll: &ServerPercentileRoll,
+        defender_roll: Option<&ServerPercentileRoll>,
+        damage_roll: &ServerDamageRoll,
     ) -> KernelResult<CombatTransition> {
+        let attacker_id = self
+            .current_actor()
+            .ok_or(TrpgError::InvalidConfiguration("combat_actor"))?
+            .to_owned();
+        let attacker_target = self
+            .participants
+            .iter()
+            .find(|participant| participant.participant_id == attacker_id)
+            .map(CombatantState::dexterity)
+            .ok_or(TrpgError::InvalidConfiguration("combat_actor"))?;
+        let defender_target = self
+            .participants
+            .iter()
+            .find(|participant| participant.participant_id == target_id)
+            .map(|participant| (participant.dexterity / 2).max(1))
+            .ok_or(TrpgError::InvalidConfiguration("combat_target"))?;
+        let attacker_roll =
+            PercentileRollEvidence::from_server_roll(attacker_target, attacker_roll)?;
+        let defender_roll = defender_roll
+            .map(|roll| PercentileRollEvidence::from_server_roll(defender_target, roll))
+            .transpose()?;
+        let damage_roll = DamageRollEvidence::from_server_roll(damage_roll);
+        self.apply_verified_damage(VerifiedDamageInput {
+            attacker_id: &attacker_id,
+            target_id,
+            action,
+            defense,
+            attacker_roll: &attacker_roll,
+            defender_roll: defender_roll.as_ref(),
+            damage_roll: &damage_roll,
+        })
+    }
+
+    fn apply_verified_damage(
+        &mut self,
+        input: VerifiedDamageInput<'_>,
+    ) -> KernelResult<CombatTransition> {
+        let VerifiedDamageInput {
+            attacker_id,
+            target_id,
+            action,
+            defense,
+            attacker_roll,
+            defender_roll,
+            damage_roll,
+        } = input;
         if self.status != CombatStatus::Ongoing {
             return Err(TrpgError::InvalidConfiguration("combat_terminal"));
         }
+        if self.current_actor() != Some(attacker_id) || attacker_id == target_id {
+            return Err(TrpgError::InvalidConfiguration("combat_actor"));
+        }
+        let attacker_target = self
+            .participants
+            .iter()
+            .find(|participant| participant.participant_id == attacker_id)
+            .map(CombatantState::dexterity)
+            .ok_or(TrpgError::InvalidConfiguration("combat_actor"))?;
+        let defender_target = self
+            .participants
+            .iter()
+            .find(|participant| participant.participant_id == target_id)
+            .map(|participant| (participant.dexterity / 2).max(1))
+            .ok_or(TrpgError::InvalidConfiguration("combat_target"))?;
+        attacker_roll.validate(attacker_target)?;
+        if matches!(defense, CombatDefense::Dodge) != defender_roll.is_some() {
+            return Err(TrpgError::InvalidConfiguration("combat_defense_roll"));
+        }
+        if let Some(defender_roll) = defender_roll {
+            defender_roll.validate(defender_target)?;
+        }
+        if defender_roll.is_some_and(|roll| roll.roll_id == attacker_roll.roll_id)
+            || damage_roll.roll_id == attacker_roll.roll_id
+            || defender_roll.is_some_and(|roll| roll.roll_id == damage_roll.roll_id)
+        {
+            return Err(TrpgError::InvalidConfiguration("combat_roll_reuse"));
+        }
+        let attacker_rank = success_rank(attacker_roll.success_level);
+        let hit = attacker_rank > 0
+            && defender_roll
+                .map(|roll| attacker_rank > success_rank(roll.success_level))
+                .unwrap_or(true);
+        if !hit {
+            return Err(TrpgError::InvalidConfiguration("combat_attack_missed"));
+        }
+        damage_roll.validate(action)?;
         let target = self
             .participants
             .iter_mut()
@@ -259,15 +457,21 @@ impl CombatState {
         let transition = apply_damage_with_armor(
             target.current_hp,
             target.max_hp,
-            raw_damage,
+            damage_roll.raw_damage,
             target.armor,
             target.condition,
         )?;
         target.current_hp = transition.after_hp;
         target.condition = transition.condition;
         self.last_transition = CombatMutation::DamageApplied {
+            attacker_id: attacker_id.to_owned(),
             target_id: target_id.to_owned(),
-            raw_damage,
+            action,
+            defense,
+            attacker_roll: attacker_roll.clone(),
+            defender_roll: defender_roll.cloned(),
+            damage_roll: damage_roll.clone(),
+            raw_damage: damage_roll.raw_damage,
         };
         self.version = self
             .version
@@ -279,22 +483,25 @@ impl CombatState {
     pub fn recover_major_wound(
         &mut self,
         target_id: &str,
-        medical_roll: &ServerDiceRoll,
+        medical_target: u8,
+        medical_roll: &ServerPercentileRoll,
     ) -> KernelResult<CombatCondition> {
         if self.status != CombatStatus::Ongoing {
             return Err(TrpgError::InvalidConfiguration("combat_terminal"));
         }
-        if success_rank(medical_roll.outcome().success_level) == 0 {
-            return Err(TrpgError::InvalidConfiguration("major_wound_recovery"));
-        }
-        self.apply_verified_recovery(target_id, medical_roll.roll_id())
+        let medical_roll = PercentileRollEvidence::from_server_roll(medical_target, medical_roll)?;
+        self.apply_verified_recovery(target_id, &medical_roll)
     }
 
     fn apply_verified_recovery(
         &mut self,
         target_id: &str,
-        medical_roll_id: &str,
+        medical_roll: &PercentileRollEvidence,
     ) -> KernelResult<CombatCondition> {
+        medical_roll.validate(medical_roll.target)?;
+        if medical_roll.target == 0 || success_rank(medical_roll.success_level) == 0 {
+            return Err(TrpgError::InvalidConfiguration("major_wound_recovery"));
+        }
         let target = self
             .participants
             .iter_mut()
@@ -303,7 +510,7 @@ impl CombatState {
         target.condition = recover_major_wound(target.current_hp, target.condition, true)?;
         self.last_transition = CombatMutation::MajorWoundRecovered {
             target_id: target_id.to_owned(),
-            medical_roll_id: medical_roll_id.to_owned(),
+            medical_roll: medical_roll.clone(),
         };
         self.version = self
             .version
@@ -403,21 +610,33 @@ impl CombatState {
                 ));
             }
             CombatMutation::DamageApplied {
+                attacker_id,
                 target_id,
+                action,
+                defense,
+                attacker_roll,
+                defender_roll,
+                damage_roll,
                 raw_damage,
             } => {
-                expected.apply_damage(target_id, *raw_damage)?;
+                if *raw_damage != damage_roll.raw_damage {
+                    return Err(TrpgError::InvalidConfiguration("combat_damage_evidence"));
+                }
+                expected.apply_verified_damage(VerifiedDamageInput {
+                    attacker_id,
+                    target_id,
+                    action: *action,
+                    defense: *defense,
+                    attacker_roll,
+                    defender_roll: defender_roll.as_ref(),
+                    damage_roll,
+                })?;
             }
             CombatMutation::MajorWoundRecovered {
                 target_id,
-                medical_roll_id,
+                medical_roll,
             } => {
-                if medical_roll_id.trim().is_empty() {
-                    return Err(TrpgError::InvalidConfiguration(
-                        "major_wound_recovery_evidence",
-                    ));
-                }
-                expected.apply_verified_recovery(target_id, medical_roll_id)?;
+                expected.apply_verified_recovery(target_id, medical_roll)?;
             }
             CombatMutation::TurnAdvanced => {
                 expected.advance_turn()?;

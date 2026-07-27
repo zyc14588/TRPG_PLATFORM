@@ -94,6 +94,8 @@ endings:
     growth_awards:
       - skill_name: Library Use
         reason: Correctly connected the archive records.
+      - skill_name: Psychology
+        reason: Correctly read Marta's motives during the confrontation.
   - id: ending_salt_cellar_escape
     condition: scene_basement entered and danger resolved
     growth_awards:

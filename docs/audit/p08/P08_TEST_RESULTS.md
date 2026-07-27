@@ -26,6 +26,9 @@ retry、来源 cutoff 后第二 Session 的 Growth，以及 Fork 子实体逐行
 第二轮修复负例还覆盖同一 Session 的不同 Ending、同一
 ending/character/skill 的不同 Growth、私密 fork 事件主体密钥错配，以及超过
 1.2 MiB 的来源快照；这些失败均不会留下越权或语义重复的正史事件。
+第三轮修复负例进一步覆盖 Combat 伪造/错配攻击与伤害骰证据、Chase
+伪造/错配参与者骰证据、结局未授予的成长技能，以及两个真实并发 Ending
+和两个共享来源角色卡的并发 Growth；失败方均在正式 append 前终止，正史只增加一条。
 
 ## 真实数据库、重放与迁移
 
@@ -57,8 +60,15 @@ ending/character/skill 的不同 Growth、私密 fork 事件主体密钥错配�
 - Ending 只绑定 `ENDED` session，且 ID 必须来自该 Session 的 Scenario `endings`。
 - Growth 从当前 sheet 与 opaque RNG evidence 重新计算；percentile 与可选 d10 ID、
   值和 presence 一致，新 locked sheet 成为 current，旧 sheet 保留。
+- Combat 的命中、闪避与伤害，以及 Chase 的每名参与者结果，均由共享内核不可构造的
+  OS CSPRNG 证据派生；领域层重算骰值、成功等级、固定伤害公式与状态转换，持久层再将
+  serialized state 与同一批 opaque evidence 逐项比对。
+- Growth 技能必须精确存在于已选 Ending 的 Scenario `growth_awards`；未授予的
+  `Dodge` 在正史 append 前被拒绝。
 - Combat、Chase、Ending、Growth exact retry 均返回原 receipt，不追加事件或重复投影；
   Ending/Growth 的第二个语义 ID 在 append 前失败且 Event Store 计数不变。
+- Ending 按 Campaign/Session、Growth 按 Campaign/Character 使用事务级 advisory
+  lock；真实 `tokio::join!` 竞争中各自只有一个成功，Event Store 对应类型只增加一条。
 - 全部 Tutorial 正史和 Outbox payload 使用 integrity v3 protected payload；
   formal commits 均 committed，primary HMAC 链和 Witness binding 完整。
 
@@ -92,7 +102,7 @@ package regression PASS；P08 对应的 `conclusion_growth_state_machine` 已单
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；30 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 第一轮 4 项已修复；第二轮 5 项已在本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 第一轮 4 项、第二轮 5 项已修复；第三轮 5 项已在本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch --json` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -102,8 +112,10 @@ migration 后，最终 30 目标复扫
 
 第二轮远端自动审查真实指出：Ending/Growth 的语义唯一约束可能在正史 append 后才
 失败、私密 fork 事件沿用 command-wide 主体与密钥、六类声明 scope 未实际物化，以及
-无界完整 snapshot 可能超过单事件大小限制。以上均已按问题根因修复；本报告在最新
-远端 CI/复审完成前保持 pending，不以本地结果冒充远端通过。
+无界完整 snapshot 可能超过单事件大小限制。第三轮又真实指出：Combat/Chase 仍可由
+调用方决定正式结果、Growth 未绑定所选 Ending 的奖励，以及并发 Ending/Growth
+仍可能各自追加孤儿正史。以上均已按问题根因修复；本报告在最新远端 CI/复审完成前
+保持 pending，不以本地结果冒充远端通过。
 
 RustSec 报告：
 

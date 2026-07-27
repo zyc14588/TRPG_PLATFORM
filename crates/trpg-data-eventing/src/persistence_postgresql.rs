@@ -38,7 +38,8 @@ use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use trpg_domain_core::canonical_gameplay_state::{
-    inspect_chase_state, inspect_combat_state, validate_chase_state_transition,
+    inspect_chase_state, inspect_combat_state, validate_chase_server_roll_evidence,
+    validate_chase_state_transition, validate_combat_server_roll_evidence,
     validate_combat_state_transition,
 };
 pub use trpg_domain_core::domain_entities_value_objects::MembershipRole;
@@ -47,7 +48,10 @@ use trpg_domain_core::domain_entities_value_objects::{
     CoreDomainEvent, CoreEntityError, ReconsiderationOutcome, Room, Session, SessionState, UserId,
 };
 use trpg_domain_core::fork_canon_lineage::{CopyScope, DEFAULT_PUBLIC_COPY_SCOPES};
-use trpg_shared_kernel::{EntityId, EventActorOriginWire, ServerGrowthRollEvidence};
+use trpg_shared_kernel::{
+    EntityId, EventActorOriginWire, ServerDamageRoll, ServerGrowthRollEvidence,
+    ServerPercentileRoll,
+};
 
 use crate::event_store_sqlx_outbox_projection::{
     AtomicCommitDraft, CanonicalEventDraft, CanonicalEventVisibility, CanonicalProjectionTarget,
@@ -829,6 +833,10 @@ pub struct RecordCombatStateRequest {
     pub campaign_id: String,
     pub session_id: String,
     pub state_json: String,
+    pub attacker_roll: Option<ServerPercentileRoll>,
+    pub defender_roll: Option<ServerPercentileRoll>,
+    pub damage_roll: Option<ServerDamageRoll>,
+    pub medical_roll: Option<ServerPercentileRoll>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -836,6 +844,7 @@ pub struct RecordChaseStateRequest {
     pub campaign_id: String,
     pub session_id: String,
     pub state_json: String,
+    pub participant_rolls: Vec<ServerPercentileRoll>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -8615,6 +8624,14 @@ impl CoreDomainRepository {
         }
         let inspected = inspect_combat_state(&request.state_json)
             .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_state"))?;
+        validate_combat_server_roll_evidence(
+            &request.state_json,
+            request.attacker_roll.as_ref(),
+            request.defender_roll.as_ref(),
+            request.damage_roll.as_ref(),
+            request.medical_roll.as_ref(),
+        )
+        .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_roll_evidence"))?;
         let combat_id = inspected.combat_id().to_owned();
         let status = inspected.status();
         let round = i64::from(inspected.round());
@@ -8808,6 +8825,8 @@ impl CoreDomainRepository {
         }
         let inspected = inspect_chase_state(&request.state_json)
             .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_state"))?;
+        validate_chase_server_roll_evidence(&request.state_json, &request.participant_rolls)
+            .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_roll_evidence"))?;
         let chase_id = inspected.chase_id().to_owned();
         let status = inspected.status();
         let range_band = i16::from(inspected.range());
@@ -9000,6 +9019,17 @@ impl CoreDomainRepository {
         }
         self.ensure_campaign_admin(&request.campaign_id, &metadata.requesting_actor_id)
             .await?;
+        let mut transaction = self
+            .begin_projection_transaction(&metadata.commit_id, "begin_ending")
+            .await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!(
+                "p08-ending:{}:{}",
+                request.campaign_id, request.session_id
+            ))
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error("lock_ending_session"))?;
         let session = sqlx::query(
             r#"
             SELECT session.state, scenario.document_json
@@ -9013,7 +9043,7 @@ impl CoreDomainRepository {
         )
         .bind(&request.session_id)
         .bind(&request.campaign_id)
-        .fetch_optional(&self.primary)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(database_error("load_ending_session"))?
         .ok_or(CoreDomainRepositoryError::NotFound("ending_session"))?;
@@ -9040,7 +9070,7 @@ impl CoreDomainRepository {
             "SELECT ending_event_id FROM public.ending_events WHERE session_id = $1",
         )
         .bind(&request.session_id)
-        .fetch_optional(&self.primary)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(database_error("load_existing_session_ending"))?
         {
@@ -9076,7 +9106,7 @@ impl CoreDomainRepository {
             "SELECT last_event_sequence FROM public.ending_events WHERE ending_event_id = $1",
         )
         .bind(&request.ending_event_id)
-        .fetch_optional(&self.primary)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(database_error("load_existing_ending"))?
         {
@@ -9091,9 +9121,6 @@ impl CoreDomainRepository {
                 "ending_identity_conflict",
             ));
         }
-        let mut transaction = self
-            .begin_projection_transaction(&metadata.commit_id, "begin_ending")
-            .await?;
         let result = sqlx::query(
             r#"
             INSERT INTO public.ending_events (
@@ -9159,11 +9186,22 @@ impl CoreDomainRepository {
         if increase_roll_id.as_deref() == Some(server_roll_id.as_str()) {
             return Err(CoreDomainRepositoryError::InvalidInput("growth_rolls"));
         }
+        let mut transaction = self
+            .begin_projection_transaction(&metadata.commit_id, "begin_growth")
+            .await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!(
+                "p08-growth:{}:{}",
+                request.campaign_id, request.character_id
+            ))
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error("lock_growth_character"))?;
         if let Some(existing_sequence) = sqlx::query_scalar::<_, i64>(
             "SELECT last_event_sequence FROM public.growth_events WHERE growth_event_id = $1",
         )
         .bind(&request.growth_event_id)
-        .fetch_optional(&self.primary)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(database_error("load_existing_growth"))?
         {
@@ -9249,7 +9287,7 @@ impl CoreDomainRepository {
         .bind(&request.ending_event_id)
         .bind(&request.character_id)
         .bind(request.skill_name.trim())
-        .fetch_optional(&self.primary)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(database_error("load_existing_semantic_growth"))?
         {
@@ -9264,7 +9302,9 @@ impl CoreDomainRepository {
             SELECT character.current_sheet_version,
                    character.version AS character_version,
                    sheet.version AS sheet_version,
-                   sheet.sheet_json
+                   sheet.sheet_json,
+                   ending.ending_id,
+                   scenario.document_json
               FROM public.characters AS character
               JOIN public.character_sheet_versions AS sheet
                 ON sheet.character_id = character.character_id
@@ -9273,6 +9313,12 @@ impl CoreDomainRepository {
                 ON ending.ending_event_id = $1
                AND ending.campaign_id = character.campaign_id
                AND ending.session_id = $2
+              JOIN core_domain.sessions AS session
+                ON session.session_id = ending.session_id
+               AND session.campaign_id = ending.campaign_id
+              JOIN public.scenarios AS scenario
+                ON scenario.scenario_id = session.scenario_id
+               AND scenario.campaign_id = session.campaign_id
              WHERE character.character_id = $3
                AND character.campaign_id = $4
                AND sheet.sheet_version_id = $5
@@ -9284,7 +9330,7 @@ impl CoreDomainRepository {
         .bind(&request.character_id)
         .bind(&request.campaign_id)
         .bind(&request.source_sheet_version_id)
-        .fetch_optional(&self.primary)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(database_error("load_growth_source"))?
         .ok_or(CoreDomainRepositoryError::NotFound("growth_source"))?;
@@ -9292,6 +9338,29 @@ impl CoreDomainRepository {
         if row.get::<i64, _>("current_sheet_version") != source_version {
             return Err(CoreDomainRepositoryError::Integrity(
                 "growth_source_not_current",
+            ));
+        }
+        let ending_id: String = row.get("ending_id");
+        let scenario_document: Value = row.get("document_json");
+        let skill_is_awarded = scenario_document
+            .get("endings")
+            .and_then(Value::as_array)
+            .and_then(|endings| {
+                endings.iter().find(|ending| {
+                    ending.get("id").and_then(Value::as_str) == Some(ending_id.trim())
+                })
+            })
+            .and_then(|ending| ending.get("growth_awards"))
+            .and_then(Value::as_array)
+            .is_some_and(|awards| {
+                awards.iter().any(|award| {
+                    award.get("skill_name").and_then(Value::as_str)
+                        == Some(request.skill_name.trim())
+                })
+            });
+        if !skill_is_awarded {
+            return Err(CoreDomainRepositoryError::InvalidInput(
+                "growth_skill_not_awarded",
             ));
         }
         let mut sheet_json: Value = row.get("sheet_json");
@@ -9363,9 +9432,6 @@ impl CoreDomainRepository {
                     projection_target("public.characters", &request.character_id),
                 ],
             )
-            .await?;
-        let mut transaction = self
-            .begin_projection_transaction(&metadata.commit_id, "begin_growth")
             .await?;
         let inserted_sheet = sqlx::query(
             r#"

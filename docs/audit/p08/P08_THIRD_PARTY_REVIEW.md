@@ -22,7 +22,9 @@ GITHUB_PR = 9
 GITHUB_INITIAL_AUTOMATED_REVIEW = 4_ACTIONABLE
 GITHUB_INITIAL_REVIEW_FIX_STATUS = FIXED
 GITHUB_SECOND_AUTOMATED_REVIEW = 5_ACTIONABLE
-GITHUB_SECOND_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_SECOND_REVIEW_FIX_STATUS = FIXED
+GITHUB_THIRD_AUTOMATED_REVIEW = 5_ACTIONABLE
+GITHUB_THIRD_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -46,7 +48,7 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 目标重跑得到 0 finding；没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-second-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-third-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -84,8 +86,21 @@ PR #9 的首轮远端自动审查在所有 5 个 Hosted CI workflow 通过后仍
 
 第二轮修复已增加 append 前语义键检查、逐事件数据主体/加密绑定、全部声明 scope 的
 正式事件/受保护投影/重放，以及内容寻址 snapshot 和受行数/字节双重限制的物化批次。
-真实 PostgreSQL/Witness、单元/负向测试与最终 Semgrep 复扫均通过。最新修复提交仍须
-等待 Hosted CI 和远端自动复审，才允许合并。
+其远端复审又提出 5 个有效问题：
+
+- Combat 正式状态仍接受调用方提供的原始伤害，缺少攻击与服务端骰绑定；
+- Chase 正式状态仍接受调用方提供的 quarry/pursuer 成功布尔值；
+- Growth 未限制为所选 Ending 在 Scenario 中声明的 `growth_awards`；
+- 并发的不同 Ending 可能都通过 precheck 后各自追加正史；
+- 同一来源角色卡的并发 Growth 可能都追加正史后才有一个 projection CAS 失败。
+
+第三轮修复将 Combat 的攻击、闪避、伤害和 Chase 每名参与者的 percentile roll
+替换为共享内核字段私有、不可反序列化的 OS CSPRNG evidence；规则 replay、独立领域
+replay 与持久层绑定分别重算。Growth 精确读取所选 Ending 的 `growth_awards`。
+Ending 按 Campaign/Session、Growth 按 Campaign/Character 使用事务级 advisory
+lock 覆盖 precheck、canonical append 和 projection。真实 PostgreSQL/Witness
+错配证据与 `tokio::join!` 并发负例、单元/结构门禁和最终 Semgrep 复扫均通过。
+最新修复提交仍须等待 Hosted CI 和远端自动复审，才允许合并。
 
 ## RustSec
 
@@ -101,7 +116,7 @@ PR #9 的首轮远端自动审查在所有 5 个 Hosted CI workflow 通过后仍
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 两轮
-自动审查先后提出的 4 项和 5 项阻断均已修复，最新一轮远端复审尚待运行；RustSec 的
-三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖真实测试和
-数据库证据，不依赖预写状态或单一第三方工具。
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 三轮
+自动审查先后提出的 4、5、5 项阻断均已在本地修复，最新一轮远端复审尚待运行；
+RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
+真实测试和数据库证据，不依赖预写状态或单一第三方工具。

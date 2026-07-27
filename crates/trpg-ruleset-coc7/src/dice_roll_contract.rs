@@ -6,7 +6,8 @@ use trpg_shared_kernel::{
     ServerGrowthRollEvidence, TrpgError,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SuccessLevel {
     Critical,
     Extreme,

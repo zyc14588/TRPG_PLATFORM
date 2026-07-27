@@ -1,7 +1,25 @@
 use trpg_ruleset_coc7::chase_state_machine::{
     advance_chase, ChaseObstacle, ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
-use trpg_shared_kernel::TrpgError;
+use trpg_ruleset_coc7::dice_roll_contract::{success_level, SuccessLevel};
+use trpg_shared_kernel::{server_percentile_roll, ServerPercentileRoll, TrpgError};
+
+fn roll_with_result(target: u8, succeeds: bool) -> ServerPercentileRoll {
+    loop {
+        let roll = server_percentile_roll().unwrap();
+        let outcome = success_level(roll.value(), target).unwrap();
+        let actual = matches!(
+            outcome,
+            SuccessLevel::Critical
+                | SuccessLevel::Extreme
+                | SuccessLevel::Hard
+                | SuccessLevel::Regular
+        );
+        if actual == succeeds {
+            return roll;
+        }
+    }
+}
 
 #[test]
 fn escaped_and_caught_chases_reject_normal_advancement() {
@@ -32,10 +50,20 @@ fn a_new_chase_requires_a_new_identity_and_owns_participants_and_obstacles() {
     .unwrap();
     let obstacle = ChaseObstacle::new("obstacle_archive_stairs", 1).unwrap();
 
-    let terminal = first.advance(true, false, Some(&obstacle)).unwrap();
+    let terminal = first
+        .advance(
+            &[roll_with_result(40, true), roll_with_result(35, false)],
+            Some(&obstacle),
+        )
+        .unwrap();
     assert_eq!(terminal.status, ChaseStatus::Escaped);
     assert_eq!(
-        first.advance(false, true, None).unwrap_err(),
+        first
+            .advance(
+                &[roll_with_result(40, false), roll_with_result(35, true)],
+                None,
+            )
+            .unwrap_err(),
         TrpgError::InvalidConfiguration("chase_terminal")
     );
 

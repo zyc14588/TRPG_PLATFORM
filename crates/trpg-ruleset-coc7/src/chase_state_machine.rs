@@ -1,9 +1,11 @@
+use crate::dice_roll_contract::{success_level, SuccessLevel};
 use crate::{append_coc7_event, Coc7EventPayload};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use trpg_contracts::EventType;
 use trpg_shared_kernel::{
-    AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError,
+    AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult,
+    ServerPercentileRoll, TrpgError,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -84,10 +86,77 @@ pub struct ChaseTransition {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ChaseParticipantRollEvidence {
+    participant_id: String,
+    roll_id: String,
+    target: u8,
+    roll: u8,
+    selected_tens_digit: u8,
+    ones_digit: u8,
+    success_level: SuccessLevel,
+}
+
+impl ChaseParticipantRollEvidence {
+    fn from_server_roll(
+        participant: &ChaseParticipant,
+        roll: &ServerPercentileRoll,
+    ) -> KernelResult<Self> {
+        let target = participant
+            .movement_rate
+            .checked_mul(5)
+            .ok_or(TrpgError::InvalidConfiguration("chase_roll_target"))?;
+        Ok(Self {
+            participant_id: participant.participant_id.clone(),
+            roll_id: roll.roll_id().to_owned(),
+            target,
+            roll: roll.value(),
+            selected_tens_digit: roll.selected_tens_digit(),
+            ones_digit: roll.ones_digit(),
+            success_level: success_level(roll.value(), target)?,
+        })
+    }
+
+    fn validate(&self, participant: &ChaseParticipant) -> KernelResult<()> {
+        let target = participant
+            .movement_rate
+            .checked_mul(5)
+            .ok_or(TrpgError::InvalidConfiguration("chase_roll_target"))?;
+        let reconstructed = if self.selected_tens_digit == 0 && self.ones_digit == 0 {
+            100
+        } else {
+            self.selected_tens_digit * 10 + self.ones_digit
+        };
+        if self.participant_id != participant.participant_id
+            || !valid_chase_id(&self.roll_id)
+            || self.target != target
+            || self.selected_tens_digit > 9
+            || self.ones_digit > 9
+            || reconstructed != self.roll
+            || success_level(self.roll, target)? != self.success_level
+        {
+            return Err(TrpgError::InvalidConfiguration("chase_roll_evidence"));
+        }
+        Ok(())
+    }
+
+    fn succeeded(&self) -> bool {
+        matches!(
+            self.success_level,
+            SuccessLevel::Critical
+                | SuccessLevel::Extreme
+                | SuccessLevel::Hard
+                | SuccessLevel::Regular
+        )
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
 enum ChaseMutation {
     Started,
     Advanced {
+        rolls: Vec<ChaseParticipantRollEvidence>,
         quarry_success: bool,
         pursuer_success: bool,
         obstacle_id: Option<String>,
@@ -188,10 +257,61 @@ impl ChaseState {
 
     pub fn advance(
         &mut self,
-        quarry_success: bool,
-        pursuer_success: bool,
+        participant_rolls: &[ServerPercentileRoll],
         obstacle: Option<&ChaseObstacle>,
     ) -> KernelResult<ChaseTransition> {
+        if participant_rolls.len() != self.participants.len() {
+            return Err(TrpgError::InvalidConfiguration("chase_roll_evidence"));
+        }
+        let rolls = self
+            .participants
+            .iter()
+            .zip(participant_rolls)
+            .map(|(participant, roll)| {
+                ChaseParticipantRollEvidence::from_server_roll(participant, roll)
+            })
+            .collect::<KernelResult<Vec<_>>>()?;
+        self.advance_verified(&rolls, obstacle)
+    }
+
+    fn advance_verified(
+        &mut self,
+        rolls: &[ChaseParticipantRollEvidence],
+        obstacle: Option<&ChaseObstacle>,
+    ) -> KernelResult<ChaseTransition> {
+        if self.status != ChaseStatus::Ongoing || rolls.len() != self.participants.len() {
+            return Err(TrpgError::InvalidConfiguration(
+                if self.status != ChaseStatus::Ongoing {
+                    "chase_terminal"
+                } else {
+                    "chase_roll_evidence"
+                },
+            ));
+        }
+        for (participant, roll) in self.participants.iter().zip(rolls) {
+            roll.validate(participant)?;
+        }
+        if rolls
+            .iter()
+            .map(|roll| roll.roll_id.as_str())
+            .collect::<HashSet<_>>()
+            .len()
+            != rolls.len()
+        {
+            return Err(TrpgError::InvalidConfiguration("chase_roll_reuse"));
+        }
+        let quarry_success = self
+            .participants
+            .iter()
+            .zip(rolls)
+            .filter(|(participant, _)| participant.role == ChaseRole::Quarry)
+            .any(|(_, roll)| roll.succeeded());
+        let pursuer_success = self
+            .participants
+            .iter()
+            .zip(rolls)
+            .filter(|(participant, _)| participant.role == ChaseRole::Pursuer)
+            .any(|(_, roll)| roll.succeeded());
         let transition = advance_chase(
             self.range,
             self.status,
@@ -202,6 +322,7 @@ impl ChaseState {
         self.range = transition.after_range;
         self.status = transition.status;
         self.last_transition = ChaseMutation::Advanced {
+            rolls: rolls.to_vec(),
             quarry_success,
             pursuer_success,
             obstacle_id: obstacle.map(|obstacle| obstacle.obstacle_id.clone()),
@@ -251,6 +372,7 @@ impl ChaseState {
                 ));
             }
             ChaseMutation::Advanced {
+                rolls,
                 quarry_success,
                 pursuer_success,
                 obstacle_id,
@@ -263,7 +385,21 @@ impl ChaseState {
                 if obstacle.is_none() && *obstacle_cost != 0 {
                     return Err(TrpgError::InvalidConfiguration("chase_obstacle_evidence"));
                 }
-                expected.advance(*quarry_success, *pursuer_success, obstacle.as_ref())?;
+                let transition = expected.advance_verified(rolls, obstacle.as_ref())?;
+                let ChaseMutation::Advanced {
+                    quarry_success: derived_quarry_success,
+                    pursuer_success: derived_pursuer_success,
+                    ..
+                } = &expected.last_transition
+                else {
+                    return Err(TrpgError::InvalidConfiguration("chase_roll_evidence"));
+                };
+                if derived_quarry_success != quarry_success
+                    || derived_pursuer_success != pursuer_success
+                    || transition.obstacle_cost != *obstacle_cost
+                {
+                    return Err(TrpgError::InvalidConfiguration("chase_roll_evidence"));
+                }
             }
         }
         if expected == *self {

@@ -23,8 +23,8 @@ pub mod technology_selection_rust_impl;
 pub mod workspace_and_governance;
 
 pub use server_random::{
-    server_d10_roll, server_percentile_roll, ServerD10Roll, ServerGrowthRollEvidence,
-    ServerPercentileRoll,
+    server_d10_roll, server_damage_roll, server_percentile_roll, ServerD10Roll, ServerDamageRoll,
+    ServerGrowthRollEvidence, ServerPercentileRoll,
 };
 pub use shared_kernel::{
     validate_command_envelope, Actor, ActorOrigin, ActorRole, AgentClass,

@@ -10,6 +10,7 @@ use std::error::Error;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use trpg_shared_kernel::{ServerDamageRoll, ServerPercentileRoll};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CanonicalGameplayStateError {
@@ -54,6 +55,53 @@ enum CombatStatus {
     Ended,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum SuccessLevel {
+    Critical,
+    Extreme,
+    Hard,
+    Regular,
+    Failure,
+    Fumble,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum CombatActionKind {
+    Melee,
+    Firearm,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum CombatDefense {
+    None,
+    Dodge,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PercentileRollEvidence {
+    roll_id: String,
+    target: u8,
+    roll: u8,
+    selected_tens_digit: u8,
+    ones_digit: u8,
+    success_level: SuccessLevel,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct DamageRollEvidence {
+    roll_id: String,
+    dice_count: u8,
+    die_sides: u8,
+    flat_bonus: i8,
+    dice_values: Vec<u8>,
+    raw_damage: u8,
+}
+
 impl CombatStatus {
     const fn as_str(self) -> &'static str {
         match self {
@@ -68,12 +116,18 @@ impl CombatStatus {
 enum CombatMutation {
     Started,
     DamageApplied {
+        attacker_id: String,
         target_id: String,
+        action: CombatActionKind,
+        defense: CombatDefense,
+        attacker_roll: PercentileRollEvidence,
+        defender_roll: Option<PercentileRollEvidence>,
+        damage_roll: DamageRollEvidence,
         raw_damage: u8,
     },
     MajorWoundRecovered {
         target_id: String,
-        medical_roll_id: String,
+        medical_roll: PercentileRollEvidence,
     },
     TurnAdvanced,
     Ended,
@@ -170,6 +224,61 @@ pub fn inspect_combat_state(
     parse_combat(state_json).map(combat_summary)
 }
 
+pub fn validate_combat_server_roll_evidence(
+    state_json: &str,
+    attacker_roll: Option<&ServerPercentileRoll>,
+    defender_roll: Option<&ServerPercentileRoll>,
+    damage_roll: Option<&ServerDamageRoll>,
+    medical_roll: Option<&ServerPercentileRoll>,
+) -> Result<(), CanonicalGameplayStateError> {
+    let state = parse_combat(state_json)?;
+    match &state.last_transition {
+        CombatMutation::DamageApplied {
+            attacker_roll: recorded_attacker,
+            defender_roll: recorded_defender,
+            damage_roll: recorded_damage,
+            ..
+        } => {
+            let attacker_roll =
+                attacker_roll.ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            let damage_roll = damage_roll.ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if medical_roll.is_some()
+                || !percentile_evidence_matches_server(recorded_attacker, attacker_roll)
+                || !match (recorded_defender, defender_roll) {
+                    (Some(recorded), Some(server)) => {
+                        percentile_evidence_matches_server(recorded, server)
+                    }
+                    (None, None) => true,
+                    _ => false,
+                }
+                || !damage_evidence_matches_server(recorded_damage, damage_roll)
+            {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+        }
+        CombatMutation::MajorWoundRecovered {
+            medical_roll: recorded_medical,
+            ..
+        } => {
+            if attacker_roll.is_some()
+                || defender_roll.is_some()
+                || damage_roll.is_some()
+                || !medical_roll.is_some_and(|server| {
+                    percentile_evidence_matches_server(recorded_medical, server)
+                })
+            {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+        }
+        _ if attacker_roll.is_none()
+            && defender_roll.is_none()
+            && damage_roll.is_none()
+            && medical_roll.is_none() => {}
+        _ => return Err(CanonicalGameplayStateError::InvalidTransition),
+    }
+    Ok(())
+}
+
 fn combat_summary(state: CombatSnapshot) -> ValidatedCombatState {
     ValidatedCombatState {
         combat_id: state.combat_id,
@@ -233,9 +342,64 @@ fn apply_combat_mutation(
     match mutation {
         CombatMutation::Started => return Err(CanonicalGameplayStateError::InvalidTransition),
         CombatMutation::DamageApplied {
+            attacker_id,
             target_id,
+            action,
+            defense,
+            attacker_roll,
+            defender_roll,
+            damage_roll,
             raw_damage,
         } => {
+            let current_actor = state
+                .initiative_order
+                .get(state.current_turn_index)
+                .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if current_actor != attacker_id || attacker_id == target_id {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            let attacker_target = state
+                .participants
+                .iter()
+                .find(|participant| participant.participant_id == *attacker_id)
+                .map(|participant| participant.dexterity)
+                .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            let defender_target = state
+                .participants
+                .iter()
+                .find(|participant| participant.participant_id == *target_id)
+                .map(|participant| (participant.dexterity / 2).max(1))
+                .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            validate_percentile_evidence(attacker_roll, attacker_target)?;
+            if matches!(defense, CombatDefense::Dodge) != defender_roll.is_some() {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            if let Some(defender_roll) = defender_roll {
+                validate_percentile_evidence(defender_roll, defender_target)?;
+            }
+            if defender_roll
+                .as_ref()
+                .is_some_and(|roll| roll.roll_id == attacker_roll.roll_id)
+                || damage_roll.roll_id == attacker_roll.roll_id
+                || defender_roll
+                    .as_ref()
+                    .is_some_and(|roll| roll.roll_id == damage_roll.roll_id)
+            {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            let attacker_rank = success_rank(attacker_roll.success_level);
+            let hit = attacker_rank > 0
+                && defender_roll
+                    .as_ref()
+                    .map(|roll| attacker_rank > success_rank(roll.success_level))
+                    .unwrap_or(true);
+            if !hit {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            validate_damage_evidence(damage_roll, *action)?;
+            if *raw_damage != damage_roll.raw_damage {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
             let target = state
                 .participants
                 .iter_mut()
@@ -245,9 +409,10 @@ fn apply_combat_mutation(
         }
         CombatMutation::MajorWoundRecovered {
             target_id,
-            medical_roll_id,
+            medical_roll,
         } => {
-            if !valid_id(medical_roll_id) {
+            validate_percentile_evidence(medical_roll, medical_roll.target)?;
+            if medical_roll.target == 0 || success_rank(medical_roll.success_level) == 0 {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
             let target = state
@@ -295,6 +460,110 @@ fn apply_combat_mutation(
         .checked_add(1)
         .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
     Ok(())
+}
+
+fn validate_percentile_evidence(
+    evidence: &PercentileRollEvidence,
+    expected_target: u8,
+) -> Result<(), CanonicalGameplayStateError> {
+    let reconstructed = if evidence.selected_tens_digit == 0 && evidence.ones_digit == 0 {
+        100
+    } else {
+        evidence.selected_tens_digit * 10 + evidence.ones_digit
+    };
+    if !valid_id(&evidence.roll_id)
+        || evidence.target != expected_target
+        || evidence.selected_tens_digit > 9
+        || evidence.ones_digit > 9
+        || reconstructed != evidence.roll
+        || canonical_success_level(evidence.roll, evidence.target)? != evidence.success_level
+    {
+        return Err(CanonicalGameplayStateError::InvalidTransition);
+    }
+    Ok(())
+}
+
+fn validate_damage_evidence(
+    evidence: &DamageRollEvidence,
+    action: CombatActionKind,
+) -> Result<(), CanonicalGameplayStateError> {
+    let expected_formula = match action {
+        CombatActionKind::Melee => (1, 6, 0),
+        CombatActionKind::Firearm => (1, 6, 5),
+    };
+    let total = evidence
+        .dice_values
+        .iter()
+        .try_fold(i16::from(evidence.flat_bonus), |sum, value| {
+            sum.checked_add(i16::from(*value))
+        })
+        .and_then(|value| u8::try_from(value).ok());
+    if !valid_id(&evidence.roll_id)
+        || (evidence.dice_count, evidence.die_sides, evidence.flat_bonus) != expected_formula
+        || evidence.dice_values.len() != usize::from(evidence.dice_count)
+        || evidence
+            .dice_values
+            .iter()
+            .any(|value| *value == 0 || *value > evidence.die_sides)
+        || total != Some(evidence.raw_damage)
+    {
+        return Err(CanonicalGameplayStateError::InvalidTransition);
+    }
+    Ok(())
+}
+
+fn percentile_evidence_matches_server(
+    evidence: &PercentileRollEvidence,
+    server: &ServerPercentileRoll,
+) -> bool {
+    evidence.roll_id == server.roll_id()
+        && evidence.roll == server.value()
+        && evidence.selected_tens_digit == server.selected_tens_digit()
+        && evidence.ones_digit == server.ones_digit()
+}
+
+fn damage_evidence_matches_server(
+    evidence: &DamageRollEvidence,
+    server: &ServerDamageRoll,
+) -> bool {
+    evidence.roll_id == server.roll_id()
+        && evidence.dice_count == server.dice_count()
+        && evidence.die_sides == server.die_sides()
+        && evidence.flat_bonus == server.flat_bonus()
+        && evidence.dice_values == server.dice_values()
+        && evidence.raw_damage == server.value()
+}
+
+fn canonical_success_level(
+    roll: u8,
+    target: u8,
+) -> Result<SuccessLevel, CanonicalGameplayStateError> {
+    if !(1..=100).contains(&roll) || target > 100 {
+        return Err(CanonicalGameplayStateError::InvalidTransition);
+    }
+    Ok(if roll == 1 {
+        SuccessLevel::Critical
+    } else if (target < 50 && roll >= 96) || (target >= 50 && roll == 100) {
+        SuccessLevel::Fumble
+    } else if roll <= target / 5 {
+        SuccessLevel::Extreme
+    } else if roll <= target / 2 {
+        SuccessLevel::Hard
+    } else if roll <= target {
+        SuccessLevel::Regular
+    } else {
+        SuccessLevel::Failure
+    })
+}
+
+fn success_rank(level: SuccessLevel) -> u8 {
+    match level {
+        SuccessLevel::Critical => 4,
+        SuccessLevel::Extreme => 3,
+        SuccessLevel::Hard => 2,
+        SuccessLevel::Regular => 1,
+        SuccessLevel::Failure | SuccessLevel::Fumble => 0,
+    }
 }
 
 fn apply_validated_damage(
@@ -355,10 +624,23 @@ struct ChaseParticipant {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ChaseParticipantRollEvidence {
+    participant_id: String,
+    roll_id: String,
+    target: u8,
+    roll: u8,
+    selected_tens_digit: u8,
+    ones_digit: u8,
+    success_level: SuccessLevel,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
 enum ChaseMutation {
     Started,
     Advanced {
+        rolls: Vec<ChaseParticipantRollEvidence>,
         quarry_success: bool,
         pursuer_success: bool,
         obstacle_id: Option<String>,
@@ -441,6 +723,30 @@ pub fn inspect_chase_state(
     parse_chase(state_json).map(chase_summary)
 }
 
+pub fn validate_chase_server_roll_evidence(
+    state_json: &str,
+    server_rolls: &[ServerPercentileRoll],
+) -> Result<(), CanonicalGameplayStateError> {
+    let state = parse_chase(state_json)?;
+    match &state.last_transition {
+        ChaseMutation::Advanced { rolls, .. } => {
+            if rolls.len() != server_rolls.len()
+                || !rolls.iter().zip(server_rolls).all(|(recorded, server)| {
+                    recorded.roll_id == server.roll_id()
+                        && recorded.roll == server.value()
+                        && recorded.selected_tens_digit == server.selected_tens_digit()
+                        && recorded.ones_digit == server.ones_digit()
+                })
+            {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+        }
+        ChaseMutation::Started if server_rolls.is_empty() => {}
+        _ => return Err(CanonicalGameplayStateError::InvalidTransition),
+    }
+    Ok(())
+}
+
 fn chase_summary(state: ChaseSnapshot) -> ValidatedChaseState {
     ValidatedChaseState {
         chase_id: state.chase_id,
@@ -493,6 +799,7 @@ fn apply_chase_mutation(
         return Err(CanonicalGameplayStateError::InvalidTransition);
     }
     let ChaseMutation::Advanced {
+        rolls,
         quarry_success,
         pursuer_success,
         obstacle_id,
@@ -505,6 +812,40 @@ fn apply_chase_mutation(
         || obstacle_id.as_deref().is_some_and(|id| !valid_id(id))
         || (obstacle_id.is_none() && *obstacle_cost != 0)
     {
+        return Err(CanonicalGameplayStateError::InvalidTransition);
+    }
+    if rolls.len() != state.participants.len() {
+        return Err(CanonicalGameplayStateError::InvalidTransition);
+    }
+    for (participant, roll) in state.participants.iter().zip(rolls) {
+        let target = participant
+            .movement_rate
+            .checked_mul(5)
+            .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+        validate_chase_roll_evidence(roll, participant, target)?;
+    }
+    if rolls
+        .iter()
+        .map(|roll| roll.roll_id.as_str())
+        .collect::<HashSet<_>>()
+        .len()
+        != rolls.len()
+    {
+        return Err(CanonicalGameplayStateError::InvalidTransition);
+    }
+    let derived_quarry_success = state
+        .participants
+        .iter()
+        .zip(rolls)
+        .filter(|(participant, _)| participant.role == ChaseRole::Quarry)
+        .any(|(_, roll)| success_rank(roll.success_level) > 0);
+    let derived_pursuer_success = state
+        .participants
+        .iter()
+        .zip(rolls)
+        .filter(|(participant, _)| participant.role == ChaseRole::Pursuer)
+        .any(|(_, roll)| success_rank(roll.success_level) > 0);
+    if derived_quarry_success != *quarry_success || derived_pursuer_success != *pursuer_success {
         return Err(CanonicalGameplayStateError::InvalidTransition);
     }
     let contest_delta = match (*quarry_success, *pursuer_success) {
@@ -534,6 +875,29 @@ fn apply_chase_mutation(
         .checked_add(1)
         .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
     state.last_transition = mutation.clone();
+    Ok(())
+}
+
+fn validate_chase_roll_evidence(
+    evidence: &ChaseParticipantRollEvidence,
+    participant: &ChaseParticipant,
+    target: u8,
+) -> Result<(), CanonicalGameplayStateError> {
+    let reconstructed = if evidence.selected_tens_digit == 0 && evidence.ones_digit == 0 {
+        100
+    } else {
+        evidence.selected_tens_digit * 10 + evidence.ones_digit
+    };
+    if evidence.participant_id != participant.participant_id
+        || !valid_id(&evidence.roll_id)
+        || evidence.target != target
+        || evidence.selected_tens_digit > 9
+        || evidence.ones_digit > 9
+        || reconstructed != evidence.roll
+        || canonical_success_level(evidence.roll, target)? != evidence.success_level
+    {
+        return Err(CanonicalGameplayStateError::InvalidTransition);
+    }
     Ok(())
 }
 
