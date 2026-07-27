@@ -48,7 +48,8 @@ GITHUB_TWENTY_FIRST_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_SE
 GITHUB_TWENTY_SECOND_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_THIRD_REVIEW
 GITHUB_TWENTY_THIRD_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_FOURTH_REVIEW
 GITHUB_TWENTY_FOURTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_FIFTH_REVIEW
-GITHUB_TWENTY_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_LOCALLY
+GITHUB_TWENTY_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_SIXTH_REVIEW
+GITHUB_TWENTY_SIXTH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_LOCALLY
 GITHUB_LATEST_AUTOMATED_REVIEW = RERUN_PENDING
 THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -66,7 +67,8 @@ TWENTY_FIRST_REPAIR_HOSTED_CI = PASS_5_OF_5
 TWENTY_SECOND_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
 TWENTY_THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
 TWENTY_FOURTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
-TWENTY_FIFTH_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
+TWENTY_FIFTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
+TWENTY_SIXTH_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 P09_IMPLEMENTATION = NOT_STARTED
 ```
 
@@ -88,14 +90,14 @@ HMAC 与 Witness 校验的正史事件重建。
 | Fork child lineage、Authority 与连接池 | canonical Event Store 对每个 child Campaign 的新 v2 `CampaignForkRecorded` 建立 partial unique index，HMAC-bound materialization projection target 是 child-owned 判别，旧 parent-owned 多 child 历史不会在升级建索引时冲突；projection 另有 `UNIQUE(child_campaign_id)`；同一 child 的所有 canonical INSERT 还经过共享事务 advisory lock，Fork 插入时在锁内重新验证只存在创建/邀请基线，封闭 emptiness preflight TOCTOU；正式 lineage 还要求 child 的锁定/FORK_ONLY Authority Contract 为共享内核 `fork_for_child` 生成的确定性 ID、version 1、父级全部规则/安全/模型/角色卡快照一致及精确 `+1ms` 创建时间，另建 Campaign 不能冒充分支；snapshot/build/canonical commit/replay-page load 均不持有投影池连接；真实 legacy upgrade、并发竞争与 `max_connections=1` 均通过 | PASS |
 | Fork cutoff 隔离 | `source_cutoff_event_sequence` 只用于确定上界；实际 base event set 由来源 Session ID、其 Scene/Action 归属和 Session 启动前 campaign baseline 组成；顶层字段与 `data` 包装两种 canonical payload 都能解析；即使第二 Session 的事件先写入、第一 Session 的 Ending/Growth 后写入，也不会把第二 Session 纳入旧快照；cutoff 后相关公开复议链仍单独加入 | PASS |
 | 可见性保持 | Fork materialization 按 keeper、party 和 owner-bound private 行分批；每个事件自己的 Visibility、`data_subject_id` 与主体密钥进入 request hash、HMAC、Event Store 和 Outbox，投影触发器继续要求事件/行完全一致 | PASS |
-| 幂等与语义唯一性 | Combat、Chase、Ending、Growth 的 exact retry 返回原 persisted commit；Campaign Fork 的 exact retry 从已记录 lineage/manifest/materialized batches 重建原命令与投影，不读取后来可能变化的 parent snapshot；Ending 的 Session 键与 Growth 的 Character 键在事务 advisory lock 下串行检查、append 和 projection；真实并发竞争各只产生一条正史 | PASS |
+| 幂等与语义唯一性 | Combat、Chase、Ending、Growth 的 exact retry 返回原 persisted commit；Campaign Fork 的 exact retry 从已记录 lineage/manifest/materialized batches 重建原命令与投影，不读取后来可能变化的 parent snapshot，并从经过 HMAC 校验的首事件 projection targets 选择 pre-marker 或 child-owned-v2 原始 draft shape，marker 引入前的成功正史仍可补建投影；Ending 的 Session 键与 Growth 的 Character 键在事务 advisory lock 下串行检查、append 和 projection；真实并发竞争各只产生一条正史 | PASS |
 | 活跃会话边界 | Combat/Chase 在同一事务内对 Session 行持有 `FOR SHARE` 锁并要求状态精确为 `ACTIVE`；Session 终止路径的 `FOR UPDATE` 锁封闭状态检查与正式 append 间的 TOCTOU；结束态负例不增加 Event Store | PASS |
 | Fork 结算边界 | 来源 Session 的快照预览与最终 materialization 都要求所有 Combat 已为 `ENDED`，所有 Chase 已为 `ESCAPED` 或 `CAUGHT`；仍在进行的玩法状态以 `fork_source_gameplay_not_terminal` 在写入 child 正史前拒绝，避免生成携带不可继续 ENDED Session 的死分支 | PASS |
 | 场景结构唯一性 | Scenario 验证在接受 Combat/Chase encounter 前拒绝重复 participant ID，并要求参与者 ID 与状态机一致：仅 ASCII 字母数字、`_`、`-` 且不超过 128 字节；每个 Ending 还拒绝重复、空白或超过持久层 128 字节上限的 `growth_awards.skill_name`，保证入口接受的文档可构造正式聚合、fork conclusion snapshot 并可实际结算 | PASS |
 | 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`，并在事件创建前统一规范化后写入 canonical event 与 projection；Ending summary 同样规范化并与 replay 投影一致；没有 `growth_awards` 的合法结局可用空 settlement 完成，有奖励时成长技能必须存在于该 Ending 的 `growth_awards`，且 fork 继承的按角色/技能消费标记会在 append 前阻止重复领取；成长证据只能由一次性完整 OS CSPRNG 尝试生成，不能把独立 percentile/d10 拼装为挑选结果；新 Sheet、Character 与正式 Growth event 必须精确保持来源 Character/Sheet 的 Visibility envelope，任何扩大在 append 前失败 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork；另证明未终止 Combat/Chase 不能分叉、来源已消费成长不能在 child 重领而另一奖励仍可结算 | PASS |
 | Schema/最小权限 | 八个 P08 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth/rebuild repair、可延迟外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、fork-empty trigger/function 完整 catalog 指纹、Combat/Chase/Growth 全局 gameplay roll 主键及 canonical 事务内 reservation、v2 Fork/Reconsideration 显式非空 shape 与行为探针、角色与函数执行权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的提交 `7acc802` 经第二十五轮精确 SHA review `4789695257` 确认第二十四轮三项未重复，并指出 legacy parent-owned 多分支会阻断 v2 唯一索引升级、场景可声明超过持久层上限的成长技能两项；均已完成本地根因修复和真库回归，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
+| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的提交 `84e0902` 经第二十六轮精确 SHA review `4789850275` 确认第二十五轮两项未重复，并指出 marker 引入前的 child-owned fork exact retry 会因 request hash shape 改变而冲突；已完成本地根因修复、target-shape 单元和真库回归，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
 
 ## 反伪造修复
 
@@ -223,7 +225,9 @@ HMAC 与 Witness 校验的正史事件重建。
   source snapshot。检测到 canonical lineage 后，它从 verified
   `CampaignForkRecorded`、materialization manifest 和全部 materialized batches
   重建原事件、Visibility、数据主体与 projection targets；真库回归在 parent hash
-  已变化后重试，仍不新增正史并可补齐投影。
+  已变化后重试，仍不新增正史并可补齐投影。首事件的 HMAC-bound targets 还决定
+  是否重建 marker 引入前的单-target shape 或当前 child-owned-v2 双-target shape，
+  因而兼容性修复本身不会破坏旧正式 commit 的 request hash。
 - Campaign conclusion 不再强制至少一条成长记录；合法的无奖励 Ending 可通过空
   settlement 从 `AwaitingGrowth` 进入 `Completed`，完成后的任何再次 settlement
   仍由状态转换门禁拒绝。
@@ -350,6 +354,12 @@ Authority Contract 为 `fork_for_child` 派生结果，同时在预览和 materi
 场景接受却永远无法持久化。当前修复用 HMAC-bound materialization target 判别新
 child-owned v2 lineage，使旧多分支历史安全升级；场景入口同步持久层的 128 字节限制。
 legacy 双分支/B24/empty/repeat/drift 的真实迁移 `1/1`、场景 `5/5`、真实
-core-domain `1/1` 与 Tutorial `2/2` 已通过；新提交、Hosted CI 与精确 SHA 复审仍须
-在合并前通过。
+core-domain `1/1` 与 Tutorial `2/2` 已通过。修复提交 `84e0902` 在第二十六轮意见
+到达时 Hosted CI 已明确 3/5 通过、2 项仍运行；精确 SHA review `4789850275` 确认
+第二十五轮两项未重复，并指出 pre-marker child-owned fork exact retry 若无兼容分支，
+会因新增 target 参与 request hash 而冲突。当前修复从已完成 HMAC 校验且 append-only
+的首事件读取 marker：旧正史重建旧单-target draft，新正史重建双-target v2 draft；
+首次提交始终使用新 marker。target-shape 单元、data-eventing lib `27/27`、默认栈
+真实 core-domain `1/1` 与 Tutorial `2/2` 已通过；新提交、Hosted CI 与精确 SHA
+复审仍须在合并前通过。
 P08 到此停止，未执行 P09。

@@ -108,6 +108,14 @@ unique index 只选择带 HMAC-bound materialization target 的 child-owned v2 �
 Scenario 回归另用 129 个 ASCII 字节的成长技能证明入口返回
 `InvalidScenarioField("endings")`，与 `record_growth` 上限一致。
 
+第二十六轮精确 SHA review `4789850275` 针对提交 `84e0902` 确认第二十五轮两项
+未重复，并新增一个 P1。Repository 在加载唯一 canonical lineage 时保留其 sequence；
+该 replay 已完成 HMAC/Witness 验证，再从 append-only Event Store 的同一行读取
+materialization marker。首次 fork 总是生成双-target v2 draft；pre-marker retry
+重建原单-target draft，新 marker retry 保持双-target draft。单元测试逐字比较两种
+hash-relevant target vector；真实 core-domain 断言新首事件持久化 marker，并让既有
+exact retry、投影恢复与并发长链继续通过。
+
 ## 真实数据库、重放与迁移
 
 临时环境使用固定 digest 的 PostgreSQL/pgvector 镜像、localhost 端口和每次生成的
@@ -221,7 +229,7 @@ repeat、drift 与 constraint 全部门禁 `1/1`、exit `0`。
 | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` | PASS |
 | `cargo test -p trpg-ruleset-coc7 --all-features --locked` | PASS |
 | `cargo test -p trpg-domain-core --all-features --locked` | PASS |
-| `cargo test -p trpg-data-eventing --lib --locked` | PASS，`26/26` |
+| `cargo test -p trpg-data-eventing --lib --locked` | PASS，`27/27` |
 | `cargo test -p trpg-testing --test vertical_human_kp_tutorial_slice --locked` | PASS，`2/2` |
 | `cargo test -p trpg-ruleset-coc7 --test growth_resolution` | PASS，`2/2` |
 | `cargo test -p trpg-runtime --test conclusion_growth_state_machine` | PASS，`3/3` |
@@ -401,7 +409,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `7acc802` 的第二十五轮精确 SHA review `4789695257` 确认 fork 成长消费、child Authority、gameplay 终态三项未重复，并提出 legacy parent-owned 多分支升级冲突、成长技能超持久层上限两项；均已完成本地修复和真库回归，待新提交/复审 |
+| GitHub PR #9 自动审查 | `84e0902` 的第二十六轮精确 SHA review `4789850275` 确认 legacy upgrade 与成长技能长度两项未重复，并指出 pre-marker child-owned fork exact retry 的 request-hash 兼容问题；已完成本地根因修复、target-shape 单元与真库回归，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -448,7 +456,10 @@ data-eventing lib `26/26`、默认栈真实 core-domain `1/1`、Tutorial `2/2`�
 workspace check 与严格 Clippy 均通过。第二十五轮确认三项未重复，又指出 legacy
 parent-owned 多 child 历史会与新唯一索引冲突，以及超长成长技能无法结算；两项已由
 HMAC-bound child-owned v2 判别和入口 128 字节 gate 修复，真实迁移/core-domain/
-Tutorial 均通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
+Tutorial 均通过。第二十六轮确认两项未重复，又指出 marker 引入前的 child-owned
+fork retry 会因 target 参与 request hash 而冲突；现按已验证 canonical 首事件是否
+存在 marker 重建原 target shape，data-eventing lib `27/27`、默认栈 core-domain
+`1/1`、Tutorial `2/2` 通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
 本报告在最新本地修复提交、远端 CI/复审完成前保持 pending，不以历史扫描或旧提交的
 部分/完整 Hosted CI 冒充新代码远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
@@ -469,6 +480,8 @@ workspace/release 两项。第二十三轮修复提交 `b165094` 在第二十四
 repository-truth、golden-scenarios、production-security 已完成通过，workspace 与
 release-readiness 仍运行，因此只记录 `3/5 + 2 running at review cutoff`。
 第二十四轮修复提交 `7acc802` 在第二十五轮审查到达时同样是上述三项完成通过、
+workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
+第二十五轮修复提交 `84e0902` 在第二十六轮审查到达时也只有上述三项完成通过、
 workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
 以上均未记为 5/5。
 

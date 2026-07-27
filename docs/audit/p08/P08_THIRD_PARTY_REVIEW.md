@@ -70,8 +70,10 @@ GITHUB_TWENTY_THIRD_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_FOURTH_REVIEW
 GITHUB_TWENTY_FOURTH_AUTOMATED_REVIEW = 3_ACTIONABLE
 GITHUB_TWENTY_FOURTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_FIFTH_REVIEW
 GITHUB_TWENTY_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE
-GITHUB_TWENTY_FIFTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
-GITHUB_LATEST_REVIEWED_TARGET = 7acc802df979c8eb282ce2cc577e10d0a3b9f0b8
+GITHUB_TWENTY_FIFTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_SIXTH_REVIEW
+GITHUB_TWENTY_SIXTH_AUTOMATED_REVIEW = 1_ACTIONABLE
+GITHUB_TWENTY_SIXTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_LATEST_REVIEWED_TARGET = 84e09023c65d144758be7573282392e9909d84d6
 GITHUB_NEXT_REVIEW_TARGET = PENDING_COMMIT
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -89,6 +91,7 @@ GITHUB_TWENTY_FIRST_REPAIR_HOSTED_CI = 5_PASS
 GITHUB_TWENTY_SECOND_REPAIR_HOSTED_CI = 3_PASS_2_RUNNING_AT_REVIEW_CUTOFF
 GITHUB_TWENTY_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_RUNNING_AT_REVIEW_CUTOFF
 GITHUB_TWENTY_FOURTH_REPAIR_HOSTED_CI = 3_PASS_2_RUNNING_AT_REVIEW_CUTOFF
+GITHUB_TWENTY_FIFTH_REPAIR_HOSTED_CI = 3_PASS_2_RUNNING_AT_REVIEW_CUTOFF
 GITHUB_LATEST_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
@@ -548,8 +551,24 @@ unique index 与 fork-empty trigger 只选择带此判别的 v2 事件，legacy 
 都保留且新索引存在。函数定义变化第一次被 catalog fingerprint 正确拒绝，更新实际
 完整指纹后从空库重跑，legacy/B24/empty/repeat/drift/constraints `1/1` 通过。
 Scenario Ending 校验同步 `record_growth` 的 128 字节上限，并以 129 字节负例证明
-入口拒绝。场景 `5/5`、真实 core-domain `1/1`、Tutorial `2/2` 已通过；新提交、
-Hosted CI 和第二十六轮精确 SHA review 仍为 pending。
+入口拒绝。场景 `5/5`、真实 core-domain `1/1`、Tutorial `2/2` 已通过。修复提交
+`84e09023c65d144758be7573282392e9909d84d6` 的 repository-truth、
+golden-scenarios、production-security-runtime 已完成通过；workspace 与
+release-readiness 在下一轮意见到达时仍运行，因此只记录 3/5 通过、2 项运行中。
+第二十六轮精确 SHA review `4789850275` 确认第二十五轮两项未重复，并提出一个 P1：
+
+- marker 增加到首个 `CampaignForkRecorded.projection_targets` 后参与 canonical
+  request hash；已存在的 pre-marker child-owned fork exact retry 若无条件构造新
+  target，会发生 idempotency conflict，canonical 已成功但投影缺失的历史无法补建。
+
+当前最小修复在加载唯一 canonical lineage 时保留 sequence。该 replay 先经过 payload、
+HMAC 与 Witness 验证，Event Store 又是 append-only，因此可从同一行可信读取 marker
+relation 与 fork row ID。首次写入固定使用双-target v2；检测到旧正史则重建原
+单-target draft，新正史仍重建双-target draft。单元
+`fork_lineage_target_shape_preserves_pre_marker_retries` 精确比较两种 hash-relevant
+target vectors；核心真库另断言新首事件持久化 marker，并让 existing exact retry、
+projection recovery 与并发回归在默认栈 `1/1` 通过。data-eventing lib `27/27`、
+Tutorial `2/2` 通过；新提交、Hosted CI 和第二十七轮精确 SHA review 仍为 pending。
 
 ## RustSec
 
@@ -566,7 +585,7 @@ Hosted CI 和第二十六轮精确 SHA review 仍为 pending。
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-二十五轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+二十六轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
 用户门槛明确延期，没有冒充修复。当前最小修复的远端 CI/精确 SHA 复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖

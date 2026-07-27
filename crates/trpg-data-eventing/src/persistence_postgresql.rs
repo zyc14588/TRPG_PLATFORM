@@ -60,6 +60,7 @@ use crate::event_store_sqlx_outbox_projection::{
 };
 
 const CORE_EVENT_SCHEMA_VERSION: u16 = CoreDomainEvent::SCHEMA_VERSION;
+const FORK_CHILD_LINEAGE_MARKER_RELATION: &str = "public.campaign_fork_materializations";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCommandMetadata {
@@ -318,6 +319,25 @@ mod fork_materialization_tests {
         let batches = fork_materialization_batches(&rows).unwrap();
         assert_eq!(batches.len(), 1);
         assert_eq!(batches[0].data_subject_id, "player_private_fork");
+    }
+
+    #[test]
+    fn fork_lineage_target_shape_preserves_pre_marker_retries() {
+        let legacy = campaign_fork_recorded_projection_targets("fork_legacy_retry", false);
+        assert_eq!(
+            legacy,
+            vec![projection_target(
+                "public.campaign_forks",
+                "fork_legacy_retry"
+            )]
+        );
+
+        let child_owned_v2 = campaign_fork_recorded_projection_targets("fork_child_owned_v2", true);
+        assert_eq!(child_owned_v2.len(), 2);
+        assert!(child_owned_v2.iter().any(|target| {
+            target.relation == FORK_CHILD_LINEAGE_MARKER_RELATION
+                && target.row_id == "fork_child_owned_v2"
+        }));
     }
 }
 
@@ -2015,6 +2035,23 @@ fn projection_target(relation: &str, row_id: &str) -> CanonicalProjectionTarget 
         relation: relation.to_owned(),
         row_id: row_id.to_owned(),
     }
+}
+
+fn campaign_fork_recorded_projection_targets(
+    fork_id: &str,
+    include_child_lineage_marker: bool,
+) -> Vec<CanonicalProjectionTarget> {
+    let mut targets = vec![projection_target("public.campaign_forks", fork_id)];
+    if include_child_lineage_marker {
+        // This legitimate command-owned row also acts as the HMAC-bound
+        // discriminator for child-owned v2 lineage. The migration's partial
+        // unique index can therefore exclude legacy parent-owned fork history.
+        targets.push(projection_target(
+            FORK_CHILD_LINEAGE_MARKER_RELATION,
+            fork_id,
+        ));
+    }
+    targets
 }
 
 fn gameplay_state_projection_targets(
@@ -9766,6 +9803,7 @@ impl CoreDomainRepository {
             .load_campaign_events(&request.child_campaign_id)
             .await?;
         let mut canonical_lineage = None;
+        let mut canonical_lineage_sequence = None;
         for replay in child_campaign_events
             .iter()
             .filter(|event| event.event_type == "CampaignForkRecorded")
@@ -9808,6 +9846,7 @@ impl CoreDomainRepository {
                 copy_scopes,
                 reason,
             ));
+            canonical_lineage_sequence = Some(replay.sequence);
         }
         let retrying_canonical = if let Some(existing) = canonical_lineage {
             if existing
@@ -9829,6 +9868,32 @@ impl CoreDomainRepository {
         } else {
             false
         };
+        let include_child_lineage_marker =
+            if let Some(lineage_sequence) = canonical_lineage_sequence {
+                sqlx::query_scalar(
+                    r#"
+                    SELECT EXISTS(
+                        SELECT 1
+                          FROM jsonb_array_elements(projection_targets) AS target
+                         WHERE target ->> 'relation' = $2
+                           AND target ->> 'row_id' = $3
+                    )
+                      FROM public.event_store
+                     WHERE sequence = $1
+                       AND event_type = 'CampaignForkRecorded'
+                       AND integrity_status = 'verified_hmac'
+                       AND request_hash_source = 'formal_commit'
+                    "#,
+                )
+                .bind(lineage_sequence)
+                .bind(FORK_CHILD_LINEAGE_MARKER_RELATION)
+                .bind(&request.fork_id)
+                .fetch_one(&self.primary)
+                .await
+                .map_err(database_error("load_campaign_fork_lineage_marker"))?
+            } else {
+                true
+            };
 
         let existing_fork: Option<(String, String, String, String, String)> = sqlx::query_as(
             r#"
@@ -9971,14 +10036,10 @@ impl CoreDomainRepository {
         let mut events = vec![
             (
                 recorded,
-                vec![
-                    projection_target("public.campaign_forks", &request.fork_id),
-                    // This legitimate command-owned row also acts as the
-                    // HMAC-bound discriminator for child-owned v2 lineage.
-                    // The migration's partial unique index can therefore
-                    // exclude legacy parent-owned fork history safely.
-                    projection_target("public.campaign_fork_materializations", &request.fork_id),
-                ],
+                campaign_fork_recorded_projection_targets(
+                    &request.fork_id,
+                    include_child_lineage_marker,
+                ),
             ),
             (
                 manifest,

@@ -3080,6 +3080,33 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("record immutable fork lineage");
+    Box::pin(async {
+        let child_owned_marker: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                  FROM public.event_store AS event
+                  CROSS JOIN LATERAL jsonb_array_elements(
+                      event.projection_targets
+                  ) AS target
+                 WHERE event.campaign_id = $1
+                   AND event.event_type = 'CampaignForkRecorded'
+                   AND target ->> 'relation' =
+                       'public.campaign_fork_materializations'
+                   AND target ->> 'row_id' = 'fork_p06_schema'
+            )
+            "#,
+        )
+        .bind(CHILD_CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap();
+        assert!(
+            child_owned_marker,
+            "new child-owned lineage must persist the HMAC-bound v2 discriminator"
+        );
+    })
+    .await;
     let fork_snapshot = sqlx::query(
         r#"
         SELECT campaign_id, source_snapshot_hash, child_snapshot_hash,
