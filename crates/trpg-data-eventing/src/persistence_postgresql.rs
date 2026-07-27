@@ -10697,6 +10697,7 @@ impl CoreDomainRepository {
         {
             return Err(CoreDomainRepositoryError::InvalidInput("ending"));
         }
+        let ended_at = timestamp_from_unix_ms(request.ended_at_unix_ms, "ending_timestamp")?;
         self.ensure_campaign_admin(&request.campaign_id, &metadata.requesting_actor_id)
             .await?;
         let mut transaction = self
@@ -10821,10 +10822,7 @@ impl CoreDomainRepository {
         .bind(&request.session_id)
         .bind(&request.ending_id)
         .bind(normalized_summary)
-        .bind(timestamp_from_unix_ms(
-            request.ended_at_unix_ms,
-            "ending_timestamp",
-        )?)
+        .bind(ended_at)
         .bind(&metadata.visibility_label)
         .bind(&metadata.visibility_subject)
         .bind(&metadata.provenance_kind)
@@ -10988,6 +10986,31 @@ impl CoreDomainRepository {
                     "growth_skill_already_recorded",
                 ));
             }
+        }
+        // Hold the table-level identity range through canonical append and
+        // projection commit. This turns the global sheet ID absence check into
+        // an atomic reservation even against other character-sheet writers.
+        sqlx::query(
+            "LOCK TABLE public.character_sheet_versions \
+             IN SHARE ROW EXCLUSIVE MODE",
+        )
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error("lock_growth_sheet_identity"))?;
+        let sheet_identity_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS( \
+                 SELECT 1 FROM public.character_sheet_versions \
+                  WHERE sheet_version_id = $1 \
+             )",
+        )
+        .bind(&request.new_sheet_version_id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(database_error("check_growth_sheet_identity"))?;
+        if sheet_identity_exists {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "growth_sheet_identity_conflict",
+            ));
         }
         let row = sqlx::query(
             r#"

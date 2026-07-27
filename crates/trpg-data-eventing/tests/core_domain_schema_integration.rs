@@ -2221,6 +2221,68 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .await
         .expect("end resumed session");
 
+    let ending_events_before_invalid_timestamp: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 AND event_type = 'EndingRecorded'",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let invalid_ending_timestamp_metadata = metadata(
+        CAMPAIGN_ID,
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "ending_event_p08_invalid_timestamp",
+        "ending",
+        "ending.record",
+        0,
+        "ending_p08_invalid_timestamp",
+        "party_visible",
+        "not_applicable",
+        "human_keeper_statement",
+    );
+    assert!(matches!(
+        repository
+            .record_ending(
+                &invalid_ending_timestamp_metadata,
+                &RecordEndingRequest {
+                    ending_event_id: "ending_event_p08_invalid_timestamp".to_owned(),
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: "session_p06_schema".to_owned(),
+                    ending_id: "ending_expose_marta".to_owned(),
+                    summary: "This timestamp cannot be represented.".to_owned(),
+                    ended_at_unix_ms: u64::MAX,
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput("ending_timestamp"))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND event_type = 'EndingRecorded'",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        ending_events_before_invalid_timestamp,
+        "an unrepresentable ending timestamp must fail before canonical append"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.formal_commits WHERE commit_id = $1",
+        )
+        .bind(&invalid_ending_timestamp_metadata.commit_id)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        0,
+        "invalid ending input must not leave a committed formal write"
+    );
+
     repository
         .record_ending(
             &metadata(
@@ -2287,6 +2349,64 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .fetch_one(&primary)
     .await
     .unwrap();
+    let conflicting_growth_sheet_metadata = metadata(
+        CAMPAIGN_ID,
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "growth_event_p08_conflicting_sheet",
+        "growth",
+        "growth.record",
+        0,
+        "growth_p08_conflicting_sheet",
+        "private_to_player",
+        PLAYER_ID,
+        "rules_engine_decision",
+    );
+    assert!(matches!(
+        repository
+            .record_growth(
+                &conflicting_growth_sheet_metadata,
+                &RecordGrowthRequest {
+                    growth_event_id: "growth_event_p08_conflicting_sheet".to_owned(),
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: "session_p06_schema".to_owned(),
+                    ending_event_id: "ending_event_p08_schema".to_owned(),
+                    character_id: "character_p06_player".to_owned(),
+                    source_sheet_version_id: "sheet_p06_player_v1".to_owned(),
+                    new_sheet_version_id: "sheet_p08_keeper_private_v1".to_owned(),
+                    skill_name: "Library Use".to_owned(),
+                    growth_rolls: growth_roll.evidence().clone(),
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::Integrity(
+            "growth_sheet_identity_conflict"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND event_type = 'CharacterGrowthApplied'",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        growth_events_before_reuse,
+        "a conflicting Growth sheet ID must fail before canonical append"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.formal_commits WHERE commit_id = $1",
+        )
+        .bind(&conflicting_growth_sheet_metadata.commit_id)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        0,
+        "a conflicting Growth sheet ID must not leave a committed formal write"
+    );
     assert!(matches!(
         repository
             .record_growth(
