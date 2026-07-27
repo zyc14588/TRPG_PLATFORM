@@ -1167,7 +1167,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 display_name: "Evelyn Hart".to_owned(),
                 sheet_version_id: "sheet_p06_player_v1".to_owned(),
                 sheet_json:
-                    r#"{"name":"Evelyn Hart","age":31,"ruleset":"coc7","characteristics":{"power":65},"skills":{"Library Use":70},"combat_profile":{"dexterity":70,"skill_targets":{"melee":45,"firearm":35,"dodge":40,"first_aid":30,"medicine":10},"weapon_loadout":{"melee":{"weapon_id":"selected_melee_weapon","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":1}},"firearm":{"weapon_id":"selected_firearm","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":5}}},"current_hp":10,"max_hp":10,"armor":1,"condition":"ABLE"},"chase_profile":{"role":"QUARRY","movement_rate":8}}"#
+                    r#"{"name":"Evelyn Hart","age":31,"ruleset":"coc7","characteristics":{"power":65},"skills":{"Library Use":70,"Fighting (Brawl)":45,"Firearms (Handgun)":35,"Dodge":40,"First Aid":30,"Medicine":10},"combat_profile":{"dexterity":70,"skill_targets":{"melee":45,"firearm":35,"dodge":40,"first_aid":30,"medicine":10},"skill_target_sources":{"melee":"Fighting (Brawl)","firearm":"Firearms (Handgun)","dodge":"Dodge","first_aid":"First Aid","medicine":"Medicine"},"weapon_loadout":{"melee":{"weapon_id":"selected_melee_weapon","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":1}},"firearm":{"weapon_id":"selected_firearm","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":5}}},"current_hp":10,"max_hp":10,"armor":1,"condition":"ABLE"},"chase_profile":{"role":"QUARRY","movement_rate":8}}"#
                         .to_owned(),
             },
         )
@@ -1982,6 +1982,34 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("persist MajorWound combat state");
+    let projected_wound: (i64, String, String, String, String) = sqlx::query_as(
+        r#"
+        SELECT character.current_sheet_version,
+               sheet.sheet_json #>> '{combat_profile,current_hp}',
+               sheet.sheet_json #>> '{combat_profile,condition}',
+               character.visibility_label::TEXT,
+               sheet.visibility_label::TEXT
+          FROM public.characters AS character
+          JOIN public.character_sheet_versions AS sheet
+            ON sheet.character_id = character.character_id
+           AND sheet.version = character.current_sheet_version
+         WHERE character.character_id = 'character_p06_player'
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        projected_wound,
+        (
+            2,
+            "5".to_owned(),
+            "MAJOR_WOUND".to_owned(),
+            "private_to_player".to_owned(),
+            "private_to_player".to_owned(),
+        ),
+        "Combat damage must create a new locked private Character sheet version"
+    );
     assert_eq!(
         persist_combat_turn_advance(
             &repository,
@@ -2247,34 +2275,70 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .expect("persist medical recovery using the current healer's First Aid target");
     combat.end().unwrap();
     assert_eq!(combat.status(), CombatStatus::Ended);
-    repository
-        .record_combat_state(
-            &metadata(
-                CAMPAIGN_ID,
-                AUTHORITY_ID,
-                KEEPER_ID,
-                "human_keeper",
-                "combat_p08_schema",
-                "combat_state",
-                "combat.state.end",
-                13,
-                "combat_p08_end",
-                "party_visible",
-                "not_applicable",
-                "rules_engine_decision",
-            ),
-            &RecordCombatStateRequest {
-                campaign_id: CAMPAIGN_ID.to_owned(),
-                session_id: "session_p06_schema".to_owned(),
-                state_json: combat.persistence_json().unwrap(),
-                attacker_roll: None,
-                defender_roll: None,
-                damage_roll: None,
-                medical_roll: None,
-            },
+    let terminal_combat_metadata = metadata(
+        CAMPAIGN_ID,
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "combat_p08_schema",
+        "combat_state",
+        "combat.state.end",
+        13,
+        "combat_p08_end",
+        "party_visible",
+        "not_applicable",
+        "rules_engine_decision",
+    );
+    let terminal_combat_request = RecordCombatStateRequest {
+        campaign_id: CAMPAIGN_ID.to_owned(),
+        session_id: "session_p06_schema".to_owned(),
+        state_json: combat.persistence_json().unwrap(),
+        attacker_roll: None,
+        defender_roll: None,
+        damage_roll: None,
+        medical_roll: None,
+    };
+    sqlx::raw_sql(
+        r#"
+        CREATE FUNCTION public.reject_terminal_combat_projection_for_test()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF NEW.combat_id = 'combat_p08_schema'
+               AND NEW.version = 14 THEN
+                RAISE EXCEPTION
+                    'injected terminal Combat projection failure';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
+        CREATE TRIGGER zz_reject_terminal_combat_projection_for_test
+        BEFORE INSERT OR UPDATE ON public.combat_states
+        FOR EACH ROW EXECUTE FUNCTION
+            public.reject_terminal_combat_projection_for_test();
+        "#,
+    )
+    .execute(&primary)
+    .await
+    .expect("install terminal Combat projection failure injection");
+    assert!(matches!(
+        repository
+            .record_combat_state(&terminal_combat_metadata, &terminal_combat_request,)
+            .await,
+        Err(CoreDomainRepositoryError::Database("project_combat_state"))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT version FROM public.combat_states \
+             WHERE combat_id = 'combat_p08_schema'",
         )
+        .fetch_one(&primary)
         .await
-        .expect("persist terminal combat state");
+        .unwrap(),
+        13,
+        "the terminal Combat event must be canonical while its projection remains ongoing"
+    );
 
     let mut chase = ChaseState::start(
         "chase_p08_schema",
@@ -2435,31 +2499,56 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     let chase_obstacle = ChaseObstacle::new("obstacle_collapsing_salt", 1).unwrap();
     chase.advance(&chase_rolls, Some(&chase_obstacle)).unwrap();
     assert_eq!(chase.status(), ChaseStatus::Caught);
-    repository
-        .record_chase_state(
-            &metadata(
-                CAMPAIGN_ID,
-                AUTHORITY_ID,
-                KEEPER_ID,
-                "human_keeper",
-                "chase_p08_schema",
-                "chase_state",
-                "chase.state.advance",
-                1,
-                "chase_p08_caught",
-                "party_visible",
-                "not_applicable",
-                "rules_engine_decision",
-            ),
-            &RecordChaseStateRequest {
-                campaign_id: CAMPAIGN_ID.to_owned(),
-                session_id: "session_p06_schema".to_owned(),
-                state_json: chase.persistence_json().unwrap(),
-                participant_rolls: chase_rolls.clone(),
-            },
-        )
-        .await
-        .expect("persist terminal chase aggregate");
+    let terminal_chase_metadata = metadata(
+        CAMPAIGN_ID,
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "chase_p08_schema",
+        "chase_state",
+        "chase.state.advance",
+        1,
+        "chase_p08_caught",
+        "party_visible",
+        "not_applicable",
+        "rules_engine_decision",
+    );
+    let terminal_chase_request = RecordChaseStateRequest {
+        campaign_id: CAMPAIGN_ID.to_owned(),
+        session_id: "session_p06_schema".to_owned(),
+        state_json: chase.persistence_json().unwrap(),
+        participant_rolls: chase_rolls.clone(),
+    };
+    sqlx::raw_sql(
+        r#"
+        CREATE FUNCTION public.reject_terminal_chase_projection_for_test()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF NEW.chase_id = 'chase_p08_schema'
+               AND NEW.version = 2 THEN
+                RAISE EXCEPTION
+                    'injected terminal Chase projection failure';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
+        CREATE TRIGGER zz_reject_terminal_chase_projection_for_test
+        BEFORE INSERT OR UPDATE ON public.chase_states
+        FOR EACH ROW EXECUTE FUNCTION
+            public.reject_terminal_chase_projection_for_test();
+        "#,
+    )
+    .execute(&primary)
+    .await
+    .expect("install terminal Chase projection failure injection");
+    assert!(matches!(
+        repository
+            .record_chase_state(&terminal_chase_metadata, &terminal_chase_request,)
+            .await,
+        Err(CoreDomainRepositoryError::Database("project_chase_state"))
+    ));
     assert!(chase
         .advance(
             &[
@@ -2505,6 +2594,66 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("end resumed session");
+    let terminal_event_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 \
+           AND stream_id IN ('combat_p08_schema', 'chase_p08_schema')",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    sqlx::raw_sql(
+        r#"
+        DROP TRIGGER zz_reject_terminal_combat_projection_for_test
+            ON public.combat_states;
+        DROP FUNCTION public.reject_terminal_combat_projection_for_test();
+        DROP TRIGGER zz_reject_terminal_chase_projection_for_test
+            ON public.chase_states;
+        DROP FUNCTION public.reject_terminal_chase_projection_for_test();
+        "#,
+    )
+    .execute(&primary)
+    .await
+    .expect("remove terminal gameplay projection failure injections");
+    repository
+        .record_combat_state(&terminal_combat_metadata, &terminal_combat_request)
+        .await
+        .expect("recover the terminal Combat projection after Session end");
+    repository
+        .record_chase_state(&terminal_chase_metadata, &terminal_chase_request)
+        .await
+        .expect("recover the terminal Chase projection after Session end");
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 \
+               AND stream_id IN ('combat_p08_schema', 'chase_p08_schema')",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        terminal_event_count,
+        "terminal projection recovery must reuse the exact canonical events"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) \
+               FROM public.combat_states AS combat \
+               JOIN public.chase_states AS chase \
+                 ON chase.campaign_id = combat.campaign_id \
+              WHERE combat.combat_id = 'combat_p08_schema' \
+                AND combat.status = 'ENDED' \
+                AND chase.chase_id = 'chase_p08_schema' \
+                AND chase.status = 'CAUGHT'",
+        )
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        1,
+        "exact retries must restore both terminal projections after Session end"
+    );
 
     let ending_events_before_invalid_timestamp: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM public.event_store \
@@ -2786,6 +2935,33 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         0,
         "a conflicting ending identity must not leave a committed formal write"
     );
+    let combat_health_source: (String, i64, String, String) = sqlx::query_as(
+        r#"
+        SELECT sheet.sheet_version_id,
+               character.current_sheet_version,
+               sheet.sheet_json #>> '{combat_profile,current_hp}',
+               sheet.sheet_json #>> '{combat_profile,condition}'
+          FROM public.characters AS character
+          JOIN public.character_sheet_versions AS sheet
+            ON sheet.character_id = character.character_id
+           AND sheet.version = character.current_sheet_version
+         WHERE character.character_id = 'character_p06_player'
+           AND character.visibility_label::TEXT = 'private_to_player'
+           AND sheet.visibility_label::TEXT = 'private_to_player'
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        (
+            combat_health_source.1,
+            combat_health_source.2.as_str(),
+            combat_health_source.3.as_str(),
+        ),
+        (3, "5", "ABLE"),
+        "successful First Aid must create another private sheet version"
+    );
     let growth_roll = server_roll_skill_growth(70).unwrap();
     let growth_outcome = *growth_roll.outcome();
     let growth_events_before_reuse: i64 = sqlx::query_scalar(
@@ -2820,7 +2996,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                     session_id: "session_p06_schema".to_owned(),
                     ending_event_id: "ending_event_p08_schema".to_owned(),
                     character_id: "character_p06_player".to_owned(),
-                    source_sheet_version_id: "sheet_p06_player_v1".to_owned(),
+                    source_sheet_version_id: combat_health_source.0.clone(),
                     new_sheet_version_id: "sheet_p08_keeper_private_v1".to_owned(),
                     skill_name: "Library Use".to_owned(),
                     growth_rolls: growth_roll.evidence().clone(),
@@ -2877,7 +3053,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                     session_id: "session_p06_schema".to_owned(),
                     ending_event_id: "ending_event_p08_schema".to_owned(),
                     character_id: "character_p06_player".to_owned(),
-                    source_sheet_version_id: "sheet_p06_player_v1".to_owned(),
+                    source_sheet_version_id: combat_health_source.0.clone(),
                     new_sheet_version_id: "sheet_p06_player_v2_reused".to_owned(),
                     skill_name: "Library Use".to_owned(),
                     growth_rolls: growth_roll_reused_by_combat.evidence().clone(),
@@ -2938,7 +3114,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                             session_id: "session_p06_schema".to_owned(),
                             ending_event_id: "ending_event_p08_schema".to_owned(),
                             character_id: "character_p06_player".to_owned(),
-                            source_sheet_version_id: "sheet_p06_player_v1".to_owned(),
+                            source_sheet_version_id: combat_health_source.0.clone(),
                             new_sheet_version_id: sheet_id.to_owned(),
                             skill_name: "Library Use".to_owned(),
                             growth_rolls: growth_roll.evidence().clone(),
@@ -2986,7 +3162,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             PLAYER_ID.to_owned(),
             "private_to_player".to_owned(),
             PLAYER_ID.to_owned(),
-            1,
+            combat_health_source.1,
         ),
         "a rejected Growth command must preserve the private source envelope and current sheet"
     );
@@ -3012,7 +3188,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 session_id: "session_p06_schema".to_owned(),
                 ending_event_id: "ending_event_p08_schema".to_owned(),
                 character_id: "character_p06_player".to_owned(),
-                source_sheet_version_id: "sheet_p06_player_v1".to_owned(),
+                source_sheet_version_id: combat_health_source.0.clone(),
                 new_sheet_version_id: "sheet_p06_player_v2".to_owned(),
                 skill_name: "Library Use".to_owned(),
                 growth_rolls: growth_roll.evidence().clone(),
@@ -3069,7 +3245,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .fetch_one(&primary)
     .await
     .unwrap();
-    assert_eq!(persisted_growth.0, 2);
+    assert_eq!(persisted_growth.0, combat_health_source.1 + 1);
     assert_eq!(
         persisted_growth
             .1
@@ -5314,7 +5490,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         r#"
         UPDATE public.characters AS character
            SET current_sheet_version = 1,
-               version = character.version - 1,
+               version = 3,
                visibility_label = event.visibility_label::core_domain.visibility_label,
                visibility_subject = event.visibility_subject,
                provenance_kind = event.fact_provenance_kind::core_domain.provenance_kind,

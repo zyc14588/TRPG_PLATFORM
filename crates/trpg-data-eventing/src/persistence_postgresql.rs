@@ -44,8 +44,9 @@ use trpg_domain_core::canonical_gameplay_state::{
 };
 pub use trpg_domain_core::domain_entities_value_objects::MembershipRole;
 use trpg_domain_core::domain_entities_value_objects::{
-    CampaignAggregate, CampaignForkMaterializedRow, CampaignInvite, Character, CharacterState,
-    CoreDomainEvent, CoreEntityError, ReconsiderationOutcome, Room, Session, SessionState, UserId,
+    CampaignAggregate, CampaignForkMaterializedRow, CampaignInvite, Character,
+    CharacterCombatHealthUpdate, CharacterState, CoreDomainEvent, CoreEntityError,
+    ReconsiderationOutcome, Room, Session, SessionState, UserId,
 };
 use trpg_domain_core::fork_canon_lineage::{CopyScope, DEFAULT_PUBLIC_COPY_SCOPES};
 use trpg_shared_kernel::{
@@ -2162,6 +2163,271 @@ struct GameplayRollConsumption {
     roll_kind: &'static str,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CombatHealthChange {
+    character_id: String,
+    hp_before: u8,
+    hp_after: u8,
+    condition_before: String,
+    condition_after: String,
+}
+
+#[derive(Clone, Debug)]
+struct PreparedCombatHealthProjection {
+    update: CharacterCombatHealthUpdate,
+    source_sheet_version_id: String,
+    sheet_json: Value,
+    visibility_label: String,
+    visibility_subject: String,
+}
+
+fn combat_health_changes(
+    previous_state: Option<&Value>,
+    next_state: &Value,
+) -> Result<Vec<CombatHealthChange>, CoreDomainRepositoryError> {
+    let Some(previous_state) = previous_state else {
+        return Ok(Vec::new());
+    };
+    let previous = combat_participant_values(
+        &serde_json::to_string(previous_state)
+            .map_err(|_| CoreDomainRepositoryError::Serialization)?,
+    )?;
+    let next = combat_participant_values(
+        &serde_json::to_string(next_state).map_err(|_| CoreDomainRepositoryError::Serialization)?,
+    )?;
+    if previous.keys().ne(next.keys()) {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "combat_health_participant_chain",
+        ));
+    }
+    let health = |participant: &Value| {
+        let hp = participant
+            .get("current_hp")
+            .and_then(Value::as_u64)
+            .and_then(|value| u8::try_from(value).ok())
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "combat_health_participant_shape",
+            ))?;
+        let condition = participant
+            .get("condition")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty() && value.len() <= 64)
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "combat_health_participant_shape",
+            ))?;
+        Ok::<_, CoreDomainRepositoryError>((hp, condition.to_owned()))
+    };
+    let mut changes = Vec::new();
+    for (participant_id, previous_participant) in previous {
+        let next_participant =
+            next.get(&participant_id)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "combat_health_participant_chain",
+                ))?;
+        let (hp_before, condition_before) = health(&previous_participant)?;
+        let (hp_after, condition_after) = health(next_participant)?;
+        if hp_before != hp_after || condition_before != condition_after {
+            changes.push(CombatHealthChange {
+                character_id: participant_id,
+                hp_before,
+                hp_after,
+                condition_before,
+                condition_after,
+            });
+        }
+    }
+    if changes.len() > 1 {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "combat_health_transition_scope",
+        ));
+    }
+    Ok(changes)
+}
+
+fn combat_health_sheet_version_id(
+    combat_id: &str,
+    character_id: &str,
+    combat_version: i64,
+) -> Result<String, CoreDomainRepositoryError> {
+    let digest = format!(
+        "{:x}",
+        Sha256::digest(
+            format!("combat-health:{combat_id}:{character_id}:{combat_version}").as_bytes()
+        )
+    );
+    let value = format!("combat_sheet_{}", &digest[..32]);
+    EntityId::new(&value)
+        .map(|id| id.as_str().to_owned())
+        .map_err(|_| CoreDomainRepositoryError::Integrity("combat_health_sheet_identity"))
+}
+
+fn sync_combat_skill_target(
+    sheet_json: &mut Value,
+    skill_name: &str,
+    skill_before: u8,
+    skill_after: u8,
+) -> Result<(), CoreDomainRepositoryError> {
+    let Some(profile) = sheet_json
+        .get_mut("combat_profile")
+        .and_then(Value::as_object_mut)
+    else {
+        return Ok(());
+    };
+    let explicit_sources = profile.get("skill_target_sources").cloned();
+    let targets = profile
+        .get_mut("skill_targets")
+        .and_then(Value::as_object_mut)
+        .ok_or(CoreDomainRepositoryError::Integrity(
+            "combat_skill_targets_missing",
+        ))?;
+    let mut matched_targets = BTreeSet::new();
+    if let Some(explicit_sources) = explicit_sources {
+        let sources = explicit_sources
+            .as_object()
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "combat_skill_target_sources",
+            ))?;
+        for (target_name, source_name) in sources {
+            if !matches!(
+                target_name.as_str(),
+                "melee" | "firearm" | "dodge" | "first_aid" | "medicine"
+            ) || source_name
+                .as_str()
+                .filter(|value| !value.trim().is_empty() && value.len() <= 128)
+                .is_none()
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "combat_skill_target_sources",
+                ));
+            }
+            if source_name.as_str() == Some(skill_name) {
+                matched_targets.insert(target_name.clone());
+            }
+        }
+    } else {
+        let target = match skill_name {
+            "Dodge" => Some("dodge"),
+            "First Aid" => Some("first_aid"),
+            "Medicine" => Some("medicine"),
+            "Melee" | "melee" | "Fighting" => Some("melee"),
+            "Firearm" | "firearm" | "Firearms" => Some("firearm"),
+            value if value.starts_with("Fighting (") && value.ends_with(')') => Some("melee"),
+            value if value.starts_with("Firearms (") && value.ends_with(')') => Some("firearm"),
+            _ => None,
+        };
+        if let Some(target) = target {
+            matched_targets.insert(target.to_owned());
+        }
+    }
+    if !matched_targets.is_empty() && !(1..=100).contains(&skill_after) {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "combat_skill_target_value",
+        ));
+    }
+    for target in matched_targets {
+        targets
+            .get(&target)
+            .and_then(Value::as_u64)
+            .filter(|value| *value == u64::from(skill_before))
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "combat_skill_target_source_missing",
+            ))?;
+        targets.insert(target, Value::from(skill_after));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod combat_sheet_projection_tests {
+    use super::*;
+
+    #[test]
+    fn growth_updates_explicit_and_legacy_combat_skill_bindings() {
+        let mut explicit = serde_json::json!({
+            "skills": {
+                "Fighting (Brawl)": 45,
+                "Dodge": 40
+            },
+            "combat_profile": {
+                "skill_targets": {
+                    "melee": 45,
+                    "firearm": 35,
+                    "dodge": 40,
+                    "first_aid": 30,
+                    "medicine": 10
+                },
+                "skill_target_sources": {
+                    "melee": "Fighting (Brawl)",
+                    "firearm": "Firearms (Handgun)",
+                    "dodge": "Dodge",
+                    "first_aid": "First Aid",
+                    "medicine": "Medicine"
+                }
+            }
+        });
+        sync_combat_skill_target(&mut explicit, "Fighting (Brawl)", 45, 51).unwrap();
+        assert_eq!(
+            explicit.pointer("/combat_profile/skill_targets/melee"),
+            Some(&Value::from(51))
+        );
+
+        let mut legacy = serde_json::json!({
+            "skills": {"Dodge": 40},
+            "combat_profile": {
+                "skill_targets": {
+                    "melee": 45,
+                    "firearm": 35,
+                    "dodge": 40,
+                    "first_aid": 30,
+                    "medicine": 10
+                }
+            }
+        });
+        sync_combat_skill_target(&mut legacy, "Dodge", 40, 44).unwrap();
+        assert_eq!(
+            legacy.pointer("/combat_profile/skill_targets/dodge"),
+            Some(&Value::from(44))
+        );
+    }
+
+    #[test]
+    fn combat_health_change_creates_one_stable_sheet_identity() {
+        let previous = serde_json::json!({
+            "participants": [
+                {"participant_id":"character_evelyn","current_hp":10,"condition":"ABLE"},
+                {"participant_id":"npc_marta","current_hp":8,"condition":"ABLE"}
+            ]
+        });
+        let next = serde_json::json!({
+            "participants": [
+                {"participant_id":"character_evelyn","current_hp":5,"condition":"MAJOR_WOUND"},
+                {"participant_id":"npc_marta","current_hp":8,"condition":"ABLE"}
+            ]
+        });
+        let changes = combat_health_changes(Some(&previous), &next).unwrap();
+        assert_eq!(
+            changes,
+            vec![CombatHealthChange {
+                character_id: "character_evelyn".to_owned(),
+                hp_before: 10,
+                hp_after: 5,
+                condition_before: "ABLE".to_owned(),
+                condition_after: "MAJOR_WOUND".to_owned(),
+            }]
+        );
+        let first =
+            combat_health_sheet_version_id("combat_basement", "character_evelyn", 2).unwrap();
+        assert_eq!(
+            first,
+            combat_health_sheet_version_id("combat_basement", "character_evelyn", 2).unwrap()
+        );
+        assert_ne!(
+            first,
+            combat_health_sheet_version_id("combat_basement", "character_evelyn", 3).unwrap()
+        );
+    }
+}
+
 #[derive(Clone, Debug)]
 struct CanonicalCombatParticipantSnapshot {
     combat_id: String,
@@ -2474,6 +2740,11 @@ fn combat_profile_participant(
             "combat_participant_profile",
         ));
     }
+    // The source binding belongs to the character sheet projection. Combat
+    // snapshots carry only the resolved numeric targets used by the rules
+    // engine, so growth can update the binding without changing the wire
+    // shape of a canonical combat participant.
+    profile.remove("skill_target_sources");
     profile.insert(
         "participant_id".to_owned(),
         Value::String(participant_id.to_owned()),
@@ -3555,6 +3826,7 @@ fn reconstruct_fork_characters(
                 | "CharacterInitialVersionApproved"
                 | "PlayerActionSubmitted"
                 | "SanityLossApplied"
+                | "CombatStateRecorded"
                 | "CharacterGrowthApplied"
                 | "CampaignForkMaterialized"
         ) && (replay.integrity_status != "verified_hmac"
@@ -3731,6 +4003,62 @@ fn reconstruct_fork_characters(
                 character.visibility_label = replay.visibility_label.clone();
                 character.visibility_subject = replay.visibility_subject.clone();
             }
+            "CombatStateRecorded" => {
+                let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+                    .map_err(|_| {
+                        CoreDomainRepositoryError::Integrity("fork_combat_health_payload")
+                    })?;
+                let CoreDomainEvent::CombatStateRecorded {
+                    campaign_id: event_campaign_id,
+                    state_json,
+                    character_health_updates,
+                    ..
+                } = event
+                else {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_combat_health_event",
+                    ));
+                };
+                if event_campaign_id != campaign_id {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_combat_health_campaign",
+                    ));
+                }
+                let participants = combat_participant_values(&state_json)?;
+                for update in character_health_updates {
+                    let participant = participants.get(&update.character_id).ok_or(
+                        CoreDomainRepositoryError::Integrity("fork_combat_health_participant"),
+                    )?;
+                    if participant.get("current_hp").and_then(Value::as_u64)
+                        != Some(u64::from(update.hp_after))
+                        || participant.get("condition").and_then(Value::as_str)
+                            != Some(update.condition_after.as_str())
+                    {
+                        return Err(CoreDomainRepositoryError::Integrity(
+                            "fork_combat_health_participant",
+                        ));
+                    }
+                    let character = characters.get_mut(&update.character_id).ok_or(
+                        CoreDomainRepositoryError::Integrity("fork_combat_health_character_chain"),
+                    )?;
+                    let sheet = character.current_sheet.as_mut().ok_or(
+                        CoreDomainRepositoryError::Integrity("fork_combat_health_sheet_missing"),
+                    )?;
+                    let profile = sheet
+                        .sheet_json
+                        .get_mut("combat_profile")
+                        .and_then(Value::as_object_mut)
+                        .ok_or(CoreDomainRepositoryError::Integrity(
+                            "fork_combat_health_profile",
+                        ))?;
+                    profile.insert("current_hp".to_owned(), Value::from(update.hp_after));
+                    profile.insert(
+                        "condition".to_owned(),
+                        Value::String(update.condition_after),
+                    );
+                    sheet.locked = true;
+                }
+            }
             "CharacterGrowthApplied" => {
                 let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
                     .map_err(|_| CoreDomainRepositoryError::Integrity("fork_growth_payload"))?;
@@ -3766,7 +4094,13 @@ fn reconstruct_fork_characters(
                         "fork_growth_source_mismatch",
                     ));
                 }
-                skill.insert(skill_name, Value::from(skill_after));
+                skill.insert(skill_name.clone(), Value::from(skill_after));
+                sync_combat_skill_target(
+                    &mut sheet.sheet_json,
+                    &skill_name,
+                    skill_before,
+                    skill_after,
+                )?;
                 sheet.locked = true;
                 sheet.visibility_label = replay.visibility_label.clone();
                 sheet.visibility_subject = replay.visibility_subject.clone();
@@ -3964,6 +4298,293 @@ async fn project_gameplay_roll_consumptions(
     Ok(())
 }
 
+async fn apply_combat_health_replay_updates(
+    transaction: &mut Transaction<'_, Postgres>,
+    replay: &CanonicalReplayEvent,
+    combat_id: &str,
+    combat_version: i64,
+    next_state: &Value,
+    changes: Option<&[CombatHealthChange]>,
+    updates: &[CharacterCombatHealthUpdate],
+) -> Result<(), CoreDomainRepositoryError> {
+    let participants = combat_participant_values(
+        &serde_json::to_string(next_state).map_err(|_| CoreDomainRepositoryError::Serialization)?,
+    )?;
+    if updates.len() > 1
+        || updates
+            .iter()
+            .map(|update| update.character_id.as_str())
+            .collect::<BTreeSet<_>>()
+            .len()
+            != updates.len()
+    {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "combat_health_replay_scope",
+        ));
+    }
+    if let Some(changes) = changes {
+        for update in updates {
+            let change = changes
+                .iter()
+                .find(|change| change.character_id == update.character_id)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "combat_health_replay_change",
+                ))?;
+            if update.hp_before != change.hp_before
+                || update.hp_after != change.hp_after
+                || update.condition_before != change.condition_before
+                || update.condition_after != change.condition_after
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "combat_health_replay_change",
+                ));
+            }
+        }
+    }
+    for update in updates {
+        let source_sheet_version = i64::try_from(update.source_sheet_version).map_err(|_| {
+            CoreDomainRepositoryError::Integrity("combat_health_replay_sheet_version")
+        })?;
+        let source_character_version =
+            i64::try_from(update.source_character_version).map_err(|_| {
+                CoreDomainRepositoryError::Integrity("combat_health_replay_character_version")
+            })?;
+        let new_sheet_version =
+            source_sheet_version
+                .checked_add(1)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "combat_health_replay_sheet_version",
+                ))?;
+        if combat_health_sheet_version_id(combat_id, &update.character_id, combat_version)?
+            != update.new_sheet_version_id
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_health_replay_identity",
+            ));
+        }
+        let participant =
+            participants
+                .get(&update.character_id)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "combat_health_replay_participant",
+                ))?;
+        if participant.get("current_hp").and_then(Value::as_u64) != Some(u64::from(update.hp_after))
+            || participant.get("condition").and_then(Value::as_str)
+                != Some(update.condition_after.as_str())
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_health_replay_participant",
+            ));
+        }
+        let targets_match: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                  FROM public.event_store AS event
+                 WHERE event.sequence = $1
+                   AND event.event_type = 'CombatStateRecorded'
+                   AND event.campaign_id = $2
+                   AND event.integrity_status = 'verified_hmac'
+                   AND event.request_hash_source = 'formal_commit'
+                   AND event.event_integrity_hash IS NOT NULL
+                   AND EXISTS (
+                        SELECT 1
+                          FROM jsonb_array_elements(
+                               event.projection_targets
+                          ) AS target
+                         WHERE target ->> 'relation' =
+                               'public.character_sheet_versions'
+                           AND target ->> 'row_id' = $3
+                   )
+                   AND EXISTS (
+                        SELECT 1
+                          FROM jsonb_array_elements(
+                               event.projection_targets
+                          ) AS target
+                         WHERE target ->> 'relation' =
+                               'public.characters'
+                           AND target ->> 'row_id' = $4
+                   )
+            )
+            "#,
+        )
+        .bind(replay.sequence)
+        .bind(&replay.campaign_id)
+        .bind(&update.new_sheet_version_id)
+        .bind(&update.character_id)
+        .fetch_one(&mut **transaction)
+        .await
+        .map_err(database_error("verify_combat_health_replay_targets"))?;
+        if !targets_match {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_health_replay_targets",
+            ));
+        }
+        let source = sqlx::query(
+            r#"
+            SELECT sheet.sheet_version_id, sheet.sheet_json, sheet.locked,
+                   sheet.visibility_label::TEXT AS sheet_visibility_label,
+                   sheet.visibility_subject AS sheet_visibility_subject,
+                   character.current_sheet_version,
+                   character.version AS character_version,
+                   character.visibility_label::TEXT
+                       AS character_visibility_label,
+                   character.visibility_subject
+                       AS character_visibility_subject,
+                   character.last_event_sequence AS character_event_sequence
+              FROM public.character_sheet_versions AS sheet
+              JOIN public.characters AS character
+                ON character.character_id = sheet.character_id
+               AND character.campaign_id = sheet.campaign_id
+             WHERE sheet.character_id = $1
+               AND sheet.campaign_id = $2
+               AND sheet.version = $3
+             FOR UPDATE OF character, sheet
+            "#,
+        )
+        .bind(&update.character_id)
+        .bind(&replay.campaign_id)
+        .bind(source_sheet_version)
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(database_error("load_combat_health_replay_source"))?
+        .ok_or(CoreDomainRepositoryError::Integrity(
+            "combat_health_replay_source_missing",
+        ))?;
+        if !source.get::<bool, _>("locked")
+            || source.get::<String, _>("sheet_visibility_label")
+                != source.get::<String, _>("character_visibility_label")
+            || source.get::<String, _>("sheet_visibility_subject")
+                != source.get::<String, _>("character_visibility_subject")
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_health_replay_source_envelope",
+            ));
+        }
+        let current_sheet_version: i64 = source.get("current_sheet_version");
+        let character_version: i64 = source.get("character_version");
+        let character_event_sequence: i64 = source.get("character_event_sequence");
+        let character_at_source = current_sheet_version == source_sheet_version
+            && character_version == source_character_version
+            && character_event_sequence < replay.sequence;
+        let character_at_event = current_sheet_version == new_sheet_version
+            && character_version == source_character_version + 1
+            && character_event_sequence == replay.sequence;
+        let character_after_event = current_sheet_version >= new_sheet_version
+            && character_version > source_character_version
+            && character_event_sequence > replay.sequence;
+        if !character_at_source && !character_at_event && !character_after_event {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_health_replay_character_position",
+            ));
+        }
+        let mut sheet_json: Value = source.get("sheet_json");
+        let profile = sheet_json
+            .get_mut("combat_profile")
+            .and_then(Value::as_object_mut)
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "combat_health_replay_profile",
+            ))?;
+        profile.insert("current_hp".to_owned(), Value::from(update.hp_after));
+        profile.insert(
+            "condition".to_owned(),
+            Value::String(update.condition_after.clone()),
+        );
+        sqlx::query(
+            r#"
+            INSERT INTO public.character_sheet_versions (
+                sheet_version_id, character_id, version, sheet_json, locked,
+                visibility_label, visibility_subject,
+                provenance_kind, provenance_reference, provenance_recorded_by,
+                campaign_id, last_event_sequence
+            ) VALUES (
+                $1, $2, $3, $4, TRUE, $5, $6, $7, $8, $9, $10, $11
+            )
+            ON CONFLICT (sheet_version_id) DO NOTHING
+            "#,
+        )
+        .bind(&update.new_sheet_version_id)
+        .bind(&update.character_id)
+        .bind(new_sheet_version)
+        .bind(sqlx::types::Json(&sheet_json))
+        .bind(source.get::<String, _>("sheet_visibility_label"))
+        .bind(source.get::<String, _>("sheet_visibility_subject"))
+        .bind(&replay.provenance_kind)
+        .bind(&replay.provenance_reference)
+        .bind(&replay.provenance_recorded_by)
+        .bind(&replay.campaign_id)
+        .bind(replay.sequence)
+        .execute(&mut **transaction)
+        .await
+        .map_err(database_error("replay_combat_health_sheet"))?;
+        if character_at_source {
+            let advanced = sqlx::query(
+                r#"
+                UPDATE public.characters
+                   SET current_sheet_version = $1,
+                       version = $2,
+                       provenance_kind = $3,
+                       provenance_reference = $4,
+                       provenance_recorded_by = $5,
+                       last_event_sequence = $6
+                 WHERE character_id = $7
+                   AND campaign_id = $8
+                   AND current_sheet_version = $9
+                   AND version = $10
+                "#,
+            )
+            .bind(new_sheet_version)
+            .bind(source_character_version + 1)
+            .bind(&replay.provenance_kind)
+            .bind(&replay.provenance_reference)
+            .bind(&replay.provenance_recorded_by)
+            .bind(replay.sequence)
+            .bind(&update.character_id)
+            .bind(&replay.campaign_id)
+            .bind(source_sheet_version)
+            .bind(source_character_version)
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error("replay_combat_health_character"))?;
+            if advanced.rows_affected() != 1 {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "combat_health_replay_character_conflict",
+                ));
+            }
+        }
+        let matches: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                  FROM public.character_sheet_versions
+                 WHERE sheet_version_id = $1
+                   AND character_id = $2
+                   AND version = $3
+                   AND sheet_json = $4
+                   AND locked
+                   AND campaign_id = $5
+                   AND last_event_sequence = $6
+            )
+            "#,
+        )
+        .bind(&update.new_sheet_version_id)
+        .bind(&update.character_id)
+        .bind(new_sheet_version)
+        .bind(sqlx::types::Json(&sheet_json))
+        .bind(&replay.campaign_id)
+        .bind(replay.sequence)
+        .fetch_one(&mut **transaction)
+        .await
+        .map_err(database_error("verify_replayed_combat_health_sheet"))?;
+        if !matches {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_health_replay_projection_mismatch",
+            ));
+        }
+    }
+    Ok(())
+}
+
 async fn apply_combat_replay_event(
     transaction: &mut Transaction<'_, Postgres>,
     replay: &CanonicalReplayEvent,
@@ -3978,6 +4599,7 @@ async fn apply_combat_replay_event(
         turn_index,
         version,
         state_json,
+        character_health_updates,
         ..
     } = event
     else {
@@ -4036,6 +4658,27 @@ async fn apply_combat_replay_event(
             "combat_replay_sequence_gap",
         ));
     }
+    let replay_health_changes = if current
+        .as_ref()
+        .is_some_and(|(current_version, _)| *current_version == version - 1)
+    {
+        Some(combat_health_changes(
+            current.as_ref().map(|(_, value)| value),
+            &state_value,
+        )?)
+    } else {
+        None
+    };
+    Box::pin(apply_combat_health_replay_updates(
+        transaction,
+        replay,
+        combat_id,
+        version,
+        &state_value,
+        replay_health_changes.as_deref(),
+        character_health_updates,
+    ))
+    .await?;
     if current.as_ref().map(|(current, _)| *current) != Some(version) {
         let previous_json = current
             .as_ref()
@@ -4875,10 +5518,13 @@ async fn apply_growth_replay_event(
                        AND event.integrity_status = 'verified_hmac'
                        AND event.request_hash_source = 'formal_commit'
                        AND event.event_integrity_hash IS NOT NULL
-                       AND event.visibility_label =
-                           character.visibility_label::TEXT
-                       AND event.visibility_subject =
-                           character.visibility_subject
+                       AND (
+                            event.event_type = 'CombatStateRecorded'
+                            OR event.visibility_label =
+                               character.visibility_label::TEXT
+                               AND event.visibility_subject =
+                                   character.visibility_subject
+                       )
                        AND event.fact_provenance_kind =
                            character.provenance_kind::TEXT
                        AND event.fact_provenance_reference =
@@ -4929,6 +5575,7 @@ async fn apply_growth_replay_event(
                 "growth_replay_skills_missing",
             ))?
             .insert(skill_name.to_owned(), Value::from(skill_after));
+        sync_combat_skill_target(&mut sheet_json, skill_name, skill_before, skill_after)?;
         sqlx::query(
             r#"
             INSERT INTO public.character_sheet_versions (
@@ -5733,10 +6380,15 @@ async fn apply_campaign_fork_replay_event(
                                        'formal_commit'
                                    AND character_event.event_integrity_hash
                                        IS NOT NULL
-                                   AND character_event.visibility_label =
-                                       character.visibility_label::TEXT
-                                   AND character_event.visibility_subject =
-                                       character.visibility_subject
+                                   AND (
+                                        character_event.event_type =
+                                            'CombatStateRecorded'
+                                        OR character_event.visibility_label =
+                                           character.visibility_label::TEXT
+                                           AND character_event
+                                               .visibility_subject =
+                                               character.visibility_subject
+                                   )
                                    AND character_event.fact_provenance_kind =
                                        character.provenance_kind::TEXT
                                    AND character_event.fact_provenance_reference =
@@ -5876,10 +6528,18 @@ async fn apply_campaign_fork_replay_event(
                                        'formal_commit'
                                    AND current_sheet_event.event_integrity_hash
                                        IS NOT NULL
-                                   AND current_sheet_event.visibility_label =
-                                       current_sheet.visibility_label::TEXT
-                                   AND current_sheet_event.visibility_subject =
-                                       current_sheet.visibility_subject
+                                   AND (
+                                        current_sheet_event.event_type =
+                                            'CombatStateRecorded'
+                                        OR current_sheet_event
+                                               .visibility_label =
+                                           current_sheet
+                                               .visibility_label::TEXT
+                                           AND current_sheet_event
+                                               .visibility_subject =
+                                               current_sheet
+                                                   .visibility_subject
+                                   )
                                    AND current_sheet_event.fact_provenance_kind =
                                        current_sheet.provenance_kind::TEXT
                                    AND current_sheet_event
@@ -7633,13 +8293,13 @@ impl CoreDomainRepository {
         Ok(events)
     }
 
-    async fn load_idempotent_core_event(
+    async fn load_idempotent_core_event_record(
         &self,
         campaign_id: &str,
         stream_id: &str,
         metadata: &CoreCommandMetadata,
         expected_event_type: &str,
-    ) -> Result<Option<CoreDomainEvent>, CoreDomainRepositoryError> {
+    ) -> Result<Option<(i64, CoreDomainEvent)>, CoreDomainRepositoryError> {
         let mut matched = None;
         for replay in self.load_campaign_events(campaign_id).await? {
             if replay.stream_id != stream_id
@@ -7656,12 +8316,73 @@ impl CoreDomainRepository {
                     "idempotent_event_binding_conflict",
                 ));
             }
-            matched =
-                Some(serde_json::from_value(replay.payload).map_err(|_| {
+            matched = Some((
+                replay.sequence,
+                serde_json::from_value(replay.payload).map_err(|_| {
                     CoreDomainRepositoryError::Integrity("idempotent_event_payload")
-                })?);
+                })?,
+            ));
         }
         Ok(matched)
+    }
+
+    async fn load_idempotent_core_event(
+        &self,
+        campaign_id: &str,
+        stream_id: &str,
+        metadata: &CoreCommandMetadata,
+        expected_event_type: &str,
+    ) -> Result<Option<CoreDomainEvent>, CoreDomainRepositoryError> {
+        Ok(self
+            .load_idempotent_core_event_record(
+                campaign_id,
+                stream_id,
+                metadata,
+                expected_event_type,
+            )
+            .await?
+            .map(|(_, event)| event))
+    }
+
+    async fn load_gameplay_retry_projection_targets(
+        &self,
+        event_sequence: i64,
+    ) -> Result<Vec<CanonicalProjectionTarget>, CoreDomainRepositoryError> {
+        let stored: Value = sqlx::query_scalar(
+            "SELECT projection_targets FROM public.event_store WHERE sequence = $1",
+        )
+        .bind(event_sequence)
+        .fetch_optional(&self.primary)
+        .await
+        .map_err(database_error("load_gameplay_retry_projection_targets"))?
+        .ok_or(CoreDomainRepositoryError::Integrity(
+            "gameplay_retry_event_missing",
+        ))?;
+        let targets = stored
+            .as_array()
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "gameplay_retry_projection_targets",
+            ))?;
+        let mut parsed = Vec::new();
+        let mut unique = BTreeSet::new();
+        for target in targets {
+            let relation = target.get("relation").and_then(Value::as_str).ok_or(
+                CoreDomainRepositoryError::Integrity("gameplay_retry_projection_targets"),
+            )?;
+            let row_id = target.get("row_id").and_then(Value::as_str).ok_or(
+                CoreDomainRepositoryError::Integrity("gameplay_retry_projection_targets"),
+            )?;
+            if relation == "core_domain.gameplay_roll_reservation" {
+                continue;
+            }
+            if !unique.insert((relation.to_owned(), row_id.to_owned())) {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "gameplay_retry_projection_targets",
+                ));
+            }
+            parsed.push(projection_target(relation, row_id));
+        }
+        Ok(parsed)
     }
 
     pub async fn accept_invite(
@@ -9170,30 +9891,36 @@ impl CoreDomainRepository {
             .last()
             .map(|event| event.sequence)
             .unwrap_or(0);
-        let mut growth_character_ids = BTreeSet::<String>::new();
+        let mut sheet_projected_character_ids = BTreeSet::<String>::new();
         for replay in &replay_events {
-            if replay.event_type != "CharacterGrowthApplied" {
-                continue;
-            }
             let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
-                .map_err(|_| CoreDomainRepositoryError::Integrity("p08_growth_replay_payload"))?;
+                .map_err(|_| CoreDomainRepositoryError::Integrity("p08_sheet_replay_payload"))?;
             event.validate_schema_version()?;
-            let CoreDomainEvent::CharacterGrowthApplied {
-                campaign_id: event_campaign_id,
-                character_id,
-                ..
-            } = event
-            else {
-                return Err(CoreDomainRepositoryError::Integrity(
-                    "p08_growth_replay_event_type",
-                ));
+            let (event_campaign_id, character_ids) = match event {
+                CoreDomainEvent::CharacterGrowthApplied {
+                    campaign_id,
+                    character_id,
+                    ..
+                } => (campaign_id, vec![character_id]),
+                CoreDomainEvent::CombatStateRecorded {
+                    campaign_id,
+                    character_health_updates,
+                    ..
+                } => (
+                    campaign_id,
+                    character_health_updates
+                        .into_iter()
+                        .map(|update| update.character_id)
+                        .collect(),
+                ),
+                _ => continue,
             };
             if event_campaign_id != campaign_id {
                 return Err(CoreDomainRepositoryError::Integrity(
-                    "p08_growth_replay_campaign",
+                    "p08_sheet_replay_campaign",
                 ));
             }
-            growth_character_ids.insert(character_id);
+            sheet_projected_character_ids.extend(character_ids);
         }
         sqlx::query("SET CONSTRAINTS ALL DEFERRED")
             .execute(&mut *transaction)
@@ -9228,10 +9955,16 @@ impl CoreDomainRepository {
             .await?;
             sqlx::query("SELECT core_domain.clear_p08_rebuildable_projections($1, $2)")
                 .bind(campaign_id)
-                .bind(authorizing_commit_id)
+                .bind(&authorizing_commit_id)
                 .execute(&mut *transaction)
                 .await
                 .map_err(database_error("clear_p08_rebuildable_projections"))?;
+            sqlx::query("SELECT core_domain.clear_combat_health_sheet_projections($1, $2)")
+                .bind(campaign_id)
+                .bind(authorizing_commit_id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error("clear_combat_health_sheet_projections"))?;
         } else {
             let authorizing_commit_id: String = sqlx::query_scalar(
                 r#"
@@ -9293,7 +10026,7 @@ impl CoreDomainRepository {
             .await?;
             apply_p08_replay_event(&mut transaction, replay_event).await?;
         }
-        for character_id in &growth_character_ids {
+        for character_id in &sheet_projected_character_ids {
             let character_matches_canonical_tip: bool = sqlx::query_scalar(
                 r#"
                 SELECT EXISTS(
@@ -9314,10 +10047,14 @@ impl CoreDomainRepository {
                        AND current_event.integrity_status = 'verified_hmac'
                        AND current_event.request_hash_source = 'formal_commit'
                        AND current_event.event_integrity_hash IS NOT NULL
-                       AND current_event.visibility_label =
-                           character.visibility_label::TEXT
-                       AND current_event.visibility_subject =
-                           character.visibility_subject
+                       AND (
+                            current_event.event_type =
+                                'CombatStateRecorded'
+                            OR current_event.visibility_label =
+                               character.visibility_label::TEXT
+                               AND current_event.visibility_subject =
+                                   character.visibility_subject
+                       )
                        AND current_event.fact_provenance_kind =
                            character.provenance_kind::TEXT
                        AND current_event.fact_provenance_reference =
@@ -11360,6 +12097,14 @@ impl CoreDomainRepository {
         metadata: &CoreCommandMetadata,
         request: &RecordCombatStateRequest,
     ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
+        Box::pin(self.record_combat_state_inner(metadata, request)).await
+    }
+
+    async fn record_combat_state_inner(
+        &self,
+        metadata: &CoreCommandMetadata,
+        request: &RecordCombatStateRequest,
+    ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
         let next_version = metadata
             .expected_version
             .checked_add(1)
@@ -11400,7 +12145,7 @@ impl CoreDomainRepository {
             .execute(&mut *transaction)
             .await
             .map_err(database_error("lock_combat_state"))?;
-        let event = CoreDomainEvent::CombatStateRecorded {
+        let mut event = CoreDomainEvent::CombatStateRecorded {
             schema_version: CORE_EVENT_SCHEMA_VERSION,
             combat_id: combat_id.clone(),
             campaign_id: request.campaign_id.clone(),
@@ -11413,6 +12158,40 @@ impl CoreDomainRepository {
             version: u64::try_from(next_version)
                 .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_version"))?,
             state_json: request.state_json.clone(),
+            character_health_updates: Vec::new(),
+        };
+        let canonical_retry = if let Some((sequence, existing_event)) = self
+            .load_idempotent_core_event_record(
+                &request.campaign_id,
+                &combat_id,
+                metadata,
+                "CombatStateRecorded",
+            )
+            .await?
+        {
+            let mut request_shape = existing_event.clone();
+            let CoreDomainEvent::CombatStateRecorded {
+                character_health_updates,
+                ..
+            } = &mut request_shape
+            else {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "idempotent_combat_event_type",
+                ));
+            };
+            character_health_updates.clear();
+            if request_shape != event {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "idempotent_combat_request_conflict",
+                ));
+            }
+            Some((
+                existing_event,
+                self.load_gameplay_retry_projection_targets(sequence)
+                    .await?,
+            ))
+        } else {
+            None
         };
         let existing = sqlx::query(
             r#"
@@ -11439,34 +12218,20 @@ impl CoreDomainRepository {
                 .projection_matches_command(event_sequence, metadata)
                 .await?
             {
-                let existing_event = self
-                    .load_idempotent_core_event(
-                        &request.campaign_id,
-                        &combat_id,
-                        metadata,
-                        "CombatStateRecorded",
-                    )
-                    .await?
-                    .ok_or(CoreDomainRepositoryError::Integrity(
-                        "idempotent_combat_event_missing",
-                    ))?;
-                if existing_event != event {
-                    return Err(CoreDomainRepositoryError::Integrity(
-                        "idempotent_combat_request_conflict",
-                    ));
-                }
+                let (existing_event, projection_targets) =
+                    canonical_retry
+                        .as_ref()
+                        .ok_or(CoreDomainRepositoryError::Integrity(
+                            "idempotent_combat_event_missing",
+                        ))?;
                 return self
                     .commit_gameplay_event(
                         metadata,
                         &request.campaign_id,
                         &combat_id,
                         ("combat_state", "combat.state.record"),
-                        &existing_event,
-                        gameplay_state_projection_targets(
-                            "public.combat_states",
-                            &combat_id,
-                            !roll_consumptions.is_empty(),
-                        ),
+                        existing_event,
+                        projection_targets.clone(),
                         "COMBAT",
                         &roll_consumptions,
                     )
@@ -11481,12 +12246,14 @@ impl CoreDomainRepository {
         } else {
             None
         };
-        self.lock_active_gameplay_session(
-            &mut transaction,
-            &request.campaign_id,
-            &request.session_id,
-        )
-        .await?;
+        if canonical_retry.is_none() {
+            self.lock_active_gameplay_session(
+                &mut transaction,
+                &request.campaign_id,
+                &request.session_id,
+            )
+            .await?;
+        }
         if metadata.expected_version == 0 {
             self.validate_initial_combat_participants(
                 &mut transaction,
@@ -11515,6 +12282,73 @@ impl CoreDomainRepository {
                 "combat_state_validation_mismatch",
             ));
         }
+        let next_state: Value = serde_json::from_str(&request.state_json)
+            .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_state"))?;
+        let changes = combat_health_changes(previous_state.as_ref(), &next_state)?;
+        let canonical_updates = canonical_retry.as_ref().map(|(event, _)| {
+            let CoreDomainEvent::CombatStateRecorded {
+                character_health_updates,
+                ..
+            } = event
+            else {
+                unreachable!("canonical retry type was checked above");
+            };
+            character_health_updates.as_slice()
+        });
+        let health_projections = Box::pin(self.prepare_combat_health_projections(
+            &mut transaction,
+            &request.campaign_id,
+            &combat_id,
+            next_version,
+            &changes,
+            canonical_updates,
+        ))
+        .await?;
+        let mut new_projection_targets = gameplay_state_projection_targets(
+            "public.combat_states",
+            &combat_id,
+            !roll_consumptions.is_empty(),
+        );
+        for projection in &health_projections {
+            new_projection_targets.push(projection_target(
+                "public.character_sheet_versions",
+                &projection.update.new_sheet_version_id,
+            ));
+            new_projection_targets.push(projection_target(
+                "public.characters",
+                &projection.update.character_id,
+            ));
+        }
+        let projection_targets = if let Some((existing_event, existing_targets)) = canonical_retry {
+            let expected = new_projection_targets
+                .iter()
+                .map(|target| (target.relation.as_str(), target.row_id.as_str()))
+                .collect::<BTreeSet<_>>();
+            let canonical = existing_targets
+                .iter()
+                .map(|target| (target.relation.as_str(), target.row_id.as_str()))
+                .collect::<BTreeSet<_>>();
+            if expected != canonical || expected.len() != new_projection_targets.len() {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "combat_health_projection_target_mismatch",
+                ));
+            }
+            event = existing_event;
+            existing_targets
+        } else {
+            let CoreDomainEvent::CombatStateRecorded {
+                character_health_updates,
+                ..
+            } = &mut event
+            else {
+                unreachable!("new event is a CombatStateRecorded");
+            };
+            *character_health_updates = health_projections
+                .iter()
+                .map(|projection| projection.update.clone())
+                .collect();
+            new_projection_targets
+        };
         self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions, metadata)
             .await?;
         let persisted = self
@@ -11524,11 +12358,7 @@ impl CoreDomainRepository {
                 &combat_id,
                 ("combat_state", "combat.state.record"),
                 &event,
-                gameplay_state_projection_targets(
-                    "public.combat_states",
-                    &combat_id,
-                    !roll_consumptions.is_empty(),
-                ),
+                projection_targets,
                 "COMBAT",
                 &roll_consumptions,
             )
@@ -11546,6 +12376,14 @@ impl CoreDomainRepository {
             &metadata.provenance_recorded_by,
             persisted.last_event_sequence,
         )
+        .await?;
+        Box::pin(Self::project_combat_health_projections(
+            &mut transaction,
+            &request.campaign_id,
+            metadata,
+            persisted.last_event_sequence,
+            &health_projections,
+        ))
         .await?;
         let result = sqlx::query(
             r#"
@@ -11612,6 +12450,14 @@ impl CoreDomainRepository {
         metadata: &CoreCommandMetadata,
         request: &RecordChaseStateRequest,
     ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
+        Box::pin(self.record_chase_state_inner(metadata, request)).await
+    }
+
+    async fn record_chase_state_inner(
+        &self,
+        metadata: &CoreCommandMetadata,
+        request: &RecordChaseStateRequest,
+    ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
         let next_version = metadata
             .expected_version
             .checked_add(1)
@@ -11659,6 +12505,28 @@ impl CoreDomainRepository {
                 .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_version"))?,
             state_json: request.state_json.clone(),
         };
+        let canonical_retry = if let Some((sequence, existing_event)) = self
+            .load_idempotent_core_event_record(
+                &request.campaign_id,
+                &chase_id,
+                metadata,
+                "ChaseStateRecorded",
+            )
+            .await?
+        {
+            if existing_event != event {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "idempotent_chase_request_conflict",
+                ));
+            }
+            Some((
+                existing_event,
+                self.load_gameplay_retry_projection_targets(sequence)
+                    .await?,
+            ))
+        } else {
+            None
+        };
         let existing = sqlx::query(
             r#"
             SELECT campaign_id, session_id, state_json, version,
@@ -11684,34 +12552,20 @@ impl CoreDomainRepository {
                 .projection_matches_command(event_sequence, metadata)
                 .await?
             {
-                let existing_event = self
-                    .load_idempotent_core_event(
-                        &request.campaign_id,
-                        &chase_id,
-                        metadata,
-                        "ChaseStateRecorded",
-                    )
-                    .await?
-                    .ok_or(CoreDomainRepositoryError::Integrity(
-                        "idempotent_chase_event_missing",
-                    ))?;
-                if existing_event != event {
-                    return Err(CoreDomainRepositoryError::Integrity(
-                        "idempotent_chase_request_conflict",
-                    ));
-                }
+                let (existing_event, projection_targets) =
+                    canonical_retry
+                        .as_ref()
+                        .ok_or(CoreDomainRepositoryError::Integrity(
+                            "idempotent_chase_event_missing",
+                        ))?;
                 return self
                     .commit_gameplay_event(
                         metadata,
                         &request.campaign_id,
                         &chase_id,
                         ("chase_state", "chase.state.record"),
-                        &existing_event,
-                        gameplay_state_projection_targets(
-                            "public.chase_states",
-                            &chase_id,
-                            !roll_consumptions.is_empty(),
-                        ),
+                        existing_event,
+                        projection_targets.clone(),
                         "CHASE",
                         &roll_consumptions,
                     )
@@ -11726,12 +12580,14 @@ impl CoreDomainRepository {
         } else {
             None
         };
-        self.lock_active_gameplay_session(
-            &mut transaction,
-            &request.campaign_id,
-            &request.session_id,
-        )
-        .await?;
+        if canonical_retry.is_none() {
+            self.lock_active_gameplay_session(
+                &mut transaction,
+                &request.campaign_id,
+                &request.session_id,
+            )
+            .await?;
+        }
         if metadata.expected_version == 0 {
             self.validate_initial_chase_participants(
                 &mut transaction,
@@ -11760,6 +12616,15 @@ impl CoreDomainRepository {
                 "chase_state_validation_mismatch",
             ));
         }
+        let projection_targets = canonical_retry
+            .map(|(_, projection_targets)| projection_targets)
+            .unwrap_or_else(|| {
+                gameplay_state_projection_targets(
+                    "public.chase_states",
+                    &chase_id,
+                    !roll_consumptions.is_empty(),
+                )
+            });
         self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions, metadata)
             .await?;
         let persisted = self
@@ -11769,11 +12634,7 @@ impl CoreDomainRepository {
                 &chase_id,
                 ("chase_state", "chase.state.record"),
                 &event,
-                gameplay_state_projection_targets(
-                    "public.chase_states",
-                    &chase_id,
-                    !roll_consumptions.is_empty(),
-                ),
+                projection_targets,
                 "CHASE",
                 &roll_consumptions,
             )
@@ -12379,6 +13240,12 @@ impl CoreDomainRepository {
                 request.skill_name.trim().to_owned(),
                 Value::from(skill_after),
             );
+        sync_combat_skill_target(
+            &mut sheet_json,
+            request.skill_name.trim(),
+            skill_before,
+            skill_after,
+        )?;
         let new_sheet_version =
             source_version
                 .checked_add(1)
@@ -12561,6 +13428,323 @@ impl CoreDomainRepository {
             .await
             .map_err(database_error("commit_growth"))?;
         Ok(persisted)
+    }
+
+    async fn prepare_combat_health_projections(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        campaign_id: &str,
+        combat_id: &str,
+        combat_version: i64,
+        changes: &[CombatHealthChange],
+        expected_updates: Option<&[CharacterCombatHealthUpdate]>,
+    ) -> Result<Vec<PreparedCombatHealthProjection>, CoreDomainRepositoryError> {
+        if expected_updates.is_some_and(|updates| updates.is_empty()) {
+            return Ok(Vec::new());
+        }
+        let mut prepared = Vec::new();
+        for change in changes {
+            let expected = expected_updates.and_then(|updates| {
+                updates
+                    .iter()
+                    .find(|update| update.character_id == change.character_id)
+            });
+            let row = if let Some(expected) = expected {
+                let source_sheet_version =
+                    i64::try_from(expected.source_sheet_version).map_err(|_| {
+                        CoreDomainRepositoryError::Integrity("combat_health_source_sheet_version")
+                    })?;
+                sqlx::query(
+                    r#"
+                    SELECT character.version AS character_version,
+                           character.current_sheet_version,
+                           character.visibility_label::TEXT
+                               AS character_visibility_label,
+                           character.visibility_subject
+                               AS character_visibility_subject,
+                           sheet.sheet_version_id,
+                           sheet.version AS sheet_version,
+                           sheet.sheet_json,
+                           sheet.locked,
+                           sheet.visibility_label::TEXT
+                               AS sheet_visibility_label,
+                           sheet.visibility_subject AS sheet_visibility_subject
+                      FROM public.characters AS character
+                      JOIN public.character_sheet_versions AS sheet
+                        ON sheet.character_id = character.character_id
+                       AND sheet.version = $1
+                       AND sheet.campaign_id = character.campaign_id
+                     WHERE character.character_id = $2
+                       AND character.campaign_id = $3
+                     FOR UPDATE OF character, sheet
+                    "#,
+                )
+                .bind(source_sheet_version)
+                .bind(&change.character_id)
+                .bind(campaign_id)
+                .fetch_optional(&mut **transaction)
+                .await
+                .map_err(database_error("load_combat_health_retry_source"))?
+            } else {
+                sqlx::query(
+                    r#"
+                    SELECT character.version AS character_version,
+                           character.current_sheet_version,
+                           character.visibility_label::TEXT
+                               AS character_visibility_label,
+                           character.visibility_subject
+                               AS character_visibility_subject,
+                           sheet.sheet_version_id,
+                           sheet.version AS sheet_version,
+                           sheet.sheet_json,
+                           sheet.locked,
+                           sheet.visibility_label::TEXT
+                               AS sheet_visibility_label,
+                           sheet.visibility_subject AS sheet_visibility_subject
+                      FROM public.characters AS character
+                      JOIN public.character_sheet_versions AS sheet
+                        ON sheet.character_id = character.character_id
+                       AND sheet.version = character.current_sheet_version
+                       AND sheet.campaign_id = character.campaign_id
+                     WHERE character.character_id = $1
+                       AND character.campaign_id = $2
+                     FOR UPDATE OF character, sheet
+                    "#,
+                )
+                .bind(&change.character_id)
+                .bind(campaign_id)
+                .fetch_optional(&mut **transaction)
+                .await
+                .map_err(database_error("load_combat_health_source"))?
+            };
+            let Some(row) = row else {
+                if expected.is_some() {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "combat_health_retry_source_missing",
+                    ));
+                }
+                // Scenario NPC health remains in the Combat aggregate. Only
+                // persisted Character participants own sheet projections.
+                continue;
+            };
+            let source_sheet_version: i64 = row.get("sheet_version");
+            let source_character_version: i64 = row.get("character_version");
+            let current_sheet_version: i64 = row.get("current_sheet_version");
+            let source_sheet_version_id: String = row.get("sheet_version_id");
+            if !row.get::<bool, _>("locked")
+                || row.get::<String, _>("character_visibility_label")
+                    != row.get::<String, _>("sheet_visibility_label")
+                || row.get::<String, _>("character_visibility_subject")
+                    != row.get::<String, _>("sheet_visibility_subject")
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "combat_health_source_envelope",
+                ));
+            }
+            let new_sheet_version =
+                source_sheet_version
+                    .checked_add(1)
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "combat_health_sheet_version",
+                    ))?;
+            let new_sheet_version_id =
+                combat_health_sheet_version_id(combat_id, &change.character_id, combat_version)?;
+            let update = CharacterCombatHealthUpdate {
+                character_id: change.character_id.clone(),
+                new_sheet_version_id,
+                source_sheet_version: u64::try_from(source_sheet_version).map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("combat_health_source_sheet_version")
+                })?,
+                source_character_version: u64::try_from(source_character_version).map_err(
+                    |_| {
+                        CoreDomainRepositoryError::Integrity(
+                            "combat_health_source_character_version",
+                        )
+                    },
+                )?,
+                hp_before: change.hp_before,
+                hp_after: change.hp_after,
+                condition_before: change.condition_before.clone(),
+                condition_after: change.condition_after.clone(),
+            };
+            if let Some(expected) = expected {
+                if expected != &update
+                    || current_sheet_version < source_sheet_version
+                    || source_character_version
+                        < i64::try_from(expected.source_character_version).map_err(|_| {
+                            CoreDomainRepositoryError::Integrity(
+                                "combat_health_source_character_version",
+                            )
+                        })?
+                {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "combat_health_retry_update_mismatch",
+                    ));
+                }
+            } else {
+                if current_sheet_version != source_sheet_version {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "combat_health_source_not_current",
+                    ));
+                }
+                let identity_conflict: bool = sqlx::query_scalar(
+                    r#"
+                    SELECT EXISTS(
+                        SELECT 1
+                          FROM public.character_sheet_versions
+                         WHERE sheet_version_id = $1
+                            OR character_id = $2 AND version = $3
+                    )
+                    "#,
+                )
+                .bind(&update.new_sheet_version_id)
+                .bind(&change.character_id)
+                .bind(new_sheet_version)
+                .fetch_one(&mut **transaction)
+                .await
+                .map_err(database_error("check_combat_health_sheet_identity"))?;
+                if identity_conflict {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "combat_health_sheet_identity_conflict",
+                    ));
+                }
+            }
+            let mut sheet_json: Value = row.get("sheet_json");
+            let profile = sheet_json
+                .get_mut("combat_profile")
+                .and_then(Value::as_object_mut)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "combat_health_profile_missing",
+                ))?;
+            if profile
+                .get("max_hp")
+                .and_then(Value::as_u64)
+                .is_none_or(|max_hp| u64::from(change.hp_after) > max_hp)
+                || profile.get("current_hp").and_then(Value::as_u64).is_none()
+                || profile.get("condition").and_then(Value::as_str).is_none()
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "combat_health_profile_shape",
+                ));
+            }
+            profile.insert("current_hp".to_owned(), Value::from(change.hp_after));
+            profile.insert(
+                "condition".to_owned(),
+                Value::String(change.condition_after.clone()),
+            );
+            prepared.push(PreparedCombatHealthProjection {
+                update,
+                source_sheet_version_id,
+                sheet_json,
+                visibility_label: row.get("sheet_visibility_label"),
+                visibility_subject: row.get("sheet_visibility_subject"),
+            });
+        }
+        if expected_updates.is_some_and(|updates| updates.len() != prepared.len()) {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_health_retry_update_mismatch",
+            ));
+        }
+        Ok(prepared)
+    }
+
+    async fn project_combat_health_projections(
+        transaction: &mut Transaction<'_, Postgres>,
+        campaign_id: &str,
+        metadata: &CoreCommandMetadata,
+        event_sequence: i64,
+        prepared: &[PreparedCombatHealthProjection],
+    ) -> Result<(), CoreDomainRepositoryError> {
+        for projection in prepared {
+            let source_sheet_version = i64::try_from(projection.update.source_sheet_version)
+                .map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("combat_health_source_sheet_version")
+                })?;
+            let source_character_version =
+                i64::try_from(projection.update.source_character_version).map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("combat_health_source_character_version")
+                })?;
+            let new_sheet_version =
+                source_sheet_version
+                    .checked_add(1)
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "combat_health_sheet_version",
+                    ))?;
+            let inserted = sqlx::query(
+                r#"
+                INSERT INTO public.character_sheet_versions (
+                    sheet_version_id, character_id, version, sheet_json, locked,
+                    visibility_label, visibility_subject,
+                    provenance_kind, provenance_reference,
+                    provenance_recorded_by, campaign_id, last_event_sequence
+                ) VALUES (
+                    $1, $2, $3, $4, TRUE, $5, $6, $7, $8, $9, $10, $11
+                )
+                ON CONFLICT (sheet_version_id) DO NOTHING
+                "#,
+            )
+            .bind(&projection.update.new_sheet_version_id)
+            .bind(&projection.update.character_id)
+            .bind(new_sheet_version)
+            .bind(sqlx::types::Json(&projection.sheet_json))
+            .bind(&projection.visibility_label)
+            .bind(&projection.visibility_subject)
+            .bind(&metadata.provenance_kind)
+            .bind(&metadata.provenance_reference)
+            .bind(&metadata.provenance_recorded_by)
+            .bind(campaign_id)
+            .bind(event_sequence)
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error("project_combat_health_sheet"))?;
+            if inserted.rows_affected() != 1 {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "combat_health_sheet_identity_conflict",
+                ));
+            }
+            let advanced = sqlx::query(
+                r#"
+                UPDATE public.characters
+                   SET current_sheet_version = $1,
+                       version = $2,
+                       provenance_kind = $3,
+                       provenance_reference = $4,
+                       provenance_recorded_by = $5,
+                       last_event_sequence = $6
+                 WHERE character_id = $7
+                   AND campaign_id = $8
+                   AND current_sheet_version = $9
+                   AND version = $10
+                   AND EXISTS (
+                        SELECT 1
+                          FROM public.character_sheet_versions AS source
+                         WHERE source.sheet_version_id = $11
+                           AND source.character_id = $7
+                           AND source.version = $9
+                   )
+                "#,
+            )
+            .bind(new_sheet_version)
+            .bind(source_character_version + 1)
+            .bind(&metadata.provenance_kind)
+            .bind(&metadata.provenance_reference)
+            .bind(&metadata.provenance_recorded_by)
+            .bind(event_sequence)
+            .bind(&projection.update.character_id)
+            .bind(campaign_id)
+            .bind(source_sheet_version)
+            .bind(source_character_version)
+            .bind(&projection.source_sheet_version_id)
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error("project_combat_health_character"))?;
+            if advanced.rows_affected() != 1 {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "combat_health_character_projection_conflict",
+                ));
+            }
+        }
+        Ok(())
     }
 
     async fn lock_p08_projection_rebuild_scope(

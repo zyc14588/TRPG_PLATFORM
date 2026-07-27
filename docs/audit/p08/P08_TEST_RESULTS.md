@@ -172,6 +172,22 @@ P2：Runtime Growth 接受相同的 source/new Sheet ID，Conclusion 可先完�
 该错误。专属 Growth `3/3`，runtime 非数据库测试 61 项、workspace check 与严格
 Clippy 通过。
 
+修复提交 `fc252683847f1eeb356e554da1e566cd05dd395b` 的 Hosted CI `5/5` 全部通过。
+第三十一轮精确 SHA review `4790867860` 确认第三十轮问题未重复，并新增三个问题：
+Combat health/condition 没有推进 Character Sheet；terminal Combat/Chase 正史已
+提交但状态投影失败时，Session 结束后 ACTIVE gate 会阻止 exact retry；Growth 顶层
+skill 更新没有同步 `combat_profile.skill_targets`。
+
+当前修复把 Character health delta、来源版本与确定性新 Sheet ID 放入
+`CombatStateRecorded`，live projection 创建保持原 private Visibility 的 locked
+Sheet version 并推进 Character，删除后 replay、fork reconstruction 和 P08 rebuild
+均能重建。Combat/Chase 只对 HMAC/Witness verified 且 request hash 精确相同的已有
+canonical commit 绕过 ACTIVE gate，并读取原 projection targets；真实 trigger
+故障注入证明 Session 结束后两个 terminal 投影均可恢复且 Event Store 计数不变。
+Growth live/replay/fork 统一按显式 skill-source mapping 同步 combat target，并为
+既有标准技能保留兼容映射。新增 migration `20260728000300` 只对正式 Combat event
+精确声明的 Character/Sheet targets 放行私密投影，并以秘密 capability 约束重建清理。
+
 扩展 runtime 全量回归第一次在沙箱内有 7 项仅因 localhost bind 被拒；授权重跑后
 这些测试全部通过，随后分别暴露两个已知外部环境要求：
 `P02_WORKFLOW_DATABASE_URL` 与 `P06_DATABASE_URL`。本轮真实数据库环境已经在前一轮
@@ -303,9 +319,10 @@ repeat、drift 与 constraint 全部门禁 `1/1`、exit `0`。
 | `cargo fmt --all -- --check` | PASS |
 | `cargo check --workspace --all-targets --all-features --locked` | PASS |
 | `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings` | PASS |
+| `cargo test --workspace --all-features --locked --no-fail-fast -- --test-threads=1` | PASS |
 | `cargo test -p trpg-ruleset-coc7 --all-features --locked` | PASS |
 | `cargo test -p trpg-domain-core --all-features --locked` | PASS |
-| `cargo test -p trpg-data-eventing --lib --locked` | PASS，`27/27` |
+| `cargo test -p trpg-data-eventing --lib --locked` | PASS，`29/29` |
 | `cargo test -p trpg-testing --test vertical_human_kp_tutorial_slice --locked` | PASS，`2/2` |
 | `cargo test -p trpg-ruleset-coc7 --test growth_resolution` | PASS，`2/2` |
 | `cargo test -p trpg-runtime --test conclusion_growth_state_machine` | PASS，`3/3` |
@@ -485,7 +502,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `cd47861` 的第三十轮精确 SHA review `4790482371` 确认 Session/Chase/active scene 三项未重复，并指出 Runtime Growth 的 source/new Sheet 可相同；已在 `SkillGrowthRecord` 构造边界拒绝并增加精确负例，待新提交/复审 |
+| GitHub PR #9 自动审查 | `fc25268` 的 Hosted CI `5/5`；第三十一轮精确 SHA review `4790867860` 确认同 Sheet Growth 问题未重复，并指出 Combat health Sheet、Session 结束后 exact retry、Growth combat target 三项；均已完成本地根因修复，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -582,7 +599,8 @@ golden-scenarios 2/5 完成通过，其余三项仍运行，只记录
 第二十九轮修复提交 `cd47861` 在第三十轮审查到达时 repository-truth、
 golden-scenarios、production-security-runtime 3/5 完成通过，workspace 与
 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
-以上均未记为 5/5。
+第三十轮修复提交 `fc25268` 的五项 Hosted CI 均已完成通过，明确记录 `5/5`。
+此前各轮部分结果均未记为 5/5。
 
 RustSec 报告：
 
@@ -612,3 +630,5 @@ P08 migration SHA-384：
   `c6edf4e57ba031a7af6aa2c692f557c2db6f0db3a52e018bf85d55a57117536692bb999c1864c6fe691e46cb62888fc7`
 - `20260728000200`：
   `f672a95a26b63d5ce649d249d0ee1ba1bd911e78a9c4cfe4cd133a9fc41dceec46a7b86b40ed7fc26b4d2be502caa76e`
+- `20260728000300`：
+  `d6b4ed4dc7bf0b1f9e336990bb6421bd09833543dcd34a848a094a57d3997506c3073fd3c1ef30ec28e3da7ae894362b`

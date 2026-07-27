@@ -644,9 +644,37 @@ release-readiness 在下一轮意见到达时仍运行，因此只记录 3/5 通
 
 当前最小修复在构造器内先解析两个 Sheet `EntityId` 并比较，相等时返回
 `InvalidGrowth`，不生成可进入 settlement 的记录；新增精确负例。专属 Growth
-`3/3`、runtime 非数据库套件 61 项、workspace check 与严格 Clippy 已通过；已清理
-环境所需的两个 P02/P06 runtime DB 门明确留给新 Hosted CI。新提交、Hosted CI 和
-第三十一轮精确 SHA review 仍为 pending。
+`3/3`、runtime 非数据库套件 61 项、workspace check 与严格 Clippy 已通过。修复提交
+`fc252683847f1eeb356e554da1e566cd05dd395b` 的 Hosted CI `5/5` 全部通过。
+第三十一轮精确 SHA review `4790867860` 确认第三十轮问题未重复，并提出两个 P1、
+一个 P2：
+
+- Combat 只更新 `combat_states`，伤害与医疗没有生成新的 Character Sheet version，
+  后续非战斗读取与下一次 Combat 会看到陈旧 HP/condition；
+- terminal Combat/Chase canonical commit 成功但状态投影失败时，Session 可以依据
+  正史结束；原命令 exact retry 随后被 ACTIVE gate 拒绝，无法恢复投影；
+- Growth 只更新顶层 `skills`，没有同步 `combat_profile.skill_targets`。
+
+当前最小修复把 Character health delta、来源 Character/Sheet version 与确定性新
+Sheet ID 纳入 `CombatStateRecorded`。live projection 创建保持原 Visibility 的
+locked Sheet 并推进 Character；verified replay、fork reconstruction 与 P08 rebuild
+可重建这些版本，并在 Character 已被后续 canonical event 推进时保持其现状。
+Combat/Chase 在 ACTIVE gate 前只识别 HMAC/Witness verified、request hash 精确相同
+的 canonical retry，并使用事件已记录的 projection targets；首次请求和任何不同请求
+仍要求 ACTIVE。Growth live/replay/fork 通过显式 `skill_target_sources` 同步 combat
+target，既有标准技能使用受限兼容映射。forward-only migration
+`20260728000300_project_combat_health_to_character_sheets.sql` 只放行正式 Combat
+event 精确 HMAC-bound 的 Character/Sheet private projection，并提供受秘密
+capability、最新 verified P08 event 和目标校验共同约束的 rebuild 清理。
+
+data-eventing lib `29/29`、完整 data-eventing all-features、migration upgrade
+`1/1`、默认栈 core-domain `1/1`、Tutorial `2/2`、P06/P07/P08 schema assertions、
+完整 workspace all-features test、workspace check 与严格 Clippy 均通过。首次宿主
+`psql` 调用因命令不存在失败，改用固定 digest PostgreSQL 客户端后 schema assertions
+通过；首次默认栈 core-domain 运行暴露大 async future 的 stack overflow，诊断运行
+随后暴露并修正测试期望版本，生产 Combat/Chase public future 以 boxed inner future
+降低调用方栈大小，最终无 `RUST_MIN_STACK` 的原测试 `1/1` 通过。这些中间失败均未
+计作 PASS。新提交、Hosted CI 和第三十二轮精确 SHA review 仍为 pending。
 
 ## RustSec
 
@@ -663,7 +691,7 @@ release-readiness 在下一轮意见到达时仍运行，因此只记录 3/5 通
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-三十轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+三十一轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
 用户门槛明确延期，没有冒充修复。当前最小修复的远端 CI/精确 SHA 复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖

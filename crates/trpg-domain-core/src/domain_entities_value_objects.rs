@@ -703,6 +703,18 @@ impl CampaignForkMaterializedRow {
 /// carries authority, visibility, provenance and command metadata; these
 /// payloads carry only aggregate facts needed to rebuild projections.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub struct CharacterCombatHealthUpdate {
+    pub character_id: String,
+    pub new_sheet_version_id: String,
+    pub source_sheet_version: u64,
+    pub source_character_version: u64,
+    pub hp_before: u8,
+    pub hp_after: u8,
+    pub condition_before: String,
+    pub condition_after: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(tag = "event_type", content = "data")]
 pub enum CoreDomainEvent {
     CampaignCreated {
@@ -860,6 +872,8 @@ pub enum CoreDomainEvent {
         turn_index: u64,
         version: u64,
         state_json: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        character_health_updates: Vec<CharacterCombatHealthUpdate>,
     },
     ChaseStateRecorded {
         schema_version: u16,

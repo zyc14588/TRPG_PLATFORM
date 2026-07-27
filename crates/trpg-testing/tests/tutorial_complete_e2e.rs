@@ -244,7 +244,12 @@ fn character_sheet() -> String {
         },
         "skills": {
             "Library Use": 70,
-            "Psychology": 55
+            "Psychology": 55,
+            "Fighting (Brawl)": 45,
+            "Firearms (Handgun)": 35,
+            "Dodge": 40,
+            "First Aid": 30,
+            "Medicine": 10
         },
         "combat_profile": {
             "dexterity": 70,
@@ -254,6 +259,13 @@ fn character_sheet() -> String {
                 "dodge": 40,
                 "first_aid": 30,
                 "medicine": 10
+            },
+            "skill_target_sources": {
+                "melee": "Fighting (Brawl)",
+                "firearm": "Firearms (Handgun)",
+                "dodge": "Dodge",
+                "first_aid": "First Aid",
+                "medicine": "Medicine"
             },
             "weapon_loadout": {
                 "melee": {
@@ -1553,6 +1565,25 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
     .fetch_one(&primary)
     .await
     .unwrap();
+    let combat_health_sheet_id: String = sqlx::query_scalar(
+        r#"
+        SELECT sheet.sheet_version_id
+          FROM public.characters AS character
+          JOIN public.character_sheet_versions AS sheet
+            ON sheet.character_id = character.character_id
+           AND sheet.version = character.current_sheet_version
+         WHERE character.character_id = $1
+           AND sheet.sheet_json #>> '{combat_profile,current_hp}' = '5'
+           AND sheet.sheet_json #>> '{combat_profile,condition}' =
+               'MAJOR_WOUND'
+           AND character.visibility_label::TEXT = 'private_to_player'
+           AND sheet.visibility_label::TEXT = 'private_to_player'
+        "#,
+    )
+    .bind(CHARACTER_ID)
+    .fetch_one(&primary)
+    .await
+    .expect("Combat damage must advance the private Character sheet");
     let unawarded_roll =
         server_roll_skill_growth(50).expect("server-owned unawarded growth evidence");
     let unawarded_growth = repository
@@ -1575,7 +1606,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 session_id: SESSION_ID.to_owned(),
                 ending_event_id: "ending_event_p08_tutorial".to_owned(),
                 character_id: CHARACTER_ID.to_owned(),
-                source_sheet_version_id: "sheet_p08_evelyn_v2".to_owned(),
+                source_sheet_version_id: combat_health_sheet_id.clone(),
                 new_sheet_version_id: "sheet_p08_evelyn_v3_unawarded".to_owned(),
                 skill_name: "Dodge".to_owned(),
                 growth_rolls: unawarded_roll.evidence().clone(),
@@ -1619,7 +1650,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         session_id: SESSION_ID.to_owned(),
         ending_event_id: "ending_event_p08_tutorial".to_owned(),
         character_id: CHARACTER_ID.to_owned(),
-        source_sheet_version_id: "sheet_p08_evelyn_v2".to_owned(),
+        source_sheet_version_id: combat_health_sheet_id,
         new_sheet_version_id: "sheet_p08_evelyn_v3".to_owned(),
         skill_name: "Library Use".to_owned(),
         growth_rolls: growth_roll.evidence().clone(),
