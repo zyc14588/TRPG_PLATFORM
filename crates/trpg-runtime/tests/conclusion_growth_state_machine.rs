@@ -50,7 +50,13 @@ fn ending_requires_an_ended_session_and_growth_completes_once() {
         conclusion.growth[0].server_roll_id().as_str(),
         growth_roll.roll_id()
     );
-    assert!(conclusion.settle_growth(Vec::new()).is_err());
+    assert!(matches!(
+        conclusion.settle_growth(Vec::new()),
+        Err(ConclusionError::InvalidTransition {
+            operation: "SETTLE_GROWTH",
+            ..
+        })
+    ));
 }
 
 #[test]
@@ -97,4 +103,28 @@ fn growth_requires_an_opaque_server_roll_and_rejects_duplicate_results() {
             .unwrap_err(),
         ConclusionError::DuplicateGrowth
     );
+}
+
+#[test]
+fn an_ending_without_growth_awards_can_complete_with_an_empty_settlement() {
+    let mut conclusion = CampaignConclusion::begin(
+        "campaign_conclusion_without_growth",
+        "session_conclusion_without_growth",
+        DurableSessionState::Ended,
+    )
+    .unwrap();
+    conclusion
+        .record_ending(
+            "ending_event_without_growth",
+            "ending_without_growth",
+            "The investigators leave without a growth award.",
+            2_000_000_000_000,
+        )
+        .unwrap();
+
+    conclusion.settle_growth(Vec::new()).unwrap();
+
+    assert_eq!(conclusion.state, ConclusionState::Completed);
+    assert_eq!(conclusion.version, 2);
+    assert!(conclusion.growth.is_empty());
 }

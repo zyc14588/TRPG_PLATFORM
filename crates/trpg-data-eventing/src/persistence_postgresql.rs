@@ -2284,6 +2284,189 @@ fn fork_materialization_batches(
     Ok(batches)
 }
 
+fn campaign_fork_materialization_from_replay(
+    replay_events: &[CanonicalReplayEvent],
+    request: &RecordCampaignForkRequest,
+) -> Result<CampaignForkMaterialization, CoreDomainRepositoryError> {
+    let fork_events = replay_events
+        .iter()
+        .filter(|replay| {
+            replay.stream_id == request.fork_id
+                && matches!(
+                    replay.event_type.as_str(),
+                    "CampaignForkRecorded"
+                        | "CampaignForkMaterializationRecorded"
+                        | "CampaignForkMaterialized"
+                )
+        })
+        .collect::<Vec<_>>();
+    if fork_events.len() < 3 {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "campaign_fork_canonical_materialization_missing",
+        ));
+    }
+    let first_replay = fork_events[0];
+    for (index, replay) in fork_events.iter().enumerate() {
+        let expected_stream_version = i64::try_from(index + 1)
+            .map_err(|_| CoreDomainRepositoryError::Integrity("fork_stream_version"))?;
+        if replay.campaign_id != request.child_campaign_id
+            || replay.resource_type != "campaign_fork"
+            || replay.resource_id != request.fork_id
+            || replay.expected_version != 0
+            || replay.stream_version != expected_stream_version
+            || replay.command_id != first_replay.command_id
+            || replay.request_hash != first_replay.request_hash
+            || replay.request_hash_source != "formal_commit"
+            || replay.integrity_status != "verified_hmac"
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "campaign_fork_canonical_event_envelope",
+            ));
+        }
+    }
+
+    let recorded: CoreDomainEvent = serde_json::from_value(first_replay.payload.clone())
+        .map_err(|_| CoreDomainRepositoryError::Integrity("campaign_fork_lineage_payload"))?;
+    recorded.validate_schema_version()?;
+    let CoreDomainEvent::CampaignForkRecorded {
+        fork_id,
+        parent_campaign_id,
+        child_campaign_id,
+        source_session_id,
+        snapshot_hash,
+        child_snapshot_hash,
+        copy_scopes,
+        canonical_snapshot_json,
+        reason,
+        ..
+    } = recorded
+    else {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "campaign_fork_canonical_event_order",
+        ));
+    };
+    if fork_id != request.fork_id
+        || parent_campaign_id != request.parent_campaign_id
+        || child_campaign_id != request.child_campaign_id
+        || source_session_id != request.source_session_id
+        || snapshot_hash != request.snapshot_hash
+        || copy_scopes != request.copy_scopes
+        || reason != request.reason
+        || canonical_snapshot_json != fork_snapshot_reference_json(&request.snapshot_hash)?
+    {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "campaign_fork_child_lineage_conflict",
+        ));
+    }
+
+    let manifest: CoreDomainEvent = serde_json::from_value(fork_events[1].payload.clone())
+        .map_err(|_| CoreDomainRepositoryError::Integrity("fork_manifest_replay_payload"))?;
+    manifest.validate_schema_version()?;
+    let CoreDomainEvent::CampaignForkMaterializationRecorded {
+        fork_id: manifest_fork_id,
+        child_campaign_id: manifest_child_campaign_id,
+        child_session_id,
+        child_scenario_id,
+        child_snapshot_hash: manifest_child_snapshot_hash,
+        child_state_json,
+        materialized_row_count,
+        batch_count,
+        ..
+    } = manifest
+    else {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "campaign_fork_canonical_event_order",
+        ));
+    };
+    let batch_count_usize = usize::try_from(batch_count)
+        .map_err(|_| CoreDomainRepositoryError::Integrity("fork_batch_count"))?;
+    let materialized_row_count_usize = usize::try_from(materialized_row_count)
+        .map_err(|_| CoreDomainRepositoryError::Integrity("fork_row_count"))?;
+    if manifest_fork_id != request.fork_id
+        || manifest_child_campaign_id != request.child_campaign_id
+        || manifest_child_snapshot_hash != child_snapshot_hash
+        || child_session_id.trim().is_empty()
+        || child_scenario_id.trim().is_empty()
+        || child_state_json.trim().is_empty()
+        || batch_count_usize == 0
+        || fork_events.len() != batch_count_usize + 2
+    {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "campaign_fork_canonical_manifest_mismatch",
+        ));
+    }
+
+    let mut rows = Vec::with_capacity(materialized_row_count_usize);
+    let mut batches = Vec::with_capacity(batch_count_usize);
+    for (index, replay) in fork_events.iter().skip(2).enumerate() {
+        let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+            .map_err(|_| CoreDomainRepositoryError::Integrity("fork_batch_replay_payload"))?;
+        event.validate_schema_version()?;
+        let CoreDomainEvent::CampaignForkMaterialized {
+            fork_id: batch_fork_id,
+            child_campaign_id: batch_child_campaign_id,
+            batch_index,
+            batch_count: event_batch_count,
+            rows: batch_rows,
+            ..
+        } = event
+        else {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "campaign_fork_canonical_event_order",
+            ));
+        };
+        let expected_batch_index = u64::try_from(index + 1)
+            .map_err(|_| CoreDomainRepositoryError::Integrity("fork_batch_index"))?;
+        if batch_fork_id != request.fork_id
+            || batch_child_campaign_id != request.child_campaign_id
+            || batch_index != expected_batch_index
+            || event_batch_count != batch_count
+            || batch_rows.is_empty()
+            || batch_rows
+                .iter()
+                .map(CampaignForkMaterializedRow::projection_target_count)
+                .sum::<usize>()
+                > 32
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "campaign_fork_canonical_batch_mismatch",
+            ));
+        }
+        let data_subject_id = fork_row_data_subject(&batch_rows[0]);
+        if batch_rows.iter().any(|row| {
+            let (label, subject) = fork_row_visibility(row);
+            label != replay.visibility_label
+                || subject != replay.visibility_subject
+                || fork_row_data_subject(row) != data_subject_id
+        }) {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "campaign_fork_canonical_batch_visibility",
+            ));
+        }
+        rows.extend(batch_rows.iter().cloned());
+        batches.push(CampaignForkMaterializationBatch {
+            rows: batch_rows,
+            visibility_label: replay.visibility_label.clone(),
+            visibility_subject: replay.visibility_subject.clone(),
+            data_subject_id,
+        });
+    }
+    if rows.len() != materialized_row_count_usize {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "campaign_fork_canonical_row_count",
+        ));
+    }
+
+    Ok(CampaignForkMaterialization {
+        child_session_id,
+        child_scenario_id,
+        child_state_json,
+        child_snapshot_hash,
+        rows,
+        batches,
+    })
+}
+
 fn fork_character_visibility_is_copyable(
     visibility_label: &str,
     visibility_subject: &str,
@@ -8998,16 +9181,18 @@ impl CoreDomainRepository {
         self.ensure_campaign_admin(&request.child_campaign_id, &metadata.requesting_actor_id)
             .await?;
 
-        let mut canonical_lineage = None;
-        for replay in self
+        let child_campaign_events = self
             .load_campaign_events(&request.child_campaign_id)
-            .await?
-            .into_iter()
+            .await?;
+        let mut canonical_lineage = None;
+        for replay in child_campaign_events
+            .iter()
             .filter(|event| event.event_type == "CampaignForkRecorded")
         {
-            let event: CoreDomainEvent = serde_json::from_value(replay.payload).map_err(|_| {
-                CoreDomainRepositoryError::Integrity("campaign_fork_lineage_payload")
-            })?;
+            let event: CoreDomainEvent =
+                serde_json::from_value(replay.payload.clone()).map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("campaign_fork_lineage_payload")
+                })?;
             event.validate_schema_version()?;
             let CoreDomainEvent::CampaignForkRecorded {
                 fork_id,
@@ -9016,6 +9201,7 @@ impl CoreDomainRepository {
                 source_session_id,
                 snapshot_hash,
                 copy_scopes,
+                reason,
                 ..
             } = event
             else {
@@ -9039,6 +9225,7 @@ impl CoreDomainRepository {
                 source_session_id,
                 snapshot_hash,
                 copy_scopes,
+                reason,
             ));
         }
         let retrying_canonical = if let Some(existing) = canonical_lineage {
@@ -9050,6 +9237,7 @@ impl CoreDomainRepository {
                     request.source_session_id.clone(),
                     request.snapshot_hash.clone(),
                     request.copy_scopes.clone(),
+                    request.reason.clone(),
                 )
             {
                 return Err(CoreDomainRepositoryError::Integrity(
@@ -9060,40 +9248,6 @@ impl CoreDomainRepository {
         } else {
             false
         };
-        let snapshot = self
-            .load_public_campaign_fork_snapshot(
-                &request.parent_campaign_id,
-                &request.source_session_id,
-            )
-            .await?;
-        if snapshot.snapshot_hash != request.snapshot_hash {
-            return Err(CoreDomainRepositoryError::Integrity(
-                "campaign_fork_snapshot_hash_mismatch",
-            ));
-        }
-        let references_exist: bool = sqlx::query_scalar(
-            r#"
-            SELECT EXISTS(
-                SELECT 1
-                  FROM core_domain.sessions AS source_session
-                  JOIN public.campaigns AS child
-                    ON child.campaign_id = $1
-                 WHERE source_session.session_id = $2
-                   AND source_session.campaign_id = $3
-            )
-            "#,
-        )
-        .bind(&request.child_campaign_id)
-        .bind(&request.source_session_id)
-        .bind(&request.parent_campaign_id)
-        .fetch_one(&self.primary)
-        .await
-        .map_err(database_error("load_campaign_fork_references"))?;
-        if !references_exist {
-            return Err(CoreDomainRepositoryError::NotFound(
-                "fork_campaign_or_session",
-            ));
-        }
 
         let existing_fork: Option<(String, String, String, String, String)> = sqlx::query_as(
             r#"
@@ -9126,44 +9280,80 @@ impl CoreDomainRepository {
         } else {
             false
         };
-        if !retrying_projection && !retrying_canonical {
-            let child_has_gameplay_state: bool = sqlx::query_scalar(
+        let materialization = if retrying_canonical {
+            campaign_fork_materialization_from_replay(&child_campaign_events, request)?
+        } else {
+            let references_exist: bool = sqlx::query_scalar(
                 r#"
                 SELECT EXISTS(
-                    SELECT 1 FROM public.scenarios WHERE campaign_id = $1
-                    UNION ALL
-                    SELECT 1 FROM public.characters WHERE campaign_id = $1
-                    UNION ALL
-                    SELECT 1 FROM core_domain.sessions WHERE campaign_id = $1
-                    UNION ALL
-                    SELECT 1 FROM public.campaign_forks WHERE child_campaign_id = $1
-                    UNION ALL
-                    SELECT 1 FROM public.campaign_fork_public_events WHERE campaign_id = $1
-                    UNION ALL
-                    SELECT 1 FROM public.campaign_fork_clues WHERE campaign_id = $1
-                    UNION ALL
-                    SELECT 1 FROM public.campaign_fork_npc_states WHERE campaign_id = $1
-                    UNION ALL
-                    SELECT 1 FROM public.combat_states WHERE campaign_id = $1
-                    UNION ALL
-                    SELECT 1 FROM public.chase_states WHERE campaign_id = $1
-                    UNION ALL
-                    SELECT 1 FROM public.ending_events WHERE campaign_id = $1
+                    SELECT 1
+                      FROM core_domain.sessions AS source_session
+                      JOIN public.campaigns AS child
+                        ON child.campaign_id = $1
+                     WHERE source_session.session_id = $2
+                       AND source_session.campaign_id = $3
                 )
                 "#,
             )
             .bind(&request.child_campaign_id)
+            .bind(&request.source_session_id)
+            .bind(&request.parent_campaign_id)
             .fetch_one(&self.primary)
             .await
-            .map_err(database_error("check_fork_child_empty"))?;
-            if child_has_gameplay_state {
-                return Err(CoreDomainRepositoryError::Integrity("fork_child_not_empty"));
+            .map_err(database_error("load_campaign_fork_references"))?;
+            if !references_exist {
+                return Err(CoreDomainRepositoryError::NotFound(
+                    "fork_campaign_or_session",
+                ));
             }
-        }
-
-        let materialization = self
-            .build_campaign_fork_materialization(request, &snapshot)
-            .await?;
+            if !retrying_projection {
+                let child_has_gameplay_state: bool = sqlx::query_scalar(
+                    r#"
+                    SELECT EXISTS(
+                        SELECT 1 FROM public.scenarios WHERE campaign_id = $1
+                        UNION ALL
+                        SELECT 1 FROM public.characters WHERE campaign_id = $1
+                        UNION ALL
+                        SELECT 1 FROM core_domain.sessions WHERE campaign_id = $1
+                        UNION ALL
+                        SELECT 1 FROM public.campaign_forks WHERE child_campaign_id = $1
+                        UNION ALL
+                        SELECT 1 FROM public.campaign_fork_public_events WHERE campaign_id = $1
+                        UNION ALL
+                        SELECT 1 FROM public.campaign_fork_clues WHERE campaign_id = $1
+                        UNION ALL
+                        SELECT 1 FROM public.campaign_fork_npc_states WHERE campaign_id = $1
+                        UNION ALL
+                        SELECT 1 FROM public.combat_states WHERE campaign_id = $1
+                        UNION ALL
+                        SELECT 1 FROM public.chase_states WHERE campaign_id = $1
+                        UNION ALL
+                        SELECT 1 FROM public.ending_events WHERE campaign_id = $1
+                    )
+                    "#,
+                )
+                .bind(&request.child_campaign_id)
+                .fetch_one(&self.primary)
+                .await
+                .map_err(database_error("check_fork_child_empty"))?;
+                if child_has_gameplay_state {
+                    return Err(CoreDomainRepositoryError::Integrity("fork_child_not_empty"));
+                }
+            }
+            let snapshot = self
+                .load_public_campaign_fork_snapshot(
+                    &request.parent_campaign_id,
+                    &request.source_session_id,
+                )
+                .await?;
+            if snapshot.snapshot_hash != request.snapshot_hash {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "campaign_fork_snapshot_hash_mismatch",
+                ));
+            }
+            self.build_campaign_fork_materialization(request, &snapshot)
+                .await?
+        };
         let batch_count = u64::try_from(materialization.batches.len())
             .map_err(|_| CoreDomainRepositoryError::Integrity("fork_batch_count"))?;
         let materialized_row_count = u64::try_from(materialization.rows.len())
@@ -9173,7 +9363,7 @@ impl CoreDomainRepository {
                 "fork_event_batch_limit",
             ));
         }
-        let snapshot_reference_json = fork_snapshot_reference_json(&snapshot.snapshot_hash)?;
+        let snapshot_reference_json = fork_snapshot_reference_json(&request.snapshot_hash)?;
         let recorded = CoreDomainEvent::CampaignForkRecorded {
             schema_version: CORE_EVENT_SCHEMA_VERSION,
             fork_id: request.fork_id.clone(),
@@ -9182,7 +9372,7 @@ impl CoreDomainRepository {
             source_session_id: request.source_session_id.clone(),
             snapshot_hash: request.snapshot_hash.clone(),
             child_snapshot_hash: materialization.child_snapshot_hash.clone(),
-            copy_scopes: snapshot.copy_scopes.clone(),
+            copy_scopes: request.copy_scopes.clone(),
             canonical_snapshot_json: snapshot_reference_json,
             reason: request.reason.clone(),
         };

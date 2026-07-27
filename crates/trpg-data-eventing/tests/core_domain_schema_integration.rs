@@ -3599,6 +3599,53 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         reconsideration_retry.last_event_sequence,
         reconsideration_requested.last_event_sequence
     );
+    let source_after_reconsideration = repository
+        .preview_campaign_fork(CAMPAIGN_ID, "session_p06_schema", KEEPER_ID)
+        .await
+        .expect("recompute the source snapshot after a later reconsideration");
+    assert_ne!(
+        source_after_reconsideration.snapshot_hash, snapshot.snapshot_hash,
+        "a later relevant parent event must prove that the source snapshot is mutable"
+    );
+    repository
+        .record_campaign_fork(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "fork_p06_schema",
+                "campaign_fork",
+                "campaign.fork.record",
+                0,
+                "fork_record",
+                "keeper_only",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &RecordCampaignForkRequest {
+                fork_id: "fork_p06_schema".to_owned(),
+                parent_campaign_id: CAMPAIGN_ID.to_owned(),
+                child_campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                source_session_id: "session_p06_schema".to_owned(),
+                snapshot_hash: snapshot.snapshot_hash.clone(),
+                reason: "Preserve an alternate ruling".to_owned(),
+                copy_scopes: snapshot.copy_scopes.clone(),
+            },
+        )
+        .await
+        .expect("an exact retry must replay the recorded fork, not the mutable parent snapshot");
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store WHERE campaign_id = $1",
+        )
+        .bind(CHILD_CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        child_events_before_fork_retry,
+        "retrying after later parent activity must not append canonical child history"
+    );
     assert!(matches!(
         repository
             .review_reconsideration(

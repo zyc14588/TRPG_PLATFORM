@@ -855,9 +855,6 @@ impl CampaignConclusion {
                 operation: "SETTLE_GROWTH",
             });
         }
-        if growth.is_empty() {
-            return Err(ConclusionError::InvalidGrowth);
-        }
         let mut event_ids = std::collections::HashSet::new();
         let mut character_skills = std::collections::HashSet::new();
         for record in &growth {
