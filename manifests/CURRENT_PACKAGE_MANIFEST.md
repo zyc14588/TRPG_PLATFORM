@@ -1512,7 +1512,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-data-eventing/src/persistence/mod.rs` | 547 | `6c7df6c02ef9dc4d1e1e4e736ce8011d594857699845274c7992aa83a047a762` | `100644` |
 | `crates/trpg-data-eventing/src/persistence/upcaster.rs` | 4217 | `1614a6442bb88c041913cac73f3f9f02d70d7bc28005e1a8cf624ad0be470506` | `100644` |
 | `crates/trpg-data-eventing/src/persistence_migrations.rs` | 1051 | `c8977fe58eaedc31fc2fd980c1dcb18eae514ad0efcbdbce694647fd52d02d56` | `100644` |
-| `crates/trpg-data-eventing/src/persistence_postgresql.rs` | 471870 | `0d992f9dfd5ff9f6e37196fbd4a74862b07ba547044d504dce7731e253f7dca7` | `100644` |
+| `crates/trpg-data-eventing/src/persistence_postgresql.rs` | 488109 | `f0085713b5e3380d65e51df77687ca84bcc8e0e6eec08c534602b31ff5cb96cf` | `100644` |
 | `crates/trpg-data-eventing/src/persistence_postgresql_impl.rs` | 772 | `8b93aa1d18f489beefd36f1cb20df76bf1228a7e7b7fcb4c3a23739a6c8576d3` | `100644` |
 | `crates/trpg-data-eventing/src/postgre_sql_sq_lx_pgvector.rs` | 15902 | `16b8f4d7e7ce0097d56a0e24028f358b6cfa29496299c9a55a7cabc104c769f0` | `100644` |
 | `crates/trpg-data-eventing/src/rag_snapshot.rs` | 10734 | `c56c61f2b39ba3effc4bcf1b815c21ee31303ddcc379d79a212ed11357fd3180` | `100644` |
@@ -1531,7 +1531,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-data-eventing/tests/batch_026_data_eventing_contract_tests.rs` | 17823 | `d3b183050839b1c36bc170b93b09370a9c1a5ebf7ee8b76b5016144e55c4b949` | `100644` |
 | `crates/trpg-data-eventing/tests/canonical_commit_postgres.rs` | 32967 | `5619bbfb6418d8089313ec45803c7b33e73970cd1612ab57709a439c27e3840c` | `100644` |
 | `crates/trpg-data-eventing/tests/canonical_event_projection_contract_tests.rs` | 622 | `d25cb67af0defeead6711e13a13865453366f4498bd8d5d8c6bd2a7ba2be7722` | `100644` |
-| `crates/trpg-data-eventing/tests/core_domain_schema_integration.rs` | 191735 | `52ab338d72fc08853b0cf0220aebd94bc3dbf0c46c094155fd169c1621f2699b` | `100644` |
+| `crates/trpg-data-eventing/tests/core_domain_schema_integration.rs` | 198360 | `afe1226e4d52e2d3b627c7666ecf8c73923f8abfeca074f729ccb96fc9aced48` | `100644` |
 | `crates/trpg-data-eventing/tests/decision_state_outbox_atomicity.rs` | 24594 | `ef81b49ed6cf8e0db552fd2690b9ea17e562f0d80e3bf408e408ddd62efb912c` | `100644` |
 | `crates/trpg-data-eventing/tests/event_json_schema_contract_tests.rs` | 10856 | `66e1d99d84ba75387cc7476685346fe84ec3d4037bc1baffc08ff95991d8e001` | `100644` |
 | `crates/trpg-data-eventing/tests/event_store_contract.rs` | 12292 | `8e0c89292f420323b2c56f5eab6c5c218927a8d4b0cd42a599e8b7de1147d2dc` | `100644` |
@@ -3030,7 +3030,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `migrations/20260727000500_complete_campaign_fork_scope_materialization.sql` | 6780 | `7efdfbd82b0a8bb49715e8315e843dd155c637ef3b9857241bcb7b52842a272a` | `100644` |
 | `migrations/20260727000600_enforce_campaign_fork_child_lineage.sql` | 324 | `0d539b4f44cfdffd2b5871d14686105bddde8c462ce101e185d5b769c26cf991` | `100644` |
 | `migrations/20260727000700_enforce_global_gameplay_roll_consumption.sql` | 12127 | `23cd0d76adfac61ff18e0d9a2749ff4983c4a82a7db65c3e950f10d6ad7b5856` | `100644` |
-| `migrations/20260727000800_authorize_p08_projection_rebuild.sql` | 13541 | `90b409ff7ac8b1369c165b323b6579a0e1d1a90de7770fd1fc14b77369326d89` | `100644` |
+| `migrations/20260727000800_authorize_p08_projection_rebuild.sql` | 19046 | `9593b93baf09ff68f11b8f05ba16a5ddf780444c5f70f370714e055fc843ffc0` | `100644` |
 | `migrations/witness/20260715000100_create_external_audit_witness.down.sql` | 163 | `b883d3e3248eb7be7badd0d427b86268b3d83d81550a85fa97a45613abd97058` | `100644` |
 | `migrations/witness/20260715000100_create_external_audit_witness.up.sql` | 2866 | `5009aab875b335e95e6e131a1903bf92fccbdc34142095408a6e5c3f5c1c81fb` | `100644` |
 | `migrations/witness/20260726000100_restrict_witness_runtime_privileges.down.sql` | 581 | `0afae16f99a8f4de9f822ebbda3d0ab0c1a9a80e72442b00afc42b7f8cf6051b` | `100644` |

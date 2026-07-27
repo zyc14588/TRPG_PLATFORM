@@ -219,16 +219,111 @@ BEGIN
                AND audit.decision = 'PERMIT'
                AND (
                     event.event_type = 'CampaignForkMaterialized'
-                    AND target ->> 'relation' IN (
-                        'public.scenarios',
-                        'public.characters',
-                        'public.character_sheet_versions',
-                        'core_domain.sessions',
-                        'public.scenes'
+                    AND (
+                        target ->> 'relation' = 'public.scenarios'
+                        AND EXISTS (
+                            SELECT 1
+                              FROM public.scenarios AS scenario
+                             WHERE scenario.scenario_id =
+                                   target ->> 'row_id'
+                               AND scenario.campaign_id =
+                                   target_campaign_id
+                               AND scenario.last_event_sequence =
+                                   event.sequence
+                               AND NOT EXISTS (
+                                    SELECT 1
+                                      FROM core_domain.sessions AS dependent
+                                     WHERE dependent.scenario_id =
+                                           scenario.scenario_id
+                                       AND NOT EXISTS (
+                                            SELECT 1
+                                              FROM public.event_store
+                                                   AS dependent_event
+                                              CROSS JOIN LATERAL
+                                                   jsonb_array_elements(
+                                                       dependent_event
+                                                           .projection_targets
+                                                   ) AS dependent_target
+                                             WHERE dependent_event.sequence =
+                                                   dependent.last_event_sequence
+                                               AND dependent_event.campaign_id =
+                                                   target_campaign_id
+                                               AND dependent_event.event_type =
+                                                   'CampaignForkMaterialized'
+                                               AND dependent_event.integrity_status =
+                                                   'verified_hmac'
+                                               AND dependent_event.request_hash_source =
+                                                   'formal_commit'
+                                               AND dependent_event
+                                                   .event_integrity_hash
+                                                   IS NOT NULL
+                                               AND dependent_target ->>
+                                                   'relation' =
+                                                   'core_domain.sessions'
+                                               AND dependent_target ->>
+                                                   'row_id' =
+                                                   dependent.session_id
+                                       )
+                               )
+                        )
+                        OR target ->> 'relation' =
+                           'public.characters'
+                        AND EXISTS (
+                            SELECT 1
+                              FROM public.characters AS character
+                             WHERE character.character_id =
+                                   target ->> 'row_id'
+                               AND character.campaign_id =
+                                   target_campaign_id
+                               AND character.last_event_sequence =
+                                   event.sequence
+                        )
+                        OR target ->> 'relation' =
+                           'public.character_sheet_versions'
+                        AND EXISTS (
+                            SELECT 1
+                              FROM public.character_sheet_versions AS sheet
+                             WHERE sheet.sheet_version_id =
+                                   target ->> 'row_id'
+                               AND sheet.campaign_id =
+                                   target_campaign_id
+                               AND sheet.last_event_sequence =
+                                   event.sequence
+                        )
+                        OR target ->> 'relation' =
+                           'core_domain.sessions'
+                        AND EXISTS (
+                            SELECT 1
+                              FROM core_domain.sessions AS session_projection
+                             WHERE session_projection.session_id =
+                                   target ->> 'row_id'
+                               AND session_projection.campaign_id =
+                                   target_campaign_id
+                               AND session_projection.last_event_sequence =
+                                   event.sequence
+                        )
+                        OR target ->> 'relation' = 'public.scenes'
+                        AND EXISTS (
+                            SELECT 1
+                              FROM public.scenes AS scene
+                             WHERE scene.scene_id = target ->> 'row_id'
+                               AND scene.campaign_id =
+                                   target_campaign_id
+                               AND scene.last_event_sequence =
+                                   event.sequence
+                        )
                     )
                     OR event.event_type = 'CharacterGrowthApplied'
                     AND target ->> 'relation' =
                         'public.character_sheet_versions'
+                    AND EXISTS (
+                        SELECT 1
+                          FROM public.character_sheet_versions AS sheet
+                         WHERE sheet.sheet_version_id =
+                               target ->> 'row_id'
+                           AND sheet.campaign_id = target_campaign_id
+                           AND sheet.last_event_sequence = event.sequence
+                    )
                )
                AND btrim(COALESCE(target ->> 'row_id', '')) <> ''
           ) AS exact_target

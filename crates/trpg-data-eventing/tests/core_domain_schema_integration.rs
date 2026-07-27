@@ -1451,7 +1451,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             &metadata(
                 CAMPAIGN_ID,
                 AUTHORITY_ID,
-                PLAYER_ID,
+                KEEPER_ID,
                 "investigator",
                 "character_p08_late_joiner",
                 "character",
@@ -1459,13 +1459,13 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 0,
                 "character_p08_late_joiner_create",
                 "private_to_player",
-                PLAYER_ID,
+                KEEPER_ID,
                 "user_statement",
             ),
             &CreateCharacterRequest {
                 character_id: "character_p08_late_joiner".to_owned(),
                 campaign_id: CAMPAIGN_ID.to_owned(),
-                owner_user_id: PLAYER_ID.to_owned(),
+                owner_user_id: KEEPER_ID.to_owned(),
                 display_name: "Late Joining Investigator".to_owned(),
                 sheet_version_id: "sheet_p08_late_joiner_v1".to_owned(),
                 sheet_json: r#"{"name":"Late Joining Investigator","ruleset":"coc7","characteristics":{"power":55},"skills":{"Library Use":60}}"#.to_owned(),
@@ -1478,7 +1478,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             &metadata(
                 CAMPAIGN_ID,
                 AUTHORITY_ID,
-                PLAYER_ID,
+                KEEPER_ID,
                 "investigator",
                 "character_p08_late_joiner",
                 "character",
@@ -1486,7 +1486,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 1,
                 "character_p08_late_joiner_submit",
                 "private_to_player",
-                PLAYER_ID,
+                KEEPER_ID,
                 "user_statement",
             ),
             CAMPAIGN_ID,
@@ -1507,7 +1507,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 2,
                 "character_p08_late_joiner_approve",
                 "private_to_player",
-                PLAYER_ID,
+                KEEPER_ID,
                 "human_keeper_statement",
             ),
             CAMPAIGN_ID,
@@ -3542,6 +3542,99 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("start a child-owned session after the fork materialization");
+    let copied_late_joiner_character_id: String = sqlx::query_scalar(
+        r#"
+        SELECT character_id
+          FROM public.characters
+         WHERE campaign_id = $1
+           AND owner_user_id = $2
+           AND display_name = 'Late Joining Investigator'
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .bind(KEEPER_ID)
+    .fetch_one(&primary)
+    .await
+    .expect("load the late-joining character copied into the fork");
+    repository
+        .submit_player_action(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "investigator",
+                "action_p08_copied_character_sanity",
+                "player_action",
+                "player_action.submit",
+                0,
+                "action_p08_copied_character_sanity_submit",
+                "private_to_player",
+                KEEPER_ID,
+                "user_statement",
+            ),
+            &SubmitPlayerActionRequest {
+                action_id: "action_p08_copied_character_sanity".to_owned(),
+                campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                character_id: copied_late_joiner_character_id.clone(),
+                scene_id: "scene_p08_post_fork".to_owned(),
+                submitted_by: KEEPER_ID.to_owned(),
+                submitted_at_unix_ms: NOW_MS + 30_100,
+                intent: PlayerActionIntentRecord::SanityCheck {
+                    success_loss: 1,
+                    failure_loss: 1,
+                    day_key: "copied_character_day".to_owned(),
+                },
+            },
+        )
+        .await
+        .expect("submit SAN against a character copied by the fork");
+    repository
+        .commit_sanity_execution(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "action_p08_copied_character_sanity",
+                "player_action",
+                "player_action.confirm",
+                1,
+                "action_p08_copied_character_sanity_confirm",
+                "private_to_player",
+                KEEPER_ID,
+                "human_keeper_statement",
+            ),
+            &SanityExecutionRecord {
+                action_id: "action_p08_copied_character_sanity".to_owned(),
+                campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                character_id: copied_late_joiner_character_id.clone(),
+                decision_id: "decision_p08_copied_character_sanity".to_owned(),
+                tool_execution_id: "tool_p08_copied_character_sanity".to_owned(),
+                confirmed_by: KEEPER_ID.to_owned(),
+                resolved_at_unix_ms: NOW_MS + 30_200,
+                dice: PlayerActionDiceRecord {
+                    roll_id: "roll_p08_copied_character_sanity".to_owned(),
+                    target_value: 55,
+                    rolled_value: 42,
+                    success_level: "REGULAR".to_owned(),
+                    selected_tens_digit: 4,
+                    ones_digit: 2,
+                    adjustment: "NONE".to_owned(),
+                },
+                sanity_event_id: "sanity_p08_copied_character".to_owned(),
+                sheet_version_id: "sheet_p08_copied_character_sanity".to_owned(),
+                day_key: "copied_character_day".to_owned(),
+                day_start_sanity: 55,
+                sanity_before: 55,
+                sanity_after: 54,
+                sanity_loss: 1,
+                day_loss: 1,
+                indefinite_threshold: 11,
+                madness_state: "STABLE".to_owned(),
+            },
+        )
+        .await
+        .expect("commit SAN after fork materialization on the copied character");
     repository
         .change_session_state(
             &metadata(
@@ -3622,6 +3715,43 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("record Growth for a normal character created after the fork");
+    let copied_fork_character_before: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT jsonb_build_object(
+            'character', (
+                SELECT to_jsonb(character)
+                  FROM public.characters AS character
+                 WHERE character.campaign_id = $1
+                   AND character.character_id = $2
+            ),
+            'sheets', (
+                SELECT jsonb_agg(to_jsonb(sheet) ORDER BY sheet.version)
+                  FROM public.character_sheet_versions AS sheet
+                 WHERE sheet.campaign_id = $1
+                   AND sheet.character_id = $2
+            ),
+            'action', (
+                SELECT to_jsonb(action)
+                  FROM public.player_actions AS action
+                 WHERE action.campaign_id = $1
+                   AND action.action_id =
+                       'action_p08_copied_character_sanity'
+            ),
+            'sanity', (
+                SELECT to_jsonb(sanity)
+                  FROM public.sanity_events AS sanity
+                 WHERE sanity.campaign_id = $1
+                   AND sanity.sanity_event_id =
+                       'sanity_p08_copied_character'
+            )
+        )
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .bind(&copied_late_joiner_character_id)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
     let post_fork_projection_before: serde_json::Value = sqlx::query_scalar(
         r#"
         SELECT jsonb_build_object(
@@ -3716,6 +3846,47 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .rebuild_p08_projections(CHILD_CAMPAIGN_ID)
         .await
         .expect("rebuild only fork-owned P08 rows after normal child activity");
+    let copied_fork_character_after: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT jsonb_build_object(
+            'character', (
+                SELECT to_jsonb(character)
+                  FROM public.characters AS character
+                 WHERE character.campaign_id = $1
+                   AND character.character_id = $2
+            ),
+            'sheets', (
+                SELECT jsonb_agg(to_jsonb(sheet) ORDER BY sheet.version)
+                  FROM public.character_sheet_versions AS sheet
+                 WHERE sheet.campaign_id = $1
+                   AND sheet.character_id = $2
+            ),
+            'action', (
+                SELECT to_jsonb(action)
+                  FROM public.player_actions AS action
+                 WHERE action.campaign_id = $1
+                   AND action.action_id =
+                       'action_p08_copied_character_sanity'
+            ),
+            'sanity', (
+                SELECT to_jsonb(sanity)
+                  FROM public.sanity_events AS sanity
+                 WHERE sanity.campaign_id = $1
+                   AND sanity.sanity_event_id =
+                       'sanity_p08_copied_character'
+            )
+        )
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .bind(&copied_late_joiner_character_id)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        copied_fork_character_after, copied_fork_character_before,
+        "a P08 rebuild must preserve the canonical SAN suffix of a copied character"
+    );
     let post_fork_projection_after: serde_json::Value = sqlx::query_scalar(
         r#"
         SELECT jsonb_build_object(
