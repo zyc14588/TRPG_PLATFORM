@@ -13,7 +13,7 @@ P08 实现前，三条强制命令均真实返回 Cargo exit `101`，原因是�
 
 | 命令 | 最终结果 |
 | --- | --- |
-| `cargo test -p trpg-ruleset-coc7 --test combat_condition_sequence` | PASS，`5/5`，exit `0` |
+| `cargo test -p trpg-ruleset-coc7 --test combat_condition_sequence` | PASS，`6/6`，exit `0` |
 | `cargo test -p trpg-ruleset-coc7 --test chase_terminal` | PASS，`3/3`，exit `0` |
 | `cargo test -p trpg-testing --test tutorial_complete_e2e` | PASS，`2/2`，exit `0`；使用真实 PostgreSQL/Witness 环境 |
 
@@ -66,6 +66,13 @@ snapshot 与实际 child sheet 的 SAN 均精确等于来源截止状态。另�
 先以独立事务持有 fork-empty 锁，再依次让普通 Scenario import 和已通过 emptiness
 preflight 的 Fork 排队；释放屏障后普通 canonical/projection 成功，
 `CampaignForkRecorded` 为零，证明检查与插入已在数据库线性化而非依赖时序运气。
+第十二轮修复负例让攻击者和防守者分别持有不同近战公式：普通攻击使用验收 fixture
+的 `1d6+1`，Fight Back 必须改用实际反击者的 `1d6+2`；action-kind 默认 `1d6`
+或错误一方的公式均返回 `combat_damage_evidence`，且失败前后状态 JSON 完全相同。
+独立领域 replay 另以构造后的 serialized evidence 证明正确公式通过、同总值的错误
+公式失败。Fork snapshot 与 child scenario 都断言包含 Library Use/Psychology 两项
+award；随后直接使用 child-owned session、ending、character/current sheet 和服务端骰
+正式结算尚未消费的 Psychology，证明不是只复制展示字段。
 
 ## 真实数据库、重放与迁移
 
@@ -238,6 +245,16 @@ fingerprint 因此再次以 exit `101` 拒绝，更新实际 catalog 值后完�
 exit `2`；将日志定向到 `/tmp` 并获准只下载相同规则后，最终 34 targets、13 rules、
 0 finding、0 error、0 skipped。所有前置失败均保留为失败，没有被最终结果覆盖。
 
+第十二轮修复没有修改 migration。`canonical_gameplay_state` 聚焦单元 `6/6`、
+`combat_condition_sequence` `6/6`、完整 domain/ruleset 测试、data-eventing lib
+`26/26`、runtime conclusion `2/2`、workspace all-target/all-feature check 与 Clippy
+均通过。完整 primary/Witness 脚本从全新数据库连续运行两次，每次 migration upgrade
+`1/1`、decision atomicity `1/1`、core domain `1/1`、Tutorial `2/2` 及 P06/P07/P08
+schema assertion 全部通过。一次诊断性完整 runtime crate 命令在上述 P08 测试通过后，
+因没有提供既有 P02 专用 `P02_WORKFLOW_DATABASE_URL` 而 exit `101`；该组合命令未记为
+PASS，也没有弱化测试。最终 Semgrep 使用相同 34 个目标、13 条规则，得到 0 finding、
+0 error、0 skipped。
+
 提交前第一次运行 `test_repo_truth.py` 时，宿主 Python 3.14.4、Node 22.22.1 且缺少
 pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。没有修改锁定版本或放宽
 断言；从官方发行源只在 `/tmp` 准备 Python 3.14.6、Node 24.17.0 和 pnpm 11.9.0 后，
@@ -249,7 +266,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；34 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 前十一轮为 4、5、5、4、2、3、5、3、4、2、2 项；第十轮修复已由第十一轮确认未重复，第十一轮 2 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 前十二轮为 4、5、5、4、2、3、5、3、4、2、2、2 项；第十一轮修复已由第十二轮确认未重复，第十二轮 2 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -274,7 +291,10 @@ aggregate/Combat/Chase 复用。第九轮确认这三项未重复，又指出 P0
 rebuild 会删除 fork 后的正常 child 状态、retry 行数错误覆盖整个 child Campaign。
 第十一轮确认这两项未重复，又指出顶层 `PlayerActionSubmitted` 未被 source-session
 归属读取，以及 emptiness preflight 与普通 child canonical write 之间仍有 TOCTOU。
-以上均已按问题根因修复；扩展到 34 目标的 Semgrep 复扫仍为 0 finding。本报告在
+第十二轮确认第十一轮两项未重复，又指出 Combat 伤害公式按 action kind 硬编码而与
+`1d6+1` fixture/武器差异冲突，以及 fork child scenario 丢失 Ending
+`growth_awards`。以上均已按问题根因修复；扩展到 34 目标的 Semgrep 复扫仍为
+0 finding。本报告在
 最新远端 CI/复审完成前保持 pending，不以本地结果冒充远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
 仅有 2/5 完成通过后取消 3 项；第五轮修复提交 `fb3907e` 仅有 3/5 完成通过后取消
@@ -285,7 +305,8 @@ workspace/release 两项。第七轮修复提交 `56b648b` 同样只有上述 3/
 3/5 通过，第九轮阻断出现后取消 workspace/release 两项。第九轮修复提交
 `3b90578` 仍只有上述 3/5 通过，第十轮阻断出现后取消 workspace/release 两项。
 第十轮修复提交 `4250462` 仍只有上述 3/5 通过，第十一轮阻断出现后取消
-workspace/release 两项。以上均未记为 5/5。
+workspace/release 两项。第十一轮修复提交 `453b063` 也只有上述 3/5 通过，第十二轮
+阻断出现后取消 workspace/release 两项。以上均未记为 5/5。
 
 RustSec 报告：
 

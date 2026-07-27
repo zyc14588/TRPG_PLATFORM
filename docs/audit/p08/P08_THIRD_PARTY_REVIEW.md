@@ -40,7 +40,9 @@ GITHUB_NINTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TENTH_REVIEW
 GITHUB_TENTH_AUTOMATED_REVIEW = 2_ACTIONABLE
 GITHUB_TENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_ELEVENTH_REVIEW
 GITHUB_ELEVENTH_AUTOMATED_REVIEW = 2_ACTIONABLE
-GITHUB_ELEVENTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_ELEVENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWELFTH_REVIEW
+GITHUB_TWELFTH_AUTOMATED_REVIEW = 2_ACTIONABLE
+GITHUB_TWELFTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FIFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -49,7 +51,8 @@ GITHUB_SEVENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_EIGHTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_NINTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_TENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
-GITHUB_ELEVENTH_REPAIR_HOSTED_CI = PENDING
+GITHUB_ELEVENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
+GITHUB_TWELFTH_REPAIR_HOSTED_CI = PENDING
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -75,6 +78,8 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 第十一轮第一次启动因默认日志目录只读而在扫描前退出，第二次因受限网络无法解析规则
 registry exit `2`；显式把设置/日志定向到 `/tmp` 并获准获取相同社区规则后，才得到
 最终 0 finding、0 error、0 skipped。两个前置错误均未计为扫描通过。
+第十二轮修复沿用相同隔离环境、规则与精确 34 目标范围，直接完成为
+0 finding、0 error、0 skipped。
 只有最终 0 error JSON 被计为通过，前述中间运行没有被覆盖或伪报。
 
 扩展范围首次复扫发现 `data_deletion_e2e.rs` 两处以可预测名称直接使用共享临时目录。
@@ -85,7 +90,7 @@ registry exit `2`；显式把设置/日志定向到 `/tmp` 并获准获取相同
 没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-eleventh-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-twelfth-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -276,8 +281,23 @@ snapshot 与 child sheet 的 SAN。Event Store 新增 campaign-scoped BEFORE INS
 trigger：所有 canonical write 共用事务 advisory lock，`CampaignForkRecorded` 在
 插入点重新拒绝非创建/邀请基线历史。确定性屏障测试让普通 Scenario write 先排队、
 Fork 后排队，释放后只有普通正史/投影成功。迁移、双 primary/Witness、all-features
-check/Clippy 和 34 目标 Semgrep 均已通过；仍须等待新的精确 SHA 5/5 Hosted CI 与
-远端复审，才允许合并。
+check/Clippy 和 34 目标 Semgrep 均已通过。对应提交 `453b063` 的
+repository-truth、golden-scenarios、production-security 为 3/5 通过；第十二轮精确
+SHA review `4784953431` 确认上述两项未重复，但继续提出 2 个有效问题：
+
+- Combat damage evidence 把所有 Melee 固定为 `1d6`、Firearm 固定为 `1d6+5`，
+  会拒绝验收 fixture 的 `1d6+1`，也无法表达正式武器差异；
+- synthesized fork child scenario 只复制 ending ID/summary 而丢弃
+  `growth_awards`，fork 前尚未结算的成长因此无法在 child 中通过授权检查。
+
+workspace/release 随即主动取消，未写成 5/5。第十二轮修复把选定 melee/firearm
+weapon ID 与受限公式持久化进每个 Combat participant；普通命中从攻击者、Fight Back
+从实际反击者派生期望公式，规则 replay 与独立领域 replay 都拒绝错误公式。Fork
+snapshot 则从 source scenario 的实现结局提取、验证并内容寻址完整 awards，再原样写入
+child scenario。真实 Tutorial 使用 child-owned ending/character/current sheet 和
+服务端骰成功结算尚未消费的 Psychology 奖励。完整双 primary/Witness 连续通过两次，
+all-features check/Clippy 与 34 目标 Semgrep 均通过；仍须等待新的精确 SHA 5/5
+Hosted CI 与远端复审，才允许合并。
 
 ## RustSec
 
@@ -293,8 +313,8 @@ check/Clippy 和 34 目标 Semgrep 均已通过；仍须等待新的精确 SHA 5
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 十一轮
-自动审查先后提出的 4、5、5、4、2、3、5、3、4、2、2 项阻断均已修复或完成本地验证，
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 十二轮
+自动审查先后提出的 4、5、5、4、2、3、5、3、4、2、2、2 项阻断均已修复或完成本地验证，
 最新提交的远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。

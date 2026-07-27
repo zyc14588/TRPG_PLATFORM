@@ -99,6 +99,59 @@ struct CombatSkillTargets {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CombatDamageFormula {
+    dice_count: u8,
+    die_sides: u8,
+    flat_bonus: i8,
+}
+
+impl CombatDamageFormula {
+    const fn is_valid(self) -> bool {
+        let minimum = self.dice_count as i16 + self.flat_bonus as i16;
+        let maximum = self.dice_count as i16 * self.die_sides as i16 + self.flat_bonus as i16;
+        self.dice_count >= 1
+            && self.dice_count <= 10
+            && self.die_sides >= 2
+            && self.die_sides <= 100
+            && self.flat_bonus >= -20
+            && self.flat_bonus <= 20
+            && minimum >= 0
+            && maximum <= u8::MAX as i16
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CombatWeapon {
+    weapon_id: String,
+    damage_formula: CombatDamageFormula,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CombatWeaponLoadout {
+    melee: CombatWeapon,
+    firearm: CombatWeapon,
+}
+
+impl CombatWeaponLoadout {
+    const fn damage_formula(&self, action: CombatActionKind) -> CombatDamageFormula {
+        match action {
+            CombatActionKind::Melee => self.melee.damage_formula,
+            CombatActionKind::Firearm => self.firearm.damage_formula,
+        }
+    }
+
+    fn is_valid(&self) -> bool {
+        valid_id(&self.melee.weapon_id)
+            && self.melee.damage_formula.is_valid()
+            && valid_id(&self.firearm.weapon_id)
+            && self.firearm.damage_formula.is_valid()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 enum CombatMedicalSkill {
     FirstAid,
@@ -200,6 +253,7 @@ struct Combatant {
     participant_id: String,
     dexterity: u8,
     skill_targets: CombatSkillTargets,
+    weapon_loadout: CombatWeaponLoadout,
     current_hp: u8,
     max_hp: u8,
     armor: u8,
@@ -405,6 +459,7 @@ fn parse_combat(value: &str) -> Result<CombatSnapshot, CanonicalGameplayStateErr
                 || !(1..=100).contains(&participant.skill_targets.dodge)
                 || !(1..=100).contains(&participant.skill_targets.first_aid)
                 || !(1..=100).contains(&participant.skill_targets.medicine)
+                || !participant.weapon_loadout.is_valid()
                 || participant.max_hp == 0
                 || participant.current_hp > participant.max_hp
                 || participant.armor > 30
@@ -579,7 +634,15 @@ fn apply_combat_mutation(
             if derived_outcome != *outcome {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
-            validate_damage_evidence(damage_roll, *action)?;
+            let expected_damage_formula = match outcome {
+                CombatExchangeOutcome::AttackerHit => {
+                    attacker.weapon_loadout.damage_formula(*action)
+                }
+                CombatExchangeOutcome::DefenderFoughtBack => defender
+                    .weapon_loadout
+                    .damage_formula(CombatActionKind::Melee),
+            };
+            validate_damage_evidence(damage_roll, expected_damage_formula)?;
             if *raw_damage != damage_roll.raw_damage {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
@@ -712,12 +775,8 @@ fn validate_percentile_evidence(
 
 fn validate_damage_evidence(
     evidence: &DamageRollEvidence,
-    action: CombatActionKind,
+    expected_formula: CombatDamageFormula,
 ) -> Result<(), CanonicalGameplayStateError> {
-    let expected_formula = match action {
-        CombatActionKind::Melee => (1, 6, 0),
-        CombatActionKind::Firearm => (1, 6, 5),
-    };
     let total = evidence
         .dice_values
         .iter()
@@ -726,7 +785,12 @@ fn validate_damage_evidence(
         })
         .and_then(|value| u8::try_from(value).ok());
     if !valid_id(&evidence.roll_id)
-        || (evidence.dice_count, evidence.die_sides, evidence.flat_bonus) != expected_formula
+        || (evidence.dice_count, evidence.die_sides, evidence.flat_bonus)
+            != (
+                expected_formula.dice_count,
+                expected_formula.die_sides,
+                expected_formula.flat_bonus,
+            )
         || evidence.dice_values.len() != usize::from(evidence.dice_count)
         || evidence
             .dice_values
@@ -1181,6 +1245,27 @@ fn valid_id(value: &str) -> bool {
 mod tests {
     use super::*;
 
+    fn weapon_loadout(melee_bonus: i8, firearm_bonus: i8) -> CombatWeaponLoadout {
+        CombatWeaponLoadout {
+            melee: CombatWeapon {
+                weapon_id: "selected_melee_weapon".to_owned(),
+                damage_formula: CombatDamageFormula {
+                    dice_count: 1,
+                    die_sides: 6,
+                    flat_bonus: melee_bonus,
+                },
+            },
+            firearm: CombatWeapon {
+                weapon_id: "selected_firearm".to_owned(),
+                damage_formula: CombatDamageFormula {
+                    dice_count: 1,
+                    die_sides: 6,
+                    flat_bonus: firearm_bonus,
+                },
+            },
+        }
+    }
+
     #[test]
     fn rejects_same_id_combat_from_an_unrelated_lineage() {
         let initial = r#"{
@@ -1188,9 +1273,11 @@ mod tests {
             "participants":[
                 {"participant_id":"one","dexterity":70,"current_hp":10,
                  "skill_targets":{"melee":60,"firearm":55,"dodge":40,"first_aid":30,"medicine":10},
+                 "weapon_loadout":{"melee":{"weapon_id":"knife","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":1}},"firearm":{"weapon_id":"revolver","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":5}}},
                  "max_hp":10,"armor":0,"condition":"ABLE"},
                 {"participant_id":"two","dexterity":50,"current_hp":8,
                  "skill_targets":{"melee":45,"firearm":35,"dodge":25,"first_aid":30,"medicine":10},
+                 "weapon_loadout":{"melee":{"weapon_id":"claw","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":0}},"firearm":{"weapon_id":"revolver","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":5}}},
                  "max_hp":8,"armor":0,"condition":"ABLE"}
             ],
             "initiative_order":["one","two"],"round":1,
@@ -1210,6 +1297,102 @@ mod tests {
     }
 
     #[test]
+    fn independent_replay_binds_damage_to_the_persisted_weapon_formula() {
+        let initial = CombatSnapshot {
+            combat_id: "combat_weapon_binding".to_owned(),
+            participants: vec![
+                Combatant {
+                    participant_id: "attacker".to_owned(),
+                    dexterity: 80,
+                    skill_targets: CombatSkillTargets {
+                        melee: 60,
+                        firearm: 50,
+                        dodge: 40,
+                        first_aid: 30,
+                        medicine: 10,
+                    },
+                    weapon_loadout: weapon_loadout(1, 5),
+                    current_hp: 10,
+                    max_hp: 10,
+                    armor: 0,
+                    condition: CombatCondition::Able,
+                },
+                Combatant {
+                    participant_id: "defender".to_owned(),
+                    dexterity: 50,
+                    skill_targets: CombatSkillTargets {
+                        melee: 45,
+                        firearm: 35,
+                        dodge: 25,
+                        first_aid: 30,
+                        medicine: 10,
+                    },
+                    weapon_loadout: weapon_loadout(0, 5),
+                    current_hp: 8,
+                    max_hp: 8,
+                    armor: 0,
+                    condition: CombatCondition::Able,
+                },
+            ],
+            initiative_order: vec!["attacker".to_owned(), "defender".to_owned()],
+            round: 1,
+            current_turn_index: 0,
+            turn_action_consumed: false,
+            consumed_roll_ids: Vec::new(),
+            status: CombatStatus::Ongoing,
+            version: 1,
+            last_transition: CombatMutation::Started,
+        };
+        let attack_roll = PercentileRollEvidence {
+            roll_id: "weapon_attack".to_owned(),
+            target: 60,
+            roll: 40,
+            selected_tens_digit: 4,
+            ones_digit: 0,
+            success_level: SuccessLevel::Regular,
+        };
+        let valid_mutation = CombatMutation::DamageApplied {
+            attacker_id: "attacker".to_owned(),
+            target_id: "defender".to_owned(),
+            action: CombatActionKind::Melee,
+            defense: CombatDefense::None,
+            outcome: CombatExchangeOutcome::AttackerHit,
+            attacker_roll: attack_roll.clone(),
+            defender_roll: None,
+            damage_roll: DamageRollEvidence {
+                roll_id: "weapon_damage".to_owned(),
+                dice_count: 1,
+                die_sides: 6,
+                flat_bonus: 1,
+                dice_values: vec![1],
+                raw_damage: 2,
+            },
+            raw_damage: 2,
+        };
+        let mut valid = initial.clone();
+        apply_combat_mutation(&mut valid, &valid_mutation)
+            .expect("the active fixture's persisted 1d6+1 weapon formula must replay");
+
+        let mut forged_mutation = valid_mutation;
+        let CombatMutation::DamageApplied {
+            damage_roll,
+            raw_damage,
+            ..
+        } = &mut forged_mutation
+        else {
+            unreachable!("the test constructed a damage mutation");
+        };
+        damage_roll.flat_bonus = 0;
+        damage_roll.raw_damage = 1;
+        *raw_damage = 1;
+        let mut forged = initial;
+        assert_eq!(
+            apply_combat_mutation(&mut forged, &forged_mutation),
+            Err(CanonicalGameplayStateError::InvalidTransition)
+        );
+    }
+
+    #[test]
     fn serialized_replay_rejects_an_attack_from_an_incapacitated_actor() {
         let mut previous = CombatSnapshot {
             combat_id: "combat_incapacitated".to_owned(),
@@ -1224,6 +1407,7 @@ mod tests {
                         first_aid: 30,
                         medicine: 10,
                     },
+                    weapon_loadout: weapon_loadout(0, 5),
                     current_hp: 0,
                     max_hp: 5,
                     armor: 0,
@@ -1239,6 +1423,7 @@ mod tests {
                         first_aid: 30,
                         medicine: 10,
                     },
+                    weapon_loadout: weapon_loadout(0, 5),
                     current_hp: 8,
                     max_hp: 8,
                     armor: 0,
@@ -1305,6 +1490,7 @@ mod tests {
                         first_aid: 30,
                         medicine: 10,
                     },
+                    weapon_loadout: weapon_loadout(0, 5),
                     current_hp: 10,
                     max_hp: 10,
                     armor: 0,
@@ -1320,6 +1506,7 @@ mod tests {
                         first_aid: 30,
                         medicine: 10,
                     },
+                    weapon_loadout: weapon_loadout(0, 5),
                     current_hp: 8,
                     max_hp: 8,
                     armor: 0,
@@ -1386,6 +1573,7 @@ mod tests {
                         first_aid: 30,
                         medicine: 10,
                     },
+                    weapon_loadout: weapon_loadout(0, 5),
                     current_hp: 10,
                     max_hp: 10,
                     armor: 0,
@@ -1401,6 +1589,7 @@ mod tests {
                         first_aid: 30,
                         medicine: 10,
                     },
+                    weapon_loadout: weapon_loadout(0, 5),
                     current_hp: 10,
                     max_hp: 10,
                     armor: 0,
@@ -1504,6 +1693,7 @@ mod tests {
                     participant_id: "attacker".to_owned(),
                     dexterity: 90,
                     skill_targets: skills,
+                    weapon_loadout: weapon_loadout(0, 5),
                     current_hp: 10,
                     max_hp: 10,
                     armor: 0,
@@ -1513,6 +1703,7 @@ mod tests {
                     participant_id: "defender".to_owned(),
                     dexterity: 70,
                     skill_targets: skills,
+                    weapon_loadout: weapon_loadout(0, 5),
                     current_hp: 0,
                     max_hp: 5,
                     armor: 0,
@@ -1571,6 +1762,7 @@ mod tests {
                     participant_id: "healer".to_owned(),
                     dexterity: 90,
                     skill_targets: skills,
+                    weapon_loadout: weapon_loadout(0, 5),
                     current_hp: 10,
                     max_hp: 10,
                     armor: 0,
@@ -1580,6 +1772,7 @@ mod tests {
                     participant_id: "patient".to_owned(),
                     dexterity: 70,
                     skill_targets: skills,
+                    weapon_loadout: weapon_loadout(0, 5),
                     current_hp: 5,
                     max_hp: 10,
                     armor: 0,

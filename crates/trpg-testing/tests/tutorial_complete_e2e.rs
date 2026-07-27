@@ -24,8 +24,8 @@ use trpg_ruleset_coc7::chase_state_machine::{
     ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
 use trpg_ruleset_coc7::combat_state_machine::{
-    CombatActionKind, CombatCondition, CombatDefense, CombatSkillTargets, CombatState,
-    CombatStatus, CombatantState,
+    CombatActionKind, CombatCondition, CombatDamageFormula, CombatDefense, CombatSkillTargets,
+    CombatState, CombatStatus, CombatWeapon, CombatWeaponLoadout, CombatantState,
 };
 use trpg_ruleset_coc7::dice_roll_contract::{
     server_roll_skill_check, server_roll_skill_growth, success_level, DiceAdjustment,
@@ -74,6 +74,22 @@ fn damage_with_value(dice_count: u8, die_sides: u8, flat_bonus: i8, value: u8) -
             return roll;
         }
     }
+}
+
+fn weapon_loadout(melee_bonus: i8, firearm_bonus: i8) -> CombatWeaponLoadout {
+    CombatWeaponLoadout::new(
+        CombatWeapon::new(
+            "selected_melee_weapon",
+            CombatDamageFormula::new(1, 6, melee_bonus).unwrap(),
+        )
+        .unwrap(),
+        CombatWeapon::new(
+            "selected_firearm",
+            CombatDamageFormula::new(1, 6, firearm_bonus).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap()
 }
 
 async fn reset_database(url: &str, expected_database: &str, witness: bool) -> PgPool {
@@ -696,6 +712,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 10,
                 1,
                 CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
+                weapon_loadout(1, 5),
             )
             .unwrap(),
             CombatantState::new(
@@ -704,6 +721,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 8,
                 0,
                 CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
+                weapon_loadout(0, 5),
             )
             .unwrap(),
         ],
@@ -951,6 +969,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 10,
                 1,
                 CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
+                weapon_loadout(1, 5),
             )
             .unwrap(),
             CombatantState::new(
@@ -959,6 +978,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 8,
                 0,
                 CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
+                weapon_loadout(0, 5),
             )
             .unwrap(),
         ],
@@ -1810,6 +1830,18 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         .pointer("/state/character_state")
         .and_then(serde_json::Value::as_array)
         .expect("fork snapshot characters");
+    let fork_growth_awards = snapshot_json
+        .pointer("/state/conclusion_state/0/growth_awards")
+        .and_then(serde_json::Value::as_array)
+        .expect("fork snapshot must carry the source ending's growth awards");
+    assert_eq!(
+        fork_growth_awards
+            .iter()
+            .filter_map(|award| { award.get("skill_name").and_then(serde_json::Value::as_str) })
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from(["Library Use", "Psychology"]),
+        "growth authorization must be content-addressed into the fork snapshot"
+    );
     assert_eq!(
         fork_characters.len(),
         1,
@@ -2055,6 +2087,98 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             .parse::<u8>()
             .unwrap(),
         later_growth_after
+    );
+    let child_growth_source = sqlx::query(
+        r#"
+        SELECT child_session.session_id,
+               child_ending.ending_event_id,
+               child_character.character_id,
+               child_sheet.sheet_version_id,
+               child_sheet.sheet_json,
+               child_scenario.document_json
+          FROM core_domain.sessions AS child_session
+          JOIN public.scenarios AS child_scenario
+            ON child_scenario.scenario_id = child_session.scenario_id
+           AND child_scenario.campaign_id = child_session.campaign_id
+          JOIN public.ending_events AS child_ending
+            ON child_ending.session_id = child_session.session_id
+           AND child_ending.campaign_id = child_session.campaign_id
+          JOIN public.characters AS child_character
+            ON child_character.campaign_id = child_session.campaign_id
+          JOIN public.character_sheet_versions AS child_sheet
+            ON child_sheet.character_id = child_character.character_id
+           AND child_sheet.campaign_id = child_character.campaign_id
+           AND child_sheet.version = child_character.current_sheet_version
+         WHERE child_session.campaign_id = $1
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .expect("load the child-owned conclusion and current character sheet");
+    let child_scenario_document: serde_json::Value = child_growth_source.get("document_json");
+    let child_awarded_skills = child_scenario_document
+        .pointer("/endings/0/growth_awards")
+        .and_then(serde_json::Value::as_array)
+        .expect("materialized child scenario growth awards")
+        .iter()
+        .filter_map(|award| award.get("skill_name").and_then(serde_json::Value::as_str))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        child_awarded_skills,
+        BTreeSet::from(["Library Use", "Psychology"]),
+        "the child scenario must retain the source ending's complete award authorization"
+    );
+    let child_sheet_json: serde_json::Value = child_growth_source.get("sheet_json");
+    let child_psychology_before = child_sheet_json
+        .pointer("/skills/Psychology")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|value| u8::try_from(value).ok())
+        .expect("forked Psychology skill");
+    let child_growth_roll = server_roll_skill_growth(child_psychology_before)
+        .expect("server-owned child fork growth evidence");
+    let child_psychology_after = child_growth_roll.outcome().skill_after;
+    repository
+        .record_growth(
+            &metadata(
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "growth_event_p08_child_psychology",
+                "growth",
+                0,
+                "p08_child_growth_after_fork",
+                "private_to_player",
+                PLAYER_ID,
+                "rules_engine_decision",
+            ),
+            &RecordGrowthRequest {
+                growth_event_id: "growth_event_p08_child_psychology".to_owned(),
+                campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                session_id: child_growth_source.get("session_id"),
+                ending_event_id: child_growth_source.get("ending_event_id"),
+                character_id: child_growth_source.get("character_id"),
+                source_sheet_version_id: child_growth_source.get("sheet_version_id"),
+                new_sheet_version_id: "sheet_p08_child_psychology_growth".to_owned(),
+                skill_name: "Psychology".to_owned(),
+                growth_rolls: child_growth_roll.evidence().clone(),
+            },
+        )
+        .await
+        .expect("settle an unconsumed ending award entirely inside the forked campaign");
+    assert_eq!(
+        sqlx::query_scalar::<_, String>(
+            "SELECT sheet_json -> 'skills' ->> 'Psychology' \
+             FROM public.character_sheet_versions \
+             WHERE sheet_version_id = 'sheet_p08_child_psychology_growth'",
+        )
+        .fetch_one(&primary)
+        .await
+        .expect("load the child growth result")
+        .parse::<u8>()
+        .unwrap(),
+        child_psychology_after,
+        "a fork created before this award is settled must remain growth-capable"
     );
     let materialized_visibility: Vec<(String, String, String)> = sqlx::query_as(
         r#"

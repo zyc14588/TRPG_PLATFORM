@@ -148,11 +148,7 @@ impl DamageRollEvidence {
         }
     }
 
-    fn validate(&self, action: CombatActionKind) -> KernelResult<()> {
-        let expected_formula = match action {
-            CombatActionKind::Melee => (1, 6, 0),
-            CombatActionKind::Firearm => (1, 6, 5),
-        };
+    fn validate(&self, expected_formula: CombatDamageFormula) -> KernelResult<()> {
         let total = self
             .dice_values
             .iter()
@@ -161,7 +157,12 @@ impl DamageRollEvidence {
             })
             .and_then(|value| u8::try_from(value).ok());
         if !valid_combat_id(&self.roll_id)
-            || (self.dice_count, self.die_sides, self.flat_bonus) != expected_formula
+            || (self.dice_count, self.die_sides, self.flat_bonus)
+                != (
+                    expected_formula.dice_count,
+                    expected_formula.die_sides,
+                    expected_formula.flat_bonus,
+                )
             || self.dice_values.len() != usize::from(self.dice_count)
             || self
                 .dice_values
@@ -263,11 +264,135 @@ impl CombatSkillTargets {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CombatDamageFormula {
+    dice_count: u8,
+    die_sides: u8,
+    flat_bonus: i8,
+}
+
+impl CombatDamageFormula {
+    pub fn new(dice_count: u8, die_sides: u8, flat_bonus: i8) -> KernelResult<Self> {
+        let minimum = i16::from(dice_count) + i16::from(flat_bonus);
+        let maximum = i16::from(dice_count) * i16::from(die_sides) + i16::from(flat_bonus);
+        if !(1..=10).contains(&dice_count)
+            || !(2..=100).contains(&die_sides)
+            || !(-20..=20).contains(&flat_bonus)
+            || minimum < 0
+            || maximum > i16::from(u8::MAX)
+        {
+            return Err(TrpgError::InvalidConfiguration("combat_damage_formula"));
+        }
+        Ok(Self {
+            dice_count,
+            die_sides,
+            flat_bonus,
+        })
+    }
+
+    pub const fn dice_count(self) -> u8 {
+        self.dice_count
+    }
+
+    pub const fn die_sides(self) -> u8 {
+        self.die_sides
+    }
+
+    pub const fn flat_bonus(self) -> i8 {
+        self.flat_bonus
+    }
+
+    const fn is_valid(self) -> bool {
+        let minimum = self.dice_count as i16 + self.flat_bonus as i16;
+        let maximum = self.dice_count as i16 * self.die_sides as i16 + self.flat_bonus as i16;
+        self.dice_count >= 1
+            && self.dice_count <= 10
+            && self.die_sides >= 2
+            && self.die_sides <= 100
+            && self.flat_bonus >= -20
+            && self.flat_bonus <= 20
+            && minimum >= 0
+            && maximum <= u8::MAX as i16
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CombatWeapon {
+    weapon_id: String,
+    damage_formula: CombatDamageFormula,
+}
+
+impl CombatWeapon {
+    pub fn new(
+        weapon_id: impl Into<String>,
+        damage_formula: CombatDamageFormula,
+    ) -> KernelResult<Self> {
+        let weapon_id = weapon_id.into();
+        if !valid_combat_id(&weapon_id) || !damage_formula.is_valid() {
+            return Err(TrpgError::InvalidConfiguration("combat_weapon"));
+        }
+        Ok(Self {
+            weapon_id,
+            damage_formula,
+        })
+    }
+
+    pub fn weapon_id(&self) -> &str {
+        &self.weapon_id
+    }
+
+    pub const fn damage_formula(&self) -> CombatDamageFormula {
+        self.damage_formula
+    }
+
+    fn is_valid(&self) -> bool {
+        valid_combat_id(&self.weapon_id) && self.damage_formula.is_valid()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CombatWeaponLoadout {
+    melee: CombatWeapon,
+    firearm: CombatWeapon,
+}
+
+impl CombatWeaponLoadout {
+    pub fn new(melee: CombatWeapon, firearm: CombatWeapon) -> KernelResult<Self> {
+        if !melee.is_valid() || !firearm.is_valid() {
+            return Err(TrpgError::InvalidConfiguration("combat_weapon_loadout"));
+        }
+        Ok(Self { melee, firearm })
+    }
+
+    pub fn melee(&self) -> &CombatWeapon {
+        &self.melee
+    }
+
+    pub fn firearm(&self) -> &CombatWeapon {
+        &self.firearm
+    }
+
+    const fn damage_formula(&self, action: CombatActionKind) -> CombatDamageFormula {
+        match action {
+            CombatActionKind::Melee => self.melee.damage_formula,
+            CombatActionKind::Firearm => self.firearm.damage_formula,
+        }
+    }
+
+    fn is_valid(&self) -> bool {
+        self.melee.is_valid() && self.firearm.is_valid()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CombatantState {
     participant_id: String,
     dexterity: u8,
     skill_targets: CombatSkillTargets,
+    weapon_loadout: CombatWeaponLoadout,
     current_hp: u8,
     max_hp: u8,
     armor: u8,
@@ -281,6 +406,7 @@ impl CombatantState {
         max_hp: u8,
         armor: u8,
         skill_targets: CombatSkillTargets,
+        weapon_loadout: CombatWeaponLoadout,
     ) -> KernelResult<Self> {
         let participant_id = participant_id.into();
         if !valid_combat_id(&participant_id)
@@ -288,6 +414,7 @@ impl CombatantState {
             || dexterity > 100
             || max_hp == 0
             || armor > 30
+            || !weapon_loadout.is_valid()
         {
             return Err(TrpgError::InvalidConfiguration("combat_participant"));
         }
@@ -295,6 +422,7 @@ impl CombatantState {
             participant_id,
             dexterity,
             skill_targets,
+            weapon_loadout,
             current_hp: max_hp,
             max_hp,
             armor,
@@ -312,6 +440,10 @@ impl CombatantState {
 
     pub const fn skill_targets(&self) -> CombatSkillTargets {
         self.skill_targets
+    }
+
+    pub const fn weapon_loadout(&self) -> &CombatWeaponLoadout {
+        &self.weapon_loadout
     }
 
     pub const fn current_hp(&self) -> u8 {
@@ -384,6 +516,7 @@ struct CombatantStateWire {
     participant_id: String,
     dexterity: u8,
     skill_targets: CombatSkillTargets,
+    weapon_loadout: CombatWeaponLoadout,
     current_hp: u8,
     max_hp: u8,
     armor: u8,
@@ -684,7 +817,13 @@ impl CombatState {
             CombatExchangeOutcome::AttackerHit => target_id,
             CombatExchangeOutcome::DefenderFoughtBack => attacker_id,
         };
-        damage_roll.validate(action)?;
+        let expected_damage_formula = match outcome {
+            CombatExchangeOutcome::AttackerHit => attacker.weapon_loadout.damage_formula(action),
+            CombatExchangeOutcome::DefenderFoughtBack => defender
+                .weapon_loadout
+                .damage_formula(CombatActionKind::Melee),
+        };
+        damage_roll.validate(expected_damage_formula)?;
         let target = self
             .participants
             .iter_mut()
@@ -992,6 +1131,7 @@ impl CombatState {
                 participant_id: participant.participant_id,
                 dexterity: participant.dexterity,
                 skill_targets: participant.skill_targets,
+                weapon_loadout: participant.weapon_loadout,
                 current_hp: participant.current_hp,
                 max_hp: participant.max_hp,
                 armor: participant.armor,
@@ -1024,6 +1164,7 @@ impl CombatState {
                     || !(1..=100).contains(&participant.skill_targets.dodge)
                     || !(1..=100).contains(&participant.skill_targets.first_aid)
                     || !(1..=100).contains(&participant.skill_targets.medicine)
+                    || !participant.weapon_loadout.is_valid()
                     || participant.max_hp == 0
                     || participant.current_hp > participant.max_hp
                     || participant.armor > 30

@@ -15,8 +15,9 @@
 | 项目 | 证据 | 状态 |
 | --- | --- | --- |
 | 服务端正式骰 | `ServerPercentileRoll`、`ServerD10Roll`、`ServerDamageRoll` 和 `ServerGrowthRollEvidence` 字段私有且不可反序列化；Combat/Chase/Growth 正式提交还必须携带与 state JSON 相同的 opaque evidence | PASS |
-| Combat/Chase 防 JSON 伪造 | Combat API 不再接受原始伤害，Chase API 不再接受成功布尔值；规则 replay 与独立领域 replay 重算骰值、成功等级、固定伤害公式和唯一合法下一状态，持久层再绑定同一批 server evidence；错配证据与异源同 ID 均在 append 前失败 | PASS |
+| Combat/Chase 防 JSON 伪造 | Combat API 不再接受原始伤害，Chase API 不再接受成功布尔值；规则 replay 与独立领域 replay 重算骰值、成功等级、持久化选定武器公式和唯一合法下一状态，持久层再绑定同一批 server evidence；错配证据与异源同 ID 均在 append 前失败 | PASS |
 | Combat 技能绑定 | DEX 只决定先攻；每个正式参与者持久化 Melee、Firearm、Dodge 目标，攻击、防御、规则 replay 与领域 replay 都按对应技能重新验证；高 DEX/低 Firearm 负例按 Firearm 失败，记录无伤害 miss 且不改变 HP | PASS |
+| Combat 武器公式绑定 | 每个参与者的选定近战/射击武器 ID 与受限 damage formula 随正式状态持久化；普通命中从攻击者、Fight Back 从实际反击者派生期望公式，规则 replay 与独立领域 replay 都拒绝 action-kind 默认值或另一方武器公式；`1d6+1` fixture 正向通过，错误公式失败且聚合逐字节不变 | PASS |
 | Combat miss 正史 | 攻击失败或 Dodge 成功生成 `ATTACK_MISSED` mutation，保留攻击/防御服务端骰并推进 version，不保存或接受伤害骰；规则前驱 replay 与独立领域 replay 重算结果，成功命中不能伪装成 miss | PASS |
 | Combat 回合动作消费 | attack/miss/医疗尝试均设置 `turn_action_consumed`，只有 `TURN_ADVANCED` 重置；同回合第二次攻击在规则层和独立 serialized replay 层拒绝 | PASS |
 | Fight Back | `FightBack` 与 Dodge 分离；平手由发起攻击者获胜，防守方只有更高成功等级才把伤害施加给攻击者；派生 outcome 进入 mutation，篡改 outcome 在 append 前失败 | PASS |
@@ -31,7 +32,7 @@
 | Fork hash 与事件大小 | `source_snapshot_hash` 与经重新计算的来源快照一致；记录事件只保存内容寻址引用；materialization manifest 使用确定性 root，批次同时限制行数与序列化字节数，超过 1.2 MiB 的测试快照仍不会产生超限事件 | PASS |
 | Fork 完整 scope | Public events、Clues、NPC、Combat、Chase、Conclusion 与 scenario/session/scene/character/sheet 均有正式 materialization 事件和受保护子投影；Combat/Chase 的 participant、initiative、transition 与 roll 引用均改写为 child-owned character/NPC ID | PASS |
 | Fork child lineage 与连接池 | Event Store partial unique index 保证每个 child Campaign 只有一个 canonical `CampaignForkRecorded`，projection 保留 `UNIQUE(child_campaign_id)`；snapshot/build/canonical commit/replay-page load 不持有 projection connection，最终短事务才获取 child/rebuild lock；并发两个 fork ID 只产生一个 lineage，单连接 pool 也能完成 fork | PASS |
-| Ending/Growth | 未结束会话负例；当前 sheet 决定 `skill_before`；技能必须存在于所选 Ending 的 `growth_awards`；percentile/d10 presence 与规则结果在应用、事件 replay 和 DB constraint 三层校验 | PASS |
+| Ending/Growth | 未结束会话负例；当前 sheet 决定 `skill_before`；技能必须存在于所选 Ending 的 `growth_awards`；Fork snapshot/hash 和 child scenario 保留实现结局的完整 awards，真实 child 使用 forked ending/sheet 完成尚未结算的 Psychology Growth；percentile/d10 presence 与规则结果在应用、事件 replay 和 DB constraint 三层校验 | PASS |
 | P08 projection replay | campaign-scoped rebuild lock 与所有 P08 writer 共用同一键；事务内清除 Combat/Chase/Reconsideration/Ending/Growth/全局骰消费/Fork 专属读模型后从 verified canonical events 重建；fork 基础实体只按 immutable materialization target ID 替换，保留后续 Scenario/Character/Session/Scene；Growth 角色回退仍需 secret capability、精确 canonical target 与仅 Growth 后缀；同版本污染和 ghost 均被替换，重建前后 JSON 相等且不写 Event Store | PASS |
 | Exact retry | Combat、Chase、Ending、Growth 对同一 commit/command/idempotency/request 返回相同 receipt 且不重复投影；Fork retry 只核对该 fork 的 verified projection target，不把 child 后续实体计入 manifest；不同绑定保持 fail closed | PASS |
 | Ending/Growth 语义唯一性 | Session/Character 事务 advisory lock 覆盖语义检查、canonical append 与 projection；同一 Session 的并发 Ending 和同一来源 sheet 的并发 Growth 各只允许一个成功，失败方不增加 Event Store | PASS |
@@ -39,7 +40,7 @@
 | Canonical 文本规范化 | Ending summary、Reconsideration review summary 与 resolution 在 event 构造前 trim；幂等比较、live projection 与 replay 使用同一规范值；带首尾空白的真实 DB 输入和投影重建一致 | PASS |
 | Fork 历史 cutoff | verified `SessionStarted` 确定来源起点；base event set 由起点前 campaign baseline 与来源 Session ID、Scene/Action 归属事件构成；第二 Session start/end 即使插在第一 Session Ending/Growth 之前也不进入快照；相关公开复议链再按 reconsideration ID 单独加入，不抬高角色/Clue/全局 public-event 范围 | PASS |
 | Fork Visibility 与主体密钥 | Scenario 为 `keeper_only`、Session/Scenes 为 `party_visible`、Character/Sheet 为 owner-bound `private_to_player`；每个私密 `CampaignForkMaterialized` 事件保存玩家 `data_subject_id` 并使用对应有效主体密钥，envelope、Event Store、Outbox 与投影一致 | PASS |
-| Tutorial 完整流程 | `tutorial_complete_e2e` 两个用例，真实 DB/Witness 主流程及提前 Ending/私密 Fork 负例 | PASS |
+| Tutorial 完整流程 | `tutorial_complete_e2e` 两个用例，真实 DB/Witness 主流程、提前 Ending/私密 Fork 负例，以及 child fork 上未消费成长奖励的正式结算 | PASS |
 
 ## PR 自动审查修复追踪
 
@@ -55,7 +56,8 @@
 | 第八轮，3 项 | source cutoff 会纳入同一 campaign 中交错写入的其他 Session；rebuild 跳过同版本损坏行且保留 ghost；aggregate-local roll ledger 可被跨 aggregate/Combat/Chase 绕过 | verified source Session/Scene/Action event set；锁内删除并重放 Combat/Chase/全局消费投影；全局 roll 主键、排序锁和 projection guard；交错 Session、同版本污染/ghost、Combat 医疗骰复用于 Chase 的真实双库负例；34 目标 Semgrep | FIXED_CONFIRMED_BY_NINTH_REVIEW |
 | 第九轮，4 项 | rebuild 保留 Reconsideration/Fork/Ending/Growth 等损坏或 ghost；Growth roll 可与 Combat/Chase 跨类型复用；forked Combat/Chase 保留 parent participant ID；长期持有 projection connection 会在 20 个并发 fork 时耗尽池 | 清除并重放全部 P08/Fork 物化投影，Growth 以受限 capability 安全回退角色；Growth 加入全局 roll ownership；递归 child ID 重写及合成 NPC 投影；canonical uniqueness + 短投影事务，单连接 pool 回归；连续两次真实双库、all-features check/Clippy 与 34 目标 Semgrep | FIXED_CONFIRMED_BY_TENTH_REVIEW |
 | 第十轮，2 项 | fork child 正常继续后，P08 rebuild 会删除后续 Scenario/Character/Session/Scene；exact fork retry 把整个 child Campaign 行数误当成 immutable manifest 行数 | 从 canonical materialization payload 提取 fork-owned 基础 ID 并仅替换这些行；retry 从 verified Event Store projection targets 精确计算 fork-owned 行；真实双库创建后续 Scenario、Character/Sheet、Session/Scene，再执行 exact retry 与 rebuild，逐字节保持后续投影且 Event Store 计数不变 | FIXED_CONFIRMED_BY_ELEVENTH_REVIEW |
-| 第十一轮，2 项 | source-session event selector 只读取 `payload.data`，漏掉顶层字段的 `PlayerActionSubmitted` 及依赖 SAN；child emptiness preflight 未与普通 canonical write 串行，仍可先后写入两套初始化历史 | replay 字段同时接受顶层与 `data` shape，Tutorial 断言 snapshot/child SAN；Event Store 全 campaign INSERT trigger 共用事务 advisory lock，Fork 插入时重查 verified/formal 非基线历史；trigger/function 完整 catalog 指纹；确定性屏障让普通写先排队、Fork 后排队，证明只能普通写成功；两次全新 primary/Witness、all-features check/Clippy 与 34 目标 Semgrep | FIXED_LOCALLY_RERUN_PENDING |
+| 第十一轮，2 项 | source-session event selector 只读取 `payload.data`，漏掉顶层字段的 `PlayerActionSubmitted` 及依赖 SAN；child emptiness preflight 未与普通 canonical write 串行，仍可先后写入两套初始化历史 | replay 字段同时接受顶层与 `data` shape，Tutorial 断言 snapshot/child SAN；Event Store 全 campaign INSERT trigger 共用事务 advisory lock，Fork 插入时重查 verified/formal 非基线历史；trigger/function 完整 catalog 指纹；确定性屏障让普通写先排队、Fork 后排队，证明只能普通写成功；两次全新 primary/Witness、all-features check/Clippy 与 34 目标 Semgrep | FIXED_CONFIRMED_BY_TWELFTH_REVIEW |
+| 第十二轮，2 项 | Combat 按 action kind 硬编码 `1d6`/`1d6+5`，与验收 fixture 的 `1d6+1` 和武器差异冲突；fork synthesized child scenario 只复制 ending ID/summary，丢弃 `growth_awards`，导致 fork 前未结算成长无法执行 | 正式 Combat participant 新增选定 weapon loadout，普通命中/反击按实际伤害方派生公式，规则与独立领域双重验证且错误公式不变更状态；fork conclusion snapshot 从源 scenario 提取并验证完整 awards，纳入 hash 和 child scenario，真实 child 用服务端骰成功结算 Psychology；两次全新 primary/Witness、all-features check/Clippy 与 34 目标 Semgrep | FIXED_LOCALLY_RERUN_PENDING |
 
 所有正式写入保持 Authority、Visibility、Fact Provenance、formal commit、Event Store、
 Outbox 和 projection guard 边界。没有删除或覆盖源事件，没有让 projection 成为正史，

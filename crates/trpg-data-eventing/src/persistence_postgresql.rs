@@ -772,9 +772,17 @@ struct ForkSnapshotConclusion {
     ending_event_id: String,
     ending_id: String,
     summary: String,
+    growth_awards: Vec<ForkSnapshotGrowthAward>,
     ended_at_unix_ms: u64,
     visibility_label: String,
     visibility_subject: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct ForkSnapshotGrowthAward {
+    skill_name: String,
+    reason: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -8375,6 +8383,23 @@ impl CoreDomainRepository {
                             'ending_event_id', ending.ending_event_id,
                             'ending_id', ending.ending_id,
                             'summary', ending.summary,
+                            'growth_awards', (
+                                SELECT COALESCE(
+                                    scenario_ending -> 'growth_awards',
+                                    '[]'::JSONB
+                                )
+                                  FROM public.scenarios AS scenario
+                                  CROSS JOIN LATERAL jsonb_array_elements(
+                                      scenario.document_json -> 'endings'
+                                  ) AS scenario_ending
+                                 WHERE scenario.scenario_id =
+                                       source_session.scenario_id
+                                   AND scenario.campaign_id =
+                                       source_session.campaign_id
+                                   AND scenario_ending ->> 'id' =
+                                       ending.ending_id
+                                 LIMIT 1
+                            ),
                             'version', ending.version,
                             'ended_at_unix_ms',
                                 floor(extract(epoch FROM ending.ended_at) * 1000)::BIGINT,
@@ -8643,7 +8668,8 @@ impl CoreDomainRepository {
                 .iter()
                 .map(|ending| serde_json::json!({
                     "id": ending.ending_id,
-                    "summary": ending.summary
+                    "summary": ending.summary,
+                    "growth_awards": ending.growth_awards
                 }))
                 .collect::<Vec<_>>()
         });
@@ -8880,6 +8906,19 @@ impl CoreDomainRepository {
             if conclusion.ending_id.trim().is_empty()
                 || conclusion.summary.trim().is_empty()
                 || conclusion.summary.len() > 1_024
+                || conclusion.growth_awards.iter().any(|award| {
+                    award.skill_name.trim().is_empty()
+                        || award.skill_name.len() > 256
+                        || award.reason.trim().is_empty()
+                        || award.reason.len() > 1_024
+                })
+                || conclusion
+                    .growth_awards
+                    .iter()
+                    .map(|award| award.skill_name.trim())
+                    .collect::<BTreeSet<_>>()
+                    .len()
+                    != conclusion.growth_awards.len()
                 || conclusion.ended_at_unix_ms == 0
                 || !matches!(
                     conclusion.visibility_label.as_str(),

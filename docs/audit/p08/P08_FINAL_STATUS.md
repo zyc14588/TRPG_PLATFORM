@@ -34,7 +34,8 @@ GITHUB_SEVENTH_AUTOMATED_REVIEW = 5_ACTIONABLE_FIXED_CONFIRMED_BY_EIGHTH_REVIEW
 GITHUB_EIGHTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_NINTH_REVIEW
 GITHUB_NINTH_AUTOMATED_REVIEW = 4_ACTIONABLE_FIXED_CONFIRMED_BY_TENTH_REVIEW
 GITHUB_TENTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_ELEVENTH_REVIEW
-GITHUB_ELEVENTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_LOCALLY
+GITHUB_ELEVENTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWELFTH_REVIEW
+GITHUB_TWELFTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_LOCALLY
 GITHUB_LATEST_AUTOMATED_REVIEW = RERUN_PENDING
 THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -44,7 +45,8 @@ SEVENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 EIGHTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 NINTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 TENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
-ELEVENTH_REPAIR_HOSTED_CI = PENDING
+ELEVENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
+TWELFTH_REPAIR_HOSTED_CI = PENDING
 P09_IMPLEMENTATION = NOT_STARTED
 ```
 
@@ -58,11 +60,11 @@ HMAC 与 Witness 校验的正史事件重建。
 | 验收项 | 代码与真实证据 | 状态 |
 | --- | --- | --- |
 | MajorWound 持续 | 聚合保存 prior condition；后续小伤或护甲全吸收不会清除；医疗必须由当前可行动治疗者以持久化 First Aid/Medicine 目标和服务端骰尝试，失败也留痕并消费回合/骰，只有成功事件可清除 | PASS |
-| 多角色战斗 | DEX 仅用于先攻；正式近战/射击/闪避分别绑定持久化的 Melee/Firearm/Dodge 技能；Fight Back 实现与 Dodge 不同的平手规则和防守方反击伤害目标；miss/成功 Dodge 以 `ATTACK_MISSED` 无伤害转换保存攻击/防御骰且拒绝伤害骰；一次攻击即消费当前回合动作，`advance_turn` 前不能再次攻击；`DYING/DEAD` 目标不能 Dodge/Fight Back；跨轮次推进、伤害、护甲和终态均有测试；骰证据、outcome、serialized replay 与持久层逐项独立重算 | PASS |
+| 多角色战斗 | DEX 仅用于先攻；正式近战/射击/闪避分别绑定持久化的 Melee/Firearm/Dodge 技能；每个参与者的选定近战/射击武器 ID 与伤害公式进入正式状态，伤害按实际命中者或反击者的对应武器重算，支持验收 fixture 的 `1d6+1` 且拒绝 action-kind 默认值冒充；Fight Back 实现与 Dodge 不同的平手规则和防守方反击伤害目标；miss/成功 Dodge 以 `ATTACK_MISSED` 无伤害转换保存攻击/防御骰且拒绝伤害骰；一次攻击即消费当前回合动作，`advance_turn` 前不能再次攻击；`DYING/DEAD` 目标不能 Dodge/Fight Back；跨轮次推进、伤害、护甲和终态均有测试；骰证据、outcome、serialized replay 与持久层逐项独立重算 | PASS |
 | Chase 终态 | `Escaped`/`Caught` 后普通推进失败；新追逐必须使用新 ID；每名参与者结果由 opaque 服务端 percentile evidence 和 MOV 派生，调用方不能提交成功布尔值；全局消费投影拒绝跨 segment、跨 aggregate 以及 Combat/Chase/Growth 间复用骰 ID | PASS |
 | 复议追加链 | Request → Review → Upheld/Corrected 均为正式事件；请求者必须能查看源事件，源事件与整条复议链的 Visibility/subject/data subject 完全一致；review/resolution 在事件创建前统一 trim，live projection 与删除后 replay 一致；精确重试幂等，原事件不删除 | PASS |
 | Fork 范围与 Hash | 来源快照 hash 被重新计算并精确匹配请求；角色状态由截止序列前的 verified canonical events 重建；单事件只保存有界的内容寻址引用，实际数据按大小受限的正式事件批次物化；私密 scope 以及 `keeper_only` 角色/角色卡均被排除 | PASS |
-| Fork 实体化与重放 | 子 Campaign 实际创建 scenario、character/sheet、ended session、scenes、public events、clues、NPC、combat、chase、conclusion 和 manifest；参与者、先攻、转换及 roll 引用全部改写为确定性 child-owned ID；同版本污染与 ghost 行会先被删除，再从子 Campaign 正史逐字节重建；P08 rebuild 只替换 immutable fork target ID，不删除 fork 后正常创建的实体 | PASS |
+| Fork 实体化与重放 | 子 Campaign 实际创建 scenario、character/sheet、ended session、scenes、public events、clues、NPC、combat、chase、conclusion 和 manifest；已实现结局的完整 `growth_awards` 被纳入内容寻址快照并复制到子场景，真实 child 可对尚未结算的 Psychology 奖励执行正式 Growth；参与者、先攻、转换及 roll 引用全部改写为确定性 child-owned ID；同版本污染与 ghost 行会先被删除，再从子 Campaign 正史逐字节重建；P08 rebuild 只替换 immutable fork target ID，不删除 fork 后正常创建的实体 | PASS |
 | Fork child lineage 唯一性与连接池 | canonical Event Store 对每个 child Campaign 的 `CampaignForkRecorded` 建立 partial unique index，projection 另有 `UNIQUE(child_campaign_id)`；同一 child 的所有 canonical INSERT 还经过共享事务 advisory lock，Fork 插入时在锁内重新验证只存在创建/邀请基线，封闭 emptiness preflight TOCTOU；snapshot/build/canonical commit/replay-page load 均不持有投影池连接；真实竞争与 `max_connections=1` 均通过 | PASS |
 | Fork cutoff 隔离 | `source_cutoff_event_sequence` 只用于确定上界；实际 base event set 由来源 Session ID、其 Scene/Action 归属和 Session 启动前 campaign baseline 组成；顶层字段与 `data` 包装两种 canonical payload 都能解析；即使第二 Session 的事件先写入、第一 Session 的 Ending/Growth 后写入，也不会把第二 Session 纳入旧快照；cutoff 后相关公开复议链仍单独加入 | PASS |
 | 可见性保持 | Fork materialization 按 keeper、party 和 owner-bound private 行分批；每个事件自己的 Visibility、`data_subject_id` 与主体密钥进入 request hash、HMAC、Event Store 和 Outbox，投影触发器继续要求事件/行完全一致 | PASS |
@@ -72,7 +74,7 @@ HMAC 与 Witness 校验的正史事件重建。
 | 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`；Ending summary 在事件创建前规范化并与 replay 投影一致；成长技能还必须存在于该 Ending 的 `growth_awards`；结果从共享内核不可构造的 OS CSPRNG 证据计算，并生成新锁定角色卡版本 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork | PASS |
 | Schema/最小权限 | 五个 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth rewind、可延迟外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、fork-empty trigger/function 完整 catalog 指纹、Combat/Chase/Growth 全局 gameplay roll 主键及角色权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 本机复扫 34 个 P08 Rust/SQL/CI 目标，13 条适用规则，0 finding、0 error、0 skipped；PR #9 十一轮远端自动审查先后提出 4、5、5、4、2、3、5、3、4、2、2 项真实问题，前十轮修复已由下一轮确认，第十一轮已完成本地根因修复并等待精确 SHA 复审 | PASS_WITH_REMOTE_RERUN_PENDING |
+| 第三方检查 | Semgrep 1.171.0 本机复扫 34 个 P08 Rust/SQL/CI 目标，13 条适用规则，0 finding、0 error、0 skipped；PR #9 十二轮远端自动审查先后提出 4、5、5、4、2、3、5、3、4、2、2、2 项真实问题，前十一轮修复已由下一轮确认，第十二轮已完成本地根因修复并等待新精确 SHA 复审 | PASS_WITH_REMOTE_RERUN_PENDING |
 
 ## 反伪造修复
 
@@ -109,6 +111,11 @@ HMAC 与 Witness 校验的正史事件重建。
 - Combat 的命中目标不再错误复用 DEX；Melee、Firearm 与 Dodge 技能随参与者进入正式
   聚合并由重放层独立验证。Fight Back 保存派生 outcome，防守方只有达到更高成功等级
   才反击，平手由发起攻击者获胜；伪造反击 outcome 在 Event Store append 前失败。
+- Combat 伤害公式不再按 `Melee=1d6`、`Firearm=1d6+5` 硬编码。选定武器 ID 与经
+  范围校验的公式随参与者进入正式聚合；普通命中使用攻击者对应武器，Fight Back
+  使用实际反击者的近战武器。规则前驱 replay 与独立领域 replay 都从持久化 loadout
+  派生期望公式；验收 fixture 的 `1d6+1` 通过，使用另一方或 action 默认公式的骰证据
+  在状态变更前失败。
 - Fight Back 若使当前攻击者进入 `DYING` 或 `DEAD`，聚合与独立领域重放都会拒绝其
   在 `advance_turn` 前再次攻击；失败尝试不改变状态或版本。
 - 攻击失败或 Dodge 成功不再作为错误丢弃；`ATTACK_MISSED` 正式转换保存服务端攻击/
@@ -134,6 +141,11 @@ HMAC 与 Witness 校验的正史事件重建。
 - 原先可提交原始成长数值的路径已替换为不可反序列化、字段私有的服务端随机证据；持久层从当前角色卡重新计算结果。
 - Growth 不再只验证角色卡里存在技能，还要求技能精确出现在所选 Ending 的 Scenario
   `growth_awards`；未授予技能在 append 前失败。
+- Fork conclusion snapshot 不再只保留 ending ID/summary；实现结局的完整
+  `growth_awards` 及原因进入 canonical snapshot、hash 和 child scenario，并拒绝空值、
+  重复技能或畸形结构。真实 Tutorial 在 child Campaign 内使用 forked ending、
+  character/sheet 与服务端骰完成尚未结算的 Psychology Growth，证明不是只复制字段
+  而无法执行。
 - Ending 与 Growth 的“先查再写”窗口已用事务级语义键 advisory lock 封闭；并发负例
   证明竞争失败方不会留下 canonical orphan。
 - Fork 不再在 snapshot 构造、canonical commit 或 replay-page 解密期间长期占用
@@ -224,7 +236,14 @@ exact retry 的 manifest 行数错误覆盖整个 child Campaign。workspace/rel
 第十一轮精确 SHA 审查确认第十轮两项未重复，但指出顶层
 `PlayerActionSubmitted` 字段未被 source-session 回放读取，以及 projection
 emptiness preflight 与普通 child canonical write 之间仍有 TOCTOU。workspace/release
-随即取消，未计为通过。第十一轮两项现已以双 shape replay 和 Event Store 插入线性化
-门禁修复，并从全新 PostgreSQL/Witness 连续通过两次。诊断性的全 workspace test
-因未启动 CI 专用 P02 服务而失败，未计为通过；新的 Hosted CI 与精确 SHA 远端自动
-复审仍须在合并前通过。P08 到此停止，未执行 P09。
+随即取消，未计为通过。第十一轮两项以双 shape replay 和 Event Store 插入线性化
+门禁修复；对应提交 `453b063` 的 repository-truth、golden-scenarios、
+production-security 为 3/5 通过。第十二轮精确 SHA review `4784953431` 确认第十一轮
+问题未重复，但继续指出 2 个有效问题：Combat 按动作种类硬编码伤害公式而拒绝
+`1d6+1` 等武器公式，以及 fork child scenario 丢失 ending `growth_awards`。
+workspace/release 随即主动取消，未计为通过。第十二轮修复将选定武器/公式纳入正式
+Combat 状态并按实际伤害方三层重算，同时把实现结局的 awards 纳入 snapshot/hash/
+child scenario；真实 child 已成功结算未消费的 Psychology 奖励。修复从全新
+PostgreSQL/Witness 连续通过两次，34 目标 Semgrep 为 0 finding。诊断性的完整 runtime
+crate 命令因未提供既有 P02 专用 `P02_WORKFLOW_DATABASE_URL` 失败，未计为通过；
+新的 Hosted CI 与精确 SHA 远端自动复审仍须在合并前通过。P08 到此停止，未执行 P09。

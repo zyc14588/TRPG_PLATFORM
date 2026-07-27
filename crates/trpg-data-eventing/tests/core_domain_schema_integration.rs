@@ -27,8 +27,9 @@ use trpg_ruleset_coc7::chase_state_machine::{
     ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
 use trpg_ruleset_coc7::combat_state_machine::{
-    CombatActionKind, CombatCondition, CombatDefense, CombatMedicalSkill, CombatSkillTargets,
-    CombatState, CombatStatus, CombatantState,
+    CombatActionKind, CombatCondition, CombatDamageFormula, CombatDefense, CombatMedicalSkill,
+    CombatSkillTargets, CombatState, CombatStatus, CombatWeapon, CombatWeaponLoadout,
+    CombatantState,
 };
 use trpg_ruleset_coc7::dice_roll_contract::{
     server_roll_skill_growth, success_level, SuccessLevel,
@@ -86,6 +87,22 @@ fn damage_with_value(dice_count: u8, die_sides: u8, flat_bonus: i8, value: u8) -
             return roll;
         }
     }
+}
+
+fn weapon_loadout(melee_bonus: i8, firearm_bonus: i8) -> CombatWeaponLoadout {
+    CombatWeaponLoadout::new(
+        CombatWeapon::new(
+            "selected_melee_weapon",
+            CombatDamageFormula::new(1, 6, melee_bonus).unwrap(),
+        )
+        .unwrap(),
+        CombatWeapon::new(
+            "selected_firearm",
+            CombatDamageFormula::new(1, 6, firearm_bonus).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap()
 }
 
 #[derive(Debug)]
@@ -1385,6 +1402,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 10,
                 1,
                 CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
+                weapon_loadout(1, 5),
             )
             .unwrap(),
             CombatantState::new(
@@ -1393,6 +1411,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 8,
                 0,
                 CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
+                weapon_loadout(0, 5),
             )
             .unwrap(),
         ],
@@ -1488,6 +1507,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 30,
                 20,
                 CombatSkillTargets::new(99, 99, 99, 99, 99).unwrap(),
+                weapon_loadout(1, 5),
             )
             .unwrap(),
             CombatantState::new(
@@ -1496,6 +1516,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 30,
                 20,
                 CombatSkillTargets::new(100, 100, 100, 100, 100).unwrap(),
+                weapon_loadout(0, 5),
             )
             .unwrap(),
         ],
@@ -1763,7 +1784,28 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     );
     let fight_back_attack = percentile_with_level(60, SuccessLevel::Regular);
     let fight_back_defense = percentile_with_level(45, SuccessLevel::Hard);
-    let fight_back_damage = damage_with_value(1, 6, 0, 1);
+    let wrong_attacker_formula = damage_with_value(1, 6, 0, 1);
+    let before_wrong_formula = combat.persistence_json().unwrap();
+    assert_eq!(
+        combat
+            .apply_damage(
+                "character_p06_player",
+                CombatActionKind::Melee,
+                CombatDefense::FightBack,
+                &fight_back_attack,
+                Some(&fight_back_defense),
+                Some(&wrong_attacker_formula),
+            )
+            .unwrap_err(),
+        trpg_shared_kernel::TrpgError::InvalidConfiguration("combat_damage_evidence"),
+        "fight-back damage must use the defender's selected melee weapon formula"
+    );
+    assert_eq!(
+        combat.persistence_json().unwrap(),
+        before_wrong_formula,
+        "rejecting a weapon-formula mismatch must not mutate canonical combat state"
+    );
+    let fight_back_damage = damage_with_value(1, 6, 1, 2);
     combat
         .apply_damage(
             "character_p06_player",

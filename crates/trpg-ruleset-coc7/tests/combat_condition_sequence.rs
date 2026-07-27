@@ -1,6 +1,7 @@
 use trpg_ruleset_coc7::combat_state_machine::{
     apply_damage, apply_damage_with_armor, recover_major_wound, CombatActionKind, CombatCondition,
-    CombatDefense, CombatMedicalSkill, CombatSkillTargets, CombatState, CombatantState,
+    CombatDamageFormula, CombatDefense, CombatMedicalSkill, CombatSkillTargets, CombatState,
+    CombatWeapon, CombatWeaponLoadout, CombatantState,
 };
 use trpg_ruleset_coc7::dice_roll_contract::{success_level, SuccessLevel};
 use trpg_shared_kernel::{
@@ -48,8 +49,29 @@ fn combatant(
         max_hp,
         armor,
         CombatSkillTargets::new(melee, firearm, dodge, 30, 10).unwrap(),
+        standard_weapon_loadout(),
     )
     .unwrap()
+}
+
+fn weapon_loadout(melee_bonus: i8, firearm_bonus: i8) -> CombatWeaponLoadout {
+    CombatWeaponLoadout::new(
+        CombatWeapon::new(
+            "selected_melee_weapon",
+            CombatDamageFormula::new(1, 6, melee_bonus).unwrap(),
+        )
+        .unwrap(),
+        CombatWeapon::new(
+            "selected_firearm",
+            CombatDamageFormula::new(1, 6, firearm_bonus).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+fn standard_weapon_loadout() -> CombatWeaponLoadout {
+    weapon_loadout(0, 5)
 }
 
 fn firearm_damage_with_value(value: u8) -> ServerDamageRoll {
@@ -178,6 +200,91 @@ fn armor_and_multi_character_turns_are_persistent_aggregate_state() {
     let direct = apply_damage_with_armor(12, 12, 4, 4, CombatCondition::Able).unwrap();
     assert_eq!(direct.after_hp, 12);
     assert_eq!(direct.damage, 0);
+}
+
+#[test]
+fn damage_evidence_is_bound_to_the_actual_damage_dealers_selected_weapon() {
+    let attacker = CombatantState::new(
+        "fixture_attacker",
+        90,
+        12,
+        0,
+        CombatSkillTargets::new(60, 60, 40, 30, 10).unwrap(),
+        weapon_loadout(1, 5),
+    )
+    .unwrap();
+    let defender = CombatantState::new(
+        "fixture_defender",
+        70,
+        12,
+        0,
+        CombatSkillTargets::new(80, 40, 55, 30, 10).unwrap(),
+        weapon_loadout(2, 5),
+    )
+    .unwrap();
+    let mut direct = CombatState::start(
+        "combat_fixture_weapon_formula",
+        vec![attacker.clone(), defender.clone()],
+    )
+    .unwrap();
+    let direct_attack = percentile_with_result(60, true);
+    let wrong_action_default = server_damage_roll(1, 6, 0).unwrap();
+    let before_wrong_formula = direct.persistence_json().unwrap();
+    assert_eq!(
+        direct
+            .apply_damage(
+                "fixture_defender",
+                CombatActionKind::Melee,
+                CombatDefense::None,
+                &direct_attack,
+                None,
+                Some(&wrong_action_default),
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("combat_damage_evidence")
+    );
+    assert_eq!(direct.persistence_json().unwrap(), before_wrong_formula);
+    direct
+        .apply_damage(
+            "fixture_defender",
+            CombatActionKind::Melee,
+            CombatDefense::None,
+            &direct_attack,
+            None,
+            Some(&server_damage_roll(1, 6, 1).unwrap()),
+        )
+        .expect("the active fixture's 1d6+1 melee weapon must be accepted");
+
+    let mut fight_back =
+        CombatState::start("combat_fixture_fight_back_weapon", vec![attacker, defender]).unwrap();
+    let fight_back_attack = percentile_with_level(60, SuccessLevel::Regular);
+    let fight_back_defense = percentile_with_level(80, SuccessLevel::Hard);
+    let before_wrong_counter = fight_back.persistence_json().unwrap();
+    assert_eq!(
+        fight_back
+            .apply_damage(
+                "fixture_defender",
+                CombatActionKind::Melee,
+                CombatDefense::FightBack,
+                &fight_back_attack,
+                Some(&fight_back_defense),
+                Some(&server_damage_roll(1, 6, 1).unwrap()),
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("combat_damage_evidence"),
+        "a winning defender must use its own selected melee weapon, not the attacker's"
+    );
+    assert_eq!(fight_back.persistence_json().unwrap(), before_wrong_counter);
+    fight_back
+        .apply_damage(
+            "fixture_defender",
+            CombatActionKind::Melee,
+            CombatDefense::FightBack,
+            &fight_back_attack,
+            Some(&fight_back_defense),
+            Some(&server_damage_roll(1, 6, 2).unwrap()),
+        )
+        .expect("the defender's selected counterattack weapon must supply damage");
 }
 
 #[test]
@@ -398,6 +505,7 @@ fn defenses_medical_targets_and_roll_ids_are_derived_and_single_use() {
         10,
         0,
         CombatSkillTargets::new(60, 60, 40, 30, 10).unwrap(),
+        standard_weapon_loadout(),
     )
     .unwrap();
     let patient = CombatantState::new(
@@ -406,6 +514,7 @@ fn defenses_medical_targets_and_roll_ids_are_derived_and_single_use() {
         10,
         0,
         CombatSkillTargets::new(60, 60, 40, 30, 10).unwrap(),
+        standard_weapon_loadout(),
     )
     .unwrap();
     let healer = CombatantState::new(
@@ -414,6 +523,7 @@ fn defenses_medical_targets_and_roll_ids_are_derived_and_single_use() {
         10,
         0,
         CombatSkillTargets::new(60, 60, 40, 20, 5).unwrap(),
+        standard_weapon_loadout(),
     )
     .unwrap();
     let mut medical = CombatState::start("combat_medical", vec![wounder, patient, healer]).unwrap();
