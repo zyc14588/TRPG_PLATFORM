@@ -32,7 +32,8 @@ GITHUB_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED
 GITHUB_SIXTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED
 GITHUB_SEVENTH_AUTOMATED_REVIEW = 5_ACTIONABLE_FIXED_CONFIRMED_BY_EIGHTH_REVIEW
 GITHUB_EIGHTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_NINTH_REVIEW
-GITHUB_NINTH_AUTOMATED_REVIEW = 4_ACTIONABLE_FIXED_LOCALLY
+GITHUB_NINTH_AUTOMATED_REVIEW = 4_ACTIONABLE_FIXED_CONFIRMED_BY_TENTH_REVIEW
+GITHUB_TENTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_LOCALLY
 GITHUB_LATEST_AUTOMATED_REVIEW = RERUN_PENDING
 THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -40,7 +41,8 @@ FIFTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 SIXTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 SEVENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 EIGHTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
-NINTH_REPAIR_HOSTED_CI = PENDING
+NINTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
+TENTH_REPAIR_HOSTED_CI = PENDING
 P09_IMPLEMENTATION = NOT_STARTED
 ```
 
@@ -58,7 +60,7 @@ HMAC 与 Witness 校验的正史事件重建。
 | Chase 终态 | `Escaped`/`Caught` 后普通推进失败；新追逐必须使用新 ID；每名参与者结果由 opaque 服务端 percentile evidence 和 MOV 派生，调用方不能提交成功布尔值；全局消费投影拒绝跨 segment、跨 aggregate 以及 Combat/Chase/Growth 间复用骰 ID | PASS |
 | 复议追加链 | Request → Review → Upheld/Corrected 均为正式事件；请求者必须能查看源事件，源事件与整条复议链的 Visibility/subject/data subject 完全一致；review/resolution 在事件创建前统一 trim，live projection 与删除后 replay 一致；精确重试幂等，原事件不删除 | PASS |
 | Fork 范围与 Hash | 来源快照 hash 被重新计算并精确匹配请求；角色状态由截止序列前的 verified canonical events 重建；单事件只保存有界的内容寻址引用，实际数据按大小受限的正式事件批次物化；私密 scope 以及 `keeper_only` 角色/角色卡均被排除 | PASS |
-| Fork 实体化与重放 | 子 Campaign 实际创建 scenario、character/sheet、ended session、scenes、public events、clues、NPC、combat、chase、conclusion 和 manifest；参与者、先攻、转换及 roll 引用全部改写为确定性 child-owned ID；同版本污染与 ghost 行会先被删除，再从子 Campaign 正史逐字节重建 | PASS |
+| Fork 实体化与重放 | 子 Campaign 实际创建 scenario、character/sheet、ended session、scenes、public events、clues、NPC、combat、chase、conclusion 和 manifest；参与者、先攻、转换及 roll 引用全部改写为确定性 child-owned ID；同版本污染与 ghost 行会先被删除，再从子 Campaign 正史逐字节重建；P08 rebuild 只替换 immutable fork target ID，不删除 fork 后正常创建的实体 | PASS |
 | Fork child lineage 唯一性与连接池 | canonical Event Store 对每个 child Campaign 的 `CampaignForkRecorded` 建立 partial unique index，projection 另有 `UNIQUE(child_campaign_id)`；snapshot/build/canonical commit/replay-page load 均不持有投影池连接，只有最终投影使用短事务和 child/rebuild 锁；真实并发只产生一个 lineage，`max_connections=1` 的 fork 仍在 30 秒门禁内完成 | PASS |
 | Fork cutoff 隔离 | `source_cutoff_event_sequence` 只用于确定上界；实际 base event set 由来源 Session ID、其 Scene/Action 归属和 Session 启动前 campaign baseline 组成；即使第二 Session 的事件先写入、第一 Session 的 Ending/Growth 后写入，也不会把第二 Session 纳入旧快照；cutoff 后相关公开复议链仍单独加入 | PASS |
 | 可见性保持 | Fork materialization 按 keeper、party 和 owner-bound private 行分批；每个事件自己的 Visibility、`data_subject_id` 与主体密钥进入 request hash、HMAC、Event Store 和 Outbox，投影触发器继续要求事件/行完全一致 | PASS |
@@ -68,7 +70,7 @@ HMAC 与 Witness 校验的正史事件重建。
 | 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`；Ending summary 在事件创建前规范化并与 replay 投影一致；成长技能还必须存在于该 Ending 的 `growth_awards`；结果从共享内核不可构造的 OS CSPRNG 证据计算，并生成新锁定角色卡版本 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork | PASS |
 | Schema/最小权限 | 五个 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth rewind、可延迟外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、Combat/Chase/Growth 全局 gameplay roll 主键及角色权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 本机复扫 34 个 P08 Rust/SQL/CI 目标，13 条适用规则，0 finding、0 error、0 skipped；PR #9 九轮远端自动审查先后提出 4、5、5、4、2、3、5、3、4 项真实问题，前八轮修复已由下一轮确认，第九轮已完成本地根因修复并等待精确 SHA 复审 | PASS_WITH_REMOTE_RERUN_PENDING |
+| 第三方检查 | Semgrep 1.171.0 本机复扫 34 个 P08 Rust/SQL/CI 目标，13 条适用规则，0 finding、0 error、0 skipped；PR #9 十轮远端自动审查先后提出 4、5、5、4、2、3、5、3、4、2 项真实问题，前九轮修复已由下一轮确认，第十轮已完成本地根因修复并等待精确 SHA 复审 | PASS_WITH_REMOTE_RERUN_PENDING |
 
 ## 反伪造修复
 
@@ -149,9 +151,13 @@ HMAC 与 Witness 校验的正史事件重建。
   返回统一 NotFound 且不会追加事件。
 - Tutorial 不使用手写事件字符串数组冒充 E2E；它连接独立 primary/Witness 数据库并检查 Event Store、Outbox、formal commits、HMAC 和 Witness。
 - P08 投影重建在 campaign-scoped 锁内清除 Combat、Chase、Growth、Ending、
-  Reconsideration、全局骰消费以及全部 Fork 物化读模型；非 Fork 的 Growth 先通过
+  Reconsideration、全局骰消费以及 Fork 专属物化读模型；非 Fork 的 Growth 先通过
   secret capability、精确 canonical target 和仅 Growth 后缀约束回退角色，再删除并
-  重建成长角色卡。Fork 子级连 scenario/character/sheet/session/scene 一并清除重放。
+  重建成长角色卡。Fork 基础 scenario/character/sheet/session/scene 只按 immutable
+  materialization 中的确定 ID 删除重放，fork 后由其他正式工作流新增的行保持不变。
+- Fork exact retry 的 manifest 行数不再统计整个 child Campaign；它只把该 fork 的
+  verified `CampaignForkMaterialized` projection targets 与实际行做精确交集，因此
+  后续新增 Session/Scene/Character 不会让幂等重试误报。
 - 人为污染上述每类同版本行并插入 ghost 后，重建前后实际 JSON（包含角色卡和全局骰
   消费投影）一致，Event Store 行数不变；任一步失败则整笔事务回滚。
 
@@ -197,8 +203,11 @@ selected Session cutoff 仍会纳入交错 Session、同版本损坏/ghost 投�
 取消，未计为通过。对应提交 `f1b0e70` 的 repository-truth、golden-scenarios、
 production-security 为 3/5 通过；第九轮精确 SHA 审查确认上述三项未重复，但指出
 其余 P08 投影未清除、Growth 未加入跨类型骰消费、Fork gameplay 保留 parent ID，
-以及长期持有连接会耗尽 20-connection pool 共 4 项。四项现已完成本地根因修复，
-通过连续两次全新 PostgreSQL/Witness、工作区 all-features check/Clippy 和 34 目标
-Semgrep 复扫。诊断性的全 workspace test 因未启动 CI 专用 P02 服务而失败，未计为
-通过；新的 Hosted CI 与精确 SHA 远端自动复审仍须在合并前通过。P08 到此停止，
-未执行 P09。
+以及长期持有连接会耗尽 20-connection pool 共 4 项。对应修复提交 `3b90578` 的
+repository-truth、golden-scenarios、production-security 为 3/5 通过；第十轮精确
+SHA 审查确认上述四项未重复，但指出 rebuild 会删除 fork 后的正常 child 状态，且
+exact retry 的 manifest 行数错误覆盖整个 child Campaign。workspace/release 因这
+两个阻断主动取消，未计为通过。两项现已按 fork-owned canonical target 根因修复，
+并从全新 PostgreSQL/Witness 连续通过两次。诊断性的全 workspace test 因未启动 CI
+专用 P02 服务而失败，未计为通过；新的 Hosted CI 与精确 SHA 远端自动复审仍须在
+合并前通过。P08 到此停止，未执行 P09。

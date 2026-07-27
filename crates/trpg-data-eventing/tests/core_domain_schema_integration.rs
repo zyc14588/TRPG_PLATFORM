@@ -2956,6 +2956,214 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         "fork creation must not mutate the source campaign snapshot"
     );
 
+    let post_fork_tutorial = parse_scenario_yaml(include_str!(
+        "../../../fixtures/scenarios/tutorial_mist_archive.scenario.yaml"
+    ))
+    .expect("parse a scenario for post-fork child activity");
+    repository
+        .import_scenario(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "scenario_p08_post_fork",
+                "scenario",
+                "scenario.import",
+                0,
+                "scenario_p08_post_fork_import",
+                "keeper_only",
+                "not_applicable",
+                "imported_source",
+            ),
+            &ImportScenarioRequest {
+                scenario_id: "scenario_p08_post_fork".to_owned(),
+                campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                ruleset_id: post_fork_tutorial.ruleset_id,
+                format_version: post_fork_tutorial.format_version,
+                content_hash: post_fork_tutorial.content_hash,
+                document_json: post_fork_tutorial.canonical_json,
+            },
+        )
+        .await
+        .expect("import a scenario after the fork materialization");
+    repository
+        .create_character(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "character_p08_post_fork",
+                "character",
+                "character.create",
+                0,
+                "character_p08_post_fork_create",
+                "private_to_player",
+                KEEPER_ID,
+                "user_statement",
+            ),
+            &CreateCharacterRequest {
+                character_id: "character_p08_post_fork".to_owned(),
+                campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                owner_user_id: KEEPER_ID.to_owned(),
+                display_name: "Post-fork Investigator".to_owned(),
+                sheet_version_id: "sheet_p08_post_fork_v1".to_owned(),
+                sheet_json: r#"{"name":"Post-fork Investigator","ruleset":"coc7"}"#.to_owned(),
+            },
+        )
+        .await
+        .expect("create a child-owned character after the fork materialization");
+    repository
+        .start_session(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "session_p08_post_fork",
+                "session",
+                "session.start",
+                0,
+                "session_p08_post_fork_start",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &StartSessionRequest {
+                session_id: "session_p08_post_fork".to_owned(),
+                campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                room_id: "room_p06_fork_child".to_owned(),
+                scenario_id: "scenario_p08_post_fork".to_owned(),
+                scene_id: "scene_p08_post_fork".to_owned(),
+                scene_key: "post_fork_scene".to_owned(),
+                scene_name: "Post-fork Scene".to_owned(),
+                started_at_unix_ms: NOW_MS + 30_000,
+            },
+        )
+        .await
+        .expect("start a child-owned session after the fork materialization");
+    let post_fork_projection_before: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT jsonb_build_object(
+            'scenario', (SELECT to_jsonb(scenario)
+                           FROM public.scenarios AS scenario
+                          WHERE scenario.scenario_id =
+                                'scenario_p08_post_fork'),
+            'character', (SELECT to_jsonb(character)
+                            FROM public.characters AS character
+                           WHERE character.character_id =
+                                 'character_p08_post_fork'),
+            'sheet', (SELECT to_jsonb(sheet)
+                        FROM public.character_sheet_versions AS sheet
+                       WHERE sheet.sheet_version_id =
+                             'sheet_p08_post_fork_v1'),
+            'session', (SELECT to_jsonb(session)
+                          FROM core_domain.sessions AS session
+                         WHERE session.session_id =
+                               'session_p08_post_fork'),
+            'scene', (SELECT to_jsonb(scene)
+                        FROM public.scenes AS scene
+                       WHERE scene.scene_id = 'scene_p08_post_fork')
+        )
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let child_events_before_fork_retry: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM public.event_store WHERE campaign_id = $1")
+            .bind(CHILD_CAMPAIGN_ID)
+            .fetch_one(&primary)
+            .await
+            .unwrap();
+    repository
+        .record_campaign_fork(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "fork_p06_schema",
+                "campaign_fork",
+                "campaign.fork.record",
+                0,
+                "fork_record",
+                "keeper_only",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &RecordCampaignForkRequest {
+                fork_id: "fork_p06_schema".to_owned(),
+                parent_campaign_id: CAMPAIGN_ID.to_owned(),
+                child_campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                source_session_id: "session_p06_schema".to_owned(),
+                snapshot_hash: snapshot.snapshot_hash.clone(),
+                reason: "Preserve an alternate ruling".to_owned(),
+                copy_scopes: snapshot.copy_scopes.clone(),
+            },
+        )
+        .await
+        .expect("an exact fork retry must ignore unrelated post-fork child rows");
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store WHERE campaign_id = $1",
+        )
+        .bind(CHILD_CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        child_events_before_fork_retry,
+        "an exact fork retry after child activity must not append canonical history"
+    );
+    repository
+        .rebuild_p08_projections(CHILD_CAMPAIGN_ID)
+        .await
+        .expect("rebuild only fork-owned P08 rows after normal child activity");
+    let post_fork_projection_after: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT jsonb_build_object(
+            'scenario', (SELECT to_jsonb(scenario)
+                           FROM public.scenarios AS scenario
+                          WHERE scenario.scenario_id =
+                                'scenario_p08_post_fork'),
+            'character', (SELECT to_jsonb(character)
+                            FROM public.characters AS character
+                           WHERE character.character_id =
+                                 'character_p08_post_fork'),
+            'sheet', (SELECT to_jsonb(sheet)
+                        FROM public.character_sheet_versions AS sheet
+                       WHERE sheet.sheet_version_id =
+                             'sheet_p08_post_fork_v1'),
+            'session', (SELECT to_jsonb(session)
+                          FROM core_domain.sessions AS session
+                         WHERE session.session_id =
+                               'session_p08_post_fork'),
+            'scene', (SELECT to_jsonb(scene)
+                        FROM public.scenes AS scene
+                       WHERE scene.scene_id = 'scene_p08_post_fork')
+        )
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        post_fork_projection_after, post_fork_projection_before,
+        "a P08 rebuild must preserve later scenario, character, sheet, session and scene projections"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store WHERE campaign_id = $1",
+        )
+        .bind(CHILD_CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        child_events_before_fork_retry,
+        "preserving post-fork projections must not append or rewrite canonical history"
+    );
+
     create_campaign(
         &repository,
         RACE_CHILD_CAMPAIGN_ID,

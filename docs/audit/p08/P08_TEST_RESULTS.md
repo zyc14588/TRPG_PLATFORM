@@ -57,6 +57,9 @@ append 前返回 `gameplay_roll_reuse`；forked Combat/Chase JSON 不含 parent 
 projection connection 的仓库仍能完成 fork；Reconsideration、Ending、Growth、
 Growth sheet/Character、Fork manifest/NPC/scenario/character/sheet/session/scene
 的同版本污染和 ghost 均被全量重建清除。
+第十轮修复在 fork child 上通过正式命令继续创建 Scenario、Character/Sheet 和
+Session/Scene，再执行原 fork 的 exact retry 与 P08 rebuild；retry 不追加 Event
+Store，rebuild 前后这些后续投影逐字节相同，证明修复没有用全 Campaign 删除冒充重建。
 
 ## 真实数据库、重放与迁移
 
@@ -121,8 +124,9 @@ Growth sheet/Character、Fork manifest/NPC/scenario/character/sheet/session/scen
   以 `roll_id` 为全局主键的消费投影，并在 append 前持有排序 advisory lock。本次内部、
   后续 version、不同 aggregate 和 Combat/Chase/Growth 间复用都被拒绝。
 - P08 rebuild 在 campaign-scoped 锁和单笔事务内清除 Combat、Chase、
-  Reconsideration、Ending、Growth、全局骰消费与全部 Fork materialization 后重放
-  verified canonical events；Growth 角色回退由 secret capability、精确 canonical
+  Reconsideration、Ending、Growth、全局骰消费与 Fork 专属 materialization 后重放
+  verified canonical events；fork 基础表只删除 immutable materialization 中的确定
+  ID，正常后续实体不受影响。Growth 角色回退由 secret capability、精确 canonical
   target、仅 Growth 后缀以及 canonical 派生版本共同限制。真实 DB 对各类投影注入
   同版本污染/ghost 后，重建恢复原 JSON/provenance、删除 ghost，并保持 Event Store
   不变。
@@ -205,13 +209,20 @@ secret capability/canonical target/仅 Growth 后缀约束的窄 rewind、改为
 网络中的 Semgrep 首次等待 registry 后被主动终止，联网重试才得到 34 targets、
 13 rules、0 finding、0 error、0 skipped；中间状态均未计为 PASS。
 
+第十轮修复在没有中间失败的情况下，从两组全新 primary/Witness 容器连续完整通过。
+核心集成测试先用正式 repository command 在 fork child 创建后续 Scenario、
+Character/Sheet、Session/Scene，再执行原 fork exact retry 与 P08 rebuild；两次均
+证明后续投影逐字节不变、canonical Event Store 行数不变。旧 SHA `3b90578` 只有
+repository-truth、golden-scenarios、production-security 3/5 完成通过，review
+`4784615487` 的两个阻断出现后取消 workspace/release，未记为 5/5。
+
 ## 第三方与依赖检查
 
 | 门禁 | 结果 |
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；34 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 前九轮为 4、5、5、4、2、3、5、3、4 项；第八轮修复已由第九轮确认未重复，第九轮 4 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 前十轮为 4、5、5、4、2、3、5、3、4、2 项；第九轮修复已由第十轮确认未重复，第十轮 2 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -232,17 +243,19 @@ event/projection 不一致。第七轮继续指出不可见复议源事件、回
 并继续指出交错 Session 污染 fork、同版本/ghost 投影无法重建，以及骰证据可跨
 aggregate/Combat/Chase 复用。第九轮确认这三项未重复，又指出 P08 其余投影仍可能
 保留损坏/ghost、Growth 未加入全局骰消费、fork gameplay 未重写参与者 ID，以及
-长期持有 projection connection 会耗尽连接池。以上均已按问题根因修复；扩展到 34
-目标的 Semgrep
-复扫仍为 0 finding。本报告在最新远端 CI/复审完成前保持 pending，不以本地结果冒充
-远端通过。
+长期持有 projection connection 会耗尽连接池。第十轮确认这四项未重复，又指出
+rebuild 会删除 fork 后的正常 child 状态、retry 行数错误覆盖整个 child Campaign。
+以上均已按问题根因修复；扩展到 34 目标的 Semgrep 复扫仍为 0 finding。本报告在
+最新远端 CI/复审完成前保持 pending，不以本地结果冒充远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
 仅有 2/5 完成通过后取消 3 项；第五轮修复提交 `fb3907e` 仅有 3/5 完成通过后取消
 workspace/release 两项；第六轮修复提交 `2ed9df2` 也只有 repository-truth、
 golden-scenarios、production-security 3/5 通过，第七轮阻断出现后取消
 workspace/release 两项。第七轮修复提交 `56b648b` 同样只有上述 3/5 通过，第八轮
 阻断出现后取消 workspace/release 两项。第八轮修复提交 `f1b0e70` 同样只有上述
-3/5 通过，第九轮阻断出现后取消 workspace/release 两项。以上均未记为 5/5。
+3/5 通过，第九轮阻断出现后取消 workspace/release 两项。第九轮修复提交
+`3b90578` 仍只有上述 3/5 通过，第十轮阻断出现后取消 workspace/release 两项。
+以上均未记为 5/5。
 
 RustSec 报告：
 

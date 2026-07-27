@@ -5269,27 +5269,72 @@ async fn apply_campaign_fork_replay_event(
                     .map_err(database_error("load_fork_expected_row_count"))?;
                     let actual_rows: i64 = sqlx::query_scalar(
                         r#"
-                        SELECT
-                            (SELECT count(*) FROM public.scenarios
-                              WHERE campaign_id = $1)
-                          + (SELECT count(*) FROM public.characters
-                              WHERE campaign_id = $1)
-                          + (SELECT count(*) FROM core_domain.sessions
-                              WHERE campaign_id = $1)
-                          + (SELECT count(*) FROM public.scenes
-                              WHERE campaign_id = $1)
-                          + (SELECT count(*) FROM public.campaign_fork_public_events
-                              WHERE campaign_id = $1 AND fork_id = $2)
-                          + (SELECT count(*) FROM public.campaign_fork_clues
-                              WHERE campaign_id = $1 AND fork_id = $2)
-                          + (SELECT count(*) FROM public.campaign_fork_npc_states
-                              WHERE campaign_id = $1 AND fork_id = $2)
-                          + (SELECT count(*) FROM public.combat_states
-                              WHERE campaign_id = $1)
-                          + (SELECT count(*) FROM public.chase_states
-                              WHERE campaign_id = $1)
-                          + (SELECT count(*) FROM public.ending_events
-                              WHERE campaign_id = $1)
+                        WITH fork_targets AS (
+                            SELECT DISTINCT
+                                   target ->> 'relation' AS relation_name,
+                                   target ->> 'row_id' AS row_id
+                              FROM public.event_store AS event
+                              CROSS JOIN LATERAL jsonb_array_elements(
+                                   event.projection_targets
+                              ) AS target
+                             WHERE event.campaign_id = $1
+                               AND event.stream_id = $2
+                               AND event.event_type =
+                                   'CampaignForkMaterialized'
+                               AND event.integrity_status = 'verified_hmac'
+                               AND event.request_hash_source = 'formal_commit'
+                               AND event.event_integrity_hash IS NOT NULL
+                               AND target ->> 'relation' <>
+                                   'public.character_sheet_versions'
+                        ),
+                        materialized_rows AS (
+                            SELECT 'public.scenarios' AS relation_name,
+                                   scenario_id AS row_id
+                              FROM public.scenarios
+                             WHERE campaign_id = $1
+                            UNION ALL
+                            SELECT 'public.characters', character_id
+                              FROM public.characters
+                             WHERE campaign_id = $1
+                            UNION ALL
+                            SELECT 'core_domain.sessions', session_id
+                              FROM core_domain.sessions
+                             WHERE campaign_id = $1
+                            UNION ALL
+                            SELECT 'public.scenes', scene_id
+                              FROM public.scenes
+                             WHERE campaign_id = $1
+                            UNION ALL
+                            SELECT 'public.campaign_fork_public_events',
+                                   fork_event_id
+                              FROM public.campaign_fork_public_events
+                             WHERE campaign_id = $1 AND fork_id = $2
+                            UNION ALL
+                            SELECT 'public.campaign_fork_clues', fork_clue_id
+                              FROM public.campaign_fork_clues
+                             WHERE campaign_id = $1 AND fork_id = $2
+                            UNION ALL
+                            SELECT 'public.campaign_fork_npc_states',
+                                   npc_state_id
+                              FROM public.campaign_fork_npc_states
+                             WHERE campaign_id = $1 AND fork_id = $2
+                            UNION ALL
+                            SELECT 'public.combat_states', combat_id
+                              FROM public.combat_states
+                             WHERE campaign_id = $1
+                            UNION ALL
+                            SELECT 'public.chase_states', chase_id
+                              FROM public.chase_states
+                             WHERE campaign_id = $1
+                            UNION ALL
+                            SELECT 'public.ending_events', ending_event_id
+                              FROM public.ending_events
+                             WHERE campaign_id = $1
+                        )
+                        SELECT count(*)
+                          FROM fork_targets
+                          JOIN materialized_rows
+                            USING (relation_name, row_id)
                         "#,
                     )
                     .bind(&child_campaign_id)
@@ -7684,7 +7729,59 @@ impl CoreDomainRepository {
             .any(|event| event.event_type == "CampaignForkRecorded");
         let mut earliest_growths = BTreeMap::<String, (i64, String)>::new();
         let mut growth_sheet_version_ids = BTreeSet::<String>::new();
+        let mut fork_scenario_ids = BTreeSet::<String>::new();
+        let mut fork_character_ids = BTreeSet::<String>::new();
+        let mut fork_sheet_version_ids = BTreeSet::<String>::new();
+        let mut fork_session_ids = BTreeSet::<String>::new();
+        let mut fork_scene_ids = BTreeSet::<String>::new();
         for replay in &replay_events {
+            if replay.event_type == "CampaignForkMaterialized" {
+                let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+                    .map_err(|_| CoreDomainRepositoryError::Integrity("p08_fork_replay_payload"))?;
+                event.validate_schema_version()?;
+                let CoreDomainEvent::CampaignForkMaterialized {
+                    child_campaign_id,
+                    rows,
+                    ..
+                } = event
+                else {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "p08_fork_replay_event_type",
+                    ));
+                };
+                if child_campaign_id != campaign_id {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "p08_fork_replay_campaign",
+                    ));
+                }
+                for row in rows {
+                    match row {
+                        CampaignForkMaterializedRow::Scenario { scenario_id, .. } => {
+                            fork_scenario_ids.insert(scenario_id);
+                        }
+                        CampaignForkMaterializedRow::Character {
+                            character_id,
+                            sheet_version_id,
+                            ..
+                        } => {
+                            fork_character_ids.insert(character_id);
+                            fork_sheet_version_ids.insert(sheet_version_id);
+                        }
+                        CampaignForkMaterializedRow::Session { session_id, .. } => {
+                            fork_session_ids.insert(session_id);
+                        }
+                        CampaignForkMaterializedRow::Scene { scene_id, .. } => {
+                            fork_scene_ids.insert(scene_id);
+                        }
+                        CampaignForkMaterializedRow::PublicEvent { .. }
+                        | CampaignForkMaterializedRow::DiscoveredClue { .. }
+                        | CampaignForkMaterializedRow::NpcState { .. }
+                        | CampaignForkMaterializedRow::Combat { .. }
+                        | CampaignForkMaterializedRow::Chase { .. }
+                        | CampaignForkMaterializedRow::Conclusion { .. } => {}
+                    }
+                }
+            }
             if replay.event_type != "CharacterGrowthApplied" {
                 continue;
             }
@@ -7726,8 +7823,9 @@ impl CoreDomainRepository {
         // A non-fork campaign keeps its pre-P08 character history. Rewind each
         // growth-touched character to the exact canonical projection event
         // immediately before its first growth, then remove all growth-derived
-        // sheets. The fork path instead removes and replays its entire
-        // child-owned materialization.
+        // sheets. A fork removes only IDs owned by its immutable materialized
+        // rows; child entities created after the fork belong to later canonical
+        // workflows and must survive this P08-only rebuild.
         if !is_materialized_fork {
             for (character_id, (first_growth_sequence, source_sheet_version_id)) in
                 &earliest_growths
@@ -7934,34 +8032,62 @@ impl CoreDomainRepository {
                 .map_err(database_error("clear_p08_projection"))?;
         }
         if is_materialized_fork {
-            for statement in [
-                "DELETE FROM public.character_sheet_versions WHERE campaign_id = $1",
-                "DELETE FROM public.characters WHERE campaign_id = $1",
-                "DELETE FROM public.scenes WHERE campaign_id = $1",
-                "DELETE FROM core_domain.sessions WHERE campaign_id = $1",
-                "DELETE FROM public.scenarios WHERE campaign_id = $1",
+            for (statement, row_ids) in [
+                (
+                    "DELETE FROM public.character_sheet_versions \
+                      WHERE campaign_id = $1 \
+                        AND sheet_version_id = ANY($2::TEXT[])",
+                    &fork_sheet_version_ids,
+                ),
+                (
+                    "DELETE FROM public.characters \
+                      WHERE campaign_id = $1 \
+                        AND character_id = ANY($2::TEXT[])",
+                    &fork_character_ids,
+                ),
+                (
+                    "DELETE FROM public.scenes \
+                      WHERE campaign_id = $1 \
+                        AND scene_id = ANY($2::TEXT[])",
+                    &fork_scene_ids,
+                ),
+                (
+                    "DELETE FROM core_domain.sessions \
+                      WHERE campaign_id = $1 \
+                        AND session_id = ANY($2::TEXT[])",
+                    &fork_session_ids,
+                ),
+                (
+                    "DELETE FROM public.scenarios \
+                      WHERE campaign_id = $1 \
+                        AND scenario_id = ANY($2::TEXT[])",
+                    &fork_scenario_ids,
+                ),
             ] {
+                if row_ids.is_empty() {
+                    continue;
+                }
                 sqlx::query(statement)
                     .bind(campaign_id)
+                    .bind(row_ids.iter().cloned().collect::<Vec<_>>())
                     .execute(&mut *transaction)
                     .await
                     .map_err(database_error("clear_p08_fork_projection"))?;
             }
-        } else {
-            for sheet_version_id in growth_sheet_version_ids {
-                sqlx::query(
-                    r#"
-                    DELETE FROM public.character_sheet_versions
-                     WHERE campaign_id = $1
-                       AND sheet_version_id = $2
-                    "#,
-                )
-                .bind(campaign_id)
-                .bind(sheet_version_id)
-                .execute(&mut *transaction)
-                .await
-                .map_err(database_error("clear_p08_growth_sheet"))?;
-            }
+        }
+        for sheet_version_id in growth_sheet_version_ids {
+            sqlx::query(
+                r#"
+                DELETE FROM public.character_sheet_versions
+                 WHERE campaign_id = $1
+                   AND sheet_version_id = $2
+                "#,
+            )
+            .bind(campaign_id)
+            .bind(sheet_version_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error("clear_p08_growth_sheet"))?;
         }
         sqlx::query("DELETE FROM public.campaign_forks WHERE campaign_id = $1")
             .bind(campaign_id)
