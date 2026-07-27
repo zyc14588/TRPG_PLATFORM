@@ -49,7 +49,8 @@ GITHUB_TWENTY_SECOND_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_T
 GITHUB_TWENTY_THIRD_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_FOURTH_REVIEW
 GITHUB_TWENTY_FOURTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_FIFTH_REVIEW
 GITHUB_TWENTY_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_SIXTH_REVIEW
-GITHUB_TWENTY_SIXTH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_LOCALLY
+GITHUB_TWENTY_SIXTH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_SEVENTH_REVIEW
+GITHUB_TWENTY_SEVENTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_LOCALLY
 GITHUB_LATEST_AUTOMATED_REVIEW = RERUN_PENDING
 THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -68,7 +69,8 @@ TWENTY_SECOND_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
 TWENTY_THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
 TWENTY_FOURTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
 TWENTY_FIFTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
-TWENTY_SIXTH_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
+TWENTY_SIXTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
+TWENTY_SEVENTH_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 P09_IMPLEMENTATION = NOT_STARTED
 ```
 
@@ -82,11 +84,11 @@ HMAC 与 Witness 校验的正史事件重建。
 | 验收项 | 代码与真实证据 | 状态 |
 | --- | --- | --- |
 | MajorWound 持续 | 聚合保存 prior condition；后续小伤或护甲全吸收不会清除；医疗必须由当前可行动治疗者以持久化 First Aid/Medicine 目标和服务端骰尝试，失败也留痕并消费回合/骰；成功 First Aid 可把 0 HP `Dying` 稳定为 1 HP `MajorWound`，不能用 Medicine 跳过急救，也不能把幸存者直接伪造成 `Able` | PASS |
-| 多角色战斗 | DEX 仅用于先攻；正式近战/射击/闪避分别绑定持久化的 Melee/Firearm/Dodge 技能；新遭遇必须显式接收经校验的 `CombatHealth(current_hp,max_hp,condition)`，可从上一 combatant 的 health snapshot 原样传递，不能隐式恢复满血或清除 MajorWound/Dying/Dead；每个参与者的选定近战/射击武器 ID 与伤害公式进入正式状态，伤害按实际命中者或反击者的对应武器重算，支持验收 fixture 的 `1d6+1` 且拒绝 action-kind 默认值冒充；Fight Back 实现与 Dodge 不同的平手规则和防守方反击伤害目标；miss/成功 Dodge 以 `ATTACK_MISSED` 无伤害转换保存攻击/防御骰且拒绝伤害骰；一次攻击即消费当前回合动作，`advance_turn` 前不能再次攻击；`DYING/DEAD` 目标不能 Dodge/Fight Back；跨轮次推进、伤害、护甲和终态均有测试；骰证据、outcome、serialized replay 与持久层逐项独立重算 | PASS |
+| 多角色战斗 | DEX 仅用于先攻；正式近战/射击/闪避分别绑定当前 approved/locked Character Sheet 的 `combat_profile`；初始参与者集合必须与会话 Scenario 的某个 Combat encounter 精确匹配，角色/NPC 的 DEX、技能、武器、护甲与 max HP 必须匹配持久化 profile，current HP/condition 必须承接经过 HMAC/Witness 验证的最新 canonical Combat snapshot，不能注入虚构角色、抬高数值、隐式恢复满血或清除 MajorWound/Dying/Dead；每个参与者的选定近战/射击武器 ID 与伤害公式进入正式状态，伤害按实际命中者或反击者的对应武器重算，支持验收 fixture 的 `1d6+1` 且拒绝 action-kind 默认值冒充；Fight Back 实现与 Dodge 不同的平手规则和防守方反击伤害目标；miss/成功 Dodge 以 `ATTACK_MISSED` 无伤害转换保存攻击/防御骰且拒绝伤害骰；一次攻击即消费当前回合动作，`advance_turn` 前不能再次攻击；`DYING/DEAD` 目标不能 Dodge/Fight Back；跨轮次推进、伤害、护甲和终态均有测试；骰证据、outcome、serialized replay 与持久层逐项独立重算 | PASS |
 | Chase 终态 | `Escaped`/`Caught` 后普通推进失败；新追逐必须使用新 ID；每名参与者结果由 opaque 服务端 percentile evidence 和 MOV 派生，调用方不能提交成功布尔值；全局消费投影拒绝跨 segment、跨 aggregate 以及 Combat/Chase/Growth 间复用骰 ID | PASS |
 | 复议追加链 | Request → Review → Upheld/Corrected 均为正式事件；请求者必须能查看源事件，源事件与整条复议链的 Visibility/subject/data subject 完全一致；review/resolution 在事件创建前统一 trim，live projection 与删除后 replay 一致；精确重试幂等，原事件不删除 | PASS |
 | Fork 范围与 Hash | 来源快照 hash 被重新计算并精确匹配请求；角色状态由截止序列前的 verified canonical events 重建；单事件只保存有界的内容寻址引用，实际数据按大小受限的正式事件批次物化；私密 scope 以及 `keeper_only` 角色/角色卡均被排除 | PASS |
-| Fork 实体化与重放 | 子 Campaign 实际创建 scenario、character/sheet、ended session、scenes、public events、clues、NPC、combat、chase、conclusion 和 manifest；已实现结局的完整 `growth_awards` 与按来源角色/技能记录的消费标记被纳入内容寻址快照，materialization 将标记改写到 child-owned character；已消费的 Library Use 不能在 child 重复成长，未消费的 Psychology 仍可正式结算；参与者、先攻、转换及 roll 引用全部改写为确定性 child-owned ID；同版本污染与 ghost 行会先被删除，再从子 Campaign 正史逐字节重建；P08 rebuild 只清理 canonical tip 仍由 P08 拥有的共享投影，fork 复制角色后来发生的 SAN 角色/sheet/action 逐字节保持 | PASS |
+| Fork 实体化与重放 | 子 Campaign 实际创建 scenario、character/sheet、ended session、scenes、public events、clues、NPC、combat、chase、conclusion 和 manifest；已实现结局的完整 `growth_awards` 与按来源角色/技能记录的消费标记被纳入内容寻址快照，materialization 将标记改写到 child-owned character；已消费的 Library Use 不能在 child 重复成长，未消费的 Psychology 仍可正式结算；参与者、先攻、转换及 roll 引用全部改写为确定性 child-owned ID；同版本污染与 ghost 行会先被删除，再从子 Campaign 正史逐字节重建；即使 canonical P08 replay 为空，真实 API role 也会以最新 verified/formal campaign event 的秘密 capability 调用受限函数清理 Campaign-local P08 ghost，且发现任意 canonical P08 event 时 fail closed；P08 rebuild 只清理 canonical tip 仍由 P08 拥有的共享投影，fork 复制角色后来发生的 SAN 角色/sheet/action 逐字节保持 | PASS |
 | Fork child lineage、Authority 与连接池 | canonical Event Store 对每个 child Campaign 的新 v2 `CampaignForkRecorded` 建立 partial unique index，HMAC-bound materialization projection target 是 child-owned 判别，旧 parent-owned 多 child 历史不会在升级建索引时冲突；projection 另有 `UNIQUE(child_campaign_id)`；同一 child 的所有 canonical INSERT 还经过共享事务 advisory lock，Fork 插入时在锁内重新验证只存在创建/邀请基线，封闭 emptiness preflight TOCTOU；正式 lineage 还要求 child 的锁定/FORK_ONLY Authority Contract 为共享内核 `fork_for_child` 生成的确定性 ID、version 1、父级全部规则/安全/模型/角色卡快照一致及精确 `+1ms` 创建时间，另建 Campaign 不能冒充分支；snapshot/build/canonical commit/replay-page load 均不持有投影池连接；真实 legacy upgrade、并发竞争与 `max_connections=1` 均通过 | PASS |
 | Fork cutoff 隔离 | `source_cutoff_event_sequence` 只用于确定上界；实际 base event set 由来源 Session ID、其 Scene/Action 归属和 Session 启动前 campaign baseline 组成；顶层字段与 `data` 包装两种 canonical payload 都能解析；即使第二 Session 的事件先写入、第一 Session 的 Ending/Growth 后写入，也不会把第二 Session 纳入旧快照；cutoff 后相关公开复议链仍单独加入 | PASS |
 | 可见性保持 | Fork materialization 按 keeper、party 和 owner-bound private 行分批；每个事件自己的 Visibility、`data_subject_id` 与主体密钥进入 request hash、HMAC、Event Store 和 Outbox，投影触发器继续要求事件/行完全一致 | PASS |
@@ -94,10 +96,10 @@ HMAC 与 Witness 校验的正史事件重建。
 | 活跃会话边界 | Combat/Chase 在同一事务内对 Session 行持有 `FOR SHARE` 锁并要求状态精确为 `ACTIVE`；Session 终止路径的 `FOR UPDATE` 锁封闭状态检查与正式 append 间的 TOCTOU；结束态负例不增加 Event Store | PASS |
 | Fork 结算边界 | 来源 Session 的快照预览与最终 materialization 都要求所有 Combat 已为 `ENDED`，所有 Chase 已为 `ESCAPED` 或 `CAUGHT`；仍在进行的玩法状态以 `fork_source_gameplay_not_terminal` 在写入 child 正史前拒绝，避免生成携带不可继续 ENDED Session 的死分支 | PASS |
 | 场景结构唯一性 | Scenario 验证在接受 Combat/Chase encounter 前拒绝重复 participant ID，并要求参与者 ID 与状态机一致：仅 ASCII 字母数字、`_`、`-` 且不超过 128 字节；每个 Ending 还拒绝重复、空白或超过持久层 128 字节上限的 `growth_awards.skill_name`，保证入口接受的文档可构造正式聚合、fork conclusion snapshot 并可实际结算 | PASS |
-| 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`，并在事件创建前统一规范化后写入 canonical event 与 projection；Ending summary 同样规范化并与 replay 投影一致；没有 `growth_awards` 的合法结局可用空 settlement 完成，有奖励时成长技能必须存在于该 Ending 的 `growth_awards`，且 fork 继承的按角色/技能消费标记会在 append 前阻止重复领取；成长证据只能由一次性完整 OS CSPRNG 尝试生成，不能把独立 percentile/d10 拼装为挑选结果；新 Sheet、Character 与正式 Growth event 必须精确保持来源 Character/Sheet 的 Visibility envelope，任何扩大在 append 前失败 | PASS |
+| 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`，并在事件创建前统一规范化后写入 canonical event 与 projection；Session ending reservation 通过 HMAC-bound target 和 canonical-only `SECURITY DEFINER` 函数与 Event Store/formal commit 在同一事务提交，Ending projection 失败也不会释放该 Session 的唯一结局所有权，exact retry 只恢复投影；Ending summary 同样规范化并与 replay 投影一致；没有 `growth_awards` 的合法结局可用空 settlement 完成，有奖励时成长技能必须存在于该 Ending 的 `growth_awards`，且 fork 继承的按角色/技能消费标记会在 append 前阻止重复领取；成长证据只能由一次性完整 OS CSPRNG 尝试生成，不能把独立 percentile/d10 拼装为挑选结果；新 Sheet、Character 与正式 Growth event 必须精确保持来源 Character/Sheet 的 Visibility envelope，任何扩大在 append 前失败 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork；另证明未终止 Combat/Chase 不能分叉、来源已消费成长不能在 child 重领而另一奖励仍可结算 | PASS |
-| Schema/最小权限 | 八个 P08 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth/rebuild repair、可延迟外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、fork-empty trigger/function 完整 catalog 指纹、Combat/Chase/Growth 全局 gameplay roll 主键及 canonical 事务内 reservation、v2 Fork/Reconsideration 显式非空 shape 与行为探针、角色与函数执行权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的提交 `84e0902` 经第二十六轮精确 SHA review `4789850275` 确认第二十五轮两项未重复，并指出 marker 引入前的 child-owned fork exact retry 会因 request hash shape 改变而冲突；已完成本地根因修复、target-shape 单元和真库回归，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
+| Schema/最小权限 | 九个 P08 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth/rebuild repair、空 canonical P08 历史清理、可延迟外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、fork-empty trigger/function 完整 catalog 指纹、Combat/Chase/Growth 全局 gameplay roll 与 Session ending 的 canonical 事务内 reservation、v2 Fork/Reconsideration 显式非空 shape 与行为探针、角色与函数执行权限断言 | PASS |
+| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的提交 `6b8e39b` 经第二十七轮精确 SHA review `4789952622` 确认第二十六轮问题未重复，并指出初始 Combat 未绑定持久化 participant/profile、Ending 唯一性仍依赖可失败的投影事务、空 canonical P08 replay 跳过 ghost 清理；三项已完成本地根因修复和真实数据库回归，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
 
 ## 反伪造修复
 
@@ -360,6 +362,20 @@ core-domain `1/1` 与 Tutorial `2/2` 已通过。修复提交 `84e0902` 在第�
 会因新增 target 参与 request hash 而冲突。当前修复从已完成 HMAC 校验且 append-only
 的首事件读取 marker：旧正史重建旧单-target draft，新正史重建双-target v2 draft；
 首次提交始终使用新 marker。target-shape 单元、data-eventing lib `27/27`、默认栈
-真实 core-domain `1/1` 与 Tutorial `2/2` 已通过；新提交、Hosted CI 与精确 SHA
-复审仍须在合并前通过。
+真实 core-domain `1/1` 与 Tutorial `2/2` 已通过。修复提交
+`6b8e39b976b907281999b1815859007fc0a14eea` 在第二十七轮意见到达时 Hosted CI
+已明确 3/5 通过、2 项仍运行；精确 SHA review `4789952622` 确认第二十六轮问题未
+重复，并指出初始 Combat 可注入未绑定持久化资料的 participant/profile、Session
+Ending 唯一性在 canonical append 后仍依赖可失败的 projection，以及空 canonical
+P08 replay 会跳过 ghost 清理。当前修复让初始 Combat 在 participant advisory lock
+下精确绑定 Scenario encounter、approved/locked Character Sheet/NPC
+`combat_profile` 与最新 verified canonical health；新增 forward-only
+`20260728000200`，把 Session ending reservation 纳入 Event Store/formal commit
+同一事务，并以受秘密 capability 保护的空历史清理函数删除 Campaign-local P08
+ghost。故障注入证明 Ending projection 失败后第二个结局仍在 append 前被拒绝且
+exact retry 恢复原投影；无 P08 正史的 Campaign ghost 可由真实 API role 清除；
+伪造 DEX/HP/armor/skills 与跨遭遇治疗均在 Event Store 前拒绝。迁移 `1/1`、
+data-eventing lib `27/27`、默认栈 core-domain `1/1`、Tutorial `2/2`、schema
+assertion、workspace all-target/all-feature check 与严格 Clippy 已通过；新提交、
+Hosted CI 与精确 SHA 复审仍须在合并前通过。
 P08 到此停止，未执行 P09。

@@ -1056,6 +1056,7 @@ enum AtomicProjection<'a> {
     PlayerAction(&'a serde_json::Value),
     CampaignInviteAcceptance(&'a serde_json::Value),
     GameplayRollReservation(&'a serde_json::Value),
+    SessionEndingReservation(&'a serde_json::Value),
 }
 
 impl WitnessPhase {
@@ -1369,6 +1370,22 @@ impl PostgresCanonicalStore {
         self.commit_with_projection(
             draft,
             Some(AtomicProjection::GameplayRollReservation(projection)),
+        )
+        .await
+    }
+
+    /// Atomically appends one EndingRecorded event and reserves the Session's
+    /// single canonical ending. The ending read model remains independently
+    /// rebuildable, while a projector crash can no longer make the Session
+    /// available to a different ending command.
+    pub(crate) async fn commit_session_ending_reservation(
+        &self,
+        draft: &AtomicCommitDraft,
+        projection: &serde_json::Value,
+    ) -> Result<PersistedCommit, CanonicalStoreError> {
+        self.commit_with_projection(
+            draft,
+            Some(AtomicProjection::SessionEndingReservation(projection)),
         )
         .await
     }
@@ -2570,6 +2587,13 @@ impl PostgresCanonicalStore {
                         "set_gameplay_roll_reservation_capability",
                         "reserve_gameplay_roll_consumptions",
                         "SELECT core_domain.reserve_gameplay_roll_consumptions($1, $2::JSONB)",
+                    ),
+                    AtomicProjection::SessionEndingReservation(projection) => (
+                        projection,
+                        "session_ending_reservation_must_be_object",
+                        "set_session_ending_reservation_capability",
+                        "reserve_session_ending",
+                        "SELECT core_domain.reserve_session_ending($1, $2::JSONB)",
                     ),
                 };
             if !projection.is_object() {

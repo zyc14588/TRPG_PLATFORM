@@ -219,6 +219,38 @@ fn character_sheet() -> String {
             "Library Use": 70,
             "Psychology": 55
         },
+        "combat_profile": {
+            "dexterity": 70,
+            "skill_targets": {
+                "melee": 45,
+                "firearm": 35,
+                "dodge": 40,
+                "first_aid": 30,
+                "medicine": 10
+            },
+            "weapon_loadout": {
+                "melee": {
+                    "weapon_id": "selected_melee_weapon",
+                    "damage_formula": {
+                        "dice_count": 1,
+                        "die_sides": 6,
+                        "flat_bonus": 1
+                    }
+                },
+                "firearm": {
+                    "weapon_id": "selected_firearm",
+                    "damage_formula": {
+                        "dice_count": 1,
+                        "die_sides": 6,
+                        "flat_bonus": 5
+                    }
+                }
+            },
+            "current_hp": 10,
+            "max_hp": 10,
+            "armor": 1,
+            "condition": "ABLE"
+        },
         "backstory_anchors": [
             "Protects confidential sources",
             "Distrusts official explanations"
@@ -1093,13 +1125,67 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         )
         .await
         .expect("start an interleaved later session before the source conclusion");
+    let healed_later_combat = CombatState::start(
+        "combat_p08_healed_later",
+        vec![
+            CombatantState::new(
+                CHARACTER_ID,
+                70,
+                CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
+                1,
+                CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
+                weapon_loadout(1, 5),
+            )
+            .unwrap(),
+            CombatantState::new(
+                "npc_marta",
+                80,
+                CombatHealth::new(8, 8, CombatCondition::Able).unwrap(),
+                0,
+                CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
+                weapon_loadout(0, 5),
+            )
+            .unwrap(),
+        ],
+    )
+    .unwrap();
+    assert!(matches!(
+        repository
+            .record_combat_state(
+                &metadata(
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "combat_p08_healed_later",
+                    "combat_state",
+                    0,
+                    "p08_healed_later_combat",
+                    "party_visible",
+                    "not_applicable",
+                    "rules_engine_decision",
+                ),
+                &RecordCombatStateRequest {
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: "session_p08_later".to_owned(),
+                    state_json: healed_later_combat.persistence_json().unwrap(),
+                    attacker_roll: None,
+                    defender_roll: None,
+                    damage_roll: None,
+                    medical_roll: None,
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "combat_participant_authority"
+        ))
+    ));
     let unfinished_later_combat = CombatState::start(
         "combat_p08_unfinished_later",
         vec![
             CombatantState::new(
                 CHARACTER_ID,
                 70,
-                CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
+                CombatHealth::new(5, 10, CombatCondition::MajorWound).unwrap(),
                 1,
                 CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
                 weapon_loadout(1, 5),

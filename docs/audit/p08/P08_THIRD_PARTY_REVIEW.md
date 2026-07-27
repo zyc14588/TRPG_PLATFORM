@@ -568,7 +568,37 @@ relation 与 fork row ID。首次写入固定使用双-target v2；检测到旧�
 `fork_lineage_target_shape_preserves_pre_marker_retries` 精确比较两种 hash-relevant
 target vectors；核心真库另断言新首事件持久化 marker，并让 existing exact retry、
 projection recovery 与并发回归在默认栈 `1/1` 通过。data-eventing lib `27/27`、
-Tutorial `2/2` 通过；新提交、Hosted CI 和第二十七轮精确 SHA review 仍为 pending。
+Tutorial `2/2` 通过。修复提交
+`6b8e39b976b907281999b1815859007fc0a14eea` 的 repository-truth、
+golden-scenarios、production-security-runtime 已完成通过；workspace 与
+release-readiness 在下一轮意见到达时仍运行，因此只记录 3/5 通过、2 项运行中。
+第二十七轮精确 SHA review `4789952622` 确认第二十六轮问题未重复，并提出两个 P1、
+一个 P2：
+
+- Combat v1 只验证调用方提供的 state JSON 自洽，没有把 participant、DEX、技能、
+  武器、护甲、max/current HP 与 Scenario、角色卡、NPC 或前序 canonical gameplay
+  绑定，可注入虚构/增强初态或跨遭遇治疗；
+- `EndingRecorded` 先进入 Event Store，Session 的唯一结局所有权再由独立 projection
+  事务建立；投影失败或取消会留下正史却允许另一 stream 写入第二个结局；
+- P08 rebuild 只在 replay 非空时执行清理，因此没有 canonical P08 event 的 Campaign
+  无法清除被注入或遗留的 P08 ghost。
+
+当前最小修复让 Combat v1 在排序 participant advisory lock 下读取经 HMAC/Witness
+验证的 campaign replay，要求 participant 集合匹配会话 Scenario 的 Combat encounter，
+角色卡为 approved/locked，角色/NPC `combat_profile` 精确匹配 DEX、技能、武器、
+护甲与 max HP，并从最新 canonical Combat snapshot 原样承接 current HP/condition；
+同一 participant 也不能同时处于另一 active Combat。
+
+新增 forward-only `20260728000200_bind_session_endings_and_empty_rebuild.sql`。
+HMAC-bound Session ending reservation 由 canonical-only `SECURITY DEFINER` 函数与
+Event Store、audit、formal commit 同事务提交；旧无 marker 的 exact retry 保留原
+request-hash shape。另一 API-role-only、秘密 capability 约束的清理函数只在再次确认
+Campaign 不含任意 canonical P08 event 后删除 Campaign-local P08 投影。真实数据库
+故障注入证明 Ending projection 失败后不同 ending ID 仍在 append 前被拒绝，exact
+retry 恢复原投影；空历史 ghost 由真实 API role 清除；伪造 Combat 初态与跨遭遇治疗
+均不写 Event Store。migration upgrade、decision atomicity、默认栈 core-domain
+`1/1`、Tutorial `2/2`、schema assertion、workspace check 与严格 Clippy 已通过；
+新提交、Hosted CI 和第二十八轮精确 SHA review 仍为 pending。
 
 ## RustSec
 
@@ -585,7 +615,7 @@ Tutorial `2/2` 通过；新提交、Hosted CI 和第二十七轮精确 SHA revie
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-二十六轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+二十七轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
 用户门槛明确延期，没有冒充修复。当前最小修复的远端 CI/精确 SHA 复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖

@@ -61,6 +61,7 @@ use crate::event_store_sqlx_outbox_projection::{
 
 const CORE_EVENT_SCHEMA_VERSION: u16 = CoreDomainEvent::SCHEMA_VERSION;
 const FORK_CHILD_LINEAGE_MARKER_RELATION: &str = "public.campaign_fork_materializations";
+const SESSION_ENDING_RESERVATION_RELATION: &str = "core_domain.session_ending_reservation";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCommandMetadata {
@@ -1199,6 +1200,76 @@ impl CoreDomainRepository {
             .await
             .map_err(Into::into)
     }
+
+    async fn commit_ending_event(
+        &self,
+        metadata: &CoreCommandMetadata,
+        request: &RecordEndingRequest,
+        event: &CoreDomainEvent,
+        reservation: &Value,
+    ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
+        let existing_uses_reservation: Option<bool> = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS (
+                SELECT 1
+                  FROM public.event_store AS event
+                  CROSS JOIN LATERAL jsonb_array_elements(
+                      event.projection_targets
+                  ) AS target
+                 WHERE event.sequence BETWEEN
+                       formal.first_event_sequence AND formal.last_event_sequence
+                   AND target ->> 'relation' =
+                       'core_domain.session_ending_reservation'
+            )
+              FROM public.formal_commits AS formal
+             WHERE formal.commit_id = $1
+               AND formal.status = 'committed'
+            "#,
+        )
+        .bind(&metadata.commit_id)
+        .fetch_optional(&self.primary)
+        .await
+        .map_err(database_error(
+            "load_session_ending_reservation_commit_shape",
+        ))?;
+        let mut targets = vec![projection_target(
+            "public.ending_events",
+            &request.ending_event_id,
+        )];
+        if existing_uses_reservation == Some(false) {
+            // Preserve the immutable request shape for endings committed
+            // before the canonical Session reservation marker existed.
+            return self
+                .commit_event(
+                    metadata,
+                    &request.campaign_id,
+                    &request.ending_event_id,
+                    ("ending", "ending.record"),
+                    event,
+                    targets,
+                )
+                .await;
+        }
+        let reservation_id = self
+            .session_ending_reservation_projection_id(reservation)
+            .await?;
+        targets.push(projection_target(
+            SESSION_ENDING_RESERVATION_RELATION,
+            &reservation_id,
+        ));
+        let draft = metadata.to_draft(
+            &request.campaign_id,
+            &request.ending_event_id,
+            "ending",
+            "ending.record",
+            event,
+            targets,
+        )?;
+        self.canonical
+            .commit_session_ending_reservation(&draft, reservation)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 fn player_action_event(
@@ -1296,6 +1367,19 @@ impl CoreDomainRepository {
             .await
             .map_err(database_error(
                 "derive_gameplay_roll_reservation_projection_id",
+            ))
+    }
+
+    async fn session_ending_reservation_projection_id(
+        &self,
+        projection: &serde_json::Value,
+    ) -> Result<String, CoreDomainRepositoryError> {
+        sqlx::query_scalar("SELECT core_domain.session_ending_reservation_projection_id($1::JSONB)")
+            .bind(sqlx::types::Json(projection.clone()))
+            .fetch_one(&self.primary)
+            .await
+            .map_err(database_error(
+                "derive_session_ending_reservation_projection_id",
             ))
     }
 
@@ -2073,6 +2157,187 @@ fn gameplay_state_projection_targets(
 struct GameplayRollConsumption {
     roll_id: String,
     roll_kind: &'static str,
+}
+
+#[derive(Clone, Debug)]
+struct CanonicalCombatParticipantSnapshot {
+    combat_id: String,
+    status: String,
+    participant: Value,
+    sequence: i64,
+}
+
+#[derive(Clone, Debug)]
+struct CanonicalCombatParticipantHistory {
+    initial_same_combat: Option<BTreeMap<String, Value>>,
+    latest: BTreeMap<String, CanonicalCombatParticipantSnapshot>,
+}
+
+fn combat_participant_values(
+    state_json: &str,
+) -> Result<BTreeMap<String, Value>, CoreDomainRepositoryError> {
+    let state: Value = serde_json::from_str(state_json)
+        .map_err(|_| CoreDomainRepositoryError::Integrity("combat_participant_state"))?;
+    let participants = state.get("participants").and_then(Value::as_array).ok_or(
+        CoreDomainRepositoryError::Integrity("combat_participant_state"),
+    )?;
+    let mut indexed = BTreeMap::new();
+    for participant in participants {
+        let participant_id = participant
+            .get("participant_id")
+            .and_then(Value::as_str)
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "combat_participant_identity",
+            ))?;
+        EntityId::new(participant_id)
+            .map_err(|_| CoreDomainRepositoryError::Integrity("combat_participant_identity"))?;
+        if !participant.is_object()
+            || indexed
+                .insert(participant_id.to_owned(), participant.clone())
+                .is_some()
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_participant_identity",
+            ));
+        }
+    }
+    Ok(indexed)
+}
+
+fn canonical_combat_participant_snapshots(
+    replay_events: &[CanonicalReplayEvent],
+    campaign_id: &str,
+    combat_id: &str,
+) -> Result<CanonicalCombatParticipantHistory, CoreDomainRepositoryError> {
+    let mut initial_same_combat = None;
+    let mut latest = BTreeMap::<String, CanonicalCombatParticipantSnapshot>::new();
+    for replay in replay_events
+        .iter()
+        .filter(|event| event.event_type == "CombatStateRecorded")
+    {
+        let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+            .map_err(|_| CoreDomainRepositoryError::Integrity("combat_history_payload"))?;
+        event.validate_schema_version()?;
+        let CoreDomainEvent::CombatStateRecorded {
+            combat_id: recorded_combat_id,
+            campaign_id: recorded_campaign_id,
+            status,
+            version,
+            state_json,
+            ..
+        } = event
+        else {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_history_event_type",
+            ));
+        };
+        if recorded_campaign_id != campaign_id {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_history_campaign",
+            ));
+        }
+        let inspected = inspect_combat_state(&state_json)
+            .map_err(|_| CoreDomainRepositoryError::Integrity("combat_history_state"))?;
+        if inspected.combat_id() != recorded_combat_id
+            || inspected.status() != status
+            || inspected.version() != version
+        {
+            return Err(CoreDomainRepositoryError::Integrity("combat_history_state"));
+        }
+        let participants = combat_participant_values(&state_json)?;
+        if recorded_combat_id == combat_id
+            && version == 1
+            && initial_same_combat.replace(participants.clone()).is_some()
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_initial_history_conflict",
+            ));
+        }
+        for (participant_id, participant) in participants {
+            let replace = latest
+                .get(&participant_id)
+                .is_none_or(|snapshot| replay.sequence > snapshot.sequence);
+            if replace {
+                latest.insert(
+                    participant_id,
+                    CanonicalCombatParticipantSnapshot {
+                        combat_id: recorded_combat_id.clone(),
+                        status: status.clone(),
+                        participant,
+                        sequence: replay.sequence,
+                    },
+                );
+            }
+        }
+    }
+    Ok(CanonicalCombatParticipantHistory {
+        initial_same_combat,
+        latest,
+    })
+}
+
+fn scenario_combat_authorizes_participants(
+    document: &Value,
+    participant_ids: &BTreeSet<String>,
+    character_ids: &BTreeSet<String>,
+) -> bool {
+    document
+        .get("encounters")
+        .and_then(Value::as_array)
+        .is_some_and(|encounters| {
+            encounters.iter().any(|encounter| {
+                if encounter.get("type").and_then(Value::as_str) != Some("combat") {
+                    return false;
+                }
+                let Some(tokens) = encounter.get("participants").and_then(Value::as_array) else {
+                    return false;
+                };
+                let mut permits_investigators = false;
+                let mut explicit = BTreeSet::new();
+                for token in tokens {
+                    let Some(token) = token.as_str() else {
+                        return false;
+                    };
+                    if token == "investigator" {
+                        permits_investigators = true;
+                    } else {
+                        explicit.insert(token.to_owned());
+                    }
+                }
+                if explicit.iter().any(|id| !participant_ids.contains(id))
+                    || participant_ids.iter().any(|id| {
+                        !(explicit.contains(id)
+                            || permits_investigators && character_ids.contains(id))
+                    })
+                {
+                    return false;
+                }
+                !permits_investigators
+                    || participant_ids.iter().any(|id| character_ids.contains(id))
+            })
+        })
+}
+
+fn combat_profile_participant(
+    participant_id: &str,
+    profile: &Value,
+) -> Result<Value, CoreDomainRepositoryError> {
+    let mut profile = profile
+        .as_object()
+        .cloned()
+        .ok_or(CoreDomainRepositoryError::Integrity(
+            "combat_participant_profile",
+        ))?;
+    if profile.contains_key("participant_id") {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "combat_participant_profile",
+        ));
+    }
+    profile.insert(
+        "participant_id".to_owned(),
+        Value::String(participant_id.to_owned()),
+    );
+    Ok(Value::Object(profile))
 }
 
 fn gameplay_roll_id(
@@ -8696,6 +8961,43 @@ impl CoreDomainRepository {
                 .execute(&mut *transaction)
                 .await
                 .map_err(database_error("clear_p08_rebuildable_projections"))?;
+        } else {
+            let authorizing_commit_id: String = sqlx::query_scalar(
+                r#"
+                SELECT formal.commit_id
+                  FROM public.event_store AS event
+                  JOIN public.formal_commits AS formal
+                    ON event.sequence BETWEEN
+                       formal.first_event_sequence AND formal.last_event_sequence
+                   AND formal.campaign_id = event.campaign_id
+                   AND formal.status = 'committed'
+                 WHERE event.campaign_id = $1
+                   AND event.event_integrity_version = 3
+                   AND event.integrity_status = 'verified_hmac'
+                   AND event.request_hash_source = 'formal_commit'
+                   AND event.event_integrity_hash IS NOT NULL
+                   AND jsonb_array_length(event.projection_targets) > 0
+                 ORDER BY event.sequence DESC
+                 LIMIT 1
+                "#,
+            )
+            .bind(campaign_id)
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(database_error("load_empty_p08_rebuild_authorization"))?
+            .ok_or(CoreDomainRepositoryError::NotFound("campaign_event"))?;
+            self.set_projection_capability(
+                &mut transaction,
+                &authorizing_commit_id,
+                "set_empty_p08_rebuild_cleanup_capability",
+            )
+            .await?;
+            sqlx::query("SELECT core_domain.clear_empty_p08_rebuildable_projections($1, $2)")
+                .bind(campaign_id)
+                .bind(authorizing_commit_id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error("clear_empty_p08_rebuildable_projections"))?;
         }
         for replay_event in &replay_events {
             let commit_id: String = sqlx::query_scalar(
@@ -10914,6 +11216,16 @@ impl CoreDomainRepository {
             &request.session_id,
         )
         .await?;
+        if metadata.expected_version == 0 {
+            self.validate_initial_combat_participants(
+                &mut transaction,
+                &request.campaign_id,
+                &request.session_id,
+                &combat_id,
+                &request.state_json,
+            )
+            .await?;
+        }
         if (metadata.expected_version == 0) != previous_state.is_none() {
             return Err(CoreDomainRepositoryError::Integrity(
                 "combat_state_projection_conflict",
@@ -11330,6 +11642,26 @@ impl CoreDomainRepository {
         // The advisory lock is held across the independent canonical append so
         // a conflicting ID cannot appear between validation and projection.
         lock_ending_projection_identity(&mut transaction, &request.ending_event_id).await?;
+        if let Some(existing) = sqlx::query(
+            r#"
+            SELECT campaign_id, ending_event_id
+              FROM core_domain.session_ending_reservations
+             WHERE session_id = $1
+            "#,
+        )
+        .bind(&request.session_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(database_error("load_session_ending_reservation"))?
+        {
+            if existing.get::<String, _>("campaign_id") != request.campaign_id
+                || existing.get::<String, _>("ending_event_id") != request.ending_event_id
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "ending_session_already_recorded",
+                ));
+            }
+        }
         if let Some(existing_ending_event_id) = sqlx::query_scalar::<_, String>(
             "SELECT ending_event_id FROM public.ending_events WHERE session_id = $1",
         )
@@ -11377,18 +11709,21 @@ impl CoreDomainRepository {
             summary: normalized_summary.to_owned(),
             ended_at_unix_ms: request.ended_at_unix_ms,
         };
+        let reservation = serde_json::json!({
+            "campaign_id": request.campaign_id,
+            "session_id": request.session_id,
+            "ending_event_id": request.ending_event_id,
+            "ending_id": normalized_ending_id,
+            "summary": normalized_summary,
+            "ended_at_unix_ms": request.ended_at_unix_ms,
+            "visibility_label": metadata.visibility_label,
+            "visibility_subject": metadata.visibility_subject,
+            "provenance_kind": metadata.provenance_kind,
+            "provenance_reference": metadata.provenance_reference,
+            "provenance_recorded_by": metadata.provenance_recorded_by,
+        });
         let persisted = self
-            .commit_event(
-                metadata,
-                &request.campaign_id,
-                &request.ending_event_id,
-                ("ending", "ending.record"),
-                &event,
-                vec![projection_target(
-                    "public.ending_events",
-                    &request.ending_event_id,
-                )],
-            )
+            .commit_ending_event(metadata, request, &event, &reservation)
             .await?;
         if let Some(existing_sequence) = sqlx::query_scalar::<_, i64>(
             "SELECT last_event_sequence FROM public.ending_events WHERE ending_event_id = $1",
@@ -11998,6 +12333,174 @@ impl CoreDomainRepository {
                 }
                 return Err(CoreDomainRepositoryError::InvalidInput(
                     "gameplay_roll_reuse",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    async fn validate_initial_combat_participants(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        campaign_id: &str,
+        session_id: &str,
+        combat_id: &str,
+        state_json: &str,
+    ) -> Result<(), CoreDomainRepositoryError> {
+        let requested = combat_participant_values(state_json)?;
+        for participant_id in requested.keys() {
+            sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+                .bind(format!(
+                    "p08-combat-participant:{campaign_id}:{participant_id}"
+                ))
+                .execute(&mut **transaction)
+                .await
+                .map_err(database_error("lock_combat_participant"))?;
+        }
+
+        // The replay reader verifies the canonical HMAC/Witness chains and
+        // decrypts the formal event payloads. Holding the participant locks
+        // while reading prevents another initial Combat from racing this
+        // authoritative health lookup.
+        let replay_events = self.load_campaign_events(campaign_id).await?;
+        let history =
+            canonical_combat_participant_snapshots(&replay_events, campaign_id, combat_id)?;
+        if let Some(initial_same_combat) = history.initial_same_combat {
+            if initial_same_combat != requested {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "idempotent_combat_initial_state_conflict",
+                ));
+            }
+            return Ok(());
+        }
+
+        let scenario_document: Value = sqlx::query_scalar(
+            r#"
+            SELECT scenario.document_json
+              FROM core_domain.sessions AS session
+              JOIN public.scenarios AS scenario
+                ON scenario.scenario_id = session.scenario_id
+               AND scenario.campaign_id = session.campaign_id
+             WHERE session.session_id = $1
+               AND session.campaign_id = $2
+            "#,
+        )
+        .bind(session_id)
+        .bind(campaign_id)
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(database_error("load_combat_scenario"))?
+        .ok_or(CoreDomainRepositoryError::NotFound("combat_session"))?;
+        let character_rows = sqlx::query(
+            r#"
+            SELECT character.character_id, sheet.sheet_json
+              FROM public.characters AS character
+              JOIN public.character_sheet_versions AS sheet
+                ON sheet.character_id = character.character_id
+               AND sheet.version = character.current_sheet_version
+               AND sheet.campaign_id = character.campaign_id
+             WHERE character.campaign_id = $1
+               AND character.state = 'APPROVED'
+               AND character.initial_version_locked
+               AND sheet.locked
+            "#,
+        )
+        .bind(campaign_id)
+        .fetch_all(&mut **transaction)
+        .await
+        .map_err(database_error("load_combat_character_profiles"))?;
+        let mut character_profiles = BTreeMap::<String, Value>::new();
+        for row in character_rows {
+            let character_id: String = row.get("character_id");
+            if !requested.contains_key(&character_id) {
+                continue;
+            }
+            let sheet: Value = row.get("sheet_json");
+            let profile = sheet.get("combat_profile").cloned().ok_or(
+                CoreDomainRepositoryError::Integrity("combat_character_profile_missing"),
+            )?;
+            character_profiles.insert(character_id, profile);
+        }
+        let character_ids = character_profiles.keys().cloned().collect::<BTreeSet<_>>();
+        if !scenario_combat_authorizes_participants(
+            &scenario_document,
+            &requested.keys().cloned().collect(),
+            &character_ids,
+        ) {
+            return Err(CoreDomainRepositoryError::InvalidInput(
+                "combat_participant_authority",
+            ));
+        }
+        let mut npc_profiles = BTreeMap::<String, Value>::new();
+        let npcs = scenario_document
+            .get("npcs")
+            .and_then(Value::as_array)
+            .ok_or(CoreDomainRepositoryError::Integrity("combat_scenario_npcs"))?;
+        for npc in npcs {
+            let npc_id = npc
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or(CoreDomainRepositoryError::Integrity("combat_scenario_npc"))?;
+            if !requested.contains_key(npc_id) {
+                continue;
+            }
+            let profile =
+                npc.get("combat_profile")
+                    .cloned()
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "combat_npc_profile_missing",
+                    ))?;
+            if npc_profiles.insert(npc_id.to_owned(), profile).is_some() {
+                return Err(CoreDomainRepositoryError::Integrity("combat_scenario_npc"));
+            }
+        }
+
+        for (participant_id, actual) in &requested {
+            let profile = character_profiles
+                .get(participant_id)
+                .or_else(|| npc_profiles.get(participant_id))
+                .ok_or(CoreDomainRepositoryError::InvalidInput(
+                    "combat_participant_authority",
+                ))?;
+            let mut expected = combat_profile_participant(participant_id, profile)?;
+            if let Some(snapshot) = history.latest.get(participant_id) {
+                if snapshot.combat_id != combat_id && snapshot.status == "ONGOING" {
+                    return Err(CoreDomainRepositoryError::InvalidInput(
+                        "combat_participant_already_active",
+                    ));
+                }
+                let expected_fields =
+                    expected
+                        .as_object_mut()
+                        .ok_or(CoreDomainRepositoryError::Integrity(
+                            "combat_participant_profile",
+                        ))?;
+                let historical_fields = snapshot.participant.as_object().ok_or(
+                    CoreDomainRepositoryError::Integrity("combat_participant_history"),
+                )?;
+                for field in ["current_hp", "condition"] {
+                    expected_fields.insert(
+                        field.to_owned(),
+                        historical_fields.get(field).cloned().ok_or(
+                            CoreDomainRepositoryError::Integrity("combat_participant_history"),
+                        )?,
+                    );
+                }
+                let mut expected_static = expected_fields.clone();
+                let mut historical_static = historical_fields.clone();
+                for field in ["current_hp", "condition"] {
+                    expected_static.remove(field);
+                    historical_static.remove(field);
+                }
+                if expected_static != historical_static {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "combat_participant_profile_history",
+                    ));
+                }
+            }
+            if &expected != actual {
+                return Err(CoreDomainRepositoryError::InvalidInput(
+                    "combat_participant_authority",
                 ));
             }
         }

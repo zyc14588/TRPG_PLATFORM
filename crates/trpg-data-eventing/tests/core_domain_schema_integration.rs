@@ -46,6 +46,7 @@ const CAMPAIGN_ID: &str = "campaign_p06_schema";
 const CHILD_CAMPAIGN_ID: &str = "campaign_p06_fork_child";
 const RACE_CHILD_CAMPAIGN_ID: &str = "campaign_p08_fork_race_child";
 const STATE_RACE_CHILD_CAMPAIGN_ID: &str = "campaign_p08_fork_state_race_child";
+const EMPTY_P08_CAMPAIGN_ID: &str = "campaign_p08_empty_rebuild";
 const KEEPER_ID: &str = "keeper_p06_schema";
 const PLAYER_ID: &str = "player_p06_schema";
 const OTHER_ID: &str = "other_p06_schema";
@@ -54,6 +55,7 @@ const CHILD_AUTHORITY_ID: &str = "authority_contract_campaign_p06_fork_child_1";
 const RACE_CHILD_AUTHORITY_ID: &str = "authority_contract_campaign_p08_fork_race_child_1";
 const STATE_RACE_CHILD_AUTHORITY_ID: &str =
     "authority_contract_campaign_p08_fork_state_race_child_1";
+const EMPTY_P08_AUTHORITY_ID: &str = "authority_contract_campaign_p08_empty_rebuild_1";
 const NOW_MS: u64 = 2_000_000_000_000;
 
 fn percentile_with_result(target: u8, succeeds: bool) -> ServerPercentileRoll {
@@ -1165,7 +1167,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 display_name: "Evelyn Hart".to_owned(),
                 sheet_version_id: "sheet_p06_player_v1".to_owned(),
                 sheet_json:
-                    r#"{"name":"Evelyn Hart","age":31,"ruleset":"coc7","characteristics":{"power":65},"skills":{"Library Use":70}}"#
+                    r#"{"name":"Evelyn Hart","age":31,"ruleset":"coc7","characteristics":{"power":65},"skills":{"Library Use":70},"combat_profile":{"dexterity":70,"skill_targets":{"melee":45,"firearm":35,"dodge":40,"first_aid":30,"medicine":10},"weapon_loadout":{"melee":{"weapon_id":"selected_melee_weapon","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":1}},"firearm":{"weapon_id":"selected_firearm","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":5}}},"current_hp":10,"max_hp":10,"armor":1,"condition":"ABLE"}}"#
                         .to_owned(),
             },
         )
@@ -1520,6 +1522,78 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("approve the idle late joiner before the source cutoff");
+
+    Box::pin(async {
+        let forged_initial_combat = CombatState::start(
+            "combat_p08_forged_initial",
+            vec![
+                CombatantState::new(
+                    "character_p06_player",
+                    99,
+                    CombatHealth::new(30, 30, CombatCondition::Able).unwrap(),
+                    20,
+                    CombatSkillTargets::new(99, 99, 99, 99, 99).unwrap(),
+                    weapon_loadout(1, 5),
+                )
+                .unwrap(),
+                CombatantState::new(
+                    "npc_marta",
+                    80,
+                    CombatHealth::new(8, 8, CombatCondition::Able).unwrap(),
+                    0,
+                    CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
+                    weapon_loadout(0, 5),
+                )
+                .unwrap(),
+            ],
+        )
+        .unwrap();
+        assert!(matches!(
+            repository
+                .record_combat_state(
+                    &metadata(
+                        CAMPAIGN_ID,
+                        AUTHORITY_ID,
+                        KEEPER_ID,
+                        "human_keeper",
+                        "combat_p08_forged_initial",
+                        "combat_state",
+                        "combat.state.start",
+                        0,
+                        "combat_p08_forged_initial",
+                        "party_visible",
+                        "not_applicable",
+                        "rules_engine_decision",
+                    ),
+                    &RecordCombatStateRequest {
+                        campaign_id: CAMPAIGN_ID.to_owned(),
+                        session_id: "session_p06_schema".to_owned(),
+                        state_json: forged_initial_combat.persistence_json().unwrap(),
+                        attacker_roll: None,
+                        defender_roll: None,
+                        damage_roll: None,
+                        medical_roll: None,
+                    },
+                )
+                .await,
+            Err(CoreDomainRepositoryError::InvalidInput(
+                "combat_participant_authority"
+            ))
+        ));
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND stream_id = 'combat_p08_forged_initial'",
+            )
+            .bind(CAMPAIGN_ID)
+            .fetch_one(&primary)
+            .await
+            .unwrap(),
+            0,
+            "invented HP, skills, and armor must fail before canonical append"
+        );
+    })
+    .await;
 
     let mut combat = CombatState::start(
         "combat_p08_schema",
@@ -2493,33 +2567,134 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         "invalid ending input must not leave a committed formal write"
     );
 
-    repository
-        .record_ending(
-            &metadata(
-                CAMPAIGN_ID,
-                AUTHORITY_ID,
-                KEEPER_ID,
-                "human_keeper",
-                "ending_event_p08_schema",
-                "ending",
-                "ending.record",
-                0,
-                "ending_p08_record",
-                "party_visible",
-                "not_applicable",
-                "human_keeper_statement",
-            ),
-            &RecordEndingRequest {
-                ending_event_id: "ending_event_p08_schema".to_owned(),
-                campaign_id: CAMPAIGN_ID.to_owned(),
-                session_id: "session_p06_schema".to_owned(),
-                ending_id: "  ending_expose_marta  ".to_owned(),
-                summary: "  The investigators expose Marta and preserve the archive.  ".to_owned(),
-                ended_at_unix_ms: NOW_MS + 7_000,
-            },
+    Box::pin(async {
+        let ending_metadata = metadata(
+            CAMPAIGN_ID,
+            AUTHORITY_ID,
+            KEEPER_ID,
+            "human_keeper",
+            "ending_event_p08_schema",
+            "ending",
+            "ending.record",
+            0,
+            "ending_p08_record",
+            "party_visible",
+            "not_applicable",
+            "human_keeper_statement",
+        );
+        let ending_request = RecordEndingRequest {
+            ending_event_id: "ending_event_p08_schema".to_owned(),
+            campaign_id: CAMPAIGN_ID.to_owned(),
+            session_id: "session_p06_schema".to_owned(),
+            ending_id: "  ending_expose_marta  ".to_owned(),
+            summary: "  The investigators expose Marta and preserve the archive.  ".to_owned(),
+            ended_at_unix_ms: NOW_MS + 7_000,
+        };
+        sqlx::raw_sql(
+            r#"
+        CREATE FUNCTION public.reject_p08_ending_projection_for_test()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF NEW.ending_event_id = 'ending_event_p08_schema' THEN
+                RAISE EXCEPTION 'injected P08 ending projection failure';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
+        CREATE TRIGGER zz_reject_p08_ending_projection_for_test
+        BEFORE INSERT ON public.ending_events
+        FOR EACH ROW EXECUTE FUNCTION
+            public.reject_p08_ending_projection_for_test();
+        "#,
         )
+        .execute(&primary)
         .await
-        .expect("append tutorial ending event");
+        .expect("install P08 ending projection failure injection");
+        assert!(matches!(
+            repository
+                .record_ending(&ending_metadata, &ending_request)
+                .await,
+            Err(CoreDomainRepositoryError::Database("project_ending"))
+        ));
+        let reserved_ending_sequence: i64 = sqlx::query_scalar(
+            "SELECT event_sequence \
+           FROM core_domain.session_ending_reservations \
+          WHERE session_id = 'session_p06_schema'",
+        )
+        .fetch_one(&primary)
+        .await
+        .expect("the canonical transaction reserves the Session ending");
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM public.ending_events \
+             WHERE session_id = 'session_p06_schema'",
+            )
+            .fetch_one(&primary)
+            .await
+            .unwrap(),
+            0,
+            "the injected projection failure must not erase the canonical reservation"
+        );
+        assert!(matches!(
+            repository
+                .record_ending(
+                    &metadata(
+                        CAMPAIGN_ID,
+                        AUTHORITY_ID,
+                        KEEPER_ID,
+                        "human_keeper",
+                        "ending_event_p08_after_projection_failure",
+                        "ending",
+                        "ending.record",
+                        0,
+                        "ending_p08_after_projection_failure",
+                        "party_visible",
+                        "not_applicable",
+                        "human_keeper_statement",
+                    ),
+                    &RecordEndingRequest {
+                        ending_event_id: "ending_event_p08_after_projection_failure".to_owned(),
+                        campaign_id: CAMPAIGN_ID.to_owned(),
+                        session_id: "session_p06_schema".to_owned(),
+                        ending_id: "ending_expose_marta".to_owned(),
+                        summary: "A projector crash cannot authorize a second ending.".to_owned(),
+                        ended_at_unix_ms: NOW_MS + 7_001,
+                    },
+                )
+                .await,
+            Err(CoreDomainRepositoryError::Integrity(
+                "ending_session_already_recorded"
+            ))
+        ));
+        sqlx::raw_sql(
+            r#"
+        DROP TRIGGER zz_reject_p08_ending_projection_for_test
+            ON public.ending_events;
+        DROP FUNCTION public.reject_p08_ending_projection_for_test();
+        "#,
+        )
+        .execute(&primary)
+        .await
+        .expect("remove P08 ending projection failure injection");
+        repository
+            .record_ending(&ending_metadata, &ending_request)
+            .await
+            .expect("exact retry projects the canonically reserved ending");
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT last_event_sequence FROM public.ending_events \
+             WHERE ending_event_id = 'ending_event_p08_schema'",
+            )
+            .fetch_one(&primary)
+            .await
+            .unwrap(),
+            reserved_ending_sequence,
+            "projection recovery must reuse the original canonical ending"
+        );
+    })
+    .await;
     let normalized_ending_projection: (String, String) = sqlx::query_as(
         "SELECT ending_id, summary FROM public.ending_events \
          WHERE ending_event_id = 'ending_event_p08_schema'",
@@ -5472,6 +5647,181 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         events_before_later_character_rebuild,
         "preserving later character mutations must not rewrite canonical history"
     );
+
+    Box::pin(async {
+        create_campaign(
+            &repository,
+            EMPTY_P08_CAMPAIGN_ID,
+            EMPTY_P08_AUTHORITY_ID,
+            "room_p08_empty_rebuild",
+            "p08_empty_rebuild",
+        )
+        .await;
+        let empty_tutorial = parse_scenario_yaml(include_str!(
+            "../../../fixtures/scenarios/tutorial_mist_archive.scenario.yaml"
+        ))
+        .unwrap();
+        repository
+            .import_scenario(
+                &metadata(
+                    EMPTY_P08_CAMPAIGN_ID,
+                    EMPTY_P08_AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "scenario_p08_empty_rebuild",
+                    "scenario",
+                    "scenario.import",
+                    0,
+                    "scenario_p08_empty_rebuild",
+                    "keeper_only",
+                    "not_applicable",
+                    "imported_source",
+                ),
+                &ImportScenarioRequest {
+                    scenario_id: "scenario_p08_empty_rebuild".to_owned(),
+                    campaign_id: EMPTY_P08_CAMPAIGN_ID.to_owned(),
+                    ruleset_id: empty_tutorial.ruleset_id,
+                    format_version: empty_tutorial.format_version,
+                    content_hash: empty_tutorial.content_hash,
+                    document_json: empty_tutorial.canonical_json,
+                },
+            )
+            .await
+            .expect("import a scenario without creating any P08 canonical event");
+        repository
+            .start_session(
+                &metadata(
+                    EMPTY_P08_CAMPAIGN_ID,
+                    EMPTY_P08_AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "session_p08_empty_rebuild",
+                    "session",
+                    "session.start",
+                    0,
+                    "session_p08_empty_rebuild",
+                    "party_visible",
+                    "not_applicable",
+                    "human_keeper_statement",
+                ),
+                &StartSessionRequest {
+                    session_id: "session_p08_empty_rebuild".to_owned(),
+                    campaign_id: EMPTY_P08_CAMPAIGN_ID.to_owned(),
+                    room_id: "room_p08_empty_rebuild".to_owned(),
+                    scenario_id: "scenario_p08_empty_rebuild".to_owned(),
+                    scene_id: "scene_p08_empty_rebuild".to_owned(),
+                    scene_key: "scene_archive_front".to_owned(),
+                    scene_name: "Empty rebuild fixture".to_owned(),
+                    started_at_unix_ms: NOW_MS + 20_000,
+                },
+            )
+            .await
+            .expect("start a non-P08 Session for the empty-history rebuild");
+        let empty_authorizing_sequence: i64 = sqlx::query_scalar(
+            "SELECT last_event_sequence FROM core_domain.sessions \
+         WHERE session_id = 'session_p08_empty_rebuild'",
+        )
+        .fetch_one(&primary)
+        .await
+        .unwrap();
+        let ghost_empty_combat = CombatState::start(
+            "combat_p08_empty_ghost",
+            vec![
+                CombatantState::new(
+                    "ghost_investigator",
+                    70,
+                    CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
+                    0,
+                    CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
+                    weapon_loadout(1, 5),
+                )
+                .unwrap(),
+                CombatantState::new(
+                    "ghost_npc",
+                    60,
+                    CombatHealth::new(8, 8, CombatCondition::Able).unwrap(),
+                    0,
+                    CombatSkillTargets::new(40, 40, 30, 20, 10).unwrap(),
+                    weapon_loadout(0, 5),
+                )
+                .unwrap(),
+            ],
+        )
+        .unwrap();
+        let mut inject_empty_ghost = primary.begin().await.unwrap();
+        sqlx::query(
+            "ALTER TABLE public.combat_states \
+         DISABLE TRIGGER combat_states_event_guard",
+        )
+        .execute(&mut *inject_empty_ghost)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+        INSERT INTO public.combat_states (
+            combat_id, campaign_id, session_id, status, round,
+            current_turn_index, state_json, version,
+            visibility_label, visibility_subject,
+            provenance_kind, provenance_reference, provenance_recorded_by,
+            last_event_sequence
+        ) VALUES (
+            'combat_p08_empty_ghost', $1, 'session_p08_empty_rebuild',
+            'ONGOING', 1, 0, $2::JSONB, 1,
+            'party_visible', 'not_applicable',
+            'system_fixture', 'empty_rebuild_ghost', 'test_workflow', $3
+        )
+        "#,
+        )
+        .bind(EMPTY_P08_CAMPAIGN_ID)
+        .bind(ghost_empty_combat.persistence_json().unwrap())
+        .bind(empty_authorizing_sequence)
+        .execute(&mut *inject_empty_ghost)
+        .await
+        .unwrap();
+        sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+            .execute(&mut *inject_empty_ghost)
+            .await
+            .unwrap();
+        sqlx::query(
+            "ALTER TABLE public.combat_states \
+         ENABLE TRIGGER combat_states_event_guard",
+        )
+        .execute(&mut *inject_empty_ghost)
+        .await
+        .unwrap();
+        inject_empty_ghost.commit().await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 \
+               AND event_type = 'CombatStateRecorded'",
+            )
+            .bind(EMPTY_P08_CAMPAIGN_ID)
+            .fetch_one(&primary)
+            .await
+            .unwrap(),
+            0
+        );
+        let empty_rebuild = api_repository
+            .rebuild_p08_projections(EMPTY_P08_CAMPAIGN_ID)
+            .await
+            .expect("an empty canonical P08 history must clear ghost projections");
+        assert_eq!(empty_rebuild.replayed_events, 0);
+        assert_eq!(empty_rebuild.combat_states, 0);
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM public.combat_states \
+             WHERE campaign_id = $1",
+            )
+            .bind(EMPTY_P08_CAMPAIGN_ID)
+            .fetch_one(&primary)
+            .await
+            .unwrap(),
+            0,
+            "empty-history rebuild must remove a non-canonical combat projection"
+        );
+    })
+    .await;
 
     assert!(
         sqlx::query(

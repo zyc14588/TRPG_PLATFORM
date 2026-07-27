@@ -49,6 +49,25 @@ npcs:
     lies:
       - 她声称昨晚没有人进出地下室。
     revealable_clues: [clue_wrong_signature, clue_salt_receipt]
+    combat_profile:
+      dexterity: 80
+      skill_targets:
+        melee: 60
+        firearm: 80
+        dodge: 40
+        first_aid: 30
+        medicine: 10
+      weapon_loadout:
+        melee:
+          weapon_id: selected_melee_weapon
+          damage_formula: {dice_count: 1, die_sides: 6, flat_bonus: 0}
+        firearm:
+          weapon_id: selected_firearm
+          damage_formula: {dice_count: 1, die_sides: 6, flat_bonus: 5}
+      current_hp: 8
+      max_hp: 8
+      armor: 0
+      condition: ABLE
 clues:
   - id: clue_wrong_signature
     type: core

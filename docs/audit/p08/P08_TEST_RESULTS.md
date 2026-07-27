@@ -116,6 +116,26 @@ materialization marker。首次 fork 总是生成双-target v2 draft；pre-marke
 hash-relevant target vector；真实 core-domain 断言新首事件持久化 marker，并让既有
 exact retry、投影恢复与并发长链继续通过。
 
+第二十七轮精确 SHA review `4789952622` 针对提交
+`6b8e39b976b907281999b1815859007fc0a14eea` 确认第二十六轮问题未重复，并新增两个
+P1、一个 P2。初始 Combat 现在在排序 participant advisory lock 下加载经过
+HMAC/Witness 验证的 campaign replay：participant 集合必须匹配会话 Scenario 的
+Combat encounter，角色必须具有 approved/locked 当前 Sheet，角色/NPC 的
+`combat_profile` 必须精确匹配 DEX、Melee/Firearm/Dodge、武器、护甲与 max HP，
+current HP/condition 必须承接最新 canonical Combat snapshot，且同一 participant
+不能同时处于另一 active Combat。真实 core-domain 以 DEX 99、HP 30、armor 20、
+skills 99 的伪造初态证明 Event Store 不增；Tutorial 在上一战以 5/10
+`MajorWound` 结束后拒绝 10/10 `Able`，再接受精确 5/10 `MajorWound`。
+
+新增 forward-only `20260728000200_bind_session_endings_and_empty_rebuild.sql`。
+Session ending reservation 的 HMAC-bound target、正式事件、audit 与 formal commit
+由 canonical-only `SECURITY DEFINER` 函数在同一事务写入；故障 trigger 拒绝 Ending
+projection 后，canonical event 与 reservation 仍存在，不同 ending ID 在 append 前
+失败，移除故障后的 exact retry 恢复原 sequence 且不重复正史。相同 migration 提供
+API-role-only、秘密 capability 约束的空历史清理函数；真实 API role 在确认 Campaign
+没有任意 canonical P08 event 后删除注入的 Combat ghost，若存在 P08 正史则 fail
+closed。
+
 ## 真实数据库、重放与迁移
 
 临时环境使用固定 digest 的 PostgreSQL/pgvector 镜像、localhost 端口和每次生成的
@@ -140,6 +160,13 @@ exact retry、投影恢复与并发长链继续通过。
 函数新增 v2 判别而受审计 catalog 指纹仍是旧值。该次未计通过；将 expected fingerprint
 更新为数据库输出的完整定义/执行属性指纹后，从空库重新执行，legacy 双分支、B24、
 repeat、drift 与 constraint 全部门禁 `1/1`、exit `0`。
+
+第二十七轮新增空历史真库回归第一次运行时，扩展后的单一 async 集成测试 future
+越过默认线程栈并以 stack overflow/SIGABRT 退出；仅把新增隔离块放入 `Box::pin`，
+没有改生产栈或弱化断言。下一次运行在恢复 deferred projection guard 前仍有待结算
+约束事件，PostgreSQL 正确拒绝 `ENABLE TRIGGER`；加入
+`SET CONSTRAINTS ALL IMMEDIATE` 后，从全新 primary/Witness 数据库以默认栈重跑
+`1/1`。两次中间失败均未计为 PASS，修复后又完整重跑一次 `1/1`。
 
 真实集成验证：
 
@@ -191,6 +218,10 @@ repeat、drift 与 constraint 全部门禁 `1/1`、exit `0`。
 - Combat 的攻击/防御 target 分别来自持久化的 Melee、Firearm、Dodge，而 DEX
   只用于 initiative。Fight Back 与 Dodge 使用不同平手规则；防守方反击时伤害目标
   为原攻击者，mutation outcome 不能被 JSON 篡改。
+- Combat v1 的 participant 集合及 DEX/技能/武器/护甲/max HP 由 Scenario、
+  approved/locked Character Sheet 与 NPC `combat_profile` 授权；current HP/condition
+  由最新 verified canonical Combat snapshot 授权。伪造增强数值、虚构 participant、
+  跨遭遇恢复以及同一 participant 进入两个 active Combat 都在正史 append 前拒绝。
 - Combat 的攻击命中、攻击失败与医疗尝试均消费当前回合动作，只有正式
   `TurnAdvanced` 重置；`DYING/DEAD` 防守者不能 Dodge/Fight Back。First Aid/Medicine
   target 从当前治疗者的持久化技能派生，失败治疗同样保存正式证据且不清除 MajorWound。
@@ -202,7 +233,10 @@ repeat、drift 与 constraint 全部门禁 `1/1`、exit `0`。
   Reconsideration、Ending、Growth、全局骰消费与 Fork 专属 materialization 后重放
   verified canonical events；fork 基础表只删除 immutable materialization 中的确定
   ID，正常后续实体不受影响。Growth 角色回退由 secret capability、精确 canonical
-  target、仅 Growth 后缀以及 canonical 派生版本共同限制。真实 DB 对各类投影注入
+  target、仅 Growth 后缀以及 canonical 派生版本共同限制。verified P08 replay 为空
+  时，真实 API role 通过最新 formal campaign event 的 secret capability 调用窄清理
+  函数；函数再次确认无任意 canonical P08 event 后只删除该 Campaign 的 P08 ghost。
+  真实 DB 对各类投影注入
   同版本污染/ghost 后，重建恢复原 JSON/provenance、删除 ghost，并保持 Event Store
   不变。
 - Fight Back 使当前攻击者进入 `DYING/DEAD` 后，再次攻击返回
@@ -409,7 +443,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `84e0902` 的第二十六轮精确 SHA review `4789850275` 确认 legacy upgrade 与成长技能长度两项未重复，并指出 pre-marker child-owned fork exact retry 的 request-hash 兼容问题；已完成本地根因修复、target-shape 单元与真库回归，待新提交/复审 |
+| GitHub PR #9 自动审查 | `6b8e39b` 的第二十七轮精确 SHA review `4789952622` 确认 pre-marker fork retry 问题未重复，并指出初始 Combat 权威绑定、Session Ending canonical reservation 与空 replay ghost 清理三项缺口；已完成本地根因修复和真实数据库回归，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -459,7 +493,12 @@ HMAC-bound child-owned v2 判别和入口 128 字节 gate 修复，真实迁移/
 Tutorial 均通过。第二十六轮确认两项未重复，又指出 marker 引入前的 child-owned
 fork retry 会因 target 参与 request hash 而冲突；现按已验证 canonical 首事件是否
 存在 marker 重建原 target shape，data-eventing lib `27/27`、默认栈 core-domain
-`1/1`、Tutorial `2/2` 通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
+`1/1`、Tutorial `2/2` 通过。第二十七轮确认该项未重复，又指出初始 Combat 未绑定
+持久化 participant 资料、Ending 语义键可因 projection 故障释放、空 canonical P08
+replay 跳过 ghost 清理；现由 Scenario/Sheet/NPC/canonical health 联合授权、Session
+ending canonical 事务 reservation 和受限空历史 cleanup 修复。migration upgrade、
+decision atomicity、默认栈 core-domain、Tutorial、schema assertion、workspace
+check 与严格 Clippy 均通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
 本报告在最新本地修复提交、远端 CI/复审完成前保持 pending，不以历史扫描或旧提交的
 部分/完整 Hosted CI 冒充新代码远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
@@ -482,6 +521,8 @@ release-readiness 仍运行，因此只记录 `3/5 + 2 running at review cutoff`
 第二十四轮修复提交 `7acc802` 在第二十五轮审查到达时同样是上述三项完成通过、
 workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
 第二十五轮修复提交 `84e0902` 在第二十六轮审查到达时也只有上述三项完成通过、
+workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
+第二十六轮修复提交 `6b8e39b` 在第二十七轮审查到达时同样是上述三项完成通过、
 workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
 以上均未记为 5/5。
 
@@ -511,3 +552,5 @@ P08 migration SHA-384：
   `5eb54f0505197c2bde608fb6bbb1c3be055a35ac85467fc3723982d70036e46f20400e705321fdb3798e2a9568d4cfc8`
 - `20260728000100`：
   `c6edf4e57ba031a7af6aa2c692f557c2db6f0db3a52e018bf85d55a57117536692bb999c1864c6fe691e46cb62888fc7`
+- `20260728000200`：
+  `f672a95a26b63d5ce649d249d0ee1ba1bd911e78a9c4cfe4cd133a9fc41dceec46a7b86b40ed7fc26b4d2be502caa76e`
