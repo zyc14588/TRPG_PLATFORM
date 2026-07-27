@@ -24,7 +24,8 @@ use trpg_ruleset_coc7::chase_state_machine::{
     ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
 use trpg_ruleset_coc7::combat_state_machine::{
-    CombatActionKind, CombatCondition, CombatDefense, CombatState, CombatStatus, CombatantState,
+    CombatActionKind, CombatCondition, CombatDefense, CombatSkillTargets, CombatState,
+    CombatStatus, CombatantState,
 };
 use trpg_ruleset_coc7::dice_roll_contract::{
     server_roll_skill_check, server_roll_skill_growth, success_level, DiceAdjustment,
@@ -689,8 +690,22 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
     let mut combat = CombatState::start(
         "combat_p08_tutorial",
         vec![
-            CombatantState::new(CHARACTER_ID, 70, 10, 1).unwrap(),
-            CombatantState::new("npc_marta", 80, 8, 0).unwrap(),
+            CombatantState::new(
+                CHARACTER_ID,
+                70,
+                10,
+                1,
+                CombatSkillTargets::new(45, 35, 40).unwrap(),
+            )
+            .unwrap(),
+            CombatantState::new(
+                "npc_marta",
+                80,
+                8,
+                0,
+                CombatSkillTargets::new(60, 80, 40).unwrap(),
+            )
+            .unwrap(),
         ],
     )
     .expect("start rules-engine combat aggregate");
@@ -895,6 +910,137 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         )
         .await
         .expect("end the Tutorial Session");
+    let gameplay_events_before_ended_session_write: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE event_type IN ('CombatStateRecorded', 'ChaseStateRecorded')",
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        repository
+            .record_combat_state(&combat_end_metadata, &combat_end_request)
+            .await
+            .expect("return the combat receipt when exact retry happens after session end"),
+        combat_end_receipt
+    );
+    assert_eq!(
+        repository
+            .record_chase_state(&chase_end_metadata, &chase_end_request)
+            .await
+            .expect("return the chase receipt when exact retry happens after session end"),
+        chase_end_receipt
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE event_type IN ('CombatStateRecorded', 'ChaseStateRecorded')",
+        )
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        gameplay_events_before_ended_session_write,
+        "exact retries after session end must return prior receipts without appending"
+    );
+    let blocked_combat = CombatState::start(
+        "combat_p08_after_ending",
+        vec![
+            CombatantState::new(
+                CHARACTER_ID,
+                70,
+                10,
+                1,
+                CombatSkillTargets::new(45, 35, 40).unwrap(),
+            )
+            .unwrap(),
+            CombatantState::new(
+                "npc_marta",
+                80,
+                8,
+                0,
+                CombatSkillTargets::new(60, 80, 40).unwrap(),
+            )
+            .unwrap(),
+        ],
+    )
+    .unwrap();
+    assert!(matches!(
+        repository
+            .record_combat_state(
+                &metadata(
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "combat_p08_after_ending",
+                    "combat_state",
+                    0,
+                    "p08_combat_after_ending",
+                    "party_visible",
+                    "not_applicable",
+                    "rules_engine_decision",
+                ),
+                &RecordCombatStateRequest {
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: SESSION_ID.to_owned(),
+                    state_json: blocked_combat.persistence_json().unwrap(),
+                    attacker_roll: None,
+                    defender_roll: None,
+                    damage_roll: None,
+                    medical_roll: None,
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "gameplay_session_state"
+        ))
+    ));
+    let blocked_chase = ChaseState::start(
+        "chase_p08_after_ending",
+        vec![
+            ChaseParticipant::new(CHARACTER_ID, ChaseRole::Quarry, 8).unwrap(),
+            ChaseParticipant::new("npc_marta", ChaseRole::Pursuer, 8).unwrap(),
+        ],
+        2,
+    )
+    .unwrap();
+    assert!(matches!(
+        repository
+            .record_chase_state(
+                &metadata(
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "chase_p08_after_ending",
+                    "chase_state",
+                    0,
+                    "p08_chase_after_ending",
+                    "party_visible",
+                    "not_applicable",
+                    "rules_engine_decision",
+                ),
+                &RecordChaseStateRequest {
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: SESSION_ID.to_owned(),
+                    state_json: blocked_chase.persistence_json().unwrap(),
+                    participant_rolls: Vec::new(),
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "gameplay_session_state"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE event_type IN ('CombatStateRecorded', 'ChaseStateRecorded')",
+        )
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        gameplay_events_before_ended_session_write,
+        "an ended session must reject combat and chase before canonical append"
+    );
     let invalid_ending = repository
         .record_ending(
             &metadata(

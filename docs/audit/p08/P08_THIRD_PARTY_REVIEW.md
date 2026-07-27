@@ -8,7 +8,7 @@ SEMGREP_VERSION = 1.171.0
 SEMGREP_EXECUTION = LOCAL_ISOLATED_VENV_SOURCE_ANALYSIS_METRICS_OFF_SINGLE_JOB
 SEMGREP_RULE_ORIGIN = COMMUNITY_REGISTRY
 SEMGREP_CONFIGS = p/rust,p/security-audit
-SEMGREP_SCOPE = 30_P08_RUST_SQL_CI_TARGETS
+SEMGREP_SCOPE = 32_P08_RUST_SQL_CI_TARGETS
 SEMGREP_RULES_RUN = 13
 SEMGREP_FINDINGS = 0
 SEMGREP_ERRORS = 0
@@ -24,7 +24,10 @@ GITHUB_INITIAL_REVIEW_FIX_STATUS = FIXED
 GITHUB_SECOND_AUTOMATED_REVIEW = 5_ACTIONABLE
 GITHUB_SECOND_REVIEW_FIX_STATUS = FIXED
 GITHUB_THIRD_AUTOMATED_REVIEW = 5_ACTIONABLE
-GITHUB_THIRD_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_THIRD_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FOURTH_REVIEW
+GITHUB_FOURTH_AUTOMATED_REVIEW = 4_ACTIONABLE
+GITHUB_FOURTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -34,7 +37,7 @@ CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
 
 Semgrep 1.171.0 安装在 `/tmp` 隔离虚拟环境中。运行时关闭 metrics，只联网获取
 社区规则；源码在本机分析，没有把仓库挂载给外部扫描容器。最终以 `--jobs 1`
-规避扫描引擎并发初始化的环境资源错误，并明确传入 30 个
+规避扫描引擎并发初始化的环境资源错误，并明确传入 32 个
 P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 
 - findings：0；
@@ -44,11 +47,12 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 - exit：0。
 
 扩展范围首次复扫发现 `data_deletion_e2e.rs` 两处以可预测名称直接使用共享临时目录。
-测试改用 `tempfile::Builder::tempdir()` 安全创建唯一目录后，以相同规则和最终 30 个
-目标重跑得到 0 finding；没有通过 ignore、规则删减或降低 severity 获得通过。
+测试改用 `tempfile::Builder::tempdir()` 安全创建唯一目录后，以相同规则重跑得到
+0 finding。本轮又把 Scenario participant 去重实现与负例加入范围，最终 32 个目标
+仍为 0 finding；没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-third-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-fourth-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -100,7 +104,22 @@ replay 与持久层绑定分别重算。Growth 精确读取所选 Ending 的 `gr
 Ending 按 Campaign/Session、Growth 按 Campaign/Character 使用事务级 advisory
 lock 覆盖 precheck、canonical append 和 projection。真实 PostgreSQL/Witness
 错配证据与 `tokio::join!` 并发负例、单元/结构门禁和最终 Semgrep 复扫均通过。
-最新修复提交仍须等待 Hosted CI 和远端自动复审，才允许合并。
+下一轮远端审查未重复上述五项，但继续发现 4 个有效问题：
+
+- Combat 仍以 DEX 而不是 Melee/Firearm 技能验证攻击；
+- Combat 缺少 Fight Back、防守方反击和与 Dodge 不同的平手规则；
+- Combat/Chase 只要求 Session 存在，未要求状态为 `ACTIVE`；
+- Scenario encounter 接受重复 participant ID，导致文档通过后无法构造正式聚合。
+
+第四轮修复把 Melee、Firearm、Dodge 目标随参与者写入正式状态，在规则 replay 与独立
+领域 replay 中按动作重新计算；Fight Back 的 tie/counterattack 派生 outcome 也进入
+mutation 并防篡改。Combat/Chase 的写入事务通过 Session 行锁与状态精确匹配关闭
+TOCTOU，Scenario parser 在入口去重。真实 PostgreSQL/Witness、规则/领域/工作区回归
+和扩展到 32 个目标的 Semgrep 均通过。
+
+第三轮修复提交的 Hosted CI 在第四轮阻断出现前为 3/5 通过；两个尚在运行的长任务被
+主动取消，未将其写成成功。第四轮修复提交仍须等待全新 Hosted CI 和远端自动复审，
+才允许合并。
 
 ## RustSec
 
@@ -116,7 +135,7 @@ lock 覆盖 precheck、canonical append 和 projection。真实 PostgreSQL/Witne
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 三轮
-自动审查先后提出的 4、5、5 项阻断均已在本地修复，最新一轮远端复审尚待运行；
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 四轮
+自动审查先后提出的 4、5、5、4 项阻断均已修复或完成本地验证，最新提交的远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。

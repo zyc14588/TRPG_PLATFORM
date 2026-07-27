@@ -324,11 +324,17 @@ fn validate_scenario(
 
     let mut encounter_ids = HashSet::new();
     for encounter in &document.encounters {
+        let unique_participants = encounter
+            .participants
+            .iter()
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
         if encounter.id.trim().is_empty()
             || !encounter_ids.insert(encounter.id.clone())
             || !matches!(encounter.encounter_type.as_str(), "combat" | "chase")
             || !scene_ids.contains(&encounter.scene_id)
             || encounter.participants.len() < 2
+            || unique_participants.len() != encounter.participants.len()
             || encounter
                 .participants
                 .iter()

@@ -13,7 +13,7 @@ P08 实现前，三条强制命令均真实返回 Cargo exit `101`，原因是�
 
 | 命令 | 最终结果 |
 | --- | --- |
-| `cargo test -p trpg-ruleset-coc7 --test combat_condition_sequence` | PASS，`3/3`，exit `0` |
+| `cargo test -p trpg-ruleset-coc7 --test combat_condition_sequence` | PASS，`4/4`，exit `0` |
 | `cargo test -p trpg-ruleset-coc7 --test chase_terminal` | PASS，`2/2`，exit `0` |
 | `cargo test -p trpg-testing --test tutorial_complete_e2e` | PASS，`2/2`，exit `0`；使用真实 PostgreSQL/Witness 环境 |
 
@@ -29,6 +29,10 @@ ending/character/skill 的不同 Growth、私密 fork 事件主体密钥错配�
 第三轮修复负例进一步覆盖 Combat 伪造/错配攻击与伤害骰证据、Chase
 伪造/错配参与者骰证据、结局未授予的成长技能，以及两个真实并发 Ending
 和两个共享来源角色卡的并发 Growth；失败方均在正式 append 前终止，正史只增加一条。
+第四轮修复负例覆盖高 DEX/低 Firearm 不得借 DEX 命中、Fight Back 平手规则与
+防守方更高成功等级反击、serialized outcome 篡改、结束态 Session 启动 Combat/Chase，
+以及 Scenario encounter 的重复 participant；所有被拒绝的正式写入均不改变聚合或
+Event Store。
 
 ## 真实数据库、重放与迁移
 
@@ -45,7 +49,8 @@ ending/character/skill 的不同 Growth、私密 fork 事件主体密钥错配�
 
 真实集成验证：
 
-- Combat v1→v4 后为 `ENDED`，MajorWound 仍存在；同 ID 异源状态未进入 Event Store。
+- Combat v1→v5 后为 `ENDED`，MajorWound 仍存在；正式 Fight Back 反击经过独立重放，
+  伪造 outcome 和同 ID 异源状态均未进入 Event Store。
 - Chase v1→v2 后为 `CAUGHT`，终态不能再推进。
 - Reconsideration 的 Request/Review/Upheld/Corrected 全部追加，原事件保留。
 - Fork 来源 hash 精确匹配，记录事件保存有界内容寻址引用，物化批次受行数和字节数
@@ -63,6 +68,12 @@ ending/character/skill 的不同 Growth、私密 fork 事件主体密钥错配�
 - Combat 的命中、闪避与伤害，以及 Chase 的每名参与者结果，均由共享内核不可构造的
   OS CSPRNG 证据派生；领域层重算骰值、成功等级、固定伤害公式与状态转换，持久层再将
   serialized state 与同一批 opaque evidence 逐项比对。
+- Combat 的攻击/防御 target 分别来自持久化的 Melee、Firearm、Dodge，而 DEX
+  只用于 initiative。Fight Back 与 Dodge 使用不同平手规则；防守方反击时伤害目标
+  为原攻击者，mutation outcome 不能被 JSON 篡改。
+- Combat/Chase 写入在同一事务中锁定 Session 行并要求 `ACTIVE`；会话结束后尝试创建
+  新 Combat/Chase 均返回 `gameplay_session_state`，而结束前成功写入的 exact retry
+  仍返回原 receipt；两种情况都不增加 Event Store。
 - Growth 技能必须精确存在于已选 Ending 的 Scenario `growth_awards`；未授予的
   `Dodge` 在正史 append 前被拒绝。
 - Combat、Chase、Ending、Growth exact retry 均返回原 receipt，不追加事件或重复投影；
@@ -96,26 +107,35 @@ ending/character/skill 的不同 Growth、私密 fork 事件主体密钥错配�
 `P02_WORKFLOW_DATABASE_URL` 返回 exit `101`。该命令不是 P08 强制命令，也没有被计为
 package regression PASS；P08 对应的 `conclusion_growth_state_machine` 已单独真实通过。
 
+第四轮修复的真实数据库回归也保留两次失败记录：第一次因新加的 Chase 结束态负例
+多传一个旧签名参数而编译失败；修正后，在加入正式 Fight Back 事件的下一次运行中，
+旧测试仍按 DEX=80 生成 Melee 骰，规则正确地以 Melee=60 返回
+`combat_attack_missed`。测试改为按真实技能生成证据后，完整双数据库套件才获得上述
+最终通过；两次中间失败均未计作 PASS。
+
 ## 第三方与依赖检查
 
 | 门禁 | 结果 |
 | --- | --- |
-| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；30 targets、13 rules、0 finding、0 error、0 skipped |
+| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；32 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 第一轮 4 项、第二轮 5 项已修复；第三轮 5 项已在本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 第一至第三轮 4、5、5 项已修复；第四轮 4 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch --json` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
 改用锁定版本的 `tempfile::Builder::tempdir()`，没有 suppress 规则。加入第三个 P08
-migration 后，最终 30 目标复扫
+migration 后，第三轮 30 目标复扫
 最终为 0 finding。
 
 第二轮远端自动审查真实指出：Ending/Growth 的语义唯一约束可能在正史 append 后才
 失败、私密 fork 事件沿用 command-wide 主体与密钥、六类声明 scope 未实际物化，以及
 无界完整 snapshot 可能超过单事件大小限制。第三轮又真实指出：Combat/Chase 仍可由
 调用方决定正式结果、Growth 未绑定所选 Ending 的奖励，以及并发 Ending/Growth
-仍可能各自追加孤儿正史。以上均已按问题根因修复；本报告在最新远端 CI/复审完成前
-保持 pending，不以本地结果冒充远端通过。
+仍可能各自追加孤儿正史。第四轮继续真实指出：Combat 错用 DEX、Fight Back 缺失、
+非 ACTIVE Session 可写玩法正史、Scenario encounter 接受重复 participant。以上均已
+按问题根因修复；扩展到 32 目标的 Semgrep 复扫仍为 0 finding。本报告在最新远端
+CI/复审完成前保持 pending，不以本地结果冒充远端通过。第三轮修复提交仅有 3/5
+workflow 完成通过；第四轮阻断出现后主动取消另外两个长任务，未记为 5/5。
 
 RustSec 报告：
 

@@ -26,7 +26,8 @@ use trpg_ruleset_coc7::chase_state_machine::{
     ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
 use trpg_ruleset_coc7::combat_state_machine::{
-    CombatActionKind, CombatCondition, CombatDefense, CombatState, CombatStatus, CombatantState,
+    CombatActionKind, CombatCondition, CombatDefense, CombatSkillTargets, CombatState,
+    CombatStatus, CombatantState,
 };
 use trpg_ruleset_coc7::dice_roll_contract::{
     server_roll_skill_growth, success_level, SuccessLevel,
@@ -59,6 +60,15 @@ fn percentile_with_result(target: u8, succeeds: bool) -> ServerPercentileRoll {
                 | SuccessLevel::Regular
         );
         if actual == succeeds {
+            return roll;
+        }
+    }
+}
+
+fn percentile_with_level(target: u8, expected: SuccessLevel) -> ServerPercentileRoll {
+    loop {
+        let roll = server_percentile_roll().unwrap();
+        if success_level(roll.value(), target).unwrap() == expected {
             return roll;
         }
     }
@@ -1322,8 +1332,22 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     let mut combat = CombatState::start(
         "combat_p08_schema",
         vec![
-            CombatantState::new("character_p06_player", 70, 10, 1).unwrap(),
-            CombatantState::new("npc_marta", 80, 8, 0).unwrap(),
+            CombatantState::new(
+                "character_p06_player",
+                70,
+                10,
+                1,
+                CombatSkillTargets::new(45, 35, 40).unwrap(),
+            )
+            .unwrap(),
+            CombatantState::new(
+                "npc_marta",
+                80,
+                8,
+                0,
+                CombatSkillTargets::new(60, 80, 40).unwrap(),
+            )
+            .unwrap(),
         ],
     )
     .unwrap();
@@ -1411,8 +1435,22 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     let mut foreign_lineage = CombatState::start(
         "combat_p08_schema",
         vec![
-            CombatantState::new("character_p06_player", 99, 30, 20).unwrap(),
-            CombatantState::new("npc_marta", 100, 30, 20).unwrap(),
+            CombatantState::new(
+                "character_p06_player",
+                99,
+                30,
+                20,
+                CombatSkillTargets::new(99, 99, 99).unwrap(),
+            )
+            .unwrap(),
+            CombatantState::new(
+                "npc_marta",
+                100,
+                30,
+                20,
+                CombatSkillTargets::new(100, 100, 100).unwrap(),
+            )
+            .unwrap(),
         ],
     )
     .unwrap();
@@ -1528,7 +1566,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("persist MajorWound combat state");
-    let later_attack = percentile_with_result(80, true);
+    let later_attack = percentile_with_result(60, true);
     let later_damage_roll = damage_with_value(1, 6, 0, 1);
     let later_damage = combat
         .apply_damage(
@@ -1573,6 +1611,98 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("persist continuing MajorWound state");
+    let fight_back_attack = percentile_with_level(60, SuccessLevel::Regular);
+    let fight_back_defense = percentile_with_level(45, SuccessLevel::Hard);
+    let fight_back_damage = damage_with_value(1, 6, 0, 1);
+    combat
+        .apply_damage(
+            "character_p06_player",
+            CombatActionKind::Melee,
+            CombatDefense::FightBack,
+            &fight_back_attack,
+            Some(&fight_back_defense),
+            &fight_back_damage,
+        )
+        .unwrap();
+    let fight_back_state = combat.persistence_json().unwrap();
+    let forged_fight_back_state = fight_back_state.replace("DEFENDER_FOUGHT_BACK", "ATTACKER_HIT");
+    let combat_events_before_forged_outcome: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 AND stream_id = 'combat_p08_schema'",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert!(matches!(
+        repository
+            .record_combat_state(
+                &metadata(
+                    CAMPAIGN_ID,
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "combat_p08_schema",
+                    "combat_state",
+                    "combat.state.damage",
+                    3,
+                    "combat_p08_forged_fight_back",
+                    "party_visible",
+                    "not_applicable",
+                    "rules_engine_decision",
+                ),
+                &RecordCombatStateRequest {
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: "session_p06_schema".to_owned(),
+                    state_json: forged_fight_back_state,
+                    attacker_roll: Some(fight_back_attack.clone()),
+                    defender_roll: Some(fight_back_defense.clone()),
+                    damage_roll: Some(fight_back_damage.clone()),
+                    medical_roll: None,
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput("combat_transition"))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND stream_id = 'combat_p08_schema'",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        combat_events_before_forged_outcome
+    );
+    repository
+        .record_combat_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_schema",
+                "combat_state",
+                "combat.state.damage",
+                3,
+                "combat_p08_fight_back",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: fight_back_state,
+                attacker_roll: Some(fight_back_attack),
+                defender_roll: Some(fight_back_defense),
+                damage_roll: Some(fight_back_damage),
+                medical_roll: None,
+            },
+        )
+        .await
+        .expect("persist a verified fight-back counterattack");
     combat.end().unwrap();
     assert_eq!(combat.status(), CombatStatus::Ended);
     repository
@@ -1585,7 +1715,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 "combat_p08_schema",
                 "combat_state",
                 "combat.state.end",
-                3,
+                4,
                 "combat_p08_end",
                 "party_visible",
                 "not_applicable",
@@ -1830,7 +1960,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .await
     .unwrap();
     assert_eq!(persisted_combat.0, "ENDED");
-    assert_eq!(persisted_combat.1, 4);
+    assert_eq!(persisted_combat.1, 5);
     assert_eq!(
         persisted_combat
             .2
@@ -2603,7 +2733,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .rebuild_p08_projections(CAMPAIGN_ID)
         .await
         .expect("rebuild all P08 projections solely from canonical Event Store history");
-    assert_eq!(rebuilt_p08.replayed_events, 14);
+    assert_eq!(rebuilt_p08.replayed_events, 15);
     assert_eq!(rebuilt_p08.combat_states, 1);
     assert_eq!(rebuilt_p08.chase_states, 1);
     assert_eq!(rebuilt_p08.reconsiderations, 2);

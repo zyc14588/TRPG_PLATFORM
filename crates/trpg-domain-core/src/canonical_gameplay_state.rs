@@ -78,6 +78,39 @@ enum CombatActionKind {
 enum CombatDefense {
     None,
     Dodge,
+    FightBack,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum CombatExchangeOutcome {
+    AttackerHit,
+    DefenderFoughtBack,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CombatSkillTargets {
+    melee: u8,
+    firearm: u8,
+    dodge: u8,
+}
+
+impl CombatSkillTargets {
+    const fn attack_target(self, action: CombatActionKind) -> u8 {
+        match action {
+            CombatActionKind::Melee => self.melee,
+            CombatActionKind::Firearm => self.firearm,
+        }
+    }
+
+    const fn defense_target(self, defense: CombatDefense) -> Option<u8> {
+        match defense {
+            CombatDefense::None => None,
+            CombatDefense::Dodge => Some(self.dodge),
+            CombatDefense::FightBack => Some(self.melee),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -120,6 +153,7 @@ enum CombatMutation {
         target_id: String,
         action: CombatActionKind,
         defense: CombatDefense,
+        outcome: CombatExchangeOutcome,
         attacker_roll: PercentileRollEvidence,
         defender_roll: Option<PercentileRollEvidence>,
         damage_roll: DamageRollEvidence,
@@ -138,6 +172,7 @@ enum CombatMutation {
 struct Combatant {
     participant_id: String,
     dexterity: u8,
+    skill_targets: CombatSkillTargets,
     current_hp: u8,
     max_hp: u8,
     armor: u8,
@@ -313,6 +348,9 @@ fn parse_combat(value: &str) -> Result<CombatSnapshot, CanonicalGameplayStateErr
         || state.participants.iter().any(|participant| {
             !valid_id(&participant.participant_id)
                 || !(1..=100).contains(&participant.dexterity)
+                || !(1..=100).contains(&participant.skill_targets.melee)
+                || !(1..=100).contains(&participant.skill_targets.firearm)
+                || !(1..=100).contains(&participant.skill_targets.dodge)
                 || participant.max_hp == 0
                 || participant.current_hp > participant.max_hp
                 || participant.armor > 30
@@ -346,6 +384,7 @@ fn apply_combat_mutation(
             target_id,
             action,
             defense,
+            outcome,
             attacker_roll,
             defender_roll,
             damage_roll,
@@ -362,19 +401,22 @@ fn apply_combat_mutation(
                 .participants
                 .iter()
                 .find(|participant| participant.participant_id == *attacker_id)
-                .map(|participant| participant.dexterity)
+                .map(|participant| participant.skill_targets.attack_target(*action))
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
-            let defender_target = state
+            let defender = state
                 .participants
                 .iter()
                 .find(|participant| participant.participant_id == *target_id)
-                .map(|participant| (participant.dexterity / 2).max(1))
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
-            validate_percentile_evidence(attacker_roll, attacker_target)?;
-            if matches!(defense, CombatDefense::Dodge) != defender_roll.is_some() {
+            let defender_target = defender.skill_targets.defense_target(*defense);
+            if *defense == CombatDefense::FightBack && *action != CombatActionKind::Melee {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
-            if let Some(defender_roll) = defender_roll {
+            validate_percentile_evidence(attacker_roll, attacker_target)?;
+            if (*defense != CombatDefense::None) != defender_roll.is_some() {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            if let (Some(defender_roll), Some(defender_target)) = (defender_roll, defender_target) {
                 validate_percentile_evidence(defender_roll, defender_target)?;
             }
             if defender_roll
@@ -387,23 +429,29 @@ fn apply_combat_mutation(
             {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
-            let attacker_rank = success_rank(attacker_roll.success_level);
-            let hit = attacker_rank > 0
-                && defender_roll
-                    .as_ref()
-                    .map(|roll| attacker_rank > success_rank(roll.success_level))
-                    .unwrap_or(true);
-            if !hit {
+            let derived_outcome = canonical_exchange_outcome(
+                *defense,
+                attacker_roll.success_level,
+                defender_roll.as_ref().map(|roll| roll.success_level),
+            )?
+            .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if derived_outcome != *outcome {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
             validate_damage_evidence(damage_roll, *action)?;
             if *raw_damage != damage_roll.raw_damage {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
+            let damaged_participant_id = match outcome {
+                CombatExchangeOutcome::AttackerHit => target_id,
+                CombatExchangeOutcome::DefenderFoughtBack => attacker_id,
+            };
             let target = state
                 .participants
                 .iter_mut()
-                .find(|participant| participant.participant_id == *target_id)
+                .find(|participant| {
+                    participant.participant_id.as_str() == damaged_participant_id.as_str()
+                })
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
             apply_validated_damage(target, *raw_damage)?;
         }
@@ -564,6 +612,33 @@ fn success_rank(level: SuccessLevel) -> u8 {
         SuccessLevel::Regular => 1,
         SuccessLevel::Failure | SuccessLevel::Fumble => 0,
     }
+}
+
+fn canonical_exchange_outcome(
+    defense: CombatDefense,
+    attacker_success: SuccessLevel,
+    defender_success: Option<SuccessLevel>,
+) -> Result<Option<CombatExchangeOutcome>, CanonicalGameplayStateError> {
+    if (defense != CombatDefense::None) != defender_success.is_some() {
+        return Err(CanonicalGameplayStateError::InvalidTransition);
+    }
+    let attacker_rank = success_rank(attacker_success);
+    let defender_rank = defender_success.map(success_rank).unwrap_or(0);
+    Ok(match defense {
+        CombatDefense::None if attacker_rank > 0 => Some(CombatExchangeOutcome::AttackerHit),
+        CombatDefense::None => None,
+        CombatDefense::Dodge if attacker_rank > defender_rank && attacker_rank > 0 => {
+            Some(CombatExchangeOutcome::AttackerHit)
+        }
+        CombatDefense::Dodge => None,
+        CombatDefense::FightBack if attacker_rank >= defender_rank && attacker_rank > 0 => {
+            Some(CombatExchangeOutcome::AttackerHit)
+        }
+        CombatDefense::FightBack if defender_rank > attacker_rank => {
+            Some(CombatExchangeOutcome::DefenderFoughtBack)
+        }
+        CombatDefense::FightBack => None,
+    })
 }
 
 fn apply_validated_damage(
@@ -919,8 +994,10 @@ mod tests {
             "combat_id":"combat_a",
             "participants":[
                 {"participant_id":"one","dexterity":70,"current_hp":10,
+                 "skill_targets":{"melee":60,"firearm":55,"dodge":40},
                  "max_hp":10,"armor":0,"condition":"ABLE"},
                 {"participant_id":"two","dexterity":50,"current_hp":8,
+                 "skill_targets":{"melee":45,"firearm":35,"dodge":25},
                  "max_hp":8,"armor":0,"condition":"ABLE"}
             ],
             "initiative_order":["one","two"],"round":1,

@@ -68,6 +68,18 @@ fn core_clues_need_two_independent_acquisition_paths() {
 }
 
 #[test]
+fn encounters_reject_duplicate_participants() {
+    let invalid = TUTORIAL_SCENARIO.replace(
+        "participants: [investigator, npc_marta]",
+        "participants: [npc_marta, npc_marta]",
+    );
+    assert_eq!(
+        parse_scenario_yaml(&invalid),
+        Err(CharacterScenarioError::InvalidScenarioField("encounters"))
+    );
+}
+
+#[test]
 fn character_sheet_validation_rejects_invalid_coc7_data() {
     let valid = valid_character();
     let derived = valid.validate().expect("valid COC7 sheet");

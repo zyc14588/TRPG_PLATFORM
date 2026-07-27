@@ -42,6 +42,14 @@ pub enum CombatActionKind {
 pub enum CombatDefense {
     None,
     Dodge,
+    FightBack,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CombatExchangeOutcome {
+    AttackerHit,
+    DefenderFoughtBack,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +59,8 @@ pub struct AttackResolution {
     pub attacker_success: SuccessLevel,
     pub defender_success: Option<SuccessLevel>,
     pub hit: bool,
+    pub counterattack: bool,
+    pub outcome: Option<CombatExchangeOutcome>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -168,10 +178,62 @@ struct VerifiedDamageInput<'a> {
     damage_roll: &'a DamageRollEvidence,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CombatSkillTargets {
+    melee: u8,
+    firearm: u8,
+    dodge: u8,
+}
+
+impl CombatSkillTargets {
+    pub fn new(melee: u8, firearm: u8, dodge: u8) -> KernelResult<Self> {
+        if !(1..=100).contains(&melee)
+            || !(1..=100).contains(&firearm)
+            || !(1..=100).contains(&dodge)
+        {
+            return Err(TrpgError::InvalidConfiguration("combat_skill_targets"));
+        }
+        Ok(Self {
+            melee,
+            firearm,
+            dodge,
+        })
+    }
+
+    pub const fn melee(self) -> u8 {
+        self.melee
+    }
+
+    pub const fn firearm(self) -> u8 {
+        self.firearm
+    }
+
+    pub const fn dodge(self) -> u8 {
+        self.dodge
+    }
+
+    const fn attack_target(self, action: CombatActionKind) -> u8 {
+        match action {
+            CombatActionKind::Melee => self.melee,
+            CombatActionKind::Firearm => self.firearm,
+        }
+    }
+
+    const fn defense_target(self, defense: CombatDefense) -> Option<u8> {
+        match defense {
+            CombatDefense::None => None,
+            CombatDefense::Dodge => Some(self.dodge),
+            CombatDefense::FightBack => Some(self.melee),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CombatantState {
     participant_id: String,
     dexterity: u8,
+    skill_targets: CombatSkillTargets,
     current_hp: u8,
     max_hp: u8,
     armor: u8,
@@ -184,6 +246,7 @@ impl CombatantState {
         dexterity: u8,
         max_hp: u8,
         armor: u8,
+        skill_targets: CombatSkillTargets,
     ) -> KernelResult<Self> {
         let participant_id = participant_id.into();
         if !valid_combat_id(&participant_id)
@@ -197,6 +260,7 @@ impl CombatantState {
         Ok(Self {
             participant_id,
             dexterity,
+            skill_targets,
             current_hp: max_hp,
             max_hp,
             armor,
@@ -210,6 +274,10 @@ impl CombatantState {
 
     pub const fn dexterity(&self) -> u8 {
         self.dexterity
+    }
+
+    pub const fn skill_targets(&self) -> CombatSkillTargets {
+        self.skill_targets
     }
 
     pub const fn current_hp(&self) -> u8 {
@@ -238,6 +306,7 @@ enum CombatMutation {
         target_id: String,
         action: CombatActionKind,
         defense: CombatDefense,
+        outcome: CombatExchangeOutcome,
         attacker_roll: PercentileRollEvidence,
         defender_roll: Option<PercentileRollEvidence>,
         damage_roll: DamageRollEvidence,
@@ -267,6 +336,7 @@ pub struct CombatState {
 struct CombatantStateWire {
     participant_id: String,
     dexterity: u8,
+    skill_targets: CombatSkillTargets,
     current_hp: u8,
     max_hp: u8,
     armor: u8,
@@ -371,14 +441,36 @@ impl CombatState {
             .participants
             .iter()
             .find(|participant| participant.participant_id == attacker_id)
-            .map(CombatantState::dexterity)
+            .map(|participant| participant.skill_targets.attack_target(action))
             .ok_or(TrpgError::InvalidConfiguration("combat_actor"))?;
-        let defender_target = self
+        let defender = self
             .participants
             .iter()
             .find(|participant| participant.participant_id == target_id)
-            .map(|participant| (participant.dexterity / 2).max(1))
             .ok_or(TrpgError::InvalidConfiguration("combat_target"))?;
+        if (defense != CombatDefense::None) != defender_roll.is_some() {
+            return Err(TrpgError::InvalidConfiguration("combat_defense_roll"));
+        }
+        if defense == CombatDefense::FightBack && action != CombatActionKind::Melee {
+            return Err(TrpgError::InvalidConfiguration("combat_fight_back_action"));
+        }
+        let defender_target = defender.skill_targets.defense_target(defense);
+        if defense == CombatDefense::None {
+            let attacker_roll =
+                PercentileRollEvidence::from_server_roll(attacker_target, attacker_roll)?;
+            let damage_roll = DamageRollEvidence::from_server_roll(damage_roll);
+            return self.apply_verified_damage(VerifiedDamageInput {
+                attacker_id: &attacker_id,
+                target_id,
+                action,
+                defense,
+                attacker_roll: &attacker_roll,
+                defender_roll: None,
+                damage_roll: &damage_roll,
+            });
+        }
+        let defender_target =
+            defender_target.ok_or(TrpgError::InvalidConfiguration("combat_defense_roll"))?;
         let attacker_roll =
             PercentileRollEvidence::from_server_roll(attacker_target, attacker_roll)?;
         let defender_roll = defender_roll
@@ -419,19 +511,22 @@ impl CombatState {
             .participants
             .iter()
             .find(|participant| participant.participant_id == attacker_id)
-            .map(CombatantState::dexterity)
+            .map(|participant| participant.skill_targets.attack_target(action))
             .ok_or(TrpgError::InvalidConfiguration("combat_actor"))?;
-        let defender_target = self
+        let defender = self
             .participants
             .iter()
             .find(|participant| participant.participant_id == target_id)
-            .map(|participant| (participant.dexterity / 2).max(1))
             .ok_or(TrpgError::InvalidConfiguration("combat_target"))?;
+        let defender_target = defender.skill_targets.defense_target(defense);
+        if defense == CombatDefense::FightBack && action != CombatActionKind::Melee {
+            return Err(TrpgError::InvalidConfiguration("combat_fight_back_action"));
+        }
         attacker_roll.validate(attacker_target)?;
-        if matches!(defense, CombatDefense::Dodge) != defender_roll.is_some() {
+        if (defense != CombatDefense::None) != defender_roll.is_some() {
             return Err(TrpgError::InvalidConfiguration("combat_defense_roll"));
         }
-        if let Some(defender_roll) = defender_roll {
+        if let (Some(defender_roll), Some(defender_target)) = (defender_roll, defender_target) {
             defender_roll.validate(defender_target)?;
         }
         if defender_roll.is_some_and(|roll| roll.roll_id == attacker_roll.roll_id)
@@ -440,19 +535,21 @@ impl CombatState {
         {
             return Err(TrpgError::InvalidConfiguration("combat_roll_reuse"));
         }
-        let attacker_rank = success_rank(attacker_roll.success_level);
-        let hit = attacker_rank > 0
-            && defender_roll
-                .map(|roll| attacker_rank > success_rank(roll.success_level))
-                .unwrap_or(true);
-        if !hit {
-            return Err(TrpgError::InvalidConfiguration("combat_attack_missed"));
-        }
+        let outcome = exchange_outcome(
+            defense,
+            attacker_roll.success_level,
+            defender_roll.map(|roll| roll.success_level),
+        )?
+        .ok_or(TrpgError::InvalidConfiguration("combat_attack_missed"))?;
+        let damaged_participant_id = match outcome {
+            CombatExchangeOutcome::AttackerHit => target_id,
+            CombatExchangeOutcome::DefenderFoughtBack => attacker_id,
+        };
         damage_roll.validate(action)?;
         let target = self
             .participants
             .iter_mut()
-            .find(|participant| participant.participant_id == target_id)
+            .find(|participant| participant.participant_id == damaged_participant_id)
             .ok_or(TrpgError::InvalidConfiguration("combat_target"))?;
         let transition = apply_damage_with_armor(
             target.current_hp,
@@ -468,6 +565,7 @@ impl CombatState {
             target_id: target_id.to_owned(),
             action,
             defense,
+            outcome,
             attacker_roll: attacker_roll.clone(),
             defender_roll: defender_roll.cloned(),
             damage_roll: damage_roll.clone(),
@@ -614,6 +712,7 @@ impl CombatState {
                 target_id,
                 action,
                 defense,
+                outcome: _,
                 attacker_roll,
                 defender_roll,
                 damage_roll,
@@ -673,6 +772,7 @@ impl CombatState {
             .map(|participant| CombatantState {
                 participant_id: participant.participant_id,
                 dexterity: participant.dexterity,
+                skill_targets: participant.skill_targets,
                 current_hp: participant.current_hp,
                 max_hp: participant.max_hp,
                 armor: participant.armor,
@@ -700,6 +800,9 @@ impl CombatState {
                 !valid_combat_id(&participant.participant_id)
                     || participant.dexterity == 0
                     || participant.dexterity > 100
+                    || !(1..=100).contains(&participant.skill_targets.melee)
+                    || !(1..=100).contains(&participant.skill_targets.firearm)
+                    || !(1..=100).contains(&participant.skill_targets.dodge)
                     || participant.max_hp == 0
                     || participant.current_hp > participant.max_hp
                     || participant.armor > 30
@@ -735,25 +838,23 @@ pub fn resolve_attack(
     defense: CombatDefense,
     defender_roll: Option<&ServerDiceRoll>,
 ) -> KernelResult<AttackResolution> {
-    if matches!(defense, CombatDefense::Dodge) != defender_roll.is_some() {
+    if (defense != CombatDefense::None) != defender_roll.is_some() {
         return Err(TrpgError::InvalidConfiguration("combat_defense_roll"));
+    }
+    if defense == CombatDefense::FightBack && action != CombatActionKind::Melee {
+        return Err(TrpgError::InvalidConfiguration("combat_fight_back_action"));
     }
     let attacker_success = attacker_roll.outcome().success_level;
     let defender_success = defender_roll.map(|roll| roll.outcome().success_level);
-    let attacker_rank = success_rank(attacker_success);
-    let hit = if attacker_rank == 0 {
-        false
-    } else if let Some(defender_success) = defender_success {
-        attacker_rank > success_rank(defender_success)
-    } else {
-        true
-    };
+    let outcome = exchange_outcome(defense, attacker_success, defender_success)?;
     Ok(AttackResolution {
         action,
         defense,
         attacker_success,
         defender_success,
-        hit,
+        hit: outcome == Some(CombatExchangeOutcome::AttackerHit),
+        counterattack: outcome == Some(CombatExchangeOutcome::DefenderFoughtBack),
+        outcome,
     })
 }
 
@@ -855,6 +956,33 @@ fn success_rank(level: SuccessLevel) -> u8 {
         SuccessLevel::Regular => 1,
         SuccessLevel::Failure | SuccessLevel::Fumble => 0,
     }
+}
+
+fn exchange_outcome(
+    defense: CombatDefense,
+    attacker_success: SuccessLevel,
+    defender_success: Option<SuccessLevel>,
+) -> KernelResult<Option<CombatExchangeOutcome>> {
+    if (defense != CombatDefense::None) != defender_success.is_some() {
+        return Err(TrpgError::InvalidConfiguration("combat_defense_roll"));
+    }
+    let attacker_rank = success_rank(attacker_success);
+    let defender_rank = defender_success.map(success_rank).unwrap_or(0);
+    Ok(match defense {
+        CombatDefense::None if attacker_rank > 0 => Some(CombatExchangeOutcome::AttackerHit),
+        CombatDefense::None => None,
+        CombatDefense::Dodge if attacker_rank > defender_rank && attacker_rank > 0 => {
+            Some(CombatExchangeOutcome::AttackerHit)
+        }
+        CombatDefense::Dodge => None,
+        CombatDefense::FightBack if attacker_rank >= defender_rank && attacker_rank > 0 => {
+            Some(CombatExchangeOutcome::AttackerHit)
+        }
+        CombatDefense::FightBack if defender_rank > attacker_rank => {
+            Some(CombatExchangeOutcome::DefenderFoughtBack)
+        }
+        CombatDefense::FightBack => None,
+    })
 }
 
 fn valid_combat_id(value: &str) -> bool {

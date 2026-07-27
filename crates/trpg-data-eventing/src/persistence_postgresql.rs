@@ -8642,8 +8642,14 @@ impl CoreDomainRepository {
         }
         self.ensure_campaign_admin(&request.campaign_id, &metadata.requesting_actor_id)
             .await?;
-        self.ensure_gameplay_session(&request.campaign_id, &request.session_id)
+        let mut transaction = self
+            .begin_projection_transaction(&metadata.commit_id, "begin_combat_state")
             .await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!("p08-combat:{}:{}", request.campaign_id, combat_id))
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error("lock_combat_state"))?;
         let event = CoreDomainEvent::CombatStateRecorded {
             schema_version: CORE_EVENT_SCHEMA_VERSION,
             combat_id: combat_id.clone(),
@@ -8667,7 +8673,7 @@ impl CoreDomainRepository {
             "#,
         )
         .bind(&combat_id)
-        .fetch_optional(&self.primary)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(database_error("load_combat_state_transition"))?;
         let previous_state = if let Some(row) = existing {
@@ -8719,6 +8725,12 @@ impl CoreDomainRepository {
         } else {
             None
         };
+        self.lock_active_gameplay_session(
+            &mut transaction,
+            &request.campaign_id,
+            &request.session_id,
+        )
+        .await?;
         if (metadata.expected_version == 0) != previous_state.is_none() {
             return Err(CoreDomainRepositoryError::Integrity(
                 "combat_state_projection_conflict",
@@ -8746,9 +8758,6 @@ impl CoreDomainRepository {
                 &event,
                 vec![projection_target("public.combat_states", &combat_id)],
             )
-            .await?;
-        let mut transaction = self
-            .begin_projection_transaction(&metadata.commit_id, "begin_combat_state")
             .await?;
         let result = sqlx::query(
             r#"
@@ -8836,8 +8845,14 @@ impl CoreDomainRepository {
         }
         self.ensure_campaign_admin(&request.campaign_id, &metadata.requesting_actor_id)
             .await?;
-        self.ensure_gameplay_session(&request.campaign_id, &request.session_id)
+        let mut transaction = self
+            .begin_projection_transaction(&metadata.commit_id, "begin_chase_state")
             .await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!("p08-chase:{}:{}", request.campaign_id, chase_id))
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error("lock_chase_state"))?;
         let event = CoreDomainEvent::ChaseStateRecorded {
             schema_version: CORE_EVENT_SCHEMA_VERSION,
             chase_id: chase_id.clone(),
@@ -8861,7 +8876,7 @@ impl CoreDomainRepository {
             "#,
         )
         .bind(&chase_id)
-        .fetch_optional(&self.primary)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(database_error("load_chase_state_transition"))?;
         let previous_state = if let Some(row) = existing {
@@ -8913,6 +8928,12 @@ impl CoreDomainRepository {
         } else {
             None
         };
+        self.lock_active_gameplay_session(
+            &mut transaction,
+            &request.campaign_id,
+            &request.session_id,
+        )
+        .await?;
         if (metadata.expected_version == 0) != previous_state.is_none() {
             return Err(CoreDomainRepositoryError::Integrity(
                 "chase_state_projection_conflict",
@@ -8940,9 +8961,6 @@ impl CoreDomainRepository {
                 &event,
                 vec![projection_target("public.chase_states", &chase_id)],
             )
-            .await?;
-        let mut transaction = self
-            .begin_projection_transaction(&metadata.commit_id, "begin_chase_state")
             .await?;
         let result = sqlx::query(
             r#"
@@ -9554,30 +9572,32 @@ impl CoreDomainRepository {
         Ok(persisted)
     }
 
-    async fn ensure_gameplay_session(
+    async fn lock_active_gameplay_session(
         &self,
+        transaction: &mut Transaction<'_, Postgres>,
         campaign_id: &str,
         session_id: &str,
     ) -> Result<(), CoreDomainRepositoryError> {
-        let exists: bool = sqlx::query_scalar(
+        let state = sqlx::query_scalar::<_, String>(
             r#"
-            SELECT EXISTS(
-                SELECT 1
-                  FROM core_domain.sessions
-                 WHERE session_id = $1
-                   AND campaign_id = $2
-            )
+            SELECT state
+              FROM core_domain.sessions
+             WHERE session_id = $1
+               AND campaign_id = $2
+             FOR SHARE
             "#,
         )
         .bind(session_id)
         .bind(campaign_id)
-        .fetch_one(&self.primary)
+        .fetch_optional(&mut **transaction)
         .await
-        .map_err(database_error("load_gameplay_session"))?;
-        if exists {
-            Ok(())
-        } else {
-            Err(CoreDomainRepositoryError::NotFound("gameplay_session"))
+        .map_err(database_error("lock_gameplay_session"))?
+        .ok_or(CoreDomainRepositoryError::NotFound("gameplay_session"))?;
+        if state != "ACTIVE" {
+            return Err(CoreDomainRepositoryError::InvalidInput(
+                "gameplay_session_state",
+            ));
         }
+        Ok(())
     }
 }
