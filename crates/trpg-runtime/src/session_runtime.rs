@@ -686,15 +686,20 @@ impl SkillGrowthRecord {
         let skill_after = increase_roll
             .map(|increase| skill_before.saturating_add(increase).min(99))
             .unwrap_or(skill_before);
+        let source_sheet_version_id = EntityId::new(source_sheet_version_id)
+            .map_err(|_| ConclusionError::InvalidIdentifier)?;
+        let new_sheet_version_id =
+            EntityId::new(new_sheet_version_id).map_err(|_| ConclusionError::InvalidIdentifier)?;
+        if source_sheet_version_id == new_sheet_version_id {
+            return Err(ConclusionError::InvalidGrowth);
+        }
         Ok(Self {
             growth_event_id: EntityId::new(growth_event_id)
                 .map_err(|_| ConclusionError::InvalidIdentifier)?,
             character_id: EntityId::new(character_id)
                 .map_err(|_| ConclusionError::InvalidIdentifier)?,
-            source_sheet_version_id: EntityId::new(source_sheet_version_id)
-                .map_err(|_| ConclusionError::InvalidIdentifier)?,
-            new_sheet_version_id: EntityId::new(new_sheet_version_id)
-                .map_err(|_| ConclusionError::InvalidIdentifier)?,
+            source_sheet_version_id,
+            new_sheet_version_id,
             skill_name: skill_name.trim().to_owned(),
             skill_before,
             improvement_check_roll,

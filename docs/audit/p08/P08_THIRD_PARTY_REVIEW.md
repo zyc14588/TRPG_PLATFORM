@@ -632,8 +632,21 @@ Scene projection 的 `scene_key`。Chase 还在排序 participant advisory lock 
 `chase_profile` 的 role/MOV，并为 canonical v1 exact retry 保留原 state shape。
 Tutorial 真库证明错误 Scene Combat、伪造 Chase 和 ongoing Session end 都在 append
 前失败，玩法正式终止后 Session 可结束；Scenario `5/5`、core-domain `1/1`、
-Tutorial `2/2`、workspace check 与严格 Clippy 已通过。新提交、Hosted CI 和
-第三十轮精确 SHA review 仍为 pending。
+Tutorial `2/2`、workspace check 与严格 Clippy 已通过。修复提交
+`cd47861f75bfa48fc51297dc0376ff4515b5dd00` 的 repository-truth、
+golden-scenarios 与 production-security-runtime 已通过；workspace 与
+release-readiness 在下一轮意见到达时仍运行，因此只记录 3/5 通过、2 项运行中。
+第三十轮精确 SHA review `4790482371` 确认第二十九轮三项未重复，并提出一个 P2：
+
+- Runtime `SkillGrowthRecord::from_server_roll` 没有拒绝相同的
+  `source_sheet_version_id` 与 `new_sheet_version_id`；Conclusion 可先完成，再在
+  正式持久化时被数据库既有不等约束拒绝。
+
+当前最小修复在构造器内先解析两个 Sheet `EntityId` 并比较，相等时返回
+`InvalidGrowth`，不生成可进入 settlement 的记录；新增精确负例。专属 Growth
+`3/3`、runtime 非数据库套件 61 项、workspace check 与严格 Clippy 已通过；已清理
+环境所需的两个 P02/P06 runtime DB 门明确留给新 Hosted CI。新提交、Hosted CI 和
+第三十一轮精确 SHA review 仍为 pending。
 
 ## RustSec
 
@@ -650,7 +663,7 @@ Tutorial `2/2`、workspace check 与严格 Clippy 已通过。新提交、Hosted
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-二十九轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+三十轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
 用户门槛明确延期，没有冒充修复。当前最小修复的远端 CI/精确 SHA 复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖

@@ -164,6 +164,20 @@ MOV=20/1、range=4 的 Chase 不能写正史；后续 Session 存在 ongoing Com
 Scenario `5/5`、Combat `9/9`、Chase `3/3`、domain `7/7`、data-eventing `27/27`、
 默认栈 core-domain `1/1`、Tutorial `2/2`、workspace check 与严格 Clippy 通过。
 
+第三十轮精确 SHA review `4790482371` 针对提交
+`cd47861f75bfa48fc51297dc0376ff4515b5dd00` 确认第二十九轮三项未重复，并新增一个
+P2：Runtime Growth 接受相同的 source/new Sheet ID，Conclusion 可先完成，再在正式
+持久化时被已有数据库不等约束拒绝。`SkillGrowthRecord::from_server_roll` 现在先
+解析两个 Sheet ID，相等即返回 `ConclusionError::InvalidGrowth`；新增负例精确断言
+该错误。专属 Growth `3/3`，runtime 非数据库测试 61 项、workspace check 与严格
+Clippy 通过。
+
+扩展 runtime 全量回归第一次在沙箱内有 7 项仅因 localhost bind 被拒；授权重跑后
+这些测试全部通过，随后分别暴露两个已知外部环境要求：
+`P02_WORKFLOW_DATABASE_URL` 与 `P06_DATABASE_URL`。本轮真实数据库环境已经在前一轮
+回归后按要求清理，因此最终仅过滤这两个无关 DB 门并跑完其余 61 项；没有把过滤项
+计为 PASS，新的 Hosted workspace CI 必须重新覆盖完整环境。
+
 ## 真实数据库、重放与迁移
 
 临时环境使用固定 digest 的 PostgreSQL/pgvector 镜像、localhost 端口和每次生成的
@@ -471,7 +485,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `d85a811` 的第二十九轮精确 SHA review `4790320347` 确认 malformed percentile 问题未重复，并指出 Session ongoing gameplay 结束、初始 Chase 权威绑定与 Combat active scene 三项缺口；已在 canonical replay/Session 行锁、Scenario active scene 与 Character/NPC chase profile 边界完成本地根因修复和真库负例，待新提交/复审 |
+| GitHub PR #9 自动审查 | `cd47861` 的第三十轮精确 SHA review `4790482371` 确认 Session/Chase/active scene 三项未重复，并指出 Runtime Growth 的 source/new Sheet 可相同；已在 `SkillGrowthRecord` 构造边界拒绝并增加精确负例，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -565,6 +579,9 @@ workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review
 第二十八轮修复提交 `d85a811` 在第二十九轮审查到达时 repository-truth、
 golden-scenarios 2/5 完成通过，其余三项仍运行，只记录
 `2/5 + 3 running at review cutoff`。
+第二十九轮修复提交 `cd47861` 在第三十轮审查到达时 repository-truth、
+golden-scenarios、production-security-runtime 3/5 完成通过，workspace 与
+release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
 以上均未记为 5/5。
 
 RustSec 报告：

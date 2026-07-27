@@ -72,6 +72,19 @@ fn growth_requires_an_opaque_server_roll_and_rejects_duplicate_results() {
         server_roll.evidence(),
     )
     .is_err());
+    assert_eq!(
+        SkillGrowthRecord::from_server_roll(
+            "growth_event_same_sheet",
+            "character_conclusion",
+            "sheet_character_conclusion_1",
+            "sheet_character_conclusion_1",
+            "Library Use",
+            0,
+            server_roll.evidence(),
+        )
+        .unwrap_err(),
+        ConclusionError::InvalidGrowth
+    );
 
     let mut conclusion = CampaignConclusion::begin(
         "campaign_conclusion",
