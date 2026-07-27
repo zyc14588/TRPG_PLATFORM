@@ -338,7 +338,7 @@ fn validate_scenario(
             || encounter
                 .participants
                 .iter()
-                .any(|participant| participant.trim().is_empty())
+                .any(|participant| !valid_encounter_participant_id(participant))
             || (encounter.encounter_type == "chase"
                 && !encounter
                     .initial_range
@@ -429,6 +429,14 @@ fn validate_scenario(
             .map(|award| award.skill_name.clone())
             .collect(),
     })
+}
+
+fn valid_encounter_participant_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
 
 pub fn derive_character_stats(characteristics: Coc7Characteristics) -> KernelResult<DerivedStats> {

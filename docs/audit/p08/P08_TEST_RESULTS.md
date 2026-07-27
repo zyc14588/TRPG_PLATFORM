@@ -82,6 +82,14 @@ trigger 后，同一 commit/idempotency/request 的精确重试恢复 v2、Event
 重试兼容。Scenario 回归新增同一 Ending 两次 `Library Use`，入口统一返回
 `InvalidEndings`。
 
+第二十三轮精确 SHA review `4789295455` 针对提交 `bfdc6f4` 未重复上述两项，
+并新增两个 P2。Ending 回归现在向正式命令提交
+`"  ending_expose_marta  "`，断言 canonical `EndingRecorded` 与
+`public.ending_events` 都保存 `ending_expose_marta`，同一长链后续 Growth、fork
+snapshot 及 child materialization 继续成功。Scenario 回归分别把 combat participant
+改为含空格、chase participant 改为含标点，并保留重复 participant 负例；三者都在
+导入时返回 `InvalidScenarioField("encounters")`，不会延迟到状态机构造阶段。
+
 ## 真实数据库、重放与迁移
 
 临时环境使用固定 digest 的 PostgreSQL/pgvector 镜像、localhost 端口和每次生成的
@@ -360,7 +368,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `b611eab` Hosted CI 5/5；第二十二轮精确 SHA review `4786508911` 确认第二十一轮 3 项未重复，并提出骰预留原子性与重复成长奖励 2 项；两项已本地修复，待新提交/复审 |
+| GitHub PR #9 自动审查 | `bfdc6f4` 的第二十三轮精确 SHA review `4789295455` 确认骰预留原子性与重复成长奖励两项未重复，并提出 Ending ID 写入未规范化、encounter participant ID 入口约束不足两项；两项已完成本地修复和真库回归，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -397,8 +405,13 @@ append 前验证、生产 rebuild 权限、late joiner 和 copied-character SAN�
 Semgrep 基线及第二十一轮 5 changed targets 复扫仍为 0 finding。第二十二轮继续指出
 canonical append 后骰 ownership 可能随独立投影失败而丢失，以及 Scenario 接受重复
 成长奖励；两项已由 canonical 事务内 reservation 和入口唯一性校验完成本地根因修复。
-本轮 Semgrep 因外联安全审查拒绝明确记为未运行。本报告在最新本地修复提交、远端
-CI/复审完成前保持 pending，不以历史扫描或 `b611eab` 的 5/5 冒充新代码远端通过。
+第二十三轮确认两项未重复，又指出 padded Ending ID 在场景查找与正式写入间不一致，
+以及 encounter participant 的入口语法弱于运行时状态机；两项已由单次 Ending ID
+规范化和共享语法约束完成本地根因修复。场景校验 `5/5`、完整 ruleset、
+data-eventing lib `26/26`、真实 core-domain `1/1`、Tutorial `2/2`、workspace
+check 与严格 Clippy 均通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
+本报告在最新本地修复提交、远端 CI/复审完成前保持 pending，不以历史扫描或旧提交的
+部分/完整 Hosted CI 冒充新代码远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
 仅有 2/5 完成通过后取消 3 项；第五轮修复提交 `fb3907e` 仅有 3/5 完成通过后取消
 workspace/release 两项；第六轮修复提交 `2ed9df2` 也只有 repository-truth、

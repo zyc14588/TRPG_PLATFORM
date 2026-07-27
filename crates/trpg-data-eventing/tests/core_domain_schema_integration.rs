@@ -2508,15 +2508,15 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 ending_event_id: "ending_event_p08_schema".to_owned(),
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 session_id: "session_p06_schema".to_owned(),
-                ending_id: "ending_expose_marta".to_owned(),
+                ending_id: "  ending_expose_marta  ".to_owned(),
                 summary: "  The investigators expose Marta and preserve the archive.  ".to_owned(),
                 ended_at_unix_ms: NOW_MS + 7_000,
             },
         )
         .await
         .expect("append tutorial ending event");
-    let normalized_ending_projection: String = sqlx::query_scalar(
-        "SELECT summary FROM public.ending_events \
+    let normalized_ending_projection: (String, String) = sqlx::query_as(
+        "SELECT ending_id, summary FROM public.ending_events \
          WHERE ending_event_id = 'ending_event_p08_schema'",
     )
     .fetch_one(&primary)
@@ -2529,20 +2529,26 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .into_iter()
         .find(|event| event.event_type == "EndingRecorded")
         .and_then(|event| {
-            event
-                .payload
-                .pointer("/data/summary")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned)
+            Some((
+                event
+                    .payload
+                    .pointer("/data/ending_id")?
+                    .as_str()?
+                    .to_owned(),
+                event.payload.pointer("/data/summary")?.as_str()?.to_owned(),
+            ))
         })
-        .expect("load the decrypted canonical ending summary");
+        .expect("load the normalized canonical ending");
     assert_eq!(
         normalized_ending_projection,
-        "The investigators expose Marta and preserve the archive."
+        (
+            "ending_expose_marta".to_owned(),
+            "The investigators expose Marta and preserve the archive.".to_owned(),
+        )
     );
     assert_eq!(
         normalized_ending_event, normalized_ending_projection,
-        "the canonical event and live ending projection must share one normalized summary"
+        "the canonical event and live ending projection must share one normalized ending"
     );
     let conflicting_ending_identity_metadata = metadata(
         CAMPAIGN_ID,

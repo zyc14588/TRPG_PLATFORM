@@ -64,8 +64,10 @@ GITHUB_TWENTIETH_NONBLOCKING_STATUS = DEFERRED_BY_USER_THRESHOLD
 GITHUB_TWENTY_FIRST_AUTOMATED_REVIEW = 3_ACTIONABLE
 GITHUB_TWENTY_FIRST_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_SECOND_REVIEW
 GITHUB_TWENTY_SECOND_AUTOMATED_REVIEW = 2_ACTIONABLE
-GITHUB_TWENTY_SECOND_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
-GITHUB_LATEST_REVIEWED_TARGET = b611eabea05d22a88fb0bb9e5ec40bf285a48714
+GITHUB_TWENTY_SECOND_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_THIRD_REVIEW
+GITHUB_TWENTY_THIRD_AUTOMATED_REVIEW = 2_ACTIONABLE
+GITHUB_TWENTY_THIRD_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_LATEST_REVIEWED_TARGET = bfdc6f4222e9d944be2d8fdde2c7642b51a0dddc
 GITHUB_NEXT_REVIEW_TARGET = PENDING_COMMIT
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -80,6 +82,7 @@ GITHUB_TWELFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_THIRTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_TWENTY_FIRST_REPAIR_HOSTED_CI = 5_PASS
+GITHUB_TWENTY_SECOND_REPAIR_HOSTED_CI = 3_PASS_2_RUNNING_AT_REVIEW_CUTOFF
 GITHUB_LATEST_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
@@ -474,9 +477,28 @@ retry 只恢复投影、不追加第二条正史；旧无 marker 的已提交请
 
 workspace all-target/all-feature check、严格 Clippy、完整 ruleset/domain、data-eventing
 lib、锁定工具链 repo-truth、migration upgrade、decision atomicity、core-domain、
-Tutorial 与 P06/P07/P08 schema/权限断言均已通过。该修复尚未提交，新的 Hosted CI
-和第二十三轮精确 SHA review 仍为 pending；本轮 Semgrep 因上述外联拒绝明确记为
-未运行。
+Tutorial 与 P06/P07/P08 schema/权限断言均已通过；本轮 Semgrep 因上述外联拒绝
+明确记为未运行。
+
+提交 `bfdc6f4222e9d944be2d8fdde2c7642b51a0dddc` 后，
+`repository-truth`、`golden-scenarios` 与 `production-security-runtime` 三个 Hosted
+workflow 已完成通过；`workspace-ci`、`release-readiness-evidence` 在第二十三轮
+审查意见到达时仍运行，因此只记录 3/5，不冒充完整通过。精确 SHA review
+`4789295455` 没有重复第二十二轮两项，并提出两个 P2：
+
+- `record_ending` 以 trimmed ID 通过场景匹配，却把原始 padded ID 写入 canonical
+  event 与 projection；fork snapshot 随后用精确相等匹配场景 Ending，可能取不到
+  `growth_awards` 并使 snapshot 反序列化失败；
+- Scenario encounter participant 只校验非空/不重复，含空格、标点或超过运行时上限
+  的 ID 可通过导入，却无法构造 Combat/Chase 状态机。
+
+当前最小修复在命令入口只生成一次 `normalized_ending_id`，场景匹配、正式事件与
+投影共同使用该值；真实数据库以 padded ID 调用，核对 event/projection 后继续完成
+Growth 与 fork。Scenario validator 增加与 Combat/Chase 状态机完全相同的 ID 谓词：
+非空、最多 128 字节、仅 ASCII 字母数字、`_`、`-`；combat 空格、chase 标点和重复
+participant 均由入口负例拒绝。完整 ruleset、data-eventing lib `26/26`、真实
+core-domain `1/1`、Tutorial `2/2`、workspace check 与严格 Clippy 均通过。新提交、
+Hosted CI 和第二十四轮精确 SHA review 仍为 pending。
 
 ## RustSec
 
@@ -493,7 +515,7 @@ Tutorial 与 P06/P07/P08 schema/权限断言均已通过。该修复尚未提交
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-二十二轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+二十三轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
 用户门槛明确延期，没有冒充修复。最新提交的远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖

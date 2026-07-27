@@ -45,7 +45,8 @@ GITHUB_EIGHTEENTH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_CONFIRMED_BY_NINETEENTH_
 GITHUB_NINETEENTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTIETH_REVIEW
 GITHUB_TWENTIETH_AUTOMATED_REVIEW = 1_BLOCKING_FIXED_CONFIRMED_BY_TWENTY_FIRST_REVIEW_2_NONBLOCKING_DEFERRED
 GITHUB_TWENTY_FIRST_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_SECOND_REVIEW
-GITHUB_TWENTY_SECOND_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_LOCALLY
+GITHUB_TWENTY_SECOND_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_THIRD_REVIEW
+GITHUB_TWENTY_THIRD_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_LOCALLY
 GITHUB_LATEST_AUTOMATED_REVIEW = RERUN_PENDING
 THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -60,7 +61,8 @@ TWELFTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 THIRTEENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTEENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 TWENTY_FIRST_REPAIR_HOSTED_CI = PASS_5_OF_5
-TWENTY_SECOND_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
+TWENTY_SECOND_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
+TWENTY_THIRD_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 P09_IMPLEMENTATION = NOT_STARTED
 ```
 
@@ -84,11 +86,11 @@ HMAC 与 Witness 校验的正史事件重建。
 | 可见性保持 | Fork materialization 按 keeper、party 和 owner-bound private 行分批；每个事件自己的 Visibility、`data_subject_id` 与主体密钥进入 request hash、HMAC、Event Store 和 Outbox，投影触发器继续要求事件/行完全一致 | PASS |
 | 幂等与语义唯一性 | Combat、Chase、Ending、Growth 的 exact retry 返回原 persisted commit；Campaign Fork 的 exact retry 从已记录 lineage/manifest/materialized batches 重建原命令与投影，不读取后来可能变化的 parent snapshot；Ending 的 Session 键与 Growth 的 Character 键在事务 advisory lock 下串行检查、append 和 projection；真实并发竞争各只产生一条正史 | PASS |
 | 活跃会话边界 | Combat/Chase 在同一事务内对 Session 行持有 `FOR SHARE` 锁并要求状态精确为 `ACTIVE`；Session 终止路径的 `FOR UPDATE` 锁封闭状态检查与正式 append 间的 TOCTOU；结束态负例不增加 Event Store | PASS |
-| 场景结构唯一性 | Scenario 验证在接受 Combat/Chase encounter 前拒绝重复 participant ID，并按每个 Ending 拒绝重复 `growth_awards.skill_name`，保证入口接受的文档可构造正式聚合与 fork conclusion snapshot | PASS |
-| 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`；Ending summary 在事件创建前规范化并与 replay 投影一致；没有 `growth_awards` 的合法结局可用空 settlement 完成，有奖励时成长技能必须存在于该 Ending 的 `growth_awards`；成长证据只能由一次性完整 OS CSPRNG 尝试生成，不能把独立 percentile/d10 拼装为挑选结果；新 Sheet、Character 与正式 Growth event 必须精确保持来源 Character/Sheet 的 Visibility envelope，任何扩大在 append 前失败 | PASS |
+| 场景结构唯一性 | Scenario 验证在接受 Combat/Chase encounter 前拒绝重复 participant ID，并要求参与者 ID 与状态机一致：仅 ASCII 字母数字、`_`、`-` 且不超过 128 字节；每个 Ending 还拒绝重复 `growth_awards.skill_name`，保证入口接受的文档可构造正式聚合与 fork conclusion snapshot | PASS |
+| 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`，并在事件创建前统一规范化后写入 canonical event 与 projection；Ending summary 同样规范化并与 replay 投影一致；没有 `growth_awards` 的合法结局可用空 settlement 完成，有奖励时成长技能必须存在于该 Ending 的 `growth_awards`；成长证据只能由一次性完整 OS CSPRNG 尝试生成，不能把独立 percentile/d10 拼装为挑选结果；新 Sheet、Character 与正式 Growth event 必须精确保持来源 Character/Sheet 的 Visibility envelope，任何扩大在 append 前失败 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork | PASS |
 | Schema/最小权限 | 八个 P08 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth/rebuild repair、可延迟外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、fork-empty trigger/function 完整 catalog 指纹、Combat/Chase/Growth 全局 gameplay roll 主键及 canonical 事务内 reservation、v2 Fork/Reconsideration 显式非空 shape 与行为探针、角色与函数执行权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的 `b611eab` Hosted CI 5/5，第二十二轮精确 SHA review `4786508911` 确认上轮修复并提出 2 项；骰预留原子性和重复成长奖励均已完成本地根因修复，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
+| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的提交 `bfdc6f4` 经第二十三轮精确 SHA review `4789295455` 确认上轮两项未重复，并指出 Ending ID 写入未规范化及 encounter participant ID 入口约束不足；两项已完成本地根因修复和真库回归，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
 
 ## 反伪造修复
 
@@ -159,9 +161,10 @@ HMAC 与 Witness 校验的正史事件重建。
 - Combat/Chase 正式写入不再只校验 Session 存在；同一投影事务锁定 Session 行并要求
   `ACTIVE`，因此 `SCHEDULED`、`PAUSED`、`ENDED` 均不能产生玩法正史。Tutorial 的
   结束态负例同时断言两类事件计数不变。
-- Scenario encounter 在入口拒绝重复 participant ID；每个 Ending 还拒绝重复
-  `growth_awards.skill_name`，避免文档验证通过后才在正式 Combat/Chase 聚合或
-  fork conclusion snapshot 构造阶段失败。
+- Scenario encounter 在入口拒绝重复 participant ID，并使用与 Combat/Chase
+  状态机一致的 ASCII 字母数字、`_`、`-`、最多 128 字节约束；每个 Ending 还拒绝
+  重复 `growth_awards.skill_name`，避免文档验证通过后才在正式聚合或 fork
+  conclusion snapshot 构造阶段失败。
 - 原先可提交原始成长数值或把独立 percentile/d10 拼装成挑选结果的路径，已替换为
   不可反序列化、字段私有、一次性完整采样的服务端随机证据；原始 d10 生成和组合
   构造器均不公开，持久层仍从当前角色卡独立重算结果。
@@ -186,9 +189,9 @@ HMAC 与 Witness 校验的正史事件重建。
 - Fork 的 Combat/Chase participant、initiative order、攻击/治疗/转换和 roll
   participant 引用都会映射到确定性 child character/NPC ID；来源 ID 不会留在子级
   gameplay state。
-- Ending summary、Reconsideration review summary 与 resolution 在创建 canonical
+- Ending ID/summary、Reconsideration review summary 与 resolution 在创建 canonical
   event 前只规范化一次；live projection 与 replay 使用相同值，带首尾空白的真实
-  数据库用例在删除投影后仍逐字节一致。
+  数据库用例证明 canonical event、投影和 fork snapshot 使用同一 Ending ID。
 - 复议请求不再只检查 Campaign membership 和 source sequence 存在；SQL 授权同时
   验证源事件 Visibility、subject、data subject 与请求者，并要求新事件 envelope
   精确继承。review/resolve 继续与上一条链事件三项一致，猜测 keeper/private sequence
@@ -315,6 +318,11 @@ character 与 padded scenario ID，以及 fork 复制角色后续 SAN 保持；�
 窗口与重复成长奖励，已由 forward-only `20260728000100` 的 canonical 事务内
 reservation、故障后精确重试和 Scenario per-ending 去重完成本地修复。真实数据库、
 迁移、规则、workspace check/Clippy 与锁定工具链门禁已通过；本轮 Semgrep 因社区
-规则外联被安全审查拒绝且无本地缓存，明确记为未运行。新本地修复的提交、Hosted CI
-与精确 SHA 远端自动复审仍须在合并前通过。
+规则外联被安全审查拒绝且无本地缓存，明确记为未运行。提交 `bfdc6f4` 的第二十三轮
+精确 SHA review `4789295455` 确认上述两项未重复，并指出请求的 padded Ending ID
+只用于 trimmed 场景匹配、却以原值写入正史/投影，以及 Scenario encounter participant
+可带空格/标点而运行时聚合拒绝。当前修复在 `record_ending` 入口只规范化一次并让
+event/projection 共享该值，同时让场景校验复用运行时 ID 语法。规则全量、
+data-eventing lib、真实 core-domain `1/1`、Tutorial `2/2`、workspace check 与
+严格 Clippy 已通过；新提交、Hosted CI 与精确 SHA 复审仍须在合并前通过。
 P08 到此停止，未执行 P09。

@@ -10995,9 +10995,10 @@ impl CoreDomainRepository {
         metadata: &CoreCommandMetadata,
         request: &RecordEndingRequest,
     ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
+        let normalized_ending_id = request.ending_id.trim();
         let normalized_summary = request.summary.trim();
         if metadata.expected_version != 0
-            || request.ending_id.trim().is_empty()
+            || normalized_ending_id.is_empty()
             || normalized_summary.is_empty()
             || normalized_summary.len() > 1_024
             || request.ended_at_unix_ms == 0
@@ -11048,7 +11049,7 @@ impl CoreDomainRepository {
             .and_then(Value::as_array)
             .is_some_and(|endings| {
                 endings.iter().any(|ending| {
-                    ending.get("id").and_then(Value::as_str) == Some(request.ending_id.trim())
+                    ending.get("id").and_then(Value::as_str) == Some(normalized_ending_id)
                 })
             });
         if !ending_is_defined {
@@ -11103,7 +11104,7 @@ impl CoreDomainRepository {
             ending_event_id: request.ending_event_id.clone(),
             campaign_id: request.campaign_id.clone(),
             session_id: request.session_id.clone(),
-            ending_id: request.ending_id.clone(),
+            ending_id: normalized_ending_id.to_owned(),
             summary: normalized_summary.to_owned(),
             ended_at_unix_ms: request.ended_at_unix_ms,
         };
@@ -11155,7 +11156,7 @@ impl CoreDomainRepository {
         .bind(&request.ending_event_id)
         .bind(&request.campaign_id)
         .bind(&request.session_id)
-        .bind(&request.ending_id)
+        .bind(normalized_ending_id)
         .bind(normalized_summary)
         .bind(ended_at)
         .bind(&metadata.visibility_label)

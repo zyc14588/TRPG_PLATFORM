@@ -68,15 +68,27 @@ fn core_clues_need_two_independent_acquisition_paths() {
 }
 
 #[test]
-fn encounters_reject_duplicate_participants() {
-    let invalid = TUTORIAL_SCENARIO.replace(
-        "participants: [investigator, npc_marta]",
-        "participants: [npc_marta, npc_marta]",
-    );
-    assert_eq!(
-        parse_scenario_yaml(&invalid),
-        Err(CharacterScenarioError::InvalidScenarioField("encounters"))
-    );
+fn encounters_reject_duplicate_or_unusable_participants() {
+    for invalid in [
+        TUTORIAL_SCENARIO.replace(
+            "participants: [investigator, npc_marta]",
+            "participants: [npc_marta, npc_marta]",
+        ),
+        TUTORIAL_SCENARIO.replacen(
+            "participants: [investigator, npc_marta]",
+            "participants: [investigator, \"npc marta\"]",
+            1,
+        ),
+        TUTORIAL_SCENARIO.replace(
+            "  - id: encounter_archive_escape\n    type: chase\n    scene_id: scene_basement\n    participants: [investigator, npc_marta]",
+            "  - id: encounter_archive_escape\n    type: chase\n    scene_id: scene_basement\n    participants: [investigator, \"npc!marta\"]",
+        ),
+    ] {
+        assert_eq!(
+            parse_scenario_yaml(&invalid),
+            Err(CharacterScenarioError::InvalidScenarioField("encounters"))
+        );
+    }
 }
 
 #[test]
