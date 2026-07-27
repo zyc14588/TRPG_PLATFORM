@@ -1895,7 +1895,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 attacker_roll: None,
                 defender_roll: None,
                 damage_roll: None,
-                medical_roll: Some(medical_roll),
+                medical_roll: Some(medical_roll.clone()),
             },
         )
         .await
@@ -1973,6 +1973,64 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .fetch_one(&primary)
     .await
     .unwrap();
+    let mut reused_roll_chase = chase.clone();
+    let reused_roll_chase_evidence = vec![medical_roll.clone(), percentile_with_result(40, true)];
+    reused_roll_chase
+        .advance(&reused_roll_chase_evidence, None)
+        .unwrap();
+    assert!(matches!(
+        repository
+            .record_chase_state(
+                &metadata(
+                    CAMPAIGN_ID,
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "chase_p08_schema",
+                    "chase_state",
+                    "chase.state.advance",
+                    1,
+                    "chase_p08_cross_aggregate_roll_reuse",
+                    "party_visible",
+                    "not_applicable",
+                    "rules_engine_decision",
+                ),
+                &RecordChaseStateRequest {
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: "session_p06_schema".to_owned(),
+                    state_json: reused_roll_chase.persistence_json().unwrap(),
+                    participant_rolls: reused_roll_chase_evidence,
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "gameplay_roll_reuse"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND stream_id = 'chase_p08_schema'",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        chase_events_before_forgery,
+        "a Combat roll reused by Chase must fail before canonical append"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, String>(
+            "SELECT aggregate_kind FROM public.gameplay_roll_consumptions \
+             WHERE roll_id = $1",
+        )
+        .bind(medical_roll.roll_id())
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        "COMBAT",
+        "global roll ownership must remain bound to the first aggregate"
+    );
     let mut mismatched_chase = chase.clone();
     let recorded_chase_rolls = vec![
         percentile_with_result(40, false),
@@ -2051,7 +2109,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 session_id: "session_p06_schema".to_owned(),
                 state_json: chase.persistence_json().unwrap(),
-                participant_rolls: chase_rolls,
+                participant_rolls: chase_rolls.clone(),
             },
         )
         .await
@@ -2065,6 +2123,18 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             None,
         )
         .is_err());
+    let p08_roll_consumptions_before: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.gameplay_roll_consumptions \
+         WHERE campaign_id = $1",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert!(
+        p08_roll_consumptions_before >= 3,
+        "combat and chase transitions must project consumed server-roll evidence"
+    );
 
     repository
         .change_session_state(
@@ -2521,6 +2591,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .unwrap();
     for statement in [
         "DELETE FROM public.ending_events WHERE campaign_id = $1",
+        "DELETE FROM public.gameplay_roll_consumptions WHERE campaign_id = $1",
         "DELETE FROM public.chase_states WHERE campaign_id = $1",
         "DELETE FROM public.combat_states WHERE campaign_id = $1",
         "DELETE FROM public.campaign_fork_npc_states WHERE campaign_id = $1",
@@ -3090,6 +3161,12 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                         WHERE combat.campaign_id = $1),
             'chase', (SELECT to_jsonb(chase) FROM public.chase_states AS chase
                        WHERE chase.campaign_id = $1),
+            'roll_consumptions', (
+                SELECT jsonb_agg(to_jsonb(consumption)
+                                 ORDER BY consumption.roll_id)
+                  FROM public.gameplay_roll_consumptions AS consumption
+                 WHERE consumption.campaign_id = $1
+            ),
             'ending', (SELECT to_jsonb(ending) FROM public.ending_events AS ending
                         WHERE ending.campaign_id = $1),
             'growth', (SELECT to_jsonb(growth) FROM public.growth_events AS growth
@@ -3123,6 +3200,142 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             .fetch_one(&primary)
             .await
             .unwrap();
+    let mut corrupt_p08_projection = primary.begin().await.unwrap();
+    for statement in [
+        "ALTER TABLE public.combat_states DISABLE TRIGGER combat_states_event_guard",
+        "ALTER TABLE public.chase_states DISABLE TRIGGER chase_states_event_guard",
+    ] {
+        sqlx::query(statement)
+            .execute(&mut *corrupt_p08_projection)
+            .await
+            .unwrap();
+    }
+    sqlx::query(
+        r#"
+        UPDATE public.combat_states
+           SET state_json = jsonb_set(state_json, '{corrupted}', 'true'::jsonb),
+               provenance_reference = 'corrupted_same_version'
+         WHERE campaign_id = $1
+        "#,
+    )
+    .bind(CAMPAIGN_ID)
+    .execute(&mut *corrupt_p08_projection)
+    .await
+    .unwrap();
+    sqlx::query(
+        r#"
+        UPDATE public.chase_states
+           SET state_json = jsonb_set(state_json, '{corrupted}', 'true'::jsonb),
+               provenance_reference = 'corrupted_same_version'
+         WHERE campaign_id = $1
+        "#,
+    )
+    .bind(CAMPAIGN_ID)
+    .execute(&mut *corrupt_p08_projection)
+    .await
+    .unwrap();
+    sqlx::query(
+        r#"
+        INSERT INTO public.combat_states (
+            combat_id, campaign_id, session_id, status, round,
+            current_turn_index, state_json, version,
+            visibility_label, visibility_subject,
+            provenance_kind, provenance_reference, provenance_recorded_by,
+            last_event_sequence
+        )
+        SELECT 'combat_p08_ghost', campaign_id, session_id, status, round,
+               current_turn_index,
+               jsonb_set(state_json, '{combat_id}', '"combat_p08_ghost"'::jsonb),
+               version, visibility_label, visibility_subject,
+               provenance_kind, provenance_reference, provenance_recorded_by,
+               last_event_sequence
+          FROM public.combat_states
+         WHERE combat_id = 'combat_p08_schema'
+        "#,
+    )
+    .execute(&mut *corrupt_p08_projection)
+    .await
+    .unwrap();
+    sqlx::query(
+        r#"
+        INSERT INTO public.chase_states (
+            chase_id, campaign_id, session_id, status, range_band,
+            segment, state_json, version,
+            visibility_label, visibility_subject,
+            provenance_kind, provenance_reference, provenance_recorded_by,
+            last_event_sequence
+        )
+        SELECT 'chase_p08_ghost', campaign_id, session_id, status, range_band,
+               segment,
+               jsonb_set(state_json, '{chase_id}', '"chase_p08_ghost"'::jsonb),
+               version, visibility_label, visibility_subject,
+               provenance_kind, provenance_reference, provenance_recorded_by,
+               last_event_sequence
+          FROM public.chase_states
+         WHERE chase_id = 'chase_p08_schema'
+        "#,
+    )
+    .execute(&mut *corrupt_p08_projection)
+    .await
+    .unwrap();
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *corrupt_p08_projection)
+        .await
+        .unwrap();
+    for statement in [
+        "ALTER TABLE public.combat_states ENABLE TRIGGER combat_states_event_guard",
+        "ALTER TABLE public.chase_states ENABLE TRIGGER chase_states_event_guard",
+    ] {
+        sqlx::query(statement)
+            .execute(&mut *corrupt_p08_projection)
+            .await
+            .unwrap();
+    }
+    corrupt_p08_projection.commit().await.unwrap();
+    let repaired_p08 = repository
+        .rebuild_p08_projections(CAMPAIGN_ID)
+        .await
+        .expect("replace same-version corruption and remove non-canonical ghost projections");
+    assert_eq!(repaired_p08.combat_states, 1);
+    assert_eq!(repaired_p08.chase_states, 1);
+    assert_eq!(
+        repaired_p08.gameplay_roll_consumptions,
+        p08_roll_consumptions_before
+    );
+    let remaining_corruption: i64 = sqlx::query_scalar(
+        r#"
+        SELECT
+            (SELECT count(*) FROM public.combat_states
+              WHERE campaign_id = $1
+                AND (combat_id = 'combat_p08_ghost'
+                     OR state_json ? 'corrupted'
+                     OR provenance_reference = 'corrupted_same_version'))
+          + (SELECT count(*) FROM public.chase_states
+              WHERE campaign_id = $1
+                AND (chase_id = 'chase_p08_ghost'
+                     OR state_json ? 'corrupted'
+                     OR provenance_reference = 'corrupted_same_version'))
+        "#,
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        remaining_corruption, 0,
+        "rebuild must replace same-version corruption and delete ghost rows"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store WHERE campaign_id = $1",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        event_count_before,
+        "repairing corrupted projections must not rewrite canonical history"
+    );
     let approval_event_sequence: i64 = sqlx::query_scalar(
         "SELECT sequence FROM public.event_store \
          WHERE campaign_id = $1 AND stream_id = 'character_p06_player' \
@@ -3180,6 +3393,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     for statement in [
         "DELETE FROM public.ending_events WHERE campaign_id = $1",
         "DELETE FROM public.reconsiderations WHERE campaign_id = $1",
+        "DELETE FROM public.gameplay_roll_consumptions WHERE campaign_id = $1",
         "DELETE FROM public.combat_states WHERE campaign_id = $1",
         "DELETE FROM public.chase_states WHERE campaign_id = $1",
     ] {
@@ -3197,6 +3411,10 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     assert_eq!(rebuilt_p08.replayed_events, 24);
     assert_eq!(rebuilt_p08.combat_states, 1);
     assert_eq!(rebuilt_p08.chase_states, 1);
+    assert_eq!(
+        rebuilt_p08.gameplay_roll_consumptions,
+        p08_roll_consumptions_before
+    );
     assert_eq!(rebuilt_p08.reconsiderations, 2);
     assert_eq!(rebuilt_p08.ending_events, 1);
     assert_eq!(rebuilt_p08.growth_events, 1);
@@ -3207,6 +3425,12 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                         WHERE combat.campaign_id = $1),
             'chase', (SELECT to_jsonb(chase) FROM public.chase_states AS chase
                        WHERE chase.campaign_id = $1),
+            'roll_consumptions', (
+                SELECT jsonb_agg(to_jsonb(consumption)
+                                 ORDER BY consumption.roll_id)
+                  FROM public.gameplay_roll_consumptions AS consumption
+                 WHERE consumption.campaign_id = $1
+            ),
             'ending', (SELECT to_jsonb(ending) FROM public.ending_events AS ending
                         WHERE ending.campaign_id = $1),
             'growth', (SELECT to_jsonb(growth) FROM public.growth_events AS growth

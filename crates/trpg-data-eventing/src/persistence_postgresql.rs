@@ -631,6 +631,7 @@ pub struct P08ProjectionRebuildReport {
     pub fork_public_events: i64,
     pub fork_clues: i64,
     pub fork_npc_states: i64,
+    pub gameplay_roll_consumptions: i64,
     pub ending_events: i64,
     pub growth_events: i64,
     pub last_event_sequence: i64,
@@ -1884,6 +1885,149 @@ fn projection_target(relation: &str, row_id: &str) -> CanonicalProjectionTarget 
     }
 }
 
+fn gameplay_state_projection_targets(
+    state_relation: &str,
+    aggregate_id: &str,
+    has_roll_consumptions: bool,
+) -> Vec<CanonicalProjectionTarget> {
+    let mut targets = vec![projection_target(state_relation, aggregate_id)];
+    if has_roll_consumptions {
+        targets.push(projection_target(
+            "public.gameplay_roll_consumptions",
+            aggregate_id,
+        ));
+    }
+    targets
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct GameplayRollConsumption {
+    roll_id: String,
+    roll_kind: &'static str,
+}
+
+fn gameplay_roll_id(
+    value: &Value,
+    field: &'static str,
+) -> Result<String, CoreDomainRepositoryError> {
+    let roll_id = value
+        .get("roll_id")
+        .and_then(Value::as_str)
+        .ok_or(CoreDomainRepositoryError::Integrity(field))?;
+    EntityId::new(roll_id)
+        .map(|roll_id| roll_id.as_str().to_owned())
+        .map_err(|_| CoreDomainRepositoryError::Integrity(field))
+}
+
+fn validate_gameplay_roll_consumptions(
+    consumptions: Vec<GameplayRollConsumption>,
+    field: &'static str,
+) -> Result<Vec<GameplayRollConsumption>, CoreDomainRepositoryError> {
+    if consumptions
+        .iter()
+        .map(|consumption| consumption.roll_id.as_str())
+        .collect::<BTreeSet<_>>()
+        .len()
+        != consumptions.len()
+    {
+        return Err(CoreDomainRepositoryError::Integrity(field));
+    }
+    Ok(consumptions)
+}
+
+fn combat_gameplay_roll_consumptions(
+    state_json: &str,
+) -> Result<Vec<GameplayRollConsumption>, CoreDomainRepositoryError> {
+    let state: Value = serde_json::from_str(state_json)
+        .map_err(|_| CoreDomainRepositoryError::Integrity("combat_roll_consumption_state"))?;
+    let transition = state
+        .get("last_transition")
+        .and_then(Value::as_object)
+        .ok_or(CoreDomainRepositoryError::Integrity(
+            "combat_roll_consumption_transition",
+        ))?;
+    let kind = transition.get("kind").and_then(Value::as_str).ok_or(
+        CoreDomainRepositoryError::Integrity("combat_roll_consumption_transition"),
+    )?;
+    let mut consumptions = Vec::new();
+    let mut push_roll =
+        |key: &'static str, roll_kind: &'static str| -> Result<(), CoreDomainRepositoryError> {
+            let value = transition
+                .get(key)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "combat_roll_consumption_transition",
+                ))?;
+            if value.is_null() {
+                return Ok(());
+            }
+            consumptions.push(GameplayRollConsumption {
+                roll_id: gameplay_roll_id(value, "combat_roll_consumption_id")?,
+                roll_kind,
+            });
+            Ok(())
+        };
+    match kind {
+        "STARTED" | "TURN_ADVANCED" | "ENDED" => {}
+        "ATTACK_MISSED" => {
+            push_roll("attacker_roll", "ATTACKER_PERCENTILE")?;
+            push_roll("defender_roll", "DEFENDER_PERCENTILE")?;
+        }
+        "DAMAGE_APPLIED" => {
+            push_roll("attacker_roll", "ATTACKER_PERCENTILE")?;
+            push_roll("defender_roll", "DEFENDER_PERCENTILE")?;
+            push_roll("damage_roll", "DAMAGE")?;
+        }
+        "MAJOR_WOUND_RECOVERY_ATTEMPTED" => {
+            push_roll("medical_roll", "MEDICAL_PERCENTILE")?;
+        }
+        _ => {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "combat_roll_consumption_transition",
+            ))
+        }
+    }
+    validate_gameplay_roll_consumptions(consumptions, "combat_roll_consumption_reuse")
+}
+
+fn chase_gameplay_roll_consumptions(
+    state_json: &str,
+) -> Result<Vec<GameplayRollConsumption>, CoreDomainRepositoryError> {
+    let state: Value = serde_json::from_str(state_json)
+        .map_err(|_| CoreDomainRepositoryError::Integrity("chase_roll_consumption_state"))?;
+    let transition = state
+        .get("last_transition")
+        .and_then(Value::as_object)
+        .ok_or(CoreDomainRepositoryError::Integrity(
+            "chase_roll_consumption_transition",
+        ))?;
+    let kind = transition.get("kind").and_then(Value::as_str).ok_or(
+        CoreDomainRepositoryError::Integrity("chase_roll_consumption_transition"),
+    )?;
+    let consumptions = match kind {
+        "STARTED" => Vec::new(),
+        "ADVANCED" => transition
+            .get("rolls")
+            .and_then(Value::as_array)
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "chase_roll_consumption_transition",
+            ))?
+            .iter()
+            .map(|roll| {
+                Ok(GameplayRollConsumption {
+                    roll_id: gameplay_roll_id(roll, "chase_roll_consumption_id")?,
+                    roll_kind: "CHASE_PARTICIPANT_PERCENTILE",
+                })
+            })
+            .collect::<Result<Vec<_>, CoreDomainRepositoryError>>()?,
+        _ => {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "chase_roll_consumption_transition",
+            ))
+        }
+    };
+    validate_gameplay_roll_consumptions(consumptions, "chase_roll_consumption_reuse")
+}
+
 fn fork_child_id(
     fork_id: &str,
     kind: &str,
@@ -2166,16 +2310,102 @@ fn derive_fork_character_visibility(
     }
 }
 
+fn replay_event_field<'a>(event: &'a CanonicalReplayEvent, field: &str) -> Option<&'a str> {
+    event
+        .payload
+        .get("data")
+        .and_then(Value::as_object)
+        .and_then(|data| data.get(field))
+        .and_then(Value::as_str)
+}
+
+fn fork_source_session_event_sequences(
+    replay_events: &[CanonicalReplayEvent],
+    campaign_id: &str,
+    source_session_id: &str,
+    cutoff_event_sequence: i64,
+) -> Result<BTreeSet<i64>, CoreDomainRepositoryError> {
+    let session_started = replay_events
+        .iter()
+        .filter(|event| {
+            event.event_type == "SessionStarted"
+                && replay_event_field(event, "session_id") == Some(source_session_id)
+        })
+        .collect::<Vec<_>>();
+    if session_started.len() != 1
+        || session_started[0].campaign_id != campaign_id
+        || session_started[0].sequence <= 0
+        || session_started[0].sequence > cutoff_event_sequence
+        || session_started[0].integrity_status != "verified_hmac"
+        || session_started[0].request_hash_source != "formal_commit"
+        || session_started[0].event_integrity_hash.is_none()
+    {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "fork_source_session_start",
+        ));
+    }
+    let source_start_sequence = session_started[0].sequence;
+    let mut source_scene_ids = BTreeSet::new();
+    for event in replay_events.iter().filter(|event| {
+        event.sequence <= cutoff_event_sequence
+            && replay_event_field(event, "session_id") == Some(source_session_id)
+    }) {
+        for key in [
+            "scene_id",
+            "previous_scene_id",
+            "next_scene_id",
+            "active_scene_id",
+        ] {
+            if let Some(scene_id) = replay_event_field(event, key) {
+                source_scene_ids.insert(scene_id.to_owned());
+            }
+        }
+    }
+    if source_scene_ids.is_empty() {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "fork_source_session_scenes",
+        ));
+    }
+    let source_action_ids = replay_events
+        .iter()
+        .filter(|event| {
+            event.sequence <= cutoff_event_sequence
+                && event.event_type == "PlayerActionSubmitted"
+                && replay_event_field(event, "scene_id")
+                    .is_some_and(|scene_id| source_scene_ids.contains(scene_id))
+        })
+        .map(|event| {
+            replay_event_field(event, "action_id")
+                .map(str::to_owned)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "fork_source_session_action",
+                ))
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+
+    Ok(replay_events
+        .iter()
+        .filter(|event| {
+            event.sequence < source_start_sequence
+                || event.sequence <= cutoff_event_sequence
+                    && (replay_event_field(event, "session_id") == Some(source_session_id)
+                        || replay_event_field(event, "action_id")
+                            .is_some_and(|action_id| source_action_ids.contains(action_id)))
+        })
+        .map(|event| event.sequence)
+        .collect())
+}
+
 fn reconstruct_fork_characters(
     replay_events: &[CanonicalReplayEvent],
     campaign_id: &str,
-    cutoff_event_sequence: i64,
+    source_event_sequences: &BTreeSet<i64>,
 ) -> Result<Vec<ForkSnapshotCharacter>, CoreDomainRepositoryError> {
     let mut characters = BTreeMap::<String, ForkSnapshotCharacter>::new();
     let mut action_characters = BTreeMap::<String, String>::new();
     for replay in replay_events
         .iter()
-        .filter(|event| event.sequence <= cutoff_event_sequence)
+        .filter(|event| source_event_sequences.contains(&event.sequence))
     {
         if replay.campaign_id != campaign_id {
             return Err(CoreDomainRepositoryError::Integrity(
@@ -2514,6 +2744,58 @@ fn session_state_action(state: SessionState) -> &'static str {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+async fn project_gameplay_roll_consumptions(
+    transaction: &mut Transaction<'_, Postgres>,
+    consumptions: &[GameplayRollConsumption],
+    campaign_id: &str,
+    aggregate_kind: &str,
+    aggregate_id: &str,
+    visibility_label: &str,
+    visibility_subject: &str,
+    provenance_kind: &str,
+    provenance_reference: &str,
+    provenance_recorded_by: &str,
+    last_event_sequence: i64,
+) -> Result<(), CoreDomainRepositoryError> {
+    for consumption in consumptions {
+        let inserted = sqlx::query(
+            r#"
+            INSERT INTO public.gameplay_roll_consumptions (
+                roll_id, campaign_id, aggregate_kind, aggregate_id, roll_kind,
+                random_source, visibility_label, visibility_subject,
+                provenance_kind, provenance_reference, provenance_recorded_by,
+                last_event_sequence
+            ) VALUES (
+                $1, $2, $3, $4, $5, 'SERVER_OS_CSPRNG', $6, $7,
+                $8, $9, $10, $11
+            )
+            ON CONFLICT (roll_id) DO NOTHING
+            "#,
+        )
+        .bind(&consumption.roll_id)
+        .bind(campaign_id)
+        .bind(aggregate_kind)
+        .bind(aggregate_id)
+        .bind(consumption.roll_kind)
+        .bind(visibility_label)
+        .bind(visibility_subject)
+        .bind(provenance_kind)
+        .bind(provenance_reference)
+        .bind(provenance_recorded_by)
+        .bind(last_event_sequence)
+        .execute(&mut **transaction)
+        .await
+        .map_err(database_error("project_gameplay_roll_consumption"))?;
+        if inserted.rows_affected() != 1 {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "gameplay_roll_already_consumed",
+            ));
+        }
+    }
+    Ok(())
+}
+
 async fn apply_combat_replay_event(
     transaction: &mut Transaction<'_, Postgres>,
     replay: &CanonicalReplayEvent,
@@ -2552,6 +2834,7 @@ async fn apply_combat_replay_event(
         .map_err(|_| CoreDomainRepositoryError::Integrity("combat_replay_turn"))?;
     let state_value: Value = serde_json::from_str(state_json)
         .map_err(|_| CoreDomainRepositoryError::Integrity("combat_replay_state"))?;
+    let roll_consumptions = combat_gameplay_roll_consumptions(state_json)?;
     if state_value.get("combat_id").and_then(Value::as_str) != Some(combat_id)
         || state_value.get("status").and_then(Value::as_str) != Some(status)
         || state_value.get("round").and_then(Value::as_u64) != u64::try_from(round).ok()
@@ -2641,6 +2924,20 @@ async fn apply_combat_replay_event(
         .await
         .map_err(database_error("replay_combat_state"))?;
     }
+    project_gameplay_roll_consumptions(
+        transaction,
+        &roll_consumptions,
+        campaign_id,
+        "COMBAT",
+        combat_id,
+        &replay.visibility_label,
+        &replay.visibility_subject,
+        &replay.provenance_kind,
+        &replay.provenance_reference,
+        &replay.provenance_recorded_by,
+        replay.sequence,
+    )
+    .await?;
     let matches: bool = sqlx::query_scalar(
         r#"
         SELECT EXISTS(
@@ -2710,6 +3007,7 @@ async fn apply_chase_replay_event(
     let range_band = i16::from(*range_band);
     let state_value: Value = serde_json::from_str(state_json)
         .map_err(|_| CoreDomainRepositoryError::Integrity("chase_replay_state"))?;
+    let roll_consumptions = chase_gameplay_roll_consumptions(state_json)?;
     if state_value.get("chase_id").and_then(Value::as_str) != Some(chase_id)
         || state_value.get("status").and_then(Value::as_str) != Some(status)
         || state_value.get("range").and_then(Value::as_i64) != Some(i64::from(range_band))
@@ -2796,6 +3094,20 @@ async fn apply_chase_replay_event(
         .await
         .map_err(database_error("replay_chase_state"))?;
     }
+    project_gameplay_roll_consumptions(
+        transaction,
+        &roll_consumptions,
+        campaign_id,
+        "CHASE",
+        chase_id,
+        &replay.visibility_label,
+        &replay.visibility_subject,
+        &replay.provenance_kind,
+        &replay.provenance_reference,
+        &replay.provenance_recorded_by,
+        replay.sequence,
+    )
+    .await?;
     let matches: bool = sqlx::query_scalar(
         r#"
         SELECT EXISTS(
@@ -7089,6 +7401,16 @@ impl CoreDomainRepository {
     ) -> Result<P08ProjectionRebuildReport, CoreDomainRepositoryError> {
         EntityId::new(campaign_id)
             .map_err(|_| CoreDomainRepositoryError::InvalidInput("campaign_id"))?;
+        let mut transaction = self
+            .primary
+            .begin()
+            .await
+            .map_err(database_error("begin_p08_projection_rebuild"))?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!("p08-projection-rebuild:{campaign_id}"))
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error("lock_p08_projection_rebuild"))?;
         let replay_events = self
             .load_campaign_events(campaign_id)
             .await?
@@ -7114,20 +7436,21 @@ impl CoreDomainRepository {
             .last()
             .map(|event| event.sequence)
             .unwrap_or(0);
-        let mut transaction = self
-            .primary
-            .begin()
-            .await
-            .map_err(database_error("begin_p08_projection_rebuild"))?;
-        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
-            .bind(format!("p08-projection-rebuild:{campaign_id}"))
-            .execute(&mut *transaction)
-            .await
-            .map_err(database_error("lock_p08_projection_rebuild"))?;
         sqlx::query("SET CONSTRAINTS ALL DEFERRED")
             .execute(&mut *transaction)
             .await
             .map_err(database_error("defer_p08_rebuild_constraints"))?;
+        for statement in [
+            "DELETE FROM public.gameplay_roll_consumptions WHERE campaign_id = $1",
+            "DELETE FROM public.combat_states WHERE campaign_id = $1",
+            "DELETE FROM public.chase_states WHERE campaign_id = $1",
+        ] {
+            sqlx::query(statement)
+                .bind(campaign_id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error("clear_p08_gameplay_projection"))?;
+        }
         for replay_event in &replay_events {
             let commit_id: String = sqlx::query_scalar(
                 r#"
@@ -7151,7 +7474,7 @@ impl CoreDomainRepository {
             .await?;
             apply_p08_replay_event(&mut transaction, replay_event).await?;
         }
-        let counts: (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+        let counts: (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
             r#"
             SELECT
                 (SELECT count(*) FROM public.combat_states WHERE campaign_id = $1),
@@ -7165,6 +7488,8 @@ impl CoreDomainRepository {
                 (SELECT count(*) FROM public.campaign_fork_clues
                   WHERE campaign_id = $1),
                 (SELECT count(*) FROM public.campaign_fork_npc_states
+                  WHERE campaign_id = $1),
+                (SELECT count(*) FROM public.gameplay_roll_consumptions
                   WHERE campaign_id = $1),
                 (SELECT count(*) FROM public.ending_events WHERE campaign_id = $1),
                 (SELECT count(*) FROM public.growth_events WHERE campaign_id = $1)
@@ -7189,8 +7514,9 @@ impl CoreDomainRepository {
             fork_public_events: counts.5,
             fork_clues: counts.6,
             fork_npc_states: counts.7,
-            ending_events: counts.8,
-            growth_events: counts.9,
+            gameplay_roll_consumptions: counts.8,
+            ending_events: counts.9,
+            growth_events: counts.10,
             last_event_sequence,
         })
     }
@@ -7283,8 +7609,28 @@ impl CoreDomainRepository {
                     )
                       FROM public.clues AS clue
                      WHERE clue.campaign_id = source_session.campaign_id
-                       AND clue.last_event_sequence
-                           <= source_session.snapshot_cutoff_event_sequence
+                       AND (
+                            clue.last_event_sequence < (
+                                SELECT min(source_start.sequence)
+                                  FROM public.event_store AS source_start
+                                 WHERE source_start.campaign_id =
+                                       source_session.campaign_id
+                                   AND source_start.stream_id =
+                                       source_session.session_id
+                                   AND source_start.event_type = 'SessionStarted'
+                                   AND source_start.integrity_status = 'verified_hmac'
+                                   AND source_start.request_hash_source = 'formal_commit'
+                            )
+                            OR EXISTS(
+                                SELECT 1
+                                  FROM public.player_actions AS action
+                                  JOIN public.scenes AS action_scene
+                                    ON action_scene.scene_id = action.scene_id
+                                 WHERE action.action_id = clue.action_id
+                                   AND action_scene.session_id =
+                                       source_session.session_id
+                            )
+                       )
                        AND clue.revealed_to_party
                        AND clue.outcome <> 'NOT_FOUND'
                        AND clue.visibility_label::TEXT
@@ -7414,10 +7760,16 @@ impl CoreDomainRepository {
                 "fork_snapshot_cutoff_sequence",
             ))?;
         let replay_events = self.load_campaign_events(parent_campaign_id).await?;
+        let source_event_sequences = fork_source_session_event_sequences(
+            &replay_events,
+            parent_campaign_id,
+            source_session_id,
+            cutoff_event_sequence,
+        )?;
         let copyable_base_event_sequences = replay_events
             .iter()
             .filter(|event| {
-                event.sequence <= cutoff_event_sequence
+                source_event_sequences.contains(&event.sequence)
                     && matches!(event.visibility_label.as_str(), "public" | "party_visible")
                     && event.visibility_subject == "not_applicable"
                     && event.integrity_status == "verified_hmac"
@@ -7474,7 +7826,7 @@ impl CoreDomainRepository {
                         | "ReconsiderationCorrected"
                 ) && relevant_reconsideration_ids
                     .contains(&event.resource_id);
-                (event.sequence <= cutoff_event_sequence || is_relevant_reconsideration)
+                (source_event_sequences.contains(&event.sequence) || is_relevant_reconsideration)
                     && matches!(event.visibility_label.as_str(), "public" | "party_visible")
             })
             .map(|event| {
@@ -7507,7 +7859,7 @@ impl CoreDomainRepository {
         state["character_state"] = serde_json::to_value(reconstruct_fork_characters(
             &replay_events,
             parent_campaign_id,
-            cutoff_event_sequence,
+            &source_event_sequences,
         )?)
         .map_err(|_| CoreDomainRepositoryError::Serialization)?;
         let snapshot = serde_json::json!({
@@ -8856,6 +9208,8 @@ impl CoreDomainRepository {
             request.medical_roll.as_ref(),
         )
         .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_roll_evidence"))?;
+        let roll_consumptions = combat_gameplay_roll_consumptions(&request.state_json)
+            .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_roll_evidence"))?;
         let combat_id = inspected.combat_id().to_owned();
         let status = inspected.status();
         let round = i64::from(inspected.round());
@@ -8868,6 +9222,8 @@ impl CoreDomainRepository {
             .await?;
         let mut transaction = self
             .begin_projection_transaction(&metadata.commit_id, "begin_combat_state")
+            .await?;
+        self.lock_p08_projection_rebuild_scope(&mut transaction, &request.campaign_id)
             .await?;
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
             .bind(format!("p08-combat:{}:{}", request.campaign_id, combat_id))
@@ -8936,7 +9292,11 @@ impl CoreDomainRepository {
                         &combat_id,
                         ("combat_state", "combat.state.record"),
                         &existing_event,
-                        vec![projection_target("public.combat_states", &combat_id)],
+                        gameplay_state_projection_targets(
+                            "public.combat_states",
+                            &combat_id,
+                            !roll_consumptions.is_empty(),
+                        ),
                     )
                     .await;
             }
@@ -8973,6 +9333,8 @@ impl CoreDomainRepository {
                 "combat_state_validation_mismatch",
             ));
         }
+        self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions)
+            .await?;
         let persisted = self
             .commit_event(
                 metadata,
@@ -8980,9 +9342,27 @@ impl CoreDomainRepository {
                 &combat_id,
                 ("combat_state", "combat.state.record"),
                 &event,
-                vec![projection_target("public.combat_states", &combat_id)],
+                gameplay_state_projection_targets(
+                    "public.combat_states",
+                    &combat_id,
+                    !roll_consumptions.is_empty(),
+                ),
             )
             .await?;
+        project_gameplay_roll_consumptions(
+            &mut transaction,
+            &roll_consumptions,
+            &request.campaign_id,
+            "COMBAT",
+            &combat_id,
+            &metadata.visibility_label,
+            &metadata.visibility_subject,
+            &metadata.provenance_kind,
+            &metadata.provenance_reference,
+            &metadata.provenance_recorded_by,
+            persisted.last_event_sequence,
+        )
+        .await?;
         let result = sqlx::query(
             r#"
             INSERT INTO public.combat_states (
@@ -9060,6 +9440,8 @@ impl CoreDomainRepository {
             .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_state"))?;
         validate_chase_server_roll_evidence(&request.state_json, &request.participant_rolls)
             .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_roll_evidence"))?;
+        let roll_consumptions = chase_gameplay_roll_consumptions(&request.state_json)
+            .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_roll_evidence"))?;
         let chase_id = inspected.chase_id().to_owned();
         let status = inspected.status();
         let range_band = i16::from(inspected.range());
@@ -9071,6 +9453,8 @@ impl CoreDomainRepository {
             .await?;
         let mut transaction = self
             .begin_projection_transaction(&metadata.commit_id, "begin_chase_state")
+            .await?;
+        self.lock_p08_projection_rebuild_scope(&mut transaction, &request.campaign_id)
             .await?;
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
             .bind(format!("p08-chase:{}:{}", request.campaign_id, chase_id))
@@ -9139,7 +9523,11 @@ impl CoreDomainRepository {
                         &chase_id,
                         ("chase_state", "chase.state.record"),
                         &existing_event,
-                        vec![projection_target("public.chase_states", &chase_id)],
+                        gameplay_state_projection_targets(
+                            "public.chase_states",
+                            &chase_id,
+                            !roll_consumptions.is_empty(),
+                        ),
                     )
                     .await;
             }
@@ -9176,6 +9564,8 @@ impl CoreDomainRepository {
                 "chase_state_validation_mismatch",
             ));
         }
+        self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions)
+            .await?;
         let persisted = self
             .commit_event(
                 metadata,
@@ -9183,9 +9573,27 @@ impl CoreDomainRepository {
                 &chase_id,
                 ("chase_state", "chase.state.record"),
                 &event,
-                vec![projection_target("public.chase_states", &chase_id)],
+                gameplay_state_projection_targets(
+                    "public.chase_states",
+                    &chase_id,
+                    !roll_consumptions.is_empty(),
+                ),
             )
             .await?;
+        project_gameplay_roll_consumptions(
+            &mut transaction,
+            &roll_consumptions,
+            &request.campaign_id,
+            "CHASE",
+            &chase_id,
+            &metadata.visibility_label,
+            &metadata.visibility_subject,
+            &metadata.provenance_kind,
+            &metadata.provenance_reference,
+            &metadata.provenance_recorded_by,
+            persisted.last_event_sequence,
+        )
+        .await?;
         let result = sqlx::query(
             r#"
             INSERT INTO public.chase_states (
@@ -9795,6 +10203,52 @@ impl CoreDomainRepository {
             .await
             .map_err(database_error("commit_growth"))?;
         Ok(persisted)
+    }
+
+    async fn lock_p08_projection_rebuild_scope(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        campaign_id: &str,
+    ) -> Result<(), CoreDomainRepositoryError> {
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!("p08-projection-rebuild:{campaign_id}"))
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error("lock_p08_projection_rebuild_scope"))?;
+        Ok(())
+    }
+
+    async fn lock_unconsumed_gameplay_rolls(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        consumptions: &[GameplayRollConsumption],
+    ) -> Result<(), CoreDomainRepositoryError> {
+        let roll_ids = consumptions
+            .iter()
+            .map(|consumption| consumption.roll_id.as_str())
+            .collect::<BTreeSet<_>>();
+        for roll_id in roll_ids {
+            sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+                .bind(format!("p08-gameplay-roll:{roll_id}"))
+                .execute(&mut **transaction)
+                .await
+                .map_err(database_error("lock_gameplay_roll_consumption"))?;
+            let already_consumed: bool = sqlx::query_scalar(
+                "SELECT EXISTS( \
+                     SELECT 1 FROM public.gameplay_roll_consumptions WHERE roll_id = $1 \
+                 )",
+            )
+            .bind(roll_id)
+            .fetch_one(&mut **transaction)
+            .await
+            .map_err(database_error("load_gameplay_roll_consumption"))?;
+            if already_consumed {
+                return Err(CoreDomainRepositoryError::InvalidInput(
+                    "gameplay_roll_reuse",
+                ));
+            }
+        }
+        Ok(())
     }
 
     async fn lock_active_gameplay_session(

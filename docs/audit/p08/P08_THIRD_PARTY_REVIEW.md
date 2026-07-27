@@ -8,7 +8,7 @@ SEMGREP_VERSION = 1.171.0
 SEMGREP_EXECUTION = LOCAL_ISOLATED_VENV_SOURCE_ANALYSIS_METRICS_OFF_SINGLE_JOB
 SEMGREP_RULE_ORIGIN = COMMUNITY_REGISTRY
 SEMGREP_CONFIGS = p/rust,p/security-audit
-SEMGREP_SCOPE = 33_P08_RUST_SQL_CI_TARGETS
+SEMGREP_SCOPE = 34_P08_RUST_SQL_CI_TARGETS
 SEMGREP_RULES_RUN = 13
 SEMGREP_FINDINGS = 0
 SEMGREP_ERRORS = 0
@@ -32,11 +32,14 @@ GITHUB_FIFTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_SIXTH_REVIEW
 GITHUB_SIXTH_AUTOMATED_REVIEW = 3_ACTIONABLE
 GITHUB_SIXTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_SEVENTH_REVIEW
 GITHUB_SEVENTH_AUTOMATED_REVIEW = 5_ACTIONABLE
-GITHUB_SEVENTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_SEVENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_EIGHTH_REVIEW
+GITHUB_EIGHTH_AUTOMATED_REVIEW = 3_ACTIONABLE
+GITHUB_EIGHTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FIFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_SIXTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
+GITHUB_SEVENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -46,7 +49,7 @@ CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
 
 Semgrep 1.171.0 安装在 `/tmp` 隔离虚拟环境中。运行时关闭 metrics，只联网获取
 社区规则；源码在本机分析，没有把仓库挂载给外部扫描容器。最终以 `--jobs 1`
-规避扫描引擎并发初始化的环境资源错误，并明确传入 33 个
+规避扫描引擎并发初始化的环境资源错误，并明确传入 34 个
 P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 
 - findings：0；
@@ -62,11 +65,12 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 扩展范围首次复扫发现 `data_deletion_e2e.rs` 两处以可预测名称直接使用共享临时目录。
 测试改用 `tempfile::Builder::tempdir()` 安全创建唯一目录后，以相同规则重跑得到
 0 finding。本轮又把 Scenario participant 去重、miss 正史、Fork child lineage
-唯一性实现/负例和第四个 migration 加入范围，最终 33 个目标仍为 0 finding；
+唯一性实现/负例、全局 gameplay roll 消费及第五个 migration 加入范围，最终
+34 个目标仍为 0 finding；
 没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-seventh-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-eighth-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -187,8 +191,26 @@ Visibility/subject/data subject 精确继承纳入同一 fail-closed 检查；re
 `2ed9df2` 的 repository-truth、golden-scenarios、production-security 为 3/5 通过；
 第七轮阻断出现后，workspace 与 release 两个长任务被主动取消，未写成成功。
 第七轮修复已通过规则/领域单元测试、工作区 check/Clippy、真实双
-PostgreSQL/Witness 回归和 33 目标 Semgrep；仍须等待新的精确 SHA 5/5 Hosted CI 与
-远端复审，才允许合并。
+PostgreSQL/Witness 回归和 33 目标 Semgrep。对应提交 `56b648b` 的
+repository-truth、golden-scenarios、production-security 为 3/5 通过；第八轮阻断
+出现后，workspace 与 release 两个长任务被主动取消，未写成成功。第八轮精确 SHA
+审查确认上述五项未重复，但继续发现 3 个有效问题：
+
+- 仅按最大 sequence 取 source cutoff，会把同一 Campaign 中交错写入的其他 Session
+  事件及其角色变化纳入选定 Session 的 fork；
+- Combat/Chase rebuild 遇到相同 version 的损坏投影会跳过，且不会删除无 canonical
+  history 的 ghost 行；
+- aggregate-local roll ledger 不能阻止同一 opaque roll 在不同 aggregate 或
+  Combat/Chase 之间重复消费。
+
+第八轮修复从 verified `SessionStarted`、来源 Session ID、Scene/Action 归属构造 base
+event set；rebuild 在 campaign-scoped 锁和单笔事务内清除 Combat/Chase/全局骰消费
+读模型再重放；新 migration 以 `roll_id` 全局主键、排序 advisory lock 与 canonical
+projection guard 建立跨 aggregate/类型单次消费。真实数据库回归把第二 Session
+start/end 插在第一 Session Ending/Growth 之前，注入同版本污染及 ghost，并把已消费
+Combat 医疗骰 clone 给 Chase；三类攻击均被正确隔离或拒绝。最终状态从空
+primary/Witness 连续运行两次，工作区 check/Clippy 与 34 目标 Semgrep 也通过；仍须
+等待新的精确 SHA 5/5 Hosted CI 与远端复审，才允许合并。
 
 ## RustSec
 
@@ -204,8 +226,8 @@ PostgreSQL/Witness 回归和 33 目标 Semgrep；仍须等待新的精确 SHA 5/
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 七轮
-自动审查先后提出的 4、5、5、4、2、3、5 项阻断均已修复或完成本地验证，最新提交的
-远端复审尚待运行；
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 八轮
+自动审查先后提出的 4、5、5、4、2、3、5、3 项阻断均已修复或完成本地验证，最新
+提交的远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。

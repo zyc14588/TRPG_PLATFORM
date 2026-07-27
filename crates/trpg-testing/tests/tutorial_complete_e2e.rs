@@ -1041,6 +1041,54 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         gameplay_events_before_ended_session_write,
         "an ended session must reject combat and chase before canonical append"
     );
+    repository
+        .start_session(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "session_p08_later",
+                "session",
+                0,
+                "p08_later_session_start",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &StartSessionRequest {
+                session_id: "session_p08_later".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                room_id: "room_p08_tutorial".to_owned(),
+                scenario_id: "scenario_p08_tutorial".to_owned(),
+                scene_id: "scene_p08_later".to_owned(),
+                scene_key: "scene_archive_return".to_owned(),
+                scene_name: "重返档案馆".to_owned(),
+                started_at_unix_ms: NOW_MS + 10_000,
+            },
+        )
+        .await
+        .expect("start an interleaved later session before the source conclusion");
+    repository
+        .change_session_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "session_p08_later",
+                "session",
+                1,
+                "p08_later_session_end",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            CAMPAIGN_ID,
+            "session_p08_later",
+            SessionState::Ended,
+            NOW_MS + 11_000,
+        )
+        .await
+        .expect("end the interleaved later session before the source conclusion");
     let invalid_ending = repository
         .record_ending(
             &metadata(
@@ -1365,54 +1413,6 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         .await
         .expect("append the correction while retaining the original event");
 
-    repository
-        .start_session(
-            &metadata(
-                AUTHORITY_ID,
-                KEEPER_ID,
-                "human_keeper",
-                "session_p08_later",
-                "session",
-                0,
-                "p08_later_session_start",
-                "party_visible",
-                "not_applicable",
-                "human_keeper_statement",
-            ),
-            &StartSessionRequest {
-                session_id: "session_p08_later".to_owned(),
-                campaign_id: CAMPAIGN_ID.to_owned(),
-                room_id: "room_p08_tutorial".to_owned(),
-                scenario_id: "scenario_p08_tutorial".to_owned(),
-                scene_id: "scene_p08_later".to_owned(),
-                scene_key: "scene_archive_return".to_owned(),
-                scene_name: "重返档案馆".to_owned(),
-                started_at_unix_ms: NOW_MS + 10_000,
-            },
-        )
-        .await
-        .expect("start a later session that must not alter the source cutoff");
-    repository
-        .change_session_state(
-            &metadata(
-                AUTHORITY_ID,
-                KEEPER_ID,
-                "human_keeper",
-                "session_p08_later",
-                "session",
-                1,
-                "p08_later_session_end",
-                "party_visible",
-                "not_applicable",
-                "human_keeper_statement",
-            ),
-            CAMPAIGN_ID,
-            "session_p08_later",
-            SessionState::Ended,
-            NOW_MS + 11_000,
-        )
-        .await
-        .expect("end the later session");
     repository
         .record_ending(
             &metadata(

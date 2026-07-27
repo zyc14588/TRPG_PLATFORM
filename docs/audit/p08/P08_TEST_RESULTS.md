@@ -46,6 +46,11 @@ Reconsideration review/resolution 在 canonical event、live projection 与删�
 同一 actor 在推进回合前不能再次攻击；`DYING/DEAD` 目标不能 Dodge/Fight Back；
 First Aid/Medicine 目标从当前治疗者的持久化技能派生而不能由调用方抬高，失败治疗仍
 形成正式 mutation；Combat/Chase 的服务端 roll ID 在后续 aggregate version 中不能复用。
+第八轮修复负例覆盖：第二 Session 的 start/end 交错写在第一 Session 的 Ending/Growth
+之前，第一 Session fork 仍不含第二 Session；Combat 医疗骰对象被 clone 后用于 Chase
+会在 canonical append 前返回 `gameplay_roll_reuse`；保持相同 version 的 Combat/Chase
+`state_json` 与 provenance 污染会被 rebuild 覆盖，无 canonical history 的 ghost 行
+会被删除，Event Store 行数保持不变。
 
 ## 真实数据库、重放与迁移
 
@@ -67,7 +72,8 @@ First Aid/Medicine 目标从当前治疗者的持久化技能派生而不能由�
   First Aid 自救均经过独立重放，只有成功医疗事件把 condition 恢复为 `ABLE`。
   伪造 outcome、伪造 miss、同 ID 异源状态、同回合第二次攻击、失能目标主动防御、
   自报医疗目标和跨版本复用 roll ID 均未进入 Event Store。
-- Chase v1→v2 后为 `CAUGHT`，终态不能再推进，已消费 roll ID 不能用于后续 segment。
+- Chase v1→v2 后为 `CAUGHT`，终态不能再推进；Combat 已消费的医疗 roll ID 被 clone
+  后也不能用于 Chase。全局消费表保留首次 `COMBAT` 归属，失败尝试不追加 Chase 事件。
 - Reconsideration 的 Request/Review/Upheld/Corrected 全部追加，原事件保留；不可见
   源事件不能被 Campaign member 通过猜测 sequence 引用，review/resolve 也不能扩大
   source/前驱事件的 Visibility、subject 或 data subject。
@@ -77,9 +83,11 @@ First Aid/Medicine 目标从当前治疗者的持久化技能派生而不能由�
   child projection；删除后从正史重建为相同 JSON，Event Store 行数不变。
 - Fork 角色由 source cutoff 前的 verified events 重建；第二 Session 更新当前角色卡后，
   旧 Session fork 仍保留 cutoff sheet，且 child character/sheet 仍绑定原 owner。
-- Fork 的 base cutoff 不再取相关复议的最后序列；cutoff 后的相关公开复议链按
-  reconsideration ID 单独筛选。真实 E2E 把第二 Session/Ending/Growth 放在来源 cutoff
-  与晚期复议之间，最终快照保留复议链但不含这些不相关的较新状态。
+- Fork 的 base 范围不再等同于单一全局 sequence cutoff；verified source Session
+  start、Session ID、Scene 与 Action 归属形成事件集合，相关公开复议链按
+  reconsideration ID 单独筛选。真实 E2E 把第二 Session start/end 交错放在第一
+  Session Ending/Growth 之前，并在稍后写入第二 Session Ending/Growth；最终快照保留
+  第一 Session 与其复议链，但不含这些无关状态。
 - Fork materialization 分别产生 keeper、party、private 三类事件 envelope；每个私密
   事件使用玩家 `data_subject_id` 和对应有效主体密钥，projection guard 继续验证
   Visibility 与主体完全一致。
@@ -100,8 +108,12 @@ First Aid/Medicine 目标从当前治疗者的持久化技能派生而不能由�
 - Combat 的攻击命中、攻击失败与医疗尝试均消费当前回合动作，只有正式
   `TurnAdvanced` 重置；`DYING/DEAD` 防守者不能 Dodge/Fight Back。First Aid/Medicine
   target 从当前治疗者的持久化技能派生，失败治疗同样保存正式证据且不清除 MajorWound。
-- Combat 与 Chase 状态持久化已消费 roll ID ledger；本次内部重复以及后续 aggregate
-  version 对同一 opaque roll ID 的复用都由规则 replay 和独立领域 replay 拒绝。
+- Combat 与 Chase 状态持久化 aggregate-local roll ledger；持久层另把每个正式骰写入
+  以 `roll_id` 为全局主键的消费投影，并在 append 前持有排序 advisory lock。本次内部、
+  后续 version、不同 aggregate 和 Combat/Chase 间复用都被拒绝。
+- P08 rebuild 在 campaign-scoped 锁和单笔事务内清除 Combat/Chase/全局骰消费投影再
+  重放 verified canonical events；真实 DB 人为注入同版本污染及 Combat/Chase ghost
+  后，重建恢复原 JSON/provenance、删除 ghost，并保持 Event Store 不变。
 - Fight Back 使当前攻击者进入 `DYING/DEAD` 后，再次攻击返回
   `combat_actor_incapacitated` 且聚合不变；独立领域 validator 对手工伪造的同类
   serialized successor 返回 `InvalidTransition`。
@@ -160,13 +172,20 @@ payload JSON 路径；产品迁移与前置原子性测试当时已通过，但�
 跨版本 roll ledger；扩展 Semgrep 仍以相同 33 个目标、13 条规则和 `--jobs 1` 得到
 0 finding、0 error。RustSec 则保持下述 exit `1`，没有被静态扫描结果覆盖。
 
+第八轮修复的首个真实双数据库运行在新 source-session 过滤器错误读取 canonical
+envelope 顶层字段时失败，修正为读取 `payload.data` 后继续运行；下一次污染测试又因
+同一事务尚有 deferred trigger event 而不能恢复 trigger。加入
+`SET CONSTRAINTS ALL IMMEDIATE` 后，最终状态从全新 primary/Witness 数据库连续运行
+两次并全部通过。两次中间失败均保留为失败，未计作 PASS。Semgrep 把第五个 migration
+加入范围，以 34 个目标、13 条规则、`--jobs 1` 得到 0 finding、0 error。
+
 ## 第三方与依赖检查
 
 | 门禁 | 结果 |
 | --- | --- |
-| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；33 targets、13 rules、0 finding、0 error、0 skipped |
+| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；34 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 第一至第六轮 4、5、5、4、2、3 项已修复并由下一轮确认未重复；第七轮 5 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 前八轮为 4、5、5、4、2、3、5、3 项；第七轮修复已由第八轮确认未重复，第八轮 3 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -183,14 +202,17 @@ migration 后，第三轮 30 目标复扫
 又指出相关复议扩大全局 Fork cutoff，以及失能的当前攻击者仍可行动。第六轮继续指出
 miss 正史丢失、Fork child lineage 并发竞态，以及 Ending/Reconsideration 文本的
 event/projection 不一致。第七轮继续指出不可见复议源事件、回合动作未消费、失能目标
-主动防御、调用方自报医疗 target 和服务端骰跨版本复用。以上均已按问题根因修复；
-扩展到 33 目标的 Semgrep 复扫仍为 0 finding。本报告在最新远端 CI/复审完成前保持
-pending，不以本地结果冒充远端通过。
+主动防御、调用方自报医疗 target 和服务端骰跨版本复用。第八轮确认这五项未重复，
+并继续指出交错 Session 污染 fork、同版本/ghost 投影无法重建，以及骰证据可跨
+aggregate/Combat/Chase 复用。以上均已按问题根因修复；扩展到 34 目标的 Semgrep
+复扫仍为 0 finding。本报告在最新远端 CI/复审完成前保持 pending，不以本地结果冒充
+远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
 仅有 2/5 完成通过后取消 3 项；第五轮修复提交 `fb3907e` 仅有 3/5 完成通过后取消
 workspace/release 两项；第六轮修复提交 `2ed9df2` 也只有 repository-truth、
 golden-scenarios、production-security 3/5 通过，第七轮阻断出现后取消
-workspace/release 两项。以上均未记为 5/5。
+workspace/release 两项。第七轮修复提交 `56b648b` 同样只有上述 3/5 通过，第八轮
+阻断出现后取消 workspace/release 两项。以上均未记为 5/5。
 
 RustSec 报告：
 
@@ -210,3 +232,5 @@ P08 migration SHA-384：
   `b9b54659f4e5189ca17fd38734934baf38fd12367bcf9d0bacf9ff754a4e9e234c6b6cee9bf4e068311565f471e7b644`
 - `20260727000600`：
   `4aa250ec0b9020e80194bb87cf86891d06c26cc07f5400fc547ac6860ecc9f4443193e6ef56d4ba2ac438f9863407859`
+- `20260727000700`：
+  `9c5f7a9dbd07421e97fa2a4dadd7c744b562197e192e106fd95950059aa1092400f24a6a9374e6f41d04051a155c04b5`

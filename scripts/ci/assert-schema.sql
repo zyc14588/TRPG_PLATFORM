@@ -1971,11 +1971,28 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'P08 complete fork scope migration is not applied';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000600
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 child lineage uniqueness migration is not applied';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000700
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 global gameplay roll migration is not applied';
+    END IF;
     IF EXISTS (
         SELECT 1
           FROM (VALUES
               ('combat_states'),
               ('chase_states'),
+              ('gameplay_roll_consumptions'),
               ('ending_events'),
               ('growth_events'),
               ('campaign_fork_materializations'),
@@ -2016,6 +2033,8 @@ BEGIN
           FROM (VALUES
               ('combat_states', 'combat_states_event_guard'),
               ('chase_states', 'chase_states_event_guard'),
+              ('gameplay_roll_consumptions',
+               'gameplay_roll_consumptions_event_guard'),
               ('ending_events', 'ending_events_event_guard'),
               ('growth_events', 'growth_events_event_guard'),
               ('campaign_fork_materializations',
@@ -2123,6 +2142,7 @@ BEGIN
           FROM (VALUES
               ('combat_states'),
               ('chase_states'),
+              ('gameplay_roll_consumptions'),
               ('ending_events'),
               ('growth_events'),
               ('campaign_fork_materializations'),
@@ -2191,8 +2211,24 @@ BEGIN
            AND pg_get_constraintdef(oid) LIKE '%increase_roll_id%'
            AND pg_get_constraintdef(oid) LIKE '%increase_roll IS NULL%'
            AND pg_get_constraintdef(oid) LIKE '%server_roll_id%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid =
+               'public.gameplay_roll_consumptions'::regclass
+           AND contype = 'p'
+           AND pg_get_constraintdef(oid) LIKE '%roll_id%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid =
+               'public.gameplay_roll_consumptions'::regclass
+           AND tgname = 'gameplay_roll_consumptions_event_guard'
+           AND NOT tgisinternal
+           AND encode(tgargs, 'escape') LIKE '%CombatStateRecorded%'
+           AND encode(tgargs, 'escape') LIKE '%ChaseStateRecorded%'
     ) THEN
-        RAISE EXCEPTION 'P08 snapshot scope or growth evidence is not physical';
+        RAISE EXCEPTION 'P08 snapshot scope, growth, or global roll evidence is not physical';
     END IF;
 END;
 $$;
