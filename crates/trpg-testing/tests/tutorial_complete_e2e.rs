@@ -21,7 +21,7 @@ use trpg_domain_core::domain_entities_value_objects::{
 };
 use trpg_ruleset_coc7::character_combat_san_chase::parse_scenario_yaml;
 use trpg_ruleset_coc7::chase_state_machine::{
-    ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
+    ChaseObstacle, ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
 use trpg_ruleset_coc7::combat_state_machine::{
     CombatActionKind, CombatCondition, CombatDamageFormula, CombatDefense, CombatHealth,
@@ -91,6 +91,33 @@ fn weapon_loadout(melee_bonus: i8, firearm_bonus: i8) -> CombatWeaponLoadout {
         .unwrap(),
     )
     .unwrap()
+}
+
+fn tutorial_combat_state(combat_id: &str, character_health: CombatHealth) -> CombatState {
+    CombatState::start(
+        combat_id,
+        vec![
+            CombatantState::new(
+                CHARACTER_ID,
+                70,
+                character_health,
+                1,
+                CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
+                weapon_loadout(1, 5),
+            )
+            .unwrap(),
+            CombatantState::new(
+                "npc_marta",
+                80,
+                CombatHealth::new(8, 8, CombatCondition::Able).unwrap(),
+                0,
+                CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
+                weapon_loadout(0, 5),
+            )
+            .unwrap(),
+        ],
+    )
+    .expect("start Tutorial combat aggregate")
 }
 
 async fn reset_database(url: &str, expected_database: &str, witness: bool) -> PgPool {
@@ -250,6 +277,10 @@ fn character_sheet() -> String {
             "max_hp": 10,
             "armor": 1,
             "condition": "ABLE"
+        },
+        "chase_profile": {
+            "role": "QUARRY",
+            "movement_rate": 8
         },
         "backstory_anchors": [
             "Protects confidential sources",
@@ -714,6 +745,41 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         .await
         .expect("commit SAN Decision, Dice, event and new Sheet atomically");
 
+    let wrong_scene_combat = tutorial_combat_state(
+        "combat_p08_wrong_scene",
+        CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
+    );
+    assert!(matches!(
+        repository
+            .record_combat_state(
+                &metadata(
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "combat_p08_wrong_scene",
+                    "combat_state",
+                    0,
+                    "p08_combat_wrong_scene",
+                    "party_visible",
+                    "not_applicable",
+                    "rules_engine_decision",
+                ),
+                &RecordCombatStateRequest {
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: SESSION_ID.to_owned(),
+                    state_json: wrong_scene_combat.persistence_json().unwrap(),
+                    attacker_roll: None,
+                    defender_roll: None,
+                    damage_roll: None,
+                    medical_roll: None,
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "combat_participant_authority"
+        ))
+    ));
+
     repository
         .switch_scene(
             &metadata(
@@ -740,30 +806,10 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         .await
         .expect("switch into the confrontation scene");
 
-    let mut combat = CombatState::start(
+    let mut combat = tutorial_combat_state(
         "combat_p08_tutorial",
-        vec![
-            CombatantState::new(
-                CHARACTER_ID,
-                70,
-                CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
-                1,
-                CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
-                weapon_loadout(1, 5),
-            )
-            .unwrap(),
-            CombatantState::new(
-                "npc_marta",
-                80,
-                CombatHealth::new(8, 8, CombatCondition::Able).unwrap(),
-                0,
-                CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
-                weapon_loadout(0, 5),
-            )
-            .unwrap(),
-        ],
-    )
-    .expect("start rules-engine combat aggregate");
+        CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
+    );
     repository
         .record_combat_state(
             &metadata(
@@ -864,13 +910,50 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         combat_end_receipt
     );
 
+    let forged_chase = ChaseState::start(
+        "chase_p08_forged_start",
+        vec![
+            ChaseParticipant::new(CHARACTER_ID, ChaseRole::Pursuer, 20).unwrap(),
+            ChaseParticipant::new("npc_marta", ChaseRole::Quarry, 1).unwrap(),
+        ],
+        4,
+    )
+    .expect("construct an internally valid but unauthorized chase");
+    assert!(matches!(
+        repository
+            .record_chase_state(
+                &metadata(
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "chase_p08_forged_start",
+                    "chase_state",
+                    0,
+                    "p08_chase_forged_start",
+                    "party_visible",
+                    "not_applicable",
+                    "rules_engine_decision",
+                ),
+                &RecordChaseStateRequest {
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: SESSION_ID.to_owned(),
+                    state_json: forged_chase.persistence_json().unwrap(),
+                    participant_rolls: Vec::new(),
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "chase_participant_authority"
+        ))
+    ));
+
     let mut chase = ChaseState::start(
         "chase_p08_tutorial",
         vec![
             ChaseParticipant::new(CHARACTER_ID, ChaseRole::Quarry, 8).unwrap(),
             ChaseParticipant::new("npc_marta", ChaseRole::Pursuer, 8).unwrap(),
         ],
-        1,
+        2,
     )
     .expect("start rules-engine chase aggregate");
     repository
@@ -900,7 +983,8 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         percentile_with_result(40, false),
         percentile_with_result(40, true),
     ];
-    chase.advance(&chase_rolls, None).unwrap();
+    let chase_obstacle = ChaseObstacle::new("obstacle_collapsing_salt", 1).unwrap();
+    chase.advance(&chase_rolls, Some(&chase_obstacle)).unwrap();
     assert_eq!(chase.status(), ChaseStatus::Caught);
     let chase_end_metadata = metadata(
         AUTHORITY_ID,
@@ -1118,8 +1202,8 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 room_id: "room_p08_tutorial".to_owned(),
                 scenario_id: "scenario_p08_tutorial".to_owned(),
                 scene_id: "scene_p08_later".to_owned(),
-                scene_key: "scene_archive_return".to_owned(),
-                scene_name: "重返档案馆".to_owned(),
+                scene_key: "scene_basement".to_owned(),
+                scene_name: "地下盐窖重访".to_owned(),
                 started_at_unix_ms: NOW_MS + 10_000,
             },
         )
@@ -1179,7 +1263,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             "combat_participant_authority"
         ))
     ));
-    let unfinished_later_combat = CombatState::start(
+    let mut unfinished_later_combat = CombatState::start(
         "combat_p08_unfinished_later",
         vec![
             CombatantState::new(
@@ -1229,7 +1313,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         )
         .await
         .expect("persist an unfinished combat before ending the later session");
-    let unfinished_later_chase = ChaseState::start(
+    let mut unfinished_later_chase = ChaseState::start(
         "chase_p08_unfinished_later",
         vec![
             ChaseParticipant::new(CHARACTER_ID, ChaseRole::Quarry, 8).unwrap(),
@@ -1261,35 +1345,101 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         )
         .await
         .expect("persist an unfinished chase before ending the later session");
+    let later_session_end_metadata = metadata(
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "session_p08_later",
+        "session",
+        1,
+        "p08_later_session_end",
+        "party_visible",
+        "not_applicable",
+        "human_keeper_statement",
+    );
+    assert!(matches!(
+        repository
+            .change_session_state(
+                &later_session_end_metadata,
+                CAMPAIGN_ID,
+                "session_p08_later",
+                SessionState::Ended,
+                NOW_MS + 11_000,
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "session_gameplay_not_terminal"
+        ))
+    ));
+    unfinished_later_combat.end().unwrap();
     repository
-        .change_session_state(
+        .record_combat_state(
             &metadata(
                 AUTHORITY_ID,
                 KEEPER_ID,
                 "human_keeper",
-                "session_p08_later",
-                "session",
+                "combat_p08_unfinished_later",
+                "combat_state",
                 1,
-                "p08_later_session_end",
+                "p08_finish_later_combat",
                 "party_visible",
                 "not_applicable",
-                "human_keeper_statement",
+                "rules_engine_decision",
             ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p08_later".to_owned(),
+                state_json: unfinished_later_combat.persistence_json().unwrap(),
+                attacker_roll: None,
+                defender_roll: None,
+                damage_roll: None,
+                medical_roll: None,
+            },
+        )
+        .await
+        .expect("finish the later Combat before ending its Session");
+    let later_chase_rolls = vec![
+        percentile_with_result(40, false),
+        percentile_with_result(40, true),
+    ];
+    let later_chase_obstacle = ChaseObstacle::new("obstacle_later_collapse", 1).unwrap();
+    unfinished_later_chase
+        .advance(&later_chase_rolls, Some(&later_chase_obstacle))
+        .unwrap();
+    assert_eq!(unfinished_later_chase.status(), ChaseStatus::Caught);
+    repository
+        .record_chase_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "chase_p08_unfinished_later",
+                "chase_state",
+                1,
+                "p08_finish_later_chase",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordChaseStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p08_later".to_owned(),
+                state_json: unfinished_later_chase.persistence_json().unwrap(),
+                participant_rolls: later_chase_rolls,
+            },
+        )
+        .await
+        .expect("finish the later Chase before ending its Session");
+    repository
+        .change_session_state(
+            &later_session_end_metadata,
             CAMPAIGN_ID,
             "session_p08_later",
             SessionState::Ended,
             NOW_MS + 11_000,
         )
         .await
-        .expect("end the interleaved later session before the source conclusion");
-    assert!(matches!(
-        repository
-            .preview_campaign_fork(CAMPAIGN_ID, "session_p08_later", KEEPER_ID)
-            .await,
-        Err(CoreDomainRepositoryError::InvalidInput(
-            "fork_source_gameplay_not_terminal"
-        ))
-    ));
+        .expect("end the interleaved later Session after gameplay is terminal");
     let invalid_ending = repository
         .record_ending(
             &metadata(

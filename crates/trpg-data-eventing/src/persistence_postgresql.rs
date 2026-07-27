@@ -2281,6 +2281,7 @@ fn canonical_combat_participant_snapshots(
 
 fn scenario_combat_authorizes_participants(
     document: &Value,
+    active_scene_key: &str,
     participant_ids: &BTreeSet<String>,
     character_ids: &BTreeSet<String>,
 ) -> bool {
@@ -2289,7 +2290,144 @@ fn scenario_combat_authorizes_participants(
         .and_then(Value::as_array)
         .is_some_and(|encounters| {
             encounters.iter().any(|encounter| {
-                if encounter.get("type").and_then(Value::as_str) != Some("combat") {
+                if encounter.get("type").and_then(Value::as_str) != Some("combat")
+                    || encounter.get("scene_id").and_then(Value::as_str) != Some(active_scene_key)
+                {
+                    return false;
+                }
+                let Some(tokens) = encounter.get("participants").and_then(Value::as_array) else {
+                    return false;
+                };
+                let mut permits_investigators = false;
+                let mut explicit = BTreeSet::new();
+                for token in tokens {
+                    let Some(token) = token.as_str() else {
+                        return false;
+                    };
+                    if token == "investigator" {
+                        permits_investigators = true;
+                    } else {
+                        explicit.insert(token.to_owned());
+                    }
+                }
+                if explicit.iter().any(|id| !participant_ids.contains(id))
+                    || participant_ids.iter().any(|id| {
+                        !(explicit.contains(id)
+                            || permits_investigators && character_ids.contains(id))
+                    })
+                {
+                    return false;
+                }
+                !permits_investigators
+                    || participant_ids.iter().any(|id| character_ids.contains(id))
+            })
+        })
+}
+
+fn chase_participant_values(
+    state_json: &str,
+) -> Result<BTreeMap<String, Value>, CoreDomainRepositoryError> {
+    let state: Value = serde_json::from_str(state_json)
+        .map_err(|_| CoreDomainRepositoryError::Integrity("chase_participant_state"))?;
+    let participants = state.get("participants").and_then(Value::as_array).ok_or(
+        CoreDomainRepositoryError::Integrity("chase_participant_state"),
+    )?;
+    let mut indexed = BTreeMap::new();
+    for participant in participants {
+        let participant_id = participant
+            .get("participant_id")
+            .and_then(Value::as_str)
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "chase_participant_identity",
+            ))?;
+        EntityId::new(participant_id)
+            .map_err(|_| CoreDomainRepositoryError::Integrity("chase_participant_identity"))?;
+        if !participant.is_object()
+            || indexed
+                .insert(participant_id.to_owned(), participant.clone())
+                .is_some()
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "chase_participant_identity",
+            ));
+        }
+    }
+    Ok(indexed)
+}
+
+fn canonical_initial_chase_state(
+    replay_events: &[CanonicalReplayEvent],
+    campaign_id: &str,
+    chase_id: &str,
+) -> Result<Option<Value>, CoreDomainRepositoryError> {
+    let mut initial = None;
+    for replay in replay_events
+        .iter()
+        .filter(|event| event.event_type == "ChaseStateRecorded")
+    {
+        let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+            .map_err(|_| CoreDomainRepositoryError::Integrity("chase_history_payload"))?;
+        event.validate_schema_version()?;
+        let CoreDomainEvent::ChaseStateRecorded {
+            chase_id: recorded_chase_id,
+            campaign_id: recorded_campaign_id,
+            status,
+            range_band,
+            segment,
+            version,
+            state_json,
+            ..
+        } = event
+        else {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "chase_history_event_type",
+            ));
+        };
+        if recorded_campaign_id != campaign_id {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "chase_history_campaign",
+            ));
+        }
+        let inspected = inspect_chase_state(&state_json)
+            .map_err(|_| CoreDomainRepositoryError::Integrity("chase_history_state"))?;
+        if inspected.chase_id() != recorded_chase_id
+            || inspected.status() != status
+            || u8::try_from(inspected.range()).ok() != Some(range_band)
+            || u64::from(inspected.segment()) != segment
+            || inspected.version() != version
+        {
+            return Err(CoreDomainRepositoryError::Integrity("chase_history_state"));
+        }
+        if recorded_chase_id == chase_id && version == 1 {
+            let state: Value = serde_json::from_str(&state_json)
+                .map_err(|_| CoreDomainRepositoryError::Integrity("chase_history_state"))?;
+            if initial.replace(state).is_some() {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "chase_initial_history_conflict",
+                ));
+            }
+        }
+    }
+    Ok(initial)
+}
+
+fn scenario_chase_authorizes_participants(
+    document: &Value,
+    active_scene_key: &str,
+    participant_ids: &BTreeSet<String>,
+    character_ids: &BTreeSet<String>,
+    initial_range: i8,
+) -> bool {
+    document
+        .get("encounters")
+        .and_then(Value::as_array)
+        .is_some_and(|encounters| {
+            encounters.iter().any(|encounter| {
+                if encounter.get("type").and_then(Value::as_str) != Some("chase")
+                    || encounter.get("scene_id").and_then(Value::as_str) != Some(active_scene_key)
+                    || encounter.get("initial_range").and_then(Value::as_i64)
+                        != Some(i64::from(initial_range))
+                {
                     return false;
                 }
                 let Some(tokens) = encounter.get("participants").and_then(Value::as_array) else {
@@ -2341,6 +2479,128 @@ fn combat_profile_participant(
         Value::String(participant_id.to_owned()),
     );
     Ok(Value::Object(profile))
+}
+
+fn chase_profile_participant(
+    participant_id: &str,
+    profile: &Value,
+) -> Result<Value, CoreDomainRepositoryError> {
+    let mut profile = profile
+        .as_object()
+        .cloned()
+        .ok_or(CoreDomainRepositoryError::Integrity(
+            "chase_participant_profile",
+        ))?;
+    if profile.contains_key("participant_id") {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "chase_participant_profile",
+        ));
+    }
+    profile.insert(
+        "participant_id".to_owned(),
+        Value::String(participant_id.to_owned()),
+    );
+    Ok(Value::Object(profile))
+}
+
+fn canonical_session_gameplay_is_terminal(
+    replay_events: &[CanonicalReplayEvent],
+    campaign_id: &str,
+    session_id: &str,
+) -> Result<bool, CoreDomainRepositoryError> {
+    let mut combats = BTreeMap::<String, (i64, String)>::new();
+    let mut chases = BTreeMap::<String, (i64, String)>::new();
+    for replay in replay_events.iter().filter(|event| {
+        matches!(
+            event.event_type.as_str(),
+            "CombatStateRecorded" | "ChaseStateRecorded"
+        )
+    }) {
+        let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+            .map_err(|_| CoreDomainRepositoryError::Integrity("session_gameplay_payload"))?;
+        event.validate_schema_version()?;
+        match event {
+            CoreDomainEvent::CombatStateRecorded {
+                combat_id,
+                campaign_id: recorded_campaign_id,
+                session_id: recorded_session_id,
+                status,
+                version,
+                state_json,
+                ..
+            } => {
+                if recorded_campaign_id != campaign_id {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "session_gameplay_campaign",
+                    ));
+                }
+                let inspected = inspect_combat_state(&state_json).map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("session_gameplay_combat_state")
+                })?;
+                if inspected.combat_id() != combat_id
+                    || inspected.status() != status
+                    || inspected.version() != version
+                {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "session_gameplay_combat_state",
+                    ));
+                }
+                if recorded_session_id == session_id
+                    && combats
+                        .get(&combat_id)
+                        .is_none_or(|(sequence, _)| replay.sequence > *sequence)
+                {
+                    combats.insert(combat_id, (replay.sequence, status));
+                }
+            }
+            CoreDomainEvent::ChaseStateRecorded {
+                chase_id,
+                campaign_id: recorded_campaign_id,
+                session_id: recorded_session_id,
+                status,
+                range_band,
+                segment,
+                version,
+                state_json,
+                ..
+            } => {
+                if recorded_campaign_id != campaign_id {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "session_gameplay_campaign",
+                    ));
+                }
+                let inspected = inspect_chase_state(&state_json).map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("session_gameplay_chase_state")
+                })?;
+                if inspected.chase_id() != chase_id
+                    || inspected.status() != status
+                    || u8::try_from(inspected.range()).ok() != Some(range_band)
+                    || u64::from(inspected.segment()) != segment
+                    || inspected.version() != version
+                {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "session_gameplay_chase_state",
+                    ));
+                }
+                if recorded_session_id == session_id
+                    && chases
+                        .get(&chase_id)
+                        .is_none_or(|(sequence, _)| replay.sequence > *sequence)
+                {
+                    chases.insert(chase_id, (replay.sequence, status));
+                }
+            }
+            _ => {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "session_gameplay_event_type",
+                ))
+            }
+        }
+    }
+    Ok(combats.values().all(|(_, status)| status == "ENDED")
+        && chases
+            .values()
+            .all(|(_, status)| matches!(status.as_str(), "ESCAPED" | "CAUGHT")))
 }
 
 fn gameplay_roll_id(
@@ -8385,6 +8645,14 @@ impl CoreDomainRepository {
         session.version = u64::try_from(current_version)
             .map_err(|_| CoreDomainRepositoryError::Integrity("session_version"))?;
         session.transition(next_state)?;
+        if next_state == SessionState::Ended {
+            let replay_events = self.load_campaign_events(campaign_id).await?;
+            if !canonical_session_gameplay_is_terminal(&replay_events, campaign_id, session_id)? {
+                return Err(CoreDomainRepositoryError::InvalidInput(
+                    "session_gameplay_not_terminal",
+                ));
+            }
+        }
         let event = CoreDomainEvent::SessionStateChanged {
             schema_version: CORE_EVENT_SCHEMA_VERSION,
             session_id: session_id.to_owned(),
@@ -11464,6 +11732,16 @@ impl CoreDomainRepository {
             &request.session_id,
         )
         .await?;
+        if metadata.expected_version == 0 {
+            self.validate_initial_chase_participants(
+                &mut transaction,
+                &request.campaign_id,
+                &request.session_id,
+                &chase_id,
+                &request.state_json,
+            )
+            .await?;
+        }
         if (metadata.expected_version == 0) != previous_state.is_none() {
             return Err(CoreDomainRepositoryError::Integrity(
                 "chase_state_projection_conflict",
@@ -12377,13 +12655,17 @@ impl CoreDomainRepository {
             return Ok(());
         }
 
-        let scenario_document: Value = sqlx::query_scalar(
+        let scenario = sqlx::query(
             r#"
-            SELECT scenario.document_json
+            SELECT scenario.document_json, active_scene.scene_key AS active_scene_key
               FROM core_domain.sessions AS session
               JOIN public.scenarios AS scenario
                 ON scenario.scenario_id = session.scenario_id
                AND scenario.campaign_id = session.campaign_id
+              JOIN public.scenes AS active_scene
+                ON active_scene.scene_id = session.active_scene_id
+               AND active_scene.session_id = session.session_id
+               AND active_scene.campaign_id = session.campaign_id
              WHERE session.session_id = $1
                AND session.campaign_id = $2
             "#,
@@ -12394,6 +12676,10 @@ impl CoreDomainRepository {
         .await
         .map_err(database_error("load_combat_scenario"))?
         .ok_or(CoreDomainRepositoryError::NotFound("combat_session"))?;
+        let scenario_document: Value = scenario.get("document_json");
+        let active_scene_key = scenario
+            .get::<Option<String>, _>("active_scene_key")
+            .ok_or(CoreDomainRepositoryError::Integrity("combat_active_scene"))?;
         let character_rows = sqlx::query(
             r#"
             SELECT character.character_id, sheet.sheet_json
@@ -12427,6 +12713,7 @@ impl CoreDomainRepository {
         let character_ids = character_profiles.keys().cloned().collect::<BTreeSet<_>>();
         if !scenario_combat_authorizes_participants(
             &scenario_document,
+            &active_scene_key,
             &requested.keys().cloned().collect(),
             &character_ids,
         ) {
@@ -12504,6 +12791,154 @@ impl CoreDomainRepository {
             if &expected != actual {
                 return Err(CoreDomainRepositoryError::InvalidInput(
                     "combat_participant_authority",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    async fn validate_initial_chase_participants(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        campaign_id: &str,
+        session_id: &str,
+        chase_id: &str,
+        state_json: &str,
+    ) -> Result<(), CoreDomainRepositoryError> {
+        let requested = chase_participant_values(state_json)?;
+        let requested_state: Value = serde_json::from_str(state_json)
+            .map_err(|_| CoreDomainRepositoryError::Integrity("chase_participant_state"))?;
+        for participant_id in requested.keys() {
+            sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+                .bind(format!(
+                    "p08-chase-participant:{campaign_id}:{participant_id}"
+                ))
+                .execute(&mut **transaction)
+                .await
+                .map_err(database_error("lock_chase_participant"))?;
+        }
+
+        let replay_events = self.load_campaign_events(campaign_id).await?;
+        if let Some(initial) = canonical_initial_chase_state(&replay_events, campaign_id, chase_id)?
+        {
+            if initial != requested_state {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "idempotent_chase_initial_state_conflict",
+                ));
+            }
+            return Ok(());
+        }
+
+        let inspected = inspect_chase_state(state_json)
+            .map_err(|_| CoreDomainRepositoryError::Integrity("chase_participant_state"))?;
+        let scenario = sqlx::query(
+            r#"
+            SELECT scenario.document_json, active_scene.scene_key AS active_scene_key
+              FROM core_domain.sessions AS session
+              JOIN public.scenarios AS scenario
+                ON scenario.scenario_id = session.scenario_id
+               AND scenario.campaign_id = session.campaign_id
+              JOIN public.scenes AS active_scene
+                ON active_scene.scene_id = session.active_scene_id
+               AND active_scene.session_id = session.session_id
+               AND active_scene.campaign_id = session.campaign_id
+             WHERE session.session_id = $1
+               AND session.campaign_id = $2
+            "#,
+        )
+        .bind(session_id)
+        .bind(campaign_id)
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(database_error("load_chase_scenario"))?
+        .ok_or(CoreDomainRepositoryError::NotFound("chase_session"))?;
+        let scenario_document: Value = scenario.get("document_json");
+        let active_scene_key = scenario
+            .get::<Option<String>, _>("active_scene_key")
+            .ok_or(CoreDomainRepositoryError::Integrity("chase_active_scene"))?;
+
+        let character_rows = sqlx::query(
+            r#"
+            SELECT character.character_id, sheet.sheet_json
+              FROM public.characters AS character
+              JOIN public.character_sheet_versions AS sheet
+                ON sheet.character_id = character.character_id
+               AND sheet.version = character.current_sheet_version
+               AND sheet.campaign_id = character.campaign_id
+             WHERE character.campaign_id = $1
+               AND character.state = 'APPROVED'
+               AND character.initial_version_locked
+               AND sheet.locked
+            "#,
+        )
+        .bind(campaign_id)
+        .fetch_all(&mut **transaction)
+        .await
+        .map_err(database_error("load_chase_character_profiles"))?;
+        let mut character_profiles = BTreeMap::<String, Value>::new();
+        for row in character_rows {
+            let character_id: String = row.get("character_id");
+            if !requested.contains_key(&character_id) {
+                continue;
+            }
+            let sheet: Value = row.get("sheet_json");
+            let profile =
+                sheet
+                    .get("chase_profile")
+                    .cloned()
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "chase_character_profile_missing",
+                    ))?;
+            character_profiles.insert(character_id, profile);
+        }
+        let character_ids = character_profiles.keys().cloned().collect::<BTreeSet<_>>();
+        if !scenario_chase_authorizes_participants(
+            &scenario_document,
+            &active_scene_key,
+            &requested.keys().cloned().collect(),
+            &character_ids,
+            inspected.range(),
+        ) {
+            return Err(CoreDomainRepositoryError::InvalidInput(
+                "chase_participant_authority",
+            ));
+        }
+
+        let mut npc_profiles = BTreeMap::<String, Value>::new();
+        let npcs = scenario_document
+            .get("npcs")
+            .and_then(Value::as_array)
+            .ok_or(CoreDomainRepositoryError::Integrity("chase_scenario_npcs"))?;
+        for npc in npcs {
+            let npc_id = npc
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or(CoreDomainRepositoryError::Integrity("chase_scenario_npc"))?;
+            if !requested.contains_key(npc_id) {
+                continue;
+            }
+            let profile =
+                npc.get("chase_profile")
+                    .cloned()
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "chase_npc_profile_missing",
+                    ))?;
+            if npc_profiles.insert(npc_id.to_owned(), profile).is_some() {
+                return Err(CoreDomainRepositoryError::Integrity("chase_scenario_npc"));
+            }
+        }
+
+        for (participant_id, actual) in &requested {
+            let profile = character_profiles
+                .get(participant_id)
+                .or_else(|| npc_profiles.get(participant_id))
+                .ok_or(CoreDomainRepositoryError::InvalidInput(
+                    "chase_participant_authority",
+                ))?;
+            let expected = chase_profile_participant(participant_id, profile)?;
+            if &expected != actual {
+                return Err(CoreDomainRepositoryError::InvalidInput(
+                    "chase_participant_authority",
                 ));
             }
         }

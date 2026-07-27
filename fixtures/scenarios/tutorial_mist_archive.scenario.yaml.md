@@ -68,6 +68,9 @@ npcs:
       max_hp: 8
       armor: 0
       condition: ABLE
+    chase_profile:
+      role: PURSUER
+      movement_rate: 8
 clues:
   - id: clue_wrong_signature
     type: core

@@ -25,7 +25,7 @@ use trpg_domain_core::domain_entities_value_objects::{
 use trpg_domain_core::fork_canon_lineage::CopyScope;
 use trpg_ruleset_coc7::character_combat_san_chase::parse_scenario_yaml;
 use trpg_ruleset_coc7::chase_state_machine::{
-    ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
+    ChaseObstacle, ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
 use trpg_ruleset_coc7::combat_state_machine::{
     CombatActionKind, CombatCondition, CombatDamageFormula, CombatDefense, CombatHealth,
@@ -1167,7 +1167,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 display_name: "Evelyn Hart".to_owned(),
                 sheet_version_id: "sheet_p06_player_v1".to_owned(),
                 sheet_json:
-                    r#"{"name":"Evelyn Hart","age":31,"ruleset":"coc7","characteristics":{"power":65},"skills":{"Library Use":70},"combat_profile":{"dexterity":70,"skill_targets":{"melee":45,"firearm":35,"dodge":40,"first_aid":30,"medicine":10},"weapon_loadout":{"melee":{"weapon_id":"selected_melee_weapon","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":1}},"firearm":{"weapon_id":"selected_firearm","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":5}}},"current_hp":10,"max_hp":10,"armor":1,"condition":"ABLE"}}"#
+                    r#"{"name":"Evelyn Hart","age":31,"ruleset":"coc7","characteristics":{"power":65},"skills":{"Library Use":70},"combat_profile":{"dexterity":70,"skill_targets":{"melee":45,"firearm":35,"dodge":40,"first_aid":30,"medicine":10},"weapon_loadout":{"melee":{"weapon_id":"selected_melee_weapon","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":1}},"firearm":{"weapon_id":"selected_firearm","damage_formula":{"dice_count":1,"die_sides":6,"flat_bonus":5}}},"current_hp":10,"max_hp":10,"armor":1,"condition":"ABLE"},"chase_profile":{"role":"QUARRY","movement_rate":8}}"#
                         .to_owned(),
             },
         )
@@ -2282,7 +2282,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             ChaseParticipant::new("character_p06_player", ChaseRole::Quarry, 8).unwrap(),
             ChaseParticipant::new("npc_marta", ChaseRole::Pursuer, 8).unwrap(),
         ],
-        1,
+        2,
     )
     .unwrap();
     repository
@@ -2432,7 +2432,8 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         percentile_with_result(40, false),
         percentile_with_result(40, true),
     ];
-    chase.advance(&chase_rolls, None).unwrap();
+    let chase_obstacle = ChaseObstacle::new("obstacle_collapsing_salt", 1).unwrap();
+    chase.advance(&chase_rolls, Some(&chase_obstacle)).unwrap();
     assert_eq!(chase.status(), ChaseStatus::Caught);
     repository
         .record_chase_state(

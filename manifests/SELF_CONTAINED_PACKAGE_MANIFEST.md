@@ -1512,7 +1512,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-data-eventing/src/persistence/mod.rs` | 547 | `6c7df6c02ef9dc4d1e1e4e736ce8011d594857699845274c7992aa83a047a762` | `100644` |
 | `crates/trpg-data-eventing/src/persistence/upcaster.rs` | 4217 | `1614a6442bb88c041913cac73f3f9f02d70d7bc28005e1a8cf624ad0be470506` | `100644` |
 | `crates/trpg-data-eventing/src/persistence_migrations.rs` | 1051 | `c8977fe58eaedc31fc2fd980c1dcb18eae514ad0efcbdbce694647fd52d02d56` | `100644` |
-| `crates/trpg-data-eventing/src/persistence_postgresql.rs` | 528175 | `6c225bc138ef2330d6e42dcea7265e4ffb8b194daf2783206b1887f6c7a0e4cb` | `100644` |
+| `crates/trpg-data-eventing/src/persistence_postgresql.rs` | 545654 | `487c5eb8243b50afe16a34d16bda02f58789d3cdf806349a03965ff6f052a8d7` | `100644` |
 | `crates/trpg-data-eventing/src/persistence_postgresql_impl.rs` | 772 | `8b93aa1d18f489beefd36f1cb20df76bf1228a7e7b7fcb4c3a23739a6c8576d3` | `100644` |
 | `crates/trpg-data-eventing/src/postgre_sql_sq_lx_pgvector.rs` | 15902 | `16b8f4d7e7ce0097d56a0e24028f358b6cfa29496299c9a55a7cabc104c769f0` | `100644` |
 | `crates/trpg-data-eventing/src/rag_snapshot.rs` | 10734 | `c56c61f2b39ba3effc4bcf1b815c21ee31303ddcc379d79a212ed11357fd3180` | `100644` |
@@ -1531,7 +1531,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-data-eventing/tests/batch_026_data_eventing_contract_tests.rs` | 17823 | `d3b183050839b1c36bc170b93b09370a9c1a5ebf7ee8b76b5016144e55c4b949` | `100644` |
 | `crates/trpg-data-eventing/tests/canonical_commit_postgres.rs` | 32967 | `5619bbfb6418d8089313ec45803c7b33e73970cd1612ab57709a439c27e3840c` | `100644` |
 | `crates/trpg-data-eventing/tests/canonical_event_projection_contract_tests.rs` | 622 | `d25cb67af0defeead6711e13a13865453366f4498bd8d5d8c6bd2a7ba2be7722` | `100644` |
-| `crates/trpg-data-eventing/tests/core_domain_schema_integration.rs` | 218540 | `ccef1dd414f319a9df50d5862911e5b1cac820de419252ed7ec69adf05f50e00` | `100644` |
+| `crates/trpg-data-eventing/tests/core_domain_schema_integration.rs` | 218709 | `1d9cfd95a6d3df843f5179fa21bf2222ce814244143dd8f9a62919d358d2a326` | `100644` |
 | `crates/trpg-data-eventing/tests/decision_state_outbox_atomicity.rs` | 24594 | `ef81b49ed6cf8e0db552fd2690b9ea17e562f0d80e3bf408e408ddd62efb912c` | `100644` |
 | `crates/trpg-data-eventing/tests/event_json_schema_contract_tests.rs` | 10856 | `66e1d99d84ba75387cc7476685346fe84ec3d4037bc1baffc08ff95991d8e001` | `100644` |
 | `crates/trpg-data-eventing/tests/event_store_contract.rs` | 12292 | `8e0c89292f420323b2c56f5eab6c5c218927a8d4b0cd42a599e8b7de1147d2dc` | `100644` |
@@ -1940,7 +1940,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-testing/tests/testing_golden_ci_contract_tests.rs` | 980 | `353e17d0954b30e79745b8665fbf77cb91286a09aca9f9184a63428784d5e365` | `100644` |
 | `crates/trpg-testing/tests/testing_golden_scenarios_ci_contract_tests.rs` | 800 | `e532ca3e7a2c8cbf5d453f4b327f066d9635991ac5360bd0daef29290e02ca0c` | `100644` |
 | `crates/trpg-testing/tests/top_level_principle_trace_contract_tests.rs` | 827 | `5c4cb525982c8b61a2df02fe00295a79183c4a112000a91833280e074692bdb2` | `100644` |
-| `crates/trpg-testing/tests/tutorial_complete_e2e.rs` | 96610 | `a505c33d78d92417b52959f8a87d2fc6cbfcc71eccd19a39f792ec733eddc9e7` | `100644` |
+| `crates/trpg-testing/tests/tutorial_complete_e2e.rs` | 101790 | `6a1e042db139eced7893b3145dac3d58fac87b9587a80dae8bc69dc656c8a076` | `100644` |
 | `crates/trpg-testing/tests/vertical_human_kp_tutorial_slice.rs` | 15393 | `76e0763717eb60072a3c380695afb1bb13a052580b062b780d83a902450c0787` | `100644` |
 | `crates/trpg-testing/tests/visibility_leakage.rs` | 953 | `203679607f9109a73dd5b20f65342c56fb0c15c72b48759b7b3f73b4b121a17f` | `100644` |
 | `crates/trpg-testing/tests/visibility_leakage_tests_contract_tests.rs` | 2022 | `2d7c588d151a70d962d358ce4e33cfe7bbbcf871f98e32fac6b610b3fe7f92e8` | `100644` |
@@ -1972,10 +1972,10 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `docs/audit/p07/P07_FINDINGS_TRACEABILITY.md` | 6037 | `6c8641e88c0f716f7030180444e36745ee6fb082488e1e7d2c38e916770da538` | `100644` |
 | `docs/audit/p07/P07_TEST_RESULTS.md` | 10434 | `83411c3471f351f31d534d9191ef34d6fa6a6b9bf3cf4258fa6f7fc0bfa18f80` | `100644` |
 | `docs/audit/p07/P07_THIRD_PARTY_REVIEW.md` | 5135 | `c5f9897be306bf07c88c5fd0b906fd9d1b754529e1966e0b6f3983fee0e7e323` | `100644` |
-| `docs/audit/p08/P08_FINAL_STATUS.md` | 40015 | `22ab7dc964d75887763d7a2545ccab11fa0a1ce3d5fff80504ba5f17e65ef71d` | `100644` |
-| `docs/audit/p08/P08_FINDINGS_TRACEABILITY.md` | 31012 | `6c395e2dba23e5f6ceb18bdaa6ec2c27094f2a6847e29b442bf60751f9f28bd0` | `100644` |
-| `docs/audit/p08/P08_TEST_RESULTS.md` | 46497 | `84097abe69bb4230b3415d459b6fd39ba404adfe9bf3457a96a480b614c62930` | `100644` |
-| `docs/audit/p08/P08_THIRD_PARTY_REVIEW.md` | 44574 | `bd7e21dc2768911ca995cf1c43dd270dfa4cda98a332864e90f43d9a57129572` | `100644` |
+| `docs/audit/p08/P08_FINAL_STATUS.md` | 41249 | `9072c597d724693c852cfac9e533c620fcc6c55ffe13744a949b71fef0413cbf` | `100644` |
+| `docs/audit/p08/P08_FINDINGS_TRACEABILITY.md` | 32221 | `7d27fb6ad5eb5be9a85b5a663abd13db2b8ff1c201bc013721a48e006eb10aae` | `100644` |
+| `docs/audit/p08/P08_TEST_RESULTS.md` | 48544 | `4721dd14da17ea5057d4fd1850bcfafd117e8f69d414310fd709667fe304a6a3` | `100644` |
+| `docs/audit/p08/P08_THIRD_PARTY_REVIEW.md` | 46146 | `c22cf3dce18959f5b4b40809e593b805233797173b62423333ff07003c4c3069` | `100644` |
 | `docs/codex/00-index/AGENTS.md` | 4164 | `7a4b058f57d75097de15c3902560a3b4fbdf70a639bd0ca5ddbe2529d8ad0170` | `100644` |
 | `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` | `100644` |
 | `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` | `100644` |
@@ -2950,8 +2950,8 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `fixtures/rules/coc7_dice_matrix.v1.json.md` | 1242 | `34f8f0a9246dc185c5dc92c4e2209b22a3c4f0de01732a2aadbedf67423ca1a1` | `100644` |
 | `fixtures/rules/coc7_san_combat_chase_flow.v1.json.md` | 1317 | `40b20137be35afb5a9824c19ea4c3711e6d3c0a699577616116b0efc6b6460f5` | `100644` |
 | `fixtures/scenarios/golden_salt_bell.scenario.yaml.md` | 2060 | `c43cda6d652d33d39566254f8ca861792bd061a8533d8c66e283e407fe86e890` | `100644` |
-| `fixtures/scenarios/tutorial_mist_archive.scenario.yaml` | 3483 | `b307c3d4dc3497aac8a329e8bb42135bca0d9732e2dc57e379147abe6d77e616` | `100644` |
-| `fixtures/scenarios/tutorial_mist_archive.scenario.yaml.md` | 3535 | `9bc8d3a59a28026711d39fd13aa0209c9e7a9237b3e29e79a8b1ab3a3a1f5f6a` | `100644` |
+| `fixtures/scenarios/tutorial_mist_archive.scenario.yaml` | 3545 | `da09e66f694f078c7972b9f0d3a9805c2f015fd56a748e9f082dce4c8817fc75` | `100644` |
+| `fixtures/scenarios/tutorial_mist_archive.scenario.yaml.md` | 3597 | `a68a46dcff47726e19e1dd67b67cf5b6e2ffccc02cddc49d1097df77987bc0f5` | `100644` |
 | `fixtures/security/permission_matrix.v1.json.md` | 922 | `975962b7e84d00d8c06de8d7c30ee4778660866c546fc669555c7eeb7af9bebe` | `100644` |
 | `fixtures/stages/S00_stage_acceptance_fixture.v1.json.md` | 757 | `195c5bad004c94492e8effdf16eddc1b760810e959e257624bffa5e53da8a008` | `100644` |
 | `fixtures/stages/S01_stage_acceptance_fixture.v1.json.md` | 775 | `44789d424fd90c4fb1508830ead0ec51d89620298f2e140d3dd43538e1b9236c` | `100644` |
@@ -3963,5 +3963,5 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `test-data/provider_model_certification_cases.md` | 1197 | `307425430f04a63700dff37419e22676ce879331eaf3168ea2399f59693b80d5` | `100644` |
 | `test-data/rag_snapshot_cases.md` | 739 | `9cf3ff137b595ffe3bd04e4b4b34a7d485d0461aa85367335a27568638316ac6` | `100644` |
 | `test-data/seed_users_campaigns.md` | 1155 | `b0e9f467452c607e238247d33284bc3182b0a9141e690f8ed6febd8c5ade07df` | `100644` |
-| `test-data/tutorial_scenario_yaml.md` | 2940 | `7223dfb56ca66b48fc2f39cd8a0442271d7df45fb44441d5b1c29783766e027e` | `100644` |
+| `test-data/tutorial_scenario_yaml.md` | 3002 | `c6fcaa2699270a35e941b94062716800aed1384445df43578ec0acfb27667aac` | `100644` |
 | `test-data/visibility_leakage_cases.md` | 876 | `aaddd1c81538a590f8f0b4f99595254ea66943e2053db30e34ca6c64edddd46f` | `100644` |

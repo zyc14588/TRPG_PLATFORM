@@ -146,6 +146,24 @@ P2：Combat/Chase 独立重放在检查 decimal digit 范围前执行
 Chase 的十位数 26 都返回 `InvalidTransition` 而不 panic；domain 全量、Combat
 `9/9`、Chase `3/3` 通过。
 
+第二十九轮精确 SHA review `4790320347` 针对提交
+`d85a8114aebc95e6fb21b681a576045c7f0a0b72` 确认第二十八轮问题未重复，并新增两个
+P1、一个 P2。Session 结束现在持有 projection `FOR UPDATE` 锁并读取 HMAC/Witness
+verified canonical campaign replay，逐个验证 Combat/Chase event 与 state JSON，
+只有最新 Combat=`ENDED` 且 Chase=`ESCAPED/CAUGHT` 才允许追加
+`SessionStateChanged(ENDED)`；即使 gameplay projection 失败也不能隐藏 ongoing
+正史。初始 Combat 与 Chase 都把 Scenario encounter `scene_id` 绑定当前 active
+Scene 的 `scene_key`。Chase 另在排序 participant advisory lock 下要求 participant
+集合、Scenario `initial_range`、approved/locked Character Sheet/NPC
+`chase_profile` 的 role/MOV 与 v1 state 精确一致；已有 canonical v1 exact retry
+继续比较原 state shape。
+
+Tutorial 真库新增三个拒绝路径：前厅不能启动地下室 Combat；内部自洽但反转 role、
+MOV=20/1、range=4 的 Chase 不能写正史；后续 Session 存在 ongoing Combat/Chase 时
+结束返回 `session_gameplay_not_terminal`，把两者正式推进到终态后同一结束命令成功。
+Scenario `5/5`、Combat `9/9`、Chase `3/3`、domain `7/7`、data-eventing `27/27`、
+默认栈 core-domain `1/1`、Tutorial `2/2`、workspace check 与严格 Clippy 通过。
+
 ## 真实数据库、重放与迁移
 
 临时环境使用固定 digest 的 PostgreSQL/pgvector 镜像、localhost 端口和每次生成的
@@ -453,7 +471,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `7e6192d` 的第二十八轮精确 SHA review `4790238194` 确认第二十七轮三项未重复，并指出 malformed percentile digit 可在范围校验前触发 `u8` overflow panic；已在 Combat/Chase 独立重放、ruleset 与持久层同型入口完成本地根因修复和负例，待新提交/复审 |
+| GitHub PR #9 自动审查 | `d85a811` 的第二十九轮精确 SHA review `4790320347` 确认 malformed percentile 问题未重复，并指出 Session ongoing gameplay 结束、初始 Chase 权威绑定与 Combat active scene 三项缺口；已在 canonical replay/Session 行锁、Scenario active scene 与 Character/NPC chase profile 边界完成本地根因修复和真库负例，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -511,8 +529,12 @@ decision atomicity、默认栈 core-domain、Tutorial、schema assertion、works
 check 与严格 Clippy 均通过。第二十八轮确认三项未重复，又指出 malformed
 percentile digit 可在范围检查前触发 `u8` overflow panic；现由 Combat/Chase 独立
 重放、ruleset 与持久层入口统一先验证 decimal digit，十位数 26 负例返回错误而不
-panic。domain 全量、Combat `9/9`、Chase `3/3` 通过。本轮 Semgrep 因外联安全审查
-拒绝明确记为未运行。
+panic。domain 全量、Combat `9/9`、Chase `3/3` 通过。第二十九轮确认该项未重复，
+又指出 Session 可在 ongoing gameplay 时结束、初始 Chase 未绑定权威资料、Combat
+未绑定 active scene；现由 Session 行锁内 verified canonical replay 终态 gate、
+active Scene key 和 approved/locked Sheet/NPC `chase_profile` 精确授权修复。
+Scenario `5/5`、默认栈 core-domain `1/1`、Tutorial `2/2`、workspace check 与
+严格 Clippy 通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
 本报告在最新本地修复提交、远端 CI/复审完成前保持 pending，不以历史扫描或旧提交的
 部分/完整 Hosted CI 冒充新代码远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
@@ -540,6 +562,9 @@ workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review
 workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
 第二十七轮修复提交 `7e6192d` 在第二十八轮审查到达时同样是上述三项完成通过、
 workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
+第二十八轮修复提交 `d85a811` 在第二十九轮审查到达时 repository-truth、
+golden-scenarios 2/5 完成通过，其余三项仍运行，只记录
+`2/5 + 3 running at review cutoff`。
 以上均未记为 5/5。
 
 RustSec 报告：

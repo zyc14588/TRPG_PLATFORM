@@ -611,7 +611,29 @@ release-readiness 在下一轮意见到达时仍运行，因此只记录 3/5 通
 `PlayerActionDiceRecord` 的全部同型入口先拒绝超范围 decimal digit，再执行重建。
 新增单元同时提交 Combat/Chase `selected_tens_digit=26`，两条路径均返回
 `InvalidTransition` 而不 panic。domain 全量、Combat `9/9`、Chase `3/3` 已通过；
-新提交、Hosted CI 和第二十九轮精确 SHA review 仍为 pending。
+修复提交 `d85a8114aebc95e6fb21b681a576045c7f0a0b72` 的 repository-truth 与
+golden-scenarios 已完成通过；workspace、production-security-runtime 与
+release-readiness 在下一轮意见到达时仍运行，因此只记录 2/5 通过、3 项运行中。
+第二十九轮精确 SHA review `4790320347` 确认第二十八轮问题未重复，并提出两个 P1、
+一个 P2：
+
+- Session 可在相关 Combat/Chase 仍 `ONGOING` 时进入 `ENDED`；后续玩法写入因 Session
+  非 ACTIVE 被拒绝，聚合永久卡死；
+- Chase v1 没有把 participant identity、role、MOV、initial range 绑定 Scenario 与
+  持久化角色/NPC；
+- Combat participant 虽匹配 Scenario encounter，却没有要求 encounter 所属 scene
+  是 Session 当前 active scene。
+
+当前最小修复在 Session projection `FOR UPDATE` 锁内读取并验证 HMAC/Witness
+canonical replay；每个相关 Combat/Chase 的最新正式状态必须终结，projection 故障也
+不能隐藏 ongoing 正史。初始 Combat/Chase encounter 的 `scene_id` 均必须等于 active
+Scene projection 的 `scene_key`。Chase 还在排序 participant advisory lock 下精确
+绑定 Scenario participant/initial range 与 approved/locked Character Sheet/NPC
+`chase_profile` 的 role/MOV，并为 canonical v1 exact retry 保留原 state shape。
+Tutorial 真库证明错误 Scene Combat、伪造 Chase 和 ongoing Session end 都在 append
+前失败，玩法正式终止后 Session 可结束；Scenario `5/5`、core-domain `1/1`、
+Tutorial `2/2`、workspace check 与严格 Clippy 已通过。新提交、Hosted CI 和
+第三十轮精确 SHA review 仍为 pending。
 
 ## RustSec
 
@@ -628,7 +650,7 @@ release-readiness 在下一轮意见到达时仍运行，因此只记录 3/5 通
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-二十八轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+二十九轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
 用户门槛明确延期，没有冒充修复。当前最小修复的远端 CI/精确 SHA 复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
