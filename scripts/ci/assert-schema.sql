@@ -2146,13 +2146,14 @@ BEGIN
              'public.combat_states'::regclass,
              'public.chase_states'::regclass,
              'public.ending_events'::regclass,
-             'public.growth_events'::regclass
+             'public.growth_events'::regclass,
+             'core_domain.session_ending_reservations'::regclass
          )
            AND confrelid = 'core_domain.sessions'::regclass
            AND contype = 'f'
            AND condeferrable
            AND condeferred
-    ) <> 4 THEN
+    ) <> 5 THEN
         RAISE EXCEPTION 'P08 session references would block projection rebuild';
     END IF;
     IF EXISTS (

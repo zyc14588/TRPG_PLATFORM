@@ -1350,6 +1350,47 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .await
         .expect("persist validated Tutorial Scenario");
 
+    let session_events_before_bad_scene: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 AND event_type IN ('SessionStarted', 'SceneSwitched')",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert!(matches!(
+        repository
+            .start_session(
+                &metadata(
+                    CAMPAIGN_ID,
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "session_p06_bad_scene",
+                    "session",
+                    "session.start",
+                    0,
+                    "session_bad_scenario_scene",
+                    "party_visible",
+                    "not_applicable",
+                    "human_keeper_statement",
+                ),
+                &StartSessionRequest {
+                    session_id: "session_p06_bad_scene".to_owned(),
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    room_id: "room_p06_schema".to_owned(),
+                    scenario_id: "scenario_p06_tutorial".to_owned(),
+                    scene_id: "scene_p06_bad".to_owned(),
+                    scene_key: "scene_not_in_scenario".to_owned(),
+                    scene_name: "Unbound Scene".to_owned(),
+                    started_at_unix_ms: NOW_MS + 1_900,
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "scenario_scene_key"
+        ))
+    ));
     repository
         .start_session(
             &metadata(
@@ -1379,6 +1420,50 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("start session with active scene");
+    assert!(matches!(
+        repository
+            .switch_scene(
+                &metadata(
+                    CAMPAIGN_ID,
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "session_p06_schema",
+                    "session",
+                    "scene.switch",
+                    1,
+                    "scene_switch_bad_scenario_scene",
+                    "party_visible",
+                    "not_applicable",
+                    "human_keeper_statement",
+                ),
+                &SwitchSceneRequest {
+                    session_id: "session_p06_schema".to_owned(),
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    next_scene_id: "scene_p06_bad_switch".to_owned(),
+                    next_scene_key: "scene_not_in_scenario".to_owned(),
+                    next_scene_name: "Unbound Scene".to_owned(),
+                    switched_at_unix_ms: NOW_MS + 2_900,
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "scenario_scene_key"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 \
+               AND event_type IN ('SessionStarted', 'SceneSwitched')",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        session_events_before_bad_scene + 1,
+        "unbound start/switch scene keys must not append canonical events"
+    );
     repository
         .switch_scene(
             &metadata(
@@ -2776,6 +2861,24 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .fetch_one(&primary)
         .await
         .expect("the canonical transaction reserves the Session ending");
+        let reservation_session_fk: (bool, bool) = sqlx::query_as(
+            r#"
+            SELECT condeferrable, condeferred
+              FROM pg_constraint
+             WHERE conrelid =
+                   'core_domain.session_ending_reservations'::regclass
+               AND conname =
+                   'session_ending_reservations_session_id_fkey'
+            "#,
+        )
+        .fetch_one(&primary)
+        .await
+        .expect("load the Session ending reservation foreign key");
+        assert_eq!(
+            reservation_session_fk,
+            (true, true),
+            "projection rebuild must be able to recreate a referenced fork Session"
+        );
         assert_eq!(
             sqlx::query_scalar::<_, i64>(
                 "SELECT count(*) FROM public.ending_events \
@@ -4070,7 +4173,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 room_id: "room_p06_fork_child".to_owned(),
                 scenario_id: "scenario_p08_post_fork".to_owned(),
                 scene_id: "scene_p08_post_fork".to_owned(),
-                scene_key: "post_fork_scene".to_owned(),
+                scene_key: "scene_archive_front".to_owned(),
                 scene_name: "Post-fork Scene".to_owned(),
                 started_at_unix_ms: NOW_MS + 30_000,
             },
@@ -5644,7 +5747,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 room_id: "room_p06_schema".to_owned(),
                 scenario_id: "scenario_p06_tutorial".to_owned(),
                 scene_id: "scene_p08_after_growth".to_owned(),
-                scene_key: "after_growth".to_owned(),
+                scene_key: "scene_archive_front".to_owned(),
                 scene_name: "After Growth".to_owned(),
                 started_at_unix_ms: NOW_MS + 40_000,
             },

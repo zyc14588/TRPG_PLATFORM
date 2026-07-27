@@ -188,6 +188,22 @@ Growth live/replay/fork 统一按显式 skill-source mapping 同步 combat targe
 既有标准技能保留兼容映射。新增 migration `20260728000300` 只对正式 Combat event
 精确声明的 Character/Sheet targets 放行私密投影，并以秘密 capability 约束重建清理。
 
+提交 `c3f9d27dedfc28fc8d22972632a76054c8af9f38` 的 repository-truth、golden 与
+production-security-runtime 已通过；workspace/release-evidence 仍运行时，第三十二轮
+精确 SHA review `4791225838` 确认上述三项未重复，并新增两个问题：Session ending
+reservation 的立即 FK 会阻止带 native Ending 的 fork Session 投影重建；runtime
+scene key 未绑定 Scenario scene ID。新的 forward-only `20260728000400` 将该 FK 重建为
+`DEFERRABLE INITIALLY DEFERRED`；Session start/switch 的首次写入在 append 前要求 key
+命中 validated Scenario `scenes[].id`，而既有正史 exact retry 不受影响。新增两个
+无绑定 key 负例断言 `scenario_scene_key` 且 Event Store 不增长。
+
+本轮第一次完整 workspace 重跑有两个未计作通过的失败：canonical commit 在
+`verify_integrity` 读取既有 commit 时遇到一次连接级错误，未改生产代码单独重跑即
+`4/4` 通过；runtime 并发 Session 夹具仍使用自由 scene key，两个请求都被新的
+fail-closed gate 正确拒绝。夹具改为 Scenario 中真实的 `scene_archive_front` 后，
+该目标 `1/1` 通过；随后完整 workspace all-features 套件重新运行并以 exit `0`
+通过。
+
 扩展 runtime 全量回归第一次在沙箱内有 7 项仅因 localhost bind 被拒；授权重跑后
 这些测试全部通过，随后分别暴露两个已知外部环境要求：
 `P02_WORKFLOW_DATABASE_URL` 与 `P06_DATABASE_URL`。本轮真实数据库环境已经在前一轮
@@ -502,7 +518,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `fc25268` 的 Hosted CI `5/5`；第三十一轮精确 SHA review `4790867860` 确认同 Sheet Growth 问题未重复，并指出 Combat health Sheet、Session 结束后 exact retry、Growth combat target 三项；均已完成本地根因修复，待新提交/复审 |
+| GitHub PR #9 自动审查 | `c3f9d27` 在第三十二轮精确 SHA review `4791225838` 中确认第三十一轮三项未重复，并指出 reservation Session FK 与 runtime scene key 两项；均已完成本地根因修复，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -600,6 +616,9 @@ golden-scenarios 2/5 完成通过，其余三项仍运行，只记录
 golden-scenarios、production-security-runtime 3/5 完成通过，workspace 与
 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
 第三十轮修复提交 `fc25268` 的五项 Hosted CI 均已完成通过，明确记录 `5/5`。
+第三十一轮修复提交 `c3f9d27` 在第三十二轮意见到达时 repository-truth、golden、
+production-security-runtime 3/5 完成通过，workspace 与 release-evidence 仍运行，
+只记录 `3/5 + 2 running at review cutoff`。
 此前各轮部分结果均未记为 5/5。
 
 RustSec 报告：
@@ -632,3 +651,5 @@ P08 migration SHA-384：
   `f672a95a26b63d5ce649d249d0ee1ba1bd911e78a9c4cfe4cd133a9fc41dceec46a7b86b40ed7fc26b4d2be502caa76e`
 - `20260728000300`：
   `d6b4ed4dc7bf0b1f9e336990bb6421bd09833543dcd34a848a094a57d3997506c3073fd3c1ef30ec28e3da7ae894362b`
+- `20260728000400`：
+  `fd9b10ccd80f67028d1f0a4bec9327d3e2bae72ebf843b5215e1dba2080a3d28b0bd454c752c2d743e2030de634a62e4`

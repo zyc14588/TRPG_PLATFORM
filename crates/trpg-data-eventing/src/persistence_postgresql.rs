@@ -4298,6 +4298,46 @@ async fn project_gameplay_roll_consumptions(
     Ok(())
 }
 
+async fn ensure_scenario_scene_key(
+    transaction: &mut Transaction<'_, Postgres>,
+    campaign_id: &str,
+    scenario_id: &str,
+    scene_key: &str,
+) -> Result<(), CoreDomainRepositoryError> {
+    let exists: bool = sqlx::query_scalar(
+        r#"
+        SELECT EXISTS(
+            SELECT 1
+              FROM public.scenarios AS scenario
+              CROSS JOIN LATERAL jsonb_array_elements(
+                  CASE
+                      WHEN jsonb_typeof(scenario.document_json -> 'scenes') =
+                           'array'
+                      THEN scenario.document_json -> 'scenes'
+                      ELSE '[]'::JSONB
+                  END
+              ) AS scene
+             WHERE scenario.campaign_id = $1
+               AND scenario.scenario_id = $2
+               AND scenario.validated
+               AND scene ->> 'id' = $3
+        )
+        "#,
+    )
+    .bind(campaign_id)
+    .bind(scenario_id)
+    .bind(scene_key)
+    .fetch_one(&mut **transaction)
+    .await
+    .map_err(database_error("validate_scenario_scene_key"))?;
+    if !exists {
+        return Err(CoreDomainRepositoryError::InvalidInput(
+            "scenario_scene_key",
+        ));
+    }
+    Ok(())
+}
+
 async fn apply_combat_health_replay_updates(
     transaction: &mut Transaction<'_, Postgres>,
     replay: &CanonicalReplayEvent,
@@ -9152,6 +9192,13 @@ impl CoreDomainRepository {
             }
             return Err(CoreDomainRepositoryError::ConcurrentStart);
         }
+        ensure_scenario_scene_key(
+            &mut transaction,
+            &request.campaign_id,
+            &request.scenario_id,
+            &request.scene_key,
+        )
+        .await?;
         let live_exists: bool = sqlx::query_scalar(
             r#"
             SELECT EXISTS(
@@ -9571,6 +9618,13 @@ impl CoreDomainRepository {
                 "session_expected_version",
             ));
         }
+        ensure_scenario_scene_key(
+            &mut transaction,
+            &request.campaign_id,
+            &session_row.get::<String, _>("scenario_id"),
+            &request.next_scene_key,
+        )
+        .await?;
         let previous_scene_id = current_active_scene_id
             .ok_or(CoreDomainRepositoryError::Integrity("active_scene_missing"))?;
         let identity_conflict: bool = sqlx::query_scalar(

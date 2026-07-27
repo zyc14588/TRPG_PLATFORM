@@ -115,7 +115,7 @@ fn session_request(session_id: &str, scene_id: &str, suffix: u64) -> StartSessio
         room_id: ROOM_ID.to_owned(),
         scenario_id: SCENARIO_ID.to_owned(),
         scene_id: scene_id.to_owned(),
-        scene_key: format!("opening_scene_{suffix}"),
+        scene_key: "scene_archive_front".to_owned(),
         scene_name: format!("Opening Scene {suffix}"),
         started_at_unix_ms: NOW_MS + suffix,
     }

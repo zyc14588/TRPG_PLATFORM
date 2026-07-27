@@ -1946,7 +1946,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 room_id: "room_p08_tutorial".to_owned(),
                 scenario_id: "scenario_p08_tutorial".to_owned(),
                 scene_id: "scene_p08_concurrency".to_owned(),
-                scene_key: "scene_concurrent_conclusion".to_owned(),
+                scene_key: "scene_archive_front".to_owned(),
                 scene_name: "并发结算验证".to_owned(),
                 started_at_unix_ms: NOW_MS + 13_000,
             },

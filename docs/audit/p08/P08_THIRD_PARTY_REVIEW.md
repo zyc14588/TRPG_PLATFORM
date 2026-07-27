@@ -674,7 +674,30 @@ data-eventing lib `29/29`、完整 data-eventing all-features、migration upgrad
 通过；首次默认栈 core-domain 运行暴露大 async future 的 stack overflow，诊断运行
 随后暴露并修正测试期望版本，生产 Combat/Chase public future 以 boxed inner future
 降低调用方栈大小，最终无 `RUST_MIN_STACK` 的原测试 `1/1` 通过。这些中间失败均未
-计作 PASS。新提交、Hosted CI 和第三十二轮精确 SHA review 仍为 pending。
+计作 PASS。修复提交 `c3f9d27dedfc28fc8d22972632a76054c8af9f38` 的
+repository-truth、golden-scenarios、production-security-runtime 已通过；
+workspace 与 release-evidence 仍运行时，第三十二轮精确 SHA review
+`4791225838` 确认第三十一轮三项未重复，并提出一个 P1、一个 P2：
+
+- 评论 `3660671129`：fork-materialized Session 后续若取得 native Ending，
+  append-only `session_ending_reservations` 的立即 FK 会在 rebuild 删除 Session
+  投影时提前失败；
+- 评论 `3660671135`：Combat/Chase encounter authorization 比较 Scenario
+  `scene_id` 与调用方自由提供的 runtime `scene_key`，合法 Session 可能无法启动其
+  配置 encounter。
+
+当前最小修复不修改已推送的 `20260728000200` 或 `20260728000300`，而在新的
+forward migration `20260728000400` 将 reservation→Session FK 重建为
+`DEFERRABLE INITIALLY DEFERRED`；reservation 继续 append-only 且唯一。schema
+assertion 将该约束纳入五个 P08 Session rebuild FK，core-domain 也检查 catalog。
+`start_session`/`switch_scene` 在首次 canonical append 前从 validated Scenario
+读取 `document_json.scenes[]`，只有 ID 精确匹配的 key 可写入；无绑定 start/switch
+分别返回 `scenario_scene_key` 且 Event Store 计数不变。已存在 canonical event 的
+exact retry 仍在验证 event/request 后走兼容路径。
+
+core-domain `1/1`、Tutorial `2/2`、migration upgrade `1/1`、P06/P07/P08 schema
+assertions、data-eventing check 与严格 Clippy 已通过。新提交、Hosted CI 和
+第三十三轮精确 SHA review 仍为 pending。
 
 ## RustSec
 
@@ -691,7 +714,7 @@ data-eventing lib `29/29`、完整 data-eventing all-features、migration upgrad
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-三十一轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+三十二轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
 用户门槛明确延期，没有冒充修复。当前最小修复的远端 CI/精确 SHA 复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
