@@ -399,11 +399,49 @@ pub struct CombatantState {
     condition: CombatCondition,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CombatHealth {
+    current_hp: u8,
+    max_hp: u8,
+    condition: CombatCondition,
+}
+
+impl CombatHealth {
+    pub fn new(current_hp: u8, max_hp: u8, condition: CombatCondition) -> KernelResult<Self> {
+        if max_hp == 0
+            || current_hp > max_hp
+            || (current_hp == 0)
+                != matches!(condition, CombatCondition::Dying | CombatCondition::Dead)
+        {
+            return Err(TrpgError::InvalidConfiguration("combat_health"));
+        }
+        Ok(Self {
+            current_hp,
+            max_hp,
+            condition,
+        })
+    }
+
+    pub const fn current_hp(self) -> u8 {
+        self.current_hp
+    }
+
+    pub const fn max_hp(self) -> u8 {
+        self.max_hp
+    }
+
+    pub const fn condition(self) -> CombatCondition {
+        self.condition
+    }
+}
+
 impl CombatantState {
+    /// Constructs an encounter participant from the campaign's persisted
+    /// health snapshot; starting a new combat never implies healing.
     pub fn new(
         participant_id: impl Into<String>,
         dexterity: u8,
-        max_hp: u8,
+        health: CombatHealth,
         armor: u8,
         skill_targets: CombatSkillTargets,
         weapon_loadout: CombatWeaponLoadout,
@@ -412,7 +450,6 @@ impl CombatantState {
         if !valid_combat_id(&participant_id)
             || dexterity == 0
             || dexterity > 100
-            || max_hp == 0
             || armor > 30
             || !weapon_loadout.is_valid()
         {
@@ -423,10 +460,10 @@ impl CombatantState {
             dexterity,
             skill_targets,
             weapon_loadout,
-            current_hp: max_hp,
-            max_hp,
+            current_hp: health.current_hp,
+            max_hp: health.max_hp,
             armor,
-            condition: CombatCondition::Able,
+            condition: health.condition,
         })
     }
 
@@ -460,6 +497,14 @@ impl CombatantState {
 
     pub const fn condition(&self) -> CombatCondition {
         self.condition
+    }
+
+    pub const fn health(&self) -> CombatHealth {
+        CombatHealth {
+            current_hp: self.current_hp,
+            max_hp: self.max_hp,
+            condition: self.condition,
+        }
     }
 }
 
@@ -1020,10 +1065,6 @@ impl CombatState {
                 && self.consumed_roll_ids.is_empty()
                 && self.status == CombatStatus::Ongoing
                 && matches!(self.last_transition, CombatMutation::Started)
-                && self.participants.iter().all(|participant| {
-                    participant.current_hp == participant.max_hp
-                        && participant.condition == CombatCondition::Able
-                })
             {
                 return Ok(());
             }

@@ -1,7 +1,7 @@
 use trpg_ruleset_coc7::combat_state_machine::{
     apply_damage, apply_damage_with_armor, recover_major_wound, CombatActionKind, CombatCondition,
-    CombatDamageFormula, CombatDefense, CombatMedicalSkill, CombatSkillTargets, CombatState,
-    CombatWeapon, CombatWeaponLoadout, CombatantState,
+    CombatDamageFormula, CombatDefense, CombatHealth, CombatMedicalSkill, CombatSkillTargets,
+    CombatState, CombatWeapon, CombatWeaponLoadout, CombatantState,
 };
 use trpg_ruleset_coc7::dice_roll_contract::{success_level, SuccessLevel};
 use trpg_shared_kernel::{
@@ -46,7 +46,7 @@ fn combatant(
     CombatantState::new(
         participant_id,
         dexterity,
-        max_hp,
+        CombatHealth::new(max_hp, max_hp, CombatCondition::Able).unwrap(),
         armor,
         CombatSkillTargets::new(melee, firearm, dodge, 30, 10).unwrap(),
         standard_weapon_loadout(),
@@ -118,6 +118,52 @@ fn major_wound_survives_later_small_damage_until_explicit_recovery() {
         recover_major_wound(second.after_hp, second.condition, true).unwrap(),
         CombatCondition::Able
     );
+}
+
+#[test]
+fn a_new_encounter_preserves_persisted_health_and_condition() {
+    let previous_wounded = CombatantState::new(
+        "character_wounded_previous_encounter",
+        70,
+        CombatHealth::new(5, 12, CombatCondition::MajorWound).unwrap(),
+        1,
+        CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
+        standard_weapon_loadout(),
+    )
+    .unwrap();
+    let wounded = CombatantState::new(
+        "character_wounded_between_encounters",
+        70,
+        previous_wounded.health(),
+        1,
+        CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
+        standard_weapon_loadout(),
+    )
+    .unwrap();
+    let dying = CombatantState::new(
+        "character_dying_between_encounters",
+        60,
+        CombatHealth::new(0, 10, CombatCondition::Dying).unwrap(),
+        0,
+        CombatSkillTargets::new(40, 30, 35, 25, 10).unwrap(),
+        standard_weapon_loadout(),
+    )
+    .unwrap();
+    let encounter = CombatState::start("combat_follow_up_encounter", vec![wounded, dying]).unwrap();
+
+    assert_eq!(encounter.participants()[0].current_hp(), 5);
+    assert_eq!(
+        encounter.participants()[0].condition(),
+        CombatCondition::MajorWound
+    );
+    assert_eq!(encounter.participants()[1].current_hp(), 0);
+    assert_eq!(
+        encounter.participants()[1].condition(),
+        CombatCondition::Dying
+    );
+    encounter.validate_persistence_transition(None).unwrap();
+
+    assert!(CombatHealth::new(0, 10, CombatCondition::Able).is_err());
 }
 
 #[test]
@@ -207,7 +253,7 @@ fn damage_evidence_is_bound_to_the_actual_damage_dealers_selected_weapon() {
     let attacker = CombatantState::new(
         "fixture_attacker",
         90,
-        12,
+        CombatHealth::new(12, 12, CombatCondition::Able).unwrap(),
         0,
         CombatSkillTargets::new(60, 60, 40, 30, 10).unwrap(),
         weapon_loadout(1, 5),
@@ -216,7 +262,7 @@ fn damage_evidence_is_bound_to_the_actual_damage_dealers_selected_weapon() {
     let defender = CombatantState::new(
         "fixture_defender",
         70,
-        12,
+        CombatHealth::new(12, 12, CombatCondition::Able).unwrap(),
         0,
         CombatSkillTargets::new(80, 40, 55, 30, 10).unwrap(),
         weapon_loadout(2, 5),
@@ -502,7 +548,7 @@ fn defenses_medical_targets_and_roll_ids_are_derived_and_single_use() {
     let wounder = CombatantState::new(
         "wounder",
         90,
-        10,
+        CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
         0,
         CombatSkillTargets::new(60, 60, 40, 30, 10).unwrap(),
         standard_weapon_loadout(),
@@ -511,7 +557,7 @@ fn defenses_medical_targets_and_roll_ids_are_derived_and_single_use() {
     let patient = CombatantState::new(
         "patient",
         70,
-        10,
+        CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
         0,
         CombatSkillTargets::new(60, 60, 40, 30, 10).unwrap(),
         standard_weapon_loadout(),
@@ -520,7 +566,7 @@ fn defenses_medical_targets_and_roll_ids_are_derived_and_single_use() {
     let healer = CombatantState::new(
         "healer",
         50,
-        10,
+        CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
         0,
         CombatSkillTargets::new(60, 60, 40, 20, 5).unwrap(),
         standard_weapon_loadout(),

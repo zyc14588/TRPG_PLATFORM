@@ -323,10 +323,6 @@ pub fn validate_combat_state_transition(
             || !next.consumed_roll_ids.is_empty()
             || next.status != CombatStatus::Ongoing
             || !matches!(next.last_transition, CombatMutation::Started)
-            || next.participants.iter().any(|participant| {
-                participant.current_hp != participant.max_hp
-                    || participant.condition != CombatCondition::Able
-            })
         {
             return Err(CanonicalGameplayStateError::InvalidTransition);
         }
@@ -1293,6 +1289,13 @@ mod tests {
                 "{\"kind\":\"DAMAGE_APPLIED\",\"target_id\":\"one\",\"raw_damage\":1}",
             );
         validate_combat_state_transition(None, initial).unwrap();
+        let persisted_injury = initial
+            .replace("\"current_hp\":10", "\"current_hp\":5")
+            .replacen("\"condition\":\"ABLE\"", "\"condition\":\"MAJOR_WOUND\"", 1);
+        validate_combat_state_transition(None, &persisted_injury)
+            .expect("an initial encounter state must preserve durable injuries");
+        let inconsistent_health = initial.replace("\"current_hp\":10", "\"current_hp\":0");
+        assert!(validate_combat_state_transition(None, &inconsistent_health).is_err());
         assert!(validate_combat_state_transition(Some(initial), &unrelated).is_err());
     }
 

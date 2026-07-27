@@ -27,9 +27,9 @@ use trpg_ruleset_coc7::chase_state_machine::{
     ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
 use trpg_ruleset_coc7::combat_state_machine::{
-    CombatActionKind, CombatCondition, CombatDamageFormula, CombatDefense, CombatMedicalSkill,
-    CombatSkillTargets, CombatState, CombatStatus, CombatWeapon, CombatWeaponLoadout,
-    CombatantState,
+    CombatActionKind, CombatCondition, CombatDamageFormula, CombatDefense, CombatHealth,
+    CombatMedicalSkill, CombatSkillTargets, CombatState, CombatStatus, CombatWeapon,
+    CombatWeaponLoadout, CombatantState,
 };
 use trpg_ruleset_coc7::dice_roll_contract::{
     server_roll_skill_growth, success_level, SuccessLevel,
@@ -1399,7 +1399,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             CombatantState::new(
                 "character_p06_player",
                 70,
-                10,
+                CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
                 1,
                 CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
                 weapon_loadout(1, 5),
@@ -1408,7 +1408,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             CombatantState::new(
                 "npc_marta",
                 80,
-                8,
+                CombatHealth::new(8, 8, CombatCondition::Able).unwrap(),
                 0,
                 CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
                 weapon_loadout(0, 5),
@@ -1504,7 +1504,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             CombatantState::new(
                 "character_p06_player",
                 99,
-                30,
+                CombatHealth::new(30, 30, CombatCondition::Able).unwrap(),
                 20,
                 CombatSkillTargets::new(99, 99, 99, 99, 99).unwrap(),
                 weapon_loadout(1, 5),
@@ -1513,7 +1513,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             CombatantState::new(
                 "npc_marta",
                 100,
-                30,
+                CombatHealth::new(30, 30, CombatCondition::Able).unwrap(),
                 20,
                 CombatSkillTargets::new(100, 100, 100, 100, 100).unwrap(),
                 weapon_loadout(0, 5),

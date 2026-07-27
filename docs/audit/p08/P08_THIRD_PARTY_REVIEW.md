@@ -44,7 +44,9 @@ GITHUB_ELEVENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWELFTH_REVIEW
 GITHUB_TWELFTH_AUTOMATED_REVIEW = 2_ACTIONABLE
 GITHUB_TWELFTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_THIRTEENTH_REVIEW
 GITHUB_THIRTEENTH_AUTOMATED_REVIEW = 2_ACTIONABLE
-GITHUB_THIRTEENTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_THIRTEENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FOURTEENTH_REVIEW
+GITHUB_FOURTEENTH_AUTOMATED_REVIEW = 1_ACTIONABLE
+GITHUB_FOURTEENTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FIFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -55,7 +57,8 @@ GITHUB_NINTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_TENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_ELEVENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_TWELFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
-GITHUB_THIRTEENTH_REPAIR_HOSTED_CI = PENDING
+GITHUB_THIRTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
+GITHUB_FOURTEENTH_REPAIR_HOSTED_CI = PENDING
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -85,6 +88,8 @@ registry exit `2`；显式把设置/日志定向到 `/tmp` 并获准获取相同
 0 finding、0 error、0 skipped。
 第十三轮修复再次沿用同一 Semgrep 1.171.0 环境、两组社区配置、关闭 metrics、
 单 worker 和相同 34 目标，直接完成为 0 finding、0 error、0 skipped。
+第十四轮修复使用完全相同的环境、配置和 34 目标再次直接完成为
+0 finding、0 error、0 skipped。
 只有最终 0 error JSON 被计为通过，前述中间运行没有被覆盖或伪报。
 
 扩展范围首次复扫发现 `data_deletion_e2e.rs` 两处以可预测名称直接使用共享临时目录。
@@ -95,7 +100,7 @@ registry exit `2`；显式把设置/日志定向到 `/tmp` 并获准获取相同
 没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-thirteenth-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-fourteenth-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -317,8 +322,20 @@ workspace/release 随即主动取消，未写成 5/5。第十三轮修复在检�
 读取可变 parent snapshot；同时允许空成长 settlement 完成结局，而完成后的重复调用
 仍失败。真实 PostgreSQL/Witness 回归先证明 parent snapshot hash 因后续相关复议而
 变化，再以原请求成功重试且 child Event Store 行数不增。runtime 状态机 `3/3`、
-workspace all-target/all-feature check/Clippy 和相同 34 目标 Semgrep 均通过；仍须
-等待新的精确 SHA 5/5 Hosted CI 与远端复审，才允许合并。
+workspace all-target/all-feature check/Clippy 和相同 34 目标 Semgrep 均通过。
+对应提交 `99e3374` 的 repository-truth、golden-scenarios、production-security
+为 3/5 通过；第十四轮精确 SHA review `4785291315` 确认第十三轮两项未重复，但继续
+提出 1 个 P1：`CombatantState` 唯一公开构造器只接收 max HP 并强制 current HP
+为满值、condition 为 `ABLE`，因此上一遭遇留下的伤势、MajorWound、Dying/Dead 会在
+新战斗被静默治愈。workspace/release 随即主动取消，未写成 5/5。
+
+第十四轮修复新增 `CombatHealth` 值对象，显式绑定 current/max/condition 并校验
+零 HP 与 Dying/Dead 的一致性；`CombatantState::health()` 可把上一遭遇的持久化
+快照原样交给下一遭遇。规则与独立领域 initial-state validator 同时允许合法伤势、
+拒绝矛盾组合。规则回归 `7/7`、独立领域 `6/6`、真实 PostgreSQL/Witness、workspace
+all-target/all-feature check/Clippy 和相同 34 目标 Semgrep 均通过；第一次形成 8
+参数构造器时严格 Clippy 拒绝，未计通过，改用值对象后才通过。仍须等待新的精确 SHA
+5/5 Hosted CI 与远端复审，才允许合并。
 
 ## RustSec
 
@@ -334,8 +351,8 @@ workspace all-target/all-feature check/Clippy 和相同 34 目标 Semgrep 均通
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 十三轮
-自动审查先后提出的 4、5、5、4、2、3、5、3、4、2、2、2、2 项阻断均已修复或完成
-本地验证，最新提交的远端复审尚待运行；
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 十四轮
+自动审查先后提出的 4、5、5、4、2、3、5、3、4、2、2、2、2、1 项阻断均已修复或
+完成本地验证，最新提交的远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。

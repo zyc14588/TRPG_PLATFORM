@@ -24,8 +24,9 @@ use trpg_ruleset_coc7::chase_state_machine::{
     ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
 use trpg_ruleset_coc7::combat_state_machine::{
-    CombatActionKind, CombatCondition, CombatDamageFormula, CombatDefense, CombatSkillTargets,
-    CombatState, CombatStatus, CombatWeapon, CombatWeaponLoadout, CombatantState,
+    CombatActionKind, CombatCondition, CombatDamageFormula, CombatDefense, CombatHealth,
+    CombatSkillTargets, CombatState, CombatStatus, CombatWeapon, CombatWeaponLoadout,
+    CombatantState,
 };
 use trpg_ruleset_coc7::dice_roll_contract::{
     server_roll_skill_check, server_roll_skill_growth, success_level, DiceAdjustment,
@@ -709,7 +710,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             CombatantState::new(
                 CHARACTER_ID,
                 70,
-                10,
+                CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
                 1,
                 CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
                 weapon_loadout(1, 5),
@@ -718,7 +719,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             CombatantState::new(
                 "npc_marta",
                 80,
-                8,
+                CombatHealth::new(8, 8, CombatCondition::Able).unwrap(),
                 0,
                 CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
                 weapon_loadout(0, 5),
@@ -966,7 +967,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             CombatantState::new(
                 CHARACTER_ID,
                 70,
-                10,
+                CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
                 1,
                 CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
                 weapon_loadout(1, 5),
@@ -975,7 +976,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             CombatantState::new(
                 "npc_marta",
                 80,
-                8,
+                CombatHealth::new(8, 8, CombatCondition::Able).unwrap(),
                 0,
                 CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
                 weapon_loadout(0, 5),

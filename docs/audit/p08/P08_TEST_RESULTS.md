@@ -266,6 +266,17 @@ Event Store 行数不增且投影保持可重放。Semgrep 1.171.0 对同一 34 
 复扫为 0 finding、0 error、0 skipped，机器结果为
 `/tmp/p08-semgrep-output/p08-thirteenth-review-fix-final.json`。
 
+第十四轮修复新增 `CombatHealth` 值对象与跨遭遇 health snapshot 访问器。规则回归
+`combat_condition_sequence` 更新为 `7/7`，其中新测试证明 MajorWound 的 5/12 HP
+与 Dying 的 0/10 HP 可作为下一遭遇初始状态保持，零 HP + `ABLE` 被拒绝；独立领域
+`6/6` 同时接受合法伤势初始 JSON、拒绝矛盾 JSON。workspace all-target/all-feature
+check、严格 Clippy、完整 primary/Witness 脚本（migration `1/1`、atomicity `1/1`、
+core domain `1/1`、Tutorial `2/2`、P06/P07/P08 schema assertion）均通过。相同
+Semgrep 1.171.0、34 目标、13 规则复扫为 0 finding、0 error、0 skipped，机器结果为
+`/tmp/p08-semgrep-output/p08-fourteenth-review-fix-final.json`。首次直接扩展构造器
+形成 8 参数时严格 Clippy 以 `too_many_arguments` 失败，该次未计通过；改为值对象后
+同一门禁才通过。
+
 提交前第一次运行 `test_repo_truth.py` 时，宿主 Python 3.14.4、Node 22.22.1 且缺少
 pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。没有修改锁定版本或放宽
 断言；从官方发行源只在 `/tmp` 准备 Python 3.14.6、Node 24.17.0 和 pnpm 11.9.0 后，
@@ -277,7 +288,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；34 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 前十三轮为 4、5、5、4、2、3、5、3、4、2、2、2、2 项；第十二轮修复已由第十三轮确认未重复，第十三轮 2 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 前十四轮为 4、5、5、4、2、3、5、3、4、2、2、2、2、1 项；第十三轮修复已由第十四轮确认未重复，第十四轮 1 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -305,8 +316,9 @@ rebuild 会删除 fork 后的正常 child 状态、retry 行数错误覆盖整�
 第十二轮确认第十一轮两项未重复，又指出 Combat 伤害公式按 action kind 硬编码而与
 `1d6+1` fixture/武器差异冲突，以及 fork child scenario 丢失 Ending
 `growth_awards`。第十三轮确认第十二轮两项未重复，又指出 fork exact retry 仍重算
-可变 parent snapshot，以及无 `growth_awards` 的 Ending 无法完成。以上均已按问题
-根因修复；扩展到 34 目标的 Semgrep 复扫仍为
+可变 parent snapshot，以及无 `growth_awards` 的 Ending 无法完成。第十四轮确认
+第十三轮两项未重复，又指出 Combat 初始构造器会清除跨遭遇伤势。以上均已按问题根因
+修复；扩展到 34 目标的 Semgrep 复扫仍为
 0 finding。本报告在
 最新远端 CI/复审完成前保持 pending，不以本地结果冒充远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
@@ -320,7 +332,9 @@ workspace/release 两项。第七轮修复提交 `56b648b` 同样只有上述 3/
 第十轮修复提交 `4250462` 仍只有上述 3/5 通过，第十一轮阻断出现后取消
 workspace/release 两项。第十一轮修复提交 `453b063` 也只有上述 3/5 通过，第十二轮
 阻断出现后取消 workspace/release 两项。第十二轮修复提交 `c11f82c` 同样只有上述
-3/5 通过，第十三轮阻断出现后取消 workspace/release 两项。以上均未记为 5/5。
+3/5 通过，第十三轮阻断出现后取消 workspace/release 两项。第十三轮修复提交
+`99e3374` 同样只有上述 3/5 通过，第十四轮阻断出现后取消 workspace/release 两项。
+以上均未记为 5/5。
 
 RustSec 报告：
 
