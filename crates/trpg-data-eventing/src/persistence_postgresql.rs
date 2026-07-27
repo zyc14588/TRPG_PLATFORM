@@ -50,8 +50,9 @@ use trpg_domain_core::fork_canon_lineage::{CopyScope, DEFAULT_PUBLIC_COPY_SCOPES
 use trpg_shared_kernel::{EntityId, EventActorOriginWire, ServerGrowthRollEvidence};
 
 use crate::event_store_sqlx_outbox_projection::{
-    AtomicCommitDraft, CanonicalEventDraft, CanonicalProjectionTarget, CanonicalReplayEvent,
-    CanonicalStoreError, PersistedCommit, PolicyAuditDraft, PostgresCanonicalStore,
+    AtomicCommitDraft, CanonicalEventDraft, CanonicalEventVisibility, CanonicalProjectionTarget,
+    CanonicalReplayEvent, CanonicalStoreError, PersistedCommit, PolicyAuditDraft,
+    PostgresCanonicalStore,
 };
 
 const CORE_EVENT_SCHEMA_VERSION: u16 = CoreDomainEvent::SCHEMA_VERSION;
@@ -145,6 +146,7 @@ impl CoreCommandMetadata {
             events: vec![CanonicalEventDraft {
                 event_type: event.event_type().to_owned(),
                 payload_json,
+                visibility: None,
                 projection_targets,
             }],
             audit: self.audit.clone(),
@@ -177,6 +179,7 @@ impl CoreCommandMetadata {
                 event_type: event.event_type().to_owned(),
                 payload_json: serde_json::to_string(&event)
                     .map_err(|_| CoreDomainRepositoryError::Serialization)?,
+                visibility: None,
                 projection_targets,
             });
         }
@@ -589,22 +592,28 @@ struct ForkSnapshotSession {
     active_scene_id: Option<String>,
     started_at_unix_ms: u64,
     ended_at_unix_ms: u64,
+    visibility_label: String,
+    visibility_subject: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
 struct ForkSnapshotCharacter {
     character_id: String,
     owner_user_id: String,
     display_name: String,
     state: String,
     initial_version_locked: bool,
+    visibility_label: String,
+    visibility_subject: String,
     current_sheet: Option<ForkSnapshotSheet>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
 struct ForkSnapshotSheet {
     sheet_json: Value,
     locked: bool,
+    visibility_label: String,
+    visibility_subject: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -613,11 +622,21 @@ struct ForkSnapshotScene {
     scene_key: String,
     name: String,
     state: String,
+    visibility_label: String,
+    visibility_subject: String,
 }
 
 #[derive(serde::Deserialize)]
 struct ForkSnapshotWorld {
     ruleset_id: String,
+    visibility_label: String,
+    visibility_subject: String,
+}
+
+struct CampaignForkMaterializationBatch {
+    rows: Vec<CampaignForkMaterializedRow>,
+    visibility_label: String,
+    visibility_subject: String,
 }
 
 struct CampaignForkMaterialization {
@@ -626,7 +645,7 @@ struct CampaignForkMaterialization {
     child_state_json: String,
     child_snapshot_hash: String,
     rows: Vec<CampaignForkMaterializedRow>,
-    batches: Vec<Vec<CampaignForkMaterializedRow>>,
+    batches: Vec<CampaignForkMaterializationBatch>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -894,6 +913,7 @@ fn player_action_event(
         event_type: event_type.to_owned(),
         payload_json: serde_json::to_string(&payload)
             .map_err(|_| CoreDomainRepositoryError::Serialization)?,
+        visibility: None,
         projection_targets,
     })
 }
@@ -1746,29 +1766,73 @@ fn fork_row_projection_targets(
     }
 }
 
+fn fork_row_visibility(row: &CampaignForkMaterializedRow) -> (&str, &str) {
+    match row {
+        CampaignForkMaterializedRow::Scenario {
+            visibility_label,
+            visibility_subject,
+            ..
+        }
+        | CampaignForkMaterializedRow::Character {
+            visibility_label,
+            visibility_subject,
+            ..
+        }
+        | CampaignForkMaterializedRow::Session {
+            visibility_label,
+            visibility_subject,
+            ..
+        }
+        | CampaignForkMaterializedRow::Scene {
+            visibility_label,
+            visibility_subject,
+            ..
+        } => (visibility_label, visibility_subject),
+    }
+}
+
 fn fork_materialization_batches(
     rows: &[CampaignForkMaterializedRow],
-) -> Result<Vec<Vec<CampaignForkMaterializedRow>>, CoreDomainRepositoryError> {
+) -> Result<Vec<CampaignForkMaterializationBatch>, CoreDomainRepositoryError> {
     const MAX_TARGETS_PER_EVENT: usize = 32;
-    let mut batches = Vec::new();
-    let mut current = Vec::new();
-    let mut current_targets = 0_usize;
+    let mut visibility_groups =
+        BTreeMap::<(String, String), Vec<CampaignForkMaterializedRow>>::new();
     for row in rows {
-        let row_targets = row.projection_target_count();
-        if row_targets == 0 || row_targets > MAX_TARGETS_PER_EVENT {
-            return Err(CoreDomainRepositoryError::Integrity(
-                "fork_projection_target_shape",
-            ));
-        }
-        if current_targets + row_targets > MAX_TARGETS_PER_EVENT {
-            batches.push(std::mem::take(&mut current));
-            current_targets = 0;
-        }
-        current.push(row.clone());
-        current_targets += row_targets;
+        let (label, subject) = fork_row_visibility(row);
+        visibility_groups
+            .entry((label.to_owned(), subject.to_owned()))
+            .or_default()
+            .push(row.clone());
     }
-    if !current.is_empty() {
-        batches.push(current);
+    let mut batches = Vec::new();
+    for ((visibility_label, visibility_subject), grouped_rows) in visibility_groups {
+        let mut current = Vec::new();
+        let mut current_targets = 0_usize;
+        for row in grouped_rows {
+            let row_targets = row.projection_target_count();
+            if row_targets == 0 || row_targets > MAX_TARGETS_PER_EVENT {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "fork_projection_target_shape",
+                ));
+            }
+            if current_targets + row_targets > MAX_TARGETS_PER_EVENT {
+                batches.push(CampaignForkMaterializationBatch {
+                    rows: std::mem::take(&mut current),
+                    visibility_label: visibility_label.clone(),
+                    visibility_subject: visibility_subject.clone(),
+                });
+                current_targets = 0;
+            }
+            current.push(row);
+            current_targets += row_targets;
+        }
+        if !current.is_empty() {
+            batches.push(CampaignForkMaterializationBatch {
+                rows: current,
+                visibility_label,
+                visibility_subject,
+            });
+        }
     }
     if batches.is_empty() {
         return Err(CoreDomainRepositoryError::Integrity(
@@ -1776,6 +1840,390 @@ fn fork_materialization_batches(
         ));
     }
     Ok(batches)
+}
+
+fn fork_character_visibility_is_copyable(
+    visibility_label: &str,
+    visibility_subject: &str,
+    owner_user_id: &str,
+) -> bool {
+    match visibility_label {
+        "public" | "party_visible" => visibility_subject == "not_applicable",
+        "private_to_player" | "investigator_private" => visibility_subject == owner_user_id,
+        _ => false,
+    }
+}
+
+fn derive_fork_character_visibility(
+    character: &ForkSnapshotCharacter,
+    sheet: &ForkSnapshotSheet,
+) -> Result<(String, String), CoreDomainRepositoryError> {
+    if !fork_character_visibility_is_copyable(
+        &character.visibility_label,
+        &character.visibility_subject,
+        &character.owner_user_id,
+    ) || !fork_character_visibility_is_copyable(
+        &sheet.visibility_label,
+        &sheet.visibility_subject,
+        &character.owner_user_id,
+    ) {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "fork_character_visibility",
+        ));
+    }
+    // Character and current Sheet share one canonical materialization event.
+    // If their source labels differ, derive the least-visible envelope so the
+    // fork can never widen either row's audience.
+    if matches!(
+        sheet.visibility_label.as_str(),
+        "private_to_player" | "investigator_private"
+    ) {
+        return Ok((
+            sheet.visibility_label.clone(),
+            character.owner_user_id.clone(),
+        ));
+    }
+    if matches!(
+        character.visibility_label.as_str(),
+        "private_to_player" | "investigator_private"
+    ) {
+        return Ok((
+            character.visibility_label.clone(),
+            character.owner_user_id.clone(),
+        ));
+    }
+    if character.visibility_label == "party_visible" || sheet.visibility_label == "party_visible" {
+        Ok(("party_visible".to_owned(), "not_applicable".to_owned()))
+    } else {
+        Ok(("public".to_owned(), "not_applicable".to_owned()))
+    }
+}
+
+fn reconstruct_fork_characters(
+    replay_events: &[CanonicalReplayEvent],
+    campaign_id: &str,
+    cutoff_event_sequence: i64,
+) -> Result<Vec<ForkSnapshotCharacter>, CoreDomainRepositoryError> {
+    let mut characters = BTreeMap::<String, ForkSnapshotCharacter>::new();
+    let mut action_characters = BTreeMap::<String, String>::new();
+    for replay in replay_events
+        .iter()
+        .filter(|event| event.sequence <= cutoff_event_sequence)
+    {
+        if replay.campaign_id != campaign_id {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "fork_character_replay_campaign",
+            ));
+        }
+        if matches!(
+            replay.event_type.as_str(),
+            "CharacterCreated"
+                | "CharacterSubmitted"
+                | "CharacterInitialVersionApproved"
+                | "PlayerActionSubmitted"
+                | "SanityLossApplied"
+                | "CharacterGrowthApplied"
+                | "CampaignForkMaterialized"
+        ) && (replay.integrity_status != "verified_hmac"
+            || replay.request_hash_source != "formal_commit"
+            || replay.event_integrity_hash.is_none())
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "fork_character_replay_unverified",
+            ));
+        }
+        match replay.event_type.as_str() {
+            "CharacterCreated" => {
+                let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+                    .map_err(|_| {
+                        CoreDomainRepositoryError::Integrity("fork_character_create_payload")
+                    })?;
+                let CoreDomainEvent::CharacterCreated {
+                    character_id,
+                    campaign_id: event_campaign_id,
+                    owner_user_id,
+                    display_name,
+                    sheet_json,
+                    ..
+                } = event
+                else {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_create_event",
+                    ));
+                };
+                if event_campaign_id != campaign_id || characters.contains_key(&character_id) {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_create_chain",
+                    ));
+                }
+                let sheet_json: Value = serde_json::from_str(&sheet_json).map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("fork_character_sheet_payload")
+                })?;
+                if !sheet_json.is_object() {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_sheet_shape",
+                    ));
+                }
+                characters.insert(
+                    character_id.clone(),
+                    ForkSnapshotCharacter {
+                        character_id,
+                        owner_user_id,
+                        display_name,
+                        state: "DRAFT".to_owned(),
+                        initial_version_locked: false,
+                        visibility_label: replay.visibility_label.clone(),
+                        visibility_subject: replay.visibility_subject.clone(),
+                        current_sheet: Some(ForkSnapshotSheet {
+                            sheet_json,
+                            locked: false,
+                            visibility_label: replay.visibility_label.clone(),
+                            visibility_subject: replay.visibility_subject.clone(),
+                        }),
+                    },
+                );
+            }
+            "CharacterSubmitted" | "CharacterInitialVersionApproved" => {
+                let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+                    .map_err(|_| {
+                        CoreDomainRepositoryError::Integrity("fork_character_state_payload")
+                    })?;
+                let (character_id, approved) = match event {
+                    CoreDomainEvent::CharacterSubmitted { character_id, .. } => {
+                        (character_id, false)
+                    }
+                    CoreDomainEvent::CharacterInitialVersionApproved { character_id, .. } => {
+                        (character_id, true)
+                    }
+                    _ => {
+                        return Err(CoreDomainRepositoryError::Integrity(
+                            "fork_character_state_event",
+                        ))
+                    }
+                };
+                let character = characters.get_mut(&character_id).ok_or(
+                    CoreDomainRepositoryError::Integrity("fork_character_state_chain"),
+                )?;
+                character.state = if approved { "APPROVED" } else { "SUBMITTED" }.to_owned();
+                character.visibility_label = replay.visibility_label.clone();
+                character.visibility_subject = replay.visibility_subject.clone();
+                if approved {
+                    character.initial_version_locked = true;
+                    let sheet = character.current_sheet.as_mut().ok_or(
+                        CoreDomainRepositoryError::Integrity("fork_character_sheet_missing"),
+                    )?;
+                    sheet.locked = true;
+                    sheet.visibility_label = replay.visibility_label.clone();
+                    sheet.visibility_subject = replay.visibility_subject.clone();
+                }
+            }
+            "PlayerActionSubmitted" => {
+                let action_id = replay
+                    .payload
+                    .get("action_id")
+                    .and_then(Value::as_str)
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "fork_player_action_id",
+                    ))?;
+                let character_id = replay
+                    .payload
+                    .get("character_id")
+                    .and_then(Value::as_str)
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "fork_player_action_character",
+                    ))?;
+                action_characters.insert(action_id.to_owned(), character_id.to_owned());
+            }
+            "SanityLossApplied" => {
+                let action_id = replay
+                    .payload
+                    .get("action_id")
+                    .and_then(Value::as_str)
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "fork_sanity_action_id",
+                    ))?;
+                let character_id = action_characters.get(action_id).ok_or(
+                    CoreDomainRepositoryError::Integrity("fork_sanity_action_chain"),
+                )?;
+                let character = characters.get_mut(character_id).ok_or(
+                    CoreDomainRepositoryError::Integrity("fork_sanity_character_chain"),
+                )?;
+                let sheet = character.current_sheet.as_mut().ok_or(
+                    CoreDomainRepositoryError::Integrity("fork_sanity_sheet_missing"),
+                )?;
+                let number = |field: &'static str| {
+                    replay
+                        .payload
+                        .get(field)
+                        .and_then(Value::as_u64)
+                        .ok_or(CoreDomainRepositoryError::Integrity("fork_sanity_payload"))
+                };
+                let day_key = replay
+                    .payload
+                    .get("day_key")
+                    .and_then(Value::as_str)
+                    .ok_or(CoreDomainRepositoryError::Integrity("fork_sanity_payload"))?;
+                let madness_state = replay
+                    .payload
+                    .get("madness_state")
+                    .and_then(Value::as_str)
+                    .ok_or(CoreDomainRepositoryError::Integrity("fork_sanity_payload"))?;
+                let sanity_before = number("sanity_before")?;
+                let prior_sanity = sheet
+                    .sheet_json
+                    .pointer("/sanity_state/current_sanity")
+                    .and_then(Value::as_u64)
+                    .or_else(|| {
+                        sheet
+                            .sheet_json
+                            .pointer("/characteristics/power")
+                            .and_then(Value::as_u64)
+                    })
+                    .ok_or(CoreDomainRepositoryError::Integrity("fork_sanity_source"))?;
+                if prior_sanity != sanity_before {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_sanity_source_mismatch",
+                    ));
+                }
+                sheet.sheet_json["sanity_state"] = serde_json::json!({
+                    "day_key": day_key,
+                    "day_start_sanity": number("day_start_sanity")?,
+                    "current_sanity": number("sanity_after")?,
+                    "day_loss": number("day_loss")?,
+                    "madness_state": madness_state,
+                });
+                sheet.locked = true;
+                sheet.visibility_label = replay.visibility_label.clone();
+                sheet.visibility_subject = replay.visibility_subject.clone();
+                character.visibility_label = replay.visibility_label.clone();
+                character.visibility_subject = replay.visibility_subject.clone();
+            }
+            "CharacterGrowthApplied" => {
+                let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+                    .map_err(|_| CoreDomainRepositoryError::Integrity("fork_growth_payload"))?;
+                let CoreDomainEvent::CharacterGrowthApplied {
+                    campaign_id: event_campaign_id,
+                    character_id,
+                    skill_name,
+                    skill_before,
+                    skill_after,
+                    ..
+                } = event
+                else {
+                    return Err(CoreDomainRepositoryError::Integrity("fork_growth_event"));
+                };
+                if event_campaign_id != campaign_id {
+                    return Err(CoreDomainRepositoryError::Integrity("fork_growth_campaign"));
+                }
+                let character = characters.get_mut(&character_id).ok_or(
+                    CoreDomainRepositoryError::Integrity("fork_growth_character_chain"),
+                )?;
+                let sheet = character.current_sheet.as_mut().ok_or(
+                    CoreDomainRepositoryError::Integrity("fork_growth_sheet_missing"),
+                )?;
+                let skill = sheet
+                    .sheet_json
+                    .get_mut("skills")
+                    .and_then(Value::as_object_mut)
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "fork_growth_skills_missing",
+                    ))?;
+                if skill.get(&skill_name).and_then(Value::as_u64) != Some(u64::from(skill_before)) {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_growth_source_mismatch",
+                    ));
+                }
+                skill.insert(skill_name, Value::from(skill_after));
+                sheet.locked = true;
+                sheet.visibility_label = replay.visibility_label.clone();
+                sheet.visibility_subject = replay.visibility_subject.clone();
+                character.visibility_label = replay.visibility_label.clone();
+                character.visibility_subject = replay.visibility_subject.clone();
+            }
+            "CampaignForkMaterialized" => {
+                let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+                    .map_err(|_| {
+                        CoreDomainRepositoryError::Integrity("fork_nested_materialization_payload")
+                    })?;
+                let CoreDomainEvent::CampaignForkMaterialized {
+                    child_campaign_id,
+                    rows,
+                    ..
+                } = event
+                else {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_nested_materialization_event",
+                    ));
+                };
+                if child_campaign_id != campaign_id {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_nested_materialization_campaign",
+                    ));
+                }
+                for row in rows {
+                    let CampaignForkMaterializedRow::Character {
+                        character_id,
+                        owner_user_id,
+                        display_name,
+                        state,
+                        initial_version_locked,
+                        sheet_json,
+                        sheet_locked,
+                        visibility_label,
+                        visibility_subject,
+                        ..
+                    } = row
+                    else {
+                        continue;
+                    };
+                    if visibility_label != replay.visibility_label
+                        || visibility_subject != replay.visibility_subject
+                        || characters.contains_key(&character_id)
+                    {
+                        return Err(CoreDomainRepositoryError::Integrity(
+                            "fork_nested_character_chain",
+                        ));
+                    }
+                    let sheet_json: Value = serde_json::from_str(&sheet_json).map_err(|_| {
+                        CoreDomainRepositoryError::Integrity("fork_nested_character_sheet")
+                    })?;
+                    characters.insert(
+                        character_id.clone(),
+                        ForkSnapshotCharacter {
+                            character_id,
+                            owner_user_id,
+                            display_name,
+                            state,
+                            initial_version_locked,
+                            visibility_label: visibility_label.clone(),
+                            visibility_subject: visibility_subject.clone(),
+                            current_sheet: Some(ForkSnapshotSheet {
+                                sheet_json,
+                                locked: sheet_locked,
+                                visibility_label,
+                                visibility_subject,
+                            }),
+                        },
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    characters.retain(|_, character| {
+        fork_character_visibility_is_copyable(
+            &character.visibility_label,
+            &character.visibility_subject,
+            &character.owner_user_id,
+        ) && character.current_sheet.as_ref().is_some_and(|sheet| {
+            fork_character_visibility_is_copyable(
+                &sheet.visibility_label,
+                &sheet.visibility_subject,
+                &character.owner_user_id,
+            )
+        })
+    });
+    Ok(characters.into_values().collect())
 }
 
 fn parse_session_state(value: &str) -> Result<SessionState, CoreDomainRepositoryError> {
@@ -3071,6 +3519,14 @@ async fn apply_campaign_fork_replay_event(
                 ));
             }
             for row in rows {
+                let (row_visibility_label, row_visibility_subject) = fork_row_visibility(&row);
+                if row_visibility_label != replay.visibility_label
+                    || row_visibility_subject != replay.visibility_subject
+                {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_row_visibility_mismatch",
+                    ));
+                }
                 match row {
                     CampaignForkMaterializedRow::Scenario {
                         scenario_id,
@@ -3078,6 +3534,8 @@ async fn apply_campaign_fork_replay_event(
                         format_version,
                         content_hash,
                         document_json,
+                        visibility_label,
+                        visibility_subject,
                     } => {
                         sqlx::query(
                             r#"
@@ -3100,8 +3558,8 @@ async fn apply_campaign_fork_replay_event(
                         .bind(&format_version)
                         .bind(&content_hash)
                         .bind(&document_json)
-                        .bind(&replay.visibility_label)
-                        .bind(&replay.visibility_subject)
+                        .bind(&visibility_label)
+                        .bind(&visibility_subject)
                         .bind(&replay.provenance_kind)
                         .bind(&replay.provenance_reference)
                         .bind(&replay.provenance_recorded_by)
@@ -3116,7 +3574,9 @@ async fn apply_campaign_fork_replay_event(
                                  WHERE scenario_id = $1 AND campaign_id = $2
                                    AND content_hash = $3
                                    AND document_json = $4::JSONB
-                                   AND last_event_sequence = $5
+                                   AND visibility_label::TEXT = $5
+                                   AND visibility_subject = $6
+                                   AND last_event_sequence = $7
                             )
                             "#,
                         )
@@ -3124,6 +3584,8 @@ async fn apply_campaign_fork_replay_event(
                         .bind(&child_campaign_id)
                         .bind(&content_hash)
                         .bind(&document_json)
+                        .bind(&visibility_label)
+                        .bind(&visibility_subject)
                         .bind(replay.sequence)
                         .fetch_one(&mut **transaction)
                         .await
@@ -3143,6 +3605,8 @@ async fn apply_campaign_fork_replay_event(
                         sheet_version_id,
                         sheet_json,
                         sheet_locked,
+                        visibility_label,
+                        visibility_subject,
                     } => {
                         if !matches!(state.as_str(), "DRAFT" | "SUBMITTED" | "APPROVED") {
                             return Err(CoreDomainRepositoryError::Integrity(
@@ -3170,8 +3634,8 @@ async fn apply_campaign_fork_replay_event(
                         .bind(&display_name)
                         .bind(&state)
                         .bind(initial_version_locked)
-                        .bind(&replay.visibility_label)
-                        .bind(&replay.visibility_subject)
+                        .bind(&visibility_label)
+                        .bind(&visibility_subject)
                         .bind(&replay.provenance_kind)
                         .bind(&replay.provenance_reference)
                         .bind(&replay.provenance_recorded_by)
@@ -3196,8 +3660,8 @@ async fn apply_campaign_fork_replay_event(
                         .bind(&character_id)
                         .bind(&sheet_json)
                         .bind(sheet_locked)
-                        .bind(&replay.visibility_label)
-                        .bind(&replay.visibility_subject)
+                        .bind(&visibility_label)
+                        .bind(&visibility_subject)
                         .bind(&replay.provenance_kind)
                         .bind(&replay.provenance_reference)
                         .bind(&replay.provenance_recorded_by)
@@ -3224,6 +3688,10 @@ async fn apply_campaign_fork_replay_event(
                                    AND sheet.sheet_version_id = $8
                                    AND sheet.sheet_json = $9::JSONB
                                    AND sheet.locked = $10
+                                   AND character.visibility_label::TEXT = $11
+                                   AND character.visibility_subject = $12
+                                   AND sheet.visibility_label::TEXT = $11
+                                   AND sheet.visibility_subject = $12
                                    AND sheet.last_event_sequence = $7
                             )
                             "#,
@@ -3238,6 +3706,8 @@ async fn apply_campaign_fork_replay_event(
                         .bind(&sheet_version_id)
                         .bind(&sheet_json)
                         .bind(sheet_locked)
+                        .bind(&visibility_label)
+                        .bind(&visibility_subject)
                         .fetch_one(&mut **transaction)
                         .await
                         .map_err(database_error("verify_replayed_fork_character"))?;
@@ -3255,6 +3725,8 @@ async fn apply_campaign_fork_replay_event(
                         active_scene_id,
                         started_at_unix_ms,
                         ended_at_unix_ms,
+                        visibility_label,
+                        visibility_subject,
                     } => {
                         if state != "ENDED" || ended_at_unix_ms < started_at_unix_ms {
                             return Err(CoreDomainRepositoryError::Integrity("fork_session_state"));
@@ -3285,8 +3757,8 @@ async fn apply_campaign_fork_replay_event(
                         .bind(&active_scene_id)
                         .bind(started_at)
                         .bind(ended_at)
-                        .bind(&replay.visibility_label)
-                        .bind(&replay.visibility_subject)
+                        .bind(&visibility_label)
+                        .bind(&visibility_subject)
                         .bind(&replay.provenance_kind)
                         .bind(&replay.provenance_reference)
                         .bind(&replay.provenance_recorded_by)
@@ -3303,7 +3775,9 @@ async fn apply_campaign_fork_replay_event(
                                    AND state = 'ENDED'
                                    AND active_scene_id IS NOT DISTINCT FROM $5
                                    AND started_at = $6 AND ended_at = $7
-                                   AND last_event_sequence = $8
+                                   AND visibility_label::TEXT = $8
+                                   AND visibility_subject = $9
+                                   AND last_event_sequence = $10
                             )
                             "#,
                         )
@@ -3314,6 +3788,8 @@ async fn apply_campaign_fork_replay_event(
                         .bind(&active_scene_id)
                         .bind(started_at)
                         .bind(ended_at)
+                        .bind(&visibility_label)
+                        .bind(&visibility_subject)
                         .bind(replay.sequence)
                         .fetch_one(&mut **transaction)
                         .await
@@ -3332,6 +3808,8 @@ async fn apply_campaign_fork_replay_event(
                         scene_key,
                         name,
                         state,
+                        visibility_label,
+                        visibility_subject,
                     } => {
                         if !matches!(state.as_str(), "READY" | "ACTIVE" | "CLOSED") {
                             return Err(CoreDomainRepositoryError::Integrity("fork_scene_state"));
@@ -3359,8 +3837,8 @@ async fn apply_campaign_fork_replay_event(
                         .bind(&scene_key)
                         .bind(&name)
                         .bind(&state)
-                        .bind(&replay.visibility_label)
-                        .bind(&replay.visibility_subject)
+                        .bind(&visibility_label)
+                        .bind(&visibility_subject)
                         .bind(&replay.provenance_kind)
                         .bind(&replay.provenance_reference)
                         .bind(&replay.provenance_recorded_by)
@@ -3376,7 +3854,9 @@ async fn apply_campaign_fork_replay_event(
                                    AND session_id = $3 AND scenario_id = $4
                                    AND room_id = $5 AND scene_key = $6
                                    AND name = $7 AND state = $8
-                                   AND last_event_sequence = $9
+                                   AND visibility_label::TEXT = $9
+                                   AND visibility_subject = $10
+                                   AND last_event_sequence = $11
                             )
                             "#,
                         )
@@ -3388,6 +3868,8 @@ async fn apply_campaign_fork_replay_event(
                         .bind(&scene_key)
                         .bind(&name)
                         .bind(&state)
+                        .bind(&visibility_label)
+                        .bind(&visibility_subject)
                         .bind(replay.sequence)
                         .fetch_one(&mut **transaction)
                         .await
@@ -5798,7 +6280,7 @@ impl CoreDomainRepository {
         parent_campaign_id: &str,
         source_session_id: &str,
     ) -> Result<CampaignForkSnapshotPreview, CoreDomainRepositoryError> {
-        let state: Value = sqlx::query_scalar(
+        let mut state: Value = sqlx::query_scalar(
             r#"
             WITH snapshot_gameplay AS (
                 SELECT source_session.*,
@@ -5854,66 +6336,14 @@ impl CoreDomainRepository {
                     'state', source_session.state,
                     'active_scene_id', source_session.active_scene_id,
                     'version', source_session.version,
+                    'visibility_label', source_session.visibility_label,
+                    'visibility_subject', source_session.visibility_subject,
                     'started_at_unix_ms',
                         floor(extract(epoch FROM source_session.started_at) * 1000)::BIGINT,
                     'ended_at_unix_ms',
                         floor(extract(epoch FROM source_session.ended_at) * 1000)::BIGINT
                 ),
-                'character_state', COALESCE((
-                    SELECT jsonb_agg(
-                        jsonb_build_object(
-                            'character_id', character.character_id,
-                            'owner_user_id', character.owner_user_id,
-                            'display_name', character.display_name,
-                            'state', character.state,
-                            'current_sheet_version', character.current_sheet_version,
-                            'initial_version_locked', character.initial_version_locked,
-                            'version', character.version,
-                            'current_sheet', (
-                                SELECT jsonb_build_object(
-                                    'sheet_version_id', sheet.sheet_version_id,
-                                    'version', sheet.version,
-                                    'sheet_json', sheet.sheet_json,
-                                    'locked', sheet.locked
-                                )
-                                  FROM public.character_sheet_versions AS sheet
-                                 WHERE sheet.character_id = character.character_id
-                                   AND sheet.version = character.current_sheet_version
-                                   AND sheet.last_event_sequence
-                                       <= source_session.snapshot_cutoff_event_sequence
-                                   AND (
-                                       sheet.visibility_label::TEXT
-                                           IN ('public', 'party_visible')
-                                       OR
-                                       sheet.visibility_label::TEXT
-                                           IN (
-                                               'private_to_player',
-                                               'investigator_private'
-                                           )
-                                       AND sheet.visibility_subject =
-                                           character.owner_user_id
-                                   )
-                            )
-                        )
-                        ORDER BY character.character_id
-                    )
-                      FROM public.characters AS character
-                     WHERE character.campaign_id = source_session.campaign_id
-                       AND character.last_event_sequence
-                           <= source_session.snapshot_cutoff_event_sequence
-                       AND (
-                           character.visibility_label::TEXT
-                               IN ('public', 'party_visible')
-                           OR
-                           character.visibility_label::TEXT
-                               IN (
-                                   'private_to_player',
-                                   'investigator_private'
-                               )
-                           AND character.visibility_subject =
-                               character.owner_user_id
-                       )
-                ), '[]'::JSONB),
+                'character_state', '[]'::JSONB,
                 'public_events', COALESCE((
                     SELECT jsonb_agg(
                         jsonb_build_object(
@@ -5960,7 +6390,9 @@ impl CoreDomainRepository {
                             'scene_key', scene.scene_key,
                             'name', scene.name,
                             'state', scene.state,
-                            'version', scene.version
+                            'version', scene.version,
+                            'visibility_label', scene.visibility_label,
+                            'visibility_subject', scene.visibility_subject
                         )
                         ORDER BY scene.scene_id
                     )
@@ -5976,6 +6408,18 @@ impl CoreDomainRepository {
                     'scenario_id', source_session.scenario_id,
                     'ruleset_id', (
                         SELECT scenario.ruleset_id
+                          FROM public.scenarios AS scenario
+                         WHERE scenario.scenario_id = source_session.scenario_id
+                           AND scenario.campaign_id = source_session.campaign_id
+                    ),
+                    'visibility_label', (
+                        SELECT scenario.visibility_label
+                          FROM public.scenarios AS scenario
+                         WHERE scenario.scenario_id = source_session.scenario_id
+                           AND scenario.campaign_id = source_session.campaign_id
+                    ),
+                    'visibility_subject', (
+                        SELECT scenario.visibility_subject
                           FROM public.scenarios AS scenario
                          WHERE scenario.scenario_id = source_session.scenario_id
                            AND scenario.campaign_id = source_session.campaign_id
@@ -6043,6 +6487,20 @@ impl CoreDomainRepository {
         .await
         .map_err(database_error("load_campaign_fork_snapshot"))?
         .ok_or(CoreDomainRepositoryError::NotFound("fork_source_session"))?;
+        let cutoff_event_sequence = state
+            .get("source_cutoff_event_sequence")
+            .and_then(Value::as_i64)
+            .filter(|sequence| *sequence > 0)
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "fork_snapshot_cutoff_sequence",
+            ))?;
+        let replay_events = self.load_campaign_events(parent_campaign_id).await?;
+        state["character_state"] = serde_json::to_value(reconstruct_fork_characters(
+            &replay_events,
+            parent_campaign_id,
+            cutoff_event_sequence,
+        )?)
+        .map_err(|_| CoreDomainRepositoryError::Serialization)?;
         let snapshot = serde_json::json!({
             "schema_version": 1,
             "copy_scopes": DEFAULT_PUBLIC_COPY_SCOPES,
@@ -6154,6 +6612,8 @@ impl CoreDomainRepository {
             format_version: "fork-snapshot-1".to_owned(),
             content_hash: scenario_content_hash,
             document_json: scenario_document_json,
+            visibility_label: source.world_state.visibility_label.clone(),
+            visibility_subject: source.world_state.visibility_subject.clone(),
         }];
 
         for character in &source.character_state {
@@ -6176,6 +6636,8 @@ impl CoreDomainRepository {
                     "fork_character_sheet_shape",
                 ));
             }
+            let (visibility_label, visibility_subject) =
+                derive_fork_character_visibility(character, sheet)?;
             let character_id =
                 fork_child_id(&request.fork_id, "character", &character.character_id)?;
             let sheet_version_id =
@@ -6190,6 +6652,8 @@ impl CoreDomainRepository {
                 sheet_json: serde_json::to_string(&sheet.sheet_json)
                     .map_err(|_| CoreDomainRepositoryError::Serialization)?,
                 sheet_locked: sheet.locked,
+                visibility_label,
+                visibility_subject,
             });
         }
 
@@ -6201,6 +6665,8 @@ impl CoreDomainRepository {
             active_scene_id: child_active_scene_id,
             started_at_unix_ms: source.session_state.started_at_unix_ms,
             ended_at_unix_ms: source.session_state.ended_at_unix_ms,
+            visibility_label: source.session_state.visibility_label.clone(),
+            visibility_subject: source.session_state.visibility_subject.clone(),
         });
         for scene in &source.scene_state {
             rows.push(CampaignForkMaterializedRow::Scene {
@@ -6214,6 +6680,8 @@ impl CoreDomainRepository {
                 scene_key: scene.scene_key.clone(),
                 name: scene.name.clone(),
                 state: scene.state.clone(),
+                visibility_label: scene.visibility_label.clone(),
+                visibility_subject: scene.visibility_subject.clone(),
             });
         }
 
@@ -6392,8 +6860,9 @@ impl CoreDomainRepository {
                 )],
             ),
         ];
-        for (index, rows) in materialization.batches.iter().enumerate() {
-            let projection_targets = rows
+        for (index, batch) in materialization.batches.iter().enumerate() {
+            let projection_targets = batch
+                .rows
                 .iter()
                 .flat_map(fork_row_projection_targets)
                 .collect::<Vec<_>>();
@@ -6410,18 +6879,29 @@ impl CoreDomainRepository {
                     batch_index: u64::try_from(index + 1)
                         .map_err(|_| CoreDomainRepositoryError::Integrity("fork_batch_index"))?,
                     batch_count,
-                    rows: rows.clone(),
+                    rows: batch.rows.clone(),
                 },
                 projection_targets,
             ));
         }
-        let draft = metadata.to_multi_event_draft(
+        let mut draft = metadata.to_multi_event_draft(
             &request.child_campaign_id,
             &request.fork_id,
             "campaign_fork",
             "campaign.fork.record",
             events,
         )?;
+        for (event, batch) in draft
+            .events
+            .iter_mut()
+            .skip(2)
+            .zip(&materialization.batches)
+        {
+            event.visibility = Some(CanonicalEventVisibility {
+                label: batch.visibility_label.clone(),
+                subject: batch.visibility_subject.clone(),
+            });
+        }
         let persisted = self.canonical.commit(&draft).await?;
         let replay_events = self
             .load_campaign_events(&request.child_campaign_id)
@@ -7006,23 +7486,81 @@ impl CoreDomainRepository {
             .await?;
         self.ensure_gameplay_session(&request.campaign_id, &request.session_id)
             .await?;
-        let previous_state: Option<Value> = sqlx::query_scalar(
+        let event = CoreDomainEvent::CombatStateRecorded {
+            schema_version: CORE_EVENT_SCHEMA_VERSION,
+            combat_id: combat_id.clone(),
+            campaign_id: request.campaign_id.clone(),
+            session_id: request.session_id.clone(),
+            status: status.to_owned(),
+            round: u64::try_from(round)
+                .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_round"))?,
+            turn_index: u64::try_from(turn_index)
+                .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_turn"))?,
+            version: u64::try_from(next_version)
+                .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_version"))?,
+            state_json: request.state_json.clone(),
+        };
+        let existing = sqlx::query(
             r#"
-            SELECT state_json
+            SELECT campaign_id, session_id, state_json, version,
+                   last_event_sequence
               FROM public.combat_states
              WHERE combat_id = $1
-               AND campaign_id = $2
-               AND session_id = $3
-               AND version = $4
             "#,
         )
         .bind(&combat_id)
-        .bind(&request.campaign_id)
-        .bind(&request.session_id)
-        .bind(metadata.expected_version)
         .fetch_optional(&self.primary)
         .await
         .map_err(database_error("load_combat_state_transition"))?;
+        let previous_state = if let Some(row) = existing {
+            if row.get::<String, _>("campaign_id") != request.campaign_id
+                || row.get::<String, _>("session_id") != request.session_id
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "combat_state_identity_conflict",
+                ));
+            }
+            let event_sequence: i64 = row.get("last_event_sequence");
+            if self
+                .projection_matches_command(event_sequence, metadata)
+                .await?
+            {
+                let existing_event = self
+                    .load_idempotent_core_event(
+                        &request.campaign_id,
+                        &combat_id,
+                        metadata,
+                        "CombatStateRecorded",
+                    )
+                    .await?
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "idempotent_combat_event_missing",
+                    ))?;
+                if existing_event != event {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "idempotent_combat_request_conflict",
+                    ));
+                }
+                return self
+                    .commit_event(
+                        metadata,
+                        &request.campaign_id,
+                        &combat_id,
+                        ("combat_state", "combat.state.record"),
+                        &existing_event,
+                        vec![projection_target("public.combat_states", &combat_id)],
+                    )
+                    .await;
+            }
+            if row.get::<i64, _>("version") != metadata.expected_version {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "combat_state_projection_conflict",
+                ));
+            }
+            Some(row.get::<Value, _>("state_json"))
+        } else {
+            None
+        };
         if (metadata.expected_version == 0) != previous_state.is_none() {
             return Err(CoreDomainRepositoryError::Integrity(
                 "combat_state_projection_conflict",
@@ -7041,20 +7579,6 @@ impl CoreDomainRepository {
                 "combat_state_validation_mismatch",
             ));
         }
-        let event = CoreDomainEvent::CombatStateRecorded {
-            schema_version: CORE_EVENT_SCHEMA_VERSION,
-            combat_id: combat_id.clone(),
-            campaign_id: request.campaign_id.clone(),
-            session_id: request.session_id.clone(),
-            status: status.to_owned(),
-            round: u64::try_from(round)
-                .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_round"))?,
-            turn_index: u64::try_from(turn_index)
-                .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_turn"))?,
-            version: u64::try_from(next_version)
-                .map_err(|_| CoreDomainRepositoryError::InvalidInput("combat_version"))?,
-            state_json: request.state_json.clone(),
-        };
         let persisted = self
             .commit_event(
                 metadata,
@@ -7154,23 +7678,81 @@ impl CoreDomainRepository {
             .await?;
         self.ensure_gameplay_session(&request.campaign_id, &request.session_id)
             .await?;
-        let previous_state: Option<Value> = sqlx::query_scalar(
+        let event = CoreDomainEvent::ChaseStateRecorded {
+            schema_version: CORE_EVENT_SCHEMA_VERSION,
+            chase_id: chase_id.clone(),
+            campaign_id: request.campaign_id.clone(),
+            session_id: request.session_id.clone(),
+            status: status.to_owned(),
+            range_band: u8::try_from(range_band)
+                .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_range"))?,
+            segment: u64::try_from(segment)
+                .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_segment"))?,
+            version: u64::try_from(next_version)
+                .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_version"))?,
+            state_json: request.state_json.clone(),
+        };
+        let existing = sqlx::query(
             r#"
-            SELECT state_json
+            SELECT campaign_id, session_id, state_json, version,
+                   last_event_sequence
               FROM public.chase_states
              WHERE chase_id = $1
-               AND campaign_id = $2
-               AND session_id = $3
-               AND version = $4
             "#,
         )
         .bind(&chase_id)
-        .bind(&request.campaign_id)
-        .bind(&request.session_id)
-        .bind(metadata.expected_version)
         .fetch_optional(&self.primary)
         .await
         .map_err(database_error("load_chase_state_transition"))?;
+        let previous_state = if let Some(row) = existing {
+            if row.get::<String, _>("campaign_id") != request.campaign_id
+                || row.get::<String, _>("session_id") != request.session_id
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "chase_state_identity_conflict",
+                ));
+            }
+            let event_sequence: i64 = row.get("last_event_sequence");
+            if self
+                .projection_matches_command(event_sequence, metadata)
+                .await?
+            {
+                let existing_event = self
+                    .load_idempotent_core_event(
+                        &request.campaign_id,
+                        &chase_id,
+                        metadata,
+                        "ChaseStateRecorded",
+                    )
+                    .await?
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "idempotent_chase_event_missing",
+                    ))?;
+                if existing_event != event {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "idempotent_chase_request_conflict",
+                    ));
+                }
+                return self
+                    .commit_event(
+                        metadata,
+                        &request.campaign_id,
+                        &chase_id,
+                        ("chase_state", "chase.state.record"),
+                        &existing_event,
+                        vec![projection_target("public.chase_states", &chase_id)],
+                    )
+                    .await;
+            }
+            if row.get::<i64, _>("version") != metadata.expected_version {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "chase_state_projection_conflict",
+                ));
+            }
+            Some(row.get::<Value, _>("state_json"))
+        } else {
+            None
+        };
         if (metadata.expected_version == 0) != previous_state.is_none() {
             return Err(CoreDomainRepositoryError::Integrity(
                 "chase_state_projection_conflict",
@@ -7189,20 +7771,6 @@ impl CoreDomainRepository {
                 "chase_state_validation_mismatch",
             ));
         }
-        let event = CoreDomainEvent::ChaseStateRecorded {
-            schema_version: CORE_EVENT_SCHEMA_VERSION,
-            chase_id: chase_id.clone(),
-            campaign_id: request.campaign_id.clone(),
-            session_id: request.session_id.clone(),
-            status: status.to_owned(),
-            range_band: u8::try_from(range_band)
-                .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_range"))?,
-            segment: u64::try_from(segment)
-                .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_segment"))?,
-            version: u64::try_from(next_version)
-                .map_err(|_| CoreDomainRepositoryError::InvalidInput("chase_version"))?,
-            state_json: request.state_json.clone(),
-        };
         let persisted = self
             .commit_event(
                 metadata,
@@ -7291,25 +7859,40 @@ impl CoreDomainRepository {
         }
         self.ensure_campaign_admin(&request.campaign_id, &metadata.requesting_actor_id)
             .await?;
-        let session_is_ended: bool = sqlx::query_scalar(
+        let session = sqlx::query(
             r#"
-            SELECT EXISTS(
-                SELECT 1
-                  FROM core_domain.sessions
-                 WHERE session_id = $1
-                   AND campaign_id = $2
-                   AND state = 'ENDED'
-            )
+            SELECT session.state, scenario.document_json
+              FROM core_domain.sessions AS session
+              JOIN public.scenarios AS scenario
+                ON scenario.scenario_id = session.scenario_id
+               AND scenario.campaign_id = session.campaign_id
+             WHERE session.session_id = $1
+               AND session.campaign_id = $2
             "#,
         )
         .bind(&request.session_id)
         .bind(&request.campaign_id)
-        .fetch_one(&self.primary)
+        .fetch_optional(&self.primary)
         .await
-        .map_err(database_error("load_ending_session"))?;
-        if !session_is_ended {
+        .map_err(database_error("load_ending_session"))?
+        .ok_or(CoreDomainRepositoryError::NotFound("ending_session"))?;
+        if session.get::<String, _>("state") != "ENDED" {
             return Err(CoreDomainRepositoryError::InvalidInput(
                 "ending_session_state",
+            ));
+        }
+        let scenario_document: Value = session.get("document_json");
+        let ending_is_defined = scenario_document
+            .get("endings")
+            .and_then(Value::as_array)
+            .is_some_and(|endings| {
+                endings.iter().any(|ending| {
+                    ending.get("id").and_then(Value::as_str) == Some(request.ending_id.trim())
+                })
+            });
+        if !ending_is_defined {
+            return Err(CoreDomainRepositoryError::InvalidInput(
+                "ending_id_not_defined",
             ));
         }
         let event = CoreDomainEvent::EndingRecorded {
@@ -7334,6 +7917,25 @@ impl CoreDomainRepository {
                 )],
             )
             .await?;
+        if let Some(existing_sequence) = sqlx::query_scalar::<_, i64>(
+            "SELECT last_event_sequence FROM public.ending_events WHERE ending_event_id = $1",
+        )
+        .bind(&request.ending_event_id)
+        .fetch_optional(&self.primary)
+        .await
+        .map_err(database_error("load_existing_ending"))?
+        {
+            if existing_sequence == persisted.last_event_sequence
+                && self
+                    .projection_matches_command(existing_sequence, metadata)
+                    .await?
+            {
+                return Ok(persisted);
+            }
+            return Err(CoreDomainRepositoryError::Integrity(
+                "ending_identity_conflict",
+            ));
+        }
         let mut transaction = self
             .begin_projection_transaction(&metadata.commit_id, "begin_ending")
             .await?;
@@ -7393,6 +7995,93 @@ impl CoreDomainRepository {
         }
         self.ensure_campaign_admin(&request.campaign_id, &metadata.requesting_actor_id)
             .await?;
+        let improvement_check = request.growth_rolls.improvement_check();
+        let improvement_check_roll = improvement_check.value();
+        let increase = request.growth_rolls.increase();
+        let increase_roll = increase.map(|roll| roll.value());
+        let server_roll_id = improvement_check.roll_id().to_owned();
+        let increase_roll_id = increase.map(|roll| roll.roll_id().to_owned());
+        if increase_roll_id.as_deref() == Some(server_roll_id.as_str()) {
+            return Err(CoreDomainRepositoryError::InvalidInput("growth_rolls"));
+        }
+        if let Some(existing_sequence) = sqlx::query_scalar::<_, i64>(
+            "SELECT last_event_sequence FROM public.growth_events WHERE growth_event_id = $1",
+        )
+        .bind(&request.growth_event_id)
+        .fetch_optional(&self.primary)
+        .await
+        .map_err(database_error("load_existing_growth"))?
+        {
+            if !self
+                .projection_matches_command(existing_sequence, metadata)
+                .await?
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "growth_event_identity_conflict",
+                ));
+            }
+            let existing_event = self
+                .load_idempotent_core_event(
+                    &request.campaign_id,
+                    &request.growth_event_id,
+                    metadata,
+                    "CharacterGrowthApplied",
+                )
+                .await?
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "idempotent_growth_event_missing",
+                ))?;
+            if !matches!(
+                &existing_event,
+                CoreDomainEvent::CharacterGrowthApplied {
+                    growth_event_id,
+                    campaign_id,
+                    session_id,
+                    ending_event_id,
+                    character_id,
+                    source_sheet_version_id,
+                    new_sheet_version_id,
+                    skill_name,
+                    improvement_check_roll: event_check_roll,
+                    increase_roll: event_increase_roll,
+                    server_roll_id: event_server_roll_id,
+                    increase_roll_id: event_increase_roll_id,
+                    ..
+                } if growth_event_id == &request.growth_event_id
+                    && campaign_id == &request.campaign_id
+                    && session_id == &request.session_id
+                    && ending_event_id == &request.ending_event_id
+                    && character_id == &request.character_id
+                    && source_sheet_version_id == &request.source_sheet_version_id
+                    && new_sheet_version_id == &request.new_sheet_version_id
+                    && skill_name == request.skill_name.trim()
+                    && event_check_roll == &improvement_check_roll
+                    && event_increase_roll == &increase_roll
+                    && event_server_roll_id == &server_roll_id
+                    && event_increase_roll_id == &increase_roll_id
+            ) {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "idempotent_growth_request_conflict",
+                ));
+            }
+            return self
+                .commit_event(
+                    metadata,
+                    &request.campaign_id,
+                    &request.growth_event_id,
+                    ("growth", "growth.record"),
+                    &existing_event,
+                    vec![
+                        projection_target("public.growth_events", &request.growth_event_id),
+                        projection_target(
+                            "public.character_sheet_versions",
+                            &request.new_sheet_version_id,
+                        ),
+                        projection_target("public.characters", &request.character_id),
+                    ],
+                )
+                .await;
+        }
         let row = sqlx::query(
             r#"
             SELECT character.current_sheet_version,
@@ -7440,23 +8129,14 @@ impl CoreDomainRepository {
             .ok_or(CoreDomainRepositoryError::Integrity(
                 "growth_skill_source_invalid",
             ))?;
-        let improvement_check = request.growth_rolls.improvement_check();
-        let improvement_check_roll = improvement_check.value();
         let qualifies = skill_before < 99
             && (improvement_check_roll > skill_before || improvement_check_roll >= 96);
-        let increase = request.growth_rolls.increase();
         if qualifies != increase.is_some() {
             return Err(CoreDomainRepositoryError::InvalidInput("growth_rolls"));
         }
-        let increase_roll = increase.map(|roll| roll.value());
         let skill_after = increase_roll
             .map(|roll| skill_before.saturating_add(roll).min(99))
             .unwrap_or(skill_before);
-        let server_roll_id = improvement_check.roll_id().to_owned();
-        let increase_roll_id = increase.map(|roll| roll.roll_id().to_owned());
-        if increase_roll_id.as_deref() == Some(server_roll_id.as_str()) {
-            return Err(CoreDomainRepositoryError::InvalidInput("growth_rolls"));
-        }
         sheet_json
             .get_mut("skills")
             .and_then(Value::as_object_mut)

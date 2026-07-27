@@ -93,6 +93,7 @@ pub fn draft(
             .map(|(index, event_type)| CanonicalEventDraft {
                 event_type: (*event_type).to_owned(),
                 payload_json: format!(r#"{{"commit":"{commit_id}","event_index":{index}}}"#),
+                visibility: None,
                 projection_targets: Vec::new(),
             })
             .collect(),

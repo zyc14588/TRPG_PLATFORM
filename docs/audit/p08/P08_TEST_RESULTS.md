@@ -21,6 +21,8 @@ P08 实现前，三条强制命令均真实返回 Cargo exit `101`，原因是�
 同 ID 异源 Combat、self-fork、坏/不匹配 snapshot hash、私密 Fork scope、
 默认 Fork 排除 `keeper_only` 角色及其当前角色卡、
 复议终结后再追加、空成长技能/重复成长结果和未结束会话提前结局。
+新增负向/恢复覆盖还包括场景未声明 `ending_id`、Combat/Chase/Ending/Growth exact
+retry、来源 cutoff 后第二 Session 的 Growth，以及 Fork 子实体逐行 Visibility。
 
 ## 真实数据库、重放与迁移
 
@@ -43,9 +45,14 @@ P08 实现前，三条强制命令均真实返回 Cargo exit `101`，原因是�
 - Fork 来源 hash 精确匹配，子 materialization hash 单独封存子 ID/实体；私密 scope
   不存在，`keeper_only` 角色与 sheet sentinel 不进入快照；子实体删除后从正史重建为
   相同 JSON，Event Store 行数不变。
-- Ending 只绑定 `ENDED` session。
+- Fork 角色由 source cutoff 前的 verified events 重建；第二 Session 更新当前角色卡后，
+  旧 Session fork 仍保留 cutoff sheet，且 child character/sheet 仍绑定原 owner。
+- Fork materialization 分别产生 keeper、party、private 三类事件 envelope；projection
+  guard 继续验证 Visibility 完全一致。
+- Ending 只绑定 `ENDED` session，且 ID 必须来自该 Session 的 Scenario `endings`。
 - Growth 从当前 sheet 与 opaque RNG evidence 重新计算；percentile 与可选 d10 ID、
   值和 presence 一致，新 locked sheet 成为 current，旧 sheet 保留。
+- Combat、Chase、Ending、Growth exact retry 均返回原 receipt，不追加事件或重复投影。
 - 全部 Tutorial 正史和 Outbox payload 使用 integrity v3 protected payload；
   formal commits 均 committed，primary HMAC 链和 Witness binding 完整。
 
@@ -76,9 +83,14 @@ package regression PASS；P08 对应的 `conclusion_growth_state_machine` 已单
 
 | 门禁 | 结果 |
 | --- | --- |
-| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；23 targets、13 rules、0 finding、0 error、0 skipped |
-| CodeRabbit 0.7.0 | `NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
+| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；29 targets、13 rules、0 finding、0 error、0 skipped |
+| CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
+| GitHub PR #9 自动审查 | 初次提出 4 个 actionable issue；均已修复，修复提交复审 pending |
 | `cargo audit 0.22.2 --no-fetch --json` | exit `1`；381 dependencies、3 个基线 advisory |
+
+Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
+改用锁定版本的 `tempfile::Builder::tempdir()`，没有 suppress 规则。最终 29 目标复扫
+最终为 0 finding。
 
 RustSec 报告：
 

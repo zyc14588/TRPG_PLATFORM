@@ -9,10 +9,10 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
 };
 use trpg_data_eventing::persistence_postgresql::{
     AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainRepository,
-    CreateCampaignRequest, CreateCharacterRequest, ImportScenarioRequest,
-    InvestigationExecutionRecord, IssueInviteRequest, PlayerActionDiceRecord,
-    PlayerActionIntentRecord, RecordCampaignForkRequest, RecordChaseStateRequest,
-    RecordCombatStateRequest, RecordEndingRequest, RecordGrowthRequest,
+    CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest,
+    ImportScenarioRequest, InvestigationExecutionRecord, IssueInviteRequest,
+    PlayerActionDiceRecord, PlayerActionIntentRecord, RecordCampaignForkRequest,
+    RecordChaseStateRequest, RecordCombatStateRequest, RecordEndingRequest, RecordGrowthRequest,
     RequestReconsiderationRequest, ResolveReconsiderationRequest, ReviewReconsiderationRequest,
     SanityExecutionRecord, StartSessionRequest, SubmitPlayerActionRequest, SwitchSceneRequest,
 };
@@ -712,28 +712,34 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         .expect("persist combat damage transition");
     combat.end().unwrap();
     assert_eq!(combat.status(), CombatStatus::Ended);
-    repository
-        .record_combat_state(
-            &metadata(
-                AUTHORITY_ID,
-                KEEPER_ID,
-                "human_keeper",
-                "combat_p08_tutorial",
-                "combat_state",
-                2,
-                "p08_combat_end",
-                "party_visible",
-                "not_applicable",
-                "rules_engine_decision",
-            ),
-            &RecordCombatStateRequest {
-                campaign_id: CAMPAIGN_ID.to_owned(),
-                session_id: SESSION_ID.to_owned(),
-                state_json: combat.persistence_json().unwrap(),
-            },
-        )
+    let combat_end_metadata = metadata(
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "combat_p08_tutorial",
+        "combat_state",
+        2,
+        "p08_combat_end",
+        "party_visible",
+        "not_applicable",
+        "rules_engine_decision",
+    );
+    let combat_end_request = RecordCombatStateRequest {
+        campaign_id: CAMPAIGN_ID.to_owned(),
+        session_id: SESSION_ID.to_owned(),
+        state_json: combat.persistence_json().unwrap(),
+    };
+    let combat_end_receipt = repository
+        .record_combat_state(&combat_end_metadata, &combat_end_request)
         .await
         .expect("persist terminal combat state");
+    assert_eq!(
+        repository
+            .record_combat_state(&combat_end_metadata, &combat_end_request)
+            .await
+            .expect("return the persisted combat receipt on exact retry"),
+        combat_end_receipt
+    );
 
     let mut chase = ChaseState::start(
         "chase_p08_tutorial",
@@ -768,28 +774,34 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         .expect("persist chase start");
     chase.advance(false, true, None).unwrap();
     assert_eq!(chase.status(), ChaseStatus::Caught);
-    repository
-        .record_chase_state(
-            &metadata(
-                AUTHORITY_ID,
-                KEEPER_ID,
-                "human_keeper",
-                "chase_p08_tutorial",
-                "chase_state",
-                1,
-                "p08_chase_caught",
-                "party_visible",
-                "not_applicable",
-                "rules_engine_decision",
-            ),
-            &RecordChaseStateRequest {
-                campaign_id: CAMPAIGN_ID.to_owned(),
-                session_id: SESSION_ID.to_owned(),
-                state_json: chase.persistence_json().unwrap(),
-            },
-        )
+    let chase_end_metadata = metadata(
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "chase_p08_tutorial",
+        "chase_state",
+        1,
+        "p08_chase_caught",
+        "party_visible",
+        "not_applicable",
+        "rules_engine_decision",
+    );
+    let chase_end_request = RecordChaseStateRequest {
+        campaign_id: CAMPAIGN_ID.to_owned(),
+        session_id: SESSION_ID.to_owned(),
+        state_json: chase.persistence_json().unwrap(),
+    };
+    let chase_end_receipt = repository
+        .record_chase_state(&chase_end_metadata, &chase_end_request)
         .await
         .expect("persist terminal chase state");
+    assert_eq!(
+        repository
+            .record_chase_state(&chase_end_metadata, &chase_end_request)
+            .await
+            .expect("return the persisted chase receipt on exact retry"),
+        chase_end_receipt
+    );
     assert!(
         chase.advance(true, false, None).is_err(),
         "a terminal chase cannot resume under the same ID"
@@ -816,61 +828,103 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         )
         .await
         .expect("end the Tutorial Session");
-    repository
+    let invalid_ending = repository
         .record_ending(
             &metadata(
                 AUTHORITY_ID,
                 KEEPER_ID,
                 "human_keeper",
-                "ending_event_p08_tutorial",
+                "ending_event_p08_invalid",
                 "ending",
                 0,
-                "p08_ending",
+                "p08_ending_invalid",
                 "party_visible",
                 "not_applicable",
                 "human_keeper_statement",
             ),
             &RecordEndingRequest {
-                ending_event_id: "ending_event_p08_tutorial".to_owned(),
+                ending_event_id: "ending_event_p08_invalid".to_owned(),
                 campaign_id: CAMPAIGN_ID.to_owned(),
                 session_id: SESSION_ID.to_owned(),
-                ending_id: "ending_expose_marta".to_owned(),
-                summary: "The investigators expose Marta and preserve the archive.".to_owned(),
+                ending_id: "ending_not_in_scenario".to_owned(),
+                summary: "This ending is not defined by the scenario.".to_owned(),
                 ended_at_unix_ms: NOW_MS + 9_000,
             },
         )
+        .await;
+    assert!(matches!(
+        invalid_ending,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "ending_id_not_defined"
+        ))
+    ));
+    let ending_metadata = metadata(
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "ending_event_p08_tutorial",
+        "ending",
+        0,
+        "p08_ending",
+        "party_visible",
+        "not_applicable",
+        "human_keeper_statement",
+    );
+    let ending_request = RecordEndingRequest {
+        ending_event_id: "ending_event_p08_tutorial".to_owned(),
+        campaign_id: CAMPAIGN_ID.to_owned(),
+        session_id: SESSION_ID.to_owned(),
+        ending_id: "ending_expose_marta".to_owned(),
+        summary: "The investigators expose Marta and preserve the archive.".to_owned(),
+        ended_at_unix_ms: NOW_MS + 9_000,
+    };
+    let ending_receipt = repository
+        .record_ending(&ending_metadata, &ending_request)
         .await
         .expect("record an allowed Tutorial ending");
+    assert_eq!(
+        repository
+            .record_ending(&ending_metadata, &ending_request)
+            .await
+            .expect("return the persisted ending receipt on exact retry"),
+        ending_receipt
+    );
     let growth_roll = server_roll_skill_growth(70).expect("server-owned COC7 growth rolls");
     let growth_after = growth_roll.outcome().skill_after;
-    repository
-        .record_growth(
-            &metadata(
-                AUTHORITY_ID,
-                KEEPER_ID,
-                "human_keeper",
-                "growth_event_p08_tutorial",
-                "growth",
-                0,
-                "p08_growth",
-                "private_to_player",
-                PLAYER_ID,
-                "rules_engine_decision",
-            ),
-            &RecordGrowthRequest {
-                growth_event_id: "growth_event_p08_tutorial".to_owned(),
-                campaign_id: CAMPAIGN_ID.to_owned(),
-                session_id: SESSION_ID.to_owned(),
-                ending_event_id: "ending_event_p08_tutorial".to_owned(),
-                character_id: CHARACTER_ID.to_owned(),
-                source_sheet_version_id: "sheet_p08_evelyn_v2".to_owned(),
-                new_sheet_version_id: "sheet_p08_evelyn_v3".to_owned(),
-                skill_name: "Library Use".to_owned(),
-                growth_rolls: growth_roll.evidence().clone(),
-            },
-        )
+    let growth_metadata = metadata(
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "growth_event_p08_tutorial",
+        "growth",
+        0,
+        "p08_growth",
+        "private_to_player",
+        PLAYER_ID,
+        "rules_engine_decision",
+    );
+    let growth_request = RecordGrowthRequest {
+        growth_event_id: "growth_event_p08_tutorial".to_owned(),
+        campaign_id: CAMPAIGN_ID.to_owned(),
+        session_id: SESSION_ID.to_owned(),
+        ending_event_id: "ending_event_p08_tutorial".to_owned(),
+        character_id: CHARACTER_ID.to_owned(),
+        source_sheet_version_id: "sheet_p08_evelyn_v2".to_owned(),
+        new_sheet_version_id: "sheet_p08_evelyn_v3".to_owned(),
+        skill_name: "Library Use".to_owned(),
+        growth_rolls: growth_roll.evidence().clone(),
+    };
+    let growth_receipt = repository
+        .record_growth(&growth_metadata, &growth_request)
         .await
         .expect("apply server-generated growth to a new locked Sheet version");
+    assert_eq!(
+        repository
+            .record_growth(&growth_metadata, &growth_request)
+            .await
+            .expect("return the persisted growth receipt on exact retry"),
+        growth_receipt
+    );
 
     repository
         .request_reconsideration(
@@ -948,6 +1002,111 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         .await
         .expect("append the correction while retaining the original event");
 
+    repository
+        .start_session(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "session_p08_later",
+                "session",
+                0,
+                "p08_later_session_start",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &StartSessionRequest {
+                session_id: "session_p08_later".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                room_id: "room_p08_tutorial".to_owned(),
+                scenario_id: "scenario_p08_tutorial".to_owned(),
+                scene_id: "scene_p08_later".to_owned(),
+                scene_key: "scene_archive_return".to_owned(),
+                scene_name: "重返档案馆".to_owned(),
+                started_at_unix_ms: NOW_MS + 10_000,
+            },
+        )
+        .await
+        .expect("start a later session that must not alter the source cutoff");
+    repository
+        .change_session_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "session_p08_later",
+                "session",
+                1,
+                "p08_later_session_end",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            CAMPAIGN_ID,
+            "session_p08_later",
+            SessionState::Ended,
+            NOW_MS + 11_000,
+        )
+        .await
+        .expect("end the later session");
+    repository
+        .record_ending(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "ending_event_p08_later",
+                "ending",
+                0,
+                "p08_later_ending",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &RecordEndingRequest {
+                ending_event_id: "ending_event_p08_later".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p08_later".to_owned(),
+                ending_id: "ending_expose_marta".to_owned(),
+                summary: "A later session confirms the archive findings.".to_owned(),
+                ended_at_unix_ms: NOW_MS + 12_000,
+            },
+        )
+        .await
+        .expect("record the later scenario-defined ending");
+    let later_growth_roll =
+        server_roll_skill_growth(growth_after).expect("server-owned later growth rolls");
+    let later_growth_after = later_growth_roll.outcome().skill_after;
+    repository
+        .record_growth(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "growth_event_p08_later",
+                "growth",
+                0,
+                "p08_later_growth",
+                "private_to_player",
+                PLAYER_ID,
+                "rules_engine_decision",
+            ),
+            &RecordGrowthRequest {
+                growth_event_id: "growth_event_p08_later".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p08_later".to_owned(),
+                ending_event_id: "ending_event_p08_later".to_owned(),
+                character_id: CHARACTER_ID.to_owned(),
+                source_sheet_version_id: "sheet_p08_evelyn_v3".to_owned(),
+                new_sheet_version_id: "sheet_p08_evelyn_v4".to_owned(),
+                skill_name: "Library Use".to_owned(),
+                growth_rolls: later_growth_roll.evidence().clone(),
+            },
+        )
+        .await
+        .expect("apply a later growth that is outside the source-session cutoff");
+
     create_campaign(
         &repository,
         CHILD_CAMPAIGN_ID,
@@ -969,6 +1128,24 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
     assert!(!snapshot.canonical_snapshot_json.contains("keeper_note"));
     assert!(!snapshot.canonical_snapshot_json.contains("private_message"));
     assert!(!snapshot.canonical_snapshot_json.contains("ai_internal"));
+    let snapshot_json: serde_json::Value =
+        serde_json::from_str(&snapshot.canonical_snapshot_json).unwrap();
+    let fork_characters = snapshot_json
+        .pointer("/state/character_state")
+        .and_then(serde_json::Value::as_array)
+        .expect("fork snapshot characters");
+    assert_eq!(
+        fork_characters.len(),
+        1,
+        "an investigator updated after the cutoff must be replayed, not omitted"
+    );
+    assert_eq!(
+        fork_characters[0]
+            .pointer("/current_sheet/sheet_json/skills/Library Use")
+            .and_then(serde_json::Value::as_u64),
+        Some(u64::from(growth_after)),
+        "the source-session fork must retain the sheet as of its canonical cutoff"
+    );
     repository
         .record_campaign_fork(
             &metadata(
@@ -1092,6 +1269,95 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         child_counts,
         (1, 1, 1, 2, 1),
         "fork must materialize real child-owned scenario, character, session, scenes and manifest"
+    );
+    let child_visibility = sqlx::query(
+        r#"
+        SELECT
+          (SELECT visibility_label::TEXT FROM public.scenarios
+            WHERE campaign_id = $1) AS scenario_visibility,
+          (SELECT visibility_label::TEXT FROM public.characters
+            WHERE campaign_id = $1) AS character_visibility,
+          (SELECT visibility_subject FROM public.characters
+            WHERE campaign_id = $1) AS character_subject,
+          (SELECT visibility_label::TEXT
+             FROM public.character_sheet_versions
+            WHERE campaign_id = $1) AS sheet_visibility,
+          (SELECT visibility_subject
+             FROM public.character_sheet_versions
+            WHERE campaign_id = $1) AS sheet_subject,
+          (SELECT visibility_label::TEXT FROM core_domain.sessions
+            WHERE campaign_id = $1) AS session_visibility,
+          (SELECT sheet_json -> 'skills' ->> 'Library Use'
+             FROM public.character_sheet_versions
+            WHERE campaign_id = $1) AS fork_growth_skill,
+          (SELECT sheet_json -> 'skills' ->> 'Library Use'
+             FROM public.character_sheet_versions
+            WHERE sheet_version_id = 'sheet_p08_evelyn_v4')
+              AS current_parent_growth_skill
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .expect("load fork visibility and cutoff state");
+    assert_eq!(
+        child_visibility.get::<String, _>("scenario_visibility"),
+        "keeper_only"
+    );
+    assert_eq!(
+        child_visibility.get::<String, _>("character_visibility"),
+        "private_to_player"
+    );
+    assert_eq!(
+        child_visibility.get::<String, _>("character_subject"),
+        PLAYER_ID
+    );
+    assert_eq!(
+        child_visibility.get::<String, _>("sheet_visibility"),
+        "private_to_player"
+    );
+    assert_eq!(
+        child_visibility.get::<String, _>("sheet_subject"),
+        PLAYER_ID
+    );
+    assert_eq!(
+        child_visibility.get::<String, _>("session_visibility"),
+        "party_visible"
+    );
+    assert_eq!(
+        child_visibility
+            .get::<String, _>("fork_growth_skill")
+            .parse::<u8>()
+            .unwrap(),
+        growth_after
+    );
+    assert_eq!(
+        child_visibility
+            .get::<String, _>("current_parent_growth_skill")
+            .parse::<u8>()
+            .unwrap(),
+        later_growth_after
+    );
+    let materialized_visibility = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT DISTINCT visibility_label
+          FROM public.event_store
+         WHERE campaign_id = $1
+           AND event_type = 'CampaignForkMaterialized'
+         ORDER BY visibility_label
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_all(&primary)
+    .await
+    .expect("load per-event fork visibility");
+    assert_eq!(
+        materialized_visibility,
+        vec![
+            "keeper_only".to_owned(),
+            "party_visible".to_owned(),
+            "private_to_player".to_owned()
+        ]
     );
 
     let actual_event_types = sqlx::query_scalar::<_, String>(

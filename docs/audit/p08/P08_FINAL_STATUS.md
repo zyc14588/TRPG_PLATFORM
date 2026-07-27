@@ -22,7 +22,10 @@ DEPENDENCY_DIRECTION_POLICY = PASS_NO_EXCEPTION
 THIRD_PARTY_SEMGREP = PASS_0_FINDINGS
 CODERABBIT_EXTERNAL_REVIEW = NOT_RUN_NOT_AUTHENTICATED
 DEPENDENCY_ADVISORY_SCAN = FAIL_3_DISCLOSED_BASELINE_ADVISORIES
-HOSTED_CI = NOT_RUN
+GITHUB_PR = 9
+INITIAL_HOSTED_CI = PASS_5_OF_5
+GITHUB_AUTOMATED_REVIEW = 4_ACTIONABLE_FIXED_RERUN_PENDING
+REPAIR_HOSTED_CI = PENDING
 P09_IMPLEMENTATION = NOT_STARTED
 ```
 
@@ -39,16 +42,26 @@ HMAC 与 Witness 校验的正史事件重建。
 | 多角色战斗 | DEX 先攻、跨轮次推进、近战/射击、闪避、伤害、护甲、终态以及失败不变更聚合均有测试 | PASS |
 | Chase 终态 | `Escaped`/`Caught` 后普通推进失败；新追逐必须使用新 ID | PASS |
 | 复议追加链 | Request → Review → Upheld/Corrected 均为正式事件；精确重试幂等，原事件不删除 | PASS |
-| Fork 范围与 Hash | 来源快照 hash 被重新计算并精确匹配请求；子 Campaign 保存相同的 `source_snapshot_hash`，另以不同的 `child_snapshot_hash` 封存子 ID 与实体；私密 scope 以及 `keeper_only` 角色/角色卡均被排除 | PASS |
+| Fork 范围与 Hash | 来源快照 hash 被重新计算并精确匹配请求；角色状态由截止序列前的 verified canonical events 重建；子 Campaign 保存相同的 `source_snapshot_hash`，另以不同的 `child_snapshot_hash` 封存子 ID 与实体；私密 scope 以及 `keeper_only` 角色/角色卡均被排除 | PASS |
 | Fork 实体化与重放 | 子 Campaign 中实际创建 scenario、character/sheet、ended session、scenes 和 manifest；删除这些投影后可从子 Campaign 正史逐字节重建 | PASS |
-| 结局与成长 | 活跃会话不能结局；成长从共享内核不可构造的 OS CSPRNG 证据计算，percentile 与可选 d10 各有唯一 ID，并生成新锁定角色卡版本 | PASS |
+| 可见性保持 | Fork materialization 按 keeper、party 和 owner-bound private 行分批；逐事件 Visibility 进入 request hash、HMAC 和 Outbox，投影触发器继续要求事件/行完全一致 | PASS |
+| 幂等重试 | Combat、Chase、Ending、Growth 在 projection 已成功而响应丢失时返回原 persisted commit；冲突身份或不同请求继续失败 | PASS |
+| 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`；成长从共享内核不可构造的 OS CSPRNG 证据计算，percentile 与可选 d10 各有唯一 ID，并生成新锁定角色卡版本 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork | PASS |
 | Schema/最小权限 | 两个 forward migration、projection guards、可延迟外键、成长算术/证据约束及角色权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 本机扫描 23 个 P08 Rust/SQL/CI 目标，13 条适用规则，0 finding、0 error、0 skipped | PASS |
+| 第三方检查 | Semgrep 1.171.0 本机复扫 29 个 P08 Rust/SQL/CI 目标，13 条适用规则，0 finding、0 error、0 skipped；PR #9 初次远端自动审查提出 4 项真实问题，均已修复并等待复审 | PASS_WITH_REMOTE_RERUN_PENDING |
 
 ## 反伪造修复
 
 - 原先只验证一行 snapshot 的 Fork 已替换为子 Campaign 所有的正式事件批次、实际实体和可重放 manifest。
+- Fork 角色快照不再按当前 projection 的 `last_event_sequence` 过滤；它从经过完整
+  HMAC/Witness 校验的 Event Store 回放到 source cutoff，因此角色在后续 Session
+  发生 SAN/Growth 后不会从旧快照消失，也不会把新状态倒灌进旧分支。
+- Fork 子实体不再全部继承 keeper-only command envelope；scenario、session/scene、
+  character/sheet 使用来源可见性或更严格的安全派生标签，owner-bound 私有行仍只对
+  原 owner 可见。
+- Combat、Chase、Ending、Growth 的 exact retry 不再因 projection 已存在而误报
+  conflict；场景文档外的任意 `ending_id` 在 Event Store append 前被拒绝。
 - 默认 Fork 的角色查询同时约束角色行和当前角色卡的 Visibility；真实数据库负例证明
   `keeper_only` 角色名称与角色卡 sentinel 均不会进入快照。
 - 原先可由调用方提交的 Combat/Chase JSON 已替换为严格 shape 与前驱转换校验；同 ID 的异源聚合会在 Event Store append 前失败。
@@ -79,5 +92,6 @@ down migration。
 `cargo audit --no-fetch` 仍以 exit `1` 报告基线已存在的
 `RUSTSEC-2026-0194`、`RUSTSEC-2026-0195`（quick-xml 0.38.4）和
 `RUSTSEC-2023-0071`（rsa 0.9.7）。P08 只增加已有版本的依赖边，不改变这两个包的
-锁定版本，因此没有把该扫描伪报为通过。CodeRabbit 未认证，Hosted CI 未运行；
-实际第三方代码检查由 Semgrep 完成。P08 到此停止，未执行 P09。
+锁定版本，因此没有把该扫描伪报为通过。CodeRabbit CLI 的浏览器回调认证未完成，
+未运行或冒充 CodeRabbit 结果。PR #9 的原 P08 提交已通过 5/5 Hosted CI；本次修复
+提交的 Hosted CI 与远端自动复审仍须在合并前通过。P08 到此停止，未执行 P09。

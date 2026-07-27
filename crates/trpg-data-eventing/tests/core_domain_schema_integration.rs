@@ -1828,6 +1828,8 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             "CampaignForkRecorded",
             "CampaignForkMaterializationRecorded",
             "CampaignForkMaterialized",
+            "CampaignForkMaterialized",
+            "CampaignForkMaterialized",
         ]
     );
     let child_projection_before: serde_json::Value = sqlx::query_scalar(
@@ -1893,7 +1895,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .rebuild_p08_projections(CHILD_CAMPAIGN_ID)
         .await
         .expect("rebuild the entire child fork state solely from canonical P08 events");
-    assert_eq!(rebuilt_child.replayed_events, 3);
+    assert_eq!(rebuilt_child.replayed_events, 5);
     assert_eq!(rebuilt_child.campaign_forks, 1);
     assert_eq!(rebuilt_child.fork_materializations, 1);
     let child_projection_after: serde_json::Value = sqlx::query_scalar(

@@ -587,6 +587,8 @@ pub enum CampaignForkMaterializedRow {
         format_version: String,
         content_hash: String,
         document_json: String,
+        visibility_label: String,
+        visibility_subject: String,
     },
     Character {
         character_id: String,
@@ -597,6 +599,8 @@ pub enum CampaignForkMaterializedRow {
         sheet_version_id: String,
         sheet_json: String,
         sheet_locked: bool,
+        visibility_label: String,
+        visibility_subject: String,
     },
     Session {
         session_id: String,
@@ -606,6 +610,8 @@ pub enum CampaignForkMaterializedRow {
         active_scene_id: Option<String>,
         started_at_unix_ms: u64,
         ended_at_unix_ms: u64,
+        visibility_label: String,
+        visibility_subject: String,
     },
     Scene {
         scene_id: String,
@@ -615,6 +621,8 @@ pub enum CampaignForkMaterializedRow {
         scene_key: String,
         name: String,
         state: String,
+        visibility_label: String,
+        visibility_subject: String,
     },
 }
 
