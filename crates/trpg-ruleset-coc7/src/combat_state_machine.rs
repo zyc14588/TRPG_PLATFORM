@@ -105,6 +105,11 @@ impl PercentileRollEvidence {
     }
 
     fn validate(&self, expected_target: u8) -> KernelResult<()> {
+        if self.selected_tens_digit > 9 || self.ones_digit > 9 {
+            return Err(TrpgError::InvalidConfiguration(
+                "combat_percentile_evidence",
+            ));
+        }
         let reconstructed = if self.selected_tens_digit == 0 && self.ones_digit == 0 {
             100
         } else {
@@ -112,8 +117,6 @@ impl PercentileRollEvidence {
         };
         if !valid_combat_id(&self.roll_id)
             || self.target != expected_target
-            || self.selected_tens_digit > 9
-            || self.ones_digit > 9
             || reconstructed != self.roll
             || success_level(self.roll, self.target)? != self.success_level
         {

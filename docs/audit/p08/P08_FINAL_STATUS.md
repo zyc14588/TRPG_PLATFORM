@@ -50,7 +50,8 @@ GITHUB_TWENTY_THIRD_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_FO
 GITHUB_TWENTY_FOURTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_FIFTH_REVIEW
 GITHUB_TWENTY_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_SIXTH_REVIEW
 GITHUB_TWENTY_SIXTH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_SEVENTH_REVIEW
-GITHUB_TWENTY_SEVENTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_LOCALLY
+GITHUB_TWENTY_SEVENTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_EIGHTH_REVIEW
+GITHUB_TWENTY_EIGHTH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_LOCALLY
 GITHUB_LATEST_AUTOMATED_REVIEW = RERUN_PENDING
 THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -70,7 +71,8 @@ TWENTY_THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
 TWENTY_FOURTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
 TWENTY_FIFTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
 TWENTY_SIXTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
-TWENTY_SEVENTH_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
+TWENTY_SEVENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
+TWENTY_EIGHTH_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 P09_IMPLEMENTATION = NOT_STARTED
 ```
 
@@ -99,7 +101,7 @@ HMAC 与 Witness 校验的正史事件重建。
 | 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`，并在事件创建前统一规范化后写入 canonical event 与 projection；Session ending reservation 通过 HMAC-bound target 和 canonical-only `SECURITY DEFINER` 函数与 Event Store/formal commit 在同一事务提交，Ending projection 失败也不会释放该 Session 的唯一结局所有权，exact retry 只恢复投影；Ending summary 同样规范化并与 replay 投影一致；没有 `growth_awards` 的合法结局可用空 settlement 完成，有奖励时成长技能必须存在于该 Ending 的 `growth_awards`，且 fork 继承的按角色/技能消费标记会在 append 前阻止重复领取；成长证据只能由一次性完整 OS CSPRNG 尝试生成，不能把独立 percentile/d10 拼装为挑选结果；新 Sheet、Character 与正式 Growth event 必须精确保持来源 Character/Sheet 的 Visibility envelope，任何扩大在 append 前失败 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork；另证明未终止 Combat/Chase 不能分叉、来源已消费成长不能在 child 重领而另一奖励仍可结算 | PASS |
 | Schema/最小权限 | 九个 P08 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth/rebuild repair、空 canonical P08 历史清理、可延迟外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、fork-empty trigger/function 完整 catalog 指纹、Combat/Chase/Growth 全局 gameplay roll 与 Session ending 的 canonical 事务内 reservation、v2 Fork/Reconsideration 显式非空 shape 与行为探针、角色与函数执行权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的提交 `6b8e39b` 经第二十七轮精确 SHA review `4789952622` 确认第二十六轮问题未重复，并指出初始 Combat 未绑定持久化 participant/profile、Ending 唯一性仍依赖可失败的投影事务、空 canonical P08 replay 跳过 ghost 清理；三项已完成本地根因修复和真实数据库回归，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
+| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的提交 `7e6192d` 经第二十八轮精确 SHA review `4790238194` 确认第二十七轮三项未重复，并指出反序列化 percentile 十位数在范围检查前以 `u8` 重建可能溢出 panic；已在 Combat/Chase 独立重放、ruleset 与持久层同型入口先验证 decimal digit，并以 26 十位数负例证明 fail closed，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
 
 ## 反伪造修复
 
@@ -376,6 +378,13 @@ ghost。故障注入证明 Ending projection 失败后第二个结局仍在 appe
 exact retry 恢复原投影；无 P08 正史的 Campaign ghost 可由真实 API role 清除；
 伪造 DEX/HP/armor/skills 与跨遭遇治疗均在 Event Store 前拒绝。迁移 `1/1`、
 data-eventing lib `27/27`、默认栈 core-domain `1/1`、Tutorial `2/2`、schema
-assertion、workspace all-target/all-feature check 与严格 Clippy 已通过；新提交、
-Hosted CI 与精确 SHA 复审仍须在合并前通过。
+assertion、workspace all-target/all-feature check 与严格 Clippy 已通过。修复提交
+`7e6192d070e95dd130d5a72cb87e91f54aa62148` 在第二十八轮意见到达时 Hosted CI
+已明确 3/5 通过、2 项仍运行；精确 SHA review `4790238194` 确认第二十七轮三项未
+重复，并指出反序列化 percentile evidence 的 `selected_tens_digit` 可在 `> 9`
+校验前以 `u8` 乘 10 而溢出 panic，Chase 路径同样受影响。当前最小修复在 Combat/
+Chase 独立重放、ruleset 与持久层所有同型入口先拒绝超范围 decimal digit，再执行
+重建；`selected_tens_digit=26` 的 Combat/Chase 负例均返回
+`InvalidTransition` 而不 panic。domain 全量、Combat `9/9`、Chase `3/3` 已通过；
+新提交、Hosted CI 与精确 SHA 复审仍须在合并前通过。
 P08 到此停止，未执行 P09。

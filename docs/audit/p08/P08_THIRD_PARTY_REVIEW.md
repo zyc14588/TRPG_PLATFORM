@@ -598,7 +598,20 @@ Campaign 不含任意 canonical P08 event 后删除 Campaign-local P08 投影。
 retry 恢复原投影；空历史 ghost 由真实 API role 清除；伪造 Combat 初态与跨遭遇治疗
 均不写 Event Store。migration upgrade、decision atomicity、默认栈 core-domain
 `1/1`、Tutorial `2/2`、schema assertion、workspace check 与严格 Clippy 已通过；
-新提交、Hosted CI 和第二十八轮精确 SHA review 仍为 pending。
+修复提交 `7e6192d070e95dd130d5a72cb87e91f54aa62148` 的 repository-truth、
+golden-scenarios、production-security-runtime 已完成通过；workspace 与
+release-readiness 在下一轮意见到达时仍运行，因此只记录 3/5 通过、2 项运行中。
+第二十八轮精确 SHA review `4790238194` 确认第二十七轮三项未重复，并提出一个 P2：
+
+- Combat/Chase canonical replay 对反序列化 percentile evidence 先以 `u8` 执行
+  `selected_tens_digit * 10 + ones_digit`，再检查 digit 是否 `<= 9`；十位数 26
+  会在 overflow-check 构建中 panic，而不是返回正式的无效转换错误。
+
+当前最小修复在 Combat/Chase 独立 replay、COC7 ruleset 与持久层
+`PlayerActionDiceRecord` 的全部同型入口先拒绝超范围 decimal digit，再执行重建。
+新增单元同时提交 Combat/Chase `selected_tens_digit=26`，两条路径均返回
+`InvalidTransition` 而不 panic。domain 全量、Combat `9/9`、Chase `3/3` 已通过；
+新提交、Hosted CI 和第二十九轮精确 SHA review 仍为 pending。
 
 ## RustSec
 
@@ -615,7 +628,7 @@ retry 恢复原投影；空历史 ghost 由真实 API role 清除；伪造 Comba
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-二十七轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+二十八轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
 用户门槛明确延期，没有冒充修复。当前最小修复的远端 CI/精确 SHA 复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖

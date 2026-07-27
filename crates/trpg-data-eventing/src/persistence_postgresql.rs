@@ -1312,6 +1312,11 @@ fn validate_server_dice_record(
     dice: &PlayerActionDiceRecord,
     expected_adjustment: &str,
 ) -> Result<(), CoreDomainRepositoryError> {
+    if dice.selected_tens_digit > 9 || dice.ones_digit > 9 {
+        return Err(CoreDomainRepositoryError::InvalidInput(
+            "server_dice_record",
+        ));
+    }
     let reconstructed = if dice.selected_tens_digit == 0 && dice.ones_digit == 0 {
         100
     } else {
@@ -1319,8 +1324,6 @@ fn validate_server_dice_record(
     };
     if EntityId::new(&dice.roll_id).is_err()
         || dice.target_value == 0
-        || dice.selected_tens_digit > 9
-        || dice.ones_digit > 9
         || reconstructed != dice.rolled_value
         || dice.adjustment != expected_adjustment
         || canonical_success_level(dice.rolled_value, dice.target_value)? != dice.success_level

@@ -122,6 +122,9 @@ impl ChaseParticipantRollEvidence {
             .movement_rate
             .checked_mul(5)
             .ok_or(TrpgError::InvalidConfiguration("chase_roll_target"))?;
+        if self.selected_tens_digit > 9 || self.ones_digit > 9 {
+            return Err(TrpgError::InvalidConfiguration("chase_roll_evidence"));
+        }
         let reconstructed = if self.selected_tens_digit == 0 && self.ones_digit == 0 {
             100
         } else {
@@ -130,8 +133,6 @@ impl ChaseParticipantRollEvidence {
         if self.participant_id != participant.participant_id
             || !valid_chase_id(&self.roll_id)
             || self.target != target
-            || self.selected_tens_digit > 9
-            || self.ones_digit > 9
             || reconstructed != self.roll
             || success_level(self.roll, target)? != self.success_level
         {

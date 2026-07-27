@@ -768,6 +768,9 @@ fn validate_percentile_evidence(
     evidence: &PercentileRollEvidence,
     expected_target: u8,
 ) -> Result<(), CanonicalGameplayStateError> {
+    if evidence.selected_tens_digit > 9 || evidence.ones_digit > 9 {
+        return Err(CanonicalGameplayStateError::InvalidTransition);
+    }
     let reconstructed = if evidence.selected_tens_digit == 0 && evidence.ones_digit == 0 {
         100
     } else {
@@ -775,8 +778,6 @@ fn validate_percentile_evidence(
     };
     if !valid_id(&evidence.roll_id)
         || evidence.target != expected_target
-        || evidence.selected_tens_digit > 9
-        || evidence.ones_digit > 9
         || reconstructed != evidence.roll
         || canonical_success_level(evidence.roll, evidence.target)? != evidence.success_level
     {
@@ -1227,6 +1228,9 @@ fn validate_chase_roll_evidence(
     participant: &ChaseParticipant,
     target: u8,
 ) -> Result<(), CanonicalGameplayStateError> {
+    if evidence.selected_tens_digit > 9 || evidence.ones_digit > 9 {
+        return Err(CanonicalGameplayStateError::InvalidTransition);
+    }
     let reconstructed = if evidence.selected_tens_digit == 0 && evidence.ones_digit == 0 {
         100
     } else {
@@ -1235,8 +1239,6 @@ fn validate_chase_roll_evidence(
     if evidence.participant_id != participant.participant_id
         || !valid_id(&evidence.roll_id)
         || evidence.target != target
-        || evidence.selected_tens_digit > 9
-        || evidence.ones_digit > 9
         || reconstructed != evidence.roll
         || canonical_success_level(evidence.roll, target)? != evidence.success_level
     {
@@ -1276,6 +1278,41 @@ mod tests {
                 },
             },
         }
+    }
+
+    #[test]
+    fn malformed_percentile_digits_fail_closed_without_overflow() {
+        let combat_evidence = PercentileRollEvidence {
+            roll_id: "malformed_combat_roll".to_owned(),
+            target: 60,
+            roll: 60,
+            selected_tens_digit: 26,
+            ones_digit: 0,
+            success_level: SuccessLevel::Regular,
+        };
+        assert_eq!(
+            validate_percentile_evidence(&combat_evidence, 60),
+            Err(CanonicalGameplayStateError::InvalidTransition)
+        );
+
+        let chase_participant = ChaseParticipant {
+            participant_id: "malformed_chase_participant".to_owned(),
+            role: ChaseRole::Quarry,
+            movement_rate: 8,
+        };
+        let chase_evidence = ChaseParticipantRollEvidence {
+            participant_id: chase_participant.participant_id.clone(),
+            roll_id: "malformed_chase_roll".to_owned(),
+            target: 40,
+            roll: 40,
+            selected_tens_digit: 26,
+            ones_digit: 0,
+            success_level: SuccessLevel::Regular,
+        };
+        assert_eq!(
+            validate_chase_roll_evidence(&chase_evidence, &chase_participant, 40),
+            Err(CanonicalGameplayStateError::InvalidTransition)
+        );
     }
 
     #[test]

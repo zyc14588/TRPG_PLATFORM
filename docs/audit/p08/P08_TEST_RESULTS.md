@@ -136,6 +136,16 @@ API-role-only、秘密 capability 约束的空历史清理函数；真实 API ro
 没有任意 canonical P08 event 后删除注入的 Combat ghost，若存在 P08 正史则 fail
 closed。
 
+第二十八轮精确 SHA review `4790238194` 针对提交
+`7e6192d070e95dd130d5a72cb87e91f54aa62148` 确认第二十七轮三项未重复，并新增一个
+P2：Combat/Chase 独立重放在检查 decimal digit 范围前执行
+`selected_tens_digit * 10 + ones_digit`，反序列化十位数 26 会在 overflow-check
+构建中 panic。修复把范围 gate 移到重建之前，并同步覆盖 COC7 ruleset Combat/Chase
+及持久层 `PlayerActionDiceRecord` 的同型入口。新增
+`malformed_percentile_digits_fail_closed_without_overflow` 同时验证 Combat 与
+Chase 的十位数 26 都返回 `InvalidTransition` 而不 panic；domain 全量、Combat
+`9/9`、Chase `3/3` 通过。
+
 ## 真实数据库、重放与迁移
 
 临时环境使用固定 digest 的 PostgreSQL/pgvector 镜像、localhost 端口和每次生成的
@@ -443,7 +453,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `6b8e39b` 的第二十七轮精确 SHA review `4789952622` 确认 pre-marker fork retry 问题未重复，并指出初始 Combat 权威绑定、Session Ending canonical reservation 与空 replay ghost 清理三项缺口；已完成本地根因修复和真实数据库回归，待新提交/复审 |
+| GitHub PR #9 自动审查 | `7e6192d` 的第二十八轮精确 SHA review `4790238194` 确认第二十七轮三项未重复，并指出 malformed percentile digit 可在范围校验前触发 `u8` overflow panic；已在 Combat/Chase 独立重放、ruleset 与持久层同型入口完成本地根因修复和负例，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -498,7 +508,11 @@ fork retry 会因 target 参与 request hash 而冲突；现按已验证 canonic
 replay 跳过 ghost 清理；现由 Scenario/Sheet/NPC/canonical health 联合授权、Session
 ending canonical 事务 reservation 和受限空历史 cleanup 修复。migration upgrade、
 decision atomicity、默认栈 core-domain、Tutorial、schema assertion、workspace
-check 与严格 Clippy 均通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
+check 与严格 Clippy 均通过。第二十八轮确认三项未重复，又指出 malformed
+percentile digit 可在范围检查前触发 `u8` overflow panic；现由 Combat/Chase 独立
+重放、ruleset 与持久层入口统一先验证 decimal digit，十位数 26 负例返回错误而不
+panic。domain 全量、Combat `9/9`、Chase `3/3` 通过。本轮 Semgrep 因外联安全审查
+拒绝明确记为未运行。
 本报告在最新本地修复提交、远端 CI/复审完成前保持 pending，不以历史扫描或旧提交的
 部分/完整 Hosted CI 冒充新代码远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
@@ -523,6 +537,8 @@ workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review
 第二十五轮修复提交 `84e0902` 在第二十六轮审查到达时也只有上述三项完成通过、
 workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
 第二十六轮修复提交 `6b8e39b` 在第二十七轮审查到达时同样是上述三项完成通过、
+workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
+第二十七轮修复提交 `7e6192d` 在第二十八轮审查到达时同样是上述三项完成通过、
 workspace 与 release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
 以上均未记为 5/5。
 
