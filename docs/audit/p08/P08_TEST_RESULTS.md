@@ -204,6 +204,15 @@ fail-closed gate 正确拒绝。夹具改为 Scenario 中真实的 `scene_archiv
 该目标 `1/1` 通过；随后完整 workspace all-features 套件重新运行并以 exit `0`
 通过。
 
+修复提交 `40ca7eaf09c10e523f8cc5b83ab73951bc2c561a` 在第三十三轮意见到达时
+repository-truth、golden-scenarios、production-security-runtime 3/5 已通过，
+workspace 与 release-evidence 仍运行。精确 SHA review `4791476837` 的评论
+`3660872893` 指出 `CAMPAIGN_OWNER` 在身份层仅有 party scope，却可通过 admin gate
+读取包含其他玩家私密 Character/Sheet 的完整 fork preview。公开 preview 现只接受
+未撤销 `HUMAN_KEEPER`；内部正式 fork materialization 不变。真实核心域在私密角色卡
+存在时证明 owner 返回 `Forbidden`、keeper 仍成功，目标 `1/1` 通过；随后完整
+workspace all-features 套件以 exit `0` 通过。
+
 扩展 runtime 全量回归第一次在沙箱内有 7 项仅因 localhost bind 被拒；授权重跑后
 这些测试全部通过，随后分别暴露两个已知外部环境要求：
 `P02_WORKFLOW_DATABASE_URL` 与 `P06_DATABASE_URL`。本轮真实数据库环境已经在前一轮
@@ -518,7 +527,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `c3f9d27` 在第三十二轮精确 SHA review `4791225838` 中确认第三十一轮三项未重复，并指出 reservation Session FK 与 runtime scene key 两项；均已完成本地根因修复，待新提交/复审 |
+| GitHub PR #9 自动审查 | `40ca7ea` 在第三十三轮精确 SHA review `4791476837` 中确认第三十二轮两项未重复，并指出 party-scoped Campaign Owner 可读取完整私密 fork preview；已完成本地 fail-closed 修复，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -619,6 +628,9 @@ release-readiness 仍运行，只记录 `3/5 + 2 running at review cutoff`。
 第三十一轮修复提交 `c3f9d27` 在第三十二轮意见到达时 repository-truth、golden、
 production-security-runtime 3/5 完成通过，workspace 与 release-evidence 仍运行，
 只记录 `3/5 + 2 running at review cutoff`。
+第三十二轮修复提交 `40ca7ea` 在第三十三轮意见到达时同样是上述三项完成通过，
+workspace 与 release-evidence 仍运行，只记录
+`3/5 + 2 running at review cutoff`。
 此前各轮部分结果均未记为 5/5。
 
 RustSec 报告：

@@ -8029,6 +8029,35 @@ impl CoreDomainRepository {
         }
     }
 
+    async fn ensure_campaign_keeper(
+        &self,
+        campaign_id: &str,
+        user_id: &str,
+    ) -> Result<(), CoreDomainRepositoryError> {
+        let permitted: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                  FROM public.campaign_memberships
+                 WHERE campaign_id = $1
+                   AND user_id = $2
+                   AND role = 'HUMAN_KEEPER'
+                   AND revoked_at IS NULL
+            )
+            "#,
+        )
+        .bind(campaign_id)
+        .bind(user_id)
+        .fetch_one(&self.primary)
+        .await
+        .map_err(database_error("authorize_campaign_keeper"))?;
+        if permitted {
+            Ok(())
+        } else {
+            Err(CoreDomainRepositoryError::Forbidden)
+        }
+    }
+
     async fn projection_matches_command(
         &self,
         event_sequence: i64,
@@ -10229,7 +10258,7 @@ impl CoreDomainRepository {
         source_session_id: &str,
         requesting_actor_id: &str,
     ) -> Result<CampaignForkSnapshotPreview, CoreDomainRepositoryError> {
-        self.ensure_campaign_admin(parent_campaign_id, requesting_actor_id)
+        self.ensure_campaign_keeper(parent_campaign_id, requesting_actor_id)
             .await?;
         self.load_public_campaign_fork_snapshot(parent_campaign_id, source_session_id)
             .await

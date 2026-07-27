@@ -55,7 +55,8 @@ GITHUB_TWENTY_EIGHTH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_N
 GITHUB_TWENTY_NINTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_THIRTIETH_REVIEW
 GITHUB_THIRTIETH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_CONFIRMED_BY_THIRTY_FIRST_REVIEW
 GITHUB_THIRTY_FIRST_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_THIRTY_SECOND_REVIEW
-GITHUB_THIRTY_SECOND_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_LOCALLY
+GITHUB_THIRTY_SECOND_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_THIRTY_THIRD_REVIEW
+GITHUB_THIRTY_THIRD_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_LOCALLY
 GITHUB_LATEST_AUTOMATED_REVIEW = RERUN_PENDING
 THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -80,7 +81,8 @@ TWENTY_EIGHTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_RUNNING_AT_REVIEW_CUTOFF
 TWENTY_NINTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
 THIRTIETH_REPAIR_HOSTED_CI = PASS_5_OF_5
 THIRTY_FIRST_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
-THIRTY_SECOND_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
+THIRTY_SECOND_REPAIR_HOSTED_CI = PASS_3_OF_5_2_RUNNING_AT_REVIEW_CUTOFF
+THIRTY_THIRD_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 P09_IMPLEMENTATION = NOT_STARTED
 ```
 
@@ -101,7 +103,7 @@ HMAC 与 Witness 校验的正史事件重建。
 | Fork 实体化与重放 | 子 Campaign 实际创建 scenario、character/sheet、ended session、scenes、public events、clues、NPC、combat、chase、conclusion 和 manifest；已实现结局的完整 `growth_awards` 与按来源角色/技能记录的消费标记被纳入内容寻址快照，materialization 将标记改写到 child-owned character；已消费的 Library Use 不能在 child 重复成长，未消费的 Psychology 仍可正式结算；参与者、先攻、转换及 roll 引用全部改写为确定性 child-owned ID；同版本污染与 ghost 行会先被删除，再从子 Campaign 正史逐字节重建；即使 canonical P08 replay 为空，真实 API role 也会以最新 verified/formal campaign event 的秘密 capability 调用受限函数清理 Campaign-local P08 ghost，且发现任意 canonical P08 event 时 fail closed；P08 rebuild 只清理 canonical tip 仍由 P08 拥有的共享投影，fork 复制角色后来发生的 SAN 角色/sheet/action 逐字节保持 | PASS |
 | Fork child lineage、Authority 与连接池 | canonical Event Store 对每个 child Campaign 的新 v2 `CampaignForkRecorded` 建立 partial unique index，HMAC-bound materialization projection target 是 child-owned 判别，旧 parent-owned 多 child 历史不会在升级建索引时冲突；projection 另有 `UNIQUE(child_campaign_id)`；同一 child 的所有 canonical INSERT 还经过共享事务 advisory lock，Fork 插入时在锁内重新验证只存在创建/邀请基线，封闭 emptiness preflight TOCTOU；正式 lineage 还要求 child 的锁定/FORK_ONLY Authority Contract 为共享内核 `fork_for_child` 生成的确定性 ID、version 1、父级全部规则/安全/模型/角色卡快照一致及精确 `+1ms` 创建时间，另建 Campaign 不能冒充分支；snapshot/build/canonical commit/replay-page load 均不持有投影池连接；真实 legacy upgrade、并发竞争与 `max_connections=1` 均通过 | PASS |
 | Fork cutoff 隔离 | `source_cutoff_event_sequence` 只用于确定上界；实际 base event set 由来源 Session ID、其 Scene/Action 归属和 Session 启动前 campaign baseline 组成；顶层字段与 `data` 包装两种 canonical payload 都能解析；即使第二 Session 的事件先写入、第一 Session 的 Ending/Growth 后写入，也不会把第二 Session 纳入旧快照；cutoff 后相关公开复议链仍单独加入 | PASS |
-| 可见性保持 | Fork materialization 按 keeper、party 和 owner-bound private 行分批；每个事件自己的 Visibility、`data_subject_id` 与主体密钥进入 request hash、HMAC、Event Store 和 Outbox，投影触发器继续要求事件/行完全一致 | PASS |
+| 可见性保持 | Fork materialization 按 keeper、party 和 owner-bound private 行分批；每个事件自己的 Visibility、`data_subject_id` 与主体密钥进入 request hash、HMAC、Event Store 和 Outbox，投影触发器继续要求事件/行完全一致；包含私密角色卡的完整 fork preview 只向未撤销 `HUMAN_KEEPER` 返回，identity 中仅具 party scope 的 `CAMPAIGN_OWNER` fail closed | PASS |
 | 幂等与语义唯一性 | Combat、Chase、Ending、Growth 的 exact retry 返回原 persisted commit；如果 terminal Combat/Chase 正史已提交而状态投影失败，Session 后续结束也不阻止相同 request hash 使用正史记录的原 projection targets 恢复投影，且不追加事件；Campaign Fork 的 exact retry 从已记录 lineage/manifest/materialized batches 重建原命令与投影，不读取后来可能变化的 parent snapshot，并从经过 HMAC 校验的首事件 projection targets 选择 pre-marker 或 child-owned-v2 原始 draft shape，marker 引入前的成功正史仍可补建投影；Ending 的 Session 键与 Growth 的 Character 键在事务 advisory lock 下串行检查、append 和 projection；真实并发竞争各只产生一条正史 | PASS |
 | 活跃会话边界 | Combat/Chase 首次正式写入在同一事务内对 Session 行持有 `FOR SHARE` 锁并要求状态精确为 `ACTIVE`；只有经过 HMAC/Witness 验证且 request hash 精确相同的既有 canonical commit 可在 Session 结束后重建自身投影；Session 新建与 Scene 切换的 runtime `scene_key` 必须命中已验证 Scenario 的 `scenes[].id`，因此 encounter 的 active-scene authorization 不依赖调用方自由文本；Session 终止路径的 `FOR UPDATE` 锁封闭状态检查与正式 append 间的 TOCTOU；结束态新请求不增加 Event Store | PASS |
 | Fork 结算边界 | 来源 Session 的快照预览与最终 materialization 都要求所有 Combat 已为 `ENDED`，所有 Chase 已为 `ESCAPED` 或 `CAUGHT`；仍在进行的玩法状态以 `fork_source_gameplay_not_terminal` 在写入 child 正史前拒绝，避免生成携带不可继续 ENDED Session 的死分支 | PASS |
@@ -109,7 +111,7 @@ HMAC 与 Witness 校验的正史事件重建。
 | 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`，并在事件创建前统一规范化后写入 canonical event 与 projection；Session ending reservation 通过 HMAC-bound target 和 canonical-only `SECURITY DEFINER` 函数与 Event Store/formal commit 在同一事务提交，Ending projection 失败也不会释放该 Session 的唯一结局所有权，exact retry 只恢复投影；Ending summary 同样规范化并与 replay 投影一致；没有 `growth_awards` 的合法结局可用空 settlement 完成，有奖励时成长技能必须存在于该 Ending 的 `growth_awards`，且 fork 继承的按角色/技能消费标记会在 append 前阻止重复领取；成长证据只能由一次性完整 OS CSPRNG 尝试生成，不能把独立 percentile/d10 拼装为挑选结果；新 Sheet、Character 与正式 Growth event 必须精确保持来源 Character/Sheet 的 Visibility envelope，任何扩大在 append 前失败；成长 live projection、replay 与 fork reconstruction 会按显式 skill-source mapping 同步 `combat_profile.skill_targets`，避免角色技能与战斗命中目标分叉 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork；另证明未终止 Combat/Chase 时 Session 不能结束、错误 Scene 的 Combat 与伪造 Chase role/MOV/range 均不写正史、来源已消费成长不能在 child 重领而另一奖励仍可结算 | PASS |
 | Schema/最小权限 | 十一个 P08 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth/rebuild/Combat-health repair、空 canonical P08 历史清理、包含 append-only Session ending reservation 在内的可延迟重建外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、fork-empty trigger/function 完整 catalog 指纹、Combat/Chase/Growth 全局 gameplay roll 与 Session ending 的 canonical 事务内 reservation、v2 Fork/Reconsideration 显式非空 shape 与行为探针、角色与函数执行权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的提交 `c3f9d27` 在第三十二轮精确 SHA review `4791225838` 中确认第三十一轮三项未重复，并指出 Session ending reservation 的立即 FK 会阻止 fork Session 重建、runtime scene key 未绑定 Scenario；两项均已完成本地根因修复，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
+| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的提交 `40ca7ea` 在第三十三轮精确 SHA review `4791476837` 中确认第三十二轮两项未重复，并指出 party-scoped `CAMPAIGN_OWNER` 可读取包含其他玩家私密角色卡的 fork preview；该 P1 已完成本地 fail-closed 修复，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
 
 ## 反伪造修复
 
@@ -442,6 +444,15 @@ catalog assertion 验证五个 P08 Session rebuild FK 全部可延迟。首次 S
 start/switch 两个负例，均证明 Event Store 不增长；core-domain `1/1`、Tutorial
 `2/2`、migration `1/1`、P06/P07/P08 schema assertions、check 与严格 Clippy 已通过。
 runtime 并发 Session 夹具同步绑定真实 Scenario scene 后，完整 workspace
-all-features 套件重跑以 exit `0` 通过。新提交、Hosted CI 与第三十三轮精确 SHA
-复审仍须在合并前通过。
+all-features 套件重跑以 exit `0` 通过。修复提交
+`40ca7eaf09c10e523f8cc5b83ab73951bc2c561a` 的 repository-truth、
+golden-scenarios 与 production-security-runtime 3/5 已通过，workspace/release
+仍运行时第三十三轮精确 SHA review `4791476837` 提出一个 P1：身份层映射为
+party scope 的 `CAMPAIGN_OWNER` 仍可取得完整 fork preview 并看到其他玩家私密
+角色卡。当前最小修复把公开 preview 权限收紧为未撤销 `HUMAN_KEEPER`；内部正式
+fork materialization 的受治理路径不变。带真实 private Character/Sheet 的核心域
+负例证明 Campaign Owner 返回 `Forbidden`，同状态 Human Keeper 仍成功；
+core-domain `1/1`、data-eventing check、严格 Clippy 与完整 workspace
+all-features 套件均通过。新提交、Hosted CI 与第三十四轮精确 SHA 复审仍须在
+合并前通过。
 P08 到此停止，未执行 P09。

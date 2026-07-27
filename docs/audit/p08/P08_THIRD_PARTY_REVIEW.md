@@ -696,8 +696,24 @@ assertion 将该约束纳入五个 P08 Session rebuild FK，core-domain 也检�
 exact retry 仍在验证 event/request 后走兼容路径。
 
 core-domain `1/1`、Tutorial `2/2`、migration upgrade `1/1`、P06/P07/P08 schema
-assertions、data-eventing check 与严格 Clippy 已通过。新提交、Hosted CI 和
-第三十三轮精确 SHA review 仍为 pending。
+assertions、data-eventing check 与严格 Clippy 已通过。修复提交
+`40ca7eaf09c10e523f8cc5b83ab73951bc2c561a` 的 repository-truth、
+golden-scenarios、production-security-runtime 已通过；workspace 与 release-evidence
+仍运行时，第三十三轮精确 SHA review `4791476837` 确认第三十二轮两项未重复，并提出
+一个 P1：
+
+- 评论 `3660872893`：`preview_campaign_fork` 的 admin gate 同时接受
+  `CAMPAIGN_OWNER`，但 identity 将该角色映射为 `PrincipalScope::PartyMember`；
+  完整 snapshot 重建的其他玩家 `private_to_player` Character/Sheet 因而会泄露给
+  party-scoped owner。
+
+当前最小修复把公开 fork preview 收紧为只有未撤销 `HUMAN_KEEPER` membership 才能
+调用；内部正式 fork materialization 继续在 governed workflow 中按原 Visibility
+envelope 复制私密行，没有降级 copy scope。真实 core-domain 在完整私密角色卡存在时
+插入 Campaign Owner membership，断言 preview 返回 `Forbidden`；同状态 Human
+Keeper 仍取得 canonical snapshot 并完成后续 fork。核心域 `1/1`、data-eventing
+check、严格 Clippy 与完整 workspace all-features 套件已通过。新提交、Hosted CI
+和第三十四轮精确 SHA review 仍为 pending。
 
 ## RustSec
 

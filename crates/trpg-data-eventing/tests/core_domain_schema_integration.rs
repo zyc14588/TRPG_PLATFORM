@@ -50,6 +50,7 @@ const EMPTY_P08_CAMPAIGN_ID: &str = "campaign_p08_empty_rebuild";
 const KEEPER_ID: &str = "keeper_p06_schema";
 const PLAYER_ID: &str = "player_p06_schema";
 const OTHER_ID: &str = "other_p06_schema";
+const CAMPAIGN_OWNER_ID: &str = "owner_p06_schema";
 const AUTHORITY_ID: &str = "authority_campaign_p06_schema_1";
 const CHILD_AUTHORITY_ID: &str = "authority_contract_campaign_p06_fork_child_1";
 const RACE_CHILD_AUTHORITY_ID: &str = "authority_contract_campaign_p08_fork_race_child_1";
@@ -625,6 +626,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         (KEEPER_ID, "keeper-p06"),
         (PLAYER_ID, "player-p06"),
         (OTHER_ID, "other-p06"),
+        (CAMPAIGN_OWNER_ID, "owner-p06"),
     ] {
         sqlx::query(
             r#"
@@ -3390,6 +3392,29 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         "child_campaign_create",
     )
     .await;
+    sqlx::query(
+        r#"
+        INSERT INTO public.campaign_memberships (
+            campaign_id, user_id, role, granted_by, granted_at
+        ) VALUES (
+            $1, $2, 'CAMPAIGN_OWNER', $3,
+            to_timestamp($4::double precision / 1000.0)
+        )
+        "#,
+    )
+    .bind(CAMPAIGN_ID)
+    .bind(CAMPAIGN_OWNER_ID)
+    .bind(KEEPER_ID)
+    .bind(NOW_MS as i64)
+    .execute(&primary)
+    .await
+    .expect("seed the party-scoped Campaign Owner preview probe");
+    assert!(matches!(
+        repository
+            .preview_campaign_fork(CAMPAIGN_ID, "session_p06_schema", CAMPAIGN_OWNER_ID,)
+            .await,
+        Err(CoreDomainRepositoryError::Forbidden)
+    ));
     let snapshot = repository
         .preview_campaign_fork(CAMPAIGN_ID, "session_p06_schema", KEEPER_ID)
         .await

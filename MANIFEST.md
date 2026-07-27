@@ -1512,7 +1512,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-data-eventing/src/persistence/mod.rs` | 547 | `6c7df6c02ef9dc4d1e1e4e736ce8011d594857699845274c7992aa83a047a762` | `100644` |
 | `crates/trpg-data-eventing/src/persistence/upcaster.rs` | 4217 | `1614a6442bb88c041913cac73f3f9f02d70d7bc28005e1a8cf624ad0be470506` | `100644` |
 | `crates/trpg-data-eventing/src/persistence_migrations.rs` | 1051 | `c8977fe58eaedc31fc2fd980c1dcb18eae514ad0efcbdbce694647fd52d02d56` | `100644` |
-| `crates/trpg-data-eventing/src/persistence_postgresql.rs` | 595900 | `e7ee1349dcaab8161073e7f335b5b612205d72f5edd0028e26fd6e193478e6be` | `100644` |
+| `crates/trpg-data-eventing/src/persistence_postgresql.rs` | 596717 | `7e78b13e6c918c7c3cfae6ef8d1ca78b0bbc95198b0ec94811b29cc27f688c19` | `100644` |
 | `crates/trpg-data-eventing/src/persistence_postgresql_impl.rs` | 772 | `8b93aa1d18f489beefd36f1cb20df76bf1228a7e7b7fcb4c3a23739a6c8576d3` | `100644` |
 | `crates/trpg-data-eventing/src/postgre_sql_sq_lx_pgvector.rs` | 15902 | `16b8f4d7e7ce0097d56a0e24028f358b6cfa29496299c9a55a7cabc104c769f0` | `100644` |
 | `crates/trpg-data-eventing/src/rag_snapshot.rs` | 10734 | `c56c61f2b39ba3effc4bcf1b815c21ee31303ddcc379d79a212ed11357fd3180` | `100644` |
@@ -1531,7 +1531,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-data-eventing/tests/batch_026_data_eventing_contract_tests.rs` | 17823 | `d3b183050839b1c36bc170b93b09370a9c1a5ebf7ee8b76b5016144e55c4b949` | `100644` |
 | `crates/trpg-data-eventing/tests/canonical_commit_postgres.rs` | 32967 | `5619bbfb6418d8089313ec45803c7b33e73970cd1612ab57709a439c27e3840c` | `100644` |
 | `crates/trpg-data-eventing/tests/canonical_event_projection_contract_tests.rs` | 622 | `d25cb67af0defeead6711e13a13865453366f4498bd8d5d8c6bd2a7ba2be7722` | `100644` |
-| `crates/trpg-data-eventing/tests/core_domain_schema_integration.rs` | 229022 | `e1d3c7e9f7b8e150d179477e1f08ed16bcb7edb22c3ef98a28ea8a2dda615181` | `100644` |
+| `crates/trpg-data-eventing/tests/core_domain_schema_integration.rs` | 229811 | `89d4bf28f36281d268d6294a6e59c90e57e2ed5a8b9f8b075d3db1509114b4bf` | `100644` |
 | `crates/trpg-data-eventing/tests/decision_state_outbox_atomicity.rs` | 24594 | `ef81b49ed6cf8e0db552fd2690b9ea17e562f0d80e3bf408e408ddd62efb912c` | `100644` |
 | `crates/trpg-data-eventing/tests/event_json_schema_contract_tests.rs` | 10856 | `66e1d99d84ba75387cc7476685346fe84ec3d4037bc1baffc08ff95991d8e001` | `100644` |
 | `crates/trpg-data-eventing/tests/event_store_contract.rs` | 12292 | `8e0c89292f420323b2c56f5eab6c5c218927a8d4b0cd42a599e8b7de1147d2dc` | `100644` |
@@ -1972,10 +1972,10 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `docs/audit/p07/P07_FINDINGS_TRACEABILITY.md` | 6037 | `6c8641e88c0f716f7030180444e36745ee6fb082488e1e7d2c38e916770da538` | `100644` |
 | `docs/audit/p07/P07_TEST_RESULTS.md` | 10434 | `83411c3471f351f31d534d9191ef34d6fa6a6b9bf3cf4258fa6f7fc0bfa18f80` | `100644` |
 | `docs/audit/p07/P07_THIRD_PARTY_REVIEW.md` | 5135 | `c5f9897be306bf07c88c5fd0b906fd9d1b754529e1966e0b6f3983fee0e7e323` | `100644` |
-| `docs/audit/p08/P08_FINAL_STATUS.md` | 45848 | `22f4a666356430219f23cca673bde715e341e1dd4d36454b35febc0d6dd15633` | `100644` |
-| `docs/audit/p08/P08_FINDINGS_TRACEABILITY.md` | 35447 | `87a24b8de7c1e7f2894f2db26549965cafb6aa2dbd7bb0d18af16f9083cfcfad` | `100644` |
-| `docs/audit/p08/P08_TEST_RESULTS.md` | 52900 | `6bb2d781b15e5d322c9e07fdb36018a24f1a4c3cc507f06d24f64b5ded441331` | `100644` |
-| `docs/audit/p08/P08_THIRD_PARTY_REVIEW.md` | 50877 | `ad4bc73721b931a405999757c1fdac73d0ca34f38b49538908acc92b4be084e3` | `100644` |
+| `docs/audit/p08/P08_FINAL_STATUS.md` | 46887 | `98711ddd9c63d1c0d84fdac449b47a0f72e96b65109394df2f011118e7c97357` | `100644` |
+| `docs/audit/p08/P08_FINDINGS_TRACEABILITY.md` | 36298 | `d85f08bb00a1cb8f23a754621600842776c24a50f2822f607838d31858205717` | `100644` |
+| `docs/audit/p08/P08_TEST_RESULTS.md` | 53819 | `3667c81ffc062e9e88ee4b6772732b80ad2000c901717bece1d30474554a446c` | `100644` |
+| `docs/audit/p08/P08_THIRD_PARTY_REVIEW.md` | 52003 | `9444813c6227c0d7bed2dcae895768faa49028fd5e914cd4c5ca7de805ce1820` | `100644` |
 | `docs/codex/00-index/AGENTS.md` | 4164 | `7a4b058f57d75097de15c3902560a3b4fbdf70a639bd0ca5ddbe2529d8ad0170` | `100644` |
 | `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md` | 280125 | `b5e1c639f159fcd3934f04f0320944b62561c5848506336b860b8a3236c8fb63` | `100644` |
 | `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md` | 206707 | `63fb8cf9f24dba94e6506374afeb249328a3032f69377694d16ed7c720c90a8d` | `100644` |
