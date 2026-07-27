@@ -33,6 +33,9 @@ ending/character/skill 的不同 Growth、私密 fork 事件主体密钥错配�
 防守方更高成功等级反击、serialized outcome 篡改、结束态 Session 启动 Combat/Chase，
 以及 Scenario encounter 的重复 participant；所有被拒绝的正式写入均不改变聚合或
 Event Store。
+第五轮修复负例覆盖：第二 Session/Ending/Growth 已发生后才完成对旧公开事件的复议，
+旧 Session fork 仍单独包含完整复议链但不包含较新 Session/Ending 或第二轮角色卡；
+Fight Back 令当前攻击者失能后，规则聚合与独立 serialized replay 都拒绝其再次攻击。
 
 ## 真实数据库、重放与迁移
 
@@ -59,6 +62,9 @@ Event Store。
   child projection；删除后从正史重建为相同 JSON，Event Store 行数不变。
 - Fork 角色由 source cutoff 前的 verified events 重建；第二 Session 更新当前角色卡后，
   旧 Session fork 仍保留 cutoff sheet，且 child character/sheet 仍绑定原 owner。
+- Fork 的 base cutoff 不再取相关复议的最后序列；cutoff 后的相关公开复议链按
+  reconsideration ID 单独筛选。真实 E2E 把第二 Session/Ending/Growth 放在来源 cutoff
+  与晚期复议之间，最终快照保留复议链但不含这些不相关的较新状态。
 - Fork materialization 分别产生 keeper、party、private 三类事件 envelope；每个私密
   事件使用玩家 `data_subject_id` 和对应有效主体密钥，projection guard 继续验证
   Visibility 与主体完全一致。
@@ -71,6 +77,9 @@ Event Store。
 - Combat 的攻击/防御 target 分别来自持久化的 Melee、Firearm、Dodge，而 DEX
   只用于 initiative。Fight Back 与 Dodge 使用不同平手规则；防守方反击时伤害目标
   为原攻击者，mutation outcome 不能被 JSON 篡改。
+- Fight Back 使当前攻击者进入 `DYING/DEAD` 后，再次攻击返回
+  `combat_actor_incapacitated` 且聚合不变；独立领域 validator 对手工伪造的同类
+  serialized successor 返回 `InvalidTransition`。
 - Combat/Chase 写入在同一事务中锁定 Session 行并要求 `ACTIVE`；会话结束后尝试创建
   新 Combat/Chase 均返回 `gameplay_session_state`，而结束前成功写入的 exact retry
   仍返回原 receipt；两种情况都不增加 Event Store。
@@ -119,7 +128,7 @@ package regression PASS；P08 对应的 `conclusion_growth_state_machine` 已单
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；32 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 第一至第三轮 4、5、5 项已修复；第四轮 4 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 第一至第四轮 4、5、5、4 项已修复；第五轮 2 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch --json` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -132,10 +141,12 @@ migration 后，第三轮 30 目标复扫
 无界完整 snapshot 可能超过单事件大小限制。第三轮又真实指出：Combat/Chase 仍可由
 调用方决定正式结果、Growth 未绑定所选 Ending 的奖励，以及并发 Ending/Growth
 仍可能各自追加孤儿正史。第四轮继续真实指出：Combat 错用 DEX、Fight Back 缺失、
-非 ACTIVE Session 可写玩法正史、Scenario encounter 接受重复 participant。以上均已
-按问题根因修复；扩展到 32 目标的 Semgrep 复扫仍为 0 finding。本报告在最新远端
-CI/复审完成前保持 pending，不以本地结果冒充远端通过。第三轮修复提交仅有 3/5
-workflow 完成通过；第四轮阻断出现后主动取消另外两个长任务，未记为 5/5。
+非 ACTIVE Session 可写玩法正史、Scenario encounter 接受重复 participant。第五轮
+又指出相关复议扩大全局 Fork cutoff，以及失能的当前攻击者仍可行动。以上均已按问题
+根因修复；扩展到 32 目标的 Semgrep 复扫仍为 0 finding。本报告在最新远端 CI/复审
+完成前保持 pending，不以本地结果冒充远端通过。第三轮修复提交仅有 3/5 workflow
+完成通过后取消 2 项；第四轮修复提交 `ea760c1` 仅有 2/5 完成通过后取消 3 项，
+均未记为 5/5。
 
 RustSec 报告：
 

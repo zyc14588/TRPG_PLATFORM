@@ -27,9 +27,11 @@ INITIAL_HOSTED_CI = PASS_5_OF_5
 GITHUB_INITIAL_AUTOMATED_REVIEW = 4_ACTIONABLE_FIXED
 GITHUB_SECOND_AUTOMATED_REVIEW = 5_ACTIONABLE_FIXED
 GITHUB_THIRD_AUTOMATED_REVIEW = 5_ACTIONABLE_FIXED
-GITHUB_FOURTH_AUTOMATED_REVIEW = 4_ACTIONABLE_FIXED_LOCALLY
+GITHUB_FOURTH_AUTOMATED_REVIEW = 4_ACTIONABLE_FIXED
+GITHUB_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_LOCALLY
 GITHUB_LATEST_AUTOMATED_REVIEW = RERUN_PENDING
 THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
+FOURTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_CANCELED_AFTER_REVIEW_BLOCKERS
 REPAIR_HOSTED_CI = PENDING
 P09_IMPLEMENTATION = NOT_STARTED
 ```
@@ -44,11 +46,12 @@ HMAC 与 Witness 校验的正史事件重建。
 | 验收项 | 代码与真实证据 | 状态 |
 | --- | --- | --- |
 | MajorWound 持续 | 聚合保存 prior condition；后续小伤或护甲全吸收不会清除；只有成功的服务端医疗骰恢复事件可清除 | PASS |
-| 多角色战斗 | DEX 仅用于先攻；正式近战/射击/闪避分别绑定持久化的 Melee/Firearm/Dodge 技能；Fight Back 实现与 Dodge 不同的平手规则和防守方反击伤害目标；跨轮次推进、伤害、护甲、终态以及失败不变更聚合均有测试；骰证据、outcome、serialized replay 与持久层逐项独立重算 | PASS |
+| 多角色战斗 | DEX 仅用于先攻；正式近战/射击/闪避分别绑定持久化的 Melee/Firearm/Dodge 技能；Fight Back 实现与 Dodge 不同的平手规则和防守方反击伤害目标；反击后进入 `DYING/DEAD` 的当前攻击者在推进回合前不能再次攻击；跨轮次推进、伤害、护甲、终态以及失败不变更聚合均有测试；骰证据、outcome、serialized replay 与持久层逐项独立重算 | PASS |
 | Chase 终态 | `Escaped`/`Caught` 后普通推进失败；新追逐必须使用新 ID；每名参与者结果由 opaque 服务端 percentile evidence 和 MOV 派生，调用方不能提交成功布尔值 | PASS |
 | 复议追加链 | Request → Review → Upheld/Corrected 均为正式事件；精确重试幂等，原事件不删除 | PASS |
 | Fork 范围与 Hash | 来源快照 hash 被重新计算并精确匹配请求；角色状态由截止序列前的 verified canonical events 重建；单事件只保存有界的内容寻址引用，实际数据按大小受限的正式事件批次物化；私密 scope 以及 `keeper_only` 角色/角色卡均被排除 | PASS |
 | Fork 实体化与重放 | 子 Campaign 实际创建 scenario、character/sheet、ended session、scenes、public events、clues、NPC、combat、chase、conclusion 和 manifest；删除投影后可从子 Campaign 正史逐字节重建 | PASS |
+| Fork cutoff 隔离 | `source_cutoff_event_sequence` 只由来源 Session 的玩法状态决定；cutoff 后完成的相关公开复议链单独加入 Public events，不会把其间较新 Session、Ending 或 Growth 纳入旧 Session 快照 | PASS |
 | 可见性保持 | Fork materialization 按 keeper、party 和 owner-bound private 行分批；每个事件自己的 Visibility、`data_subject_id` 与主体密钥进入 request hash、HMAC、Event Store 和 Outbox，投影触发器继续要求事件/行完全一致 | PASS |
 | 幂等与语义唯一性 | Combat、Chase、Ending、Growth 的 exact retry 返回原 persisted commit；Ending 的 Session 键与 Growth 的 Character 键在事务 advisory lock 下串行检查、append 和 projection；真实并发竞争各只产生一条正史 | PASS |
 | 活跃会话边界 | Combat/Chase 在同一事务内对 Session 行持有 `FOR SHARE` 锁并要求状态精确为 `ACTIVE`；Session 终止路径的 `FOR UPDATE` 锁封闭状态检查与正式 append 间的 TOCTOU；结束态负例不增加 Event Store | PASS |
@@ -56,7 +59,7 @@ HMAC 与 Witness 校验的正史事件重建。
 | 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`；成长技能还必须存在于该 Ending 的 `growth_awards`；结果从共享内核不可构造的 OS CSPRNG 证据计算，并生成新锁定角色卡版本 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork | PASS |
 | Schema/最小权限 | 三个 forward migration、projection guards、可延迟外键、成长算术/证据约束、完整 Fork scope 表及角色权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 本机复扫 32 个 P08 Rust/SQL/CI 目标，13 条适用规则，0 finding、0 error、0 skipped；PR #9 四轮远端自动审查先后提出 4、5、5、4 项真实问题，均已修复或完成本地验证，最新提交等待复审 | PASS_WITH_REMOTE_RERUN_PENDING |
+| 第三方检查 | Semgrep 1.171.0 本机复扫 32 个 P08 Rust/SQL/CI 目标，13 条适用规则，0 finding、0 error、0 skipped；PR #9 五轮远端自动审查先后提出 4、5、5、4、2 项真实问题，均已修复或完成本地验证，最新提交等待复审 | PASS_WITH_REMOTE_RERUN_PENDING |
 
 ## 反伪造修复
 
@@ -66,6 +69,10 @@ HMAC 与 Witness 校验的正史事件重建。
 - Fork 角色快照不再按当前 projection 的 `last_event_sequence` 过滤；它从经过完整
   HMAC/Witness 校验的 Event Store 回放到 source cutoff，因此角色在后续 Session
   发生 SAN/Growth 后不会从旧快照消失，也不会把新状态倒灌进旧分支。
+- 相关复议的 resolution sequence 不再用 `GREATEST` 抬高全局 source cutoff；base
+  snapshot 始终停在来源 Session 的玩法边界，cutoff 后完成且原事件已在 base 中的
+  公开复议链从 verified Event Store 的 request payload 按 ID 单独加入。真实负例
+  证明复议前发生的较新 Session/Ending/Growth 不会因此泄漏进旧分支。
 - 默认声明的 Public events、Clues、NPC、Combat、Chase 和 Conclusion 不再只出现在
   hash/manifest 中；它们都有子 Campaign 正式事件、受保护投影和删除后重放证据。
 - Fork 子实体不再全部继承 keeper-only command envelope；scenario、session/scene、
@@ -88,6 +95,8 @@ HMAC 与 Witness 校验的正史事件重建。
 - Combat 的命中目标不再错误复用 DEX；Melee、Firearm 与 Dodge 技能随参与者进入正式
   聚合并由重放层独立验证。Fight Back 保存派生 outcome，防守方只有达到更高成功等级
   才反击，平手由发起攻击者获胜；伪造反击 outcome 在 Event Store append 前失败。
+- Fight Back 若使当前攻击者进入 `DYING` 或 `DEAD`，聚合与独立领域重放都会拒绝其
+  在 `advance_turn` 前再次攻击；失败尝试不改变状态或版本。
 - Combat/Chase 正式写入不再只校验 Session 存在；同一投影事务锁定 Session 行并要求
   `ACTIVE`，因此 `SCHEDULED`、`PAUSED`、`ENDED` 均不能产生玩法正史。Tutorial 的
   结束态负例同时断言两类事件计数不变。
@@ -126,8 +135,9 @@ down migration。
 `RUSTSEC-2023-0071`（rsa 0.9.7）。P08 只增加已有版本的依赖边，不改变这两个包的
 锁定版本，因此没有把该扫描伪报为通过。CodeRabbit CLI 的浏览器回调认证未完成，
 未运行或冒充 CodeRabbit 结果。PR #9 的原 P08 提交曾通过 5/5 Hosted CI；第三轮
-修复提交在 3/5 workflow 已通过时，第四轮远端审查发现新的阻断项，剩余两个长任务
-因此主动取消，未伪报为 5/5。第四轮提出的 Combat 技能、Fight Back、活跃 Session
-和 encounter participant 唯一性问题已完成本地修复，并通过真实
-PostgreSQL/Witness、工作区编译/Clippy/回归与 32 目标 Semgrep 复扫；新修复提交的
-Hosted CI 与远端自动复审仍须在合并前通过。P08 到此停止，未执行 P09。
+修复提交在 3/5 workflow 已通过时被第四轮审查阻断，第四轮修复提交
+`ea760c1` 在 repository-truth 与 golden-scenarios 通过后又被第五轮审查阻断。
+对应剩余 2 项和 3 项长任务均主动取消，未伪报为 5/5。第五轮提出的 Fork cutoff
+扩大与失能攻击者重复行动问题已完成本地修复，并通过真实 PostgreSQL/Witness、
+工作区编译/Clippy/回归与 32 目标 Semgrep 复扫；新修复提交的 Hosted CI 与远端
+自动复审仍须在合并前通过。P08 到此停止，未执行 P09。

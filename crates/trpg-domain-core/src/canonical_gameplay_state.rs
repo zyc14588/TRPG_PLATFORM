@@ -397,12 +397,15 @@ fn apply_combat_mutation(
             if current_actor != attacker_id || attacker_id == target_id {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
-            let attacker_target = state
+            let attacker = state
                 .participants
                 .iter()
                 .find(|participant| participant.participant_id == *attacker_id)
-                .map(|participant| participant.skill_targets.attack_target(*action))
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if !attacker.condition.can_act() {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            let attacker_target = attacker.skill_targets.attack_target(*action);
             let defender = state
                 .participants
                 .iter()
@@ -1013,5 +1016,80 @@ mod tests {
             );
         validate_combat_state_transition(None, initial).unwrap();
         assert!(validate_combat_state_transition(Some(initial), &unrelated).is_err());
+    }
+
+    #[test]
+    fn serialized_replay_rejects_an_attack_from_an_incapacitated_actor() {
+        let mut previous = CombatSnapshot {
+            combat_id: "combat_incapacitated".to_owned(),
+            participants: vec![
+                Combatant {
+                    participant_id: "attacker".to_owned(),
+                    dexterity: 80,
+                    skill_targets: CombatSkillTargets {
+                        melee: 60,
+                        firearm: 50,
+                        dodge: 40,
+                    },
+                    current_hp: 0,
+                    max_hp: 5,
+                    armor: 0,
+                    condition: CombatCondition::Dead,
+                },
+                Combatant {
+                    participant_id: "defender".to_owned(),
+                    dexterity: 50,
+                    skill_targets: CombatSkillTargets {
+                        melee: 45,
+                        firearm: 35,
+                        dodge: 25,
+                    },
+                    current_hp: 8,
+                    max_hp: 8,
+                    armor: 0,
+                    condition: CombatCondition::Able,
+                },
+            ],
+            initiative_order: vec!["attacker".to_owned(), "defender".to_owned()],
+            round: 1,
+            current_turn_index: 0,
+            status: CombatStatus::Ongoing,
+            version: 1,
+            last_transition: CombatMutation::Started,
+        };
+        let previous_json = serde_json::to_string(&previous).unwrap();
+        previous.participants[1].current_hp = 7;
+        previous.version = 2;
+        previous.last_transition = CombatMutation::DamageApplied {
+            attacker_id: "attacker".to_owned(),
+            target_id: "defender".to_owned(),
+            action: CombatActionKind::Melee,
+            defense: CombatDefense::None,
+            outcome: CombatExchangeOutcome::AttackerHit,
+            attacker_roll: PercentileRollEvidence {
+                roll_id: "attack_roll".to_owned(),
+                target: 60,
+                roll: 40,
+                selected_tens_digit: 4,
+                ones_digit: 0,
+                success_level: SuccessLevel::Regular,
+            },
+            defender_roll: None,
+            damage_roll: DamageRollEvidence {
+                roll_id: "damage_roll".to_owned(),
+                dice_count: 1,
+                die_sides: 6,
+                flat_bonus: 0,
+                dice_values: vec![1],
+                raw_damage: 1,
+            },
+            raw_damage: 1,
+        };
+        let forged_successor = serde_json::to_string(&previous).unwrap();
+
+        assert_eq!(
+            validate_combat_state_transition(Some(&previous_json), &forged_successor),
+            Err(CanonicalGameplayStateError::InvalidTransition)
+        );
     }
 }

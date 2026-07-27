@@ -26,8 +26,11 @@ GITHUB_SECOND_REVIEW_FIX_STATUS = FIXED
 GITHUB_THIRD_AUTOMATED_REVIEW = 5_ACTIONABLE
 GITHUB_THIRD_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FOURTH_REVIEW
 GITHUB_FOURTH_AUTOMATED_REVIEW = 4_ACTIONABLE
-GITHUB_FOURTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_FOURTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FIFTH_REVIEW
+GITHUB_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE
+GITHUB_FIFTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
+GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -52,7 +55,7 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 仍为 0 finding；没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-fourth-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-fifth-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -118,8 +121,25 @@ TOCTOU，Scenario parser 在入口去重。真实 PostgreSQL/Witness、规则/�
 和扩展到 32 个目标的 Semgrep 均通过。
 
 第三轮修复提交的 Hosted CI 在第四轮阻断出现前为 3/5 通过；两个尚在运行的长任务被
-主动取消，未将其写成成功。第四轮修复提交仍须等待全新 Hosted CI 和远端自动复审，
-才允许合并。
+主动取消，未将其写成成功。第四轮修复提交 `ea760c1` 的精确 SHA 审查未重复上述
+四项，但继续发现 2 个有效问题：
+
+- 相关复议的 resolution sequence 通过 `GREATEST` 扩大全局 fork cutoff，可能把其间
+  较新 Session 的事件与角色成长带入旧 Session 分支；
+- Fight Back 使当前攻击者进入 `DYING/DEAD` 后，在 `advance_turn` 前仍可再次攻击，
+  且规则 replay 与独立领域 replay 同样遗漏 `can_act` 检查。
+
+第五轮修复把来源 Session 的 gameplay base cutoff 与补充复议链分离；从 verified
+Event Store 的 request payload 识别原事件在 base cutoff 内且公开可复制的
+reconsideration ID，仅其公开 request/review/resolution 事件被额外纳入。Combat
+聚合、规则前驱 replay 与独立领域 serialized replay
+同时检查当前攻击者可行动。真实 E2E 把较新 Session/Ending/Growth 放在 cutoff 与
+晚期复议之间，证明复议链被保留而较新状态不泄漏；失能重复攻击的聚合与手工 serialized
+负例也通过。
+
+`ea760c1` 的 repository-truth 与 golden-scenarios 为 2/5 通过；第五轮阻断出现后，
+production-security、workspace 与 release 三个长任务被主动取消，未写成成功。
+第五轮修复提交仍须等待全新 5/5 Hosted CI 和精确 SHA 远端复审，才允许合并。
 
 ## RustSec
 
@@ -135,7 +155,8 @@ TOCTOU，Scenario parser 在入口去重。真实 PostgreSQL/Witness、规则/�
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 四轮
-自动审查先后提出的 4、5、5、4 项阻断均已修复或完成本地验证，最新提交的远端复审尚待运行；
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 五轮
+自动审查先后提出的 4、5、5、4、2 项阻断均已修复或完成本地验证，最新提交的远端
+复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。

@@ -1471,6 +1471,80 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         .expect("apply a later growth that is outside the source-session cutoff");
 
     repository
+        .request_reconsideration(
+            &metadata(
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                "reconsideration_p08_after_later",
+                "reconsideration",
+                0,
+                "p08_reconsideration_after_later_request",
+                "party_visible",
+                "not_applicable",
+                "user_statement",
+            ),
+            &RequestReconsiderationRequest {
+                reconsideration_id: "reconsideration_p08_after_later".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                original_event_sequence: campaign_event_sequence,
+                requested_by: PLAYER_ID.to_owned(),
+                reason: "Confirm the old campaign ruling after later play".to_owned(),
+            },
+        )
+        .await
+        .expect("append a late reconsideration of source-session history");
+    repository
+        .review_reconsideration(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "reconsideration_p08_after_later",
+                "reconsideration",
+                1,
+                "p08_reconsideration_after_later_review",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &ReviewReconsiderationRequest {
+                reconsideration_id: "reconsideration_p08_after_later".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                review_event_id: "review_event_p08_after_later".to_owned(),
+                review_summary: "Later play does not change the original ruling".to_owned(),
+            },
+        )
+        .await
+        .expect("review the late reconsideration");
+    repository
+        .resolve_reconsideration(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "reconsideration_p08_after_later",
+                "reconsideration",
+                2,
+                "p08_reconsideration_after_later_resolve",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &ResolveReconsiderationRequest {
+                reconsideration_id: "reconsideration_p08_after_later".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                resolution_event_id: "resolution_event_p08_after_later".to_owned(),
+                outcome: ReconsiderationOutcome::Upheld,
+                resolution: "The original campaign ruling remains valid".to_owned(),
+                corrected_event_type: None,
+                corrected_payload_json: None,
+            },
+        )
+        .await
+        .expect("resolve the late reconsideration without widening the source cutoff");
+
+    repository
         .start_session(
             &metadata(
                 AUTHORITY_ID,
@@ -1707,7 +1781,25 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         snapshot
             .canonical_snapshot_json
             .contains("ReconsiderationCorrected"),
-        "the fork cutoff must include a completed review of source-session history"
+        "the fork must include a completed correction chain for source-session history"
+    );
+    assert!(
+        snapshot
+            .canonical_snapshot_json
+            .contains("reconsideration_p08_after_later")
+            && snapshot
+                .canonical_snapshot_json
+                .contains("ReconsiderationUpheld"),
+        "a relevant late reconsideration chain must be included separately"
+    );
+    assert!(
+        !snapshot
+            .canonical_snapshot_json
+            .contains("session_p08_later")
+            && !snapshot
+                .canonical_snapshot_json
+                .contains("ending_event_p08_later"),
+        "a late reconsideration must not widen the base cutoff to unrelated later-session events"
     );
     assert!(!snapshot.canonical_snapshot_json.contains("keeper_note"));
     assert!(!snapshot.canonical_snapshot_json.contains("private_message"));

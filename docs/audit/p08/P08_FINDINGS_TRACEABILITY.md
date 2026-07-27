@@ -18,6 +18,7 @@
 | Combat/Chase 防 JSON 伪造 | Combat API 不再接受原始伤害，Chase API 不再接受成功布尔值；规则 replay 与独立领域 replay 重算骰值、成功等级、固定伤害公式和唯一合法下一状态，持久层再绑定同一批 server evidence；错配证据与异源同 ID 均在 append 前失败 | PASS |
 | Combat 技能绑定 | DEX 只决定先攻；每个正式参与者持久化 Melee、Firearm、Dodge 目标，攻击、防御、规则 replay 与领域 replay 都按对应技能重新验证；高 DEX/低 Firearm 负例按 Firearm 失败且不改变聚合 | PASS |
 | Fight Back | `FightBack` 与 Dodge 分离；平手由发起攻击者获胜，防守方只有更高成功等级才把伤害施加给攻击者；派生 outcome 进入 mutation，篡改 outcome 在 append 前失败 | PASS |
+| 失能攻击者 | Fight Back 后若当前攻击者为 `DYING/DEAD`，公开聚合、规则前驱 replay 与独立领域 serialized replay 都拒绝其再次攻击，必须先推进至可行动参与者 | PASS |
 | Active Session 写入边界 | Combat/Chase 写入事务使用 `FOR SHARE` 锁定 Session 并要求精确 `ACTIVE`；Session 状态变更使用 `FOR UPDATE`，关闭状态检查与正式 append 间的竞态窗口；结束态负例不增加事件 | PASS |
 | Encounter participant 唯一性 | Scenario parser 在接受 combat/chase encounter 前拒绝重复 participant ID；负例不再延迟到正式聚合构造阶段 | PASS |
 | Fork 公开范围 | 默认 scope 明确包含 Character/Public events/Clues/World/NPC/Scene/Combat/Chase/Conclusion；Keeper notes/Hidden clues/Private messages/AI memory 明确排除；角色与当前 sheet 均只接受公开/队伍可见或 owner-bound 玩家私有标签 | PASS |
@@ -28,7 +29,7 @@
 | Exact retry | Combat、Chase、Ending、Growth 对同一 commit/command/idempotency/request 返回相同 receipt 且不重复投影；不同绑定保持 fail closed | PASS |
 | Ending/Growth 语义唯一性 | Session/Character 事务 advisory lock 覆盖语义检查、canonical append 与 projection；同一 Session 的并发 Ending 和同一来源 sheet 的并发 Growth 各只允许一个成功，失败方不增加 Event Store | PASS |
 | Ending 场景绑定 | `record_ending` 读取 ended Session 所绑定 Scenario 的 canonical `document_json.endings`，未声明 ID 在正式提交前拒绝 | PASS |
-| Fork 历史 cutoff | 在来源会话结束后创建第二 Session 并再次 Growth；旧 Session snapshot/child 仍包含第一轮 sheet，父 Campaign current sheet 保持第二轮结果 | PASS |
+| Fork 历史 cutoff | base cutoff 只取来源 Session 的 gameplay 序列；在第二 Session/Ending/Growth 后才完成的相关公开复议链从 verified Event Store request payload 按 reconsideration ID 单独加入，不抬高角色/Clue/全局 public-event cutoff；旧 fork 保留第一轮 sheet 且不含较新 Session/Ending | PASS |
 | Fork Visibility 与主体密钥 | Scenario 为 `keeper_only`、Session/Scenes 为 `party_visible`、Character/Sheet 为 owner-bound `private_to_player`；每个私密 `CampaignForkMaterialized` 事件保存玩家 `data_subject_id` 并使用对应有效主体密钥，envelope、Event Store、Outbox 与投影一致 | PASS |
 | Tutorial 完整流程 | `tutorial_complete_e2e` 两个用例，真实 DB/Witness 主流程及提前 Ending/私密 Fork 负例 | PASS |
 
@@ -39,7 +40,8 @@
 | 第一轮，4 项 | historical cutoff、子实体 Visibility、exact retry、Ending scenario 绑定 | verified replay、逐事件 Visibility、persisted receipt retry、append 前场景绑定校验；真实 PostgreSQL/Witness 回归 | FIXED |
 | 第二轮，5 项 | Ending/Growth 语义重复可能先写正史；私密事件主体/密钥错误；声明 scope 未全部物化；单事件嵌入无界 snapshot | append 前语义键检查；逐事件主体加密；六类遗漏 scope 的正式物化/投影/重放；内容寻址 snapshot 与双重批次上限 | FIXED |
 | 第三轮，5 项 | Combat 可提交任意伤害、Chase 可提交成功布尔值、Growth 未绑定所选 Ending 奖励、并发 Ending/Growth 仍可能先后追加孤儿正史 | opaque 攻击/防御/伤害/参与者骰证据及三层重算；`growth_awards` 精确绑定；Session/Character 事务 advisory lock；错配与真实并发负例 | FIXED_CONFIRMED_BY_FOURTH_REVIEW |
-| 第四轮，4 项 | Combat 错用 DEX 而非战斗技能；缺少 Fight Back；非 ACTIVE Session 仍可写玩法正史；Scenario 接受重复 participant | 持久化 Melee/Firearm/Dodge 并按动作重算；Fight Back tie/counterattack/outcome；事务 Session 行锁与 ACTIVE 检查；入口去重；真实 DB、单元、Clippy 与 Semgrep 回归 | FIXED_LOCALLY_RERUN_PENDING |
+| 第四轮，4 项 | Combat 错用 DEX 而非战斗技能；缺少 Fight Back；非 ACTIVE Session 仍可写玩法正史；Scenario 接受重复 participant | 持久化 Melee/Firearm/Dodge 并按动作重算；Fight Back tie/counterattack/outcome；事务 Session 行锁与 ACTIVE 检查；入口去重；真实 DB、单元、Clippy 与 Semgrep 回归 | FIXED_CONFIRMED_BY_FIFTH_REVIEW |
+| 第五轮，2 项 | 相关复议用 resolution sequence 扩大全局 fork cutoff，可能带入较新 Session；Fight Back 令当前攻击者失能后仍可继续攻击 | gameplay base cutoff 与补充复议链分离；按原事件可见性与 reconsideration ID 选择链；三层 `can_act` 检查；晚期复议泄漏和失能重复攻击负例 | FIXED_LOCALLY_RERUN_PENDING |
 
 所有正式写入保持 Authority、Visibility、Fact Provenance、formal commit、Event Store、
 Outbox 和 projection guard 边界。没有删除或覆盖源事件，没有让 projection 成为正史，

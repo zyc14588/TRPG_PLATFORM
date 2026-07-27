@@ -437,12 +437,17 @@ impl CombatState {
             .current_actor()
             .ok_or(TrpgError::InvalidConfiguration("combat_actor"))?
             .to_owned();
-        let attacker_target = self
+        let attacker = self
             .participants
             .iter()
             .find(|participant| participant.participant_id == attacker_id)
-            .map(|participant| participant.skill_targets.attack_target(action))
             .ok_or(TrpgError::InvalidConfiguration("combat_actor"))?;
+        if !attacker.condition.can_act() {
+            return Err(TrpgError::InvalidConfiguration(
+                "combat_actor_incapacitated",
+            ));
+        }
+        let attacker_target = attacker.skill_targets.attack_target(action);
         let defender = self
             .participants
             .iter()
@@ -507,12 +512,17 @@ impl CombatState {
         if self.current_actor() != Some(attacker_id) || attacker_id == target_id {
             return Err(TrpgError::InvalidConfiguration("combat_actor"));
         }
-        let attacker_target = self
+        let attacker = self
             .participants
             .iter()
             .find(|participant| participant.participant_id == attacker_id)
-            .map(|participant| participant.skill_targets.attack_target(action))
             .ok_or(TrpgError::InvalidConfiguration("combat_actor"))?;
+        if !attacker.condition.can_act() {
+            return Err(TrpgError::InvalidConfiguration(
+                "combat_actor_incapacitated",
+            ));
+        }
+        let attacker_target = attacker.skill_targets.attack_target(action);
         let defender = self
             .participants
             .iter()

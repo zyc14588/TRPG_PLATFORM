@@ -70,6 +70,15 @@ fn melee_damage_at_most(value: u8) -> ServerDamageRoll {
     }
 }
 
+fn melee_damage_with_value(value: u8) -> ServerDamageRoll {
+    loop {
+        let roll = server_damage_roll(1, 6, 0).unwrap();
+        if roll.value() == value {
+            return roll;
+        }
+    }
+}
+
 #[test]
 fn major_wound_survives_later_small_damage_until_explicit_recovery() {
     let first = apply_damage(12, 12, 6, CombatCondition::Able).unwrap();
@@ -238,4 +247,42 @@ fn formal_combat_uses_combat_skills_and_models_fight_back() {
         .unwrap();
     assert!(winning_fight_back.participants()[0].current_hp() < 12);
     assert_eq!(winning_fight_back.participants()[1].current_hp(), 12);
+
+    let incapacitated_attacker = combatant("character_incapacitated", 90, 5, 0, 50, 20, 30);
+    let counterattacker = combatant("character_counterattacker", 60, 12, 0, 80, 40, 55);
+    let mut incapacitation = CombatState::start(
+        "combat_fight_back_incapacitation",
+        vec![incapacitated_attacker, counterattacker],
+    )
+    .unwrap();
+    incapacitation
+        .apply_damage(
+            "character_counterattacker",
+            CombatActionKind::Melee,
+            CombatDefense::FightBack,
+            &percentile_with_level(50, SuccessLevel::Regular),
+            Some(&percentile_with_level(80, SuccessLevel::Hard)),
+            &melee_damage_with_value(5),
+        )
+        .unwrap();
+    assert!(!incapacitation.participants()[0].condition().can_act());
+    let before_rejected_attack = incapacitation.persistence_json().unwrap();
+    assert_eq!(
+        incapacitation
+            .apply_damage(
+                "character_counterattacker",
+                CombatActionKind::Melee,
+                CombatDefense::None,
+                &percentile_with_level(50, SuccessLevel::Regular),
+                None,
+                &melee_damage_with_value(1),
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("combat_actor_incapacitated")
+    );
+    assert_eq!(
+        incapacitation.persistence_json().unwrap(),
+        before_rejected_attack,
+        "an incapacitated current actor must advance turn before another attack"
+    );
 }

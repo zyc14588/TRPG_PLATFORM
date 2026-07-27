@@ -24,7 +24,7 @@ pub fn required_storage_tables() -> &'static [&'static str] {
     STORAGE_TABLES
 }
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
@@ -7234,17 +7234,8 @@ impl CoreDomainRepository {
             ),
             snapshot_source AS (
                 SELECT snapshot_gameplay.*,
-                       GREATEST(
-                           snapshot_gameplay.gameplay_cutoff_event_sequence,
-                           COALESCE((
-                               SELECT max(reconsideration.last_event_sequence)
-                                 FROM public.reconsiderations AS reconsideration
-                                WHERE reconsideration.campaign_id =
-                                      snapshot_gameplay.campaign_id
-                                  AND reconsideration.original_event_sequence
-                                      <= snapshot_gameplay.gameplay_cutoff_event_sequence
-                           ), 0)
-                       ) AS snapshot_cutoff_event_sequence
+                       snapshot_gameplay.gameplay_cutoff_event_sequence
+                           AS snapshot_cutoff_event_sequence
                   FROM snapshot_gameplay
             )
             SELECT jsonb_build_object(
@@ -7411,10 +7402,67 @@ impl CoreDomainRepository {
                 "fork_snapshot_cutoff_sequence",
             ))?;
         let replay_events = self.load_campaign_events(parent_campaign_id).await?;
-        let public_events = replay_events
+        let copyable_base_event_sequences = replay_events
             .iter()
             .filter(|event| {
                 event.sequence <= cutoff_event_sequence
+                    && matches!(event.visibility_label.as_str(), "public" | "party_visible")
+                    && event.visibility_subject == "not_applicable"
+                    && event.integrity_status == "verified_hmac"
+                    && event.request_hash_source == "formal_commit"
+                    && event.event_integrity_hash.is_some()
+            })
+            .map(|event| event.sequence)
+            .collect::<BTreeSet<_>>();
+        let mut relevant_reconsideration_ids = BTreeSet::new();
+        for event in replay_events
+            .iter()
+            .filter(|event| event.event_type == "ReconsiderationRequested")
+        {
+            let request: CoreDomainEvent =
+                serde_json::from_value(event.payload.clone()).map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("fork_reconsideration_request_payload")
+                })?;
+            let CoreDomainEvent::ReconsiderationRequested {
+                reconsideration_id,
+                original_event_sequence,
+                ..
+            } = request
+            else {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "fork_reconsideration_request_event_type",
+                ));
+            };
+            let original_event_sequence = i64::try_from(original_event_sequence).map_err(|_| {
+                CoreDomainRepositoryError::Integrity("fork_reconsideration_original_sequence")
+            })?;
+            if copyable_base_event_sequences.contains(&original_event_sequence) {
+                if event.resource_id != reconsideration_id
+                    || !matches!(event.visibility_label.as_str(), "public" | "party_visible")
+                    || event.visibility_subject != "not_applicable"
+                    || event.integrity_status != "verified_hmac"
+                    || event.request_hash_source != "formal_commit"
+                    || event.event_integrity_hash.is_none()
+                {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_reconsideration_request_integrity",
+                    ));
+                }
+                relevant_reconsideration_ids.insert(reconsideration_id);
+            }
+        }
+        let public_events = replay_events
+            .iter()
+            .filter(|event| {
+                let is_relevant_reconsideration = matches!(
+                    event.event_type.as_str(),
+                    "ReconsiderationRequested"
+                        | "ReconsiderationReviewed"
+                        | "ReconsiderationUpheld"
+                        | "ReconsiderationCorrected"
+                ) && relevant_reconsideration_ids
+                    .contains(&event.resource_id);
+                (event.sequence <= cutoff_event_sequence || is_relevant_reconsideration)
                     && matches!(event.visibility_label.as_str(), "public" | "party_visible")
             })
             .map(|event| {
