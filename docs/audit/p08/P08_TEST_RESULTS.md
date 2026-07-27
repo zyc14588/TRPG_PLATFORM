@@ -60,6 +60,12 @@ Growth sheet/Character、Fork manifest/NPC/scenario/character/sheet/session/scen
 第十轮修复在 fork child 上通过正式命令继续创建 Scenario、Character/Sheet 和
 Session/Scene，再执行原 fork 的 exact retry 与 P08 rebuild；retry 不追加 Event
 Store，rebuild 前后这些后续投影逐字节相同，证明修复没有用全 Campaign 删除冒充重建。
+第十一轮修复负例覆盖两种 canonical payload shape：选中 Session 的顶层
+`PlayerActionSubmitted.action_id` 必须让依赖 `SanityLossApplied` 进入 fork replay，
+snapshot 与实际 child sheet 的 SAN 均精确等于来源截止状态。另一个确定性真库竞争
+先以独立事务持有 fork-empty 锁，再依次让普通 Scenario import 和已通过 emptiness
+preflight 的 Fork 排队；释放屏障后普通 canonical/projection 成功，
+`CampaignForkRecorded` 为零，证明检查与插入已在数据库线性化而非依赖时序运气。
 
 ## 真实数据库、重放与迁移
 
@@ -96,15 +102,20 @@ Store，rebuild 前后这些后续投影逐字节相同，证明修复没有用�
   start、Session ID、Scene 与 Action 归属形成事件集合，相关公开复议链按
   reconsideration ID 单独筛选。真实 E2E 把第二 Session start/end 交错放在第一
   Session Ending/Growth 之前，并在稍后写入第二 Session Ending/Growth；最终快照保留
-  第一 Session 与其复议链，但不含这些无关状态。
+  第一 Session 与其复议链，但不含这些无关状态。字段提取同时支持顶层
+  `PlayerActionSubmitted` 与 `payload.data` 领域事件；来源 SAN action 的依赖损失在
+  snapshot 和 child sheet 中均被真实断言。
 - Fork materialization 分别产生 keeper、party、private 三类事件 envelope；每个私密
   事件使用玩家 `data_subject_id` 和对应有效主体密钥，projection guard 继续验证
   Visibility 与主体完全一致。
 - Fork child lineage 由 Event Store `CampaignForkRecorded(campaign_id)` partial
-  unique index 与 projection `UNIQUE(child_campaign_id)` 双重约束；snapshot/build、
-  canonical commit 和 replay-page load 不持有 projection pool connection，最终投影
-  才使用短 child/rebuild lock 事务。两个不同 fork ID 的真实 `tokio::join!` 竞争仅
-  一个成功，`max_connections=1` 的专门回归也在 30 秒内完成。
+  unique index 与 projection `UNIQUE(child_campaign_id)` 双重约束；Event Store
+  INSERT trigger 还让同一 child 的每个 canonical write 使用同一事务 advisory lock，
+  并在 `CampaignForkRecorded` 插入时重新拒绝任何非创建/邀请基线历史。
+  snapshot/build、canonical commit 和 replay-page load 不持有 projection pool
+  connection，最终投影才使用短 child/rebuild lock 事务。两个不同 fork ID 的真实
+  `tokio::join!` 竞争仅一个成功，`max_connections=1` 和普通写/Fork TOCTOU 回归也在
+  30 秒内完成。
 - Ending 只绑定 `ENDED` session，且 ID 必须来自该 Session 的 Scenario `endings`。
 - Ending summary 与 Reconsideration review/resolution 在 canonical event 创建前
   规范化；带空白输入的 live projection 和删除后 replay 逐字节一致。
@@ -160,6 +171,7 @@ Store，rebuild 前后这些后续投影逐字节相同，证明修复没有用�
 | `cargo test -p trpg-runtime --test conclusion_growth_state_machine` | PASS，`2/2` |
 | `python3 scripts/ci/check_dependency_directions.py` 及自测 | PASS；未添加例外 |
 | `python3 scripts/ci/check_product_boundaries.py` 及自测 | PASS |
+| `python3 scripts/ci/test_repo_truth.py` | PASS，`23/23`；使用仓库锁定的 Python 3.14.6、Node 24.17.0、pnpm 11.9.0 |
 | workflow、test discovery/inventory、evidence schema、Compose security | PASS；发现 235 个 Rust test targets |
 | 修改过的 CI shell `bash -n` | PASS |
 | `git diff --check` | PASS |
@@ -216,13 +228,28 @@ Character/Sheet、Session/Scene，再执行原 fork exact retry 与 P08 rebuild�
 repository-truth、golden-scenarios、production-security 3/5 完成通过，review
 `4784615487` 的两个阻断出现后取消 workspace/release，未记为 5/5。
 
+第十一轮修复的首个真库运行在迁移升级门禁处失败：新增 Event Store trigger 改变了
+精确 trigger catalog fingerprint，而 `assert-schema.sql` 仍保存旧值。该次 exit
+`101` 未计为通过；从失败输出取得实际 fingerprint、更新受审计基线后，同一完整套件
+才从两组全新 primary/Witness 容器连续通过。提交前逐行复核又发现函数正文只受语义
+子串检查，遂将其加入完整函数定义/执行属性/所有权/安全 `search_path` 指纹；旧函数
+fingerprint 因此再次以 exit `101` 拒绝，更新实际 catalog 值后完整双库套件再连续
+通过两次。Semgrep 第一次因日志默认写只读目录退出，第二次因受限网络无法解析社区规则
+exit `2`；将日志定向到 `/tmp` 并获准只下载相同规则后，最终 34 targets、13 rules、
+0 finding、0 error、0 skipped。所有前置失败均保留为失败，没有被最终结果覆盖。
+
+提交前第一次运行 `test_repo_truth.py` 时，宿主 Python 3.14.4、Node 22.22.1 且缺少
+pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。没有修改锁定版本或放宽
+断言；从官方发行源只在 `/tmp` 准备 Python 3.14.6、Node 24.17.0 和 pnpm 11.9.0 后，
+同一 23 项全部通过。首次环境失败未计为 PASS，也未把临时运行时加入仓库。
+
 ## 第三方与依赖检查
 
 | 门禁 | 结果 |
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；34 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 前十轮为 4、5、5、4、2、3、5、3、4、2 项；第九轮修复已由第十轮确认未重复，第十轮 2 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 前十一轮为 4、5、5、4、2、3、5、3、4、2、2 项；第十轮修复已由第十一轮确认未重复，第十一轮 2 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -245,6 +272,8 @@ aggregate/Combat/Chase 复用。第九轮确认这三项未重复，又指出 P0
 保留损坏/ghost、Growth 未加入全局骰消费、fork gameplay 未重写参与者 ID，以及
 长期持有 projection connection 会耗尽连接池。第十轮确认这四项未重复，又指出
 rebuild 会删除 fork 后的正常 child 状态、retry 行数错误覆盖整个 child Campaign。
+第十一轮确认这两项未重复，又指出顶层 `PlayerActionSubmitted` 未被 source-session
+归属读取，以及 emptiness preflight 与普通 child canonical write 之间仍有 TOCTOU。
 以上均已按问题根因修复；扩展到 34 目标的 Semgrep 复扫仍为 0 finding。本报告在
 最新远端 CI/复审完成前保持 pending，不以本地结果冒充远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
@@ -255,7 +284,8 @@ workspace/release 两项。第七轮修复提交 `56b648b` 同样只有上述 3/
 阻断出现后取消 workspace/release 两项。第八轮修复提交 `f1b0e70` 同样只有上述
 3/5 通过，第九轮阻断出现后取消 workspace/release 两项。第九轮修复提交
 `3b90578` 仍只有上述 3/5 通过，第十轮阻断出现后取消 workspace/release 两项。
-以上均未记为 5/5。
+第十轮修复提交 `4250462` 仍只有上述 3/5 通过，第十一轮阻断出现后取消
+workspace/release 两项。以上均未记为 5/5。
 
 RustSec 报告：
 
@@ -276,4 +306,4 @@ P08 migration SHA-384：
 - `20260727000600`：
   `4aa250ec0b9020e80194bb87cf86891d06c26cc07f5400fc547ac6860ecc9f4443193e6ef56d4ba2ac438f9863407859`
 - `20260727000700`：
-  `e2bf932ee689991df816a52fe00dfb669dda5027d193114d04a78f9e169e3c49cdfd8f288416f7b530058b60ea9fa276`
+  `2a0535005ed362d661ac8131297b355eba2229610f2e38531ad7860c494993e3078850fbacf4f979b46320c1d78acfce`

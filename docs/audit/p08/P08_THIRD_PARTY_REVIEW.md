@@ -38,7 +38,9 @@ GITHUB_EIGHTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_NINTH_REVIEW
 GITHUB_NINTH_AUTOMATED_REVIEW = 4_ACTIONABLE
 GITHUB_NINTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TENTH_REVIEW
 GITHUB_TENTH_AUTOMATED_REVIEW = 2_ACTIONABLE
-GITHUB_TENTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_TENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_ELEVENTH_REVIEW
+GITHUB_ELEVENTH_AUTOMATED_REVIEW = 2_ACTIONABLE
+GITHUB_ELEVENTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FIFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -46,7 +48,8 @@ GITHUB_SIXTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_SEVENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_EIGHTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_NINTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
-GITHUB_TENTH_REPAIR_HOSTED_CI = PENDING
+GITHUB_TENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
+GITHUB_ELEVENTH_REPAIR_HOSTED_CI = PENDING
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -69,6 +72,9 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 默认并行度因 `io_uring_queue_init` 资源分配失败返回 exit `2` 和 engine error。
 第九轮复扫同样先在受限网络等待后主动终止，再以获准联网和固定 `--jobs 1` 完成；
 第十轮修复后沿用相同 34 目标与规则配置，直接得到 0 finding、0 error、0 skipped。
+第十一轮第一次启动因默认日志目录只读而在扫描前退出，第二次因受限网络无法解析规则
+registry exit `2`；显式把设置/日志定向到 `/tmp` 并获准获取相同社区规则后，才得到
+最终 0 finding、0 error、0 skipped。两个前置错误均未计为扫描通过。
 只有最终 0 error JSON 被计为通过，前述中间运行没有被覆盖或伪报。
 
 扩展范围首次复扫发现 `data_deletion_e2e.rs` 两处以可预测名称直接使用共享临时目录。
@@ -79,7 +85,7 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-tenth-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-eleventh-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -253,8 +259,25 @@ production-security 为 3/5 通过；第十轮精确 SHA review `4784615487` 确
 ID，rebuild 只替换这些行；retry 则从 verified Event Store projection targets
 计算该 fork 的实际行。真实双库随后创建后续 Scenario、Character/Sheet、
 Session/Scene，再执行 exact retry 与 rebuild，后续投影逐字节不变且 Event Store
-不增不改；完整套件从全新 primary/Witness 连续通过两次。仍须等待新的精确 SHA
-5/5 Hosted CI 与远端复审，才允许合并。
+不增不改；完整套件从全新 primary/Witness 连续通过两次。
+
+对应提交 `4250462` 的 repository-truth、golden-scenarios、
+production-security 为 3/5 通过；第十一轮精确 SHA review `4784745614` 确认第十轮
+两项未重复，但继续提出 2 个有效问题：
+
+- source-session selector 只从 `payload.data` 读取归属字段，顶层 shape 的
+  `PlayerActionSubmitted.action_id` 会被遗漏，并连带排除依赖的
+  `SanityLossApplied`；
+- child projection emptiness preflight 没有与普通 canonical write 共用线性化锁，
+  普通写可在检查后、Fork commit 前进入另一条正史。
+
+第十一轮修复让 replay 字段同时支持顶层与嵌套 shape，并在真实 Tutorial 中断言
+snapshot 与 child sheet 的 SAN。Event Store 新增 campaign-scoped BEFORE INSERT
+trigger：所有 canonical write 共用事务 advisory lock，`CampaignForkRecorded` 在
+插入点重新拒绝非创建/邀请基线历史。确定性屏障测试让普通 Scenario write 先排队、
+Fork 后排队，释放后只有普通正史/投影成功。迁移、双 primary/Witness、all-features
+check/Clippy 和 34 目标 Semgrep 均已通过；仍须等待新的精确 SHA 5/5 Hosted CI 与
+远端复审，才允许合并。
 
 ## RustSec
 
@@ -270,8 +293,8 @@ Session/Scene，再执行 exact retry 与 rebuild，后续投影逐字节不变�
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 十轮
-自动审查先后提出的 4、5、5、4、2、3、5、3、4、2 项阻断均已修复或完成本地验证，
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 十一轮
+自动审查先后提出的 4、5、5、4、2、3、5、3、4、2、2 项阻断均已修复或完成本地验证，
 最新提交的远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。

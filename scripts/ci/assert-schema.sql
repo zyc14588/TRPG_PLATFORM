@@ -1004,7 +1004,7 @@ BEGIN
            'rag_snapshot_chunk'::regclass
        );
     IF trigger_signature IS NULL
-       OR trigger_signature <> '9c5ea9fba170ea19b3da21e31f4359f7' THEN
+       OR trigger_signature <> 'd8bc92078fbcad42090f4d4c3dcd8360' THEN
         RAISE EXCEPTION 'event persistence trigger relation/enabled/definition signature drifted: %',
             trigger_signature;
     END IF;
@@ -1045,13 +1045,14 @@ BEGIN
          'enforce_projection_checkpoint_monotonicity()'::regprocedure,
          'enforce_canonical_event_projection_document()'::regprocedure,
          'enforce_rag_snapshot_chunk_source()'::regprocedure,
+         'enforce_campaign_fork_empty_child_history()'::regprocedure,
          'lock_rag_snapshot(text,text)'::regprocedure,
          'canonical_projection_json(jsonb)'::regprocedure,
          'projection_hash_field(integer,bytea)'::regprocedure,
          'compute_canonical_projection_hash_v3(text,event_store)'::regprocedure
     );
     IF trigger_function_signature IS NULL
-       OR trigger_function_signature <> '81e8f54d925bbae9be6b29880a0cc5cf' THEN
+       OR trigger_function_signature <> 'f347c5ecf9667e152e078c6f2b67cc45' THEN
         RAISE EXCEPTION 'event persistence trigger function definition/execution signature drifted: %',
             trigger_function_signature;
     END IF;
@@ -1065,6 +1066,7 @@ BEGIN
                    'enforce_canonical_audit_chain()'::regprocedure,
                    'enforce_canonical_event_projection_document()'::regprocedure,
                    'enforce_rag_snapshot_chunk_source()'::regprocedure,
+                   'enforce_campaign_fork_empty_child_history()'::regprocedure,
                    'lock_rag_snapshot(text,text)'::regprocedure,
                    'canonical_projection_json(jsonb)'::regprocedure,
                    'projection_hash_field(integer,bytea)'::regprocedure,
@@ -2245,6 +2247,31 @@ BEGIN
           JOIN pg_namespace AS namespace
             ON namespace.oid = procedure.pronamespace
          WHERE namespace.nspname = 'public'
+           AND procedure.proname =
+               'enforce_campaign_fork_empty_child_history'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%p08-campaign-fork-empty:%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%CampaignForkRecorded%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%CampaignInviteAccepted%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%campaign fork child canonical history is not empty%'
+    )
+    OR NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid = 'public.event_store'::regclass
+           AND tgname =
+               'event_store_campaign_fork_empty_child_guard'
+           AND NOT tgisinternal
+    )
+    OR NOT EXISTS (
+        SELECT 1
+          FROM pg_proc AS procedure
+          JOIN pg_namespace AS namespace
+            ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'public'
            AND procedure.proname = 'enforce_core_projection_event'
            AND pg_get_functiondef(procedure.oid)
                LIKE '%trpg.p08_projection_rebuild%'
@@ -2270,7 +2297,7 @@ BEGIN
            AND encode(tgargs, 'escape') LIKE '%ChaseStateRecorded%'
            AND encode(tgargs, 'escape') LIKE '%CharacterGrowthApplied%'
     ) THEN
-        RAISE EXCEPTION 'P08 snapshot scope, growth, or global roll evidence is not physical';
+        RAISE EXCEPTION 'P08 snapshot, fork serialization, growth, or global roll evidence is not physical';
     END IF;
 END;
 $$;

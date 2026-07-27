@@ -43,12 +43,14 @@ const PAYLOAD_KEY: &[u8; 32] = &[0x47; 32];
 const CAMPAIGN_ID: &str = "campaign_p06_schema";
 const CHILD_CAMPAIGN_ID: &str = "campaign_p06_fork_child";
 const RACE_CHILD_CAMPAIGN_ID: &str = "campaign_p08_fork_race_child";
+const STATE_RACE_CHILD_CAMPAIGN_ID: &str = "campaign_p08_fork_state_race_child";
 const KEEPER_ID: &str = "keeper_p06_schema";
 const PLAYER_ID: &str = "player_p06_schema";
 const OTHER_ID: &str = "other_p06_schema";
 const AUTHORITY_ID: &str = "authority_campaign_p06_schema_1";
 const CHILD_AUTHORITY_ID: &str = "authority_campaign_p06_fork_child_1";
 const RACE_CHILD_AUTHORITY_ID: &str = "authority_campaign_p08_fork_race_child_1";
+const STATE_RACE_CHILD_AUTHORITY_ID: &str = "authority_campaign_p08_fork_state_race_child_1";
 const NOW_MS: u64 = 2_000_000_000_000;
 
 fn percentile_with_result(target: u8, succeeds: bool) -> ServerPercentileRoll {
@@ -3258,6 +3260,156 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         (1, 1, 1),
         "one child must have one projected lineage, one canonical lineage event, and one DB constraint"
     );
+
+    create_campaign(
+        &repository,
+        STATE_RACE_CHILD_CAMPAIGN_ID,
+        STATE_RACE_CHILD_AUTHORITY_ID,
+        "room_p08_fork_state_race_child",
+        "fork_state_race_child_create",
+    )
+    .await;
+    let state_race_tutorial = parse_scenario_yaml(include_str!(
+        "../../../fixtures/scenarios/tutorial_mist_archive.scenario.yaml"
+    ))
+    .expect("parse scenario for fork-versus-state race");
+    let state_write_repository = repository.clone();
+    let state_write_metadata = metadata(
+        STATE_RACE_CHILD_CAMPAIGN_ID,
+        STATE_RACE_CHILD_AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "scenario_p08_fork_state_race",
+        "scenario",
+        "scenario.import",
+        0,
+        "scenario_p08_fork_state_race_import",
+        "keeper_only",
+        "not_applicable",
+        "imported_source",
+    );
+    let state_write_request = ImportScenarioRequest {
+        scenario_id: "scenario_p08_fork_state_race".to_owned(),
+        campaign_id: STATE_RACE_CHILD_CAMPAIGN_ID.to_owned(),
+        ruleset_id: state_race_tutorial.ruleset_id,
+        format_version: state_race_tutorial.format_version,
+        content_hash: state_race_tutorial.content_hash,
+        document_json: state_race_tutorial.canonical_json,
+    };
+    let state_fork_repository = repository.clone();
+    let state_fork_metadata = metadata(
+        STATE_RACE_CHILD_CAMPAIGN_ID,
+        STATE_RACE_CHILD_AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "fork_p08_state_race",
+        "campaign_fork",
+        "campaign.fork.record",
+        0,
+        "fork_p08_state_race",
+        "keeper_only",
+        "not_applicable",
+        "human_keeper_statement",
+    );
+    let state_fork_request = RecordCampaignForkRequest {
+        fork_id: "fork_p08_state_race".to_owned(),
+        parent_campaign_id: CAMPAIGN_ID.to_owned(),
+        child_campaign_id: STATE_RACE_CHILD_CAMPAIGN_ID.to_owned(),
+        source_session_id: "session_p06_schema".to_owned(),
+        snapshot_hash: snapshot.snapshot_hash.clone(),
+        reason: "Race an ordinary child write against fork initialization".to_owned(),
+        copy_scopes: snapshot.copy_scopes.clone(),
+    };
+    let state_race_lock_key = format!("p08-campaign-fork-empty:{STATE_RACE_CHILD_CAMPAIGN_ID}");
+    let mut state_race_barrier = primary.begin().await.unwrap();
+    let blocked_advisory_locks_before: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pg_locks \
+         WHERE locktype = 'advisory' AND NOT granted",
+    )
+    .fetch_one(&mut *state_race_barrier)
+    .await
+    .unwrap();
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(&state_race_lock_key)
+        .execute(&mut *state_race_barrier)
+        .await
+        .unwrap();
+
+    let state_write_task = tokio::spawn(async move {
+        state_write_repository
+            .import_scenario(&state_write_metadata, &state_write_request)
+            .await
+    });
+    let wait_for_blocked_locks = |expected: i64| {
+        let primary = primary.clone();
+        async move {
+            for _ in 0..200 {
+                let blocked: i64 = sqlx::query_scalar(
+                    "SELECT count(*) FROM pg_locks \
+                     WHERE locktype = 'advisory' AND NOT granted",
+                )
+                .fetch_one(&primary)
+                .await
+                .unwrap();
+                if blocked >= expected {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            panic!("timed out waiting for {expected} blocked advisory locks");
+        }
+    };
+    wait_for_blocked_locks(blocked_advisory_locks_before + 1).await;
+
+    let state_fork_task = tokio::spawn(async move {
+        state_fork_repository
+            .record_campaign_fork(&state_fork_metadata, &state_fork_request)
+            .await
+    });
+    wait_for_blocked_locks(blocked_advisory_locks_before + 2).await;
+    state_race_barrier.commit().await.unwrap();
+
+    let (state_write_result, state_fork_result) =
+        tokio::time::timeout(Duration::from_secs(30), async {
+            (
+                state_write_task.await.expect("state-write task must join"),
+                state_fork_task.await.expect("fork task must join"),
+            )
+        })
+        .await
+        .expect("serialized fork-versus-state race must complete");
+    state_write_result.expect("the ordinary child write queued first must commit");
+    assert!(
+        matches!(
+            &state_fork_result,
+            Err(CoreDomainRepositoryError::Canonical(_))
+        ),
+        "a fork whose preflight raced a committed child write must be rejected by the canonical insert guard: {state_fork_result:?}"
+    );
+    let state_race_counts: (i64, i64, i64) = sqlx::query_as(
+        r#"
+        SELECT
+            (SELECT count(*) FROM public.event_store
+              WHERE campaign_id = $1
+                AND event_type = 'ScenarioImported'),
+            (SELECT count(*) FROM public.event_store
+              WHERE campaign_id = $1
+                AND event_type = 'CampaignForkRecorded'),
+            (SELECT count(*) FROM public.scenarios
+              WHERE campaign_id = $1
+                AND scenario_id = 'scenario_p08_fork_state_race')
+        "#,
+    )
+    .bind(STATE_RACE_CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        state_race_counts,
+        (1, 0, 1),
+        "canonical and projected ordinary state must win without admitting a second initialization history"
+    );
+
     let single_connection_child = "campaign_p08_fork_single_connection";
     let single_connection_authority = "authority_campaign_p08_fork_single_connection_1";
     create_campaign(

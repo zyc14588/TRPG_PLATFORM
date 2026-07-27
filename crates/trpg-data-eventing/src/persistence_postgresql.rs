@@ -2336,10 +2336,16 @@ fn derive_fork_character_visibility(
 fn replay_event_field<'a>(event: &'a CanonicalReplayEvent, field: &str) -> Option<&'a str> {
     event
         .payload
-        .get("data")
-        .and_then(Value::as_object)
-        .and_then(|data| data.get(field))
+        .get(field)
         .and_then(Value::as_str)
+        .or_else(|| {
+            event
+                .payload
+                .get("data")
+                .and_then(Value::as_object)
+                .and_then(|data| data.get(field))
+                .and_then(Value::as_str)
+        })
 }
 
 fn fork_source_session_event_sequences(

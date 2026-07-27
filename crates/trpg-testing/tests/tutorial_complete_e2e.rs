@@ -1822,6 +1822,13 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         Some(u64::from(growth_after)),
         "the source-session fork must retain the sheet as of its canonical cutoff"
     );
+    assert_eq!(
+        fork_characters[0]
+            .pointer("/current_sheet/sheet_json/sanity_state/current_sanity")
+            .and_then(serde_json::Value::as_u64),
+        Some(u64::from(65 - sanity_loss)),
+        "the selected-session flat PlayerActionSubmitted payload and its dependent SAN loss must survive fork replay"
+    );
     repository
         .record_campaign_fork(
             &metadata(
@@ -1990,6 +1997,9 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
           (SELECT sheet_json -> 'skills' ->> 'Library Use'
              FROM public.character_sheet_versions
             WHERE campaign_id = $1) AS fork_growth_skill,
+          (SELECT sheet_json #>> '{sanity_state,current_sanity}'
+             FROM public.character_sheet_versions
+            WHERE campaign_id = $1) AS fork_sanity,
           (SELECT sheet_json -> 'skills' ->> 'Library Use'
              FROM public.character_sheet_versions
             WHERE sheet_version_id = 'sheet_p08_evelyn_v4')
@@ -2030,6 +2040,14 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             .parse::<u8>()
             .unwrap(),
         growth_after
+    );
+    assert_eq!(
+        child_visibility
+            .get::<String, _>("fork_sanity")
+            .parse::<u8>()
+            .unwrap(),
+        65 - sanity_loss,
+        "fork materialization must persist the selected-session SAN result"
     );
     assert_eq!(
         child_visibility

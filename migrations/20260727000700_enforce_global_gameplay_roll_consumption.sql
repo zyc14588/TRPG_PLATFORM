@@ -49,13 +49,56 @@ CREATE INDEX gameplay_roll_consumptions_aggregate_idx
 
 -- The fork command deliberately releases its projection transaction before
 -- the canonical commit so concurrent forks cannot reserve every connection
--- and deadlock the pool. Canonical lineage uniqueness, rather than a
--- long-lived advisory-lock connection, now serializes child initialization.
+-- and deadlock the pool. Canonical lineage uniqueness arbitrates competing
+-- forks. This insert trigger additionally serializes every canonical write for
+-- one campaign across the fork-empty boundary, so an ordinary child write
+-- cannot slip between the preflight emptiness read and CampaignForkRecorded.
 CREATE UNIQUE INDEX event_store_one_fork_lineage_per_child_idx
     ON public.event_store(campaign_id)
     WHERE event_type = 'CampaignForkRecorded'
       AND integrity_status = 'verified_hmac'
       AND request_hash_source = 'formal_commit';
+
+CREATE FUNCTION public.enforce_campaign_fork_empty_child_history()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(
+        hashtextextended(
+            'p08-campaign-fork-empty:' || NEW.campaign_id,
+            0
+        )
+    );
+
+    IF NEW.event_type = 'CampaignForkRecorded'
+       AND NEW.integrity_status = 'verified_hmac'
+       AND NEW.request_hash_source = 'formal_commit'
+       AND EXISTS (
+            SELECT 1
+              FROM public.event_store AS prior
+             WHERE prior.campaign_id = NEW.campaign_id
+               AND prior.integrity_status = 'verified_hmac'
+               AND prior.request_hash_source = 'formal_commit'
+               AND prior.event_type NOT IN (
+                    'CampaignCreated',
+                    'CampaignInviteIssued',
+                    'CampaignInviteAccepted'
+               )
+       ) THEN
+        RAISE EXCEPTION
+            'campaign fork child canonical history is not empty'
+            USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER event_store_campaign_fork_empty_child_guard
+BEFORE INSERT ON public.event_store
+FOR EACH ROW EXECUTE FUNCTION
+    public.enforce_campaign_fork_empty_child_history();
 
 -- Growth replay must temporarily return a character to the last non-growth
 -- projection before deleting and recreating growth-owned sheets. Preserve the
