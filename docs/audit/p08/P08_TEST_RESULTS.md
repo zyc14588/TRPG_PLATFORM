@@ -13,8 +13,8 @@ P08 实现前，三条强制命令均真实返回 Cargo exit `101`，原因是�
 
 | 命令 | 最终结果 |
 | --- | --- |
-| `cargo test -p trpg-ruleset-coc7 --test combat_condition_sequence` | PASS，`4/4`，exit `0` |
-| `cargo test -p trpg-ruleset-coc7 --test chase_terminal` | PASS，`2/2`，exit `0` |
+| `cargo test -p trpg-ruleset-coc7 --test combat_condition_sequence` | PASS，`5/5`，exit `0` |
+| `cargo test -p trpg-ruleset-coc7 --test chase_terminal` | PASS，`3/3`，exit `0` |
 | `cargo test -p trpg-testing --test tutorial_complete_e2e` | PASS，`2/2`，exit `0`；使用真实 PostgreSQL/Witness 环境 |
 
 负向覆盖包括 MajorWound 非法恢复、终态 Chase 继续推进、失败转移不变更聚合、
@@ -41,6 +41,11 @@ miss 不得携带伤害骰、成功命中不得伪装成 miss；同一空 child 
 真实并发竞争只能产生一个 canonical/projection lineage；带首尾空白的 Ending summary、
 Reconsideration review/resolution 在 canonical event、live projection 与删除后 replay
 中保持同一规范值。
+第七轮修复负例覆盖：Campaign member 猜测 `keeper_only` 源事件 sequence 发起复议
+返回统一 NotFound 且不写事件，后续 review 也不能扩大链条可见范围；攻击命中或失败后
+同一 actor 在推进回合前不能再次攻击；`DYING/DEAD` 目标不能 Dodge/Fight Back；
+First Aid/Medicine 目标从当前治疗者的持久化技能派生而不能由调用方抬高，失败治疗仍
+形成正式 mutation；Combat/Chase 的服务端 roll ID 在后续 aggregate version 中不能复用。
 
 ## 真实数据库、重放与迁移
 
@@ -57,11 +62,15 @@ Reconsideration review/resolution 在 canonical event、live projection 与删�
 
 真实集成验证：
 
-- Combat v1→v6 后为 `ENDED`，其中失败攻击以 `ATTACK_MISSED` 保存服务端攻击骰而不
-  生成伤害，MajorWound 仍存在；正式 Fight Back 反击经过独立重放，伪造 outcome、
-  伪造 miss 和同 ID 异源状态均未进入 Event Store。
-- Chase v1→v2 后为 `CAUGHT`，终态不能再推进。
-- Reconsideration 的 Request/Review/Upheld/Corrected 全部追加，原事件保留。
+- Combat v1→v14 后为 `ENDED`；失败攻击以 `ATTACK_MISSED` 保存服务端攻击骰且消费
+  当前动作，不生成伤害；正式回合推进、MajorWound、普通伤害、Fight Back 与玩家
+  First Aid 自救均经过独立重放，只有成功医疗事件把 condition 恢复为 `ABLE`。
+  伪造 outcome、伪造 miss、同 ID 异源状态、同回合第二次攻击、失能目标主动防御、
+  自报医疗目标和跨版本复用 roll ID 均未进入 Event Store。
+- Chase v1→v2 后为 `CAUGHT`，终态不能再推进，已消费 roll ID 不能用于后续 segment。
+- Reconsideration 的 Request/Review/Upheld/Corrected 全部追加，原事件保留；不可见
+  源事件不能被 Campaign member 通过猜测 sequence 引用，review/resolve 也不能扩大
+  source/前驱事件的 Visibility、subject 或 data subject。
 - Fork 来源 hash 精确匹配，记录事件保存有界内容寻址引用，物化批次受行数和字节数
   双重限制；私密 scope 不存在，`keeper_only` 角色与 sheet sentinel 不进入快照。
 - Public events、Clues、NPC、Combat、Chase、Conclusion 与既有子实体均实际落入
@@ -88,6 +97,11 @@ Reconsideration review/resolution 在 canonical event、live projection 与删�
 - Combat 的攻击/防御 target 分别来自持久化的 Melee、Firearm、Dodge，而 DEX
   只用于 initiative。Fight Back 与 Dodge 使用不同平手规则；防守方反击时伤害目标
   为原攻击者，mutation outcome 不能被 JSON 篡改。
+- Combat 的攻击命中、攻击失败与医疗尝试均消费当前回合动作，只有正式
+  `TurnAdvanced` 重置；`DYING/DEAD` 防守者不能 Dodge/Fight Back。First Aid/Medicine
+  target 从当前治疗者的持久化技能派生，失败治疗同样保存正式证据且不清除 MajorWound。
+- Combat 与 Chase 状态持久化已消费 roll ID ledger；本次内部重复以及后续 aggregate
+  version 对同一 opaque roll ID 的复用都由规则 replay 和独立领域 replay 拒绝。
 - Fight Back 使当前攻击者进入 `DYING/DEAD` 后，再次攻击返回
   `combat_actor_incapacitated` 且聚合不变；独立领域 validator 对手工伪造的同类
   serialized successor 返回 `InvalidTransition`。
@@ -140,13 +154,19 @@ payload JSON 路径；产品迁移与前置原子性测试当时已通过，但�
 `io_uring_queue_init` 资源错误 exit `2`；最终固定 `--jobs 1` 后才取得 0 error 的
 正式结果，前两次均未冒充成功。
 
+第七轮修复的真实双数据库套件最终从空 primary/Witness 数据库连续运行两次并全部
+通过；第二次包含正式 `TurnAdvanced` 和成功 First Aid 事件，避免用测试端直接改状态
+冒充 MajorWound 恢复。规则/领域新增负例分别验证动作消费、失能防御、医疗目标绑定和
+跨版本 roll ledger；扩展 Semgrep 仍以相同 33 个目标、13 条规则和 `--jobs 1` 得到
+0 finding、0 error。RustSec 则保持下述 exit `1`，没有被静态扫描结果覆盖。
+
 ## 第三方与依赖检查
 
 | 门禁 | 结果 |
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；33 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 第一至第五轮 4、5、5、4、2 项已修复；第六轮 3 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 第一至第六轮 4、5、5、4、2、3 项已修复并由下一轮确认未重复；第七轮 5 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -162,11 +182,15 @@ migration 后，第三轮 30 目标复扫
 非 ACTIVE Session 可写玩法正史、Scenario encounter 接受重复 participant。第五轮
 又指出相关复议扩大全局 Fork cutoff，以及失能的当前攻击者仍可行动。第六轮继续指出
 miss 正史丢失、Fork child lineage 并发竞态，以及 Ending/Reconsideration 文本的
-event/projection 不一致。以上均已按问题根因修复；扩展到 33 目标的 Semgrep 复扫仍为
-0 finding。本报告在最新远端 CI/复审完成前保持 pending，不以本地结果冒充远端通过。
+event/projection 不一致。第七轮继续指出不可见复议源事件、回合动作未消费、失能目标
+主动防御、调用方自报医疗 target 和服务端骰跨版本复用。以上均已按问题根因修复；
+扩展到 33 目标的 Semgrep 复扫仍为 0 finding。本报告在最新远端 CI/复审完成前保持
+pending，不以本地结果冒充远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
 仅有 2/5 完成通过后取消 3 项；第五轮修复提交 `fb3907e` 仅有 3/5 完成通过后取消
-workspace/release 两项，均未记为 5/5。
+workspace/release 两项；第六轮修复提交 `2ed9df2` 也只有 repository-truth、
+golden-scenarios、production-security 3/5 通过，第七轮阻断出现后取消
+workspace/release 两项。以上均未记为 5/5。
 
 RustSec 报告：
 

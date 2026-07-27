@@ -8244,23 +8244,55 @@ impl CoreDomainRepository {
         }
         self.ensure_campaign_member(&request.campaign_id, &request.requested_by)
             .await?;
-        let original_is_canonical: bool = sqlx::query_scalar(
+        let original_is_visible_and_canonical: bool = sqlx::query_scalar(
             r#"
             SELECT EXISTS(
-                SELECT 1 FROM public.event_store
-                 WHERE sequence = $1
-                   AND campaign_id = $2
-                   AND integrity_status = 'verified_hmac'
-                   AND request_hash_source = 'formal_commit'
+                SELECT 1
+                  FROM public.event_store AS source_event
+                 WHERE source_event.sequence = $1
+                   AND source_event.campaign_id = $2
+                   AND source_event.integrity_status = 'verified_hmac'
+                   AND source_event.request_hash_source = 'formal_commit'
+                   AND source_event.visibility_label = $4
+                   AND source_event.visibility_subject = $5
+                   AND source_event.data_subject_id = $6
+                   AND (
+                        source_event.visibility_label IN (
+                            'public', 'party_visible', 'spectator_visible'
+                        )
+                        OR source_event.visibility_label IN (
+                            'private_to_player', 'investigator_private'
+                        )
+                        AND source_event.visibility_subject = $3
+                        AND source_event.data_subject_id = $3
+                        OR source_event.visibility_label = 'keeper_only'
+                        AND EXISTS(
+                            SELECT 1
+                              FROM public.campaigns
+                             WHERE campaign_id = $2
+                               AND owner_user_id = $3
+                            UNION ALL
+                            SELECT 1
+                              FROM public.campaign_memberships
+                             WHERE campaign_id = $2
+                               AND user_id = $3
+                               AND role IN ('CAMPAIGN_OWNER', 'HUMAN_KEEPER')
+                               AND revoked_at IS NULL
+                        )
+                   )
             )
             "#,
         )
         .bind(request.original_event_sequence)
         .bind(&request.campaign_id)
+        .bind(&request.requested_by)
+        .bind(&metadata.visibility_label)
+        .bind(&metadata.visibility_subject)
+        .bind(&metadata.data_subject_id)
         .fetch_one(&self.primary)
         .await
         .map_err(database_error("load_reconsideration_source_event"))?;
-        if !original_is_canonical {
+        if !original_is_visible_and_canonical {
             return Err(CoreDomainRepositoryError::NotFound(
                 "reconsideration_source_event",
             ));
@@ -8367,9 +8399,17 @@ impl CoreDomainRepository {
             .await?;
         let row = sqlx::query(
             r#"
-            SELECT campaign_id, state, version, last_event_sequence
-              FROM public.reconsiderations
-             WHERE reconsideration_id = $1
+            SELECT reconsideration.campaign_id, reconsideration.state,
+                   reconsideration.version, reconsideration.last_event_sequence,
+                   reconsideration.visibility_label::TEXT AS visibility_label,
+                   reconsideration.visibility_subject,
+                   chain_event.visibility_label AS event_visibility_label,
+                   chain_event.visibility_subject AS event_visibility_subject,
+                   chain_event.data_subject_id
+              FROM public.reconsiderations AS reconsideration
+              JOIN public.event_store AS chain_event
+                ON chain_event.sequence = reconsideration.last_event_sequence
+             WHERE reconsideration.reconsideration_id = $1
             "#,
         )
         .bind(&request.reconsideration_id)
@@ -8378,6 +8418,21 @@ impl CoreDomainRepository {
         .map_err(database_error("load_reconsideration_for_review"))?
         .ok_or(CoreDomainRepositoryError::NotFound("reconsideration"))?;
         if row.get::<String, _>("campaign_id") != request.campaign_id {
+            return Err(CoreDomainRepositoryError::Forbidden);
+        }
+        if row.get::<String, _>("visibility_label")
+            != row.get::<String, _>("event_visibility_label")
+            || row.get::<String, _>("visibility_subject")
+                != row.get::<String, _>("event_visibility_subject")
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "reconsideration_visibility_projection_mismatch",
+            ));
+        }
+        if metadata.visibility_label != row.get::<String, _>("event_visibility_label")
+            || metadata.visibility_subject != row.get::<String, _>("event_visibility_subject")
+            || metadata.data_subject_id != row.get::<String, _>("data_subject_id")
+        {
             return Err(CoreDomainRepositoryError::Forbidden);
         }
         let current_version: i64 = row.get("version");
@@ -8553,9 +8608,19 @@ impl CoreDomainRepository {
             .await?;
         let row = sqlx::query(
             r#"
-            SELECT campaign_id, original_event_sequence, state, version, last_event_sequence
-              FROM public.reconsiderations
-             WHERE reconsideration_id = $1
+            SELECT reconsideration.campaign_id,
+                   reconsideration.original_event_sequence,
+                   reconsideration.state, reconsideration.version,
+                   reconsideration.last_event_sequence,
+                   reconsideration.visibility_label::TEXT AS visibility_label,
+                   reconsideration.visibility_subject,
+                   chain_event.visibility_label AS event_visibility_label,
+                   chain_event.visibility_subject AS event_visibility_subject,
+                   chain_event.data_subject_id
+              FROM public.reconsiderations AS reconsideration
+              JOIN public.event_store AS chain_event
+                ON chain_event.sequence = reconsideration.last_event_sequence
+             WHERE reconsideration.reconsideration_id = $1
             "#,
         )
         .bind(&request.reconsideration_id)
@@ -8564,6 +8629,21 @@ impl CoreDomainRepository {
         .map_err(database_error("load_reconsideration_for_resolution"))?
         .ok_or(CoreDomainRepositoryError::NotFound("reconsideration"))?;
         if row.get::<String, _>("campaign_id") != request.campaign_id {
+            return Err(CoreDomainRepositoryError::Forbidden);
+        }
+        if row.get::<String, _>("visibility_label")
+            != row.get::<String, _>("event_visibility_label")
+            || row.get::<String, _>("visibility_subject")
+                != row.get::<String, _>("event_visibility_subject")
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "reconsideration_visibility_projection_mismatch",
+            ));
+        }
+        if metadata.visibility_label != row.get::<String, _>("event_visibility_label")
+            || metadata.visibility_subject != row.get::<String, _>("event_visibility_subject")
+            || metadata.data_subject_id != row.get::<String, _>("data_subject_id")
+        {
             return Err(CoreDomainRepositoryError::Forbidden);
         }
         let current_version: i64 = row.get("version");

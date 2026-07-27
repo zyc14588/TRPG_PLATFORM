@@ -5,7 +5,7 @@
 
 | Finding | 根因 | 修复代码 | 负向/正向证据 | 状态 |
 | --- | --- | --- | --- | --- |
-| AUD-031 | 旧伤害函数仅按本次伤害计算 condition，可清除已有 MajorWound | `combat_state_machine.rs` 的 `CombatState`、`apply_damage_with_armor`、显式恢复；领域层 `canonical_gameplay_state.rs` 再验证完整前驱转换 | `combat_condition_sequence` 验证大伤后小伤/护甲吸收仍为 MajorWound、非法恢复失败、失败的回合推进不改变聚合；真实 DB 最终 JSON 保留 `MAJOR_WOUND` | CLOSED_PASS |
+| AUD-031 | 旧伤害函数仅按本次伤害计算 condition，可清除已有 MajorWound | `combat_state_machine.rs` 的 `CombatState`、`apply_damage_with_armor`、显式恢复；领域层 `canonical_gameplay_state.rs` 再验证完整前驱转换 | `combat_condition_sequence` 验证大伤后小伤/护甲吸收仍为 MajorWound；真实 DB 在持续伤害后仍为 MajorWound，只有绑定治疗者 First Aid 的成功正式事件将其恢复为 `ABLE` | CLOSED_PASS |
 | AUD-032 | 旧追逐函数不绑定当前状态，终态可重新进入 Ongoing | `chase_state_machine.rs` 的 `ChaseState`；领域层对 ID、参与者、距离、segment、version 和 exact predecessor 做二次校验 | `chase_terminal` 验证 Escaped/Caught 均拒绝推进，新追逐使用新 ID；真实 DB 保存 `CAUGHT` v2 | CLOSED_PASS |
 | AUD-036 | Fork 忽略关键字段，只写 parent snapshot 行，没有子 Campaign 实体；当前 projection 过滤会遗漏 cutoff 后又更新的角色；materialization 还会把 party/private 子行全部降为 keeper-only | `fork_canon_lineage.rs`；`preview_campaign_fork`、`record_campaign_fork`、canonical cutoff replay、按 Visibility/数据主体/字节上限分批的 materialization/replay；内容寻址 snapshot；逐事件 request-hash/HMAC/Event Store/Outbox 主体绑定；P08 四个 migration | domain tests 拒绝 self-fork、坏/不匹配 hash 和未授权私密 scope；真实 DB 证明 `keeper_only` sentinel 被排除，后续 Session Growth 不会遗漏角色或污染旧快照，全部声明 scope 被实际物化，私密事件使用 owner 主体密钥，删除后重放一致且 source 不变 | CLOSED_PASS |
 | AUD-043 | 只有权限枚举，缺少完整复议实体和追加式处理 | `ReconsiderationOutcome`、request/review/resolve 状态机、正式事件与 v2 projection | 精确重复 request 幂等；Upheld 与 Corrected 均为独立事件；完成后追加失败；原始 event sequence 保留 | CLOSED_PASS |
@@ -18,8 +18,13 @@
 | Combat/Chase 防 JSON 伪造 | Combat API 不再接受原始伤害，Chase API 不再接受成功布尔值；规则 replay 与独立领域 replay 重算骰值、成功等级、固定伤害公式和唯一合法下一状态，持久层再绑定同一批 server evidence；错配证据与异源同 ID 均在 append 前失败 | PASS |
 | Combat 技能绑定 | DEX 只决定先攻；每个正式参与者持久化 Melee、Firearm、Dodge 目标，攻击、防御、规则 replay 与领域 replay 都按对应技能重新验证；高 DEX/低 Firearm 负例按 Firearm 失败，记录无伤害 miss 且不改变 HP | PASS |
 | Combat miss 正史 | 攻击失败或 Dodge 成功生成 `ATTACK_MISSED` mutation，保留攻击/防御服务端骰并推进 version，不保存或接受伤害骰；规则前驱 replay 与独立领域 replay 重算结果，成功命中不能伪装成 miss | PASS |
+| Combat 回合动作消费 | attack/miss/医疗尝试均设置 `turn_action_consumed`，只有 `TURN_ADVANCED` 重置；同回合第二次攻击在规则层和独立 serialized replay 层拒绝 | PASS |
 | Fight Back | `FightBack` 与 Dodge 分离；平手由发起攻击者获胜，防守方只有更高成功等级才把伤害施加给攻击者；派生 outcome 进入 mutation，篡改 outcome 在 append 前失败 | PASS |
 | 失能攻击者 | Fight Back 后若当前攻击者为 `DYING/DEAD`，公开聚合、规则前驱 replay 与独立领域 serialized replay 都拒绝其再次攻击，必须先推进至可行动参与者 | PASS |
+| 失能目标主动防御 | `DYING/DEAD` 目标只能承受无主动防御的攻击，不能 Dodge 或 Fight Back；规则与独立 replay 负例均拒绝 | PASS |
+| 医疗目标绑定 | 调用方不再提交数值 target；指定当前治疗者与 First Aid/Medicine 后，从其持久化技能派生 target。失败尝试也作为正式 mutation 消费动作和服务端骰；真实 DB 成功恢复路径由三层重算 | PASS |
+| 正式骰单次消费 | Combat 与 Chase 聚合持久化已消费 roll ID；本次内部重复及后续 aggregate version 复用均在规则和独立 replay 层拒绝 | PASS |
+| 复议源事件可见性 | `request_reconsideration` 同时校验 source canonical integrity、请求者对 source Visibility/subject/data subject 的访问权及 envelope 精确继承；review/resolve 与上一链事件保持三项一致；猜测 keeper-only sequence 返回 NotFound 且不写事件 | PASS |
 | Active Session 写入边界 | Combat/Chase 写入事务使用 `FOR SHARE` 锁定 Session 并要求精确 `ACTIVE`；Session 状态变更使用 `FOR UPDATE`，关闭状态检查与正式 append 间的竞态窗口；结束态负例不增加事件 | PASS |
 | Encounter participant 唯一性 | Scenario parser 在接受 combat/chase encounter 前拒绝重复 participant ID；负例不再延迟到正式聚合构造阶段 | PASS |
 | Fork 公开范围 | 默认 scope 明确包含 Character/Public events/Clues/World/NPC/Scene/Combat/Chase/Conclusion；Keeper notes/Hidden clues/Private messages/AI memory 明确排除；角色与当前 sheet 均只接受公开/队伍可见或 owner-bound 玩家私有标签 | PASS |
@@ -45,7 +50,8 @@
 | 第三轮，5 项 | Combat 可提交任意伤害、Chase 可提交成功布尔值、Growth 未绑定所选 Ending 奖励、并发 Ending/Growth 仍可能先后追加孤儿正史 | opaque 攻击/防御/伤害/参与者骰证据及三层重算；`growth_awards` 精确绑定；Session/Character 事务 advisory lock；错配与真实并发负例 | FIXED_CONFIRMED_BY_FOURTH_REVIEW |
 | 第四轮，4 项 | Combat 错用 DEX 而非战斗技能；缺少 Fight Back；非 ACTIVE Session 仍可写玩法正史；Scenario 接受重复 participant | 持久化 Melee/Firearm/Dodge 并按动作重算；Fight Back tie/counterattack/outcome；事务 Session 行锁与 ACTIVE 检查；入口去重；真实 DB、单元、Clippy 与 Semgrep 回归 | FIXED_CONFIRMED_BY_FIFTH_REVIEW |
 | 第五轮，2 项 | 相关复议用 resolution sequence 扩大全局 fork cutoff，可能带入较新 Session；Fight Back 令当前攻击者失能后仍可继续攻击 | gameplay base cutoff 与补充复议链分离；按原事件可见性与 reconsideration ID 选择链；三层 `can_act` 检查；晚期复议泄漏和失能重复攻击负例 | FIXED_CONFIRMED_BY_SIXTH_REVIEW |
-| 第六轮，3 项 | miss/成功 Dodge 被当作错误而丢失骰证据；同一空 child 的不同 fork ID 可并发通过检查；Ending/Reconsideration 文本在 canonical event 与 live projection 间不一致 | `ATTACK_MISSED` 无伤害正式转换与三层重放；child-scoped 锁、verified canonical lineage 检查及 DB unique；event 构造前单次规范化；单元、真实并发双库、删除后重放、Clippy 与 33 目标 Semgrep | FIXED_LOCALLY_RERUN_PENDING |
+| 第六轮，3 项 | miss/成功 Dodge 被当作错误而丢失骰证据；同一空 child 的不同 fork ID 可并发通过检查；Ending/Reconsideration 文本在 canonical event 与 live projection 间不一致 | `ATTACK_MISSED` 无伤害正式转换与三层重放；child-scoped 锁、verified canonical lineage 检查及 DB unique；event 构造前单次规范化；单元、真实并发双库、删除后重放、Clippy 与 33 目标 Semgrep | FIXED_CONFIRMED_BY_SEVENTH_REVIEW |
+| 第七轮，5 项 | Campaign member 可猜测不可见 source sequence 发起复议；攻击不消费回合；失能目标仍可主动防御；医疗 target 由调用方自报；服务端骰可跨版本复用 | source event 级 Visibility/subject/data-subject 授权与全链精确继承；持久化动作消费标记；防御者 `can_act`；治疗者 First Aid/Medicine 派生及失败留痕；Combat/Chase 已消费 roll ledger；规则、独立领域、真实双库与 33 目标 Semgrep | FIXED_LOCALLY_RERUN_PENDING |
 
 所有正式写入保持 Authority、Visibility、Fact Provenance、formal commit、Event Store、
 Outbox 和 projection guard 边界。没有删除或覆盖源事件，没有让 projection 成为正史，

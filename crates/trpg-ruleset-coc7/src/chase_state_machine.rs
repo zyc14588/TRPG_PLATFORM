@@ -170,6 +170,7 @@ pub struct ChaseState {
     participants: Vec<ChaseParticipant>,
     range: i8,
     segment: u32,
+    consumed_roll_ids: Vec<String>,
     status: ChaseStatus,
     version: u64,
     last_transition: ChaseMutation,
@@ -188,6 +189,7 @@ struct ChaseStateWire {
     participants: Vec<ChaseParticipantWire>,
     range: i8,
     segment: u32,
+    consumed_roll_ids: Vec<String>,
     status: ChaseStatus,
     version: u64,
     last_transition: ChaseMutation,
@@ -225,6 +227,7 @@ impl ChaseState {
             participants,
             range: initial_range,
             segment: 1,
+            consumed_roll_ids: Vec::new(),
             status: ChaseStatus::Ongoing,
             version: 1,
             last_transition: ChaseMutation::Started,
@@ -291,12 +294,15 @@ impl ChaseState {
         for (participant, roll) in self.participants.iter().zip(rolls) {
             roll.validate(participant)?;
         }
-        if rolls
+        let roll_ids = rolls
             .iter()
             .map(|roll| roll.roll_id.as_str())
-            .collect::<HashSet<_>>()
-            .len()
-            != rolls.len()
+            .collect::<Vec<_>>();
+        if roll_ids.iter().collect::<HashSet<_>>().len() != roll_ids.len()
+            || self
+                .consumed_roll_ids
+                .iter()
+                .any(|consumed| roll_ids.contains(&consumed.as_str()))
         {
             return Err(TrpgError::InvalidConfiguration("chase_roll_reuse"));
         }
@@ -328,6 +334,8 @@ impl ChaseState {
             obstacle_id: obstacle.map(|obstacle| obstacle.obstacle_id.clone()),
             obstacle_cost: obstacle.map_or(0, |obstacle| obstacle.cost),
         };
+        self.consumed_roll_ids
+            .extend(roll_ids.into_iter().map(str::to_owned));
         self.segment = self
             .segment
             .checked_add(1)
@@ -354,6 +362,7 @@ impl ChaseState {
         let Some(previous_state_json) = previous_state_json else {
             if self.version == 1
                 && self.segment == 1
+                && self.consumed_roll_ids.is_empty()
                 && self.status == ChaseStatus::Ongoing
                 && (1..=4).contains(&self.range)
                 && matches!(self.last_transition, ChaseMutation::Started)
@@ -453,6 +462,12 @@ impl ChaseState {
             })
             || !(0..=5).contains(&wire.range)
             || wire.segment == 0
+            || wire
+                .consumed_roll_ids
+                .iter()
+                .any(|roll_id| !valid_chase_id(roll_id))
+            || wire.consumed_roll_ids.iter().collect::<HashSet<_>>().len()
+                != wire.consumed_roll_ids.len()
             || wire.version == 0
         {
             return Err(TrpgError::InvalidConfiguration("chase_persisted_state"));
@@ -462,6 +477,7 @@ impl ChaseState {
             participants,
             range: wire.range,
             segment: wire.segment,
+            consumed_roll_ids: wire.consumed_roll_ids,
             status: wire.status,
             version: wire.version,
             last_transition: wire.last_transition,

@@ -72,3 +72,18 @@ fn a_new_chase_requires_a_new_identity_and_owns_participants_and_obstacles() {
     assert_eq!(second.status(), ChaseStatus::Ongoing);
     assert_eq!(second.segment(), 1);
 }
+
+#[test]
+fn a_chase_roll_id_is_consumed_after_one_segment() {
+    let quarry = ChaseParticipant::new("character_ada", ChaseRole::Quarry, 8).unwrap();
+    let pursuer = ChaseParticipant::new("npc_salt_wight", ChaseRole::Pursuer, 8).unwrap();
+    let mut chase = ChaseState::start("chase_roll_ledger", vec![quarry, pursuer], 2).unwrap();
+    let rolls = [roll_with_result(40, true), roll_with_result(40, true)];
+
+    let first = chase.advance(&rolls, None).unwrap();
+    assert_eq!(first.status, ChaseStatus::Ongoing);
+    assert_eq!(
+        chase.advance(&rolls, None).unwrap_err(),
+        TrpgError::InvalidConfiguration("chase_roll_reuse")
+    );
+}

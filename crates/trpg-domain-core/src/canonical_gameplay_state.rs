@@ -94,6 +94,15 @@ struct CombatSkillTargets {
     melee: u8,
     firearm: u8,
     dodge: u8,
+    first_aid: u8,
+    medicine: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum CombatMedicalSkill {
+    FirstAid,
+    Medicine,
 }
 
 impl CombatSkillTargets {
@@ -109,6 +118,13 @@ impl CombatSkillTargets {
             CombatDefense::None => None,
             CombatDefense::Dodge => Some(self.dodge),
             CombatDefense::FightBack => Some(self.melee),
+        }
+    }
+
+    const fn medical_target(self, skill: CombatMedicalSkill) -> u8 {
+        match skill {
+            CombatMedicalSkill::FirstAid => self.first_aid,
+            CombatMedicalSkill::Medicine => self.medicine,
         }
     }
 }
@@ -167,9 +183,12 @@ enum CombatMutation {
         damage_roll: DamageRollEvidence,
         raw_damage: u8,
     },
-    MajorWoundRecovered {
+    MajorWoundRecoveryAttempted {
+        healer_id: String,
         target_id: String,
+        medical_skill: CombatMedicalSkill,
         medical_roll: PercentileRollEvidence,
+        recovered: bool,
     },
     TurnAdvanced,
     Ended,
@@ -195,6 +214,8 @@ struct CombatSnapshot {
     initiative_order: Vec<String>,
     round: u32,
     current_turn_index: usize,
+    turn_action_consumed: bool,
+    consumed_roll_ids: Vec<String>,
     status: CombatStatus,
     version: u64,
     last_transition: CombatMutation,
@@ -244,6 +265,8 @@ pub fn validate_combat_state_transition(
         if next.version != 1
             || next.round != 1
             || next.current_turn_index != 0
+            || next.turn_action_consumed
+            || !next.consumed_roll_ids.is_empty()
             || next.status != CombatStatus::Ongoing
             || !matches!(next.last_transition, CombatMutation::Started)
             || next.participants.iter().any(|participant| {
@@ -320,7 +343,7 @@ pub fn validate_combat_server_roll_evidence(
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
         }
-        CombatMutation::MajorWoundRecovered {
+        CombatMutation::MajorWoundRecoveryAttempted {
             medical_roll: recorded_medical,
             ..
         } => {
@@ -380,6 +403,8 @@ fn parse_combat(value: &str) -> Result<CombatSnapshot, CanonicalGameplayStateErr
                 || !(1..=100).contains(&participant.skill_targets.melee)
                 || !(1..=100).contains(&participant.skill_targets.firearm)
                 || !(1..=100).contains(&participant.skill_targets.dodge)
+                || !(1..=100).contains(&participant.skill_targets.first_aid)
+                || !(1..=100).contains(&participant.skill_targets.medicine)
                 || participant.max_hp == 0
                 || participant.current_hp > participant.max_hp
                 || participant.armor > 30
@@ -389,6 +414,12 @@ fn parse_combat(value: &str) -> Result<CombatSnapshot, CanonicalGameplayStateErr
                         CombatCondition::Dying | CombatCondition::Dead
                     )
         })
+        || state
+            .consumed_roll_ids
+            .iter()
+            .any(|roll_id| !valid_id(roll_id))
+        || state.consumed_roll_ids.iter().collect::<HashSet<_>>().len()
+            != state.consumed_roll_ids.len()
         || initiative != state.initiative_order
         || state.round == 0
         || state.current_turn_index >= state.participants.len()
@@ -420,7 +451,10 @@ fn apply_combat_mutation(
                 .initiative_order
                 .get(state.current_turn_index)
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
-            if current_actor != attacker_id || attacker_id == target_id {
+            if current_actor != attacker_id
+                || attacker_id == target_id
+                || state.turn_action_consumed
+            {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
             let attacker = state
@@ -437,6 +471,9 @@ fn apply_combat_mutation(
                 .iter()
                 .find(|participant| participant.participant_id == *target_id)
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if *defense != CombatDefense::None && !defender.condition.can_act() {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
             let defender_target = defender.skill_targets.defense_target(*defense);
             if *defense == CombatDefense::FightBack && *action != CombatActionKind::Melee {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
@@ -448,9 +485,15 @@ fn apply_combat_mutation(
             if let (Some(defender_roll), Some(defender_target)) = (defender_roll, defender_target) {
                 validate_percentile_evidence(defender_roll, defender_target)?;
             }
-            if defender_roll
-                .as_ref()
-                .is_some_and(|roll| roll.roll_id == attacker_roll.roll_id)
+            let mut roll_ids = vec![attacker_roll.roll_id.as_str()];
+            if let Some(defender_roll) = defender_roll {
+                roll_ids.push(defender_roll.roll_id.as_str());
+            }
+            if roll_ids.iter().collect::<HashSet<_>>().len() != roll_ids.len()
+                || state
+                    .consumed_roll_ids
+                    .iter()
+                    .any(|consumed| roll_ids.contains(&consumed.as_str()))
                 || canonical_exchange_outcome(
                     *defense,
                     attacker_roll.success_level,
@@ -460,6 +503,10 @@ fn apply_combat_mutation(
             {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
+            state
+                .consumed_roll_ids
+                .extend(roll_ids.into_iter().map(str::to_owned));
+            state.turn_action_consumed = true;
         }
         CombatMutation::DamageApplied {
             attacker_id,
@@ -476,7 +523,10 @@ fn apply_combat_mutation(
                 .initiative_order
                 .get(state.current_turn_index)
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
-            if current_actor != attacker_id || attacker_id == target_id {
+            if current_actor != attacker_id
+                || attacker_id == target_id
+                || state.turn_action_consumed
+            {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
             let attacker = state
@@ -493,6 +543,9 @@ fn apply_combat_mutation(
                 .iter()
                 .find(|participant| participant.participant_id == *target_id)
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if *defense != CombatDefense::None && !defender.condition.can_act() {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
             let defender_target = defender.skill_targets.defense_target(*defense);
             if *defense == CombatDefense::FightBack && *action != CombatActionKind::Melee {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
@@ -504,13 +557,16 @@ fn apply_combat_mutation(
             if let (Some(defender_roll), Some(defender_target)) = (defender_roll, defender_target) {
                 validate_percentile_evidence(defender_roll, defender_target)?;
             }
-            if defender_roll
-                .as_ref()
-                .is_some_and(|roll| roll.roll_id == attacker_roll.roll_id)
-                || damage_roll.roll_id == attacker_roll.roll_id
-                || defender_roll
-                    .as_ref()
-                    .is_some_and(|roll| roll.roll_id == damage_roll.roll_id)
+            let mut roll_ids = vec![attacker_roll.roll_id.as_str()];
+            if let Some(defender_roll) = defender_roll {
+                roll_ids.push(defender_roll.roll_id.as_str());
+            }
+            roll_ids.push(damage_roll.roll_id.as_str());
+            if roll_ids.iter().collect::<HashSet<_>>().len() != roll_ids.len()
+                || state
+                    .consumed_roll_ids
+                    .iter()
+                    .any(|consumed| roll_ids.contains(&consumed.as_str()))
             {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
@@ -539,13 +595,42 @@ fn apply_combat_mutation(
                 })
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
             apply_validated_damage(target, *raw_damage)?;
+            state
+                .consumed_roll_ids
+                .extend(roll_ids.into_iter().map(str::to_owned));
+            state.turn_action_consumed = true;
         }
-        CombatMutation::MajorWoundRecovered {
+        CombatMutation::MajorWoundRecoveryAttempted {
+            healer_id,
             target_id,
+            medical_skill,
             medical_roll,
+            recovered,
         } => {
-            validate_percentile_evidence(medical_roll, medical_roll.target)?;
-            if medical_roll.target == 0 || success_rank(medical_roll.success_level) == 0 {
+            let current_actor = state
+                .initiative_order
+                .get(state.current_turn_index)
+                .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            let healer = state
+                .participants
+                .iter()
+                .find(|participant| participant.participant_id == *healer_id)
+                .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if current_actor != healer_id
+                || !healer.condition.can_act()
+                || state.turn_action_consumed
+            {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            validate_percentile_evidence(
+                medical_roll,
+                healer.skill_targets.medical_target(*medical_skill),
+            )?;
+            if state
+                .consumed_roll_ids
+                .iter()
+                .any(|consumed| consumed == &medical_roll.roll_id)
+            {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
             let target = state
@@ -556,7 +641,15 @@ fn apply_combat_mutation(
             if target.current_hp == 0 || target.condition != CombatCondition::MajorWound {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
-            target.condition = CombatCondition::Able;
+            let derived_recovered = success_rank(medical_roll.success_level) > 0;
+            if derived_recovered != *recovered {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
+            if derived_recovered {
+                target.condition = CombatCondition::Able;
+            }
+            state.consumed_roll_ids.push(medical_roll.roll_id.clone());
+            state.turn_action_consumed = true;
         }
         CombatMutation::TurnAdvanced => {
             let participant_count = state.initiative_order.len();
@@ -578,6 +671,7 @@ fn apply_combat_mutation(
                     .is_some_and(|participant| participant.condition.can_act())
                 {
                     found = true;
+                    state.turn_action_consumed = false;
                     break;
                 }
             }
@@ -815,6 +909,7 @@ struct ChaseSnapshot {
     participants: Vec<ChaseParticipant>,
     range: i8,
     segment: u32,
+    consumed_roll_ids: Vec<String>,
     status: ChaseStatus,
     version: u64,
     last_transition: ChaseMutation,
@@ -863,6 +958,7 @@ pub fn validate_chase_state_transition(
     } else {
         if next.version != 1
             || next.segment != 1
+            || !next.consumed_roll_ids.is_empty()
             || next.status != ChaseStatus::Ongoing
             || !(1..=4).contains(&next.range)
             || !matches!(next.last_transition, ChaseMutation::Started)
@@ -944,6 +1040,12 @@ fn parse_chase(value: &str) -> Result<ChaseSnapshot, CanonicalGameplayStateError
         })
         || !(0..=5).contains(&state.range)
         || state.segment == 0
+        || state
+            .consumed_roll_ids
+            .iter()
+            .any(|roll_id| !valid_id(roll_id))
+        || state.consumed_roll_ids.iter().collect::<HashSet<_>>().len()
+            != state.consumed_roll_ids.len()
         || state.version == 0
     {
         return Err(CanonicalGameplayStateError::InvalidShape);
@@ -984,12 +1086,15 @@ fn apply_chase_mutation(
             .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
         validate_chase_roll_evidence(roll, participant, target)?;
     }
-    if rolls
+    let roll_ids = rolls
         .iter()
         .map(|roll| roll.roll_id.as_str())
-        .collect::<HashSet<_>>()
-        .len()
-        != rolls.len()
+        .collect::<Vec<_>>();
+    if roll_ids.iter().collect::<HashSet<_>>().len() != roll_ids.len()
+        || state
+            .consumed_roll_ids
+            .iter()
+            .any(|consumed| roll_ids.contains(&consumed.as_str()))
     {
         return Err(CanonicalGameplayStateError::InvalidTransition);
     }
@@ -1026,6 +1131,9 @@ fn apply_chase_mutation(
     } else {
         ChaseStatus::Ongoing
     };
+    state
+        .consumed_roll_ids
+        .extend(roll_ids.into_iter().map(str::to_owned));
     state.segment = state
         .segment
         .checked_add(1)
@@ -1079,14 +1187,15 @@ mod tests {
             "combat_id":"combat_a",
             "participants":[
                 {"participant_id":"one","dexterity":70,"current_hp":10,
-                 "skill_targets":{"melee":60,"firearm":55,"dodge":40},
+                 "skill_targets":{"melee":60,"firearm":55,"dodge":40,"first_aid":30,"medicine":10},
                  "max_hp":10,"armor":0,"condition":"ABLE"},
                 {"participant_id":"two","dexterity":50,"current_hp":8,
-                 "skill_targets":{"melee":45,"firearm":35,"dodge":25},
+                 "skill_targets":{"melee":45,"firearm":35,"dodge":25,"first_aid":30,"medicine":10},
                  "max_hp":8,"armor":0,"condition":"ABLE"}
             ],
             "initiative_order":["one","two"],"round":1,
-            "current_turn_index":0,"status":"ONGOING","version":1,
+            "current_turn_index":0,"turn_action_consumed":false,"consumed_roll_ids":[],
+            "status":"ONGOING","version":1,
             "last_transition":{"kind":"STARTED"}
         }"#;
         let unrelated = initial
@@ -1112,6 +1221,8 @@ mod tests {
                         melee: 60,
                         firearm: 50,
                         dodge: 40,
+                        first_aid: 30,
+                        medicine: 10,
                     },
                     current_hp: 0,
                     max_hp: 5,
@@ -1125,6 +1236,8 @@ mod tests {
                         melee: 45,
                         firearm: 35,
                         dodge: 25,
+                        first_aid: 30,
+                        medicine: 10,
                     },
                     current_hp: 8,
                     max_hp: 8,
@@ -1135,6 +1248,8 @@ mod tests {
             initiative_order: vec!["attacker".to_owned(), "defender".to_owned()],
             round: 1,
             current_turn_index: 0,
+            turn_action_consumed: false,
+            consumed_roll_ids: Vec::new(),
             status: CombatStatus::Ongoing,
             version: 1,
             last_transition: CombatMutation::Started,
@@ -1187,6 +1302,8 @@ mod tests {
                         melee: 60,
                         firearm: 50,
                         dodge: 40,
+                        first_aid: 30,
+                        medicine: 10,
                     },
                     current_hp: 10,
                     max_hp: 10,
@@ -1200,6 +1317,8 @@ mod tests {
                         melee: 45,
                         firearm: 35,
                         dodge: 25,
+                        first_aid: 30,
+                        medicine: 10,
                     },
                     current_hp: 8,
                     max_hp: 8,
@@ -1210,12 +1329,16 @@ mod tests {
             initiative_order: vec!["attacker".to_owned(), "defender".to_owned()],
             round: 1,
             current_turn_index: 0,
+            turn_action_consumed: false,
+            consumed_roll_ids: Vec::new(),
             status: CombatStatus::Ongoing,
             version: 1,
             last_transition: CombatMutation::Started,
         };
         let previous_json = serde_json::to_string(&next).unwrap();
         next.version = 2;
+        next.turn_action_consumed = true;
+        next.consumed_roll_ids.push("miss_roll".to_owned());
         next.last_transition = CombatMutation::AttackMissed {
             attacker_id: "attacker".to_owned(),
             target_id: "defender".to_owned(),
@@ -1244,6 +1367,283 @@ mod tests {
         let forged_miss = serde_json::to_string(&next).unwrap();
         assert_eq!(
             validate_combat_state_transition(Some(&previous_json), &forged_miss),
+            Err(CanonicalGameplayStateError::InvalidTransition)
+        );
+    }
+
+    #[test]
+    fn serialized_replay_consumes_turn_actions_and_roll_ids() {
+        let mut first = CombatSnapshot {
+            combat_id: "combat_consumption".to_owned(),
+            participants: vec![
+                Combatant {
+                    participant_id: "first".to_owned(),
+                    dexterity: 80,
+                    skill_targets: CombatSkillTargets {
+                        melee: 60,
+                        firearm: 50,
+                        dodge: 40,
+                        first_aid: 30,
+                        medicine: 10,
+                    },
+                    current_hp: 10,
+                    max_hp: 10,
+                    armor: 0,
+                    condition: CombatCondition::Able,
+                },
+                Combatant {
+                    participant_id: "second".to_owned(),
+                    dexterity: 50,
+                    skill_targets: CombatSkillTargets {
+                        melee: 60,
+                        firearm: 50,
+                        dodge: 40,
+                        first_aid: 30,
+                        medicine: 10,
+                    },
+                    current_hp: 10,
+                    max_hp: 10,
+                    armor: 0,
+                    condition: CombatCondition::Able,
+                },
+            ],
+            initiative_order: vec!["first".to_owned(), "second".to_owned()],
+            round: 1,
+            current_turn_index: 0,
+            turn_action_consumed: false,
+            consumed_roll_ids: Vec::new(),
+            status: CombatStatus::Ongoing,
+            version: 1,
+            last_transition: CombatMutation::Started,
+        };
+        let initial_json = serde_json::to_string(&first).unwrap();
+        let missed_roll = PercentileRollEvidence {
+            roll_id: "consumed_attack".to_owned(),
+            target: 50,
+            roll: 80,
+            selected_tens_digit: 8,
+            ones_digit: 0,
+            success_level: SuccessLevel::Failure,
+        };
+        apply_combat_mutation(
+            &mut first,
+            &CombatMutation::AttackMissed {
+                attacker_id: "first".to_owned(),
+                target_id: "second".to_owned(),
+                action: CombatActionKind::Firearm,
+                defense: CombatDefense::None,
+                attacker_roll: missed_roll.clone(),
+                defender_roll: None,
+            },
+        )
+        .unwrap();
+        let first_json = serde_json::to_string(&first).unwrap();
+        validate_combat_state_transition(Some(&initial_json), &first_json).unwrap();
+
+        let mut forged_second_action = first.clone();
+        forged_second_action.version = 3;
+        forged_second_action
+            .consumed_roll_ids
+            .push("fresh_attack".to_owned());
+        forged_second_action.last_transition = CombatMutation::AttackMissed {
+            attacker_id: "first".to_owned(),
+            target_id: "second".to_owned(),
+            action: CombatActionKind::Firearm,
+            defense: CombatDefense::None,
+            attacker_roll: PercentileRollEvidence {
+                roll_id: "fresh_attack".to_owned(),
+                ..missed_roll.clone()
+            },
+            defender_roll: None,
+        };
+        assert_eq!(
+            validate_combat_state_transition(
+                Some(&first_json),
+                &serde_json::to_string(&forged_second_action).unwrap(),
+            ),
+            Err(CanonicalGameplayStateError::InvalidTransition)
+        );
+
+        let mut advanced = first;
+        apply_combat_mutation(&mut advanced, &CombatMutation::TurnAdvanced).unwrap();
+        let advanced_json = serde_json::to_string(&advanced).unwrap();
+        validate_combat_state_transition(Some(&first_json), &advanced_json).unwrap();
+        let mut reused_roll = advanced;
+        reused_roll.version = 4;
+        reused_roll.turn_action_consumed = true;
+        reused_roll.last_transition = CombatMutation::AttackMissed {
+            attacker_id: "second".to_owned(),
+            target_id: "first".to_owned(),
+            action: CombatActionKind::Firearm,
+            defense: CombatDefense::None,
+            attacker_roll: missed_roll,
+            defender_roll: None,
+        };
+        assert_eq!(
+            validate_combat_state_transition(
+                Some(&advanced_json),
+                &serde_json::to_string(&reused_roll).unwrap(),
+            ),
+            Err(CanonicalGameplayStateError::InvalidTransition)
+        );
+    }
+
+    #[test]
+    fn serialized_replay_binds_active_defense_and_medical_skill_targets() {
+        let skills = CombatSkillTargets {
+            melee: 60,
+            firearm: 50,
+            dodge: 40,
+            first_aid: 20,
+            medicine: 5,
+        };
+        let incapacitated_defender = CombatSnapshot {
+            combat_id: "combat_defense_guard".to_owned(),
+            participants: vec![
+                Combatant {
+                    participant_id: "attacker".to_owned(),
+                    dexterity: 90,
+                    skill_targets: skills,
+                    current_hp: 10,
+                    max_hp: 10,
+                    armor: 0,
+                    condition: CombatCondition::Able,
+                },
+                Combatant {
+                    participant_id: "defender".to_owned(),
+                    dexterity: 70,
+                    skill_targets: skills,
+                    current_hp: 0,
+                    max_hp: 5,
+                    armor: 0,
+                    condition: CombatCondition::Dead,
+                },
+            ],
+            initiative_order: vec!["attacker".to_owned(), "defender".to_owned()],
+            round: 1,
+            current_turn_index: 0,
+            turn_action_consumed: false,
+            consumed_roll_ids: Vec::new(),
+            status: CombatStatus::Ongoing,
+            version: 1,
+            last_transition: CombatMutation::Started,
+        };
+        let previous_json = serde_json::to_string(&incapacitated_defender).unwrap();
+        let mut forged_defense = incapacitated_defender;
+        forged_defense.version = 2;
+        forged_defense.turn_action_consumed = true;
+        forged_defense.consumed_roll_ids =
+            vec!["defense_attack".to_owned(), "dead_dodge".to_owned()];
+        forged_defense.last_transition = CombatMutation::AttackMissed {
+            attacker_id: "attacker".to_owned(),
+            target_id: "defender".to_owned(),
+            action: CombatActionKind::Melee,
+            defense: CombatDefense::Dodge,
+            attacker_roll: PercentileRollEvidence {
+                roll_id: "defense_attack".to_owned(),
+                target: 60,
+                roll: 40,
+                selected_tens_digit: 4,
+                ones_digit: 0,
+                success_level: SuccessLevel::Regular,
+            },
+            defender_roll: Some(PercentileRollEvidence {
+                roll_id: "dead_dodge".to_owned(),
+                target: 40,
+                roll: 20,
+                selected_tens_digit: 2,
+                ones_digit: 0,
+                success_level: SuccessLevel::Hard,
+            }),
+        };
+        assert_eq!(
+            validate_combat_state_transition(
+                Some(&previous_json),
+                &serde_json::to_string(&forged_defense).unwrap(),
+            ),
+            Err(CanonicalGameplayStateError::InvalidTransition)
+        );
+
+        let medical = CombatSnapshot {
+            combat_id: "combat_medical_guard".to_owned(),
+            participants: vec![
+                Combatant {
+                    participant_id: "healer".to_owned(),
+                    dexterity: 90,
+                    skill_targets: skills,
+                    current_hp: 10,
+                    max_hp: 10,
+                    armor: 0,
+                    condition: CombatCondition::Able,
+                },
+                Combatant {
+                    participant_id: "patient".to_owned(),
+                    dexterity: 70,
+                    skill_targets: skills,
+                    current_hp: 5,
+                    max_hp: 10,
+                    armor: 0,
+                    condition: CombatCondition::MajorWound,
+                },
+            ],
+            initiative_order: vec!["healer".to_owned(), "patient".to_owned()],
+            round: 1,
+            current_turn_index: 0,
+            turn_action_consumed: false,
+            consumed_roll_ids: Vec::new(),
+            status: CombatStatus::Ongoing,
+            version: 1,
+            last_transition: CombatMutation::Started,
+        };
+        let medical_json = serde_json::to_string(&medical).unwrap();
+        let mut failed_attempt = medical.clone();
+        failed_attempt.version = 2;
+        failed_attempt.turn_action_consumed = true;
+        failed_attempt
+            .consumed_roll_ids
+            .push("medical_roll".to_owned());
+        failed_attempt.last_transition = CombatMutation::MajorWoundRecoveryAttempted {
+            healer_id: "healer".to_owned(),
+            target_id: "patient".to_owned(),
+            medical_skill: CombatMedicalSkill::FirstAid,
+            medical_roll: PercentileRollEvidence {
+                roll_id: "medical_roll".to_owned(),
+                target: 20,
+                roll: 50,
+                selected_tens_digit: 5,
+                ones_digit: 0,
+                success_level: SuccessLevel::Failure,
+            },
+            recovered: false,
+        };
+        validate_combat_state_transition(
+            Some(&medical_json),
+            &serde_json::to_string(&failed_attempt).unwrap(),
+        )
+        .expect("a failed canonical medical attempt still consumes its turn and roll");
+
+        let mut inflated_target = failed_attempt;
+        inflated_target.version = 2;
+        inflated_target.last_transition = CombatMutation::MajorWoundRecoveryAttempted {
+            healer_id: "healer".to_owned(),
+            target_id: "patient".to_owned(),
+            medical_skill: CombatMedicalSkill::FirstAid,
+            medical_roll: PercentileRollEvidence {
+                roll_id: "medical_roll".to_owned(),
+                target: 100,
+                roll: 50,
+                selected_tens_digit: 5,
+                ones_digit: 0,
+                success_level: SuccessLevel::Hard,
+            },
+            recovered: true,
+        };
+        inflated_target.participants[1].condition = CombatCondition::Able;
+        assert_eq!(
+            validate_combat_state_transition(
+                Some(&medical_json),
+                &serde_json::to_string(&inflated_target).unwrap(),
+            ),
             Err(CanonicalGameplayStateError::InvalidTransition)
         );
     }

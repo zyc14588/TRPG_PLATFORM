@@ -47,6 +47,13 @@ pub enum CombatDefense {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CombatMedicalSkill {
+    FirstAid,
+    Medicine,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CombatExchangeOutcome {
     AttackerHit,
     DefenderFoughtBack,
@@ -184,13 +191,23 @@ pub struct CombatSkillTargets {
     melee: u8,
     firearm: u8,
     dodge: u8,
+    first_aid: u8,
+    medicine: u8,
 }
 
 impl CombatSkillTargets {
-    pub fn new(melee: u8, firearm: u8, dodge: u8) -> KernelResult<Self> {
+    pub fn new(
+        melee: u8,
+        firearm: u8,
+        dodge: u8,
+        first_aid: u8,
+        medicine: u8,
+    ) -> KernelResult<Self> {
         if !(1..=100).contains(&melee)
             || !(1..=100).contains(&firearm)
             || !(1..=100).contains(&dodge)
+            || !(1..=100).contains(&first_aid)
+            || !(1..=100).contains(&medicine)
         {
             return Err(TrpgError::InvalidConfiguration("combat_skill_targets"));
         }
@@ -198,6 +215,8 @@ impl CombatSkillTargets {
             melee,
             firearm,
             dodge,
+            first_aid,
+            medicine,
         })
     }
 
@@ -213,6 +232,14 @@ impl CombatSkillTargets {
         self.dodge
     }
 
+    pub const fn first_aid(self) -> u8 {
+        self.first_aid
+    }
+
+    pub const fn medicine(self) -> u8 {
+        self.medicine
+    }
+
     const fn attack_target(self, action: CombatActionKind) -> u8 {
         match action {
             CombatActionKind::Melee => self.melee,
@@ -225,6 +252,13 @@ impl CombatSkillTargets {
             CombatDefense::None => None,
             CombatDefense::Dodge => Some(self.dodge),
             CombatDefense::FightBack => Some(self.melee),
+        }
+    }
+
+    const fn medical_target(self, skill: CombatMedicalSkill) -> u8 {
+        match skill {
+            CombatMedicalSkill::FirstAid => self.first_aid,
+            CombatMedicalSkill::Medicine => self.medicine,
         }
     }
 }
@@ -320,9 +354,12 @@ enum CombatMutation {
         damage_roll: DamageRollEvidence,
         raw_damage: u8,
     },
-    MajorWoundRecovered {
+    MajorWoundRecoveryAttempted {
+        healer_id: String,
         target_id: String,
+        medical_skill: CombatMedicalSkill,
         medical_roll: PercentileRollEvidence,
+        recovered: bool,
     },
     TurnAdvanced,
     Ended,
@@ -335,6 +372,8 @@ pub struct CombatState {
     initiative_order: Vec<String>,
     round: u32,
     current_turn_index: usize,
+    turn_action_consumed: bool,
+    consumed_roll_ids: Vec<String>,
     status: CombatStatus,
     version: u64,
     last_transition: CombatMutation,
@@ -358,6 +397,8 @@ struct CombatStateWire {
     initiative_order: Vec<String>,
     round: u32,
     current_turn_index: usize,
+    turn_action_consumed: bool,
+    consumed_roll_ids: Vec<String>,
     status: CombatStatus,
     version: u64,
     last_transition: CombatMutation,
@@ -391,6 +432,8 @@ impl CombatState {
             initiative_order: initiative.into_iter().map(|(_, id)| id).collect(),
             round: 1,
             current_turn_index: 0,
+            turn_action_consumed: false,
+            consumed_roll_ids: Vec::new(),
             status: CombatStatus::Ongoing,
             version: 1,
             last_transition: CombatMutation::Started,
@@ -415,6 +458,10 @@ impl CombatState {
 
     pub const fn current_turn_index(&self) -> usize {
         self.current_turn_index
+    }
+
+    pub const fn turn_action_consumed(&self) -> bool {
+        self.turn_action_consumed
     }
 
     pub const fn status(&self) -> CombatStatus {
@@ -455,12 +502,22 @@ impl CombatState {
                 "combat_actor_incapacitated",
             ));
         }
+        if self.turn_action_consumed {
+            return Err(TrpgError::InvalidConfiguration(
+                "combat_turn_action_consumed",
+            ));
+        }
         let attacker_target = attacker.skill_targets.attack_target(action);
         let defender = self
             .participants
             .iter()
             .find(|participant| participant.participant_id == target_id)
             .ok_or(TrpgError::InvalidConfiguration("combat_target"))?;
+        if defense != CombatDefense::None && !defender.condition.can_act() {
+            return Err(TrpgError::InvalidConfiguration(
+                "combat_defender_incapacitated",
+            ));
+        }
         if (defense != CombatDefense::None) != defender_roll.is_some() {
             return Err(TrpgError::InvalidConfiguration("combat_defense_roll"));
         }
@@ -530,12 +587,22 @@ impl CombatState {
                 "combat_actor_incapacitated",
             ));
         }
+        if self.turn_action_consumed {
+            return Err(TrpgError::InvalidConfiguration(
+                "combat_turn_action_consumed",
+            ));
+        }
         let attacker_target = attacker.skill_targets.attack_target(action);
         let defender = self
             .participants
             .iter()
             .find(|participant| participant.participant_id == target_id)
             .ok_or(TrpgError::InvalidConfiguration("combat_target"))?;
+        if defense != CombatDefense::None && !defender.condition.can_act() {
+            return Err(TrpgError::InvalidConfiguration(
+                "combat_defender_incapacitated",
+            ));
+        }
         let defender_target = defender.skill_targets.defense_target(defense);
         if defense == CombatDefense::FightBack && action != CombatActionKind::Melee {
             return Err(TrpgError::InvalidConfiguration("combat_fight_back_action"));
@@ -547,7 +614,17 @@ impl CombatState {
         if let (Some(defender_roll), Some(defender_target)) = (defender_roll, defender_target) {
             defender_roll.validate(defender_target)?;
         }
-        if defender_roll.is_some_and(|roll| roll.roll_id == attacker_roll.roll_id) {
+        let mut attack_roll_ids = vec![attacker_roll.roll_id.as_str()];
+        if let Some(defender_roll) = defender_roll {
+            attack_roll_ids.push(defender_roll.roll_id.as_str());
+        }
+        if attack_roll_ids.iter().collect::<HashSet<_>>().len() != attack_roll_ids.len()
+            || attack_roll_ids.iter().any(|roll_id| {
+                self.consumed_roll_ids
+                    .iter()
+                    .any(|consumed| consumed == roll_id)
+            })
+        {
             return Err(TrpgError::InvalidConfiguration("combat_roll_reuse"));
         }
         let outcome = exchange_outcome(
@@ -583,6 +660,9 @@ impl CombatState {
                 attacker_roll: attacker_roll.clone(),
                 defender_roll: defender_roll.cloned(),
             };
+            self.consumed_roll_ids
+                .extend(attack_roll_ids.into_iter().map(str::to_owned));
+            self.turn_action_consumed = true;
             self.version = self
                 .version
                 .checked_add(1)
@@ -591,8 +671,12 @@ impl CombatState {
         };
         let damage_roll =
             damage_roll.ok_or(TrpgError::InvalidConfiguration("combat_damage_evidence"))?;
-        if damage_roll.roll_id == attacker_roll.roll_id
-            || defender_roll.is_some_and(|roll| roll.roll_id == damage_roll.roll_id)
+        attack_roll_ids.push(damage_roll.roll_id.as_str());
+        if attack_roll_ids.iter().collect::<HashSet<_>>().len() != attack_roll_ids.len()
+            || self
+                .consumed_roll_ids
+                .iter()
+                .any(|consumed| attack_roll_ids.contains(&consumed.as_str()))
         {
             return Err(TrpgError::InvalidConfiguration("combat_roll_reuse"));
         }
@@ -626,6 +710,9 @@ impl CombatState {
             damage_roll: damage_roll.clone(),
             raw_damage: damage_roll.raw_damage,
         };
+        self.consumed_roll_ids
+            .extend(attack_roll_ids.into_iter().map(str::to_owned));
+        self.turn_action_consumed = true;
         self.version = self
             .version
             .checked_add(1)
@@ -635,36 +722,84 @@ impl CombatState {
 
     pub fn recover_major_wound(
         &mut self,
+        healer_id: &str,
         target_id: &str,
-        medical_target: u8,
+        medical_skill: CombatMedicalSkill,
         medical_roll: &ServerPercentileRoll,
     ) -> KernelResult<CombatCondition> {
         if self.status != CombatStatus::Ongoing {
             return Err(TrpgError::InvalidConfiguration("combat_terminal"));
         }
+        let healer = self
+            .participants
+            .iter()
+            .find(|participant| participant.participant_id == healer_id)
+            .ok_or(TrpgError::InvalidConfiguration("combat_healer"))?;
+        if self.current_actor() != Some(healer_id) || !healer.condition.can_act() {
+            return Err(TrpgError::InvalidConfiguration("combat_healer"));
+        }
+        if self.turn_action_consumed {
+            return Err(TrpgError::InvalidConfiguration(
+                "combat_turn_action_consumed",
+            ));
+        }
+        let medical_target = healer.skill_targets.medical_target(medical_skill);
         let medical_roll = PercentileRollEvidence::from_server_roll(medical_target, medical_roll)?;
-        self.apply_verified_recovery(target_id, &medical_roll)
+        self.apply_verified_recovery(healer_id, target_id, medical_skill, &medical_roll)
     }
 
     fn apply_verified_recovery(
         &mut self,
+        healer_id: &str,
         target_id: &str,
+        medical_skill: CombatMedicalSkill,
         medical_roll: &PercentileRollEvidence,
     ) -> KernelResult<CombatCondition> {
-        medical_roll.validate(medical_roll.target)?;
-        if medical_roll.target == 0 || success_rank(medical_roll.success_level) == 0 {
-            return Err(TrpgError::InvalidConfiguration("major_wound_recovery"));
+        if self.status != CombatStatus::Ongoing {
+            return Err(TrpgError::InvalidConfiguration("combat_terminal"));
+        }
+        let healer = self
+            .participants
+            .iter()
+            .find(|participant| participant.participant_id == healer_id)
+            .ok_or(TrpgError::InvalidConfiguration("combat_healer"))?;
+        if self.current_actor() != Some(healer_id) || !healer.condition.can_act() {
+            return Err(TrpgError::InvalidConfiguration("combat_healer"));
+        }
+        if self.turn_action_consumed {
+            return Err(TrpgError::InvalidConfiguration(
+                "combat_turn_action_consumed",
+            ));
+        }
+        medical_roll.validate(healer.skill_targets.medical_target(medical_skill))?;
+        if self
+            .consumed_roll_ids
+            .iter()
+            .any(|consumed| consumed == &medical_roll.roll_id)
+        {
+            return Err(TrpgError::InvalidConfiguration("combat_roll_reuse"));
         }
         let target = self
             .participants
             .iter_mut()
             .find(|participant| participant.participant_id == target_id)
             .ok_or(TrpgError::InvalidConfiguration("combat_target"))?;
-        target.condition = recover_major_wound(target.current_hp, target.condition, true)?;
-        self.last_transition = CombatMutation::MajorWoundRecovered {
+        if target.current_hp == 0 || target.condition != CombatCondition::MajorWound {
+            return Err(TrpgError::InvalidConfiguration("major_wound_recovery"));
+        }
+        let recovered = success_rank(medical_roll.success_level) > 0;
+        if recovered {
+            target.condition = recover_major_wound(target.current_hp, target.condition, true)?;
+        }
+        self.last_transition = CombatMutation::MajorWoundRecoveryAttempted {
+            healer_id: healer_id.to_owned(),
             target_id: target_id.to_owned(),
+            medical_skill,
             medical_roll: medical_roll.clone(),
+            recovered,
         };
+        self.consumed_roll_ids.push(medical_roll.roll_id.clone());
+        self.turn_action_consumed = true;
         self.version = self
             .version
             .checked_add(1)
@@ -696,6 +831,7 @@ impl CombatState {
             {
                 self.current_turn_index = next_turn_index;
                 self.round = next_round;
+                self.turn_action_consumed = false;
                 self.last_transition = CombatMutation::TurnAdvanced;
                 self.version = self
                     .version
@@ -741,6 +877,8 @@ impl CombatState {
             if self.version == 1
                 && self.round == 1
                 && self.current_turn_index == 0
+                && !self.turn_action_consumed
+                && self.consumed_roll_ids.is_empty()
                 && self.status == CombatStatus::Ongoing
                 && matches!(self.last_transition, CombatMutation::Started)
                 && self.participants.iter().all(|participant| {
@@ -804,11 +942,19 @@ impl CombatState {
                     damage_roll: Some(damage_roll),
                 })?;
             }
-            CombatMutation::MajorWoundRecovered {
+            CombatMutation::MajorWoundRecoveryAttempted {
+                healer_id,
                 target_id,
+                medical_skill,
                 medical_roll,
+                recovered: _,
             } => {
-                expected.apply_verified_recovery(target_id, medical_roll)?;
+                expected.apply_verified_recovery(
+                    healer_id,
+                    target_id,
+                    *medical_skill,
+                    medical_roll,
+                )?;
             }
             CombatMutation::TurnAdvanced => {
                 expected.advance_turn()?;
@@ -876,6 +1022,8 @@ impl CombatState {
                     || !(1..=100).contains(&participant.skill_targets.melee)
                     || !(1..=100).contains(&participant.skill_targets.firearm)
                     || !(1..=100).contains(&participant.skill_targets.dodge)
+                    || !(1..=100).contains(&participant.skill_targets.first_aid)
+                    || !(1..=100).contains(&participant.skill_targets.medicine)
                     || participant.max_hp == 0
                     || participant.current_hp > participant.max_hp
                     || participant.armor > 30
@@ -888,6 +1036,12 @@ impl CombatState {
             || derived_order != wire.initiative_order
             || wire.round == 0
             || wire.current_turn_index >= participants.len()
+            || wire
+                .consumed_roll_ids
+                .iter()
+                .any(|roll_id| !valid_combat_id(roll_id))
+            || wire.consumed_roll_ids.iter().collect::<HashSet<_>>().len()
+                != wire.consumed_roll_ids.len()
             || wire.version == 0
         {
             return Err(TrpgError::InvalidConfiguration("combat_persisted_state"));
@@ -898,6 +1052,8 @@ impl CombatState {
             initiative_order: wire.initiative_order,
             round: wire.round,
             current_turn_index: wire.current_turn_index,
+            turn_action_consumed: wire.turn_action_consumed,
+            consumed_roll_ids: wire.consumed_roll_ids,
             status: wire.status,
             version: wire.version,
             last_transition: wire.last_transition,

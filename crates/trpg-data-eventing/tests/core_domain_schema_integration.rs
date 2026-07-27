@@ -26,8 +26,8 @@ use trpg_ruleset_coc7::chase_state_machine::{
     ChaseParticipant, ChaseRole, ChaseState, ChaseStatus,
 };
 use trpg_ruleset_coc7::combat_state_machine::{
-    CombatActionKind, CombatCondition, CombatDefense, CombatSkillTargets, CombatState,
-    CombatStatus, CombatantState,
+    CombatActionKind, CombatCondition, CombatDefense, CombatMedicalSkill, CombatSkillTargets,
+    CombatState, CombatStatus, CombatantState,
 };
 use trpg_ruleset_coc7::dice_roll_contract::{
     server_roll_skill_growth, success_level, SuccessLevel,
@@ -248,6 +248,47 @@ async fn create_campaign(
         .await
         .expect("create campaign and lock authority")
         .last_event_sequence
+}
+
+async fn persist_combat_turn_advance(
+    repository: &CoreDomainRepository,
+    combat: &mut CombatState,
+    expected_version: i64,
+    suffix: &str,
+) -> String {
+    let next_actor = combat
+        .advance_turn()
+        .expect("advance to the next capable combat actor")
+        .to_owned();
+    repository
+        .record_combat_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_schema",
+                "combat_state",
+                "combat.state.turn",
+                expected_version,
+                suffix,
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: combat.persistence_json().unwrap(),
+                attacker_roll: None,
+                defender_roll: None,
+                damage_roll: None,
+                medical_roll: None,
+            },
+        )
+        .await
+        .expect("persist a turn-advance transition");
+    next_actor
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -1340,7 +1381,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 70,
                 10,
                 1,
-                CombatSkillTargets::new(45, 35, 40).unwrap(),
+                CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
             )
             .unwrap(),
             CombatantState::new(
@@ -1348,7 +1389,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 80,
                 8,
                 0,
-                CombatSkillTargets::new(60, 80, 40).unwrap(),
+                CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
             )
             .unwrap(),
         ],
@@ -1443,7 +1484,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 99,
                 30,
                 20,
-                CombatSkillTargets::new(99, 99, 99).unwrap(),
+                CombatSkillTargets::new(99, 99, 99, 99, 99).unwrap(),
             )
             .unwrap(),
             CombatantState::new(
@@ -1451,7 +1492,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 100,
                 30,
                 20,
-                CombatSkillTargets::new(100, 100, 100).unwrap(),
+                CombatSkillTargets::new(100, 100, 100, 100, 100).unwrap(),
             )
             .unwrap(),
         ],
@@ -1571,6 +1612,26 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("persist a missed attack with server roll evidence and no damage evidence");
+    assert_eq!(
+        persist_combat_turn_advance(
+            &repository,
+            &mut combat,
+            2,
+            "combat_p08_after_miss_to_player",
+        )
+        .await,
+        "character_p06_player"
+    );
+    assert_eq!(
+        persist_combat_turn_advance(
+            &repository,
+            &mut combat,
+            3,
+            "combat_p08_after_miss_to_marta",
+        )
+        .await,
+        "npc_marta"
+    );
     let first_attack = percentile_with_result(80, true);
     let first_damage_roll = damage_with_value(1, 6, 5, 6);
     let first_damage = combat
@@ -1594,7 +1655,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 "combat_p08_schema",
                 "combat_state",
                 "combat.state.damage",
-                2,
+                4,
                 "combat_p08_major_wound",
                 "party_visible",
                 "not_applicable",
@@ -1612,6 +1673,26 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("persist MajorWound combat state");
+    assert_eq!(
+        persist_combat_turn_advance(
+            &repository,
+            &mut combat,
+            5,
+            "combat_p08_after_wound_to_player",
+        )
+        .await,
+        "character_p06_player"
+    );
+    assert_eq!(
+        persist_combat_turn_advance(
+            &repository,
+            &mut combat,
+            6,
+            "combat_p08_after_wound_to_marta",
+        )
+        .await,
+        "npc_marta"
+    );
     let later_attack = percentile_with_result(60, true);
     let later_damage_roll = damage_with_value(1, 6, 0, 1);
     let later_damage = combat
@@ -1639,7 +1720,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 "combat_p08_schema",
                 "combat_state",
                 "combat.state.damage",
-                3,
+                7,
                 "combat_p08_wound_persists",
                 "party_visible",
                 "not_applicable",
@@ -1657,6 +1738,26 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("persist continuing MajorWound state");
+    assert_eq!(
+        persist_combat_turn_advance(
+            &repository,
+            &mut combat,
+            8,
+            "combat_p08_after_small_hit_to_player",
+        )
+        .await,
+        "character_p06_player"
+    );
+    assert_eq!(
+        persist_combat_turn_advance(
+            &repository,
+            &mut combat,
+            9,
+            "combat_p08_after_small_hit_to_marta",
+        )
+        .await,
+        "npc_marta"
+    );
     let fight_back_attack = percentile_with_level(60, SuccessLevel::Regular);
     let fight_back_defense = percentile_with_level(45, SuccessLevel::Hard);
     let fight_back_damage = damage_with_value(1, 6, 0, 1);
@@ -1691,7 +1792,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                     "combat_p08_schema",
                     "combat_state",
                     "combat.state.damage",
-                    4,
+                    10,
                     "combat_p08_forged_fight_back",
                     "party_visible",
                     "not_applicable",
@@ -1731,7 +1832,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 "combat_p08_schema",
                 "combat_state",
                 "combat.state.damage",
-                4,
+                10,
                 "combat_p08_fight_back",
                 "party_visible",
                 "not_applicable",
@@ -1749,6 +1850,56 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("persist a verified fight-back counterattack");
+    assert_eq!(
+        persist_combat_turn_advance(
+            &repository,
+            &mut combat,
+            11,
+            "combat_p08_after_fight_back_to_player",
+        )
+        .await,
+        "character_p06_player"
+    );
+    let medical_roll = percentile_with_result(30, true);
+    assert_eq!(
+        combat
+            .recover_major_wound(
+                "character_p06_player",
+                "character_p06_player",
+                CombatMedicalSkill::FirstAid,
+                &medical_roll,
+            )
+            .unwrap(),
+        CombatCondition::Able
+    );
+    repository
+        .record_combat_state(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_schema",
+                "combat_state",
+                "combat.state.medical",
+                12,
+                "combat_p08_major_wound_recovery",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p06_schema".to_owned(),
+                state_json: combat.persistence_json().unwrap(),
+                attacker_roll: None,
+                defender_roll: None,
+                damage_roll: None,
+                medical_roll: Some(medical_roll),
+            },
+        )
+        .await
+        .expect("persist medical recovery using the current healer's First Aid target");
     combat.end().unwrap();
     assert_eq!(combat.status(), CombatStatus::Ended);
     repository
@@ -1761,7 +1912,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 "combat_p08_schema",
                 "combat_state",
                 "combat.state.end",
-                5,
+                13,
                 "combat_p08_end",
                 "party_visible",
                 "not_applicable",
@@ -2035,13 +2186,14 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .await
     .unwrap();
     assert_eq!(persisted_combat.0, "ENDED");
-    assert_eq!(persisted_combat.1, 6);
+    assert_eq!(persisted_combat.1, 14);
     assert_eq!(
         persisted_combat
             .2
             .pointer("/participants/0/condition")
             .and_then(serde_json::Value::as_str),
-        Some("MAJOR_WOUND")
+        Some("ABLE"),
+        "only the current healer's successful persisted First Aid roll clears MajorWound"
     );
     let persisted_chase: (String, i64) = sqlx::query_as(
         "SELECT status, version FROM public.chase_states \
@@ -2590,6 +2742,68 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         "one child must have one projected lineage, one canonical lineage event, and one DB constraint"
     );
 
+    let keeper_private_event_sequence: i64 = sqlx::query_scalar(
+        "SELECT sequence FROM public.event_store \
+         WHERE campaign_id = $1 \
+           AND stream_id = 'character_p08_keeper_private' \
+           AND visibility_label = 'keeper_only' \
+         ORDER BY sequence LIMIT 1",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .expect("load a keeper-only canonical source event");
+    let reconsideration_events_before_visibility_attack: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 AND event_type = 'ReconsiderationRequested'",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert!(matches!(
+        repository
+            .request_reconsideration(
+                &metadata(
+                    CAMPAIGN_ID,
+                    AUTHORITY_ID,
+                    PLAYER_ID,
+                    "investigator",
+                    "reconsideration_p08_hidden_source",
+                    "reconsideration",
+                    "reconsideration.request",
+                    0,
+                    "reconsideration_hidden_source_rejected",
+                    "party_visible",
+                    "not_applicable",
+                    "user_statement",
+                ),
+                &RequestReconsiderationRequest {
+                    reconsideration_id: "reconsideration_p08_hidden_source".to_owned(),
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    original_event_sequence: keeper_private_event_sequence,
+                    requested_by: PLAYER_ID.to_owned(),
+                    reason: "Attempt to reveal a guessed hidden event".to_owned(),
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::NotFound(
+            "reconsideration_source_event"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND event_type = 'ReconsiderationRequested'",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        reconsideration_events_before_visibility_attack,
+        "an unauthorized source sequence must not reveal itself through a formal request"
+    );
+
     let reconsideration_request_metadata = metadata(
         CAMPAIGN_ID,
         AUTHORITY_ID,
@@ -2623,6 +2837,33 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         reconsideration_retry.last_event_sequence,
         reconsideration_requested.last_event_sequence
     );
+    assert!(matches!(
+        repository
+            .review_reconsideration(
+                &metadata(
+                    CAMPAIGN_ID,
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "reconsideration_p06_schema",
+                    "reconsideration",
+                    "reconsideration.review",
+                    1,
+                    "reconsideration_visibility_widen_rejected",
+                    "keeper_only",
+                    "not_applicable",
+                    "human_keeper_statement",
+                ),
+                &ReviewReconsiderationRequest {
+                    reconsideration_id: "reconsideration_p06_schema".to_owned(),
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    review_event_id: "review_event_visibility_widen_rejected".to_owned(),
+                    review_summary: "Attempt to move a party chain into another scope".to_owned(),
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::Forbidden)
+    ));
     repository
         .review_reconsideration(
             &metadata(
@@ -2953,7 +3194,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .rebuild_p08_projections(CAMPAIGN_ID)
         .await
         .expect("rebuild all P08 projections solely from canonical Event Store history");
-    assert_eq!(rebuilt_p08.replayed_events, 16);
+    assert_eq!(rebuilt_p08.replayed_events, 24);
     assert_eq!(rebuilt_p08.combat_states, 1);
     assert_eq!(rebuilt_p08.chase_states, 1);
     assert_eq!(rebuilt_p08.reconsiderations, 2);

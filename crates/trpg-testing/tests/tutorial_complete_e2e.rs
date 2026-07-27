@@ -695,7 +695,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 70,
                 10,
                 1,
-                CombatSkillTargets::new(45, 35, 40).unwrap(),
+                CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
             )
             .unwrap(),
             CombatantState::new(
@@ -703,7 +703,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 80,
                 8,
                 0,
-                CombatSkillTargets::new(60, 80, 40).unwrap(),
+                CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
             )
             .unwrap(),
         ],
@@ -950,7 +950,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 70,
                 10,
                 1,
-                CombatSkillTargets::new(45, 35, 40).unwrap(),
+                CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
             )
             .unwrap(),
             CombatantState::new(
@@ -958,7 +958,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
                 80,
                 8,
                 0,
-                CombatSkillTargets::new(60, 80, 40).unwrap(),
+                CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
             )
             .unwrap(),
         ],

@@ -1,6 +1,6 @@
 use trpg_ruleset_coc7::combat_state_machine::{
     apply_damage, apply_damage_with_armor, recover_major_wound, CombatActionKind, CombatCondition,
-    CombatDefense, CombatSkillTargets, CombatState, CombatantState,
+    CombatDefense, CombatMedicalSkill, CombatSkillTargets, CombatState, CombatantState,
 };
 use trpg_ruleset_coc7::dice_roll_contract::{success_level, SuccessLevel};
 use trpg_shared_kernel::{
@@ -47,7 +47,7 @@ fn combatant(
         dexterity,
         max_hp,
         armor,
-        CombatSkillTargets::new(melee, firearm, dodge).unwrap(),
+        CombatSkillTargets::new(melee, firearm, dodge, 30, 10).unwrap(),
     )
     .unwrap()
 }
@@ -131,6 +131,21 @@ fn armor_and_multi_character_turns_are_persistent_aggregate_state() {
     assert_eq!(damage.condition, CombatCondition::MajorWound);
     let follow_up_attack = percentile_with_result(50, true);
     let follow_up_roll = melee_damage_at_most(2);
+    assert_eq!(
+        combat
+            .apply_damage(
+                "character_ada",
+                CombatActionKind::Melee,
+                CombatDefense::None,
+                &follow_up_attack,
+                None,
+                Some(&follow_up_roll),
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("combat_turn_action_consumed")
+    );
+    assert_eq!(combat.advance_turn().unwrap(), "character_ada");
+    assert_eq!(combat.advance_turn().unwrap(), "character_bryn");
     let follow_up = combat
         .apply_damage(
             "character_ada",
@@ -144,6 +159,7 @@ fn armor_and_multi_character_turns_are_persistent_aggregate_state() {
     assert_eq!(follow_up.damage, 0);
     assert_eq!(follow_up.condition, CombatCondition::MajorWound);
 
+    assert_eq!(combat.advance_turn().unwrap(), "npc_salt_wight");
     let forged_formula = server_damage_roll(1, 6, 0).unwrap();
     assert_eq!(
         combat
@@ -223,6 +239,19 @@ fn formal_combat_uses_combat_skills_and_models_fight_back() {
         after.contains(dex_success_skill_failure.roll_id()),
         "the missed attack must retain its server-generated roll evidence"
     );
+    assert_eq!(
+        skill_bound
+            .apply_damage(
+                "character_defender",
+                CombatActionKind::Firearm,
+                CombatDefense::None,
+                &percentile_with_result(20, true),
+                None,
+                Some(&firearm_damage_with_value(6)),
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("combat_turn_action_consumed")
+    );
 
     let mut tied_fight_back = CombatState::start(
         "combat_fight_back_tie",
@@ -293,5 +322,151 @@ fn formal_combat_uses_combat_skills_and_models_fight_back() {
         incapacitation.persistence_json().unwrap(),
         before_rejected_attack,
         "an incapacitated current actor must advance turn before another attack"
+    );
+}
+
+#[test]
+fn defenses_medical_targets_and_roll_ids_are_derived_and_single_use() {
+    let attacker = combatant("attacker", 90, 10, 0, 60, 60, 40);
+    let defender = combatant("defender", 70, 5, 0, 60, 60, 40);
+    let third = combatant("third", 50, 10, 0, 60, 60, 40);
+    let mut incapacitated_defense = CombatState::start(
+        "combat_incapacitated_defense",
+        vec![attacker, defender, third],
+    )
+    .unwrap();
+    incapacitated_defense
+        .apply_damage(
+            "defender",
+            CombatActionKind::Melee,
+            CombatDefense::None,
+            &percentile_with_result(60, true),
+            None,
+            Some(&melee_damage_with_value(5)),
+        )
+        .unwrap();
+    assert!(!incapacitated_defense.participants()[1]
+        .condition()
+        .can_act());
+    assert_eq!(incapacitated_defense.advance_turn().unwrap(), "third");
+    assert_eq!(
+        incapacitated_defense
+            .apply_damage(
+                "defender",
+                CombatActionKind::Melee,
+                CombatDefense::Dodge,
+                &percentile_with_result(60, true),
+                Some(&percentile_with_result(40, true)),
+                Some(&melee_damage_with_value(1)),
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("combat_defender_incapacitated")
+    );
+
+    let equal_a = combatant("equal_a", 90, 10, 0, 60, 60, 40);
+    let equal_b = combatant("equal_b", 70, 10, 0, 60, 60, 40);
+    let mut roll_ledger = CombatState::start("combat_roll_ledger", vec![equal_a, equal_b]).unwrap();
+    let consumed_attack = percentile_with_result(60, true);
+    roll_ledger
+        .apply_damage(
+            "equal_b",
+            CombatActionKind::Melee,
+            CombatDefense::None,
+            &consumed_attack,
+            None,
+            Some(&melee_damage_with_value(1)),
+        )
+        .unwrap();
+    assert_eq!(roll_ledger.advance_turn().unwrap(), "equal_b");
+    assert_eq!(
+        roll_ledger
+            .apply_damage(
+                "equal_a",
+                CombatActionKind::Melee,
+                CombatDefense::None,
+                &consumed_attack,
+                None,
+                Some(&melee_damage_with_value(1)),
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("combat_roll_reuse")
+    );
+
+    let wounder = CombatantState::new(
+        "wounder",
+        90,
+        10,
+        0,
+        CombatSkillTargets::new(60, 60, 40, 30, 10).unwrap(),
+    )
+    .unwrap();
+    let patient = CombatantState::new(
+        "patient",
+        70,
+        10,
+        0,
+        CombatSkillTargets::new(60, 60, 40, 30, 10).unwrap(),
+    )
+    .unwrap();
+    let healer = CombatantState::new(
+        "healer",
+        50,
+        10,
+        0,
+        CombatSkillTargets::new(60, 60, 40, 20, 5).unwrap(),
+    )
+    .unwrap();
+    let mut medical = CombatState::start("combat_medical", vec![wounder, patient, healer]).unwrap();
+    medical
+        .apply_damage(
+            "patient",
+            CombatActionKind::Melee,
+            CombatDefense::None,
+            &percentile_with_result(60, true),
+            None,
+            Some(&melee_damage_with_value(5)),
+        )
+        .unwrap();
+    assert_eq!(medical.advance_turn().unwrap(), "patient");
+    assert_eq!(medical.advance_turn().unwrap(), "healer");
+    let inflated_only_roll = loop {
+        let roll = server_percentile_roll().unwrap();
+        if success_level(roll.value(), 100).unwrap() == SuccessLevel::Regular
+            && matches!(
+                success_level(roll.value(), 20).unwrap(),
+                SuccessLevel::Failure | SuccessLevel::Fumble
+            )
+        {
+            break roll;
+        }
+    };
+    assert_eq!(
+        medical
+            .recover_major_wound(
+                "healer",
+                "patient",
+                CombatMedicalSkill::FirstAid,
+                &inflated_only_roll,
+            )
+            .unwrap(),
+        CombatCondition::MajorWound,
+        "a caller cannot inflate the persisted healer's First Aid target"
+    );
+    let failed_medical_state = medical.persistence_json().unwrap();
+    assert!(failed_medical_state.contains("\"target\":20"));
+    assert!(failed_medical_state.contains("\"recovered\":false"));
+    assert_eq!(medical.advance_turn().unwrap(), "wounder");
+    assert_eq!(medical.advance_turn().unwrap(), "patient");
+    assert_eq!(medical.advance_turn().unwrap(), "healer");
+    assert_eq!(
+        medical
+            .recover_major_wound(
+                "healer",
+                "patient",
+                CombatMedicalSkill::FirstAid,
+                &inflated_only_roll,
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("combat_roll_reuse")
     );
 }

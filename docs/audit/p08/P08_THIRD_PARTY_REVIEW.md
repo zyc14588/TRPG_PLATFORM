@@ -30,10 +30,13 @@ GITHUB_FOURTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FIFTH_REVIEW
 GITHUB_FIFTH_AUTOMATED_REVIEW = 2_ACTIONABLE
 GITHUB_FIFTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_SIXTH_REVIEW
 GITHUB_SIXTH_AUTOMATED_REVIEW = 3_ACTIONABLE
-GITHUB_SIXTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_SIXTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_SEVENTH_REVIEW
+GITHUB_SEVENTH_AUTOMATED_REVIEW = 5_ACTIONABLE
+GITHUB_SEVENTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FIFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
+GITHUB_SIXTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -63,7 +66,7 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-sixth-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-seventh-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -165,7 +168,27 @@ Store lineage，并由 `UNIQUE(child_campaign_id)` 兜底；三个文本字段�
 
 `fb3907e` 的 repository-truth、golden-scenarios、production-security 为 3/5 通过；
 第六轮阻断出现后，workspace 与 release 两个长任务被主动取消，未写成成功。
-第六轮修复提交仍须等待全新 5/5 Hosted CI 和精确 SHA 远端复审，才允许合并。
+第六轮修复提交 `2ed9df2` 的精确 SHA 审查未重复上述三项，但继续发现 5 个有效问题：
+
+- Campaign member 可猜测不可见 source event sequence 并发起复议；
+- 攻击成功或失败后没有消费当前回合动作，可在推进前再次攻击；
+- `DYING/DEAD` 防守者仍能 Dodge/Fight Back；
+- MajorWound 医疗 target 仍由调用方提交，可绕过治疗者真实技能；
+- opaque 服务端 roll 对象可被 clone 并在后续 aggregate version 重复使用。
+
+第七轮修复在发起复议前验证 verified source event，并把请求者访问权与
+Visibility/subject/data subject 精确继承纳入同一 fail-closed 检查；review/resolve
+也必须与上一链事件和新 envelope 三项一致。Combat 状态新增动作消费标记，
+`TurnAdvanced` 是唯一重置路径；主动防御检查目标可行动。First Aid/Medicine target
+由当前治疗者的持久化技能派生，失败也形成正式 mutation。Combat/Chase 状态同时保存
+已消费 roll ID ledger，规则 replay 与独立领域 replay 均拒绝本次内部重复和后续版本
+复用。
+
+`2ed9df2` 的 repository-truth、golden-scenarios、production-security 为 3/5 通过；
+第七轮阻断出现后，workspace 与 release 两个长任务被主动取消，未写成成功。
+第七轮修复已通过规则/领域单元测试、工作区 check/Clippy、真实双
+PostgreSQL/Witness 回归和 33 目标 Semgrep；仍须等待新的精确 SHA 5/5 Hosted CI 与
+远端复审，才允许合并。
 
 ## RustSec
 
@@ -181,8 +204,8 @@ Store lineage，并由 `UNIQUE(child_campaign_id)` 兜底；三个文本字段�
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 六轮
-自动审查先后提出的 4、5、5、4、2、3 项阻断均已修复或完成本地验证，最新提交的远端
-复审尚待运行；
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 七轮
+自动审查先后提出的 4、5、5、4、2、3、5 项阻断均已修复或完成本地验证，最新提交的
+远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。
