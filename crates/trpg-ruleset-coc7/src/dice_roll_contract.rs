@@ -222,15 +222,9 @@ pub fn adjudicate_skill_growth(
 }
 
 pub fn server_roll_skill_growth(skill_before: u8) -> KernelResult<ServerSkillGrowthRoll> {
-    if skill_before > 99 {
-        return Err(TrpgError::InvalidConfiguration("skill_growth_range"));
-    }
-    let improvement_check = trpg_shared_kernel::server_percentile_roll()?;
-    let improvement_check_roll = improvement_check.value();
-    let qualifies = skill_before < 99
-        && (improvement_check_roll > skill_before || improvement_check_roll >= 96);
-    let increase = qualifies.then(trpg_shared_kernel::server_d10_roll);
-    let increase_roll = increase.as_ref().map(|roll| roll.value());
+    let evidence = trpg_shared_kernel::server_growth_roll_evidence(skill_before)?;
+    let improvement_check_roll = evidence.improvement_check().value();
+    let increase_roll = evidence.increase().map(|roll| roll.value());
     let outcome = SkillGrowthOutcome {
         skill_before,
         improvement_check_roll,
@@ -239,10 +233,7 @@ pub fn server_roll_skill_growth(skill_before: u8) -> KernelResult<ServerSkillGro
             .map(|roll| skill_before.saturating_add(roll).min(99))
             .unwrap_or(skill_before),
     };
-    Ok(ServerSkillGrowthRoll {
-        evidence: ServerGrowthRollEvidence::from_server_rolls(improvement_check, increase),
-        outcome,
-    })
+    Ok(ServerSkillGrowthRoll { evidence, outcome })
 }
 
 pub fn record_dice_roll_contract<T>(

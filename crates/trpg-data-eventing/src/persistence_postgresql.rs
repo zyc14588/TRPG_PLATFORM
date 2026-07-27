@@ -10912,8 +10912,12 @@ impl CoreDomainRepository {
             r#"
             SELECT character.current_sheet_version,
                    character.version AS character_version,
+                   character.visibility_label::TEXT AS character_visibility_label,
+                   character.visibility_subject AS character_visibility_subject,
                    sheet.version AS sheet_version,
                    sheet.sheet_json,
+                   sheet.visibility_label::TEXT AS sheet_visibility_label,
+                   sheet.visibility_subject AS sheet_visibility_subject,
                    ending.ending_id,
                    scenario.document_json
               FROM public.characters AS character
@@ -10950,6 +10954,22 @@ impl CoreDomainRepository {
             return Err(CoreDomainRepositoryError::Integrity(
                 "growth_source_not_current",
             ));
+        }
+        let character_visibility_label: String = row.get("character_visibility_label");
+        let character_visibility_subject: String = row.get("character_visibility_subject");
+        let sheet_visibility_label: String = row.get("sheet_visibility_label");
+        let sheet_visibility_subject: String = row.get("sheet_visibility_subject");
+        if character_visibility_label != sheet_visibility_label
+            || character_visibility_subject != sheet_visibility_subject
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "growth_source_visibility_mismatch",
+            ));
+        }
+        if metadata.visibility_label != character_visibility_label
+            || metadata.visibility_subject != character_visibility_subject
+        {
+            return Err(CoreDomainRepositoryError::PolicyEvidenceMismatch);
         }
         let ending_id: String = row.get("ending_id");
         let scenario_document: Value = row.get("document_json");

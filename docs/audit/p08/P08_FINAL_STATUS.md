@@ -37,7 +37,8 @@ GITHUB_TENTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_ELEVENTH_REVIEW
 GITHUB_ELEVENTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWELFTH_REVIEW
 GITHUB_TWELFTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_THIRTEENTH_REVIEW
 GITHUB_THIRTEENTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_FOURTEENTH_REVIEW
-GITHUB_FOURTEENTH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_LOCALLY
+GITHUB_FOURTEENTH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_CONFIRMED_BY_FIFTEENTH_REVIEW
+GITHUB_FIFTEENTH_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_LOCALLY
 GITHUB_LATEST_AUTOMATED_REVIEW = RERUN_PENDING
 THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -50,7 +51,8 @@ TENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 ELEVENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 TWELFTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 THIRTEENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
-FOURTEENTH_REPAIR_HOSTED_CI = PENDING
+FOURTEENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
+FIFTEENTH_REPAIR_HOSTED_CI = PENDING
 P09_IMPLEMENTATION = NOT_STARTED
 ```
 
@@ -63,7 +65,7 @@ HMAC 与 Witness 校验的正史事件重建。
 
 | 验收项 | 代码与真实证据 | 状态 |
 | --- | --- | --- |
-| MajorWound 持续 | 聚合保存 prior condition；后续小伤或护甲全吸收不会清除；医疗必须由当前可行动治疗者以持久化 First Aid/Medicine 目标和服务端骰尝试，失败也留痕并消费回合/骰，只有成功事件可清除 | PASS |
+| MajorWound 持续 | 聚合保存 prior condition；后续小伤或护甲全吸收不会清除；医疗必须由当前可行动治疗者以持久化 First Aid/Medicine 目标和服务端骰尝试，失败也留痕并消费回合/骰；成功 First Aid 可把 0 HP `Dying` 稳定为 1 HP `MajorWound`，不能用 Medicine 跳过急救，也不能把幸存者直接伪造成 `Able` | PASS |
 | 多角色战斗 | DEX 仅用于先攻；正式近战/射击/闪避分别绑定持久化的 Melee/Firearm/Dodge 技能；新遭遇必须显式接收经校验的 `CombatHealth(current_hp,max_hp,condition)`，可从上一 combatant 的 health snapshot 原样传递，不能隐式恢复满血或清除 MajorWound/Dying/Dead；每个参与者的选定近战/射击武器 ID 与伤害公式进入正式状态，伤害按实际命中者或反击者的对应武器重算，支持验收 fixture 的 `1d6+1` 且拒绝 action-kind 默认值冒充；Fight Back 实现与 Dodge 不同的平手规则和防守方反击伤害目标；miss/成功 Dodge 以 `ATTACK_MISSED` 无伤害转换保存攻击/防御骰且拒绝伤害骰；一次攻击即消费当前回合动作，`advance_turn` 前不能再次攻击；`DYING/DEAD` 目标不能 Dodge/Fight Back；跨轮次推进、伤害、护甲和终态均有测试；骰证据、outcome、serialized replay 与持久层逐项独立重算 | PASS |
 | Chase 终态 | `Escaped`/`Caught` 后普通推进失败；新追逐必须使用新 ID；每名参与者结果由 opaque 服务端 percentile evidence 和 MOV 派生，调用方不能提交成功布尔值；全局消费投影拒绝跨 segment、跨 aggregate 以及 Combat/Chase/Growth 间复用骰 ID | PASS |
 | 复议追加链 | Request → Review → Upheld/Corrected 均为正式事件；请求者必须能查看源事件，源事件与整条复议链的 Visibility/subject/data subject 完全一致；review/resolution 在事件创建前统一 trim，live projection 与删除后 replay 一致；精确重试幂等，原事件不删除 | PASS |
@@ -75,10 +77,10 @@ HMAC 与 Witness 校验的正史事件重建。
 | 幂等与语义唯一性 | Combat、Chase、Ending、Growth 的 exact retry 返回原 persisted commit；Campaign Fork 的 exact retry 从已记录 lineage/manifest/materialized batches 重建原命令与投影，不读取后来可能变化的 parent snapshot；Ending 的 Session 键与 Growth 的 Character 键在事务 advisory lock 下串行检查、append 和 projection；真实并发竞争各只产生一条正史 | PASS |
 | 活跃会话边界 | Combat/Chase 在同一事务内对 Session 行持有 `FOR SHARE` 锁并要求状态精确为 `ACTIVE`；Session 终止路径的 `FOR UPDATE` 锁封闭状态检查与正式 append 间的 TOCTOU；结束态负例不增加 Event Store | PASS |
 | 场景参与者唯一性 | Scenario 验证在接受 Combat/Chase encounter 前拒绝重复 participant ID，保证通过验证的 encounter 可构造正式聚合 | PASS |
-| 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`；Ending summary 在事件创建前规范化并与 replay 投影一致；没有 `growth_awards` 的合法结局可用空 settlement 完成，有奖励时成长技能必须存在于该 Ending 的 `growth_awards`；结果从共享内核不可构造的 OS CSPRNG 证据计算，并生成新锁定角色卡版本 | PASS |
+| 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`；Ending summary 在事件创建前规范化并与 replay 投影一致；没有 `growth_awards` 的合法结局可用空 settlement 完成，有奖励时成长技能必须存在于该 Ending 的 `growth_awards`；成长证据只能由一次性完整 OS CSPRNG 尝试生成，不能把独立 percentile/d10 拼装为挑选结果；新 Sheet、Character 与正式 Growth event 必须精确保持来源 Character/Sheet 的 Visibility envelope，任何扩大在 append 前失败 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork | PASS |
 | Schema/最小权限 | 五个 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth rewind、可延迟外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、fork-empty trigger/function 完整 catalog 指纹、Combat/Chase/Growth 全局 gameplay roll 主键及角色权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 本机复扫 34 个 P08 Rust/SQL/CI 目标，13 条适用规则，0 finding、0 error、0 skipped；PR #9 十四轮远端自动审查先后提出 4、5、5、4、2、3、5、3、4、2、2、2、2、1 项真实问题，前十三轮修复已由下一轮确认，第十四轮已完成本地根因修复并等待新精确 SHA 复审 | PASS_WITH_REMOTE_RERUN_PENDING |
+| 第三方检查 | Semgrep 1.171.0 本机复扫 34 个 P08 Rust/SQL/CI 目标，13 条适用规则，0 finding、0 error、0 skipped；PR #9 十五轮远端自动审查先后提出 4、5、5、4、2、3、5、3、4、2、2、2、2、1、3 项真实问题，前十四轮修复已由下一轮确认，第十五轮已完成本地根因修复并等待新精确 SHA 复审 | PASS_WITH_REMOTE_RERUN_PENDING |
 
 ## 反伪造修复
 
@@ -116,6 +118,9 @@ HMAC 与 Witness 校验的正史事件重建。
   `CombatHealth` 要求 current/max/condition 同时满足不变量，`CombatantState::health()`
   可把上一遭遇的持久化快照原样传入新遭遇；规则层与独立 serialized validator 都接受
   合法 MajorWound/Dying 初始态并拒绝零 HP + `ABLE` 等矛盾组合。
+- 0 HP `Dying` 不再被唯一医疗入口无条件拒绝。只有 First Aid 可执行立即稳定；
+  成功后由规则层和独立 replay 同时派生为 1 HP `MajorWound`，失败仍留在 `Dying`
+  并消费动作/骰。Medicine 不能跳过该步骤，伪造为 `Able` 的状态无法 append。
 - Combat 的命中目标不再错误复用 DEX；Melee、Firearm 与 Dodge 技能随参与者进入正式
   聚合并由重放层独立验证。Fight Back 保存派生 outcome，防守方只有达到更高成功等级
   才反击，平手由发起攻击者获胜；伪造反击 outcome 在 Event Store append 前失败。
@@ -146,7 +151,13 @@ HMAC 与 Witness 校验的正史事件重建。
   结束态负例同时断言两类事件计数不变。
 - Scenario encounter 在入口拒绝重复 participant ID，避免文档验证通过后才在正式
   Combat/Chase 聚合构造阶段失败。
-- 原先可提交原始成长数值的路径已替换为不可反序列化、字段私有的服务端随机证据；持久层从当前角色卡重新计算结果。
+- 原先可提交原始成长数值或把独立 percentile/d10 拼装成挑选结果的路径，已替换为
+  不可反序列化、字段私有、一次性完整采样的服务端随机证据；原始 d10 生成和组合
+  构造器均不公开，持久层仍从当前角色卡独立重算结果。
+- Growth command 不再能用调用方 metadata 改写 Character/Sheet 的 Visibility。
+  正式 append 前同时加载 Character 与当前 Sheet 的 label/subject；来源二者必须
+  一致，命令还必须精确保持该 envelope。真实 public widening 负例证明 Event Store
+  不增、私密来源和 current Sheet 不变，随后合法 owner-private 调用才成功。
 - Growth 不再只验证角色卡里存在技能，还要求技能精确出现在所选 Ending 的 Scenario
   `growth_awards`；未授予技能在 append 前失败。
 - Fork conclusion snapshot 不再只保留 ending ID/summary；实现结局的完整
@@ -274,5 +285,13 @@ golden-scenarios、production-security 为 3/5 通过；第十四轮精确 SHA r
 共 1 项 P1。workspace/release 随即主动取消，未计为 5/5。第十四轮修复引入显式
 `CombatHealth`、跨遭遇快照访问器和规则/独立领域双重初始态验证；MajorWound 与
 Dying 连续性、矛盾健康状态负例、真实 PostgreSQL/Witness、全仓 check/Clippy 及
-34 目标 Semgrep 均通过。新的 Hosted CI 与精确 SHA 远端自动复审仍须在合并前通过。
+34 目标 Semgrep 均通过。对应提交 `7466745` 的 repository-truth、
+golden-scenarios、production-security 为 3/5 通过；第十五轮精确 SHA review
+`4785498371` 确认第十四轮问题未重复，但指出 Growth Visibility 可扩大、成长骰可由
+独立骰拼装挑选、Dying 无法由 First Aid 稳定共 3 项 P1。workspace/release 随即
+主动取消，未计为 5/5。第十五轮修复要求 Growth 精确保持来源 Character/Sheet
+Visibility，删除原始成长骰组合入口并一次采样完整尝试，同时让规则与独立 replay
+把成功 First Aid 派生为 1 HP `MajorWound`。真实 widening 攻击、原子骰跨玩法复用、
+Medicine/伪造 Able 负例、primary/Witness、全仓 check/Clippy 与 34 目标 Semgrep
+均通过。新的 Hosted CI 与精确 SHA 远端自动复审仍须在合并前通过。
 P08 到此停止，未执行 P09。

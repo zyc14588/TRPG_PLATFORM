@@ -36,7 +36,7 @@ use trpg_ruleset_coc7::dice_roll_contract::{
 };
 use trpg_shared_kernel::{
     server_damage_roll, server_percentile_roll, EventActorOriginWire, ServerDamageRoll,
-    ServerGrowthRollEvidence, ServerPercentileRoll,
+    ServerPercentileRoll,
 };
 
 const INTEGRITY_KEY: &[u8; 32] = &[0x36; 32];
@@ -1905,7 +1905,22 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .await,
         "character_p06_player"
     );
-    let medical_roll = percentile_with_result(30, true);
+    let growth_roll_reused_by_combat = loop {
+        let roll = server_roll_skill_growth(70).unwrap();
+        if matches!(
+            success_level(roll.evidence().improvement_check().value(), 30).unwrap(),
+            SuccessLevel::Critical
+                | SuccessLevel::Extreme
+                | SuccessLevel::Hard
+                | SuccessLevel::Regular
+        ) {
+            break roll;
+        }
+    };
+    let medical_roll = growth_roll_reused_by_combat
+        .evidence()
+        .improvement_check()
+        .clone();
     assert_eq!(
         combat
             .recover_major_wound(
@@ -2297,10 +2312,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                     source_sheet_version_id: "sheet_p06_player_v1".to_owned(),
                     new_sheet_version_id: "sheet_p06_player_v2_reused".to_owned(),
                     skill_name: "Library Use".to_owned(),
-                    growth_rolls: ServerGrowthRollEvidence::from_server_rolls(
-                        medical_roll.clone(),
-                        None,
-                    ),
+                    growth_rolls: growth_roll_reused_by_combat.evidence().clone(),
                 },
             )
             .await,
@@ -2319,6 +2331,96 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .unwrap(),
         growth_events_before_reuse,
         "a Combat roll reused by Growth must fail before canonical append"
+    );
+    for (visibility_label, event_id, sheet_id, suffix) in [
+        (
+            "public",
+            "growth_event_p08_public_widening",
+            "sheet_p06_player_v2_public_widening",
+            "growth_p08_public_widening",
+        ),
+        (
+            "party_visible",
+            "growth_event_p08_party_widening",
+            "sheet_p06_player_v2_party_widening",
+            "growth_p08_party_widening",
+        ),
+    ] {
+        assert!(
+            matches!(
+                repository
+                    .record_growth(
+                        &metadata(
+                            CAMPAIGN_ID,
+                            AUTHORITY_ID,
+                            KEEPER_ID,
+                            "human_keeper",
+                            event_id,
+                            "growth",
+                            "growth.record",
+                            0,
+                            suffix,
+                            visibility_label,
+                            "not_applicable",
+                            "rules_engine_decision",
+                        ),
+                        &RecordGrowthRequest {
+                            growth_event_id: event_id.to_owned(),
+                            campaign_id: CAMPAIGN_ID.to_owned(),
+                            session_id: "session_p06_schema".to_owned(),
+                            ending_event_id: "ending_event_p08_schema".to_owned(),
+                            character_id: "character_p06_player".to_owned(),
+                            source_sheet_version_id: "sheet_p06_player_v1".to_owned(),
+                            new_sheet_version_id: sheet_id.to_owned(),
+                            skill_name: "Library Use".to_owned(),
+                            growth_rolls: growth_roll.evidence().clone(),
+                        },
+                    )
+                    .await,
+                Err(CoreDomainRepositoryError::PolicyEvidenceMismatch)
+            ),
+            "{visibility_label} must not widen an owner-private Growth source"
+        );
+    }
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND event_type = 'CharacterGrowthApplied'",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        growth_events_before_reuse,
+        "visibility widening must fail before canonical append"
+    );
+    let source_visibility: (String, String, String, String, i64) = sqlx::query_as(
+        r#"
+        SELECT character.visibility_label::TEXT,
+               character.visibility_subject,
+               sheet.visibility_label::TEXT,
+               sheet.visibility_subject,
+               character.current_sheet_version
+          FROM public.characters AS character
+          JOIN public.character_sheet_versions AS sheet
+            ON sheet.character_id = character.character_id
+           AND sheet.version = character.current_sheet_version
+         WHERE character.character_id = 'character_p06_player'
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        source_visibility,
+        (
+            "private_to_player".to_owned(),
+            PLAYER_ID.to_owned(),
+            "private_to_player".to_owned(),
+            PLAYER_ID.to_owned(),
+            1,
+        ),
+        "a rejected Growth command must preserve the private source envelope and current sheet"
     );
     repository
         .record_growth(

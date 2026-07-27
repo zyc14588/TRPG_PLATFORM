@@ -46,7 +46,9 @@ GITHUB_TWELFTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_THIRTEENTH_REVIEW
 GITHUB_THIRTEENTH_AUTOMATED_REVIEW = 2_ACTIONABLE
 GITHUB_THIRTEENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FOURTEENTH_REVIEW
 GITHUB_FOURTEENTH_AUTOMATED_REVIEW = 1_ACTIONABLE
-GITHUB_FOURTEENTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_FOURTEENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FIFTEENTH_REVIEW
+GITHUB_FIFTEENTH_AUTOMATED_REVIEW = 3_ACTIONABLE
+GITHUB_FIFTEENTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FIFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -58,7 +60,8 @@ GITHUB_TENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_ELEVENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_TWELFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_THIRTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
-GITHUB_FOURTEENTH_REPAIR_HOSTED_CI = PENDING
+GITHUB_FOURTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
+GITHUB_FIFTEENTH_REPAIR_HOSTED_CI = PENDING
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -90,6 +93,10 @@ registry exit `2`；显式把设置/日志定向到 `/tmp` 并获准获取相同
 单 worker 和相同 34 目标，直接完成为 0 finding、0 error、0 skipped。
 第十四轮修复使用完全相同的环境、配置和 34 目标再次直接完成为
 0 finding、0 error、0 skipped。
+第十五轮第一次因受限 DNS 无法取得相同 registry 配置而 exit `2`；授权联网后第二次
+已取得 236 条规则，但默认并行引擎因 `io_uring_queue_init` 资源不足得到 1 error、
+0 scanned，同样未计通过。不减规则、不减目标、不忽略错误，只固定 `--jobs 1` 后，
+13 条适用规则对 34 目标完成为 0 finding、0 error、0 skipped。
 只有最终 0 error JSON 被计为通过，前述中间运行没有被覆盖或伪报。
 
 扩展范围首次复扫发现 `data_deletion_e2e.rs` 两处以可预测名称直接使用共享临时目录。
@@ -100,7 +107,7 @@ registry exit `2`；显式把设置/日志定向到 `/tmp` 并获准获取相同
 没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-fourteenth-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-fifteenth-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -335,7 +342,26 @@ workspace all-target/all-feature check/Clippy 和相同 34 目标 Semgrep 均通
 拒绝矛盾组合。规则回归 `7/7`、独立领域 `6/6`、真实 PostgreSQL/Witness、workspace
 all-target/all-feature check/Clippy 和相同 34 目标 Semgrep 均通过；第一次形成 8
 参数构造器时严格 Clippy 拒绝，未计通过，改用值对象后才通过。仍须等待新的精确 SHA
-5/5 Hosted CI 与远端复审，才允许合并。
+5/5 Hosted CI 与远端复审，才允许合并。对应提交 `7466745` 的
+repository-truth、golden-scenarios、production-security 为 3/5 通过；第十五轮精确
+SHA review `4785498371` 确认第十四轮问题未重复，但继续提出 3 个 P1：
+
+- Growth command 的 caller-supplied Visibility 可覆盖 owner-private Character/Sheet，
+  把完整新角色卡扩大为 public/party；
+- shared-kernel 公开原始 percentile/d10 组合构造器，调用方可从多次生成中拼装挑选
+  后的成长证据；
+- 唯一医疗转换拒绝 0 HP `Dying`，成功 First Aid 无法稳定濒死调查员。
+
+workspace/release 随即主动取消，未写成 5/5。第十五轮修复在正式 append 前加载并比较
+Character/当前 Sheet 的来源 label/subject，要求命令精确保持相同 envelope；真实
+public widening 攻击得到 `PolicyEvidenceMismatch`，Event Store、私密来源及 current
+Sheet 不变，随后合法私密 Growth 才成功。成长证据删除 `from_server_rolls` 和公开
+d10 入口，唯一生成路径一次采样完整尝试；跨玩法复用负例继续用合法原子证据验证全局
+消费。规则层与独立 replay 同时把成功 First Aid 派生为 1 HP `MajorWound`，拒绝
+Medicine 跳过急救和伪造 `Able`。规则 `8/8`、独立领域 `6/6`、runtime conclusion
+`3/3`、真实 PostgreSQL/Witness、workspace all-target/all-feature check/Clippy 与
+相同 34 目标 Semgrep 均通过。仍须等待新的精确 SHA 5/5 Hosted CI 与远端复审，才允许
+合并。
 
 ## RustSec
 
@@ -351,8 +377,8 @@ all-target/all-feature check/Clippy 和相同 34 目标 Semgrep 均通过；第�
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 十四轮
-自动审查先后提出的 4、5、5、4、2、3、5、3、4、2、2、2、2、1 项阻断均已修复或
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 十五轮
+自动审查先后提出的 4、5、5、4、2、3、5、3、4、2、2、2、2、1、3 项阻断均已修复或
 完成本地验证，最新提交的远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。

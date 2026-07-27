@@ -968,12 +968,22 @@ impl CombatState {
             .iter_mut()
             .find(|participant| participant.participant_id == target_id)
             .ok_or(TrpgError::InvalidConfiguration("combat_target"))?;
-        if target.current_hp == 0 || target.condition != CombatCondition::MajorWound {
+        let stabilizes_dying = target.current_hp == 0
+            && target.condition == CombatCondition::Dying
+            && medical_skill == CombatMedicalSkill::FirstAid;
+        let treats_major_wound =
+            target.current_hp > 0 && target.condition == CombatCondition::MajorWound;
+        if !stabilizes_dying && !treats_major_wound {
             return Err(TrpgError::InvalidConfiguration("major_wound_recovery"));
         }
         let recovered = success_rank(medical_roll.success_level) > 0;
         if recovered {
-            target.condition = recover_major_wound(target.current_hp, target.condition, true)?;
+            if stabilizes_dying {
+                target.current_hp = 1;
+                target.condition = CombatCondition::MajorWound;
+            } else {
+                target.condition = recover_major_wound(target.current_hp, target.condition, true)?;
+            }
         }
         self.last_transition = CombatMutation::MajorWoundRecoveryAttempted {
             healer_id: healer_id.to_owned(),

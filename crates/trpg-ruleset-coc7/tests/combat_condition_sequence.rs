@@ -167,6 +167,66 @@ fn a_new_encounter_preserves_persisted_health_and_condition() {
 }
 
 #[test]
+fn first_aid_stabilizes_a_dying_investigator_without_erasing_the_major_wound() {
+    let healer = CombatantState::new(
+        "character_first_aid_healer",
+        80,
+        CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
+        0,
+        CombatSkillTargets::new(40, 30, 35, 60, 10).unwrap(),
+        standard_weapon_loadout(),
+    )
+    .unwrap();
+    let patient = CombatantState::new(
+        "character_dying_patient",
+        60,
+        CombatHealth::new(0, 12, CombatCondition::Dying).unwrap(),
+        0,
+        CombatSkillTargets::new(40, 30, 35, 20, 10).unwrap(),
+        standard_weapon_loadout(),
+    )
+    .unwrap();
+    let mut combat = CombatState::start("combat_dying_first_aid", vec![healer, patient]).unwrap();
+    let initial = combat.persistence_json().unwrap();
+
+    assert_eq!(
+        combat
+            .recover_major_wound(
+                "character_first_aid_healer",
+                "character_dying_patient",
+                CombatMedicalSkill::Medicine,
+                &percentile_with_result(10, true),
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("major_wound_recovery"),
+        "Medicine cannot replace the immediate First Aid stabilization step"
+    );
+    assert_eq!(combat.persistence_json().unwrap(), initial);
+
+    assert_eq!(
+        combat
+            .recover_major_wound(
+                "character_first_aid_healer",
+                "character_dying_patient",
+                CombatMedicalSkill::FirstAid,
+                &percentile_with_result(60, true),
+            )
+            .unwrap(),
+        CombatCondition::MajorWound
+    );
+    let stabilized = combat
+        .participants()
+        .iter()
+        .find(|participant| participant.participant_id() == "character_dying_patient")
+        .unwrap();
+    assert_eq!(stabilized.current_hp(), 1);
+    assert_eq!(stabilized.condition(), CombatCondition::MajorWound);
+    combat
+        .validate_persistence_transition(Some(&initial))
+        .expect("the stabilization transition must replay from canonical state");
+}
+
+#[test]
 fn armor_and_multi_character_turns_are_persistent_aggregate_state() {
     let investigator = combatant("character_ada", 70, 12, 2, 45, 60, 35);
     let ally = combatant("character_bryn", 60, 10, 0, 50, 40, 30);

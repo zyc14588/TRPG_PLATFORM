@@ -277,6 +277,27 @@ Semgrep 1.171.0、34 目标、13 规则复扫为 0 finding、0 error、0 skipped
 形成 8 参数时严格 Clippy 以 `too_many_arguments` 失败，该次未计通过；改为值对象后
 同一门禁才通过。
 
+第十五轮修复关闭 Growth Visibility、成长骰原子性和 Dying First Aid 三条路径。
+核心数据库负例以 `public/not_applicable` metadata 更新 owner-private Character/Sheet，
+得到 `PolicyEvidenceMismatch`，并证明 Event Store 行数、来源 envelope 和 current
+Sheet 均不变；随后相同合法私密 Growth 完成。原始 d10 生成与
+`from_server_rolls` 组合入口不再公开，完整成长尝试一次采样，既有跨玩法复用负例改为
+把一条合法原子证据的 percentile 先用于 Combat，再证明整个 Growth 证据不能产生第二个
+正式结果。`combat_condition_sequence` 为 `8/8`，新增成功 First Aid 把 0 HP
+`Dying` 稳定为 1 HP `MajorWound`，并拒绝 Medicine 跳过急救；独立领域 `6/6` 同时
+重放该转换并拒绝伪造 `Able`。runtime conclusion `3/3`、workspace
+all-target/all-feature check 与严格 Clippy、完整 primary/Witness 脚本（migration
+`1/1`、atomicity `1/1`、core domain `1/1`、Tutorial `2/2`、P06/P07/P08 schema
+assertion）均通过。相同 Semgrep 1.171.0、34 目标、13 规则的最终单 worker 复扫为
+0 finding、0 error、0 skipped，机器结果为
+`/tmp/p08-semgrep-output/p08-fifteenth-review-fix-final.json`。
+
+第一次把证据类型直接迁入 ruleset 时，runtime 编译暴露 data-eventing/runtime 不允许
+该生产依赖，exit `101`，未计通过；最终方案保持 shared-kernel 依赖方向后同一测试
+`3/3` 通过。真实数据库脚本第一次在沙箱内连接 Docker 被拒，授权访问后才取得完整
+通过。Semgrep 第一次因受限 DNS、第二次因默认并行 `io_uring` 资源错误分别 exit `2`，
+均未计通过；不减规则和目标，仅固定 `--jobs 1` 后最终 JSON 才为 0 error。
+
 提交前第一次运行 `test_repo_truth.py` 时，宿主 Python 3.14.4、Node 22.22.1 且缺少
 pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。没有修改锁定版本或放宽
 断言；从官方发行源只在 `/tmp` 准备 Python 3.14.6、Node 24.17.0 和 pnpm 11.9.0 后，
@@ -288,7 +309,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；34 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 前十四轮为 4、5、5、4、2、3、5、3、4、2、2、2、2、1 项；第十三轮修复已由第十四轮确认未重复，第十四轮 1 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 前十五轮为 4、5、5、4、2、3、5、3、4、2、2、2、2、1、3 项；第十四轮修复已由第十五轮确认未重复，第十五轮 3 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -317,7 +338,9 @@ rebuild 会删除 fork 后的正常 child 状态、retry 行数错误覆盖整�
 `1d6+1` fixture/武器差异冲突，以及 fork child scenario 丢失 Ending
 `growth_awards`。第十三轮确认第十二轮两项未重复，又指出 fork exact retry 仍重算
 可变 parent snapshot，以及无 `growth_awards` 的 Ending 无法完成。第十四轮确认
-第十三轮两项未重复，又指出 Combat 初始构造器会清除跨遭遇伤势。以上均已按问题根因
+第十三轮两项未重复，又指出 Combat 初始构造器会清除跨遭遇伤势。第十五轮确认
+该问题未重复，又指出 Growth 可扩大来源 Visibility、成长证据可由独立骰拼装挑选，
+以及 Dying 无法通过 First Aid 稳定。以上均已按问题根因
 修复；扩展到 34 目标的 Semgrep 复扫仍为
 0 finding。本报告在
 最新远端 CI/复审完成前保持 pending，不以本地结果冒充远端通过。
@@ -334,6 +357,8 @@ workspace/release 两项。第十一轮修复提交 `453b063` 也只有上述 3/
 阻断出现后取消 workspace/release 两项。第十二轮修复提交 `c11f82c` 同样只有上述
 3/5 通过，第十三轮阻断出现后取消 workspace/release 两项。第十三轮修复提交
 `99e3374` 同样只有上述 3/5 通过，第十四轮阻断出现后取消 workspace/release 两项。
+第十四轮修复提交 `7466745` 同样只有上述 3/5 通过，第十五轮阻断出现后取消
+workspace/release 两项。
 以上均未记为 5/5。
 
 RustSec 报告：

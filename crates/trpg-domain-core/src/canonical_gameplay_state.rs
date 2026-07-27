@@ -697,7 +697,12 @@ fn apply_combat_mutation(
                 .iter_mut()
                 .find(|participant| participant.participant_id == *target_id)
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
-            if target.current_hp == 0 || target.condition != CombatCondition::MajorWound {
+            let stabilizes_dying = target.current_hp == 0
+                && target.condition == CombatCondition::Dying
+                && *medical_skill == CombatMedicalSkill::FirstAid;
+            let treats_major_wound =
+                target.current_hp > 0 && target.condition == CombatCondition::MajorWound;
+            if !stabilizes_dying && !treats_major_wound {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
             let derived_recovered = success_rank(medical_roll.success_level) > 0;
@@ -705,7 +710,12 @@ fn apply_combat_mutation(
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
             if derived_recovered {
-                target.condition = CombatCondition::Able;
+                if stabilizes_dying {
+                    target.current_hp = 1;
+                    target.condition = CombatCondition::MajorWound;
+                } else {
+                    target.condition = CombatCondition::Able;
+                }
             }
             state.consumed_roll_ids.push(medical_roll.roll_id.clone());
             state.turn_action_consumed = true;
@@ -1841,6 +1851,51 @@ mod tests {
                 &serde_json::to_string(&inflated_target).unwrap(),
             ),
             Err(CanonicalGameplayStateError::InvalidTransition)
+        );
+
+        let mut dying = medical;
+        dying.participants[1].current_hp = 0;
+        dying.participants[1].condition = CombatCondition::Dying;
+        let dying_json = serde_json::to_string(&dying).unwrap();
+        validate_combat_state_transition(None, &dying_json)
+            .expect("a canonical encounter may begin with a persisted dying investigator");
+        let mut stabilized = dying;
+        stabilized.version = 2;
+        stabilized.turn_action_consumed = true;
+        stabilized
+            .consumed_roll_ids
+            .push("stabilization_roll".to_owned());
+        stabilized.participants[1].current_hp = 1;
+        stabilized.participants[1].condition = CombatCondition::MajorWound;
+        stabilized.last_transition = CombatMutation::MajorWoundRecoveryAttempted {
+            healer_id: "healer".to_owned(),
+            target_id: "patient".to_owned(),
+            medical_skill: CombatMedicalSkill::FirstAid,
+            medical_roll: PercentileRollEvidence {
+                roll_id: "stabilization_roll".to_owned(),
+                target: 20,
+                roll: 10,
+                selected_tens_digit: 1,
+                ones_digit: 0,
+                success_level: SuccessLevel::Hard,
+            },
+            recovered: true,
+        };
+        validate_combat_state_transition(
+            Some(&dying_json),
+            &serde_json::to_string(&stabilized).unwrap(),
+        )
+        .expect("successful First Aid must independently replay to one HP and MajorWound");
+
+        let mut forged_stabilization = stabilized;
+        forged_stabilization.participants[1].condition = CombatCondition::Able;
+        assert_eq!(
+            validate_combat_state_transition(
+                Some(&dying_json),
+                &serde_json::to_string(&forged_stabilization).unwrap(),
+            ),
+            Err(CanonicalGameplayStateError::InvalidTransition),
+            "First Aid cannot erase the surviving investigator's MajorWound"
         );
     }
 }
