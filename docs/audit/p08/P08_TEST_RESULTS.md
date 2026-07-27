@@ -1,6 +1,6 @@
 # P08 测试、失败记录与验收证据
 
-记录日期：2026-07-27（Australia/Brisbane）
+记录日期：2026-07-28（Australia/Brisbane）
 基线 HEAD：`18825746082886a63aee10891860aedb749349e1`
 
 ## 修改前基线
@@ -13,7 +13,7 @@ P08 实现前，三条强制命令均真实返回 Cargo exit `101`，原因是�
 
 | 命令 | 最终结果 |
 | --- | --- |
-| `cargo test -p trpg-ruleset-coc7 --test combat_condition_sequence` | PASS，`6/6`，exit `0` |
+| `cargo test -p trpg-ruleset-coc7 --test combat_condition_sequence` | PASS，`9/9`，exit `0` |
 | `cargo test -p trpg-ruleset-coc7 --test chase_terminal` | PASS，`3/3`，exit `0` |
 | `cargo test -p trpg-testing --test tutorial_complete_e2e` | PASS，`2/2`，exit `0`；使用真实 PostgreSQL/Witness 环境 |
 
@@ -73,6 +73,14 @@ preflight 的 Fork 排队；释放屏障后普通 canonical/projection 成功，
 公式失败。Fork snapshot 与 child scenario 都断言包含 Library Use/Psychology 两项
 award；随后直接使用 child-owned session、ending、character/current sheet 和服务端骰
 正式结算尚未消费的 Psychology，证明不是只复制展示字段。
+第二十二轮修复用数据库 trigger 定点拒绝 Combat v2 状态投影。调用返回
+`Database("project_combat_state")` 后，正式 Combat event 和同序列的全局 roll
+reservation 仍已在 canonical 事务持久化，而 Combat projection 保持 v1；移除故障
+trigger 后，同一 commit/idempotency/request 的精确重试恢复 v2、Event Store 不增加。
+随后把同一 opaque roll clone 给 Chase，仍因已有 `COMBAT` ownership 在 append 前
+拒绝。该路径同时验证新 reservation marker 与旧无 marker commit 的 request-hash
+重试兼容。Scenario 回归新增同一 Ending 两次 `Library Use`，入口统一返回
+`InvalidEndings`。
 
 ## 真实数据库、重放与迁移
 
@@ -175,7 +183,7 @@ award；随后直接使用 child-owned session、ending、character/current shee
 | `cargo test -p trpg-data-eventing --lib --locked` | PASS，`26/26` |
 | `cargo test -p trpg-testing --test vertical_human_kp_tutorial_slice --locked` | PASS，`2/2` |
 | `cargo test -p trpg-ruleset-coc7 --test growth_resolution` | PASS，`2/2` |
-| `cargo test -p trpg-runtime --test conclusion_growth_state_machine` | PASS，`2/2` |
+| `cargo test -p trpg-runtime --test conclusion_growth_state_machine` | PASS，`3/3` |
 | `python3 scripts/ci/check_dependency_directions.py` 及自测 | PASS；未添加例外 |
 | `python3 scripts/ci/check_product_boundaries.py` 及自测 | PASS |
 | `python3 scripts/ci/test_repo_truth.py` | PASS，`23/23`；使用仓库锁定的 Python 3.14.6、Node 24.17.0、pnpm 11.9.0 |
@@ -309,6 +317,32 @@ core-domain、Tutorial `2/2`、P06/P07/P08 schema assertion 全部通过。Semgr
 1.171.0 对 3 个 Rust 与 2 个 SQL changed targets 运行 13 条规则，结果为 0 finding、
 0 error、0 skipped，机器结果为 `/tmp/p08-semgrep-round21.json`。
 
+第二十二轮新增 forward-only `20260728000100`，把 Combat/Chase/Growth 的 opaque
+roll ownership reservation 移入 canonical event/formal-commit 同一事务，并以
+HMAC-bound target、固定 `search_path`、canonical-only 执行权和 API-only 内容 ID
+派生封闭写入边界。状态 projection 仍为可重建读模型；故障注入证明其失败不会释放
+已经进入正史的骰，exact retry 可恢复状态且不重复事件。Scenario 验证同步拒绝每个
+Ending 内重复成长技能。
+
+最终本地结果为：格式与 `git diff --check` 通过；workspace all-target/all-feature
+check 与严格 Clippy 通过；完整 ruleset、domain、data-eventing lib `26/26`、
+runtime conclusion `3/3`、vertical tutorial `2/2` 通过；dependency/product boundary
+及其自测通过；锁定 Python 3.14.6、Node 24.17.0、pnpm 11.9.0 下 repo-truth
+`23/23` 通过。真实数据库的 migration upgrade `1/1`、decision atomicity `1/1`、
+core-domain `1/1`、Tutorial `2/2` 及 P06/P07/P08 schema/minimum-privilege assertion
+均通过。`b611eab` 的五个 Hosted workflow 也已全部 completed/success。
+
+第一次 Tutorial 回归暴露 exact Chase retry 仍生成旧 draft、因新增 marker 改变
+request hash 而返回 `Canonical(IdempotencyConflict)`；该次未计通过。Combat/Chase/
+Growth 的 retry 统一进入兼容 helper，并对 migration 前无 marker 的已提交 commit
+保持旧 immutable draft 后，同一 Tutorial `2/2` 与 core-domain `1/1` 重跑通过。
+宿主工具链第一次运行 repo-truth 因 Python/Node/pnpm 漂移出现 4 个失败；只读组合
+容器尝试又因缺 git/cargo 且负例需要临时写仓库而失败，均未计通过。最终只把官方锁定
+运行时导出到 `/tmp`，保留宿主 git/cargo 与可恢复负例行为后，同一 `23/23` 全部通过。
+Semgrep 1.171.0 已在 `/tmp` 准备，但获取社区规则的外联被安全审查拒绝且本机无规则
+缓存；未绕过、未减规则、未生成本轮扫描结果，状态明确为
+`NOT_RUN_EXTERNAL_RULE_FETCH_REJECTED_NO_LOCAL_RULE_CACHE`。
+
 第一次把证据类型直接迁入 ruleset 时，runtime 编译暴露 data-eventing/runtime 不允许
 该生产依赖，exit `101`，未计通过；最终方案保持 shared-kernel 依赖方向后同一测试
 `3/3` 通过。真实数据库脚本第一次在沙箱内连接 Docker 被拒，授权访问后才取得完整
@@ -324,9 +358,9 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 
 | 门禁 | 结果 |
 | --- | --- |
-| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；34-target baseline 与最新 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped |
+| Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 前二十一轮真实意见均已追踪；第二十轮 P1 已由第二十一轮确认，两个非阻断扩展 P2 明确延期；第二十一轮 3 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | `b611eab` Hosted CI 5/5；第二十二轮精确 SHA review `4786508911` 确认第二十一轮 3 项未重复，并提出骰预留原子性与重复成长奖励 2 项；两项已本地修复，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -360,8 +394,11 @@ rebuild 会删除 fork 后的正常 child 状态、retry 行数错误覆盖整�
 以及 Dying 无法通过 First Aid 稳定。第十六至二十轮继续指出并修复角色重建连续性、
 append 前验证、生产 rebuild 权限、late joiner 和 copied-character SAN；第二十一轮
 指出的 NULL CHECK 绕过与 dead-target 随机有效性也已按根因修复。扩展到 34 目标的
-Semgrep 基线及最新 5 changed targets 复扫仍为 0 finding。本报告在
-最新远端 CI/复审完成前保持 pending，不以本地结果冒充远端通过。
+Semgrep 基线及第二十一轮 5 changed targets 复扫仍为 0 finding。第二十二轮继续指出
+canonical append 后骰 ownership 可能随独立投影失败而丢失，以及 Scenario 接受重复
+成长奖励；两项已由 canonical 事务内 reservation 和入口唯一性校验完成本地根因修复。
+本轮 Semgrep 因外联安全审查拒绝明确记为未运行。本报告在最新本地修复提交、远端
+CI/复审完成前保持 pending，不以历史扫描或 `b611eab` 的 5/5 冒充新代码远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
 仅有 2/5 完成通过后取消 3 项；第五轮修复提交 `fb3907e` 仅有 3/5 完成通过后取消
 workspace/release 两项；第六轮修复提交 `2ed9df2` 也只有 repository-truth、
@@ -403,3 +440,5 @@ P08 migration SHA-384：
   `9e54aa67734dde88d0f34b62b9fb75630128305aa2c12e13783f2e644578dad77e79a5d6f8c068f74d7bbf7aa9875eb2`
 - `20260727000900`：
   `5eb54f0505197c2bde608fb6bbb1c3be055a35ac85467fc3723982d70036e46f20400e705321fdb3798e2a9568d4cfc8`
+- `20260728000100`：
+  `c6edf4e57ba031a7af6aa2c692f557c2db6f0db3a52e018bf85d55a57117536692bb999c1864c6fe691e46cb62888fc7`

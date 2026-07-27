@@ -1055,6 +1055,7 @@ enum WitnessPhase {
 enum AtomicProjection<'a> {
     PlayerAction(&'a serde_json::Value),
     CampaignInviteAcceptance(&'a serde_json::Value),
+    GameplayRollReservation(&'a serde_json::Value),
 }
 
 impl WitnessPhase {
@@ -1352,6 +1353,22 @@ impl PostgresCanonicalStore {
         self.commit_with_projection(
             draft,
             Some(AtomicProjection::CampaignInviteAcceptance(projection)),
+        )
+        .await
+    }
+
+    /// Atomically appends one P08 gameplay event and permanently reserves
+    /// every opaque server roll consumed by that event. The remaining state
+    /// projections stay rebuildable, but a cancellation or projection error
+    /// after this transaction can no longer make the same roll reusable.
+    pub(crate) async fn commit_gameplay_roll_reservation(
+        &self,
+        draft: &AtomicCommitDraft,
+        projection: &serde_json::Value,
+    ) -> Result<PersistedCommit, CanonicalStoreError> {
+        self.commit_with_projection(
+            draft,
+            Some(AtomicProjection::GameplayRollReservation(projection)),
         )
         .await
     }
@@ -2546,6 +2563,13 @@ impl PostgresCanonicalStore {
                         "set_campaign_invite_projection_capability",
                         "apply_campaign_invite_acceptance",
                         "SELECT core_domain.apply_campaign_invite_acceptance($1, $2::JSONB)",
+                    ),
+                    AtomicProjection::GameplayRollReservation(projection) => (
+                        projection,
+                        "gameplay_roll_reservation_must_be_object",
+                        "set_gameplay_roll_reservation_capability",
+                        "reserve_gameplay_roll_consumptions",
+                        "SELECT core_domain.reserve_gameplay_roll_consumptions($1, $2::JSONB)",
                     ),
                 };
             if !projection.is_object() {

@@ -2371,8 +2371,68 @@ BEGIN
            AND encode(tgargs, 'escape') LIKE '%CombatStateRecorded%'
            AND encode(tgargs, 'escape') LIKE '%ChaseStateRecorded%'
            AND encode(tgargs, 'escape') LIKE '%CharacterGrowthApplied%'
+    )
+    OR to_regprocedure(
+        'core_domain.gameplay_roll_reservation_projection_id(jsonb)'
+    ) IS NULL
+    OR NOT EXISTS (
+        SELECT 1
+          FROM pg_proc AS procedure
+          JOIN pg_namespace AS namespace
+            ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'core_domain'
+           AND procedure.proname =
+               'reserve_gameplay_roll_consumptions'
+           AND procedure.prosecdef
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%formal_commits%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%gameplay roll reservation is not HMAC-bound%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%ON CONFLICT (roll_id) DO NOTHING%'
     ) THEN
         RAISE EXCEPTION 'P08 snapshot, fork serialization, growth, or global roll evidence is not physical';
+    END IF;
+    IF NOT has_function_privilege(
+           'trpg_canonical_service',
+           'core_domain.reserve_gameplay_roll_consumptions(text,jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_canonical_service',
+           'core_domain.gameplay_roll_reservation_projection_id(jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_api_service',
+           'core_domain.reserve_gameplay_roll_consumptions(text,jsonb)',
+           'EXECUTE'
+       )
+       OR NOT has_function_privilege(
+           'trpg_api_service',
+           'core_domain.gameplay_roll_reservation_projection_id(jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_worker_service',
+           'core_domain.reserve_gameplay_roll_consumptions(text,jsonb)',
+           'EXECUTE'
+       )
+       OR EXISTS (
+           SELECT 1
+             FROM pg_proc AS procedure
+             JOIN pg_namespace AS namespace
+               ON namespace.oid = procedure.pronamespace,
+                  LATERAL aclexplode(procedure.proacl) AS privilege
+            WHERE namespace.nspname = 'core_domain'
+              AND procedure.proname IN (
+                  'reserve_gameplay_roll_consumptions',
+                  'gameplay_roll_reservation_projection_id'
+              )
+              AND privilege.grantee = 0
+              AND privilege.privilege_type = 'EXECUTE'
+       ) THEN
+        RAISE EXCEPTION 'P08 canonical roll reservation privilege boundary drifted';
     END IF;
 
     BEGIN

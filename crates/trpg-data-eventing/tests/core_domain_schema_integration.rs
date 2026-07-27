@@ -1731,34 +1731,117 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     assert_eq!(missed_transition.damage, 0);
     let missed_state = combat.persistence_json().unwrap();
     assert!(missed_state.contains("\"kind\":\"ATTACK_MISSED\""));
-    repository
-        .record_combat_state(
-            &metadata(
-                CAMPAIGN_ID,
-                AUTHORITY_ID,
-                KEEPER_ID,
-                "human_keeper",
-                "combat_p08_schema",
-                "combat_state",
-                "combat.state.attack",
-                1,
-                "combat_p08_missed_attack",
-                "party_visible",
-                "not_applicable",
-                "rules_engine_decision",
-            ),
-            &RecordCombatStateRequest {
-                campaign_id: CAMPAIGN_ID.to_owned(),
-                session_id: "session_p06_schema".to_owned(),
-                state_json: missed_state,
-                attacker_roll: Some(missed_attack),
-                defender_roll: None,
-                damage_roll: None,
-                medical_roll: None,
-            },
+    let missed_attack_metadata = metadata(
+        CAMPAIGN_ID,
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "combat_p08_schema",
+        "combat_state",
+        "combat.state.attack",
+        1,
+        "combat_p08_missed_attack",
+        "party_visible",
+        "not_applicable",
+        "rules_engine_decision",
+    );
+    let missed_attack_request = RecordCombatStateRequest {
+        campaign_id: CAMPAIGN_ID.to_owned(),
+        session_id: "session_p06_schema".to_owned(),
+        state_json: missed_state,
+        attacker_roll: Some(missed_attack.clone()),
+        defender_roll: None,
+        damage_roll: None,
+        medical_roll: None,
+    };
+    sqlx::raw_sql(
+        r#"
+        CREATE FUNCTION public.reject_p08_combat_projection_for_test()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF NEW.combat_id = 'combat_p08_schema' AND NEW.version = 2 THEN
+                RAISE EXCEPTION 'injected P08 combat projection failure';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
+        CREATE TRIGGER zz_reject_p08_combat_projection_for_test
+        BEFORE INSERT OR UPDATE ON public.combat_states
+        FOR EACH ROW EXECUTE FUNCTION
+            public.reject_p08_combat_projection_for_test();
+        "#,
+    )
+    .execute(&primary)
+    .await
+    .expect("install P08 projection failure injection");
+    assert!(matches!(
+        repository
+            .record_combat_state(&missed_attack_metadata, &missed_attack_request)
+            .await,
+        Err(CoreDomainRepositoryError::Database("project_combat_state"))
+    ));
+    let missed_event_sequence: i64 = sqlx::query_scalar(
+        "SELECT max(sequence) FROM public.event_store \
+         WHERE campaign_id = $1 AND stream_id = 'combat_p08_schema'",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT last_event_sequence \
+               FROM public.gameplay_roll_consumptions \
+              WHERE roll_id = $1",
         )
+        .bind(missed_attack.roll_id())
+        .fetch_one(&primary)
         .await
-        .expect("persist a missed attack with server roll evidence and no damage evidence");
+        .unwrap(),
+        missed_event_sequence,
+        "the canonical transaction must durably reserve a roll even when its state projection fails"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT version FROM public.combat_states \
+             WHERE combat_id = 'combat_p08_schema'",
+        )
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        1,
+        "the injected failure must roll back the separate state projection"
+    );
+    sqlx::raw_sql(
+        r#"
+        DROP TRIGGER zz_reject_p08_combat_projection_for_test
+            ON public.combat_states;
+        DROP FUNCTION public.reject_p08_combat_projection_for_test();
+        "#,
+    )
+    .execute(&primary)
+    .await
+    .expect("remove P08 projection failure injection");
+    repository
+        .record_combat_state(&missed_attack_metadata, &missed_attack_request)
+        .await
+        .expect("exact retry must project the canonically reserved missed attack");
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND stream_id = 'combat_p08_schema' \
+               AND sequence = $2",
+        )
+        .bind(CAMPAIGN_ID)
+        .bind(missed_event_sequence)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        1,
+        "projection recovery must not append a duplicate canonical event"
+    );
     assert_eq!(
         persist_combat_turn_advance(
             &repository,
@@ -2157,7 +2240,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .await
     .unwrap();
     let mut reused_roll_chase = chase.clone();
-    let reused_roll_chase_evidence = vec![medical_roll.clone(), percentile_with_result(40, true)];
+    let reused_roll_chase_evidence = vec![missed_attack.clone(), percentile_with_result(40, true)];
     reused_roll_chase
         .advance(&reused_roll_chase_evidence, None)
         .unwrap();
@@ -2207,12 +2290,12 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             "SELECT aggregate_kind FROM public.gameplay_roll_consumptions \
              WHERE roll_id = $1",
         )
-        .bind(medical_roll.roll_id())
+        .bind(missed_attack.roll_id())
         .fetch_one(&primary)
         .await
         .unwrap(),
         "COMBAT",
-        "global roll ownership must remain bound to the first aggregate"
+        "a roll reserved across a failed projection must remain bound to its first aggregate"
     );
     let mut mismatched_chase = chase.clone();
     let recorded_chase_rolls = vec![

@@ -1,6 +1,6 @@
 # P08 独立第三方复核
 
-记录日期：2026-07-27（Australia/Brisbane）
+记录日期：2026-07-28（Australia/Brisbane）
 审查基线：`18825746082886a63aee10891860aedb749349e1`
 
 ```text
@@ -15,6 +15,7 @@ SEMGREP_ERRORS = 0
 SEMGREP_SKIPPED = 0
 SEMGREP_PARSED_LINES = APPROX_100_PERCENT
 SEMGREP_EXIT = 0
+SEMGREP_ROUND_22 = NOT_RUN_EXTERNAL_RULE_FETCH_REJECTED_NO_LOCAL_RULE_CACHE
 CODERABBIT_VERSION = 0.7.0
 CODERABBIT_AUTH = NOT_AUTHENTICATED
 CODERABBIT_EXTERNAL_REVIEW = NOT_RUN
@@ -61,8 +62,10 @@ GITHUB_TWENTIETH_AUTOMATED_REVIEW = 1_BLOCKING_2_NONBLOCKING
 GITHUB_TWENTIETH_BLOCKING_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_FIRST_REVIEW
 GITHUB_TWENTIETH_NONBLOCKING_STATUS = DEFERRED_BY_USER_THRESHOLD
 GITHUB_TWENTY_FIRST_AUTOMATED_REVIEW = 3_ACTIONABLE
-GITHUB_TWENTY_FIRST_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
-GITHUB_LATEST_REVIEWED_TARGET = 8087404e852afa2642e887fea9662443dc02213c
+GITHUB_TWENTY_FIRST_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_SECOND_REVIEW
+GITHUB_TWENTY_SECOND_AUTOMATED_REVIEW = 2_ACTIONABLE
+GITHUB_TWENTY_SECOND_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_LATEST_REVIEWED_TARGET = b611eabea05d22a88fb0bb9e5ec40bf285a48714
 GITHUB_NEXT_REVIEW_TARGET = PENDING_COMMIT
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -76,7 +79,8 @@ GITHUB_ELEVENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_TWELFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_THIRTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
-GITHUB_LATEST_REPAIR_HOSTED_CI = 2_PASS_3_RUNNING
+GITHUB_TWENTY_FIRST_REPAIR_HOSTED_CI = 5_PASS
+GITHUB_LATEST_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -117,6 +121,12 @@ registry exit `2`；显式把设置/日志定向到 `/tmp` 并获准获取相同
 得到 0 finding、0 error、0 skipped；没有用缩小规则集替代既有 34 目标基线扫描。
 第二十一轮修复对实际变更的 3 个 Rust 与 2 个 SQL 目标沿用相同配置，13 条适用规则
 同样得到 0 finding、0 error、0 skipped。
+第二十二轮已在 `/tmp` 重新准备相同 Semgrep 1.171.0，但安全审查拒绝了向社区
+registry 获取 `p/rust` 与 `p/security-audit`：该外联可能向未获本轮明确授权的服务
+暴露仓库或扫描元数据。本机没有保留这两组规则的可复用缓存，因此没有绕过审查、
+没有改用较弱规则，也没有产生或宣称本轮扫描结果；历史 34-target 基线与第二十一轮
+changed-target PASS 仍保留为历史证据，本轮状态为
+`NOT_RUN_EXTERNAL_RULE_FETCH_REJECTED_NO_LOCAL_RULE_CACHE`。
 只有最终 0 error JSON 被计为通过，前述中间运行没有被覆盖或伪报。
 
 扩展范围首次复扫发现 `data_deletion_e2e.rs` 两处以可预测名称直接使用共享临时目录。
@@ -439,6 +449,35 @@ workspace strict Clippy 及 changed-target Semgrep 5 targets/13 rules/0 finding/
 0 error/0 skipped 全部通过。新提交的 Hosted CI 与第二十二轮精确 SHA 复审仍待运行，
 本报告保持 pending，不把本地结果写成远端通过。
 
+提交 `b611eabea05d22a88fb0bb9e5ec40bf285a48714` 随后由五个
+pull-request-triggered Hosted workflow 全部验证通过：
+`repository-truth`、`golden-scenarios`、`workspace-ci`、
+`production-security-runtime` 与 `release-readiness-evidence` 均为 completed/success。
+第二十二轮精确 SHA review `4786508911` 没有重复第二十一轮三项，并提出 1 个 P1、
+1 个 P2：
+
+- Combat/Chase/Growth 的正式事件先在 canonical 事务提交，骰消费再由独立 projection
+  事务写入；取消、连接丢失或状态投影失败会留下正史却释放骰 ownership，使 clone
+  证据可能在另一个 aggregate 再次进入正史；
+- Scenario Ending 可重复同一 `growth_awards.skill_name`，入口接受后却会被 fork
+  conclusion snapshot 的唯一性校验拒绝。
+
+本地修复新增 forward-only
+`20260728000100_reserve_gameplay_rolls_with_canonical_commit.sql`。Canonical service
+在 event、audit、formal commit 尚未提交的同一事务内，经 HMAC-bound projection
+target 调用最小权限 `SECURITY DEFINER` 函数预留每条 opaque roll；状态投影失败不再
+释放 ownership。API role 只能计算内容寻址 reservation ID，不能执行预留函数；
+PUBLIC 与 worker 均无执行权。真库 trigger 故障注入证明 canonical event/roll
+reservation 在 Combat 状态投影失败后仍持久，clone 到 Chase 会被拒绝，随后 exact
+retry 只恢复投影、不追加第二条正史；旧无 marker 的已提交请求仍保持原 request hash
+重试兼容。Scenario 验证同时按每个 Ending 拒绝重复技能。
+
+workspace all-target/all-feature check、严格 Clippy、完整 ruleset/domain、data-eventing
+lib、锁定工具链 repo-truth、migration upgrade、decision atomicity、core-domain、
+Tutorial 与 P06/P07/P08 schema/权限断言均已通过。该修复尚未提交，新的 Hosted CI
+和第二十三轮精确 SHA review 仍为 pending；本轮 Semgrep 因上述外联拒绝明确记为
+未运行。
+
 ## RustSec
 
 `cargo audit 0.22.2 --no-fetch` 使用本地 1169 条 advisory 数据检查
@@ -454,7 +493,7 @@ workspace strict Clippy 及 changed-target Semgrep 5 targets/13 rules/0 finding/
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-二十一轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+二十二轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
 用户门槛明确延期，没有冒充修复。最新提交的远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖

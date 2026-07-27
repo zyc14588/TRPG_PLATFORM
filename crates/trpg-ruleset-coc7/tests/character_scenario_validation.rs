@@ -90,6 +90,10 @@ fn endings_reject_unselectable_whitespace_padded_ids_and_awards() {
             "      - skill_name: Library Use",
             "      - skill_name: \" Library Use \"",
         ),
+        TUTORIAL_SCENARIO.replace(
+            "      - skill_name: Psychology",
+            "      - skill_name: Library Use",
+        ),
     ] {
         assert_eq!(
             parse_scenario_yaml(&invalid),

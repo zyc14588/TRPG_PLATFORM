@@ -1068,6 +1068,108 @@ impl CoreDomainRepository {
         )?;
         self.canonical.commit(&draft).await.map_err(Into::into)
     }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn commit_gameplay_event(
+        &self,
+        metadata: &CoreCommandMetadata,
+        campaign_id: &str,
+        stream_id: &str,
+        route: (&str, &str),
+        event: &CoreDomainEvent,
+        mut projection_targets: Vec<CanonicalProjectionTarget>,
+        aggregate_kind: &str,
+        consumptions: &[GameplayRollConsumption],
+    ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
+        if consumptions.is_empty() {
+            return self
+                .commit_event(
+                    metadata,
+                    campaign_id,
+                    stream_id,
+                    route,
+                    event,
+                    projection_targets,
+                )
+                .await;
+        }
+        let existing_uses_reservation: Option<bool> = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS (
+                SELECT 1
+                  FROM public.event_store AS event
+                  CROSS JOIN LATERAL jsonb_array_elements(
+                      event.projection_targets
+                  ) AS target
+                 WHERE event.sequence BETWEEN
+                       formal.first_event_sequence AND formal.last_event_sequence
+                   AND target ->> 'relation' =
+                       'core_domain.gameplay_roll_reservation'
+            )
+              FROM public.formal_commits AS formal
+             WHERE formal.commit_id = $1
+               AND formal.status = 'committed'
+            "#,
+        )
+        .bind(&metadata.commit_id)
+        .fetch_optional(&self.primary)
+        .await
+        .map_err(database_error(
+            "load_gameplay_roll_reservation_commit_shape",
+        ))?;
+        if existing_uses_reservation == Some(false) {
+            // Events committed before the atomic-reservation migration have
+            // an immutable request hash without the new HMAC-bound marker.
+            // Preserve their exact retry shape; their already materialized
+            // consumption row remains the durable ownership record.
+            return self
+                .commit_event(
+                    metadata,
+                    campaign_id,
+                    stream_id,
+                    route,
+                    event,
+                    projection_targets,
+                )
+                .await;
+        }
+        let projection = serde_json::json!({
+            "campaign_id": campaign_id,
+            "aggregate_kind": aggregate_kind,
+            "aggregate_id": stream_id,
+            "visibility_label": metadata.visibility_label,
+            "visibility_subject": metadata.visibility_subject,
+            "provenance_kind": metadata.provenance_kind,
+            "provenance_reference": metadata.provenance_reference,
+            "provenance_recorded_by": metadata.provenance_recorded_by,
+            "consumptions": consumptions
+                .iter()
+                .map(|consumption| serde_json::json!({
+                    "roll_id": consumption.roll_id,
+                    "roll_kind": consumption.roll_kind,
+                }))
+                .collect::<Vec<_>>(),
+        });
+        let projection_id = self
+            .gameplay_roll_reservation_projection_id(&projection)
+            .await?;
+        projection_targets.push(projection_target(
+            "core_domain.gameplay_roll_reservation",
+            &projection_id,
+        ));
+        let draft = metadata.to_draft(
+            campaign_id,
+            stream_id,
+            route.0,
+            route.1,
+            event,
+            projection_targets,
+        )?;
+        self.canonical
+            .commit_gameplay_roll_reservation(&draft, &projection)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 fn player_action_event(
@@ -1153,6 +1255,19 @@ impl CoreDomainRepository {
             .fetch_one(&self.primary)
             .await
             .map_err(database_error("derive_player_action_projection_id"))
+    }
+
+    async fn gameplay_roll_reservation_projection_id(
+        &self,
+        projection: &serde_json::Value,
+    ) -> Result<String, CoreDomainRepositoryError> {
+        sqlx::query_scalar("SELECT core_domain.gameplay_roll_reservation_projection_id($1::JSONB)")
+            .bind(sqlx::types::Json(projection.clone()))
+            .fetch_one(&self.primary)
+            .await
+            .map_err(database_error(
+                "derive_gameplay_roll_reservation_projection_id",
+            ))
     }
 
     async fn verify_player_action_commit(
@@ -3163,9 +3278,41 @@ async fn project_gameplay_roll_consumptions(
         .await
         .map_err(database_error("project_gameplay_roll_consumption"))?;
         if inserted.rows_affected() != 1 {
-            return Err(CoreDomainRepositoryError::Integrity(
-                "gameplay_roll_already_consumed",
-            ));
+            let existing = sqlx::query(
+                r#"
+                SELECT campaign_id, aggregate_kind, aggregate_id, roll_kind,
+                       random_source, visibility_label::TEXT AS visibility_label,
+                       visibility_subject,
+                       provenance_kind::TEXT AS provenance_kind,
+                       provenance_reference, provenance_recorded_by,
+                       last_event_sequence
+                  FROM public.gameplay_roll_consumptions
+                 WHERE roll_id = $1
+                "#,
+            )
+            .bind(&consumption.roll_id)
+            .fetch_optional(&mut **transaction)
+            .await
+            .map_err(database_error("load_projected_gameplay_roll_consumption"))?
+            .ok_or(CoreDomainRepositoryError::Integrity(
+                "gameplay_roll_reservation_missing",
+            ))?;
+            if existing.get::<String, _>("campaign_id") != campaign_id
+                || existing.get::<String, _>("aggregate_kind") != aggregate_kind
+                || existing.get::<String, _>("aggregate_id") != aggregate_id
+                || existing.get::<String, _>("roll_kind") != consumption.roll_kind
+                || existing.get::<String, _>("random_source") != "SERVER_OS_CSPRNG"
+                || existing.get::<String, _>("visibility_label") != visibility_label
+                || existing.get::<String, _>("visibility_subject") != visibility_subject
+                || existing.get::<String, _>("provenance_kind") != provenance_kind
+                || existing.get::<String, _>("provenance_reference") != provenance_reference
+                || existing.get::<String, _>("provenance_recorded_by") != provenance_recorded_by
+                || existing.get::<i64, _>("last_event_sequence") != last_event_sequence
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "gameplay_roll_already_consumed",
+                ));
+            }
         }
     }
     Ok(())
@@ -10467,7 +10614,7 @@ impl CoreDomainRepository {
                     ));
                 }
                 return self
-                    .commit_event(
+                    .commit_gameplay_event(
                         metadata,
                         &request.campaign_id,
                         &combat_id,
@@ -10478,6 +10625,8 @@ impl CoreDomainRepository {
                             &combat_id,
                             !roll_consumptions.is_empty(),
                         ),
+                        "COMBAT",
+                        &roll_consumptions,
                     )
                     .await;
             }
@@ -10514,10 +10663,10 @@ impl CoreDomainRepository {
                 "combat_state_validation_mismatch",
             ));
         }
-        self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions)
+        self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions, metadata)
             .await?;
         let persisted = self
-            .commit_event(
+            .commit_gameplay_event(
                 metadata,
                 &request.campaign_id,
                 &combat_id,
@@ -10528,6 +10677,8 @@ impl CoreDomainRepository {
                     &combat_id,
                     !roll_consumptions.is_empty(),
                 ),
+                "COMBAT",
+                &roll_consumptions,
             )
             .await?;
         project_gameplay_roll_consumptions(
@@ -10698,7 +10849,7 @@ impl CoreDomainRepository {
                     ));
                 }
                 return self
-                    .commit_event(
+                    .commit_gameplay_event(
                         metadata,
                         &request.campaign_id,
                         &chase_id,
@@ -10709,6 +10860,8 @@ impl CoreDomainRepository {
                             &chase_id,
                             !roll_consumptions.is_empty(),
                         ),
+                        "CHASE",
+                        &roll_consumptions,
                     )
                     .await;
             }
@@ -10745,10 +10898,10 @@ impl CoreDomainRepository {
                 "chase_state_validation_mismatch",
             ));
         }
-        self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions)
+        self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions, metadata)
             .await?;
         let persisted = self
-            .commit_event(
+            .commit_gameplay_event(
                 metadata,
                 &request.campaign_id,
                 &chase_id,
@@ -10759,6 +10912,8 @@ impl CoreDomainRepository {
                     &chase_id,
                     !roll_consumptions.is_empty(),
                 ),
+                "CHASE",
+                &roll_consumptions,
             )
             .await?;
         project_gameplay_roll_consumptions(
@@ -11145,13 +11300,15 @@ impl CoreDomainRepository {
                 &request.growth_event_id,
             ));
             return self
-                .commit_event(
+                .commit_gameplay_event(
                     metadata,
                     &request.campaign_id,
                     &request.growth_event_id,
                     ("growth", "growth.record"),
                     &existing_event,
                     projection_targets,
+                    "GROWTH",
+                    &roll_consumptions,
                 )
                 .await;
         }
@@ -11333,7 +11490,7 @@ impl CoreDomainRepository {
             server_roll_id: server_roll_id.clone(),
             increase_roll_id: increase_roll_id.clone(),
         };
-        self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions)
+        self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions, metadata)
             .await?;
         let mut projection_targets = vec![
             projection_target("public.growth_events", &request.growth_event_id),
@@ -11348,13 +11505,15 @@ impl CoreDomainRepository {
             &request.growth_event_id,
         ));
         let persisted = self
-            .commit_event(
+            .commit_gameplay_event(
                 metadata,
                 &request.campaign_id,
                 &request.growth_event_id,
                 ("growth", "growth.record"),
                 &event,
                 projection_targets,
+                "GROWTH",
+                &roll_consumptions,
             )
             .await?;
         project_gameplay_roll_consumptions(
@@ -11509,6 +11668,7 @@ impl CoreDomainRepository {
         &self,
         transaction: &mut Transaction<'_, Postgres>,
         consumptions: &[GameplayRollConsumption],
+        metadata: &CoreCommandMetadata,
     ) -> Result<(), CoreDomainRepositoryError> {
         let roll_ids = consumptions
             .iter()
@@ -11520,16 +11680,26 @@ impl CoreDomainRepository {
                 .execute(&mut **transaction)
                 .await
                 .map_err(database_error("lock_gameplay_roll_consumption"))?;
-            let already_consumed: bool = sqlx::query_scalar(
-                "SELECT EXISTS( \
-                     SELECT 1 FROM public.gameplay_roll_consumptions WHERE roll_id = $1 \
-                 )",
+            let existing = sqlx::query(
+                r#"
+                SELECT formal.commit_id
+                  FROM public.gameplay_roll_consumptions AS consumption
+                  LEFT JOIN public.formal_commits AS formal
+                    ON consumption.last_event_sequence BETWEEN
+                       formal.first_event_sequence AND formal.last_event_sequence
+                   AND formal.status = 'committed'
+                 WHERE consumption.roll_id = $1
+                "#,
             )
             .bind(roll_id)
-            .fetch_one(&mut **transaction)
+            .fetch_optional(&mut **transaction)
             .await
             .map_err(database_error("load_gameplay_roll_consumption"))?;
-            if already_consumed {
+            if let Some(existing) = existing {
+                let owning_commit_id = existing.get::<Option<String>, _>("commit_id");
+                if owning_commit_id.as_deref() == Some(metadata.commit_id.as_str()) {
+                    continue;
+                }
                 return Err(CoreDomainRepositoryError::InvalidInput(
                     "gameplay_roll_reuse",
                 ));

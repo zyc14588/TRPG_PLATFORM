@@ -351,10 +351,16 @@ fn validate_scenario(
 
     let mut ending_ids = HashSet::new();
     for ending in &document.endings {
+        let unique_growth_awards = ending
+            .growth_awards
+            .iter()
+            .map(|award| award.skill_name.as_str())
+            .collect::<HashSet<_>>();
         if ending.id.trim().is_empty()
             || ending.id != ending.id.trim()
             || ending.condition.trim().is_empty()
             || !ending_ids.insert(ending.id.clone())
+            || unique_growth_awards.len() != ending.growth_awards.len()
             || ending.growth_awards.iter().any(|award| {
                 award.skill_name.trim().is_empty()
                     || award.skill_name != award.skill_name.trim()

@@ -3,7 +3,7 @@ BATCH_ID: P08
 
 # P08 最终验收状态
 
-记录日期：2026-07-27（Australia/Brisbane）
+记录日期：2026-07-28（Australia/Brisbane）
 
 ```text
 BASE_HEAD = 18825746082886a63aee10891860aedb749349e1
@@ -19,7 +19,7 @@ P08_SCHEMA_ASSERTION = PASS
 FORWARD_MIGRATION_UPGRADE = PASS
 P07_INVESTIGATION_SAN_CHARACTER_VISIBILITY_REGRESSION = PASS
 DEPENDENCY_DIRECTION_POLICY = PASS_NO_EXCEPTION
-THIRD_PARTY_SEMGREP = PASS_0_FINDINGS
+THIRD_PARTY_SEMGREP = BASELINE_PASS_ROUND_22_NOT_RUN_EXTERNAL_FETCH_REJECTED
 CODERABBIT_EXTERNAL_REVIEW = NOT_RUN_NOT_AUTHENTICATED
 DEPENDENCY_ADVISORY_SCAN = FAIL_3_DISCLOSED_BASELINE_ADVISORIES
 GITHUB_PR = 9
@@ -44,7 +44,8 @@ GITHUB_SEVENTEENTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_EIGHTEENTH
 GITHUB_EIGHTEENTH_AUTOMATED_REVIEW = 1_ACTIONABLE_FIXED_CONFIRMED_BY_NINETEENTH_REVIEW
 GITHUB_NINETEENTH_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTIETH_REVIEW
 GITHUB_TWENTIETH_AUTOMATED_REVIEW = 1_BLOCKING_FIXED_CONFIRMED_BY_TWENTY_FIRST_REVIEW_2_NONBLOCKING_DEFERRED
-GITHUB_TWENTY_FIRST_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_LOCALLY
+GITHUB_TWENTY_FIRST_AUTOMATED_REVIEW = 3_ACTIONABLE_FIXED_CONFIRMED_BY_TWENTY_SECOND_REVIEW
+GITHUB_TWENTY_SECOND_AUTOMATED_REVIEW = 2_ACTIONABLE_FIXED_LOCALLY
 GITHUB_LATEST_AUTOMATED_REVIEW = RERUN_PENDING
 THIRD_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTH_REPAIR_HOSTED_CI = PASS_2_OF_5_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -58,7 +59,8 @@ ELEVENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 TWELFTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 THIRTEENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
 FOURTEENTH_REPAIR_HOSTED_CI = PASS_3_OF_5_2_CANCELED_AFTER_REVIEW_BLOCKERS
-TWENTY_FIRST_REPAIR_HOSTED_CI = PENDING
+TWENTY_FIRST_REPAIR_HOSTED_CI = PASS_5_OF_5
+TWENTY_SECOND_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 P09_IMPLEMENTATION = NOT_STARTED
 ```
 
@@ -82,11 +84,11 @@ HMAC 与 Witness 校验的正史事件重建。
 | 可见性保持 | Fork materialization 按 keeper、party 和 owner-bound private 行分批；每个事件自己的 Visibility、`data_subject_id` 与主体密钥进入 request hash、HMAC、Event Store 和 Outbox，投影触发器继续要求事件/行完全一致 | PASS |
 | 幂等与语义唯一性 | Combat、Chase、Ending、Growth 的 exact retry 返回原 persisted commit；Campaign Fork 的 exact retry 从已记录 lineage/manifest/materialized batches 重建原命令与投影，不读取后来可能变化的 parent snapshot；Ending 的 Session 键与 Growth 的 Character 键在事务 advisory lock 下串行检查、append 和 projection；真实并发竞争各只产生一条正史 | PASS |
 | 活跃会话边界 | Combat/Chase 在同一事务内对 Session 行持有 `FOR SHARE` 锁并要求状态精确为 `ACTIVE`；Session 终止路径的 `FOR UPDATE` 锁封闭状态检查与正式 append 间的 TOCTOU；结束态负例不增加 Event Store | PASS |
-| 场景参与者唯一性 | Scenario 验证在接受 Combat/Chase encounter 前拒绝重复 participant ID，保证通过验证的 encounter 可构造正式聚合 | PASS |
+| 场景结构唯一性 | Scenario 验证在接受 Combat/Chase encounter 前拒绝重复 participant ID，并按每个 Ending 拒绝重复 `growth_awards.skill_name`，保证入口接受的文档可构造正式聚合与 fork conclusion snapshot | PASS |
 | 结局与成长 | 活跃会话不能结局；`ending_id` 必须存在于会话绑定场景的 `endings`；Ending summary 在事件创建前规范化并与 replay 投影一致；没有 `growth_awards` 的合法结局可用空 settlement 完成，有奖励时成长技能必须存在于该 Ending 的 `growth_awards`；成长证据只能由一次性完整 OS CSPRNG 尝试生成，不能把独立 percentile/d10 拼装为挑选结果；新 Sheet、Character 与正式 Growth event 必须精确保持来源 Character/Sheet 的 Visibility envelope，任何扩大在 append 前失败 | PASS |
 | Tutorial 完整闭环 | 真实 PostgreSQL 上完成角色、场景、调查、服务端骰、线索、SAN、战斗、追逐、结局、成长、复议和 Fork | PASS |
-| Schema/最小权限 | 七个 P08 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth/rebuild repair、可延迟外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、fork-empty trigger/function 完整 catalog 指纹、Combat/Chase/Growth 全局 gameplay roll 主键、v2 Fork/Reconsideration 显式非空 shape 与行为探针、角色权限断言 | PASS |
-| 第三方检查 | Semgrep 1.171.0 的 34 目标基线为 13 rules/0 finding/0 error/0 skipped；第二十一轮修复的 5 changed targets 复扫结果相同。PR #9 前二十一轮远端自动审查均如实记录；第二十轮 1 个阻断已由第二十一轮确认，2 个默认公开 fork 之外的扩展 P2 按用户门槛延期；第二十一轮 3 项已完成本地根因修复并等待新精确 SHA 复审 | PASS_WITH_REMOTE_RERUN_PENDING |
+| Schema/最小权限 | 八个 P08 forward migration、projection guards、受秘密 capability 与 canonical target 约束的 Growth/rebuild repair、可延迟外键、成长算术/证据约束、完整 Fork scope 表、canonical/projection child lineage 唯一约束、fork-empty trigger/function 完整 catalog 指纹、Combat/Chase/Growth 全局 gameplay roll 主键及 canonical 事务内 reservation、v2 Fork/Reconsideration 显式非空 shape 与行为探针、角色与函数执行权限断言 | PASS |
+| 第三方检查 | Semgrep 1.171.0 的历史 34 目标基线与第二十一轮 5 changed targets 均为 13 rules/0 finding/0 error/0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，明确 `NOT_RUN`。PR #9 的 `b611eab` Hosted CI 5/5，第二十二轮精确 SHA review `4786508911` 确认上轮修复并提出 2 项；骰预留原子性和重复成长奖励均已完成本地根因修复，等待新提交/CI/复审 | PASS_WITH_REMOTE_RERUN_PENDING_AND_CURRENT_SEMGREP_NOT_RUN |
 
 ## 反伪造修复
 
@@ -144,19 +146,22 @@ HMAC 与 Witness 校验的正史事件重建。
   重置该标记。规则聚合与独立领域 replay 均拒绝同一角色在推进前进行第二次攻击。
 - Dodge/Fight Back 不再只检查防御骰 presence；目标若已为 `DYING/DEAD`，主动防御
   在规则层和独立 replay 层均失败，不能取消伤害或反击。
-- Combat、Chase 与 Growth 的每个正式骰同时写入 `gameplay_roll_consumptions`
-  全局唯一投影；新攻击、治疗尝试、chase segment 或成长检查在 append 前按 roll ID
-  排序加锁，并检查本次
-  内部重复及全局主键。服务端骰对象即使被 clone，也不能跨版本、跨 aggregate、
-  跨 Campaign 或在 Combat/Chase/Growth 类型间再次产生正式结果。
+- Combat、Chase 与 Growth 的每个正式骰在 canonical event、audit、formal commit
+  尚未提交的同一事务内写入 `gameplay_roll_consumptions` 全局 ownership reservation；
+  HMAC-bound projection target、canonical-only `SECURITY DEFINER` 执行权及固定
+  `search_path` 共同约束写入。普通状态 projection 失败或 task 取消后，正史中的骰
+  ownership 仍不会释放；exact retry 可补齐状态且不重复事件。新攻击、治疗尝试、
+  chase segment 或成长检查仍在 append 前按 roll ID 排序加锁并检查内部重复及全局
+  主键，因此 clone 不能跨版本、aggregate、Campaign 或玩法类型再次进入正史。
 - MajorWound 恢复不再接受调用方提交的任意 `medical_target`；API 要求当前治疗者和
   First Aid/Medicine 类型，从治疗者的持久化技能派生目标。失败尝试同样形成正式
   mutation、消费回合及 roll ID，而不会静默丢弃证据。
 - Combat/Chase 正式写入不再只校验 Session 存在；同一投影事务锁定 Session 行并要求
   `ACTIVE`，因此 `SCHEDULED`、`PAUSED`、`ENDED` 均不能产生玩法正史。Tutorial 的
   结束态负例同时断言两类事件计数不变。
-- Scenario encounter 在入口拒绝重复 participant ID，避免文档验证通过后才在正式
-  Combat/Chase 聚合构造阶段失败。
+- Scenario encounter 在入口拒绝重复 participant ID；每个 Ending 还拒绝重复
+  `growth_awards.skill_name`，避免文档验证通过后才在正式 Combat/Chase 聚合或
+  fork conclusion snapshot 构造阶段失败。
 - 原先可提交原始成长数值或把独立 percentile/d10 拼装成挑选结果的路径，已替换为
   不可反序列化、字段私有、一次性完整采样的服务端随机证据；原始 d10 生成和组合
   构造器均不公开，持久层仍从当前角色卡独立重算结果。
@@ -305,6 +310,11 @@ character 与 padded scenario ID，以及 fork 复制角色后续 SAN 保持；�
 第二十一轮确认。第二十轮另两个默认公开 fork 之外的扩展 P2 按用户门槛明确延期。
 第二十一轮指出的 Fork/Reconsideration NULL CHECK 绕过与 dead-target 随机有效性
 已由 forward-only `20260727000900`、4 个 schema 行为探针、规则层及独立 replay
-共同修复；真实数据库、规则、Clippy 与 Semgrep 已通过。新的 Hosted CI 与精确 SHA
-远端自动复审仍须在合并前通过。
+共同修复；提交 `b611eab` 的 Hosted CI 5/5，第二十二轮精确 SHA review
+`4786508911` 确认三项未重复。该轮新指出的 canonical append 后骰 ownership 释放
+窗口与重复成长奖励，已由 forward-only `20260728000100` 的 canonical 事务内
+reservation、故障后精确重试和 Scenario per-ending 去重完成本地修复。真实数据库、
+迁移、规则、workspace check/Clippy 与锁定工具链门禁已通过；本轮 Semgrep 因社区
+规则外联被安全审查拒绝且无本地缓存，明确记为未运行。新本地修复的提交、Hosted CI
+与精确 SHA 远端自动复审仍须在合并前通过。
 P08 到此停止，未执行 P09。

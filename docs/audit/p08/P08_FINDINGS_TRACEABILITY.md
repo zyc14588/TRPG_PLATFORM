@@ -1,6 +1,6 @@
 # P08 Findings Traceability
 
-记录日期：2026-07-27（Australia/Brisbane）
+记录日期：2026-07-28（Australia/Brisbane）
 基线：`18825746082886a63aee10891860aedb749349e1`
 
 | Finding | 根因 | 修复代码 | 负向/正向证据 | 状态 |
@@ -66,7 +66,8 @@
 | 第十八轮，1 项 | 生产 API projection role 没有直接 `DELETE` 权限，测试却使用数据库 owner pool，导致线上 P08 rebuild 从第一条清理语句即失败 | 新增 capability-gated、target-scoped、固定 `search_path` 的 `SECURITY DEFINER` 清理函数；PUBLIC 无执行权，仅 API role 可调用，且必须提供绑定最新 verified/formal P08 commit 的秘密 capability；真实测试改用实际 API role，并证明直接 DELETE 和无 capability 调用均拒绝 | FIXED_CONFIRMED_BY_NINETEENTH_REVIEW |
 | 第十九轮，2 项 | source Session 启动后、cutoff 前创建但尚未参与 action 的角色被 fork 快照遗漏；带首尾空白的 Ending ID/成长技能可通过场景验证却无法被玩法命令选择 | source selector 纳入 cutoff 前完整 Character create/submit/approve 生命周期；真实 fork 物化并核对 late joiner；场景入口拒绝 padded Ending ID 和 growth skill，规则与真实数据库回归通过 | FIXED_CONFIRMED_BY_TWENTIETH_REVIEW |
 | 第二十轮，3 项 | fork 复制角色在后续 SAN 后仍被 rebuild 清理，非延迟 sheet→character 外键使重建失败；另外指出授权私密 fork scope 未贯穿持久层、非默认 canon status 未持久化 | P1：只清理 canonical tip 仍由 P08 拥有的共享投影；保留行必须由 verified/formal 最新角色与角色卡事件、版本计数、Visibility/Provenance 共同证明。真实数据库执行 fork→copied character SAN→rebuild，并逐字节核对角色、全部 sheet、action 和 SAN。两个 P2 属于默认公开 fork 之外的扩展能力，不影响当前游玩闭环、P09 入口或重大安全边界，按用户明确门槛记录延期，不伪报已修 | P1_FIXED_CONFIRMED_BY_TWENTY_FIRST_REVIEW_P2_DEFERRED_NONBLOCKING |
-| 第二十一轮，3 项 | v2 fork materialization 的 nullable snapshot 字段可借 PostgreSQL CHECK=`UNKNOWN` 绕过；REVIEWED/RESOLVED reconsideration 的 nullable evidence 同样可绕过；攻击 `Dead` 目标时 miss 被接受、hit 才失败，命令有效性取决于随机结果 | 新增 forward-only `20260727000900`，用显式 `IS NOT NULL` 重建两项 shape constraint；schema assertion 既检查 catalog 定义，又以 4 个临时表行为探针证明 REVIEWED/UPHELD/CORRECTED/Fork NULL 均触发 check violation。规则层在解析骰前拒绝 dead target，独立领域 replay 同步拒绝，并以 hit/miss 都不消费回合的回归验证。空库、B24 upgrade/repeat、真实 PostgreSQL/Witness、Tutorial、规则 9/9、领域 6/6、严格 Clippy 与 5 目标 Semgrep 13 rules/0 finding/0 error/0 skipped 均通过 | FIXED_LOCALLY_RERUN_PENDING |
+| 第二十一轮，3 项 | v2 fork materialization 的 nullable snapshot 字段可借 PostgreSQL CHECK=`UNKNOWN` 绕过；REVIEWED/RESOLVED reconsideration 的 nullable evidence 同样可绕过；攻击 `Dead` 目标时 miss 被接受、hit 才失败，命令有效性取决于随机结果 | 新增 forward-only `20260727000900`，用显式 `IS NOT NULL` 重建两项 shape constraint；schema assertion 既检查 catalog 定义，又以 4 个临时表行为探针证明 REVIEWED/UPHELD/CORRECTED/Fork NULL 均触发 check violation。规则层在解析骰前拒绝 dead target，独立领域 replay 同步拒绝，并以 hit/miss 都不消费回合的回归验证。空库、B24 upgrade/repeat、真实 PostgreSQL/Witness、Tutorial、规则 9/9、领域 6/6、严格 Clippy 与 5 目标 Semgrep 13 rules/0 finding/0 error/0 skipped 均通过 | FIXED_CONFIRMED_BY_TWENTY_SECOND_REVIEW |
+| 第二十二轮，2 项 | Combat/Chase/Growth 的 canonical append 与 `gameplay_roll_consumptions` 原先分属两个事务，取消或状态投影失败后可留下已提交正史却释放骰所有权；Scenario Ending 可重复同一 `growth_awards.skill_name`，与 fork snapshot 的唯一性契约冲突 | 新增 forward-only `20260728000100` 与 canonical-only `SECURITY DEFINER` reservation：正式玩法事件、HMAC-bound reservation target、formal commit 和全局骰 ownership 在一个 canonical 事务提交，普通状态投影仍可失败后由 exact retry 重建；API role 只能派生 reservation ID，不能调用写函数。真库 trigger 故障注入证明 Combat 状态投影失败后正史与骰预留仍存在、跨 Chase 复用被拒绝、精确重试不追加事件且恢复状态；旧无 reservation marker 的已提交请求保持原 request hash 重试兼容。场景入口按每个 Ending 去重成长技能，并增加重复 Library Use 负例。workspace check/Clippy、规则全量、domain、data-eventing lib、迁移、原子性、core-domain、Tutorial、schema 最小权限与锁定工具链 repo-truth 均通过；`b611eab` 的第二十一轮修复 Hosted CI 5/5，第二十二轮本地修复尚待提交/复审 | FIXED_LOCALLY_RERUN_PENDING |
 
 所有正式写入保持 Authority、Visibility、Fact Provenance、formal commit、Event Store、
 Outbox 和 projection guard 边界。没有删除或覆盖源事件，没有让 projection 成为正史，
