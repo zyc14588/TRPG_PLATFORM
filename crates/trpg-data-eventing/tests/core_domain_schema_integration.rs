@@ -50,9 +50,10 @@ const KEEPER_ID: &str = "keeper_p06_schema";
 const PLAYER_ID: &str = "player_p06_schema";
 const OTHER_ID: &str = "other_p06_schema";
 const AUTHORITY_ID: &str = "authority_campaign_p06_schema_1";
-const CHILD_AUTHORITY_ID: &str = "authority_campaign_p06_fork_child_1";
-const RACE_CHILD_AUTHORITY_ID: &str = "authority_campaign_p08_fork_race_child_1";
-const STATE_RACE_CHILD_AUTHORITY_ID: &str = "authority_campaign_p08_fork_state_race_child_1";
+const CHILD_AUTHORITY_ID: &str = "authority_contract_campaign_p06_fork_child_1";
+const RACE_CHILD_AUTHORITY_ID: &str = "authority_contract_campaign_p08_fork_race_child_1";
+const STATE_RACE_CHILD_AUTHORITY_ID: &str =
+    "authority_contract_campaign_p08_fork_state_race_child_1";
 const NOW_MS: u64 = 2_000_000_000_000;
 
 fn percentile_with_result(target: u8, succeeds: bool) -> ServerPercentileRoll {
@@ -262,7 +263,11 @@ async fn create_campaign(
                 title: format!("P06 Campaign {suffix}"),
                 room_id: room_id.to_owned(),
                 room_name: "Main table".to_owned(),
-                created_at_unix_ms: NOW_MS,
+                created_at_unix_ms: if campaign_id == CAMPAIGN_ID {
+                    NOW_MS
+                } else {
+                    NOW_MS + 1
+                },
                 authority: authority(authority_id),
             },
         )
@@ -2934,6 +2939,68 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .preview_campaign_fork(CAMPAIGN_ID, "session_p06_schema", KEEPER_ID)
         .await
         .expect("compute a canonical public-only fork snapshot");
+    Box::pin(async {
+        let unrelated_child_campaign_id = "campaign_p08_unrelated_fork_child";
+        let unrelated_child_authority_id = "authority_campaign_p08_unrelated_fork_child_1";
+        create_campaign(
+            &repository,
+            unrelated_child_campaign_id,
+            unrelated_child_authority_id,
+            "room_p08_unrelated_fork_child",
+            "unrelated_fork_child_create",
+        )
+        .await;
+        let unrelated_child_events_before: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM public.event_store WHERE campaign_id = $1")
+                .bind(unrelated_child_campaign_id)
+                .fetch_one(&primary)
+                .await
+                .unwrap();
+        assert!(matches!(
+            repository
+                .record_campaign_fork(
+                    &metadata(
+                        unrelated_child_campaign_id,
+                        unrelated_child_authority_id,
+                        KEEPER_ID,
+                        "human_keeper",
+                        "fork_p08_unrelated_authority",
+                        "campaign_fork",
+                        "campaign.fork.record",
+                        0,
+                        "fork_unrelated_authority",
+                        "keeper_only",
+                        "not_applicable",
+                        "human_keeper_statement",
+                    ),
+                    &RecordCampaignForkRequest {
+                        fork_id: "fork_p08_unrelated_authority".to_owned(),
+                        parent_campaign_id: CAMPAIGN_ID.to_owned(),
+                        child_campaign_id: unrelated_child_campaign_id.to_owned(),
+                        source_session_id: "session_p06_schema".to_owned(),
+                        snapshot_hash: snapshot.snapshot_hash.clone(),
+                        reason: "An unrelated campaign cannot masquerade as a fork".to_owned(),
+                        copy_scopes: snapshot.copy_scopes.clone(),
+                    },
+                )
+                .await,
+            Err(CoreDomainRepositoryError::InvalidInput(
+                "fork_authority_contract"
+            ))
+        ));
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM public.event_store WHERE campaign_id = $1",
+            )
+            .bind(unrelated_child_campaign_id)
+            .fetch_one(&primary)
+            .await
+            .unwrap(),
+            unrelated_child_events_before,
+            "a non-derived Authority Contract must fail before fork lineage enters canonical history"
+        );
+    })
+    .await;
     assert!(
         !snapshot
             .canonical_snapshot_json
@@ -4282,7 +4349,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     );
 
     let single_connection_child = "campaign_p08_fork_single_connection";
-    let single_connection_authority = "authority_campaign_p08_fork_single_connection_1";
+    let single_connection_authority = "authority_contract_campaign_p08_fork_single_connection_1";
     create_campaign(
         &repository,
         single_connection_child,

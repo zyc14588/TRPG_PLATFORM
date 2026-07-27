@@ -66,8 +66,10 @@ GITHUB_TWENTY_FIRST_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_SECOND_REVIEW
 GITHUB_TWENTY_SECOND_AUTOMATED_REVIEW = 2_ACTIONABLE
 GITHUB_TWENTY_SECOND_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_THIRD_REVIEW
 GITHUB_TWENTY_THIRD_AUTOMATED_REVIEW = 2_ACTIONABLE
-GITHUB_TWENTY_THIRD_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
-GITHUB_LATEST_REVIEWED_TARGET = bfdc6f4222e9d944be2d8fdde2c7642b51a0dddc
+GITHUB_TWENTY_THIRD_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_FOURTH_REVIEW
+GITHUB_TWENTY_FOURTH_AUTOMATED_REVIEW = 3_ACTIONABLE
+GITHUB_TWENTY_FOURTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_LATEST_REVIEWED_TARGET = b165094194cb8fc39a7bfa37bbc89074eed4686f
 GITHUB_NEXT_REVIEW_TARGET = PENDING_COMMIT
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -83,6 +85,7 @@ GITHUB_THIRTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_TWENTY_FIRST_REPAIR_HOSTED_CI = 5_PASS
 GITHUB_TWENTY_SECOND_REPAIR_HOSTED_CI = 3_PASS_2_RUNNING_AT_REVIEW_CUTOFF
+GITHUB_TWENTY_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_RUNNING_AT_REVIEW_CUTOFF
 GITHUB_LATEST_REPAIR_HOSTED_CI = PENDING_LOCAL_COMMIT
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
@@ -492,13 +495,37 @@ workflow 已完成通过；`workspace-ci`、`release-readiness-evidence` 在第�
 - Scenario encounter participant 只校验非空/不重复，含空格、标点或超过运行时上限
   的 ID 可通过导入，却无法构造 Combat/Chase 状态机。
 
-当前最小修复在命令入口只生成一次 `normalized_ending_id`，场景匹配、正式事件与
-投影共同使用该值；真实数据库以 padded ID 调用，核对 event/projection 后继续完成
-Growth 与 fork。Scenario validator 增加与 Combat/Chase 状态机完全相同的 ID 谓词：
-非空、最多 128 字节、仅 ASCII 字母数字、`_`、`-`；combat 空格、chase 标点和重复
-participant 均由入口负例拒绝。完整 ruleset、data-eventing lib `26/26`、真实
-core-domain `1/1`、Tutorial `2/2`、workspace check 与严格 Clippy 均通过。新提交、
-Hosted CI 和第二十四轮精确 SHA review 仍为 pending。
+修复提交 `b165094194cb8fc39a7bfa37bbc89074eed4686f` 在命令入口只生成一次
+`normalized_ending_id`，场景匹配、正式事件与投影共同使用该值；真实数据库以 padded
+ID 调用，核对 event/projection 后继续完成 Growth 与 fork。Scenario validator 增加
+与 Combat/Chase 状态机完全相同的 ID 谓词：非空、最多 128 字节、仅 ASCII
+字母数字、`_`、`-`；combat 空格、chase 标点和重复 participant 均由入口负例拒绝。
+其 `repository-truth`、`golden-scenarios`、`production-security-runtime` 已完成
+通过；`workspace-ci`、`release-readiness-evidence` 在第二十四轮意见到达时仍运行，
+因此只记录 3/5 通过、2 项运行中。精确 SHA review `4789452227` 确认第二十三轮两项
+未重复，并提出两个 P1、一个 P2：
+
+- fork snapshot 没有保存来源角色已经消费的成长奖励；child 拥有同一 sheet/ending
+  但没有 `growth_events` 行，可再次成长同一技能；
+- `record_campaign_fork` 只验证 child 空且唯一，没有证明 child Authority Contract
+  是父级通过不可变 `fork_for_child` 派生，任意独立 Campaign 可冒充 lineage；
+- 仍为 `ONGOING` 的 Combat/Chase 可被复制到状态固定为 `ENDED` 的 child Session，
+  该聚合随后无法继续推进。
+
+当前最小修复把来源正式 `growth_events` 与已有 marker 合并成按角色/技能的内容寻址
+消费集合，只对被复制角色映射 child ID；`record_growth` 在 append 前拒绝已消费 pair，
+但不阻止同一结局的其他技能。Fork 写入 SQL 同时验证 child contract 的确定性 ID、
+version 1、locked/FORK_ONLY、父级全部规则/安全/模型/角色卡 snapshot 以及精确
+`+1ms` 创建时间，和共享内核 `fork_for_child` 保持一致。Preview 与最终
+materialization 都拒绝非终态 Combat/Chase。
+
+真实 core-domain 回归证明非派生 child 返回 `fork_authority_contract` 且 Event Store
+不增加；Tutorial 证明 ongoing gameplay 返回 `fork_source_gameplay_not_terminal`，
+child 重领 Library Use 返回 `growth_skill_already_recorded` 且不追加正史，而
+Psychology 仍成功。新增 Authority 负例最初令超长 async 集成测试越过默认栈；
+业务断言在诊断栈下通过后，仅把该负例 future 堆分配隔离，随后默认栈 `1/1` 通过。
+完整 ruleset、data-eventing lib `26/26`、Tutorial `2/2`、workspace check 与严格
+Clippy 均通过。新提交、Hosted CI 和第二十五轮精确 SHA review 仍为 pending。
 
 ## RustSec
 
@@ -515,8 +542,8 @@ Hosted CI 和第二十四轮精确 SHA review 仍为 pending。
 ## 独立复核结论
 
 在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
-二十三轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+二十四轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
 完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
-用户门槛明确延期，没有冒充修复。最新提交的远端复审尚待运行；
+用户门槛明确延期，没有冒充修复。当前最小修复的远端 CI/精确 SHA 复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。

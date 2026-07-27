@@ -773,6 +773,7 @@ struct ForkSnapshotConclusion {
     ending_id: String,
     summary: String,
     growth_awards: Vec<ForkSnapshotGrowthAward>,
+    consumed_growth_awards: Vec<ForkSnapshotConsumedGrowthAward>,
     ended_at_unix_ms: u64,
     visibility_label: String,
     visibility_subject: String,
@@ -783,6 +784,14 @@ struct ForkSnapshotConclusion {
 struct ForkSnapshotGrowthAward {
     skill_name: String,
     reason: String,
+    #[serde(default)]
+    consumed_by_character_ids: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct ForkSnapshotConsumedGrowthAward {
+    character_id: String,
+    skill_name: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -2187,6 +2196,77 @@ fn fork_child_id(
     EntityId::new(&value)
         .map(|id| id.as_str().to_owned())
         .map_err(|_| CoreDomainRepositoryError::InvalidInput("fork_materialized_id"))
+}
+
+fn fork_materialized_growth_awards(
+    ending: &ForkSnapshotConclusion,
+    character_identity_ids: &BTreeMap<String, String>,
+) -> Result<Vec<Value>, CoreDomainRepositoryError> {
+    let authorized_skills = ending
+        .growth_awards
+        .iter()
+        .map(|award| award.skill_name.clone())
+        .collect::<BTreeSet<_>>();
+    if authorized_skills.len() != ending.growth_awards.len()
+        || ending.growth_awards.iter().any(|award| {
+            award.skill_name.trim().is_empty()
+                || award.skill_name != award.skill_name.trim()
+                || award.reason.trim().is_empty()
+        })
+    {
+        return Err(CoreDomainRepositoryError::Integrity(
+            "fork_conclusion_snapshot_shape",
+        ));
+    }
+
+    let mut consumed_by_skill = BTreeMap::<String, BTreeSet<String>>::new();
+    for award in &ending.growth_awards {
+        for character_id in &award.consumed_by_character_ids {
+            if character_id.trim().is_empty()
+                || !consumed_by_skill
+                    .entry(award.skill_name.clone())
+                    .or_default()
+                    .insert(character_id.clone())
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "fork_conclusion_snapshot_shape",
+                ));
+            }
+        }
+    }
+    for consumed in &ending.consumed_growth_awards {
+        if consumed.character_id.trim().is_empty()
+            || !authorized_skills.contains(&consumed.skill_name)
+            || !consumed_by_skill
+                .entry(consumed.skill_name.clone())
+                .or_default()
+                .insert(consumed.character_id.clone())
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "fork_conclusion_snapshot_shape",
+            ));
+        }
+    }
+
+    Ok(ending
+        .growth_awards
+        .iter()
+        .map(|award| {
+            let consumed_by_character_ids = consumed_by_skill
+                .get(&award.skill_name)
+                .into_iter()
+                .flatten()
+                .filter_map(|source_character_id| {
+                    character_identity_ids.get(source_character_id).cloned()
+                })
+                .collect::<Vec<_>>();
+            serde_json::json!({
+                "skill_name": award.skill_name.clone(),
+                "reason": award.reason.clone(),
+                "consumed_by_character_ids": consumed_by_character_ids
+            })
+        })
+        .collect())
 }
 
 fn fork_snapshot_reference_json(snapshot_hash: &str) -> Result<String, CoreDomainRepositoryError> {
@@ -8963,6 +9043,22 @@ impl CoreDomainRepository {
                                        ending.ending_id
                                  LIMIT 1
                             ),
+                            'consumed_growth_awards', COALESCE((
+                                SELECT jsonb_agg(
+                                    jsonb_build_object(
+                                        'character_id', growth.character_id,
+                                        'skill_name', growth.skill_name
+                                    )
+                                    ORDER BY growth.character_id, growth.skill_name
+                                )
+                                  FROM public.growth_events AS growth
+                                 WHERE growth.ending_event_id =
+                                       ending.ending_event_id
+                                   AND growth.session_id =
+                                       source_session.session_id
+                                   AND growth.last_event_sequence
+                                       <= source_session.snapshot_cutoff_event_sequence
+                            ), '[]'::JSONB),
                             'version', ending.version,
                             'ended_at_unix_ms',
                                 floor(extract(epoch FROM ending.ended_at) * 1000)::BIGINT,
@@ -8990,6 +9086,30 @@ impl CoreDomainRepository {
             .await
             .map_err(database_error("load_campaign_fork_snapshot"))?
             .ok_or(CoreDomainRepositoryError::NotFound("fork_source_session"))?;
+        let has_nonterminal_combat = state
+            .get("combat_state")
+            .and_then(Value::as_array)
+            .is_some_and(|combats| {
+                combats
+                    .iter()
+                    .any(|combat| combat.get("status").and_then(Value::as_str) != Some("ENDED"))
+            });
+        let has_nonterminal_chase = state
+            .get("chase_state")
+            .and_then(Value::as_array)
+            .is_some_and(|chases| {
+                chases.iter().any(|chase| {
+                    !matches!(
+                        chase.get("status").and_then(Value::as_str),
+                        Some("ESCAPED" | "CAUGHT")
+                    )
+                })
+            });
+        if has_nonterminal_combat || has_nonterminal_chase {
+            return Err(CoreDomainRepositoryError::InvalidInput(
+                "fork_source_gameplay_not_terminal",
+            ));
+        }
         let cutoff_event_sequence = state
             .get("source_cutoff_event_sequence")
             .and_then(Value::as_i64)
@@ -9141,6 +9261,14 @@ impl CoreDomainRepository {
             || source.session_state.ended_at_unix_ms < source.session_state.started_at_unix_ms
             || source.world_state.ruleset_id.trim().is_empty()
             || source.scene_state.is_empty()
+            || source
+                .combat_state
+                .iter()
+                .any(|combat| combat.status != "ENDED")
+            || source
+                .chase_state
+                .iter()
+                .any(|chase| !matches!(chase.status.as_str(), "ESCAPED" | "CAUGHT"))
         {
             return Err(CoreDomainRepositoryError::Integrity(
                 "fork_snapshot_materialization_shape",
@@ -9178,6 +9306,7 @@ impl CoreDomainRepository {
                 ));
             }
         }
+        let character_identity_ids = identity_ids.clone();
         for npc in &source.npc_state {
             if identity_ids
                 .insert(
@@ -9219,6 +9348,20 @@ impl CoreDomainRepository {
                 })
                 .transpose()?;
 
+        let scenario_endings = source
+            .conclusion_state
+            .iter()
+            .map(|ending| {
+                Ok(serde_json::json!({
+                    "id": ending.ending_id,
+                    "summary": ending.summary,
+                    "growth_awards": fork_materialized_growth_awards(
+                        ending,
+                        &character_identity_ids,
+                    )?
+                }))
+            })
+            .collect::<Result<Vec<Value>, CoreDomainRepositoryError>>()?;
         let scenario_document = serde_json::json!({
             "schema_version": 1,
             "kind": "FORK_SNAPSHOT",
@@ -9226,15 +9369,7 @@ impl CoreDomainRepository {
             "source_campaign_id": request.parent_campaign_id,
             "source_session_id": request.source_session_id,
             "source_snapshot_hash": snapshot.snapshot_hash,
-            "endings": source
-                .conclusion_state
-                .iter()
-                .map(|ending| serde_json::json!({
-                    "id": ending.ending_id,
-                    "summary": ending.summary,
-                    "growth_awards": ending.growth_awards
-                }))
-                .collect::<Vec<_>>()
+            "endings": scenario_endings
         });
         let scenario_document_json = serde_json::to_string(&scenario_document)
             .map_err(|_| CoreDomainRepositoryError::Serialization)?;
@@ -9404,7 +9539,7 @@ impl CoreDomainRepository {
             });
         }
         for combat in &source.combat_state {
-            if !matches!(combat.status.as_str(), "ONGOING" | "ENDED")
+            if combat.status != "ENDED"
                 || combat.round == 0
                 || !combat.state.is_object()
                 || !matches!(combat.visibility_label.as_str(), "public" | "party_visible")
@@ -9432,7 +9567,7 @@ impl CoreDomainRepository {
             });
         }
         for chase in &source.chase_state {
-            if !matches!(chase.status.as_str(), "ONGOING" | "ESCAPED" | "CAUGHT")
+            if !matches!(chase.status.as_str(), "ESCAPED" | "CAUGHT")
                 || chase.range_band > 5
                 || chase.segment == 0
                 || !chase.state.is_object()
@@ -9560,6 +9695,71 @@ impl CoreDomainRepository {
             .await?;
         self.ensure_campaign_admin(&request.child_campaign_id, &metadata.requesting_actor_id)
             .await?;
+        let child_authority_is_derived: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                  FROM public.campaigns AS parent_campaign
+                  JOIN public.authority_contracts AS parent_authority
+                    ON parent_authority.contract_id =
+                       parent_campaign.authority_contract_id
+                   AND parent_authority.campaign_id =
+                       parent_campaign.campaign_id
+                  JOIN public.campaigns AS child_campaign
+                    ON child_campaign.campaign_id = $2
+                  JOIN public.authority_contracts AS child_authority
+                    ON child_authority.contract_id =
+                       child_campaign.authority_contract_id
+                   AND child_authority.campaign_id =
+                       child_campaign.campaign_id
+                 WHERE parent_campaign.campaign_id = $1
+                   AND child_authority.contract_id =
+                       'authority_contract_' || child_campaign.campaign_id || '_1'
+                   AND child_authority.contract_id <>
+                       parent_authority.contract_id
+                   AND child_authority.contract_version = 1
+                   AND child_authority.locked
+                   AND child_authority.change_policy = 'FORK_ONLY'
+                   AND parent_authority.locked
+                   AND parent_authority.change_policy = 'FORK_ONLY'
+                   AND child_authority.created_at =
+                       parent_authority.created_at + INTERVAL '1 millisecond'
+                   AND (
+                       child_authority.ruleset_version,
+                       child_authority.house_rules_version,
+                       child_authority.scenario_version,
+                       child_authority.prompt_version,
+                       child_authority.agent_pack_version,
+                       child_authority.tool_schema_version,
+                       child_authority.safety_profile_version,
+                       child_authority.ai_provider_snapshot,
+                       child_authority.model_route_snapshot,
+                       child_authority.character_sheet_template_version
+                   ) = (
+                       parent_authority.ruleset_version,
+                       parent_authority.house_rules_version,
+                       parent_authority.scenario_version,
+                       parent_authority.prompt_version,
+                       parent_authority.agent_pack_version,
+                       parent_authority.tool_schema_version,
+                       parent_authority.safety_profile_version,
+                       parent_authority.ai_provider_snapshot,
+                       parent_authority.model_route_snapshot,
+                       parent_authority.character_sheet_template_version
+                   )
+            )
+            "#,
+        )
+        .bind(&request.parent_campaign_id)
+        .bind(&request.child_campaign_id)
+        .fetch_one(&self.primary)
+        .await
+        .map_err(database_error("validate_campaign_fork_authority"))?;
+        if !child_authority_is_derived {
+            return Err(CoreDomainRepositoryError::InvalidInput(
+                "fork_authority_contract",
+            ));
+        }
 
         let child_campaign_events = self
             .load_campaign_events(&request.child_campaign_id)
@@ -11417,7 +11617,7 @@ impl CoreDomainRepository {
         }
         let ending_id: String = row.get("ending_id");
         let scenario_document: Value = row.get("document_json");
-        let skill_is_awarded = scenario_document
+        let growth_award = scenario_document
             .get("endings")
             .and_then(Value::as_array)
             .and_then(|endings| {
@@ -11427,16 +11627,42 @@ impl CoreDomainRepository {
             })
             .and_then(|ending| ending.get("growth_awards"))
             .and_then(Value::as_array)
-            .is_some_and(|awards| {
-                awards.iter().any(|award| {
+            .and_then(|awards| {
+                awards.iter().find(|award| {
                     award.get("skill_name").and_then(Value::as_str)
                         == Some(request.skill_name.trim())
                 })
             });
-        if !skill_is_awarded {
+        let Some(growth_award) = growth_award else {
             return Err(CoreDomainRepositoryError::InvalidInput(
                 "growth_skill_not_awarded",
             ));
+        };
+        if let Some(consumed_by_character_ids) = growth_award.get("consumed_by_character_ids") {
+            let consumed_by_character_ids = consumed_by_character_ids.as_array().ok_or(
+                CoreDomainRepositoryError::Integrity("growth_award_consumption_shape"),
+            )?;
+            let mut consumed_character_ids = BTreeSet::new();
+            for character_id in consumed_by_character_ids {
+                let character_id = character_id.as_str().filter(|character_id| {
+                    !character_id.trim().is_empty() && *character_id == character_id.trim()
+                });
+                let Some(character_id) = character_id else {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "growth_award_consumption_shape",
+                    ));
+                };
+                if !consumed_character_ids.insert(character_id) {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "growth_award_consumption_shape",
+                    ));
+                }
+            }
+            if consumed_character_ids.contains(request.character_id.as_str()) {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "growth_skill_already_recorded",
+                ));
+            }
         }
         let mut sheet_json: Value = row.get("sheet_json");
         let persisted_skill = sheet_json

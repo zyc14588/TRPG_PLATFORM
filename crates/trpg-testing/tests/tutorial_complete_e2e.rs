@@ -44,7 +44,7 @@ const PAYLOAD_KEY: &[u8; 32] = &[0x69; 32];
 const CAMPAIGN_ID: &str = "campaign_p08_tutorial";
 const CHILD_CAMPAIGN_ID: &str = "campaign_p08_tutorial_fork";
 const AUTHORITY_ID: &str = "authority_campaign_p08_tutorial_1";
-const CHILD_AUTHORITY_ID: &str = "authority_campaign_p08_tutorial_fork_1";
+const CHILD_AUTHORITY_ID: &str = "authority_contract_campaign_p08_tutorial_fork_1";
 const KEEPER_ID: &str = "keeper_p08_tutorial";
 const PLAYER_ID: &str = "player_p08_tutorial";
 const CHARACTER_ID: &str = "character_p08_evelyn";
@@ -290,7 +290,11 @@ async fn create_campaign(
                 title: format!("P08 Tutorial {suffix}"),
                 room_id: room_id.to_owned(),
                 room_name: "Tutorial table".to_owned(),
-                created_at_unix_ms: NOW_MS,
+                created_at_unix_ms: if campaign_id == CAMPAIGN_ID {
+                    NOW_MS
+                } else {
+                    NOW_MS + 1
+                },
                 authority: authority(authority_id),
             },
         )
@@ -1089,6 +1093,88 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         )
         .await
         .expect("start an interleaved later session before the source conclusion");
+    let unfinished_later_combat = CombatState::start(
+        "combat_p08_unfinished_later",
+        vec![
+            CombatantState::new(
+                CHARACTER_ID,
+                70,
+                CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
+                1,
+                CombatSkillTargets::new(45, 35, 40, 30, 10).unwrap(),
+                weapon_loadout(1, 5),
+            )
+            .unwrap(),
+            CombatantState::new(
+                "npc_marta",
+                80,
+                CombatHealth::new(8, 8, CombatCondition::Able).unwrap(),
+                0,
+                CombatSkillTargets::new(60, 80, 40, 30, 10).unwrap(),
+                weapon_loadout(0, 5),
+            )
+            .unwrap(),
+        ],
+    )
+    .unwrap();
+    repository
+        .record_combat_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "combat_p08_unfinished_later",
+                "combat_state",
+                0,
+                "p08_unfinished_later_combat",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordCombatStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p08_later".to_owned(),
+                state_json: unfinished_later_combat.persistence_json().unwrap(),
+                attacker_roll: None,
+                defender_roll: None,
+                damage_roll: None,
+                medical_roll: None,
+            },
+        )
+        .await
+        .expect("persist an unfinished combat before ending the later session");
+    let unfinished_later_chase = ChaseState::start(
+        "chase_p08_unfinished_later",
+        vec![
+            ChaseParticipant::new(CHARACTER_ID, ChaseRole::Quarry, 8).unwrap(),
+            ChaseParticipant::new("npc_marta", ChaseRole::Pursuer, 8).unwrap(),
+        ],
+        2,
+    )
+    .unwrap();
+    repository
+        .record_chase_state(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "chase_p08_unfinished_later",
+                "chase_state",
+                0,
+                "p08_unfinished_later_chase",
+                "party_visible",
+                "not_applicable",
+                "rules_engine_decision",
+            ),
+            &RecordChaseStateRequest {
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: "session_p08_later".to_owned(),
+                state_json: unfinished_later_chase.persistence_json().unwrap(),
+                participant_rolls: Vec::new(),
+            },
+        )
+        .await
+        .expect("persist an unfinished chase before ending the later session");
     repository
         .change_session_state(
             &metadata(
@@ -1110,6 +1196,14 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         )
         .await
         .expect("end the interleaved later session before the source conclusion");
+    assert!(matches!(
+        repository
+            .preview_campaign_fork(CAMPAIGN_ID, "session_p08_later", KEEPER_ID)
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "fork_source_gameplay_not_terminal"
+        ))
+    ));
     let invalid_ending = repository
         .record_ending(
             &metadata(
@@ -1844,6 +1938,22 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         "growth authorization must be content-addressed into the fork snapshot"
     );
     assert_eq!(
+        snapshot_json
+            .pointer("/state/conclusion_state/0/consumed_growth_awards")
+            .and_then(serde_json::Value::as_array)
+            .expect("fork snapshot consumed Growth markers")
+            .iter()
+            .filter_map(|consumed| {
+                Some((
+                    consumed.get("character_id")?.as_str()?,
+                    consumed.get("skill_name")?.as_str()?,
+                ))
+            })
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([(CHARACTER_ID, "Library Use")]),
+        "the source snapshot must bind settled awards to the source character"
+    );
+    assert_eq!(
         fork_characters.len(),
         1,
         "an investigator updated after the cutoff must be replayed, not omitted"
@@ -2131,6 +2241,82 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         "the child scenario must retain the source ending's complete award authorization"
     );
     let child_sheet_json: serde_json::Value = child_growth_source.get("sheet_json");
+    let child_character_id: String = child_growth_source.get("character_id");
+    assert_eq!(
+        child_scenario_document
+            .pointer("/endings/0/growth_awards")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|awards| {
+                awards.iter().find(|award| {
+                    award.get("skill_name").and_then(serde_json::Value::as_str)
+                        == Some("Library Use")
+                })
+            })
+            .and_then(|award| award.get("consumed_by_character_ids"))
+            .and_then(serde_json::Value::as_array)
+            .expect("materialized consumed Library Use marker"),
+        &[serde_json::Value::String(child_character_id.clone())],
+        "the consumed source award must be rebound to the child-owned character ID"
+    );
+    let child_library_before = child_sheet_json
+        .pointer("/skills/Library Use")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|value| u8::try_from(value).ok())
+        .expect("forked Library Use skill");
+    let duplicate_child_library_roll = server_roll_skill_growth(child_library_before)
+        .expect("server-owned duplicate child growth evidence");
+    let child_growth_events_before_duplicate: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 AND event_type = 'CharacterGrowthApplied'",
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert!(matches!(
+        repository
+            .record_growth(
+                &metadata(
+                    CHILD_AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "growth_event_p08_child_duplicate_library",
+                    "growth",
+                    0,
+                    "p08_child_duplicate_library",
+                    "private_to_player",
+                    PLAYER_ID,
+                    "rules_engine_decision",
+                ),
+                &RecordGrowthRequest {
+                    growth_event_id: "growth_event_p08_child_duplicate_library".to_owned(),
+                    campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                    session_id: child_growth_source.get("session_id"),
+                    ending_event_id: child_growth_source.get("ending_event_id"),
+                    character_id: child_character_id.clone(),
+                    source_sheet_version_id: child_growth_source.get("sheet_version_id"),
+                    new_sheet_version_id: "sheet_p08_child_duplicate_library".to_owned(),
+                    skill_name: "Library Use".to_owned(),
+                    growth_rolls: duplicate_child_library_roll.evidence().clone(),
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::Integrity(
+            "growth_skill_already_recorded"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND event_type = 'CharacterGrowthApplied'",
+        )
+        .bind(CHILD_CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        child_growth_events_before_duplicate,
+        "a consumed source award must be rejected before child canonical append"
+    );
     let child_psychology_before = child_sheet_json
         .pointer("/skills/Psychology")
         .and_then(serde_json::Value::as_u64)

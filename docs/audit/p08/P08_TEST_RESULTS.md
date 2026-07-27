@@ -90,6 +90,16 @@ snapshot 及 child materialization 继续成功。Scenario 回归分别把 comba
 改为含空格、chase participant 改为含标点，并保留重复 participant 负例；三者都在
 导入时返回 `InvalidScenarioField("encounters")`，不会延迟到状态机构造阶段。
 
+第二十四轮精确 SHA review `4789452227` 针对提交 `b165094` 确认第二十三轮两项
+未重复，并新增两个 P1、一个 P2。Fork snapshot 现在从正式 `growth_events` 与继承
+marker 合并按角色/技能的已消费集合，只对实际复制角色映射 child ID；child 对
+Library Use 的重复成长在 append 前返回 `growth_skill_already_recorded` 且 Event
+Store 不增，Psychology 仍成功。另建的空 Campaign 使用非派生 Authority Contract
+调用 fork，返回 `fork_authority_contract` 且没有 lineage；合法 child 必须精确符合
+共享内核 `fork_for_child` 的确定性 ID、version、immutable snapshots 和创建时间。
+Tutorial 还在较晚 Session 建立未终止 Combat/Chase，fork preview 返回
+`fork_source_gameplay_not_terminal`；最终 materialization 保留同一检查。
+
 ## 真实数据库、重放与迁移
 
 临时环境使用固定 digest 的 PostgreSQL/pgvector 镜像、localhost 端口和每次生成的
@@ -102,6 +112,12 @@ snapshot 及 child materialization 继续成功。Scenario 回归分别把 comba
 | `core_domain_schema_integration`，primary + independent Witness | PASS，`1/1` |
 | `tutorial_complete_e2e`，primary + independent Witness | PASS，`2/2` |
 | 容器内 `scripts/ci/assert-schema.sql` | PASS；P06、P07、P08 schema assertions |
+
+第二十四轮首次运行 `core_domain_schema_integration` 时，新增 Authority 负例使原本超过
+4500 行的单一 async 测试 future 越过默认线程栈，进程以 stack overflow/SIGABRT
+退出，未计为通过。临时 `RUST_MIN_STACK=16777216` 运行证明全部业务断言通过后，只把
+新增负例放入 `Box::pin` 的独立 future，生产代码不变；随后删除栈参数并以默认环境
+重新运行，`1/1`、exit `0`。
 
 真实集成验证：
 
@@ -117,6 +133,9 @@ snapshot 及 child materialization 继续成功。Scenario 回归分别把 comba
   source/前驱事件的 Visibility、subject 或 data subject。
 - Fork 来源 hash 精确匹配，记录事件保存有界内容寻址引用，物化批次受行数和字节数
   双重限制；私密 scope 不存在，`keeper_only` 角色与 sheet sentinel 不进入快照。
+- Fork 来源的已消费成长按角色/技能进入内容寻址快照并映射到 child-owned ID；child
+  重复 Library Use 不追加正史，未消费 Psychology 仍可成长。独立创建的 child
+  Authority Contract 以及存在未终止 Combat/Chase 的来源都在 lineage append 前拒绝。
 - Public events、Clues、NPC、Combat、Chase、Conclusion 与既有子实体均实际落入
   child projection；删除后从正史重建为相同 JSON，Event Store 行数不变。
 - Fork 角色由 source cutoff 前的 verified events 重建；第二 Session 更新当前角色卡后，
@@ -368,7 +387,7 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | 历史 PASS：34-target baseline 与第二十一轮 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped；第二十二轮因社区规则外联被安全审查拒绝且无本地缓存，`NOT_RUN`，未冒充当前扫描通过 |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | `bfdc6f4` 的第二十三轮精确 SHA review `4789295455` 确认骰预留原子性与重复成长奖励两项未重复，并提出 Ending ID 写入未规范化、encounter participant ID 入口约束不足两项；两项已完成本地修复和真库回归，待新提交/复审 |
+| GitHub PR #9 自动审查 | `b165094` 的第二十四轮精确 SHA review `4789452227` 确认 Ending ID 规范化与 participant ID 约束两项未重复，并提出 fork 成长消费继承、child Authority 派生校验、来源 gameplay 终态三项；均已完成本地修复和真库回归，待新提交/复审 |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -407,9 +426,12 @@ canonical append 后骰 ownership 可能随独立投影失败而丢失，以及 
 成长奖励；两项已由 canonical 事务内 reservation 和入口唯一性校验完成本地根因修复。
 第二十三轮确认两项未重复，又指出 padded Ending ID 在场景查找与正式写入间不一致，
 以及 encounter participant 的入口语法弱于运行时状态机；两项已由单次 Ending ID
-规范化和共享语法约束完成本地根因修复。场景校验 `5/5`、完整 ruleset、
-data-eventing lib `26/26`、真实 core-domain `1/1`、Tutorial `2/2`、workspace
-check 与严格 Clippy 均通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
+规范化和共享语法约束完成本地根因修复。第二十四轮确认两项未重复，又指出 fork 未
+继承成长消费、没有验证 child Authority 派生关系、允许未结算 gameplay 进入固定
+ENDED child Session；三项已由内容寻址消费 marker、`fork_for_child` 精确 SQL 校验
+和 preview/materialization 双重终态 gate 修复。场景校验 `5/5`、完整 ruleset、
+data-eventing lib `26/26`、默认栈真实 core-domain `1/1`、Tutorial `2/2`、
+workspace check 与严格 Clippy 均通过。本轮 Semgrep 因外联安全审查拒绝明确记为未运行。
 本报告在最新本地修复提交、远端 CI/复审完成前保持 pending，不以历史扫描或旧提交的
 部分/完整 Hosted CI 冒充新代码远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
@@ -426,7 +448,9 @@ workspace/release 两项。第十一轮修复提交 `453b063` 也只有上述 3/
 3/5 通过，第十三轮阻断出现后取消 workspace/release 两项。第十三轮修复提交
 `99e3374` 同样只有上述 3/5 通过，第十四轮阻断出现后取消 workspace/release 两项。
 第十四轮修复提交 `7466745` 同样只有上述 3/5 通过，第十五轮阻断出现后取消
-workspace/release 两项。
+workspace/release 两项。第二十三轮修复提交 `b165094` 在第二十四轮审查到达时，
+repository-truth、golden-scenarios、production-security 已完成通过，workspace 与
+release-readiness 仍运行，因此只记录 `3/5 + 2 running at review cutoff`。
 以上均未记为 5/5。
 
 RustSec 报告：
