@@ -12,10 +12,11 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
 use trpg_data_eventing::persistence_postgresql::{
     AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainClock,
     CoreDomainRepository, CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest,
-    ImportScenarioRequest, IssueInviteRequest, RecordCampaignForkRequest, RecordChaseStateRequest,
-    RecordCombatStateRequest, RecordEndingRequest, RecordGrowthRequest,
-    RequestReconsiderationRequest, ResolveReconsiderationRequest, ReviewReconsiderationRequest,
-    StartSessionRequest, SwitchSceneRequest,
+    ImportScenarioRequest, IssueInviteRequest, PlayerActionDiceRecord, PlayerActionIntentRecord,
+    RecordCampaignForkRequest, RecordChaseStateRequest, RecordCombatStateRequest,
+    RecordEndingRequest, RecordGrowthRequest, RequestReconsiderationRequest,
+    ResolveReconsiderationRequest, ReviewReconsiderationRequest, SanityExecutionRecord,
+    StartSessionRequest, SubmitPlayerActionRequest, SwitchSceneRequest,
 };
 use trpg_domain_core::canonical_gameplay_state::validate_combat_server_roll_evidence;
 use trpg_domain_core::domain_entities_value_objects::{
@@ -1107,7 +1108,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 display_name: "Evelyn Hart".to_owned(),
                 sheet_version_id: "sheet_p06_player_v1".to_owned(),
                 sheet_json:
-                    r#"{"name":"Evelyn Hart","age":31,"ruleset":"coc7","skills":{"Library Use":70}}"#
+                    r#"{"name":"Evelyn Hart","age":31,"ruleset":"coc7","characteristics":{"power":65},"skills":{"Library Use":70}}"#
                         .to_owned(),
             },
         )
@@ -3155,11 +3156,53 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 owner_user_id: KEEPER_ID.to_owned(),
                 display_name: "Post-fork Investigator".to_owned(),
                 sheet_version_id: "sheet_p08_post_fork_v1".to_owned(),
-                sheet_json: r#"{"name":"Post-fork Investigator","ruleset":"coc7"}"#.to_owned(),
+                sheet_json: r#"{"name":"Post-fork Investigator","ruleset":"coc7","characteristics":{"power":60},"skills":{"Library Use":70}}"#.to_owned(),
             },
         )
         .await
         .expect("create a child-owned character after the fork materialization");
+    repository
+        .submit_character(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "investigator",
+                "character_p08_post_fork",
+                "character",
+                "character.submit",
+                1,
+                "character_p08_post_fork_submit",
+                "private_to_player",
+                KEEPER_ID,
+                "user_statement",
+            ),
+            CHILD_CAMPAIGN_ID,
+            "character_p08_post_fork",
+        )
+        .await
+        .expect("submit the post-fork character");
+    repository
+        .approve_character_initial_version(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "character_p08_post_fork",
+                "character",
+                "character.review_initial",
+                2,
+                "character_p08_post_fork_approve",
+                "private_to_player",
+                KEEPER_ID,
+                "human_keeper_statement",
+            ),
+            CHILD_CAMPAIGN_ID,
+            "character_p08_post_fork",
+        )
+        .await
+        .expect("approve the post-fork character");
     repository
         .start_session(
             &metadata(
@@ -3189,6 +3232,86 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .await
         .expect("start a child-owned session after the fork materialization");
+    repository
+        .change_session_state(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "session_p08_post_fork",
+                "session",
+                "session.end",
+                1,
+                "session_p08_post_fork_end",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            CHILD_CAMPAIGN_ID,
+            "session_p08_post_fork",
+            SessionState::Ended,
+            NOW_MS + 31_000,
+        )
+        .await
+        .expect("end the post-fork child session");
+    repository
+        .record_ending(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "ending_p08_post_fork",
+                "ending",
+                "ending.record",
+                0,
+                "ending_p08_post_fork_record",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &RecordEndingRequest {
+                ending_event_id: "ending_p08_post_fork".to_owned(),
+                campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                session_id: "session_p08_post_fork".to_owned(),
+                ending_id: "ending_expose_marta".to_owned(),
+                summary: "The post-fork investigator completes the case.".to_owned(),
+                ended_at_unix_ms: NOW_MS + 32_000,
+            },
+        )
+        .await
+        .expect("record an ending for the post-fork child session");
+    repository
+        .record_growth(
+            &metadata(
+                CHILD_CAMPAIGN_ID,
+                CHILD_AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "growth_p08_post_fork",
+                "growth",
+                "growth.record",
+                0,
+                "growth_p08_post_fork_record",
+                "private_to_player",
+                KEEPER_ID,
+                "rules_engine_decision",
+            ),
+            &RecordGrowthRequest {
+                growth_event_id: "growth_p08_post_fork".to_owned(),
+                campaign_id: CHILD_CAMPAIGN_ID.to_owned(),
+                session_id: "session_p08_post_fork".to_owned(),
+                ending_event_id: "ending_p08_post_fork".to_owned(),
+                character_id: "character_p08_post_fork".to_owned(),
+                source_sheet_version_id: "sheet_p08_post_fork_v1".to_owned(),
+                new_sheet_version_id: "sheet_p08_post_fork_v2".to_owned(),
+                skill_name: "Library Use".to_owned(),
+                growth_rolls: server_roll_skill_growth(70).unwrap().evidence().clone(),
+            },
+        )
+        .await
+        .expect("record Growth for a normal character created after the fork");
     let post_fork_projection_before: serde_json::Value = sqlx::query_scalar(
         r#"
         SELECT jsonb_build_object(
@@ -3200,20 +3323,37 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                             FROM public.characters AS character
                            WHERE character.character_id =
                                  'character_p08_post_fork'),
-            'sheet', (SELECT to_jsonb(sheet)
-                        FROM public.character_sheet_versions AS sheet
-                       WHERE sheet.sheet_version_id =
-                             'sheet_p08_post_fork_v1'),
+            'sheets', (
+                SELECT jsonb_agg(to_jsonb(sheet) ORDER BY sheet.version)
+                  FROM public.character_sheet_versions AS sheet
+                 WHERE sheet.character_id = 'character_p08_post_fork'
+            ),
             'session', (SELECT to_jsonb(session)
                           FROM core_domain.sessions AS session
                          WHERE session.session_id =
                                'session_p08_post_fork'),
             'scene', (SELECT to_jsonb(scene)
                         FROM public.scenes AS scene
-                       WHERE scene.scene_id = 'scene_p08_post_fork')
+                       WHERE scene.scene_id = 'scene_p08_post_fork'),
+            'ending', (SELECT to_jsonb(ending)
+                         FROM public.ending_events AS ending
+                        WHERE ending.ending_event_id =
+                              'ending_p08_post_fork'),
+            'growth', (SELECT to_jsonb(growth)
+                         FROM public.growth_events AS growth
+                        WHERE growth.growth_event_id =
+                              'growth_p08_post_fork'),
+            'roll_consumptions', (
+                SELECT jsonb_agg(to_jsonb(consumption)
+                                 ORDER BY consumption.roll_id)
+                  FROM public.gameplay_roll_consumptions AS consumption
+                 WHERE consumption.campaign_id = $1
+                   AND consumption.aggregate_id = 'growth_p08_post_fork'
+            )
         )
         "#,
     )
+    .bind(CHILD_CAMPAIGN_ID)
     .fetch_one(&primary)
     .await
     .unwrap();
@@ -3277,20 +3417,37 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                             FROM public.characters AS character
                            WHERE character.character_id =
                                  'character_p08_post_fork'),
-            'sheet', (SELECT to_jsonb(sheet)
-                        FROM public.character_sheet_versions AS sheet
-                       WHERE sheet.sheet_version_id =
-                             'sheet_p08_post_fork_v1'),
+            'sheets', (
+                SELECT jsonb_agg(to_jsonb(sheet) ORDER BY sheet.version)
+                  FROM public.character_sheet_versions AS sheet
+                 WHERE sheet.character_id = 'character_p08_post_fork'
+            ),
             'session', (SELECT to_jsonb(session)
                           FROM core_domain.sessions AS session
                          WHERE session.session_id =
                                'session_p08_post_fork'),
             'scene', (SELECT to_jsonb(scene)
                         FROM public.scenes AS scene
-                       WHERE scene.scene_id = 'scene_p08_post_fork')
+                       WHERE scene.scene_id = 'scene_p08_post_fork'),
+            'ending', (SELECT to_jsonb(ending)
+                         FROM public.ending_events AS ending
+                        WHERE ending.ending_event_id =
+                              'ending_p08_post_fork'),
+            'growth', (SELECT to_jsonb(growth)
+                         FROM public.growth_events AS growth
+                        WHERE growth.growth_event_id =
+                              'growth_p08_post_fork'),
+            'roll_consumptions', (
+                SELECT jsonb_agg(to_jsonb(consumption)
+                                 ORDER BY consumption.roll_id)
+                  FROM public.gameplay_roll_consumptions AS consumption
+                 WHERE consumption.campaign_id = $1
+                   AND consumption.aggregate_id = 'growth_p08_post_fork'
+            )
         )
         "#,
     )
+    .bind(CHILD_CAMPAIGN_ID)
     .fetch_one(&primary)
     .await
     .unwrap();
@@ -4448,6 +4605,209 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     assert_eq!(recovered.get::<String, _>("state"), "ENDED");
     assert_eq!(recovered.get::<i64, _>("version"), 5);
     assert_eq!(recovered.get::<String, _>("scene_state"), "CLOSED");
+
+    repository
+        .start_session(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "session_p08_after_growth",
+                "session",
+                "session.start",
+                0,
+                "session_p08_after_growth_start",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &StartSessionRequest {
+                session_id: "session_p08_after_growth".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                room_id: "room_p06_schema".to_owned(),
+                scenario_id: "scenario_p06_tutorial".to_owned(),
+                scene_id: "scene_p08_after_growth".to_owned(),
+                scene_key: "after_growth".to_owned(),
+                scene_name: "After Growth".to_owned(),
+                started_at_unix_ms: NOW_MS + 40_000,
+            },
+        )
+        .await
+        .expect("start later gameplay after the P08 Growth event");
+    repository
+        .submit_player_action(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                "action_p08_after_growth_sanity",
+                "player_action",
+                "player_action.submit",
+                0,
+                "action_p08_after_growth_sanity_submit",
+                "private_to_player",
+                PLAYER_ID,
+                "user_statement",
+            ),
+            &SubmitPlayerActionRequest {
+                action_id: "action_p08_after_growth_sanity".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                character_id: "character_p06_player".to_owned(),
+                scene_id: "scene_p08_after_growth".to_owned(),
+                submitted_by: PLAYER_ID.to_owned(),
+                submitted_at_unix_ms: NOW_MS + 41_000,
+                intent: PlayerActionIntentRecord::SanityCheck {
+                    success_loss: 1,
+                    failure_loss: 1,
+                    day_key: "after_growth_day".to_owned(),
+                },
+            },
+        )
+        .await
+        .expect("submit a later SAN action against the Growth-derived sheet");
+    repository
+        .commit_sanity_execution(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "action_p08_after_growth_sanity",
+                "player_action",
+                "player_action.confirm",
+                1,
+                "action_p08_after_growth_sanity_confirm",
+                "private_to_player",
+                PLAYER_ID,
+                "human_keeper_statement",
+            ),
+            &SanityExecutionRecord {
+                action_id: "action_p08_after_growth_sanity".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                character_id: "character_p06_player".to_owned(),
+                decision_id: "decision_p08_after_growth_sanity".to_owned(),
+                tool_execution_id: "tool_p08_after_growth_sanity".to_owned(),
+                confirmed_by: KEEPER_ID.to_owned(),
+                resolved_at_unix_ms: NOW_MS + 42_000,
+                dice: PlayerActionDiceRecord {
+                    roll_id: "roll_p08_after_growth_sanity".to_owned(),
+                    target_value: 65,
+                    rolled_value: 42,
+                    success_level: "REGULAR".to_owned(),
+                    selected_tens_digit: 4,
+                    ones_digit: 2,
+                    adjustment: "NONE".to_owned(),
+                },
+                sanity_event_id: "sanity_p08_after_growth".to_owned(),
+                sheet_version_id: "sheet_p06_player_v3_sanity".to_owned(),
+                day_key: "after_growth_day".to_owned(),
+                day_start_sanity: 65,
+                sanity_before: 65,
+                sanity_after: 64,
+                sanity_loss: 1,
+                day_loss: 1,
+                indefinite_threshold: 13,
+                madness_state: "STABLE".to_owned(),
+            },
+        )
+        .await
+        .expect("commit a later SAN mutation after Growth");
+    let later_character_before_rebuild: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT jsonb_build_object(
+            'character', (
+                SELECT to_jsonb(character)
+                  FROM public.characters AS character
+                 WHERE character.character_id = 'character_p06_player'
+            ),
+            'growth_sheet', (
+                SELECT to_jsonb(sheet)
+                  FROM public.character_sheet_versions AS sheet
+                 WHERE sheet.sheet_version_id = 'sheet_p06_player_v2'
+            ),
+            'sanity_sheet', (
+                SELECT to_jsonb(sheet)
+                  FROM public.character_sheet_versions AS sheet
+                 WHERE sheet.sheet_version_id = 'sheet_p06_player_v3_sanity'
+            ),
+            'growth', (
+                SELECT to_jsonb(growth)
+                  FROM public.growth_events AS growth
+                 WHERE growth.growth_event_id = 'growth_event_p08_schema'
+            ),
+            'sanity', (
+                SELECT to_jsonb(sanity)
+                  FROM public.sanity_events AS sanity
+                 WHERE sanity.sanity_event_id = 'sanity_p08_after_growth'
+            )
+        )
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let events_before_later_character_rebuild: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM public.event_store WHERE campaign_id = $1")
+            .bind(CAMPAIGN_ID)
+            .fetch_one(&primary)
+            .await
+            .unwrap();
+    let later_character_rebuild = repository
+        .rebuild_p08_projections(CAMPAIGN_ID)
+        .await
+        .expect("rebuild Growth without rewinding a later SAN mutation");
+    assert_eq!(later_character_rebuild.growth_events, 1);
+    let later_character_after_rebuild: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT jsonb_build_object(
+            'character', (
+                SELECT to_jsonb(character)
+                  FROM public.characters AS character
+                 WHERE character.character_id = 'character_p06_player'
+            ),
+            'growth_sheet', (
+                SELECT to_jsonb(sheet)
+                  FROM public.character_sheet_versions AS sheet
+                 WHERE sheet.sheet_version_id = 'sheet_p06_player_v2'
+            ),
+            'sanity_sheet', (
+                SELECT to_jsonb(sheet)
+                  FROM public.character_sheet_versions AS sheet
+                 WHERE sheet.sheet_version_id = 'sheet_p06_player_v3_sanity'
+            ),
+            'growth', (
+                SELECT to_jsonb(growth)
+                  FROM public.growth_events AS growth
+                 WHERE growth.growth_event_id = 'growth_event_p08_schema'
+            ),
+            'sanity', (
+                SELECT to_jsonb(sanity)
+                  FROM public.sanity_events AS sanity
+                 WHERE sanity.sanity_event_id = 'sanity_p08_after_growth'
+            )
+        )
+        "#,
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        later_character_after_rebuild, later_character_before_rebuild,
+        "P08 replay must preserve a later SAN character/sheet while reconstructing Growth"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store WHERE campaign_id = $1",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        events_before_later_character_rebuild,
+        "preserving later character mutations must not rewrite canonical history"
+    );
 
     assert!(
         sqlx::query(

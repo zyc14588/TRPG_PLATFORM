@@ -3967,6 +3967,7 @@ async fn apply_growth_replay_event(
             r#"
             SELECT character.current_sheet_version,
                    character.version AS character_version,
+                   character.last_event_sequence AS character_event_sequence,
                    sheet.version AS sheet_version,
                    sheet.sheet_json
               FROM public.characters AS character
@@ -3989,10 +3990,113 @@ async fn apply_growth_replay_event(
             "growth_replay_source_missing",
         ))?;
         let source_version: i64 = source.get("sheet_version");
-        if source.get::<i64, _>("current_sheet_version") != source_version {
+        let character_sheet_version: i64 = source.get("current_sheet_version");
+        let character_version: i64 = source.get("character_version");
+        let character_event_sequence: i64 = source.get("character_event_sequence");
+        let new_sheet_version =
+            source_version
+                .checked_add(1)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "growth_replay_sheet_version",
+                ))?;
+        let character_at_source =
+            character_sheet_version == source_version && character_event_sequence < replay.sequence;
+        let character_at_growth = character_sheet_version == new_sheet_version
+            && character_event_sequence == replay.sequence;
+        let character_after_growth = character_sheet_version >= new_sheet_version
+            && character_event_sequence > replay.sequence;
+        if !character_at_source && !character_at_growth && !character_after_growth {
             return Err(CoreDomainRepositoryError::Integrity(
-                "growth_replay_source_not_current",
+                "growth_replay_character_position",
             ));
+        }
+        let expected_character_version: i64 = sqlx::query_scalar(
+            r#"
+            SELECT count(*)
+              FROM public.event_store AS event
+             WHERE event.campaign_id = $1
+               AND event.sequence <= $2
+               AND event.integrity_status = 'verified_hmac'
+               AND event.request_hash_source = 'formal_commit'
+               AND event.event_integrity_hash IS NOT NULL
+               AND EXISTS (
+                    SELECT 1
+                      FROM jsonb_array_elements(
+                           event.projection_targets
+                      ) AS projection_target
+                     WHERE projection_target ->> 'relation' =
+                           'public.characters'
+                       AND projection_target ->> 'row_id' = $3
+               )
+            "#,
+        )
+        .bind(campaign_id)
+        .bind(if character_after_growth {
+            character_event_sequence
+        } else {
+            replay.sequence
+        })
+        .bind(character_id)
+        .fetch_one(&mut **transaction)
+        .await
+        .map_err(database_error("count_growth_replay_character_version"))?;
+        if (character_at_source && character_version + 1 != expected_character_version)
+            || (!character_at_source && character_version != expected_character_version)
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "growth_replay_character_version",
+            ));
+        }
+        if character_after_growth {
+            let later_character_is_canonical: bool = sqlx::query_scalar(
+                r#"
+                SELECT EXISTS(
+                    SELECT 1
+                      FROM public.characters AS character
+                      JOIN public.event_store AS event
+                        ON event.sequence = character.last_event_sequence
+                       AND event.campaign_id = character.campaign_id
+                     WHERE character.character_id = $1
+                       AND character.campaign_id = $2
+                       AND character.last_event_sequence = $3
+                       AND character.version = $4
+                       AND event.integrity_status = 'verified_hmac'
+                       AND event.request_hash_source = 'formal_commit'
+                       AND event.event_integrity_hash IS NOT NULL
+                       AND event.visibility_label =
+                           character.visibility_label::TEXT
+                       AND event.visibility_subject =
+                           character.visibility_subject
+                       AND event.fact_provenance_kind =
+                           character.provenance_kind::TEXT
+                       AND event.fact_provenance_reference =
+                           character.provenance_reference
+                       AND event.fact_recorded_by =
+                           character.provenance_recorded_by
+                       AND EXISTS (
+                            SELECT 1
+                              FROM jsonb_array_elements(
+                                   event.projection_targets
+                              ) AS projection_target
+                             WHERE projection_target ->> 'relation' =
+                                   'public.characters'
+                               AND projection_target ->> 'row_id' = $1
+                       )
+                )
+                "#,
+            )
+            .bind(character_id)
+            .bind(campaign_id)
+            .bind(character_event_sequence)
+            .bind(character_version)
+            .fetch_one(&mut **transaction)
+            .await
+            .map_err(database_error("verify_later_growth_character"))?;
+            if !later_character_is_canonical {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "growth_replay_later_character_mismatch",
+                ));
+            }
         }
         let mut sheet_json: Value = source.get("sheet_json");
         if sheet_json
@@ -4013,12 +4117,6 @@ async fn apply_growth_replay_event(
                 "growth_replay_skills_missing",
             ))?
             .insert(skill_name.to_owned(), Value::from(skill_after));
-        let new_sheet_version =
-            source_version
-                .checked_add(1)
-                .ok_or(CoreDomainRepositoryError::Integrity(
-                    "growth_replay_sheet_version",
-                ))?;
         sqlx::query(
             r#"
             INSERT INTO public.character_sheet_versions (
@@ -4046,35 +4144,121 @@ async fn apply_growth_replay_event(
         .execute(&mut **transaction)
         .await
         .map_err(database_error("replay_growth_sheet"))?;
-        sqlx::query(
-            r#"
-            UPDATE public.characters
-               SET current_sheet_version = $1,
-                   version = version + 1,
-                   visibility_label = $2,
-                   visibility_subject = $3,
-                   provenance_kind = $4,
-                   provenance_reference = $5,
-                   provenance_recorded_by = $6,
-                   last_event_sequence = $7
-             WHERE character_id = $8 AND campaign_id = $9
-               AND current_sheet_version = $10 AND version = $11
-            "#,
-        )
-        .bind(new_sheet_version)
-        .bind(&replay.visibility_label)
-        .bind(&replay.visibility_subject)
-        .bind(&replay.provenance_kind)
-        .bind(&replay.provenance_reference)
-        .bind(&replay.provenance_recorded_by)
-        .bind(replay.sequence)
-        .bind(character_id)
-        .bind(campaign_id)
-        .bind(source_version)
-        .bind(source.get::<i64, _>("character_version"))
-        .execute(&mut **transaction)
-        .await
-        .map_err(database_error("replay_growth_character"))?;
+        if character_at_source {
+            let advanced = sqlx::query(
+                r#"
+                UPDATE public.characters
+                   SET current_sheet_version = $1,
+                       version = $2,
+                       visibility_label = $3,
+                       visibility_subject = $4,
+                       provenance_kind = $5,
+                       provenance_reference = $6,
+                       provenance_recorded_by = $7,
+                       last_event_sequence = $8
+                 WHERE character_id = $9 AND campaign_id = $10
+                   AND current_sheet_version = $11 AND version = $12
+                   AND last_event_sequence = $13
+                "#,
+            )
+            .bind(new_sheet_version)
+            .bind(expected_character_version)
+            .bind(&replay.visibility_label)
+            .bind(&replay.visibility_subject)
+            .bind(&replay.provenance_kind)
+            .bind(&replay.provenance_reference)
+            .bind(&replay.provenance_recorded_by)
+            .bind(replay.sequence)
+            .bind(character_id)
+            .bind(campaign_id)
+            .bind(source_version)
+            .bind(character_version)
+            .bind(character_event_sequence)
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error("advance_replayed_growth_character"))?;
+            if advanced.rows_affected() != 1 {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "growth_replay_character_conflict",
+                ));
+            }
+        } else if character_at_growth {
+            let character_matches: bool = sqlx::query_scalar(
+                r#"
+                SELECT EXISTS(
+                    SELECT 1
+                      FROM public.characters
+                     WHERE character_id = $1 AND campaign_id = $2
+                       AND current_sheet_version = $3 AND version = $4
+                       AND visibility_label::TEXT = $5
+                       AND visibility_subject = $6
+                       AND provenance_kind::TEXT = $7
+                       AND provenance_reference = $8
+                       AND provenance_recorded_by = $9
+                       AND last_event_sequence = $10
+                )
+                "#,
+            )
+            .bind(character_id)
+            .bind(campaign_id)
+            .bind(new_sheet_version)
+            .bind(expected_character_version)
+            .bind(&replay.visibility_label)
+            .bind(&replay.visibility_subject)
+            .bind(&replay.provenance_kind)
+            .bind(&replay.provenance_reference)
+            .bind(&replay.provenance_recorded_by)
+            .bind(replay.sequence)
+            .fetch_one(&mut **transaction)
+            .await
+            .map_err(database_error("verify_current_growth_character"))?;
+            if !character_matches {
+                sqlx::query(
+                    "SELECT set_config( \
+                         'trpg.p08_projection_rebuild', \
+                         'character_growth', \
+                         TRUE \
+                     )",
+                )
+                .execute(&mut **transaction)
+                .await
+                .map_err(database_error("set_growth_replay_repair_scope"))?;
+                let repaired = sqlx::query(
+                    r#"
+                    UPDATE public.characters
+                       SET current_sheet_version = $1,
+                           version = $2,
+                           visibility_label = $3,
+                           visibility_subject = $4,
+                           provenance_kind = $5,
+                           provenance_reference = $6,
+                           provenance_recorded_by = $7,
+                           last_event_sequence = $8
+                     WHERE character_id = $9 AND campaign_id = $10
+                       AND current_sheet_version = $1
+                       AND last_event_sequence = $8
+                    "#,
+                )
+                .bind(new_sheet_version)
+                .bind(expected_character_version)
+                .bind(&replay.visibility_label)
+                .bind(&replay.visibility_subject)
+                .bind(&replay.provenance_kind)
+                .bind(&replay.provenance_reference)
+                .bind(&replay.provenance_recorded_by)
+                .bind(replay.sequence)
+                .bind(character_id)
+                .bind(campaign_id)
+                .execute(&mut **transaction)
+                .await
+                .map_err(database_error("repair_replayed_growth_character"))?;
+                if repaired.rows_affected() != 1 {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "growth_replay_character_conflict",
+                    ));
+                }
+            }
+        }
         sqlx::query(
             r#"
             INSERT INTO public.growth_events (
@@ -4154,8 +4338,8 @@ async fn apply_growth_replay_event(
                AND growth.increase_roll_id IS NOT DISTINCT FROM $14
                AND growth.random_source = 'SERVER_OS_CSPRNG'
                AND growth.last_event_sequence = $15
-               AND character.current_sheet_version = sheet.version
-               AND character.last_event_sequence = $15
+               AND character.current_sheet_version >= sheet.version
+               AND character.last_event_sequence >= $15
                AND sheet.sheet_json -> 'skills' ->> $8 = $12::TEXT
                AND sheet.last_event_sequence = $15
         )
@@ -7924,7 +8108,7 @@ impl CoreDomainRepository {
         let is_materialized_fork = replay_events
             .iter()
             .any(|event| event.event_type == "CampaignForkRecorded");
-        let mut earliest_growths = BTreeMap::<String, (i64, String)>::new();
+        let mut growth_character_ids = BTreeSet::<String>::new();
         let mut growth_sheet_version_ids = BTreeSet::<String>::new();
         let mut fork_scenario_ids = BTreeSet::<String>::new();
         let mut fork_character_ids = BTreeSet::<String>::new();
@@ -7988,7 +8172,6 @@ impl CoreDomainRepository {
             let CoreDomainEvent::CharacterGrowthApplied {
                 campaign_id: event_campaign_id,
                 character_id,
-                source_sheet_version_id,
                 new_sheet_version_id,
                 ..
             } = event
@@ -8003,212 +8186,18 @@ impl CoreDomainRepository {
                 ));
             }
             growth_sheet_version_ids.insert(new_sheet_version_id);
-            earliest_growths
-                .entry(character_id)
-                .and_modify(|earliest| {
-                    if replay.sequence < earliest.0 {
-                        *earliest = (replay.sequence, source_sheet_version_id.clone());
-                    }
-                })
-                .or_insert((replay.sequence, source_sheet_version_id));
+            growth_character_ids.insert(character_id);
         }
         sqlx::query("SET CONSTRAINTS ALL DEFERRED")
             .execute(&mut *transaction)
             .await
             .map_err(database_error("defer_p08_rebuild_constraints"))?;
 
-        // A non-fork campaign keeps its pre-P08 character history. Rewind each
-        // growth-touched character to the exact canonical projection event
-        // immediately before its first growth, then remove all growth-derived
-        // sheets. A fork removes only IDs owned by its immutable materialized
-        // rows; child entities created after the fork belong to later canonical
-        // workflows and must survive this P08-only rebuild.
-        if !is_materialized_fork {
-            for (character_id, (first_growth_sequence, source_sheet_version_id)) in
-                &earliest_growths
-            {
-                let source_sheet_version: i64 = sqlx::query_scalar(
-                    r#"
-                    SELECT version
-                      FROM public.character_sheet_versions
-                     WHERE sheet_version_id = $1
-                       AND character_id = $2
-                       AND campaign_id = $3
-                    "#,
-                )
-                .bind(source_sheet_version_id)
-                .bind(character_id)
-                .bind(campaign_id)
-                .fetch_one(&mut *transaction)
-                .await
-                .map_err(database_error("load_p08_growth_rewind_sheet"))?;
-                let predecessor = sqlx::query(
-                    r#"
-                    SELECT event.sequence,
-                           event.visibility_label::TEXT AS visibility_label,
-                           event.visibility_subject,
-                           event.fact_provenance_kind::TEXT AS provenance_kind,
-                           event.fact_provenance_reference AS provenance_reference,
-                           event.fact_recorded_by AS provenance_recorded_by,
-                           formal_commit.commit_id
-                      FROM public.event_store AS event
-                      JOIN public.formal_commits AS formal_commit
-                        ON formal_commit.campaign_id = event.campaign_id
-                       AND event.sequence BETWEEN
-                           formal_commit.first_event_sequence
-                           AND formal_commit.last_event_sequence
-                       AND formal_commit.status = 'committed'
-                     WHERE event.campaign_id = $1
-                       AND event.sequence < $2
-                       AND event.integrity_status = 'verified_hmac'
-                       AND event.request_hash_source = 'formal_commit'
-                       AND event.event_integrity_hash IS NOT NULL
-                       AND EXISTS (
-                            SELECT 1
-                              FROM jsonb_array_elements(
-                                   event.projection_targets
-                              ) AS projection_target
-                             WHERE projection_target ->> 'relation' =
-                                   'public.characters'
-                               AND projection_target ->> 'row_id' = $3
-                       )
-                     ORDER BY event.sequence DESC
-                     LIMIT 1
-                    "#,
-                )
-                .bind(campaign_id)
-                .bind(first_growth_sequence)
-                .bind(character_id)
-                .fetch_optional(&mut *transaction)
-                .await
-                .map_err(database_error("load_p08_growth_rewind_event"))?
-                .ok_or(CoreDomainRepositoryError::Integrity(
-                    "p08_growth_rewind_event_missing",
-                ))?;
-                let character_version: i64 = sqlx::query_scalar(
-                    r#"
-                    SELECT count(*)
-                      FROM public.event_store AS event
-                     WHERE event.campaign_id = $1
-                       AND event.sequence < $2
-                       AND event.integrity_status = 'verified_hmac'
-                       AND event.request_hash_source = 'formal_commit'
-                       AND event.event_integrity_hash IS NOT NULL
-                       AND EXISTS (
-                            SELECT 1
-                              FROM jsonb_array_elements(
-                                   event.projection_targets
-                              ) AS projection_target
-                             WHERE projection_target ->> 'relation' =
-                                   'public.characters'
-                               AND projection_target ->> 'row_id' = $3
-                       )
-                    "#,
-                )
-                .bind(campaign_id)
-                .bind(first_growth_sequence)
-                .bind(character_id)
-                .fetch_one(&mut *transaction)
-                .await
-                .map_err(database_error("count_p08_growth_rewind_version"))?;
-                if character_version <= 0 {
-                    return Err(CoreDomainRepositoryError::Integrity(
-                        "p08_growth_rewind_version",
-                    ));
-                }
-                let predecessor_sequence = predecessor.get::<i64, _>("sequence");
-                let predecessor_visibility_label = predecessor.get::<String, _>("visibility_label");
-                let predecessor_visibility_subject =
-                    predecessor.get::<String, _>("visibility_subject");
-                let predecessor_provenance_kind = predecessor.get::<String, _>("provenance_kind");
-                let predecessor_provenance_reference =
-                    predecessor.get::<String, _>("provenance_reference");
-                let predecessor_provenance_recorded_by =
-                    predecessor.get::<String, _>("provenance_recorded_by");
-                let already_rewound: bool = sqlx::query_scalar(
-                    r#"
-                    SELECT EXISTS(
-                        SELECT 1
-                          FROM public.characters
-                         WHERE character_id = $1
-                           AND campaign_id = $2
-                           AND current_sheet_version = $3
-                           AND version = $4
-                           AND visibility_label::TEXT = $5
-                           AND visibility_subject = $6
-                           AND provenance_kind::TEXT = $7
-                           AND provenance_reference = $8
-                           AND provenance_recorded_by = $9
-                           AND last_event_sequence = $10
-                    )
-                    "#,
-                )
-                .bind(character_id)
-                .bind(campaign_id)
-                .bind(source_sheet_version)
-                .bind(character_version)
-                .bind(&predecessor_visibility_label)
-                .bind(&predecessor_visibility_subject)
-                .bind(&predecessor_provenance_kind)
-                .bind(&predecessor_provenance_reference)
-                .bind(&predecessor_provenance_recorded_by)
-                .bind(predecessor_sequence)
-                .fetch_one(&mut *transaction)
-                .await
-                .map_err(database_error("verify_p08_growth_rewind_character"))?;
-                if !already_rewound {
-                    self.set_projection_capability(
-                        &mut transaction,
-                        predecessor.get::<String, _>("commit_id").as_str(),
-                        "set_p08_growth_rewind_capability",
-                    )
-                    .await?;
-                    sqlx::query(
-                        "SELECT set_config( \
-                             'trpg.p08_projection_rebuild', \
-                             'character_growth', \
-                             TRUE \
-                         )",
-                    )
-                    .execute(&mut *transaction)
-                    .await
-                    .map_err(database_error("set_p08_growth_rewind_scope"))?;
-                    let rewound = sqlx::query(
-                        r#"
-                        UPDATE public.characters
-                           SET current_sheet_version = $1,
-                               version = $2,
-                               visibility_label = $3,
-                               visibility_subject = $4,
-                               provenance_kind = $5,
-                               provenance_reference = $6,
-                               provenance_recorded_by = $7,
-                               last_event_sequence = $8
-                         WHERE character_id = $9
-                           AND campaign_id = $10
-                        "#,
-                    )
-                    .bind(source_sheet_version)
-                    .bind(character_version)
-                    .bind(&predecessor_visibility_label)
-                    .bind(&predecessor_visibility_subject)
-                    .bind(&predecessor_provenance_kind)
-                    .bind(&predecessor_provenance_reference)
-                    .bind(&predecessor_provenance_recorded_by)
-                    .bind(predecessor_sequence)
-                    .bind(character_id)
-                    .bind(campaign_id)
-                    .execute(&mut *transaction)
-                    .await
-                    .map_err(database_error("rewind_p08_growth_character"))?;
-                    if rewound.rows_affected() != 1 {
-                        return Err(CoreDomainRepositoryError::Integrity(
-                            "p08_growth_rewind_character_missing",
-                        ));
-                    }
-                }
-            }
-        }
+        // Growth-owned rows are rebuilt from the canonical events below. The
+        // character itself is not rewound up front: replay advances a
+        // projection that is behind, repairs one exactly at the Growth event,
+        // and preserves a character already advanced by later canonical
+        // gameplay. This keeps P08 repair from discarding P09-era mutations.
 
         for statement in [
             "DELETE FROM public.growth_events WHERE campaign_id = $1",
@@ -8313,6 +8302,98 @@ impl CoreDomainRepository {
             )
             .await?;
             apply_p08_replay_event(&mut transaction, replay_event).await?;
+        }
+        for character_id in &growth_character_ids {
+            let character_matches_canonical_tip: bool = sqlx::query_scalar(
+                r#"
+                SELECT EXISTS(
+                    SELECT 1
+                      FROM public.characters AS character
+                      JOIN public.character_sheet_versions AS current_sheet
+                        ON current_sheet.character_id =
+                           character.character_id
+                       AND current_sheet.version =
+                           character.current_sheet_version
+                      JOIN public.event_store AS current_event
+                        ON current_event.sequence =
+                           character.last_event_sequence
+                       AND current_event.campaign_id =
+                           character.campaign_id
+                     WHERE character.character_id = $1
+                       AND character.campaign_id = $2
+                       AND current_event.integrity_status = 'verified_hmac'
+                       AND current_event.request_hash_source = 'formal_commit'
+                       AND current_event.event_integrity_hash IS NOT NULL
+                       AND current_event.visibility_label =
+                           character.visibility_label::TEXT
+                       AND current_event.visibility_subject =
+                           character.visibility_subject
+                       AND current_event.fact_provenance_kind =
+                           character.provenance_kind::TEXT
+                       AND current_event.fact_provenance_reference =
+                           character.provenance_reference
+                       AND current_event.fact_recorded_by =
+                           character.provenance_recorded_by
+                       AND EXISTS (
+                            SELECT 1
+                              FROM jsonb_array_elements(
+                                   current_event.projection_targets
+                              ) AS projection_target
+                             WHERE projection_target ->> 'relation' =
+                                   'public.characters'
+                               AND projection_target ->> 'row_id' = $1
+                       )
+                       AND character.last_event_sequence = (
+                            SELECT max(event.sequence)
+                              FROM public.event_store AS event
+                             WHERE event.campaign_id = $2
+                               AND event.integrity_status = 'verified_hmac'
+                               AND event.request_hash_source =
+                                   'formal_commit'
+                               AND event.event_integrity_hash IS NOT NULL
+                               AND EXISTS (
+                                    SELECT 1
+                                      FROM jsonb_array_elements(
+                                           event.projection_targets
+                                      ) AS projection_target
+                                     WHERE projection_target ->> 'relation' =
+                                           'public.characters'
+                                       AND projection_target ->> 'row_id' = $1
+                               )
+                       )
+                       AND character.version = (
+                            SELECT count(*)
+                              FROM public.event_store AS event
+                             WHERE event.campaign_id = $2
+                               AND event.sequence <=
+                                   character.last_event_sequence
+                               AND event.integrity_status = 'verified_hmac'
+                               AND event.request_hash_source =
+                                   'formal_commit'
+                               AND event.event_integrity_hash IS NOT NULL
+                               AND EXISTS (
+                                    SELECT 1
+                                      FROM jsonb_array_elements(
+                                           event.projection_targets
+                                      ) AS projection_target
+                                     WHERE projection_target ->> 'relation' =
+                                           'public.characters'
+                                       AND projection_target ->> 'row_id' = $1
+                               )
+                       )
+                )
+                "#,
+            )
+            .bind(character_id)
+            .bind(campaign_id)
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(database_error("verify_rebuilt_growth_character_tip"))?;
+            if !character_matches_canonical_tip {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "growth_replay_character_tip_mismatch",
+                ));
+            }
         }
         let counts: (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
             r#"
