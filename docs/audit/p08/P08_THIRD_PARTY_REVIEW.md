@@ -34,12 +34,15 @@ GITHUB_SIXTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_SEVENTH_REVIEW
 GITHUB_SEVENTH_AUTOMATED_REVIEW = 5_ACTIONABLE
 GITHUB_SEVENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_EIGHTH_REVIEW
 GITHUB_EIGHTH_AUTOMATED_REVIEW = 3_ACTIONABLE
-GITHUB_EIGHTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_EIGHTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_NINTH_REVIEW
+GITHUB_NINTH_AUTOMATED_REVIEW = 4_ACTIONABLE
+GITHUB_NINTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FIFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_SIXTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_SEVENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
+GITHUB_EIGHTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -58,9 +61,10 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 - parsed lines：约 100%；
 - exit：0。
 
-本轮第一次在受限网络中拉取 registry 规则时停滞并被终止；联网重试取得规则后，
+早期复扫第一次在受限网络中拉取 registry 规则时停滞并被终止；联网重试取得规则后，
 默认并行度因 `io_uring_queue_init` 资源分配失败返回 exit `2` 和 engine error。
-只有固定 `--jobs 1` 后产生的 0 error JSON 被计为通过，前两次没有被覆盖或伪报。
+第九轮复扫同样先在受限网络等待后主动终止，再以获准联网和固定 `--jobs 1` 完成。
+只有最终 0 error JSON 被计为通过，前述中间运行没有被覆盖或伪报。
 
 扩展范围首次复扫发现 `data_deletion_e2e.rs` 两处以可预测名称直接使用共享临时目录。
 测试改用 `tempfile::Builder::tempdir()` 安全创建唯一目录后，以相同规则重跑得到
@@ -70,7 +74,7 @@ P08 Rust、SQL 与 CI 目标，实际运行 13 条适用规则：
 没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-eighth-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-ninth-review-fix-final.json`，只作为本次本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -210,7 +214,31 @@ projection guard 建立跨 aggregate/类型单次消费。真实数据库回归�
 start/end 插在第一 Session Ending/Growth 之前，注入同版本污染及 ghost，并把已消费
 Combat 医疗骰 clone 给 Chase；三类攻击均被正确隔离或拒绝。最终状态从空
 primary/Witness 连续运行两次，工作区 check/Clippy 与 34 目标 Semgrep 也通过；仍须
-等待新的精确 SHA 5/5 Hosted CI 与远端复审，才允许合并。
+等待新的精确 SHA 复审。
+
+对应提交 `f1b0e70` 的 repository-truth、golden-scenarios、
+production-security 为 3/5 通过；第九轮阻断出现后，workspace 与 release 两个长
+任务被主动取消，未写成成功。第九轮精确 SHA 审查确认第八轮三项未重复，但继续发现
+4 个有效问题：
+
+- rebuild 只清除 Combat/Chase/roll，保留损坏或 ghost 的 Reconsideration、Fork、
+  Ending、Growth 及 fork-created 基础实体；
+- Growth 的 percentile/d10 未进入全局 gameplay roll ownership，可复用 Combat 或
+  Chase roll；
+- forked Combat/Chase participant、initiative、transition 和 roll 引用仍指向 parent
+  character/NPC ID；
+- fork 构造期间长期持有 projection pool connection，20 个并发请求可各持一条连接
+  后等待第二条而耗尽 20-connection pool。
+
+第九轮修复把所有 P08 writer 与 rebuild 绑定同一 campaign lock，清除并重放全部
+P08/Fork materialization；Growth 角色回退仍需 secret capability、精确 canonical
+target、仅 Growth 后缀和 canonical 派生版本。Growth 两类骰加入全局表；Fork 递归
+重写 gameplay ID 并为非角色参与者产生 child NPC projection。Fork snapshot/build、
+canonical commit 与 replay-page load 不再持有 projection connection，由 Event Store
+partial unique index 和 projection unique constraint 保证 lineage，最终投影只使用短
+事务；`max_connections=1` 的真实回归成功。全新 primary/Witness 完整套件连续通过
+两次，all-features check/Clippy 与 34 目标 Semgrep 均通过；仍须等待新的精确 SHA
+5/5 Hosted CI 与远端复审，才允许合并。
 
 ## RustSec
 
@@ -226,8 +254,8 @@ primary/Witness 连续运行两次，工作区 check/Clippy 与 34 目标 Semgre
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 八轮
-自动审查先后提出的 4、5、5、4、2、3、5、3 项阻断均已修复或完成本地验证，最新
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 九轮
+自动审查先后提出的 4、5、5、4、2、3、5、3、4 项阻断均已修复或完成本地验证，最新
 提交的远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。

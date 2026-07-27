@@ -51,6 +51,12 @@ First Aid/Medicine 目标从当前治疗者的持久化技能派生而不能由�
 会在 canonical append 前返回 `gameplay_roll_reuse`；保持相同 version 的 Combat/Chase
 `state_json` 与 provenance 污染会被 rebuild 覆盖，无 canonical history 的 ghost 行
 会被删除，Event Store 行数保持不变。
+第九轮修复负例继续覆盖：同一 Combat 医疗骰被 clone 给 Growth 时也在 canonical
+append 前返回 `gameplay_roll_reuse`；forked Combat/Chase JSON 不含 parent character
+或 NPC ID，participant/initiative/transition/roll 引用均为 child-owned ID；只有一个
+projection connection 的仓库仍能完成 fork；Reconsideration、Ending、Growth、
+Growth sheet/Character、Fork manifest/NPC/scenario/character/sheet/session/scene
+的同版本污染和 ghost 均被全量重建清除。
 
 ## 真实数据库、重放与迁移
 
@@ -91,9 +97,11 @@ First Aid/Medicine 目标从当前治疗者的持久化技能派生而不能由�
 - Fork materialization 分别产生 keeper、party、private 三类事件 envelope；每个私密
   事件使用玩家 `data_subject_id` 和对应有效主体密钥，projection guard 继续验证
   Visibility 与主体完全一致。
-- Fork child lineage 的事务 advisory lock 覆盖 verified Event Store 检查、物化、
-  canonical commit 与 projection；两个不同 fork ID 对同一 child 的真实
-  `tokio::join!` 竞争仅一个成功，表约束与 Event Store 均只保留一条 lineage。
+- Fork child lineage 由 Event Store `CampaignForkRecorded(campaign_id)` partial
+  unique index 与 projection `UNIQUE(child_campaign_id)` 双重约束；snapshot/build、
+  canonical commit 和 replay-page load 不持有 projection pool connection，最终投影
+  才使用短 child/rebuild lock 事务。两个不同 fork ID 的真实 `tokio::join!` 竞争仅
+  一个成功，`max_connections=1` 的专门回归也在 30 秒内完成。
 - Ending 只绑定 `ENDED` session，且 ID 必须来自该 Session 的 Scenario `endings`。
 - Ending summary 与 Reconsideration review/resolution 在 canonical event 创建前
   规范化；带空白输入的 live projection 和删除后 replay 逐字节一致。
@@ -108,12 +116,16 @@ First Aid/Medicine 目标从当前治疗者的持久化技能派生而不能由�
 - Combat 的攻击命中、攻击失败与医疗尝试均消费当前回合动作，只有正式
   `TurnAdvanced` 重置；`DYING/DEAD` 防守者不能 Dodge/Fight Back。First Aid/Medicine
   target 从当前治疗者的持久化技能派生，失败治疗同样保存正式证据且不清除 MajorWound。
-- Combat 与 Chase 状态持久化 aggregate-local roll ledger；持久层另把每个正式骰写入
+- Combat 与 Chase 状态持久化 aggregate-local roll ledger；持久层另把 Combat、
+  Chase 与 Growth 的每个正式骰写入
   以 `roll_id` 为全局主键的消费投影，并在 append 前持有排序 advisory lock。本次内部、
-  后续 version、不同 aggregate 和 Combat/Chase 间复用都被拒绝。
-- P08 rebuild 在 campaign-scoped 锁和单笔事务内清除 Combat/Chase/全局骰消费投影再
-  重放 verified canonical events；真实 DB 人为注入同版本污染及 Combat/Chase ghost
-  后，重建恢复原 JSON/provenance、删除 ghost，并保持 Event Store 不变。
+  后续 version、不同 aggregate 和 Combat/Chase/Growth 间复用都被拒绝。
+- P08 rebuild 在 campaign-scoped 锁和单笔事务内清除 Combat、Chase、
+  Reconsideration、Ending、Growth、全局骰消费与全部 Fork materialization 后重放
+  verified canonical events；Growth 角色回退由 secret capability、精确 canonical
+  target、仅 Growth 后缀以及 canonical 派生版本共同限制。真实 DB 对各类投影注入
+  同版本污染/ghost 后，重建恢复原 JSON/provenance、删除 ghost，并保持 Event Store
+  不变。
 - Fight Back 使当前攻击者进入 `DYING/DEAD` 后，再次攻击返回
   `combat_actor_incapacitated` 且聚合不变；独立领域 validator 对手工伪造的同类
   serialized successor 返回 `InvalidTransition`。
@@ -152,6 +164,11 @@ First Aid/Medicine 目标从当前治疗者的持久化技能派生而不能由�
 运行到既有 `durable_workflow_postgres` 时因缺少其强制
 `P02_WORKFLOW_DATABASE_URL` 返回 exit `101`。该命令不是 P08 强制命令，也没有被计为
 package regression PASS；P08 对应的 `conclusion_growth_state_machine` 已单独真实通过。
+第九轮另一次诊断性 `cargo test --workspace --all-targets --locked` 在普通单元测试
+通过后，运行到 API production custody gate 时因本地未启动 CI 专用
+`P02_FORMAL_COMMIT_DATABASE_URL` 返回 exit `101`；相关全服务门禁保留给 Hosted
+workspace CI，这次本地命令没有被记为 workspace test PASS。与 CI 参数一致的
+all-features workspace check 与 Clippy 则独立 exit `0`。
 
 第四轮修复的真实数据库回归也保留两次失败记录：第一次因新加的 Chase 结束态负例
 多传一个旧签名参数而编译失败；修正后，在加入正式 Fight Back 事件的下一次运行中，
@@ -179,13 +196,22 @@ envelope 顶层字段时失败，修正为读取 `payload.data` 后继续运行�
 两次并全部通过。两次中间失败均保留为失败，未计作 PASS。Semgrep 把第五个 migration
 加入范围，以 34 个目标、13 条规则、`--jobs 1` 得到 0 finding、0 error。
 
+第九轮真实双数据库修复过程保留四次未通过记录：第一次的 child ghost 注入事务在
+恢复 trigger 前尚有 deferred event；第二次证明通用 projection guard 正确拒绝
+Growth 角色事件序号回退；第三次是新增 schema assertion 对函数格式匹配过严；第四次
+是已由测试手工回退的角色再次执行 rewind，不满足幂等条件。分别结算约束、加入受
+secret capability/canonical target/仅 Growth 后缀约束的窄 rewind、改为语义断言并
+识别 already-rewound 状态后，完整套件才从全新 primary/Witness 连续通过两次。受限
+网络中的 Semgrep 首次等待 registry 后被主动终止，联网重试才得到 34 targets、
+13 rules、0 finding、0 error、0 skipped；中间状态均未计为 PASS。
+
 ## 第三方与依赖检查
 
 | 门禁 | 结果 |
 | --- | --- |
 | Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；34 targets、13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 前八轮为 4、5、5、4、2、3、5、3 项；第七轮修复已由第八轮确认未重复，第八轮 3 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 前九轮为 4、5、5、4、2、3、5、3、4 项；第八轮修复已由第九轮确认未重复，第九轮 4 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -204,7 +230,10 @@ miss 正史丢失、Fork child lineage 并发竞态，以及 Ending/Reconsiderat
 event/projection 不一致。第七轮继续指出不可见复议源事件、回合动作未消费、失能目标
 主动防御、调用方自报医疗 target 和服务端骰跨版本复用。第八轮确认这五项未重复，
 并继续指出交错 Session 污染 fork、同版本/ghost 投影无法重建，以及骰证据可跨
-aggregate/Combat/Chase 复用。以上均已按问题根因修复；扩展到 34 目标的 Semgrep
+aggregate/Combat/Chase 复用。第九轮确认这三项未重复，又指出 P08 其余投影仍可能
+保留损坏/ghost、Growth 未加入全局骰消费、fork gameplay 未重写参与者 ID，以及
+长期持有 projection connection 会耗尽连接池。以上均已按问题根因修复；扩展到 34
+目标的 Semgrep
 复扫仍为 0 finding。本报告在最新远端 CI/复审完成前保持 pending，不以本地结果冒充
 远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
@@ -212,7 +241,8 @@ aggregate/Combat/Chase 复用。以上均已按问题根因修复；扩展到 34
 workspace/release 两项；第六轮修复提交 `2ed9df2` 也只有 repository-truth、
 golden-scenarios、production-security 3/5 通过，第七轮阻断出现后取消
 workspace/release 两项。第七轮修复提交 `56b648b` 同样只有上述 3/5 通过，第八轮
-阻断出现后取消 workspace/release 两项。以上均未记为 5/5。
+阻断出现后取消 workspace/release 两项。第八轮修复提交 `f1b0e70` 同样只有上述
+3/5 通过，第九轮阻断出现后取消 workspace/release 两项。以上均未记为 5/5。
 
 RustSec 报告：
 
@@ -233,4 +263,4 @@ P08 migration SHA-384：
 - `20260727000600`：
   `4aa250ec0b9020e80194bb87cf86891d06c26cc07f5400fc547ac6860ecc9f4443193e6ef56d4ba2ac438f9863407859`
 - `20260727000700`：
-  `9c5f7a9dbd07421e97fa2a4dadd7c744b562197e192e106fd95950059aa1092400f24a6a9374e6f41d04051a155c04b5`
+  `e2bf932ee689991df816a52fe00dfb669dda5027d193114d04a78f9e169e3c49cdfd8f288416f7b530058b60ea9fa276`

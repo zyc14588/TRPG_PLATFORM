@@ -23,16 +23,16 @@
 | 失能攻击者 | Fight Back 后若当前攻击者为 `DYING/DEAD`，公开聚合、规则前驱 replay 与独立领域 serialized replay 都拒绝其再次攻击，必须先推进至可行动参与者 | PASS |
 | 失能目标主动防御 | `DYING/DEAD` 目标只能承受无主动防御的攻击，不能 Dodge 或 Fight Back；规则与独立 replay 负例均拒绝 | PASS |
 | 医疗目标绑定 | 调用方不再提交数值 target；指定当前治疗者与 First Aid/Medicine 后，从其持久化技能派生 target。失败尝试也作为正式 mutation 消费动作和服务端骰；真实 DB 成功恢复路径由三层重算 | PASS |
-| 正式骰单次消费 | Combat/Chase 状态保留 aggregate-local ledger；持久层另以 `gameplay_roll_consumptions.roll_id` 全局主键、排序 advisory lock 和 canonical projection guard 阻止本次内部、后续 version、不同 aggregate、跨 Combat/Chase 及跨 Campaign 复用；真实 DB 用 Combat 医疗骰 clone 驱动 Chase 并在 append 前得到 `gameplay_roll_reuse` | PASS |
+| 正式骰单次消费 | Combat/Chase 状态保留 aggregate-local ledger；持久层另以 `gameplay_roll_consumptions.roll_id` 全局主键、排序 advisory lock 和 canonical projection guard 阻止本次内部、后续 version、不同 aggregate、跨 Combat/Chase/Growth 及跨 Campaign 复用；真实 DB 分别把 Combat 医疗骰 clone 给 Chase 与 Growth，均在 append 前得到 `gameplay_roll_reuse` | PASS |
 | 复议源事件可见性 | `request_reconsideration` 同时校验 source canonical integrity、请求者对 source Visibility/subject/data subject 的访问权及 envelope 精确继承；review/resolve 与上一链事件保持三项一致；猜测 keeper-only sequence 返回 NotFound 且不写事件 | PASS |
 | Active Session 写入边界 | Combat/Chase 写入事务使用 `FOR SHARE` 锁定 Session 并要求精确 `ACTIVE`；Session 状态变更使用 `FOR UPDATE`，关闭状态检查与正式 append 间的竞态窗口；结束态负例不增加事件 | PASS |
 | Encounter participant 唯一性 | Scenario parser 在接受 combat/chase encounter 前拒绝重复 participant ID；负例不再延迟到正式聚合构造阶段 | PASS |
 | Fork 公开范围 | 默认 scope 明确包含 Character/Public events/Clues/World/NPC/Scene/Combat/Chase/Conclusion；Keeper notes/Hidden clues/Private messages/AI memory 明确排除；角色与当前 sheet 均只接受公开/队伍可见或 owner-bound 玩家私有标签 | PASS |
 | Fork hash 与事件大小 | `source_snapshot_hash` 与经重新计算的来源快照一致；记录事件只保存内容寻址引用；materialization manifest 使用确定性 root，批次同时限制行数与序列化字节数，超过 1.2 MiB 的测试快照仍不会产生超限事件 | PASS |
-| Fork 完整 scope | Public events、Clues、NPC、Combat、Chase、Conclusion 与 scenario/session/scene/character/sheet 均有正式 materialization 事件和受保护子投影，不再只存在于 manifest | PASS |
-| Fork child lineage 并发唯一性 | child-scoped transaction advisory lock 在空状态检查前获取并持有到 canonical commit/projection 完成；锁内读取 verified Event Store lineage；migration `20260727000600` 增加 `UNIQUE(child_campaign_id)`；真实并发两个不同 fork ID 只有一个成功且只有一条正史 | PASS |
+| Fork 完整 scope | Public events、Clues、NPC、Combat、Chase、Conclusion 与 scenario/session/scene/character/sheet 均有正式 materialization 事件和受保护子投影；Combat/Chase 的 participant、initiative、transition 与 roll 引用均改写为 child-owned character/NPC ID | PASS |
+| Fork child lineage 与连接池 | Event Store partial unique index 保证每个 child Campaign 只有一个 canonical `CampaignForkRecorded`，projection 保留 `UNIQUE(child_campaign_id)`；snapshot/build/canonical commit/replay-page load 不持有 projection connection，最终短事务才获取 child/rebuild lock；并发两个 fork ID 只产生一个 lineage，单连接 pool 也能完成 fork | PASS |
 | Ending/Growth | 未结束会话负例；当前 sheet 决定 `skill_before`；技能必须存在于所选 Ending 的 `growth_awards`；percentile/d10 presence 与规则结果在应用、事件 replay 和 DB constraint 三层校验 | PASS |
-| P08 projection replay | campaign-scoped rebuild lock 与 gameplay write lock 共用同一键；事务内清除 Combat/Chase/全局骰消费读模型后从 verified canonical events 重建；同版本 `state_json`/provenance 污染被替换、无正史 ghost 行被删除，重建前后 JSON 相等且不写 Event Store | PASS |
+| P08 projection replay | campaign-scoped rebuild lock 与所有 P08 writer 共用同一键；事务内清除 Combat/Chase/Reconsideration/Ending/Growth/全局骰消费/Fork 全部物化读模型后从 verified canonical events 重建；Growth 角色回退仍需 secret capability、精确 canonical target 与仅 Growth 后缀；同版本污染和 ghost 均被替换，重建前后 JSON 相等且不写 Event Store | PASS |
 | Exact retry | Combat、Chase、Ending、Growth 对同一 commit/command/idempotency/request 返回相同 receipt 且不重复投影；不同绑定保持 fail closed | PASS |
 | Ending/Growth 语义唯一性 | Session/Character 事务 advisory lock 覆盖语义检查、canonical append 与 projection；同一 Session 的并发 Ending 和同一来源 sheet 的并发 Growth 各只允许一个成功，失败方不增加 Event Store | PASS |
 | Ending 场景绑定 | `record_ending` 读取 ended Session 所绑定 Scenario 的 canonical `document_json.endings`，未声明 ID 在正式提交前拒绝 | PASS |
@@ -52,7 +52,8 @@
 | 第五轮，2 项 | 相关复议用 resolution sequence 扩大全局 fork cutoff，可能带入较新 Session；Fight Back 令当前攻击者失能后仍可继续攻击 | gameplay base cutoff 与补充复议链分离；按原事件可见性与 reconsideration ID 选择链；三层 `can_act` 检查；晚期复议泄漏和失能重复攻击负例 | FIXED_CONFIRMED_BY_SIXTH_REVIEW |
 | 第六轮，3 项 | miss/成功 Dodge 被当作错误而丢失骰证据；同一空 child 的不同 fork ID 可并发通过检查；Ending/Reconsideration 文本在 canonical event 与 live projection 间不一致 | `ATTACK_MISSED` 无伤害正式转换与三层重放；child-scoped 锁、verified canonical lineage 检查及 DB unique；event 构造前单次规范化；单元、真实并发双库、删除后重放、Clippy 与 33 目标 Semgrep | FIXED_CONFIRMED_BY_SEVENTH_REVIEW |
 | 第七轮，5 项 | Campaign member 可猜测不可见 source sequence 发起复议；攻击不消费回合；失能目标仍可主动防御；医疗 target 由调用方自报；服务端骰可跨版本复用 | source event 级 Visibility/subject/data-subject 授权与全链精确继承；持久化动作消费标记；防御者 `can_act`；治疗者 First Aid/Medicine 派生及失败留痕；Combat/Chase 已消费 roll ledger；规则、独立领域、真实双库与 33 目标 Semgrep | FIXED_CONFIRMED_BY_EIGHTH_REVIEW |
-| 第八轮，3 项 | source cutoff 会纳入同一 campaign 中交错写入的其他 Session；rebuild 跳过同版本损坏行且保留 ghost；aggregate-local roll ledger 可被跨 aggregate/Combat/Chase 绕过 | verified source Session/Scene/Action event set；锁内删除并重放 Combat/Chase/全局消费投影；全局 roll 主键、排序锁和 projection guard；交错 Session、同版本污染/ghost、Combat 医疗骰复用于 Chase 的真实双库负例；34 目标 Semgrep | FIXED_LOCALLY_RERUN_PENDING |
+| 第八轮，3 项 | source cutoff 会纳入同一 campaign 中交错写入的其他 Session；rebuild 跳过同版本损坏行且保留 ghost；aggregate-local roll ledger 可被跨 aggregate/Combat/Chase 绕过 | verified source Session/Scene/Action event set；锁内删除并重放 Combat/Chase/全局消费投影；全局 roll 主键、排序锁和 projection guard；交错 Session、同版本污染/ghost、Combat 医疗骰复用于 Chase 的真实双库负例；34 目标 Semgrep | FIXED_CONFIRMED_BY_NINTH_REVIEW |
+| 第九轮，4 项 | rebuild 保留 Reconsideration/Fork/Ending/Growth 等损坏或 ghost；Growth roll 可与 Combat/Chase 跨类型复用；forked Combat/Chase 保留 parent participant ID；长期持有 projection connection 会在 20 个并发 fork 时耗尽池 | 清除并重放全部 P08/Fork 物化投影，Growth 以受限 capability 安全回退角色；Growth 加入全局 roll ownership；递归 child ID 重写及合成 NPC 投影；canonical uniqueness + 短投影事务，单连接 pool 回归；连续两次真实双库、all-features check/Clippy 与 34 目标 Semgrep | FIXED_LOCALLY_RERUN_PENDING |
 
 所有正式写入保持 Authority、Visibility、Fact Provenance、formal commit、Event Store、
 Outbox 和 projection guard 边界。没有删除或覆盖源事件，没有让 projection 成为正史，

@@ -2,6 +2,7 @@ use std::env;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{PgPool, Row};
@@ -34,7 +35,7 @@ use trpg_ruleset_coc7::dice_roll_contract::{
 };
 use trpg_shared_kernel::{
     server_damage_roll, server_percentile_roll, EventActorOriginWire, ServerDamageRoll,
-    ServerPercentileRoll,
+    ServerGrowthRollEvidence, ServerPercentileRoll,
 };
 
 const INTEGRITY_KEY: &[u8; 32] = &[0x36; 32];
@@ -2218,6 +2219,63 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     );
     let growth_roll = server_roll_skill_growth(70).unwrap();
     let growth_outcome = *growth_roll.outcome();
+    let growth_events_before_reuse: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = $1 AND event_type = 'CharacterGrowthApplied'",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert!(matches!(
+        repository
+            .record_growth(
+                &metadata(
+                    CAMPAIGN_ID,
+                    AUTHORITY_ID,
+                    KEEPER_ID,
+                    "human_keeper",
+                    "growth_event_p08_reused_combat_roll",
+                    "growth",
+                    "growth.record",
+                    0,
+                    "growth_p08_reused_combat_roll",
+                    "private_to_player",
+                    PLAYER_ID,
+                    "rules_engine_decision",
+                ),
+                &RecordGrowthRequest {
+                    growth_event_id: "growth_event_p08_reused_combat_roll".to_owned(),
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: "session_p06_schema".to_owned(),
+                    ending_event_id: "ending_event_p08_schema".to_owned(),
+                    character_id: "character_p06_player".to_owned(),
+                    source_sheet_version_id: "sheet_p06_player_v1".to_owned(),
+                    new_sheet_version_id: "sheet_p06_player_v2_reused".to_owned(),
+                    skill_name: "Library Use".to_owned(),
+                    growth_rolls: ServerGrowthRollEvidence::from_server_rolls(
+                        medical_roll.clone(),
+                        None,
+                    ),
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::InvalidInput(
+            "gameplay_roll_reuse"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND event_type = 'CharacterGrowthApplied'",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        growth_events_before_reuse,
+        "a Combat roll reused by Growth must fail before canonical append"
+    );
     repository
         .record_growth(
             &metadata(
@@ -2317,6 +2375,18 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     assert_eq!(
         persisted_growth.5.map(|value| value as u8),
         growth_outcome.increase_roll
+    );
+    let p08_roll_consumptions_before: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.gameplay_roll_consumptions \
+         WHERE campaign_id = $1",
+    )
+    .bind(CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert!(
+        p08_roll_consumptions_before >= 4,
+        "Growth must join Combat and Chase in the global server-roll ownership projection"
     );
 
     create_campaign(
@@ -2511,6 +2581,46 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         ),
         "combat, chase and conclusion scopes must materialize into normal child projections"
     );
+    let child_character_id: String = sqlx::query_scalar(
+        "SELECT character_id FROM public.characters \
+         WHERE campaign_id = $1 AND owner_user_id = $2",
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .bind(PLAYER_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let child_npc_id: String = sqlx::query_scalar(
+        "SELECT npc_state_id FROM public.campaign_fork_npc_states \
+         WHERE campaign_id = $1 AND source_npc_id = 'npc_marta'",
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let child_gameplay_states: Vec<serde_json::Value> = sqlx::query_scalar(
+        r#"
+        SELECT state_json FROM public.combat_states WHERE campaign_id = $1
+        UNION ALL
+        SELECT state_json FROM public.chase_states WHERE campaign_id = $1
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_all(&primary)
+    .await
+    .unwrap();
+    assert!(!child_gameplay_states.is_empty());
+    for child_gameplay_state in child_gameplay_states {
+        let encoded = serde_json::to_string(&child_gameplay_state).unwrap();
+        assert!(
+            !encoded.contains("character_p06_player") && !encoded.contains("npc_marta"),
+            "forked Combat/Chase state must not retain parent participant identifiers"
+        );
+        assert!(
+            encoded.contains(&child_character_id) && encoded.contains(&child_npc_id),
+            "all Combat/Chase participant, initiative, transition, and roll references must use child-owned identifiers"
+        );
+    }
     let child_event_types: Vec<String> = sqlx::query_scalar(
         "SELECT event_type FROM public.event_store \
          WHERE campaign_id = $1 AND stream_id = 'fork_p06_schema' \
@@ -2584,6 +2694,134 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             .fetch_one(&primary)
             .await
             .unwrap();
+    let mut corrupt_child_projection = primary.begin().await.unwrap();
+    for statement in [
+        "ALTER TABLE public.campaign_fork_materializations DISABLE TRIGGER campaign_fork_materializations_event_guard",
+        "ALTER TABLE public.campaign_fork_npc_states DISABLE TRIGGER campaign_fork_npc_states_event_guard",
+        "ALTER TABLE public.scenarios DISABLE TRIGGER scenarios_event_guard",
+        "ALTER TABLE public.characters DISABLE TRIGGER characters_event_guard",
+        "ALTER TABLE public.character_sheet_versions DISABLE TRIGGER character_sheet_versions_event_guard",
+        "ALTER TABLE core_domain.sessions DISABLE TRIGGER sessions_event_guard",
+        "ALTER TABLE public.scenes DISABLE TRIGGER scenes_event_guard",
+    ] {
+        sqlx::query(statement)
+            .execute(&mut *corrupt_child_projection)
+            .await
+            .unwrap();
+    }
+    for statement in [
+        "UPDATE public.campaign_fork_materializations \
+         SET provenance_reference = 'corrupted_child_manifest' \
+         WHERE campaign_id = $1",
+        "UPDATE public.scenarios \
+         SET document_json = jsonb_set(document_json, '{corrupted}', 'true'::jsonb) \
+         WHERE campaign_id = $1",
+        "UPDATE public.characters \
+         SET display_name = 'CORRUPTED_CHILD_CHARACTER' \
+         WHERE campaign_id = $1",
+        "UPDATE public.character_sheet_versions \
+         SET sheet_json = jsonb_set(sheet_json, '{corrupted}', 'true'::jsonb) \
+         WHERE campaign_id = $1",
+        "UPDATE core_domain.sessions \
+         SET provenance_reference = 'corrupted_child_session' \
+         WHERE campaign_id = $1",
+        "UPDATE public.scenes \
+         SET name = 'CORRUPTED_CHILD_SCENE' \
+         WHERE campaign_id = $1",
+    ] {
+        sqlx::query(statement)
+            .bind(CHILD_CAMPAIGN_ID)
+            .execute(&mut *corrupt_child_projection)
+            .await
+            .unwrap();
+    }
+    sqlx::query(
+        r#"
+        INSERT INTO public.campaign_fork_npc_states (
+            npc_state_id, fork_id, campaign_id, source_npc_id, state_json,
+            version, visibility_label, visibility_subject,
+            provenance_kind, provenance_reference, provenance_recorded_by,
+            last_event_sequence
+        )
+        SELECT 'npc_state_p08_ghost', fork_id, campaign_id, 'npc_p08_ghost',
+               '{"kind":"GHOST"}'::JSONB, version, visibility_label,
+               visibility_subject, provenance_kind, provenance_reference,
+               provenance_recorded_by, last_event_sequence
+          FROM public.campaign_fork_npc_states
+         WHERE campaign_id = $1
+         LIMIT 1
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .execute(&mut *corrupt_child_projection)
+    .await
+    .unwrap();
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *corrupt_child_projection)
+        .await
+        .unwrap();
+    for statement in [
+        "ALTER TABLE public.campaign_fork_materializations ENABLE TRIGGER campaign_fork_materializations_event_guard",
+        "ALTER TABLE public.campaign_fork_npc_states ENABLE TRIGGER campaign_fork_npc_states_event_guard",
+        "ALTER TABLE public.scenarios ENABLE TRIGGER scenarios_event_guard",
+        "ALTER TABLE public.characters ENABLE TRIGGER characters_event_guard",
+        "ALTER TABLE public.character_sheet_versions ENABLE TRIGGER character_sheet_versions_event_guard",
+        "ALTER TABLE core_domain.sessions ENABLE TRIGGER sessions_event_guard",
+        "ALTER TABLE public.scenes ENABLE TRIGGER scenes_event_guard",
+    ] {
+        sqlx::query(statement)
+            .execute(&mut *corrupt_child_projection)
+            .await
+            .unwrap();
+    }
+    corrupt_child_projection.commit().await.unwrap();
+    let repaired_child = repository
+        .rebuild_p08_projections(CHILD_CAMPAIGN_ID)
+        .await
+        .expect("replace corrupt and ghost rows across the entire fork materialization");
+    assert_eq!(repaired_child.replayed_events, child_event_types.len());
+    let remaining_child_corruption: i64 = sqlx::query_scalar(
+        r#"
+        SELECT
+            (SELECT count(*) FROM public.campaign_fork_materializations
+              WHERE campaign_id = $1
+                AND provenance_reference = 'corrupted_child_manifest')
+          + (SELECT count(*) FROM public.campaign_fork_npc_states
+              WHERE campaign_id = $1
+                AND npc_state_id = 'npc_state_p08_ghost')
+          + (SELECT count(*) FROM public.scenarios
+              WHERE campaign_id = $1 AND document_json ? 'corrupted')
+          + (SELECT count(*) FROM public.characters
+              WHERE campaign_id = $1
+                AND display_name = 'CORRUPTED_CHILD_CHARACTER')
+          + (SELECT count(*) FROM public.character_sheet_versions
+              WHERE campaign_id = $1 AND sheet_json ? 'corrupted')
+          + (SELECT count(*) FROM core_domain.sessions
+              WHERE campaign_id = $1
+                AND provenance_reference = 'corrupted_child_session')
+          + (SELECT count(*) FROM public.scenes
+              WHERE campaign_id = $1 AND name = 'CORRUPTED_CHILD_SCENE')
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    assert_eq!(
+        remaining_child_corruption, 0,
+        "fork rebuild must clear retained corruption and ghost rows from every child-owned P08 projection"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store WHERE campaign_id = $1",
+        )
+        .bind(CHILD_CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        child_events_before_replay,
+        "repairing a fork projection must not append canonical history"
+    );
     let mut remove_child_projection = primary.begin().await.unwrap();
     sqlx::query("SET CONSTRAINTS ALL DEFERRED")
         .execute(&mut *remove_child_projection)
@@ -2812,6 +3050,57 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         (1, 1, 1),
         "one child must have one projected lineage, one canonical lineage event, and one DB constraint"
     );
+    let single_connection_child = "campaign_p08_fork_single_connection";
+    let single_connection_authority = "authority_campaign_p08_fork_single_connection_1";
+    create_campaign(
+        &repository,
+        single_connection_child,
+        single_connection_authority,
+        "room_p08_fork_single_connection",
+        "fork_single_connection_child_create",
+    )
+    .await;
+    let single_connection_pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect_with(PgConnectOptions::from_str(&primary_url).unwrap())
+        .await
+        .unwrap();
+    let single_connection_repository = CoreDomainRepository::new_with_clock(
+        single_connection_pool,
+        canonical_reader.clone(),
+        clock.clone(),
+    );
+    tokio::time::timeout(
+        Duration::from_secs(30),
+        single_connection_repository.record_campaign_fork(
+            &metadata(
+                single_connection_child,
+                single_connection_authority,
+                KEEPER_ID,
+                "human_keeper",
+                "fork_p08_single_connection",
+                "campaign_fork",
+                "campaign.fork.record",
+                0,
+                "fork_single_connection",
+                "keeper_only",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &RecordCampaignForkRequest {
+                fork_id: "fork_p08_single_connection".to_owned(),
+                parent_campaign_id: CAMPAIGN_ID.to_owned(),
+                child_campaign_id: single_connection_child.to_owned(),
+                source_session_id: "session_p06_schema".to_owned(),
+                snapshot_hash: snapshot.snapshot_hash.clone(),
+                reason: "Prove fork construction never nests projection-pool leases".to_owned(),
+                copy_scopes: snapshot.copy_scopes.clone(),
+            },
+        ),
+    )
+    .await
+    .expect("fork must not deadlock even when the projection pool has one connection")
+    .expect("single-connection fork must materialize successfully");
 
     let keeper_private_event_sequence: i64 = sqlx::query_scalar(
         "SELECT sequence FROM public.event_store \
@@ -3204,6 +3493,11 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     for statement in [
         "ALTER TABLE public.combat_states DISABLE TRIGGER combat_states_event_guard",
         "ALTER TABLE public.chase_states DISABLE TRIGGER chase_states_event_guard",
+        "ALTER TABLE public.ending_events DISABLE TRIGGER ending_events_event_guard",
+        "ALTER TABLE public.growth_events DISABLE TRIGGER growth_events_event_guard",
+        "ALTER TABLE public.reconsiderations DISABLE TRIGGER reconsiderations_event_guard",
+        "ALTER TABLE public.characters DISABLE TRIGGER characters_event_guard",
+        "ALTER TABLE public.character_sheet_versions DISABLE TRIGGER character_sheet_versions_event_guard",
     ] {
         sqlx::query(statement)
             .execute(&mut *corrupt_p08_projection)
@@ -3222,6 +3516,31 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .execute(&mut *corrupt_p08_projection)
     .await
     .unwrap();
+    for statement in [
+        "UPDATE public.ending_events \
+         SET summary = 'CORRUPTED ENDING', \
+             provenance_reference = 'corrupted_same_version' \
+         WHERE campaign_id = $1",
+        "UPDATE public.growth_events \
+         SET provenance_reference = 'corrupted_same_version' \
+         WHERE campaign_id = $1",
+        "UPDATE public.reconsiderations \
+         SET review_summary = 'CORRUPTED REVIEW', \
+             provenance_reference = 'corrupted_same_version' \
+         WHERE campaign_id = $1",
+        "UPDATE public.characters \
+         SET provenance_reference = 'corrupted_same_version' \
+         WHERE campaign_id = $1 AND character_id = 'character_p06_player'",
+        "UPDATE public.character_sheet_versions \
+         SET sheet_json = jsonb_set(sheet_json, '{corrupted}', 'true'::jsonb) \
+         WHERE campaign_id = $1 AND sheet_version_id = 'sheet_p06_player_v2'",
+    ] {
+        sqlx::query(statement)
+            .bind(CAMPAIGN_ID)
+            .execute(&mut *corrupt_p08_projection)
+            .await
+            .unwrap();
+    }
     sqlx::query(
         r#"
         UPDATE public.chase_states
@@ -3231,6 +3550,61 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         "#,
     )
     .bind(CAMPAIGN_ID)
+    .execute(&mut *corrupt_p08_projection)
+    .await
+    .unwrap();
+    sqlx::query(
+        r#"
+        INSERT INTO public.reconsiderations (
+            reconsideration_id, campaign_id, original_event_sequence,
+            requested_by, reason, state, resolution, event_chain, version,
+            visibility_label, visibility_subject,
+            provenance_kind, provenance_reference, provenance_recorded_by,
+            last_event_sequence, review_workflow_version, review_summary,
+            outcome, corrected_event_type, corrected_payload
+        )
+        SELECT 'reconsideration_p08_ghost', campaign_id,
+               original_event_sequence, requested_by, reason, state,
+               resolution, event_chain, version, visibility_label,
+               visibility_subject, provenance_kind, provenance_reference,
+               provenance_recorded_by, last_event_sequence,
+               review_workflow_version, review_summary, outcome,
+               corrected_event_type, corrected_payload
+          FROM public.reconsiderations
+         WHERE campaign_id = $1
+         ORDER BY reconsideration_id
+         LIMIT 1
+        "#,
+    )
+    .bind(CAMPAIGN_ID)
+    .execute(&mut *corrupt_p08_projection)
+    .await
+    .unwrap();
+    sqlx::query(
+        r#"
+        INSERT INTO public.growth_events (
+            growth_event_id, campaign_id, session_id, ending_event_id,
+            character_id, source_sheet_version_id, new_sheet_version_id,
+            skill_name, skill_before, improvement_check_roll,
+            increase_roll, skill_after, server_roll_id, increase_roll_id,
+            random_source, version, visibility_label, visibility_subject,
+            provenance_kind, provenance_reference, provenance_recorded_by,
+            last_event_sequence
+        )
+        SELECT 'growth_event_p08_ghost', campaign_id, session_id,
+               ending_event_id, character_id, source_sheet_version_id,
+               new_sheet_version_id, 'Ghost Skill', skill_before,
+               improvement_check_roll, increase_roll, skill_after,
+               'server_percentile_p08_ghost',
+               CASE WHEN increase_roll_id IS NULL
+                    THEN NULL ELSE 'server_d10_p08_ghost' END,
+               random_source, version, visibility_label, visibility_subject,
+               provenance_kind, provenance_reference, provenance_recorded_by,
+               last_event_sequence
+          FROM public.growth_events
+         WHERE growth_event_id = 'growth_event_p08_schema'
+        "#,
+    )
     .execute(&mut *corrupt_p08_projection)
     .await
     .unwrap();
@@ -3285,6 +3659,11 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     for statement in [
         "ALTER TABLE public.combat_states ENABLE TRIGGER combat_states_event_guard",
         "ALTER TABLE public.chase_states ENABLE TRIGGER chase_states_event_guard",
+        "ALTER TABLE public.ending_events ENABLE TRIGGER ending_events_event_guard",
+        "ALTER TABLE public.growth_events ENABLE TRIGGER growth_events_event_guard",
+        "ALTER TABLE public.reconsiderations ENABLE TRIGGER reconsiderations_event_guard",
+        "ALTER TABLE public.characters ENABLE TRIGGER characters_event_guard",
+        "ALTER TABLE public.character_sheet_versions ENABLE TRIGGER character_sheet_versions_event_guard",
     ] {
         sqlx::query(statement)
             .execute(&mut *corrupt_p08_projection)
@@ -3298,6 +3677,9 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .expect("replace same-version corruption and remove non-canonical ghost projections");
     assert_eq!(repaired_p08.combat_states, 1);
     assert_eq!(repaired_p08.chase_states, 1);
+    assert_eq!(repaired_p08.reconsiderations, 2);
+    assert_eq!(repaired_p08.ending_events, 1);
+    assert_eq!(repaired_p08.growth_events, 1);
     assert_eq!(
         repaired_p08.gameplay_roll_consumptions,
         p08_roll_consumptions_before
@@ -3315,6 +3697,27 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                 AND (chase_id = 'chase_p08_ghost'
                      OR state_json ? 'corrupted'
                      OR provenance_reference = 'corrupted_same_version'))
+          + (SELECT count(*) FROM public.ending_events
+              WHERE campaign_id = $1
+                AND (summary = 'CORRUPTED ENDING'
+                     OR provenance_reference = 'corrupted_same_version'))
+          + (SELECT count(*) FROM public.growth_events
+              WHERE campaign_id = $1
+                AND (growth_event_id = 'growth_event_p08_ghost'
+                     OR provenance_reference = 'corrupted_same_version'))
+          + (SELECT count(*) FROM public.reconsiderations
+              WHERE campaign_id = $1
+                AND (reconsideration_id = 'reconsideration_p08_ghost'
+                     OR review_summary = 'CORRUPTED REVIEW'
+                     OR provenance_reference = 'corrupted_same_version'))
+          + (SELECT count(*) FROM public.characters
+              WHERE campaign_id = $1
+                AND character_id = 'character_p06_player'
+                AND provenance_reference = 'corrupted_same_version')
+          + (SELECT count(*) FROM public.character_sheet_versions
+              WHERE campaign_id = $1
+                AND sheet_version_id = 'sheet_p06_player_v2'
+                AND sheet_json ? 'corrupted')
         "#,
     )
     .bind(CAMPAIGN_ID)

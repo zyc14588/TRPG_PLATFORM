@@ -2028,6 +2028,29 @@ fn chase_gameplay_roll_consumptions(
     validate_gameplay_roll_consumptions(consumptions, "chase_roll_consumption_reuse")
 }
 
+fn growth_gameplay_roll_consumptions(
+    server_roll_id: &str,
+    increase_roll_id: Option<&str>,
+) -> Result<Vec<GameplayRollConsumption>, CoreDomainRepositoryError> {
+    let mut consumptions = vec![GameplayRollConsumption {
+        roll_id: EntityId::new(server_roll_id)
+            .map_err(|_| CoreDomainRepositoryError::Integrity("growth_roll_consumption_id"))?
+            .as_str()
+            .to_owned(),
+        roll_kind: "GROWTH_PERCENTILE",
+    }];
+    if let Some(increase_roll_id) = increase_roll_id {
+        consumptions.push(GameplayRollConsumption {
+            roll_id: EntityId::new(increase_roll_id)
+                .map_err(|_| CoreDomainRepositoryError::Integrity("growth_roll_consumption_id"))?
+                .as_str()
+                .to_owned(),
+            roll_kind: "GROWTH_INCREASE_D10",
+        });
+    }
+    validate_gameplay_roll_consumptions(consumptions, "growth_roll_consumption_reuse")
+}
+
 fn fork_child_id(
     fork_id: &str,
     kind: &str,
@@ -2394,6 +2417,155 @@ fn fork_source_session_event_sequences(
         })
         .map(|event| event.sequence)
         .collect())
+}
+
+fn derive_fork_gameplay_npc_state(state: &Value) -> Result<Vec<Value>, CoreDomainRepositoryError> {
+    let character_ids = state
+        .get("character_state")
+        .and_then(Value::as_array)
+        .ok_or(CoreDomainRepositoryError::Integrity(
+            "fork_character_snapshot_shape",
+        ))?
+        .iter()
+        .map(|character| {
+            character
+                .get("character_id")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "fork_character_snapshot_shape",
+                ))
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    let existing_npcs = state.get("npc_state").and_then(Value::as_array).ok_or(
+        CoreDomainRepositoryError::Integrity("fork_npc_snapshot_shape"),
+    )?;
+    let mut npc_state = BTreeMap::<String, Value>::new();
+    for npc in existing_npcs {
+        let npc_id = npc.get("npc_id").and_then(Value::as_str).ok_or(
+            CoreDomainRepositoryError::Integrity("fork_npc_snapshot_shape"),
+        )?;
+        if character_ids.contains(npc_id)
+            || npc_state.insert(npc_id.to_owned(), npc.clone()).is_some()
+        {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "fork_npc_snapshot_identity",
+            ));
+        }
+    }
+    for scope in ["combat_state", "chase_state"] {
+        let aggregates = state.get(scope).and_then(Value::as_array).ok_or(
+            CoreDomainRepositoryError::Integrity("fork_gameplay_snapshot_shape"),
+        )?;
+        for aggregate in aggregates {
+            let visibility_label = aggregate
+                .get("visibility_label")
+                .and_then(Value::as_str)
+                .filter(|label| matches!(*label, "public" | "party_visible"))
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "fork_gameplay_snapshot_visibility",
+                ))?;
+            let visibility_subject = aggregate
+                .get("visibility_subject")
+                .and_then(Value::as_str)
+                .filter(|subject| *subject == "not_applicable")
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "fork_gameplay_snapshot_visibility",
+                ))?;
+            let participants = aggregate
+                .pointer("/state/participants")
+                .and_then(Value::as_array)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "fork_gameplay_snapshot_participants",
+                ))?;
+            for participant in participants {
+                let participant_id = participant
+                    .get("participant_id")
+                    .and_then(Value::as_str)
+                    .ok_or(CoreDomainRepositoryError::Integrity(
+                        "fork_gameplay_snapshot_participant",
+                    ))?;
+                EntityId::new(participant_id).map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("fork_gameplay_snapshot_participant")
+                })?;
+                if character_ids.contains(participant_id) {
+                    continue;
+                }
+                npc_state
+                    .entry(participant_id.to_owned())
+                    .and_modify(|npc| {
+                        if visibility_label == "party_visible" {
+                            npc["visibility_label"] = Value::String("party_visible".to_owned());
+                        }
+                    })
+                    .or_insert_with(|| {
+                        serde_json::json!({
+                            "npc_id": participant_id,
+                            "state": {
+                                "kind": "FORK_GAMEPLAY_PARTICIPANT",
+                                "source_participant_id": participant_id
+                            },
+                            "visibility_label": visibility_label,
+                            "visibility_subject": visibility_subject
+                        })
+                    });
+            }
+        }
+    }
+    Ok(npc_state.into_values().collect())
+}
+
+fn rewrite_fork_gameplay_identity_references(
+    value: &mut Value,
+    identity_ids: &BTreeMap<String, String>,
+) -> Result<(), CoreDomainRepositoryError> {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                rewrite_fork_gameplay_identity_references(value, identity_ids)?;
+            }
+        }
+        Value::Object(fields) => {
+            for (key, value) in fields {
+                if matches!(
+                    key.as_str(),
+                    "participant_id" | "attacker_id" | "target_id" | "healer_id"
+                ) {
+                    let source_id = value.as_str().ok_or(CoreDomainRepositoryError::Integrity(
+                        "fork_gameplay_identity_reference",
+                    ))?;
+                    *value = Value::String(identity_ids.get(source_id).cloned().ok_or(
+                        CoreDomainRepositoryError::Integrity("fork_gameplay_identity_missing"),
+                    )?);
+                } else if key == "initiative_order" {
+                    let order =
+                        value
+                            .as_array_mut()
+                            .ok_or(CoreDomainRepositoryError::Integrity(
+                                "fork_gameplay_initiative_order",
+                            ))?;
+                    for participant_id in order {
+                        let source_id =
+                            participant_id
+                                .as_str()
+                                .ok_or(CoreDomainRepositoryError::Integrity(
+                                    "fork_gameplay_initiative_order",
+                                ))?;
+                        *participant_id =
+                            Value::String(identity_ids.get(source_id).cloned().ok_or(
+                                CoreDomainRepositoryError::Integrity(
+                                    "fork_gameplay_identity_missing",
+                                ),
+                            )?);
+                    }
+                } else {
+                    rewrite_fork_gameplay_identity_references(value, identity_ids)?;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn reconstruct_fork_characters(
@@ -3585,6 +3757,7 @@ async fn apply_growth_replay_event(
             "growth_replay_event_shape",
         ));
     }
+    let roll_consumptions = growth_gameplay_roll_consumptions(server_roll_id, increase_roll_id)?;
     let existing_growth: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM public.growth_events WHERE growth_event_id = $1)",
     )
@@ -3747,6 +3920,20 @@ async fn apply_growth_replay_event(
         .await
         .map_err(database_error("replay_growth_event"))?;
     }
+    project_gameplay_roll_consumptions(
+        transaction,
+        &roll_consumptions,
+        campaign_id,
+        "GROWTH",
+        growth_event_id,
+        &replay.visibility_label,
+        &replay.visibility_subject,
+        &replay.provenance_kind,
+        &replay.provenance_reference,
+        &replay.provenance_recorded_by,
+        replay.sequence,
+    )
+    .await?;
     let matches: bool = sqlx::query_scalar(
         r#"
         SELECT EXISTS(
@@ -7401,56 +7588,386 @@ impl CoreDomainRepository {
     ) -> Result<P08ProjectionRebuildReport, CoreDomainRepositoryError> {
         EntityId::new(campaign_id)
             .map_err(|_| CoreDomainRepositoryError::InvalidInput("campaign_id"))?;
-        let mut transaction = self
-            .primary
-            .begin()
+        // Loading and decrypting replay pages uses the canonical-store pool.
+        // Do that before reserving a primary connection, then prove under the
+        // campaign rebuild lock that the loaded P08 prefix is still current.
+        // A writer that commits after this proof is forced to wait on the same
+        // lock before projecting, so its projection cannot be lost.
+        let (mut transaction, replay_events) = loop {
+            let replay_events = self
+                .load_campaign_events(campaign_id)
+                .await?
+                .into_iter()
+                .filter(|event| {
+                    matches!(
+                        event.event_type.as_str(),
+                        "CombatStateRecorded"
+                            | "ChaseStateRecorded"
+                            | "ReconsiderationRequested"
+                            | "ReconsiderationReviewed"
+                            | "ReconsiderationUpheld"
+                            | "ReconsiderationCorrected"
+                            | "CampaignForkRecorded"
+                            | "CampaignForkMaterializationRecorded"
+                            | "CampaignForkMaterialized"
+                            | "EndingRecorded"
+                            | "CharacterGrowthApplied"
+                    )
+                })
+                .collect::<Vec<_>>();
+            let mut transaction = self
+                .primary
+                .begin()
+                .await
+                .map_err(database_error("begin_p08_projection_rebuild"))?;
+            self.lock_p08_projection_rebuild_scope(&mut transaction, campaign_id)
+                .await?;
+            let canonical_prefix: (i64, Option<i64>) = sqlx::query_as(
+                r#"
+                SELECT count(*), max(event.sequence)
+                  FROM public.event_store AS event
+                 WHERE event.campaign_id = $1
+                   AND event.event_type IN (
+                        'CombatStateRecorded',
+                        'ChaseStateRecorded',
+                        'ReconsiderationRequested',
+                        'ReconsiderationReviewed',
+                        'ReconsiderationUpheld',
+                        'ReconsiderationCorrected',
+                        'CampaignForkRecorded',
+                        'CampaignForkMaterializationRecorded',
+                        'CampaignForkMaterialized',
+                        'EndingRecorded',
+                        'CharacterGrowthApplied'
+                   )
+                   AND event.integrity_status = 'verified_hmac'
+                   AND event.request_hash_source = 'formal_commit'
+                   AND event.event_integrity_hash IS NOT NULL
+                   AND event.payload_json ? 'protected_payload'
+                   AND (
+                        event.data_subject_id = 'not_applicable'
+                        OR EXISTS (
+                            SELECT 1
+                              FROM public.privacy_subject_keys AS subject_key
+                             WHERE subject_key.subject_id = event.data_subject_id
+                               AND subject_key.key_reference =
+                                   event.payload_key_reference
+                               AND subject_key.wrapped_key IS NOT NULL
+                               AND subject_key.destroyed_at IS NULL
+                        )
+                   )
+                "#,
+            )
+            .bind(campaign_id)
+            .fetch_one(&mut *transaction)
             .await
-            .map_err(database_error("begin_p08_projection_rebuild"))?;
-        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
-            .bind(format!("p08-projection-rebuild:{campaign_id}"))
-            .execute(&mut *transaction)
-            .await
-            .map_err(database_error("lock_p08_projection_rebuild"))?;
-        let replay_events = self
-            .load_campaign_events(campaign_id)
-            .await?
-            .into_iter()
-            .filter(|event| {
-                matches!(
-                    event.event_type.as_str(),
-                    "CombatStateRecorded"
-                        | "ChaseStateRecorded"
-                        | "ReconsiderationRequested"
-                        | "ReconsiderationReviewed"
-                        | "ReconsiderationUpheld"
-                        | "ReconsiderationCorrected"
-                        | "CampaignForkRecorded"
-                        | "CampaignForkMaterializationRecorded"
-                        | "CampaignForkMaterialized"
-                        | "EndingRecorded"
-                        | "CharacterGrowthApplied"
-                )
-            })
-            .collect::<Vec<_>>();
+            .map_err(database_error("verify_p08_replay_prefix"))?;
+            let loaded_last_sequence = replay_events.last().map(|event| event.sequence);
+            if canonical_prefix.0
+                == i64::try_from(replay_events.len())
+                    .map_err(|_| CoreDomainRepositoryError::Integrity("p08_replay_count"))?
+                && canonical_prefix.1 == loaded_last_sequence
+            {
+                break (transaction, replay_events);
+            }
+            transaction
+                .rollback()
+                .await
+                .map_err(database_error("retry_p08_projection_rebuild"))?;
+        };
         let last_event_sequence = replay_events
             .last()
             .map(|event| event.sequence)
             .unwrap_or(0);
+        let is_materialized_fork = replay_events
+            .iter()
+            .any(|event| event.event_type == "CampaignForkRecorded");
+        let mut earliest_growths = BTreeMap::<String, (i64, String)>::new();
+        let mut growth_sheet_version_ids = BTreeSet::<String>::new();
+        for replay in &replay_events {
+            if replay.event_type != "CharacterGrowthApplied" {
+                continue;
+            }
+            let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+                .map_err(|_| CoreDomainRepositoryError::Integrity("p08_growth_replay_payload"))?;
+            event.validate_schema_version()?;
+            let CoreDomainEvent::CharacterGrowthApplied {
+                campaign_id: event_campaign_id,
+                character_id,
+                source_sheet_version_id,
+                new_sheet_version_id,
+                ..
+            } = event
+            else {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "p08_growth_replay_event_type",
+                ));
+            };
+            if event_campaign_id != campaign_id {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "p08_growth_replay_campaign",
+                ));
+            }
+            growth_sheet_version_ids.insert(new_sheet_version_id);
+            earliest_growths
+                .entry(character_id)
+                .and_modify(|earliest| {
+                    if replay.sequence < earliest.0 {
+                        *earliest = (replay.sequence, source_sheet_version_id.clone());
+                    }
+                })
+                .or_insert((replay.sequence, source_sheet_version_id));
+        }
         sqlx::query("SET CONSTRAINTS ALL DEFERRED")
             .execute(&mut *transaction)
             .await
             .map_err(database_error("defer_p08_rebuild_constraints"))?;
+
+        // A non-fork campaign keeps its pre-P08 character history. Rewind each
+        // growth-touched character to the exact canonical projection event
+        // immediately before its first growth, then remove all growth-derived
+        // sheets. The fork path instead removes and replays its entire
+        // child-owned materialization.
+        if !is_materialized_fork {
+            for (character_id, (first_growth_sequence, source_sheet_version_id)) in
+                &earliest_growths
+            {
+                let source_sheet_version: i64 = sqlx::query_scalar(
+                    r#"
+                    SELECT version
+                      FROM public.character_sheet_versions
+                     WHERE sheet_version_id = $1
+                       AND character_id = $2
+                       AND campaign_id = $3
+                    "#,
+                )
+                .bind(source_sheet_version_id)
+                .bind(character_id)
+                .bind(campaign_id)
+                .fetch_one(&mut *transaction)
+                .await
+                .map_err(database_error("load_p08_growth_rewind_sheet"))?;
+                let predecessor = sqlx::query(
+                    r#"
+                    SELECT event.sequence,
+                           event.visibility_label::TEXT AS visibility_label,
+                           event.visibility_subject,
+                           event.fact_provenance_kind::TEXT AS provenance_kind,
+                           event.fact_provenance_reference AS provenance_reference,
+                           event.fact_recorded_by AS provenance_recorded_by,
+                           formal_commit.commit_id
+                      FROM public.event_store AS event
+                      JOIN public.formal_commits AS formal_commit
+                        ON formal_commit.campaign_id = event.campaign_id
+                       AND event.sequence BETWEEN
+                           formal_commit.first_event_sequence
+                           AND formal_commit.last_event_sequence
+                       AND formal_commit.status = 'committed'
+                     WHERE event.campaign_id = $1
+                       AND event.sequence < $2
+                       AND event.integrity_status = 'verified_hmac'
+                       AND event.request_hash_source = 'formal_commit'
+                       AND event.event_integrity_hash IS NOT NULL
+                       AND EXISTS (
+                            SELECT 1
+                              FROM jsonb_array_elements(
+                                   event.projection_targets
+                              ) AS projection_target
+                             WHERE projection_target ->> 'relation' =
+                                   'public.characters'
+                               AND projection_target ->> 'row_id' = $3
+                       )
+                     ORDER BY event.sequence DESC
+                     LIMIT 1
+                    "#,
+                )
+                .bind(campaign_id)
+                .bind(first_growth_sequence)
+                .bind(character_id)
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(database_error("load_p08_growth_rewind_event"))?
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "p08_growth_rewind_event_missing",
+                ))?;
+                let character_version: i64 = sqlx::query_scalar(
+                    r#"
+                    SELECT count(*)
+                      FROM public.event_store AS event
+                     WHERE event.campaign_id = $1
+                       AND event.sequence < $2
+                       AND event.integrity_status = 'verified_hmac'
+                       AND event.request_hash_source = 'formal_commit'
+                       AND event.event_integrity_hash IS NOT NULL
+                       AND EXISTS (
+                            SELECT 1
+                              FROM jsonb_array_elements(
+                                   event.projection_targets
+                              ) AS projection_target
+                             WHERE projection_target ->> 'relation' =
+                                   'public.characters'
+                               AND projection_target ->> 'row_id' = $3
+                       )
+                    "#,
+                )
+                .bind(campaign_id)
+                .bind(first_growth_sequence)
+                .bind(character_id)
+                .fetch_one(&mut *transaction)
+                .await
+                .map_err(database_error("count_p08_growth_rewind_version"))?;
+                if character_version <= 0 {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "p08_growth_rewind_version",
+                    ));
+                }
+                let predecessor_sequence = predecessor.get::<i64, _>("sequence");
+                let predecessor_visibility_label = predecessor.get::<String, _>("visibility_label");
+                let predecessor_visibility_subject =
+                    predecessor.get::<String, _>("visibility_subject");
+                let predecessor_provenance_kind = predecessor.get::<String, _>("provenance_kind");
+                let predecessor_provenance_reference =
+                    predecessor.get::<String, _>("provenance_reference");
+                let predecessor_provenance_recorded_by =
+                    predecessor.get::<String, _>("provenance_recorded_by");
+                let already_rewound: bool = sqlx::query_scalar(
+                    r#"
+                    SELECT EXISTS(
+                        SELECT 1
+                          FROM public.characters
+                         WHERE character_id = $1
+                           AND campaign_id = $2
+                           AND current_sheet_version = $3
+                           AND version = $4
+                           AND visibility_label::TEXT = $5
+                           AND visibility_subject = $6
+                           AND provenance_kind::TEXT = $7
+                           AND provenance_reference = $8
+                           AND provenance_recorded_by = $9
+                           AND last_event_sequence = $10
+                    )
+                    "#,
+                )
+                .bind(character_id)
+                .bind(campaign_id)
+                .bind(source_sheet_version)
+                .bind(character_version)
+                .bind(&predecessor_visibility_label)
+                .bind(&predecessor_visibility_subject)
+                .bind(&predecessor_provenance_kind)
+                .bind(&predecessor_provenance_reference)
+                .bind(&predecessor_provenance_recorded_by)
+                .bind(predecessor_sequence)
+                .fetch_one(&mut *transaction)
+                .await
+                .map_err(database_error("verify_p08_growth_rewind_character"))?;
+                if !already_rewound {
+                    self.set_projection_capability(
+                        &mut transaction,
+                        predecessor.get::<String, _>("commit_id").as_str(),
+                        "set_p08_growth_rewind_capability",
+                    )
+                    .await?;
+                    sqlx::query(
+                        "SELECT set_config( \
+                             'trpg.p08_projection_rebuild', \
+                             'character_growth', \
+                             TRUE \
+                         )",
+                    )
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(database_error("set_p08_growth_rewind_scope"))?;
+                    let rewound = sqlx::query(
+                        r#"
+                        UPDATE public.characters
+                           SET current_sheet_version = $1,
+                               version = $2,
+                               visibility_label = $3,
+                               visibility_subject = $4,
+                               provenance_kind = $5,
+                               provenance_reference = $6,
+                               provenance_recorded_by = $7,
+                               last_event_sequence = $8
+                         WHERE character_id = $9
+                           AND campaign_id = $10
+                        "#,
+                    )
+                    .bind(source_sheet_version)
+                    .bind(character_version)
+                    .bind(&predecessor_visibility_label)
+                    .bind(&predecessor_visibility_subject)
+                    .bind(&predecessor_provenance_kind)
+                    .bind(&predecessor_provenance_reference)
+                    .bind(&predecessor_provenance_recorded_by)
+                    .bind(predecessor_sequence)
+                    .bind(character_id)
+                    .bind(campaign_id)
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(database_error("rewind_p08_growth_character"))?;
+                    if rewound.rows_affected() != 1 {
+                        return Err(CoreDomainRepositoryError::Integrity(
+                            "p08_growth_rewind_character_missing",
+                        ));
+                    }
+                }
+            }
+        }
+
         for statement in [
+            "DELETE FROM public.growth_events WHERE campaign_id = $1",
             "DELETE FROM public.gameplay_roll_consumptions WHERE campaign_id = $1",
+            "DELETE FROM public.reconsiderations WHERE campaign_id = $1",
+            "DELETE FROM public.ending_events WHERE campaign_id = $1",
             "DELETE FROM public.combat_states WHERE campaign_id = $1",
             "DELETE FROM public.chase_states WHERE campaign_id = $1",
+            "DELETE FROM public.campaign_fork_npc_states WHERE campaign_id = $1",
+            "DELETE FROM public.campaign_fork_clues WHERE campaign_id = $1",
+            "DELETE FROM public.campaign_fork_public_events WHERE campaign_id = $1",
+            "DELETE FROM public.campaign_fork_materializations WHERE campaign_id = $1",
         ] {
             sqlx::query(statement)
                 .bind(campaign_id)
                 .execute(&mut *transaction)
                 .await
-                .map_err(database_error("clear_p08_gameplay_projection"))?;
+                .map_err(database_error("clear_p08_projection"))?;
         }
+        if is_materialized_fork {
+            for statement in [
+                "DELETE FROM public.character_sheet_versions WHERE campaign_id = $1",
+                "DELETE FROM public.characters WHERE campaign_id = $1",
+                "DELETE FROM public.scenes WHERE campaign_id = $1",
+                "DELETE FROM core_domain.sessions WHERE campaign_id = $1",
+                "DELETE FROM public.scenarios WHERE campaign_id = $1",
+            ] {
+                sqlx::query(statement)
+                    .bind(campaign_id)
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(database_error("clear_p08_fork_projection"))?;
+            }
+        } else {
+            for sheet_version_id in growth_sheet_version_ids {
+                sqlx::query(
+                    r#"
+                    DELETE FROM public.character_sheet_versions
+                     WHERE campaign_id = $1
+                       AND sheet_version_id = $2
+                    "#,
+                )
+                .bind(campaign_id)
+                .bind(sheet_version_id)
+                .execute(&mut *transaction)
+                .await
+                .map_err(database_error("clear_p08_growth_sheet"))?;
+            }
+        }
+        sqlx::query("DELETE FROM public.campaign_forks WHERE campaign_id = $1")
+            .bind(campaign_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error("clear_p08_fork_lineage"))?;
         for replay_event in &replay_events {
             let commit_id: String = sqlx::query_scalar(
                 r#"
@@ -7538,7 +8055,7 @@ impl CoreDomainRepository {
         parent_campaign_id: &str,
         source_session_id: &str,
     ) -> Result<CampaignForkSnapshotPreview, CoreDomainRepositoryError> {
-        let mut state: Value = sqlx::query_scalar(
+        let snapshot_query = sqlx::query_scalar(
             r#"
             WITH snapshot_gameplay AS (
                 SELECT source_session.*,
@@ -7747,11 +8264,12 @@ impl CoreDomainRepository {
             "#,
         )
         .bind(source_session_id)
-        .bind(parent_campaign_id)
-        .fetch_optional(&self.primary)
-        .await
-        .map_err(database_error("load_campaign_fork_snapshot"))?
-        .ok_or(CoreDomainRepositoryError::NotFound("fork_source_session"))?;
+        .bind(parent_campaign_id);
+        let mut state: Value = snapshot_query
+            .fetch_optional(&self.primary)
+            .await
+            .map_err(database_error("load_campaign_fork_snapshot"))?
+            .ok_or(CoreDomainRepositoryError::NotFound("fork_source_session"))?;
         let cutoff_event_sequence = state
             .get("source_cutoff_event_sequence")
             .and_then(Value::as_i64)
@@ -7862,6 +8380,7 @@ impl CoreDomainRepository {
             &source_event_sequences,
         )?)
         .map_err(|_| CoreDomainRepositoryError::Serialization)?;
+        state["npc_state"] = Value::Array(derive_fork_gameplay_npc_state(&state)?);
         let snapshot = serde_json::json!({
             "schema_version": 1,
             "copy_scopes": DEFAULT_PUBLIC_COPY_SCOPES,
@@ -7925,6 +8444,33 @@ impl CoreDomainRepository {
             fork_child_id(&request.fork_id, "scenario", &request.source_session_id)?;
         let child_session_id =
             fork_child_id(&request.fork_id, "session", &request.source_session_id)?;
+        let mut identity_ids = BTreeMap::<String, String>::new();
+        for character in &source.character_state {
+            if identity_ids
+                .insert(
+                    character.character_id.clone(),
+                    fork_child_id(&request.fork_id, "character", &character.character_id)?,
+                )
+                .is_some()
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "fork_character_snapshot_identity",
+                ));
+            }
+        }
+        for npc in &source.npc_state {
+            if identity_ids
+                .insert(
+                    npc.npc_id.clone(),
+                    fork_child_id(&request.fork_id, "npc", &npc.npc_id)?,
+                )
+                .is_some()
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "fork_gameplay_snapshot_identity",
+                ));
+            }
+        }
 
         let mut scene_ids = BTreeMap::new();
         for scene in &source.scene_state {
@@ -8007,8 +8553,10 @@ impl CoreDomainRepository {
             }
             let (visibility_label, visibility_subject) =
                 derive_fork_character_visibility(character, sheet)?;
-            let character_id =
-                fork_child_id(&request.fork_id, "character", &character.character_id)?;
+            let character_id = identity_ids
+                .get(&character.character_id)
+                .expect("character mapping was constructed above")
+                .clone();
             let sheet_version_id =
                 fork_child_id(&request.fork_id, "sheet", &character.character_id)?;
             rows.push(CampaignForkMaterializedRow::Character {
@@ -8123,7 +8671,10 @@ impl CoreDomainRepository {
                 ));
             }
             rows.push(CampaignForkMaterializedRow::NpcState {
-                npc_state_id: fork_child_id(&request.fork_id, "npc", &npc.npc_id)?,
+                npc_state_id: identity_ids
+                    .get(&npc.npc_id)
+                    .expect("NPC mapping was constructed above")
+                    .clone(),
                 source_npc_id: npc.npc_id.clone(),
                 state_json: serde_json::to_string(&npc.state)
                     .map_err(|_| CoreDomainRepositoryError::Serialization)?,
@@ -8144,6 +8695,7 @@ impl CoreDomainRepository {
             }
             let child_combat_id = fork_child_id(&request.fork_id, "combat", &combat.combat_id)?;
             let mut state = combat.state.clone();
+            rewrite_fork_gameplay_identity_references(&mut state, &identity_ids)?;
             state["combat_id"] = Value::String(child_combat_id.clone());
             state["version"] = Value::from(1_u64);
             rows.push(CampaignForkMaterializedRow::Combat {
@@ -8172,6 +8724,7 @@ impl CoreDomainRepository {
             }
             let child_chase_id = fork_child_id(&request.fork_id, "chase", &chase.chase_id)?;
             let mut state = chase.state.clone();
+            rewrite_fork_gameplay_identity_references(&mut state, &identity_ids)?;
             state["chase_id"] = Value::String(child_chase_id.clone());
             state["version"] = Value::from(1_u64);
             rows.push(CampaignForkMaterializedRow::Chase {
@@ -8273,19 +8826,6 @@ impl CoreDomainRepository {
             .await?;
         self.ensure_campaign_admin(&request.child_campaign_id, &metadata.requesting_actor_id)
             .await?;
-        let mut child_lineage_guard = self
-            .primary
-            .begin()
-            .await
-            .map_err(database_error("begin_campaign_fork_child_lock"))?;
-        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
-            .bind(format!(
-                "p08-campaign-fork-child:{}",
-                request.child_campaign_id
-            ))
-            .execute(&mut *child_lineage_guard)
-            .await
-            .map_err(database_error("lock_campaign_fork_child"))?;
 
         let mut canonical_lineage = None;
         for replay in self
@@ -8542,7 +9082,26 @@ impl CoreDomainRepository {
                 data_subject_id: batch.data_subject_id.clone(),
             });
         }
-        let persisted = self.canonical.commit(&draft).await?;
+        let persisted = match self.canonical.commit(&draft).await {
+            Ok(persisted) => persisted,
+            Err(error) => {
+                // A concurrent candidate may have won the canonical partial
+                // unique index after this request's preflight read. Resolve
+                // that database conflict to the stable domain error without
+                // keeping a pool connection reserved across the commit.
+                if self
+                    .load_campaign_events(&request.child_campaign_id)
+                    .await?
+                    .iter()
+                    .any(|event| event.event_type == "CampaignForkRecorded")
+                {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "campaign_fork_child_lineage_conflict",
+                    ));
+                }
+                return Err(CoreDomainRepositoryError::Canonical(error));
+            }
+        };
         let replay_events = self
             .load_campaign_events(&request.child_campaign_id)
             .await?
@@ -8558,20 +9117,42 @@ impl CoreDomainRepository {
                 "campaign_fork_event_batch_mismatch",
             ));
         }
-        let mut transaction = self
-            .begin_projection_transaction(&metadata.commit_id, "begin_campaign_fork")
-            .await?;
+        // Do not reserve a pool connection while snapshot construction,
+        // canonical commit, or replay-page decryption may themselves need a
+        // connection. The canonical event-store uniqueness invariant prevents
+        // two lineages for one child campaign; this short transaction only
+        // serializes and atomically applies the child projection.
+        let mut child_lineage_guard = self
+            .primary
+            .begin()
+            .await
+            .map_err(database_error("begin_campaign_fork_child_lock"))?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!(
+                "p08-campaign-fork-child:{}",
+                request.child_campaign_id
+            ))
+            .execute(&mut *child_lineage_guard)
+            .await
+            .map_err(database_error("lock_campaign_fork_child"))?;
+        self.lock_p08_projection_rebuild_scope(
+            &mut child_lineage_guard,
+            &request.child_campaign_id,
+        )
+        .await?;
+        self.set_projection_capability(
+            &mut child_lineage_guard,
+            &metadata.commit_id,
+            "set_campaign_fork_projection_capability",
+        )
+        .await?;
         sqlx::query("SET CONSTRAINTS ALL DEFERRED")
-            .execute(&mut *transaction)
+            .execute(&mut *child_lineage_guard)
             .await
             .map_err(database_error("defer_campaign_fork_constraints"))?;
         for replay_event in &replay_events {
-            apply_campaign_fork_replay_event(&mut transaction, replay_event).await?;
+            apply_campaign_fork_replay_event(&mut child_lineage_guard, replay_event).await?;
         }
-        transaction
-            .commit()
-            .await
-            .map_err(database_error("commit_campaign_fork"))?;
         child_lineage_guard
             .commit()
             .await
@@ -8673,6 +9254,8 @@ impl CoreDomainRepository {
             .await?;
         let mut transaction = self
             .begin_projection_transaction(&metadata.commit_id, "begin_reconsideration_request")
+            .await?;
+        self.lock_p08_projection_rebuild_scope(&mut transaction, &request.campaign_id)
             .await?;
         let event_chain = Value::Array(vec![Value::String(metadata.command_id.clone())]);
         let result = sqlx::query(
@@ -8864,6 +9447,8 @@ impl CoreDomainRepository {
             .await?;
         let mut transaction = self
             .begin_projection_transaction(&metadata.commit_id, "begin_reconsideration_review")
+            .await?;
+        self.lock_p08_projection_rebuild_scope(&mut transaction, &request.campaign_id)
             .await?;
         let result = sqlx::query(
             r#"
@@ -9135,6 +9720,8 @@ impl CoreDomainRepository {
         };
         let mut transaction = self
             .begin_projection_transaction(&metadata.commit_id, "begin_reconsideration_resolution")
+            .await?;
+        self.lock_p08_projection_rebuild_scope(&mut transaction, &request.campaign_id)
             .await?;
         let result = sqlx::query(
             r#"
@@ -9673,6 +10260,8 @@ impl CoreDomainRepository {
         let mut transaction = self
             .begin_projection_transaction(&metadata.commit_id, "begin_ending")
             .await?;
+        self.lock_p08_projection_rebuild_scope(&mut transaction, &request.campaign_id)
+            .await?;
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
             .bind(format!(
                 "p08-ending:{}:{}",
@@ -9837,8 +10426,13 @@ impl CoreDomainRepository {
         if increase_roll_id.as_deref() == Some(server_roll_id.as_str()) {
             return Err(CoreDomainRepositoryError::InvalidInput("growth_rolls"));
         }
+        let roll_consumptions =
+            growth_gameplay_roll_consumptions(&server_roll_id, increase_roll_id.as_deref())
+                .map_err(|_| CoreDomainRepositoryError::InvalidInput("growth_rolls"))?;
         let mut transaction = self
             .begin_projection_transaction(&metadata.commit_id, "begin_growth")
+            .await?;
+        self.lock_p08_projection_rebuild_scope(&mut transaction, &request.campaign_id)
             .await?;
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
             .bind(format!(
@@ -9908,6 +10502,18 @@ impl CoreDomainRepository {
                     "idempotent_growth_request_conflict",
                 ));
             }
+            let mut projection_targets = vec![
+                projection_target("public.growth_events", &request.growth_event_id),
+                projection_target(
+                    "public.character_sheet_versions",
+                    &request.new_sheet_version_id,
+                ),
+                projection_target("public.characters", &request.character_id),
+            ];
+            projection_targets.push(projection_target(
+                "public.gameplay_roll_consumptions",
+                &request.growth_event_id,
+            ));
             return self
                 .commit_event(
                     metadata,
@@ -9915,14 +10521,7 @@ impl CoreDomainRepository {
                     &request.growth_event_id,
                     ("growth", "growth.record"),
                     &existing_event,
-                    vec![
-                        projection_target("public.growth_events", &request.growth_event_id),
-                        projection_target(
-                            "public.character_sheet_versions",
-                            &request.new_sheet_version_id,
-                        ),
-                        projection_target("public.characters", &request.character_id),
-                    ],
+                    projection_targets,
                 )
                 .await;
         }
@@ -10067,6 +10666,20 @@ impl CoreDomainRepository {
             server_roll_id: server_roll_id.clone(),
             increase_roll_id: increase_roll_id.clone(),
         };
+        self.lock_unconsumed_gameplay_rolls(&mut transaction, &roll_consumptions)
+            .await?;
+        let mut projection_targets = vec![
+            projection_target("public.growth_events", &request.growth_event_id),
+            projection_target(
+                "public.character_sheet_versions",
+                &request.new_sheet_version_id,
+            ),
+            projection_target("public.characters", &request.character_id),
+        ];
+        projection_targets.push(projection_target(
+            "public.gameplay_roll_consumptions",
+            &request.growth_event_id,
+        ));
         let persisted = self
             .commit_event(
                 metadata,
@@ -10074,16 +10687,23 @@ impl CoreDomainRepository {
                 &request.growth_event_id,
                 ("growth", "growth.record"),
                 &event,
-                vec![
-                    projection_target("public.growth_events", &request.growth_event_id),
-                    projection_target(
-                        "public.character_sheet_versions",
-                        &request.new_sheet_version_id,
-                    ),
-                    projection_target("public.characters", &request.character_id),
-                ],
+                projection_targets,
             )
             .await?;
+        project_gameplay_roll_consumptions(
+            &mut transaction,
+            &roll_consumptions,
+            &request.campaign_id,
+            "GROWTH",
+            &request.growth_event_id,
+            &metadata.visibility_label,
+            &metadata.visibility_subject,
+            &metadata.provenance_kind,
+            &metadata.provenance_reference,
+            &metadata.provenance_recorded_by,
+            persisted.last_event_sequence,
+        )
+        .await?;
         let inserted_sheet = sqlx::query(
             r#"
             INSERT INTO public.character_sheet_versions (

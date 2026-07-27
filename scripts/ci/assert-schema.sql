@@ -2220,6 +2220,47 @@ BEGIN
            AND pg_get_constraintdef(oid) LIKE '%roll_id%'
     ) OR NOT EXISTS (
         SELECT 1
+          FROM pg_constraint
+         WHERE conrelid =
+               'public.gameplay_roll_consumptions'::regclass
+           AND contype = 'c'
+           AND pg_get_constraintdef(oid) LIKE '%aggregate_kind%'
+           AND pg_get_constraintdef(oid) LIKE '%GROWTH%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid =
+               'public.gameplay_roll_consumptions'::regclass
+           AND contype = 'c'
+           AND pg_get_constraintdef(oid) LIKE '%GROWTH_PERCENTILE%'
+           AND pg_get_constraintdef(oid) LIKE '%GROWTH_INCREASE_D10%'
+    ) OR to_regclass(
+        'public.event_store_one_fork_lineage_per_child_idx'
+    ) IS NULL OR to_regclass(
+        'public.campaign_forks_child_lineage_unique'
+    ) IS NULL
+    OR NOT EXISTS (
+        SELECT 1
+          FROM pg_proc AS procedure
+          JOIN pg_namespace AS namespace
+            ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'public'
+           AND procedure.proname = 'enforce_core_projection_event'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%trpg.p08_projection_rebuild%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%CharacterGrowthApplied%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%suffix_event.event_type <> ''CharacterGrowthApplied''%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%growth_rewind_allowed%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%version_target%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%public.characters%'
+    )
+    OR NOT EXISTS (
+        SELECT 1
           FROM pg_trigger
          WHERE tgrelid =
                'public.gameplay_roll_consumptions'::regclass
@@ -2227,6 +2268,7 @@ BEGIN
            AND NOT tgisinternal
            AND encode(tgargs, 'escape') LIKE '%CombatStateRecorded%'
            AND encode(tgargs, 'escape') LIKE '%ChaseStateRecorded%'
+           AND encode(tgargs, 'escape') LIKE '%CharacterGrowthApplied%'
     ) THEN
         RAISE EXCEPTION 'P08 snapshot scope, growth, or global roll evidence is not physical';
     END IF;
