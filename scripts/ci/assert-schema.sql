@@ -2185,6 +2185,46 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'P08 table privilege boundary drifted';
     END IF;
+    IF NOT has_function_privilege(
+               'trpg_api_service',
+               'core_domain.clear_p08_rebuildable_projections(text,text)',
+               'EXECUTE'
+           )
+       OR has_function_privilege(
+               'trpg_canonical_service',
+               'core_domain.clear_p08_rebuildable_projections(text,text)',
+               'EXECUTE'
+           )
+       OR has_function_privilege(
+               'trpg_worker_service',
+               'core_domain.clear_p08_rebuildable_projections(text,text)',
+               'EXECUTE'
+           )
+       OR has_function_privilege(
+               'trpg_realtime_service',
+               'core_domain.clear_p08_rebuildable_projections(text,text)',
+               'EXECUTE'
+           )
+       OR NOT EXISTS (
+            SELECT 1
+              FROM pg_proc AS procedure
+              JOIN pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'core_domain'
+               AND procedure.proname =
+                   'clear_p08_rebuildable_projections'
+               AND procedure.prosecdef
+               AND pg_get_functiondef(procedure.oid)
+                   LIKE '%P08 projection rebuild capability rejected%'
+               AND pg_get_functiondef(procedure.oid)
+                   LIKE '%verified_hmac%'
+               AND pg_get_functiondef(procedure.oid)
+                   LIKE '%formal_commit%'
+               AND pg_get_functiondef(procedure.oid)
+                   LIKE '%projection_targets%'
+       ) THEN
+        RAISE EXCEPTION 'P08 rebuild repair capability boundary drifted';
+    END IF;
     IF NOT EXISTS (
         SELECT 1
           FROM pg_constraint

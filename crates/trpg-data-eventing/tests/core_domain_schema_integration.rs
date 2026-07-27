@@ -343,6 +343,32 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     let canonical_reader = store.clone();
     let clock = Arc::new(TestClock(AtomicU64::new(NOW_MS)));
     let repository = CoreDomainRepository::new_with_clock(primary.clone(), store, clock.clone());
+    let api_projection_pool = PgPoolOptions::new()
+        .max_connections(8)
+        .after_connect(|connection, _metadata| {
+            Box::pin(async move {
+                sqlx::query("SET ROLE trpg_api_service")
+                    .execute(&mut *connection)
+                    .await?;
+                Ok(())
+            })
+        })
+        .connect_with(PgConnectOptions::from_str(&primary_url).unwrap())
+        .await
+        .expect("connect a projection pool constrained to the production API role");
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT current_user")
+            .fetch_one(&api_projection_pool)
+            .await
+            .unwrap(),
+        "trpg_api_service",
+        "the rebuild regression must run with production projection privileges"
+    );
+    let api_repository = CoreDomainRepository::new_with_clock(
+        api_projection_pool.clone(),
+        canonical_reader.clone(),
+        clock.clone(),
+    );
 
     for (schema, table) in [
         ("public", "campaigns"),
@@ -519,6 +545,16 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
            AND NOT has_table_privilege(
                    'trpg_api_service', 'core_domain.sessions', 'DELETE'
                )
+           AND has_function_privilege(
+                   'trpg_api_service',
+                   'core_domain.clear_p08_rebuildable_projections(text,text)',
+                   'EXECUTE'
+               )
+           AND NOT has_function_privilege(
+                   'trpg_worker_service',
+                   'core_domain.clear_p08_rebuildable_projections(text,text)',
+                   'EXECUTE'
+               )
         "#,
     )
     .fetch_one(&primary)
@@ -527,6 +563,22 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     assert!(
         api_projection_privileges,
         "API projection role must be able to apply guarded rows but never delete them"
+    );
+    assert!(
+        sqlx::query("DELETE FROM public.combat_states WHERE campaign_id = 'not_present'")
+            .execute(&api_projection_pool)
+            .await
+            .is_err(),
+        "the API role must not receive direct projection DELETE privileges"
+    );
+    assert!(
+        sqlx::query("SELECT core_domain.clear_p08_rebuildable_projections($1, $2)",)
+            .bind("not_present")
+            .bind("not_present")
+            .execute(&api_projection_pool)
+            .await
+            .is_err(),
+        "the privileged cleanup must reject callers without a canonical capability"
     );
     let projection_targets_column: bool = sqlx::query_scalar(
         r#"
@@ -2339,6 +2391,61 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         normalized_ending_event, normalized_ending_projection,
         "the canonical event and live ending projection must share one normalized summary"
     );
+    let conflicting_ending_identity_metadata = metadata(
+        CAMPAIGN_ID,
+        AUTHORITY_ID,
+        KEEPER_ID,
+        "human_keeper",
+        "ending_event_p08_schema",
+        "ending",
+        "ending.record",
+        0,
+        "ending_p08_conflicting_identity",
+        "party_visible",
+        "not_applicable",
+        "human_keeper_statement",
+    );
+    assert!(matches!(
+        repository
+            .record_ending(
+                &conflicting_ending_identity_metadata,
+                &RecordEndingRequest {
+                    ending_event_id: "ending_event_p08_schema".to_owned(),
+                    campaign_id: CAMPAIGN_ID.to_owned(),
+                    session_id: "session_p06_schema".to_owned(),
+                    ending_id: "ending_expose_marta".to_owned(),
+                    summary: "A new command cannot reuse the ending identity.".to_owned(),
+                    ended_at_unix_ms: NOW_MS + 7_000,
+                },
+            )
+            .await,
+        Err(CoreDomainRepositoryError::Integrity(
+            "ending_identity_conflict"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE campaign_id = $1 AND event_type = 'EndingRecorded'",
+        )
+        .bind(CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        ending_events_before_invalid_timestamp + 1,
+        "a conflicting ending identity must fail before canonical append"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.formal_commits WHERE commit_id = $1",
+        )
+        .bind(&conflicting_ending_identity_metadata.commit_id)
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        0,
+        "a conflicting ending identity must not leave a committed formal write"
+    );
     let growth_roll = server_roll_skill_growth(70).unwrap();
     let growth_outcome = *growth_roll.outcome();
     let growth_events_before_reuse: i64 = sqlx::query_scalar(
@@ -3042,7 +3149,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             .unwrap();
     }
     corrupt_child_projection.commit().await.unwrap();
-    let repaired_child = repository
+    let repaired_child = api_repository
         .rebuild_p08_projections(CHILD_CAMPAIGN_ID)
         .await
         .expect("replace corrupt and ghost rows across the entire fork materialization");
@@ -3117,7 +3224,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             .unwrap();
     }
     remove_child_projection.commit().await.unwrap();
-    let rebuilt_child = repository
+    let rebuilt_child = api_repository
         .rebuild_p08_projections(CHILD_CAMPAIGN_ID)
         .await
         .expect("rebuild the entire child fork state solely from canonical P08 events");
@@ -3227,7 +3334,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         "../../../fixtures/scenarios/tutorial_mist_archive.scenario.yaml"
     ))
     .expect("parse a scenario for post-fork child activity");
-    repository
+    api_repository
         .import_scenario(
             &metadata(
                 CHILD_CAMPAIGN_ID,
@@ -3522,7 +3629,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         child_events_before_fork_retry,
         "an exact fork retry after child activity must not append canonical history"
     );
-    repository
+    api_repository
         .rebuild_p08_projections(CHILD_CAMPAIGN_ID)
         .await
         .expect("rebuild only fork-owned P08 rows after normal child activity");
@@ -4499,7 +4606,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             .unwrap();
     }
     corrupt_p08_projection.commit().await.unwrap();
-    let repaired_p08 = repository
+    let repaired_p08 = api_repository
         .rebuild_p08_projections(CAMPAIGN_ID)
         .await
         .expect("replace same-version corruption and remove non-canonical ghost projections");
@@ -4635,7 +4742,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             .unwrap();
     }
     remove_p08_projection.commit().await.unwrap();
-    let rebuilt_p08 = repository
+    let rebuilt_p08 = api_repository
         .rebuild_p08_projections(CAMPAIGN_ID)
         .await
         .expect("rebuild all P08 projections solely from canonical Event Store history");
@@ -4874,7 +4981,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             .fetch_one(&primary)
             .await
             .unwrap();
-    let later_character_rebuild = repository
+    let later_character_rebuild = api_repository
         .rebuild_p08_projections(CAMPAIGN_ID)
         .await
         .expect("rebuild Growth without rewinding a later SAN mutation");
