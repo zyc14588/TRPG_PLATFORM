@@ -352,12 +352,14 @@ fn validate_scenario(
     let mut ending_ids = HashSet::new();
     for ending in &document.endings {
         if ending.id.trim().is_empty()
+            || ending.id != ending.id.trim()
             || ending.condition.trim().is_empty()
             || !ending_ids.insert(ending.id.clone())
-            || ending
-                .growth_awards
-                .iter()
-                .any(|award| award.skill_name.trim().is_empty() || award.reason.trim().is_empty())
+            || ending.growth_awards.iter().any(|award| {
+                award.skill_name.trim().is_empty()
+                    || award.skill_name != award.skill_name.trim()
+                    || award.reason.trim().is_empty()
+            })
         {
             return Err(CharacterScenarioError::InvalidScenarioField("endings"));
         }

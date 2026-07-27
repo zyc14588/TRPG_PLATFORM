@@ -80,6 +80,25 @@ fn encounters_reject_duplicate_participants() {
 }
 
 #[test]
+fn endings_reject_unselectable_whitespace_padded_ids_and_awards() {
+    for invalid in [
+        TUTORIAL_SCENARIO.replace(
+            "  - id: ending_expose_marta",
+            "  - id: \" ending_expose_marta \"",
+        ),
+        TUTORIAL_SCENARIO.replace(
+            "      - skill_name: Library Use",
+            "      - skill_name: \" Library Use \"",
+        ),
+    ] {
+        assert_eq!(
+            parse_scenario_yaml(&invalid),
+            Err(CharacterScenarioError::InvalidScenarioField("endings"))
+        );
+    }
+}
+
+#[test]
 fn character_sheet_validation_rejects_invalid_coc7_data() {
     let valid = valid_character();
     let derived = valid.validate().expect("valid COC7 sheet");

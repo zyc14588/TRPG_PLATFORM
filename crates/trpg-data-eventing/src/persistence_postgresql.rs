@@ -2610,7 +2610,13 @@ fn fork_source_session_event_sequences(
                 || event.sequence <= cutoff_event_sequence
                     && (replay_event_field(event, "session_id") == Some(source_session_id)
                         || replay_event_field(event, "action_id")
-                            .is_some_and(|action_id| source_action_ids.contains(action_id)))
+                            .is_some_and(|action_id| source_action_ids.contains(action_id))
+                        || matches!(
+                            event.event_type.as_str(),
+                            "CharacterCreated"
+                                | "CharacterSubmitted"
+                                | "CharacterInitialVersionApproved"
+                        ))
         })
         .map(|event| event.sequence)
         .collect())
@@ -5651,19 +5657,20 @@ async fn apply_campaign_fork_replay_event(
                         }
                     }
                 }
-                if batch_index == batch_count {
-                    let expected_rows: i64 = sqlx::query_scalar(
-                        "SELECT materialized_row_count \
+            }
+            if batch_index == batch_count {
+                let expected_rows: i64 = sqlx::query_scalar(
+                    "SELECT materialized_row_count \
                            FROM public.campaign_fork_materializations \
                           WHERE fork_id = $1 AND campaign_id = $2",
-                    )
-                    .bind(&fork_id)
-                    .bind(&child_campaign_id)
-                    .fetch_one(&mut **transaction)
-                    .await
-                    .map_err(database_error("load_fork_expected_row_count"))?;
-                    let actual_rows: i64 = sqlx::query_scalar(
-                        r#"
+                )
+                .bind(&fork_id)
+                .bind(&child_campaign_id)
+                .fetch_one(&mut **transaction)
+                .await
+                .map_err(database_error("load_fork_expected_row_count"))?;
+                let actual_rows: i64 = sqlx::query_scalar(
+                    r#"
                         WITH fork_targets AS (
                             SELECT DISTINCT
                                    target ->> 'relation' AS relation_name,
@@ -5731,17 +5738,16 @@ async fn apply_campaign_fork_replay_event(
                           JOIN materialized_rows
                             USING (relation_name, row_id)
                         "#,
-                    )
-                    .bind(&child_campaign_id)
-                    .bind(&fork_id)
-                    .fetch_one(&mut **transaction)
-                    .await
-                    .map_err(database_error("count_fork_materialized_rows"))?;
-                    if actual_rows != expected_rows {
-                        return Err(CoreDomainRepositoryError::Integrity(
-                            "fork_materialized_row_count_mismatch",
-                        ));
-                    }
+                )
+                .bind(&child_campaign_id)
+                .bind(&fork_id)
+                .fetch_one(&mut **transaction)
+                .await
+                .map_err(database_error("count_fork_materialized_rows"))?;
+                if actual_rows != expected_rows {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_materialized_row_count_mismatch",
+                    ));
                 }
             }
         }

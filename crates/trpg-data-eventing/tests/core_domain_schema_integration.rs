@@ -1446,6 +1446,76 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .await
         .expect("resume paused session");
 
+    repository
+        .create_character(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                "character_p08_late_joiner",
+                "character",
+                "character.create",
+                0,
+                "character_p08_late_joiner_create",
+                "private_to_player",
+                PLAYER_ID,
+                "user_statement",
+            ),
+            &CreateCharacterRequest {
+                character_id: "character_p08_late_joiner".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                owner_user_id: PLAYER_ID.to_owned(),
+                display_name: "Late Joining Investigator".to_owned(),
+                sheet_version_id: "sheet_p08_late_joiner_v1".to_owned(),
+                sheet_json: r#"{"name":"Late Joining Investigator","ruleset":"coc7","characteristics":{"power":55},"skills":{"Library Use":60}}"#.to_owned(),
+            },
+        )
+        .await
+        .expect("create an idle character after the source session starts");
+    repository
+        .submit_character(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                PLAYER_ID,
+                "investigator",
+                "character_p08_late_joiner",
+                "character",
+                "character.submit",
+                1,
+                "character_p08_late_joiner_submit",
+                "private_to_player",
+                PLAYER_ID,
+                "user_statement",
+            ),
+            CAMPAIGN_ID,
+            "character_p08_late_joiner",
+        )
+        .await
+        .expect("submit the late-joining character without a session action");
+    repository
+        .approve_character_initial_version(
+            &metadata(
+                CAMPAIGN_ID,
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "character_p08_late_joiner",
+                "character",
+                "character.review_initial",
+                2,
+                "character_p08_late_joiner_approve",
+                "private_to_player",
+                PLAYER_ID,
+                "human_keeper_statement",
+            ),
+            CAMPAIGN_ID,
+            "character_p08_late_joiner",
+        )
+        .await
+        .expect("approve the idle late joiner before the source cutoff");
+
     let mut combat = CombatState::start(
         "combat_p08_schema",
         vec![
@@ -2809,6 +2879,15 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     }
     let snapshot_value: serde_json::Value =
         serde_json::from_str(&snapshot.canonical_snapshot_json).unwrap();
+    assert!(
+        snapshot_value["state"]["character_state"]
+            .as_array()
+            .is_some_and(|characters| characters.iter().any(|character| {
+                character["character_id"] == "character_p08_late_joiner"
+                    && character["state"] == "APPROVED"
+            })),
+        "a character created after session start must remain in the fork snapshot even without an action"
+    );
     for state_key in ["combat_state", "chase_state", "conclusion_state"] {
         assert!(
             snapshot_value["state"][state_key]
@@ -2918,14 +2997,6 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .fetch_one(&primary)
         .await
         .unwrap();
-    assert_eq!(
-        child_state_counts.0, 1,
-        "fork must materialize the world/scenario scope"
-    );
-    assert_eq!(child_state_counts.1, 1);
-    assert_eq!(child_state_counts.2, 1);
-    assert_eq!(child_state_counts.3, 2);
-    assert_eq!(child_state_counts.4, 1);
     let snapshot_scope_len = |name: &str| {
         i64::try_from(
             snapshot_value["state"][name]
@@ -2935,6 +3006,18 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         )
         .unwrap()
     };
+    assert_eq!(
+        child_state_counts.0, 1,
+        "fork must materialize the world/scenario scope"
+    );
+    assert_eq!(
+        child_state_counts.1,
+        snapshot_scope_len("character_state"),
+        "every copyable character at the source cutoff must be materialized"
+    );
+    assert_eq!(child_state_counts.2, 1);
+    assert_eq!(child_state_counts.3, 2);
+    assert_eq!(child_state_counts.4, 1);
     assert_eq!(
         child_state_counts.5,
         snapshot_scope_len("public_events"),
@@ -3091,7 +3174,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
          SET document_json = jsonb_set(document_json, '{corrupted}', 'true'::jsonb) \
          WHERE campaign_id = $1",
         "UPDATE public.characters \
-         SET display_name = 'CORRUPTED_CHILD_CHARACTER' \
+         SET display_name = 'CORRUPTED_CHILD_CHARACTER_' || character_id \
          WHERE campaign_id = $1",
         "UPDATE public.character_sheet_versions \
          SET sheet_json = jsonb_set(sheet_json, '{corrupted}', 'true'::jsonb) \
@@ -3167,7 +3250,7 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
               WHERE campaign_id = $1 AND document_json ? 'corrupted')
           + (SELECT count(*) FROM public.characters
               WHERE campaign_id = $1
-                AND display_name = 'CORRUPTED_CHILD_CHARACTER')
+                AND display_name LIKE 'CORRUPTED_CHILD_CHARACTER_%')
           + (SELECT count(*) FROM public.character_sheet_versions
               WHERE campaign_id = $1 AND sheet_json ? 'corrupted')
           + (SELECT count(*) FROM core_domain.sessions
