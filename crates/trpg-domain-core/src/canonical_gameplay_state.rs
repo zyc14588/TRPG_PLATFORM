@@ -522,6 +522,9 @@ fn apply_combat_mutation(
                 .iter()
                 .find(|participant| participant.participant_id == *target_id)
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if defender.condition == CombatCondition::Dead {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
             if *defense != CombatDefense::None && !defender.condition.can_act() {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
@@ -594,6 +597,9 @@ fn apply_combat_mutation(
                 .iter()
                 .find(|participant| participant.participant_id == *target_id)
                 .ok_or(CanonicalGameplayStateError::InvalidTransition)?;
+            if defender.condition == CombatCondition::Dead {
+                return Err(CanonicalGameplayStateError::InvalidTransition);
+            }
             if *defense != CombatDefense::None && !defender.condition.can_act() {
                 return Err(CanonicalGameplayStateError::InvalidTransition);
             }
@@ -1733,7 +1739,7 @@ mod tests {
             last_transition: CombatMutation::Started,
         };
         let previous_json = serde_json::to_string(&incapacitated_defender).unwrap();
-        let mut forged_defense = incapacitated_defender;
+        let mut forged_defense = incapacitated_defender.clone();
         forged_defense.version = 2;
         forged_defense.turn_action_consumed = true;
         forged_defense.consumed_roll_ids =
@@ -1766,6 +1772,34 @@ mod tests {
                 &serde_json::to_string(&forged_defense).unwrap(),
             ),
             Err(CanonicalGameplayStateError::InvalidTransition)
+        );
+
+        let mut forged_dead_miss = incapacitated_defender;
+        forged_dead_miss.version = 2;
+        forged_dead_miss.turn_action_consumed = true;
+        forged_dead_miss.consumed_roll_ids = vec!["dead_target_miss".to_owned()];
+        forged_dead_miss.last_transition = CombatMutation::AttackMissed {
+            attacker_id: "attacker".to_owned(),
+            target_id: "defender".to_owned(),
+            action: CombatActionKind::Melee,
+            defense: CombatDefense::None,
+            attacker_roll: PercentileRollEvidence {
+                roll_id: "dead_target_miss".to_owned(),
+                target: 60,
+                roll: 80,
+                selected_tens_digit: 8,
+                ones_digit: 0,
+                success_level: SuccessLevel::Failure,
+            },
+            defender_roll: None,
+        };
+        assert_eq!(
+            validate_combat_state_transition(
+                Some(&previous_json),
+                &serde_json::to_string(&forged_dead_miss).unwrap(),
+            ),
+            Err(CanonicalGameplayStateError::InvalidTransition),
+            "a failed roll cannot turn an attack against a dead target into a valid mutation"
         );
 
         let medical = CombatSnapshot {

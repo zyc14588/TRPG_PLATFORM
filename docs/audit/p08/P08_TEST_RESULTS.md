@@ -292,6 +292,23 @@ assertion）均通过。相同 Semgrep 1.171.0、34 目标、13 规则的最终�
 0 finding、0 error、0 skipped，机器结果为
 `/tmp/p08-semgrep-output/p08-fifteenth-review-fix-final.json`。
 
+第十六至二十轮的真实数据库回归继续覆盖 Growth→SAN、fork 后普通角色 Growth、
+无效 Ending 时间戳、冲突 Growth sheet ID、生产 API role rebuild、late-joining
+character 和 copied-character SAN suffix。第二十轮修复提交 `8087404` 的规则/数据库/
+Clippy 与 changed-target Semgrep 通过，第二十一轮精确 SHA review 未重复该 P1；
+另两个默认公开 fork 之外的扩展 P2 按用户门槛记录延期。
+
+第二十一轮三项修复新增 forward-only `20260727000900`。Schema assertion 创建不带
+生产 FK/trigger 的临时约束副本，分别尝试 v2 Fork NULL snapshot、REVIEWED NULL
+summary、UPHELD NULL resolution、CORRECTED NULL payload；四项只有取得
+`check_violation` 才继续，因此不以 catalog 文本单独冒充行为通过。Combat 新增 hit 与
+miss 两条 dead-target 路径，均在骰证据解析/消费前返回相同错误且 aggregate JSON
+不变；独立领域 replay 同步拒绝伪造 miss。规则文件 `9/9`、领域 `6/6`、完整 COC7
+crate、workspace strict Clippy、空库与 B24 upgrade/repeat、decision atomicity、
+core-domain、Tutorial `2/2`、P06/P07/P08 schema assertion 全部通过。Semgrep
+1.171.0 对 3 个 Rust 与 2 个 SQL changed targets 运行 13 条规则，结果为 0 finding、
+0 error、0 skipped，机器结果为 `/tmp/p08-semgrep-round21.json`。
+
 第一次把证据类型直接迁入 ruleset 时，runtime 编译暴露 data-eventing/runtime 不允许
 该生产依赖，exit `101`，未计通过；最终方案保持 shared-kernel 依赖方向后同一测试
 `3/3` 通过。真实数据库脚本第一次在沙箱内连接 Docker 被拒，授权访问后才取得完整
@@ -307,9 +324,9 @@ pnpm，与仓库锁定版本不符，23 项中 4 项环境证据断言失败。�
 
 | 门禁 | 结果 |
 | --- | --- |
-| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；34 targets、13 rules、0 finding、0 error、0 skipped |
+| Semgrep 1.171.0，`p/rust` + `p/security-audit` | PASS；34-target baseline 与最新 5 changed targets 均为 13 rules、0 finding、0 error、0 skipped |
 | CodeRabbit 0.7.0 | CLI 登录浏览器回调未完成，`NOT_RUN_NOT_AUTHENTICATED`，未冒充结果 |
-| GitHub PR #9 自动审查 | 前十五轮为 4、5、5、4、2、3、5、3、4、2、2、2、2、1、3 项；第十四轮修复已由第十五轮确认未重复，第十五轮 3 项已本地修复，最新提交/复审 pending |
+| GitHub PR #9 自动审查 | 前二十一轮真实意见均已追踪；第二十轮 P1 已由第二十一轮确认，两个非阻断扩展 P2 明确延期；第二十一轮 3 项已本地修复，最新提交/复审 pending |
 | `cargo audit 0.22.2 --no-fetch` | exit `1`；381 dependencies、3 个基线 advisory |
 
 Semgrep 扩展复扫最初对 `data_deletion_e2e.rs` 报告 2 个共享临时目录竞争问题；测试已
@@ -340,9 +357,10 @@ rebuild 会删除 fork 后的正常 child 状态、retry 行数错误覆盖整�
 可变 parent snapshot，以及无 `growth_awards` 的 Ending 无法完成。第十四轮确认
 第十三轮两项未重复，又指出 Combat 初始构造器会清除跨遭遇伤势。第十五轮确认
 该问题未重复，又指出 Growth 可扩大来源 Visibility、成长证据可由独立骰拼装挑选，
-以及 Dying 无法通过 First Aid 稳定。以上均已按问题根因
-修复；扩展到 34 目标的 Semgrep 复扫仍为
-0 finding。本报告在
+以及 Dying 无法通过 First Aid 稳定。第十六至二十轮继续指出并修复角色重建连续性、
+append 前验证、生产 rebuild 权限、late joiner 和 copied-character SAN；第二十一轮
+指出的 NULL CHECK 绕过与 dead-target 随机有效性也已按根因修复。扩展到 34 目标的
+Semgrep 基线及最新 5 changed targets 复扫仍为 0 finding。本报告在
 最新远端 CI/复审完成前保持 pending，不以本地结果冒充远端通过。
 第三轮修复提交仅有 3/5 workflow 完成通过后取消 2 项；第四轮修复提交 `ea760c1`
 仅有 2/5 完成通过后取消 3 项；第五轮修复提交 `fb3907e` 仅有 3/5 完成通过后取消
@@ -381,3 +399,7 @@ P08 migration SHA-384：
   `4aa250ec0b9020e80194bb87cf86891d06c26cc07f5400fc547ac6860ecc9f4443193e6ef56d4ba2ac438f9863407859`
 - `20260727000700`：
   `2a0535005ed362d661ac8131297b355eba2229610f2e38531ad7860c494993e3078850fbacf4f979b46320c1d78acfce`
+- `20260727000800`：
+  `9e54aa67734dde88d0f34b62b9fb75630128305aa2c12e13783f2e644578dad77e79a5d6f8c068f74d7bbf7aa9875eb2`
+- `20260727000900`：
+  `5eb54f0505197c2bde608fb6bbb1c3be055a35ac85467fc3723982d70036e46f20400e705321fdb3798e2a9568d4cfc8`

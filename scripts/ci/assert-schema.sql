@@ -1989,6 +1989,22 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'P08 global gameplay roll migration is not applied';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000800
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 production rebuild authorization migration is not applied';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000900
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 non-null projection shape migration is not applied';
+    END IF;
     IF EXISTS (
         SELECT 1
           FROM (VALUES
@@ -2230,9 +2246,28 @@ BEGIN
           FROM pg_constraint
          WHERE conrelid = 'public.campaign_forks'::regclass
            AND pg_get_constraintdef(oid) LIKE '%child_snapshot_hash%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%child_snapshot_hash IS NOT NULL%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%copy_scope_json IS NOT NULL%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%snapshot_json IS NOT NULL%'
            AND pg_get_constraintdef(oid) LIKE '%AI_INTERNAL_MEMORY%'
            AND pg_get_constraintdef(oid) LIKE '%materialization_version%'
            AND pg_get_constraintdef(oid) LIKE '%child_campaign_id%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'public.reconsiderations'::regclass
+           AND conname = 'reconsiderations_v2_append_only_shape'
+           AND pg_get_constraintdef(oid)
+               LIKE '%review_summary IS NOT NULL%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%resolution IS NOT NULL%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%corrected_event_type IS NOT NULL%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%corrected_payload IS NOT NULL%'
     ) OR NOT EXISTS (
         SELECT 1
           FROM pg_constraint
@@ -2339,6 +2374,108 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'P08 snapshot, fork serialization, growth, or global roll evidence is not physical';
     END IF;
+
+    BEGIN
+        CREATE TEMP TABLE p08_fork_shape_probe (
+            LIKE public.campaign_forks
+            INCLUDING DEFAULTS
+            INCLUDING CONSTRAINTS
+        );
+        INSERT INTO p08_fork_shape_probe (
+            fork_id, campaign_id, parent_campaign_id, child_campaign_id,
+            source_session_id, source_snapshot_hash, reason, version,
+            visibility_label, visibility_subject, provenance_kind,
+            provenance_reference, provenance_recorded_by,
+            last_event_sequence, materialization_version,
+            child_snapshot_hash, copy_scope_json, snapshot_json
+        ) VALUES (
+            'fork_probe', 'child_probe', 'parent_probe', 'child_probe',
+            'session_probe',
+            'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'constraint probe', 1, 'keeper_only', 'not_applicable',
+            'system_fixture', 'constraint_probe', 'schema_assertion',
+            1, 2, NULL, NULL, NULL
+        );
+        RAISE EXCEPTION 'P08 v2 fork NULL shape bypassed its CHECK constraint';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        CREATE TEMP TABLE p08_reviewed_shape_probe (
+            LIKE public.reconsiderations
+            INCLUDING DEFAULTS
+            INCLUDING CONSTRAINTS
+        );
+        INSERT INTO p08_reviewed_shape_probe (
+            reconsideration_id, campaign_id, original_event_sequence,
+            requested_by, reason, state, resolution, event_chain, version,
+            visibility_label, visibility_subject, provenance_kind,
+            provenance_reference, provenance_recorded_by,
+            last_event_sequence, review_workflow_version, review_summary,
+            outcome, corrected_event_type, corrected_payload
+        ) VALUES (
+            'reviewed_probe', 'campaign_probe', 1, 'user_probe',
+            'constraint probe', 'REVIEWED', NULL, '["event_probe"]'::JSONB,
+            1, 'keeper_only', 'not_applicable', 'system_fixture',
+            'constraint_probe', 'schema_assertion', 1, 2, NULL,
+            NULL, NULL, NULL
+        );
+        RAISE EXCEPTION 'P08 REVIEWED NULL evidence bypassed its CHECK constraint';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        CREATE TEMP TABLE p08_upheld_shape_probe (
+            LIKE public.reconsiderations
+            INCLUDING DEFAULTS
+            INCLUDING CONSTRAINTS
+        );
+        INSERT INTO p08_upheld_shape_probe (
+            reconsideration_id, campaign_id, original_event_sequence,
+            requested_by, reason, state, resolution, event_chain, version,
+            visibility_label, visibility_subject, provenance_kind,
+            provenance_reference, provenance_recorded_by,
+            last_event_sequence, review_workflow_version, review_summary,
+            outcome, corrected_event_type, corrected_payload
+        ) VALUES (
+            'upheld_probe', 'campaign_probe', 1, 'user_probe',
+            'constraint probe', 'RESOLVED', NULL, '["event_probe"]'::JSONB,
+            1, 'keeper_only', 'not_applicable', 'system_fixture',
+            'constraint_probe', 'schema_assertion', 1, 2,
+            'reviewed evidence', 'UPHELD', NULL, NULL
+        );
+        RAISE EXCEPTION 'P08 UPHELD NULL resolution bypassed its CHECK constraint';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        CREATE TEMP TABLE p08_corrected_shape_probe (
+            LIKE public.reconsiderations
+            INCLUDING DEFAULTS
+            INCLUDING CONSTRAINTS
+        );
+        INSERT INTO p08_corrected_shape_probe (
+            reconsideration_id, campaign_id, original_event_sequence,
+            requested_by, reason, state, resolution, event_chain, version,
+            visibility_label, visibility_subject, provenance_kind,
+            provenance_reference, provenance_recorded_by,
+            last_event_sequence, review_workflow_version, review_summary,
+            outcome, corrected_event_type, corrected_payload
+        ) VALUES (
+            'corrected_probe', 'campaign_probe', 1, 'user_probe',
+            'constraint probe', 'RESOLVED', 'corrected',
+            '["event_probe"]'::JSONB, 1, 'keeper_only', 'not_applicable',
+            'system_fixture', 'constraint_probe', 'schema_assertion',
+            1, 2, 'reviewed evidence', 'CORRECTED',
+            'CorrectedEvent', NULL
+        );
+        RAISE EXCEPTION 'P08 CORRECTED NULL payload bypassed its CHECK constraint';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
 END;
 $$;
 

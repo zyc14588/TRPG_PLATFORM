@@ -696,6 +696,9 @@ impl CombatState {
                 "combat_defender_incapacitated",
             ));
         }
+        if defender.condition == CombatCondition::Dead {
+            return Err(TrpgError::InvalidConfiguration("combat_target_dead"));
+        }
         if (defense != CombatDefense::None) != defender_roll.is_some() {
             return Err(TrpgError::InvalidConfiguration("combat_defense_roll"));
         }
@@ -780,6 +783,9 @@ impl CombatState {
             return Err(TrpgError::InvalidConfiguration(
                 "combat_defender_incapacitated",
             ));
+        }
+        if defender.condition == CombatCondition::Dead {
+            return Err(TrpgError::InvalidConfiguration("combat_target_dead"));
         }
         let defender_target = defender.skill_targets.defense_target(defense);
         if defense == CombatDefense::FightBack && action != CombatActionKind::Melee {

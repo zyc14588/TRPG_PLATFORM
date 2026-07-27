@@ -48,7 +48,22 @@ GITHUB_THIRTEENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FOURTEENTH_REVIEW
 GITHUB_FOURTEENTH_AUTOMATED_REVIEW = 1_ACTIONABLE
 GITHUB_FOURTEENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_FIFTEENTH_REVIEW
 GITHUB_FIFTEENTH_AUTOMATED_REVIEW = 3_ACTIONABLE
-GITHUB_FIFTEENTH_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_FIFTEENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_SIXTEENTH_REVIEW
+GITHUB_SIXTEENTH_AUTOMATED_REVIEW = 2_ACTIONABLE
+GITHUB_SIXTEENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_SEVENTEENTH_REVIEW
+GITHUB_SEVENTEENTH_AUTOMATED_REVIEW = 2_ACTIONABLE
+GITHUB_SEVENTEENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_EIGHTEENTH_REVIEW
+GITHUB_EIGHTEENTH_AUTOMATED_REVIEW = 1_ACTIONABLE
+GITHUB_EIGHTEENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_NINETEENTH_REVIEW
+GITHUB_NINETEENTH_AUTOMATED_REVIEW = 2_ACTIONABLE
+GITHUB_NINETEENTH_REVIEW_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTIETH_REVIEW
+GITHUB_TWENTIETH_AUTOMATED_REVIEW = 1_BLOCKING_2_NONBLOCKING
+GITHUB_TWENTIETH_BLOCKING_FIX_STATUS = FIXED_CONFIRMED_BY_TWENTY_FIRST_REVIEW
+GITHUB_TWENTIETH_NONBLOCKING_STATUS = DEFERRED_BY_USER_THRESHOLD
+GITHUB_TWENTY_FIRST_AUTOMATED_REVIEW = 3_ACTIONABLE
+GITHUB_TWENTY_FIRST_REVIEW_FIX_STATUS = IMPLEMENTED_LOCALLY_RERUN_PENDING
+GITHUB_LATEST_REVIEWED_TARGET = 8087404e852afa2642e887fea9662443dc02213c
+GITHUB_NEXT_REVIEW_TARGET = PENDING_COMMIT
 GITHUB_THIRD_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTH_REPAIR_HOSTED_CI = 2_PASS_3_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FIFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
@@ -61,7 +76,7 @@ GITHUB_ELEVENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_TWELFTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_THIRTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
 GITHUB_FOURTEENTH_REPAIR_HOSTED_CI = 3_PASS_2_CANCELED_AFTER_REVIEW_BLOCKERS
-GITHUB_FIFTEENTH_REPAIR_HOSTED_CI = PENDING
+GITHUB_LATEST_REPAIR_HOSTED_CI = 2_PASS_3_RUNNING
 CARGO_AUDIT_VERSION = 0.22.2
 CARGO_AUDIT_EXIT = 1
 CARGO_AUDIT_ADVISORIES = 3_BASELINE_DISCLOSED
@@ -97,6 +112,11 @@ registry exit `2`；显式把设置/日志定向到 `/tmp` 并获准获取相同
 已取得 236 条规则，但默认并行引擎因 `io_uring_queue_init` 资源不足得到 1 error、
 0 scanned，同样未计通过。不减规则、不减目标、不忽略错误，只固定 `--jobs 1` 后，
 13 条适用规则对 34 目标完成为 0 finding、0 error、0 skipped。
+第二十轮阻断修复继续使用 Semgrep 1.171.0、相同两组 registry 配置、关闭 metrics
+并固定单 worker，对本轮实际变更的 2 个 Rust 与 1 个 SQL 目标运行 13 条适用规则，
+得到 0 finding、0 error、0 skipped；没有用缩小规则集替代既有 34 目标基线扫描。
+第二十一轮修复对实际变更的 3 个 Rust 与 2 个 SQL 目标沿用相同配置，13 条适用规则
+同样得到 0 finding、0 error、0 skipped。
 只有最终 0 error JSON 被计为通过，前述中间运行没有被覆盖或伪报。
 
 扩展范围首次复扫发现 `data_deletion_e2e.rs` 两处以可预测名称直接使用共享临时目录。
@@ -107,7 +127,9 @@ registry exit `2`；显式把设置/日志定向到 `/tmp` 并获准获取相同
 没有通过 ignore、规则删减或降低 severity 获得通过。
 
 机器可读结果位于
-`/tmp/p08-semgrep-output/p08-fifteenth-review-fix-final.json`，只作为本次本地复核记录，
+`/tmp/p08-semgrep-output/p08-fifteenth-review-fix-final.json`、
+`/tmp/p08-semgrep-round20.json` 与 `/tmp/p08-semgrep-round21.json`，只作为本次
+本地复核记录，
 不进入发布包，也不含密码或 token。Semgrep 0 finding 只代表所运行规则未发现问题，
 不替代功能、数据库、权限、重放或依赖审计。
 
@@ -363,6 +385,60 @@ Medicine 跳过急救和伪造 `Able`。规则 `8/8`、独立领域 `6/6`、runt
 相同 34 目标 Semgrep 均通过。仍须等待新的精确 SHA 5/5 Hosted CI 与远端复审，才允许
 合并。
 
+对应提交 `b39dc72` 的第十六轮精确 SHA review `4785705667` 确认第十五轮三项未重复，
+并提出 2 个 P1：Growth 后发生 SAN 时 rebuild 会错误回退角色；fork 后普通角色完成
+Growth 时又会因统一跳过 rewind 而在删除成长 sheet 后留下悬空 current version。
+`f970d7f` 按 verified canonical tip 区分 P08-owned、later-canonical 与污染状态，
+分别安全重建或保留后续状态；普通 Campaign 的 Growth→SAN 和 child Campaign 的
+post-fork Character→Growth 真库路径均通过。
+
+第十七轮精确 SHA review `4785952496` 确认上述两项未重复，并提出 2 个 P1：超出
+Chrono 范围的 Ending 时间戳、以及全局冲突的 Growth 新 sheet ID，都会先写 Event
+Store 再投影失败。`e118ad2` 把时间转换和 sheet identity 预检移到 canonical append
+之前并纳入共享 writer lock；负例证明正史不增长且之后合法请求仍可完成。
+
+第十八轮精确 SHA review `4786025401` 确认上述两项未重复，并指出生产 API role
+没有 P08 rebuild 直接 DELETE 权限，owner-pool 集成测试掩盖了线上必失败路径。
+`e7210f8` 增加固定 `search_path`、PUBLIC 无执行权、仅 API role 可调用且必须持有
+最新 verified/formal P08 commit 秘密 capability 的 target-scoped
+`SECURITY DEFINER` 清理函数；真实 API role 测试同时证明直接 DELETE 和缺 capability
+调用失败。
+
+第十九轮精确 SHA review `4786159483` 确认权限问题未重复，并提出 2 项：source
+Session 启动后创建、cutoff 前完成但未参与 action 的 idle character 会被 fork
+遗漏；带首尾空白的 Ending ID 可通过场景验证却无法选择。`b6bd4a0` 纳入 cutoff 前
+Character create/submit/approve 生命周期，并让真实 fork 物化 late joiner；场景
+验证同时拒绝 padded Ending ID 与 growth skill。两项均由第二十轮未重复确认。
+
+第二十轮精确 SHA review `4786284972` 对 `b6bd4a0` 提出 1 个 P1 与 2 个 P2。
+P1 是 fork 复制角色后发生 SAN 等非 P08 更新时，cleanup 仍删除角色并撞上非延迟
+sheet 外键。提交 `8087404e852afa2642e887fea9662443dc02213c` 只清理 canonical tip
+仍由 P08 拥有的共享投影；任何保留角色都必须由最新 verified/formal 角色与当前
+sheet 事件、版本计数、Visibility 与 Fact Provenance 联合证明。真实 PostgreSQL
+回归执行 fork→copied character SAN→P08 rebuild，并逐字节核对角色、全部 sheet、
+player action 与 SAN，完整数据库套件通过。本轮 changed-target Semgrep 为 3 targets、
+13 rules、0 finding/0 error/0 skipped。
+
+两个 P2 分别是“显式授权的非默认私密 fork scope 尚未贯穿 persistence”和“非默认
+canon status 尚未持久化”。当前 P08/P09 入口只承诺默认公开 fork，两项不影响现有
+游玩闭环、P09 进入条件或重大安全边界；按用户明确门槛记录延期，未标记为已修。
+`8087404` 的第二十一轮精确 SHA review `4786393257` 确认第二十轮 P1 未重复，并提出
+3 个 P2：v2 fork materialization nullable snapshot 字段可借 CHECK=`UNKNOWN` 绕过；
+REVIEWED/RESOLVED reconsideration nullable evidence 同样可绕过；攻击 `Dead` 目标时
+miss 可被记录、hit 才失败，使命令有效性依赖随机结果。前两项直接影响 P08/P09
+正史形状和反伪造边界，第三项直接影响战斗体验，因此均不符合延期条件。
+
+修复没有改写已发布顺序的 `00300`/`00400`，而是新增 forward-only
+`20260727000900_enforce_p08_projection_shapes.sql`，显式要求 v2 fork snapshot 与
+Reconsideration 每个状态的证据非空。Schema assertion 除 catalog 指纹外，使用 4 个
+临时表行为探针证明 Fork、REVIEWED、UPHELD、CORRECTED 的 NULL 均触发
+`check_violation`。Combat 在解析/消费骰前统一拒绝 `Dead` target，独立领域 replay
+同步拒绝；新回归证明 hit 与 miss 都返回相同错误且 aggregate 不变。空库、B24 upgrade
+与 repeat、真实 PostgreSQL/Witness、完整 Tutorial、规则 `9/9`、领域 `6/6`、
+workspace strict Clippy 及 changed-target Semgrep 5 targets/13 rules/0 finding/
+0 error/0 skipped 全部通过。新提交的 Hosted CI 与第二十二轮精确 SHA 复审仍待运行，
+本报告保持 pending，不把本地结果写成远端通过。
+
 ## RustSec
 
 `cargo audit 0.22.2 --no-fetch` 使用本地 1169 条 advisory 数据检查
@@ -377,8 +453,9 @@ Medicine 跳过急救和伪造 `Able`。规则 `8/8`、独立领域 `6/6`、runt
 
 ## 独立复核结论
 
-在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub 十五轮
-自动审查先后提出的 4、5、5、4、2、3、5、3、4、2、2、2、2、1、3 项阻断均已修复或
-完成本地验证，最新提交的远端复审尚待运行；
+在 Semgrep 最终覆盖范围内未发现阻断项；CodeRabbit 因未认证未执行；GitHub
+二十一轮自动审查的真实意见均已逐项记录。所有影响游玩、P09 入口或重大安全/正史
+完整性的项目均已修复或完成本地验证；第二十轮两个默认公开 fork 之外的扩展 P2 按
+用户门槛明确延期，没有冒充修复。最新提交的远端复审尚待运行；
 RustSec 的三个基线 advisory 仍需在独立依赖治理批次处理。P08 的功能验收结论依赖
 真实测试和数据库证据，不依赖预写状态或单一第三方工具。

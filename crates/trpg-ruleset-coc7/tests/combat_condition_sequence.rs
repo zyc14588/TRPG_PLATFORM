@@ -167,6 +167,65 @@ fn a_new_encounter_preserves_persisted_health_and_condition() {
 }
 
 #[test]
+fn attacks_reject_dead_targets_before_roll_resolution() {
+    let attacker = CombatantState::new(
+        "character_living_attacker",
+        80,
+        CombatHealth::new(10, 10, CombatCondition::Able).unwrap(),
+        0,
+        CombatSkillTargets::new(60, 50, 40, 30, 10).unwrap(),
+        standard_weapon_loadout(),
+    )
+    .unwrap();
+    let dead_target = CombatantState::new(
+        "character_dead_target",
+        60,
+        CombatHealth::new(0, 10, CombatCondition::Dead).unwrap(),
+        0,
+        CombatSkillTargets::new(40, 30, 35, 20, 10).unwrap(),
+        standard_weapon_loadout(),
+    )
+    .unwrap();
+    let mut combat =
+        CombatState::start("combat_dead_target_guard", vec![attacker, dead_target]).unwrap();
+    let unchanged = combat.persistence_json().unwrap();
+
+    assert_eq!(
+        combat
+            .apply_damage(
+                "character_dead_target",
+                CombatActionKind::Melee,
+                CombatDefense::None,
+                &percentile_with_result(60, false),
+                None,
+                None,
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("combat_target_dead")
+    );
+    assert_eq!(combat.persistence_json().unwrap(), unchanged);
+
+    assert_eq!(
+        combat
+            .apply_damage(
+                "character_dead_target",
+                CombatActionKind::Melee,
+                CombatDefense::None,
+                &percentile_with_result(60, true),
+                None,
+                Some(&melee_damage_with_value(1)),
+            )
+            .unwrap_err(),
+        TrpgError::InvalidConfiguration("combat_target_dead")
+    );
+    assert_eq!(
+        combat.persistence_json().unwrap(),
+        unchanged,
+        "hit and miss rolls must both reject a dead target without consuming the turn"
+    );
+}
+
+#[test]
 fn first_aid_stabilizes_a_dying_investigator_without_erasing_the_major_wound() {
     let healer = CombatantState::new(
         "character_first_aid_healer",
