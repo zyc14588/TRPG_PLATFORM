@@ -1963,6 +1963,14 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'P08 fork materialization/replay migration is not applied';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000500
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 complete fork scope migration is not applied';
+    END IF;
     IF EXISTS (
         SELECT 1
           FROM (VALUES
@@ -1970,7 +1978,10 @@ BEGIN
               ('chase_states'),
               ('ending_events'),
               ('growth_events'),
-              ('campaign_fork_materializations')
+              ('campaign_fork_materializations'),
+              ('campaign_fork_public_events'),
+              ('campaign_fork_clues'),
+              ('campaign_fork_npc_states')
           ) AS expected(table_name)
          WHERE to_regclass(format('public.%I', expected.table_name)) IS NULL
     ) THEN
@@ -2008,7 +2019,13 @@ BEGIN
               ('ending_events', 'ending_events_event_guard'),
               ('growth_events', 'growth_events_event_guard'),
               ('campaign_fork_materializations',
-               'campaign_fork_materializations_event_guard')
+               'campaign_fork_materializations_event_guard'),
+              ('campaign_fork_public_events',
+               'campaign_fork_public_events_event_guard'),
+              ('campaign_fork_clues',
+               'campaign_fork_clues_event_guard'),
+              ('campaign_fork_npc_states',
+               'campaign_fork_npc_states_event_guard')
           ) AS expected(table_name, trigger_name)
           LEFT JOIN pg_class AS relation
             ON relation.oid = to_regclass(
@@ -2029,7 +2046,16 @@ BEGIN
               ('characters', 'characters_event_guard'),
               ('character_sheet_versions',
                'character_sheet_versions_event_guard'),
-              ('scenes', 'scenes_event_guard')
+              ('scenes', 'scenes_event_guard'),
+              ('combat_states', 'combat_states_event_guard'),
+              ('chase_states', 'chase_states_event_guard'),
+              ('ending_events', 'ending_events_event_guard'),
+              ('campaign_fork_public_events',
+               'campaign_fork_public_events_event_guard'),
+              ('campaign_fork_clues',
+               'campaign_fork_clues_event_guard'),
+              ('campaign_fork_npc_states',
+               'campaign_fork_npc_states_event_guard')
           ) AS expected(table_name, trigger_name)
          WHERE NOT EXISTS (
              SELECT 1
@@ -2099,7 +2125,10 @@ BEGIN
               ('chase_states'),
               ('ending_events'),
               ('growth_events'),
-              ('campaign_fork_materializations')
+              ('campaign_fork_materializations'),
+              ('campaign_fork_public_events'),
+              ('campaign_fork_clues'),
+              ('campaign_fork_npc_states')
           ) AS expected(table_name)
          WHERE has_table_privilege(
                    'trpg_canonical_service',

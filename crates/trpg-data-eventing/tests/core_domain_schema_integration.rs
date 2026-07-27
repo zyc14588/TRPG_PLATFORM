@@ -1780,9 +1780,19 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         "the child hash must seal the child-owned IDs and materialized state, not alias the source hash"
     );
     assert_eq!(fork_snapshot.get::<i16, _>("materialization_version"), 2);
+    let snapshot_reference = fork_snapshot.get::<serde_json::Value, _>("snapshot_json");
     assert_eq!(
-        fork_snapshot.get::<serde_json::Value, _>("snapshot_json"),
-        serde_json::from_str::<serde_json::Value>(&snapshot.canonical_snapshot_json).unwrap()
+        snapshot_reference["kind"],
+        "CONTENT_ADDRESSED_FORK_SNAPSHOT"
+    );
+    assert_eq!(
+        snapshot_reference["content_address"],
+        snapshot.snapshot_hash
+    );
+    assert_ne!(
+        snapshot_reference,
+        serde_json::from_str::<serde_json::Value>(&snapshot.canonical_snapshot_json).unwrap(),
+        "the unbounded source snapshot must not be embedded in one canonical event"
     );
     let copied_scopes = fork_snapshot.get::<serde_json::Value, _>("copy_scope_json");
     assert!(!copied_scopes
@@ -1793,25 +1803,67 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
             scope.as_str(),
             Some("KEEPER_NOTES" | "HIDDEN_CLUES" | "PRIVATE_MESSAGES" | "AI_INTERNAL_MEMORY")
         )));
-    let child_state_counts: (i64, i64, i64, i64, i64) = sqlx::query_as(
-        r#"
+    let child_state_counts: (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) =
+        sqlx::query_as(
+            r#"
         SELECT
             (SELECT count(*) FROM public.scenarios WHERE campaign_id = $1),
             (SELECT count(*) FROM public.characters WHERE campaign_id = $1),
             (SELECT count(*) FROM core_domain.sessions WHERE campaign_id = $1),
             (SELECT count(*) FROM public.scenes WHERE campaign_id = $1),
             (SELECT count(*) FROM public.campaign_fork_materializations
-              WHERE campaign_id = $1)
+              WHERE campaign_id = $1),
+            (SELECT count(*) FROM public.campaign_fork_public_events
+              WHERE campaign_id = $1),
+            (SELECT count(*) FROM public.campaign_fork_clues
+              WHERE campaign_id = $1),
+            (SELECT count(*) FROM public.campaign_fork_npc_states
+              WHERE campaign_id = $1),
+            (SELECT count(*) FROM public.combat_states WHERE campaign_id = $1),
+            (SELECT count(*) FROM public.chase_states WHERE campaign_id = $1),
+            (SELECT count(*) FROM public.ending_events WHERE campaign_id = $1)
         "#,
-    )
-    .bind(CHILD_CAMPAIGN_ID)
-    .fetch_one(&primary)
-    .await
-    .unwrap();
+        )
+        .bind(CHILD_CAMPAIGN_ID)
+        .fetch_one(&primary)
+        .await
+        .unwrap();
     assert_eq!(
-        child_state_counts,
-        (1, 1, 1, 2, 1),
-        "fork must create a replayable child scenario, character, session, scenes and manifest"
+        child_state_counts.0, 1,
+        "fork must materialize the world/scenario scope"
+    );
+    assert_eq!(child_state_counts.1, 1);
+    assert_eq!(child_state_counts.2, 1);
+    assert_eq!(child_state_counts.3, 2);
+    assert_eq!(child_state_counts.4, 1);
+    let snapshot_scope_len = |name: &str| {
+        i64::try_from(
+            snapshot_value["state"][name]
+                .as_array()
+                .expect("fork scope must be an array")
+                .len(),
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        child_state_counts.5,
+        snapshot_scope_len("public_events"),
+        "every copied public event must have a queryable child projection"
+    );
+    assert_eq!(child_state_counts.6, snapshot_scope_len("discovered_clues"));
+    assert_eq!(child_state_counts.7, snapshot_scope_len("npc_state"));
+    assert_eq!(
+        (
+            child_state_counts.8,
+            child_state_counts.9,
+            child_state_counts.10
+        ),
+        (
+            snapshot_scope_len("combat_state"),
+            snapshot_scope_len("chase_state"),
+            snapshot_scope_len("conclusion_state")
+        ),
+        "combat, chase and conclusion scopes must materialize into normal child projections"
     );
     let child_event_types: Vec<String> = sqlx::query_scalar(
         "SELECT event_type FROM public.event_store \
@@ -1822,16 +1874,12 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
     .fetch_all(&primary)
     .await
     .unwrap();
-    assert_eq!(
-        child_event_types,
-        vec![
-            "CampaignForkRecorded",
-            "CampaignForkMaterializationRecorded",
-            "CampaignForkMaterialized",
-            "CampaignForkMaterialized",
-            "CampaignForkMaterialized",
-        ]
-    );
+    assert_eq!(child_event_types[0], "CampaignForkRecorded");
+    assert_eq!(child_event_types[1], "CampaignForkMaterializationRecorded");
+    assert!(child_event_types.len() > 2);
+    assert!(child_event_types[2..]
+        .iter()
+        .all(|event_type| event_type == "CampaignForkMaterialized"));
     let child_projection_before: serde_json::Value = sqlx::query_scalar(
         r#"
         SELECT jsonb_build_object(
@@ -1856,7 +1904,27 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                           WHERE session.campaign_id = $1),
             'scenes', (SELECT jsonb_agg(to_jsonb(scene) ORDER BY scene.scene_id)
                          FROM public.scenes AS scene
-                        WHERE scene.campaign_id = $1)
+                        WHERE scene.campaign_id = $1),
+            'public_events', (SELECT jsonb_agg(to_jsonb(public_event)
+                                               ORDER BY public_event.source_event_sequence)
+                                FROM public.campaign_fork_public_events AS public_event
+                               WHERE public_event.campaign_id = $1),
+            'clues', (SELECT jsonb_agg(to_jsonb(clue) ORDER BY clue.fork_clue_id)
+                        FROM public.campaign_fork_clues AS clue
+                       WHERE clue.campaign_id = $1),
+            'npc_states', (SELECT jsonb_agg(to_jsonb(npc) ORDER BY npc.npc_state_id)
+                             FROM public.campaign_fork_npc_states AS npc
+                            WHERE npc.campaign_id = $1),
+            'combat', (SELECT jsonb_agg(to_jsonb(combat) ORDER BY combat.combat_id)
+                         FROM public.combat_states AS combat
+                        WHERE combat.campaign_id = $1),
+            'chase', (SELECT jsonb_agg(to_jsonb(chase) ORDER BY chase.chase_id)
+                        FROM public.chase_states AS chase
+                       WHERE chase.campaign_id = $1),
+            'endings', (SELECT jsonb_agg(to_jsonb(ending)
+                                         ORDER BY ending.ending_event_id)
+                          FROM public.ending_events AS ending
+                         WHERE ending.campaign_id = $1)
         )
         "#,
     )
@@ -1876,6 +1944,12 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .await
         .unwrap();
     for statement in [
+        "DELETE FROM public.ending_events WHERE campaign_id = $1",
+        "DELETE FROM public.chase_states WHERE campaign_id = $1",
+        "DELETE FROM public.combat_states WHERE campaign_id = $1",
+        "DELETE FROM public.campaign_fork_npc_states WHERE campaign_id = $1",
+        "DELETE FROM public.campaign_fork_clues WHERE campaign_id = $1",
+        "DELETE FROM public.campaign_fork_public_events WHERE campaign_id = $1",
         "DELETE FROM public.campaign_fork_materializations WHERE campaign_id = $1",
         "DELETE FROM public.character_sheet_versions WHERE campaign_id = $1",
         "DELETE FROM public.characters WHERE campaign_id = $1",
@@ -1895,9 +1969,33 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
         .rebuild_p08_projections(CHILD_CAMPAIGN_ID)
         .await
         .expect("rebuild the entire child fork state solely from canonical P08 events");
-    assert_eq!(rebuilt_child.replayed_events, 5);
+    assert_eq!(rebuilt_child.replayed_events, child_event_types.len());
     assert_eq!(rebuilt_child.campaign_forks, 1);
     assert_eq!(rebuilt_child.fork_materializations, 1);
+    assert_eq!(
+        rebuilt_child.fork_public_events,
+        snapshot_scope_len("public_events")
+    );
+    assert_eq!(
+        rebuilt_child.fork_clues,
+        snapshot_scope_len("discovered_clues")
+    );
+    assert_eq!(
+        rebuilt_child.fork_npc_states,
+        snapshot_scope_len("npc_state")
+    );
+    assert_eq!(
+        rebuilt_child.combat_states,
+        snapshot_scope_len("combat_state")
+    );
+    assert_eq!(
+        rebuilt_child.chase_states,
+        snapshot_scope_len("chase_state")
+    );
+    assert_eq!(
+        rebuilt_child.ending_events,
+        snapshot_scope_len("conclusion_state")
+    );
     let child_projection_after: serde_json::Value = sqlx::query_scalar(
         r#"
         SELECT jsonb_build_object(
@@ -1922,7 +2020,27 @@ async fn core_domain_schema_and_repository_are_event_backed_and_constrained() {
                           WHERE session.campaign_id = $1),
             'scenes', (SELECT jsonb_agg(to_jsonb(scene) ORDER BY scene.scene_id)
                          FROM public.scenes AS scene
-                        WHERE scene.campaign_id = $1)
+                        WHERE scene.campaign_id = $1),
+            'public_events', (SELECT jsonb_agg(to_jsonb(public_event)
+                                               ORDER BY public_event.source_event_sequence)
+                                FROM public.campaign_fork_public_events AS public_event
+                               WHERE public_event.campaign_id = $1),
+            'clues', (SELECT jsonb_agg(to_jsonb(clue) ORDER BY clue.fork_clue_id)
+                        FROM public.campaign_fork_clues AS clue
+                       WHERE clue.campaign_id = $1),
+            'npc_states', (SELECT jsonb_agg(to_jsonb(npc) ORDER BY npc.npc_state_id)
+                             FROM public.campaign_fork_npc_states AS npc
+                            WHERE npc.campaign_id = $1),
+            'combat', (SELECT jsonb_agg(to_jsonb(combat) ORDER BY combat.combat_id)
+                         FROM public.combat_states AS combat
+                        WHERE combat.campaign_id = $1),
+            'chase', (SELECT jsonb_agg(to_jsonb(chase) ORDER BY chase.chase_id)
+                        FROM public.chase_states AS chase
+                       WHERE chase.campaign_id = $1),
+            'endings', (SELECT jsonb_agg(to_jsonb(ending)
+                                         ORDER BY ending.ending_event_id)
+                          FROM public.ending_events AS ending
+                         WHERE ending.campaign_id = $1)
         )
         "#,
     )

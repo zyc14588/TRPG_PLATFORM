@@ -624,13 +624,77 @@ pub enum CampaignForkMaterializedRow {
         visibility_label: String,
         visibility_subject: String,
     },
+    PublicEvent {
+        fork_event_id: String,
+        source_event_sequence: u64,
+        source_event_type: String,
+        source_resource_type: String,
+        source_resource_id: String,
+        source_payload_json: String,
+        source_event_integrity_hash: String,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    DiscoveredClue {
+        fork_clue_id: String,
+        source_clue_id: String,
+        importance: String,
+        outcome: String,
+        cost: Option<String>,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    NpcState {
+        npc_state_id: String,
+        source_npc_id: String,
+        state_json: String,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    Combat {
+        combat_id: String,
+        session_id: String,
+        status: String,
+        round: u64,
+        current_turn_index: u64,
+        state_json: String,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    Chase {
+        chase_id: String,
+        session_id: String,
+        status: String,
+        range_band: u8,
+        segment: u64,
+        state_json: String,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    Conclusion {
+        ending_event_id: String,
+        session_id: String,
+        ending_id: String,
+        summary: String,
+        ended_at_unix_ms: u64,
+        visibility_label: String,
+        visibility_subject: String,
+    },
 }
 
 impl CampaignForkMaterializedRow {
     pub const fn projection_target_count(&self) -> usize {
         match self {
             Self::Character { .. } => 2,
-            Self::Scenario { .. } | Self::Session { .. } | Self::Scene { .. } => 1,
+            Self::Scenario { .. }
+            | Self::Session { .. }
+            | Self::Scene { .. }
+            | Self::PublicEvent { .. }
+            | Self::DiscoveredClue { .. }
+            | Self::NpcState { .. }
+            | Self::Combat { .. }
+            | Self::Chase { .. }
+            | Self::Conclusion { .. } => 1,
         }
     }
 }

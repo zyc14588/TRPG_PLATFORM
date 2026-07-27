@@ -282,6 +282,10 @@ pub struct CanonicalEventDraft {
 pub struct CanonicalEventVisibility {
     pub label: String,
     pub subject: String,
+    /// Payload-erasure subject for this event. Private player materializations
+    /// must use the same player identifier as the visibility subject so their
+    /// ciphertext is covered by that subject's crypto-erasure key.
+    pub data_subject_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
@@ -2153,23 +2157,6 @@ impl PostgresCanonicalStore {
             });
         }
 
-        let data_subject_id = draft.data_subject_id.as_str();
-        let subject_payload_cipher = if data_subject_id == "not_applicable" {
-            None
-        } else {
-            Some(
-                load_or_create_subject_payload_cipher(
-                    &mut transaction,
-                    self.payload_cipher.as_ref(),
-                    data_subject_id,
-                )
-                .await?,
-            )
-        };
-        let payload_cipher = subject_payload_cipher
-            .as_ref()
-            .unwrap_or(self.payload_cipher.as_ref());
-
         let mut event_sequences = Vec::with_capacity(draft.events.len());
         let mut event_hashes = Vec::with_capacity(draft.events.len());
         for (index, event) in draft.events.iter().enumerate() {
@@ -2185,6 +2172,27 @@ impl PostgresCanonicalStore {
                 .map_or(draft.visibility_subject.as_str(), |value| {
                     value.subject.as_str()
                 });
+            let event_data_subject_id = event
+                .visibility
+                .as_ref()
+                .map_or(draft.data_subject_id.as_str(), |value| {
+                    value.data_subject_id.as_str()
+                });
+            let subject_payload_cipher = if event_data_subject_id == "not_applicable" {
+                None
+            } else {
+                Some(
+                    load_or_create_subject_payload_cipher(
+                        &mut transaction,
+                        self.payload_cipher.as_ref(),
+                        event_data_subject_id,
+                    )
+                    .await?,
+                )
+            };
+            let payload_cipher = subject_payload_cipher
+                .as_ref()
+                .unwrap_or(self.payload_cipher.as_ref());
             let payload: Value = serde_json::from_str(&event.payload_json)
                 .map_err(|_| CanonicalStoreError::Validation("event_payload_must_be_json"))?;
             let derivation = rag_derivation_fields(&event.event_type, &payload)?;
@@ -2195,7 +2203,7 @@ impl PostgresCanonicalStore {
                 retention_policy: deletion_retention_policy,
             } = deletion_request_fields(&event.event_type, &payload)?;
             if let Some(subject_id) = deletion_subject_id.as_deref() {
-                if subject_id != data_subject_id
+                if subject_id != event_data_subject_id
                     || subject_id != draft.audit.resource_id
                     || draft.audit.resource_type != "data_subject"
                     || draft.provenance_kind != "user_statement"
@@ -2305,7 +2313,7 @@ impl PostgresCanonicalStore {
                 payload_ciphertext: Some(encrypted_payload.ciphertext().to_vec()),
                 payload_key_reference: Some(encrypted_payload.key_reference().as_str().to_owned()),
                 payload_nonce: Some(encrypted_payload.nonce().as_slice().to_vec()),
-                data_subject_id: data_subject_id.to_owned(),
+                data_subject_id: event_data_subject_id.to_owned(),
                 projection_targets_json: projection_targets_json.clone(),
                 recorded_at_micros: recorded_at.timestamp_micros(),
                 derived_source_event_sequence: derivation.source_event_sequence,
@@ -2392,7 +2400,7 @@ impl PostgresCanonicalStore {
             .bind(encrypted_payload.ciphertext())
             .bind(encrypted_payload.key_reference().as_str())
             .bind(encrypted_payload.nonce().as_slice())
-            .bind(data_subject_id)
+            .bind(event_data_subject_id)
             .bind(derivation.source_event_sequence)
             .bind(derivation.snapshot_id)
             .bind(derivation.chunk_id)
@@ -2450,7 +2458,7 @@ impl PostgresCanonicalStore {
             .bind(encrypted_payload.ciphertext())
             .bind(encrypted_payload.key_reference().as_str())
             .bind(encrypted_payload.nonce().as_slice())
-            .bind(data_subject_id)
+            .bind(event_data_subject_id)
             .execute(&mut *transaction)
             .await
             .map_err(|_| CanonicalStoreError::PrimaryWrite {
@@ -3766,6 +3774,27 @@ fn normalize_and_validate(
                 ));
             }
             validate_visibility(&visibility.label, &visibility.subject)?;
+            if visibility.data_subject_id != "not_applicable"
+                && EntityId::new(&visibility.data_subject_id).is_err()
+            {
+                return Err(CanonicalStoreError::Validation(
+                    "event_data_subject_invalid",
+                ));
+            }
+            if matches!(
+                visibility.label.as_str(),
+                "private_to_player" | "private_to_group" | "investigator_private"
+            ) {
+                if visibility.data_subject_id != visibility.subject {
+                    return Err(CanonicalStoreError::Validation(
+                        "private_event_data_subject_mismatch",
+                    ));
+                }
+            } else if visibility.data_subject_id != "not_applicable" {
+                return Err(CanonicalStoreError::Validation(
+                    "non_private_event_data_subject_mismatch",
+                ));
+            }
         }
         if event.projection_targets.len() > 32 {
             return Err(CanonicalStoreError::Validation(
@@ -3870,6 +3899,26 @@ fn request_hash(draft: &AtomicCommitDraft) -> String {
         fields.push(event.event_type.clone());
         fields.push(event.payload_json.clone());
         if let Some(visibility) = &event.visibility {
+            fields.push("event_visibility_override_v2".to_owned());
+            fields.push(visibility.label.clone());
+            fields.push(visibility.subject.clone());
+            fields.push(visibility.data_subject_id.clone());
+        }
+        fields.push(event.projection_targets.len().to_string());
+        for target in &event.projection_targets {
+            fields.push(target.relation.clone());
+            fields.push(target.row_id.clone());
+        }
+    }
+    sha256_fields(&fields)
+}
+
+fn request_hash_with_event_visibility_v1(draft: &AtomicCommitDraft) -> String {
+    let mut fields = request_hash_base_fields(draft);
+    for event in &draft.events {
+        fields.push(event.event_type.clone());
+        fields.push(event.payload_json.clone());
+        if let Some(visibility) = &event.visibility {
             fields.push("event_visibility_override_v1".to_owned());
             fields.push(visibility.label.clone());
             fields.push(visibility.subject.clone());
@@ -3885,6 +3934,12 @@ fn request_hash(draft: &AtomicCommitDraft) -> String {
 
 fn stored_request_hash_matches(draft: &AtomicCommitDraft, stored_hash: &str) -> bool {
     stored_hash == request_hash(draft)
+        || (draft.events.iter().all(|event| {
+            event
+                .visibility
+                .as_ref()
+                .is_none_or(|visibility| visibility.data_subject_id == draft.data_subject_id)
+        }) && stored_hash == request_hash_with_event_visibility_v1(draft))
         || (draft
             .events
             .iter()
@@ -4352,9 +4407,23 @@ mod tests {
         fork_draft.events[0].visibility = Some(CanonicalEventVisibility {
             label: "private_to_player".to_owned(),
             subject: "player_legacy_retry".to_owned(),
+            data_subject_id: "player_legacy_retry".to_owned(),
         });
         let fork_draft = normalize_and_validate(&fork_draft).unwrap();
         assert_ne!(request_hash(&fork_draft), hash_without_override);
+
+        let mut mismatched_subject_draft = fork_draft.clone();
+        mismatched_subject_draft.events[0]
+            .visibility
+            .as_mut()
+            .unwrap()
+            .data_subject_id = "not_applicable".to_owned();
+        assert!(matches!(
+            normalize_and_validate(&mismatched_subject_draft),
+            Err(CanonicalStoreError::Validation(
+                "private_event_data_subject_mismatch"
+            ))
+        ));
 
         let mut unrelated_draft = fork_draft;
         unrelated_draft.audit.resource_type = "scene".to_owned();

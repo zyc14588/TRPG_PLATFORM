@@ -889,6 +889,52 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             .expect("return the persisted ending receipt on exact retry"),
         ending_receipt
     );
+    let ending_events_before_duplicate: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store WHERE event_type = 'EndingRecorded'",
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let duplicate_session_ending = repository
+        .record_ending(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "ending_event_p08_duplicate",
+                "ending",
+                0,
+                "p08_ending_duplicate",
+                "party_visible",
+                "not_applicable",
+                "human_keeper_statement",
+            ),
+            &RecordEndingRequest {
+                ending_event_id: "ending_event_p08_duplicate".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: SESSION_ID.to_owned(),
+                ending_id: "ending_expose_marta".to_owned(),
+                summary: "A conflicting second canonical ending.".to_owned(),
+                ended_at_unix_ms: NOW_MS + 9_001,
+            },
+        )
+        .await;
+    assert!(matches!(
+        duplicate_session_ending,
+        Err(CoreDomainRepositoryError::Integrity(
+            "ending_session_already_recorded"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store WHERE event_type = 'EndingRecorded'",
+        )
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        ending_events_before_duplicate,
+        "a semantic duplicate ending must be rejected before canonical append"
+    );
     let growth_roll = server_roll_skill_growth(70).expect("server-owned COC7 growth rolls");
     let growth_after = growth_roll.outcome().skill_after;
     let growth_metadata = metadata(
@@ -924,6 +970,58 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             .await
             .expect("return the persisted growth receipt on exact retry"),
         growth_receipt
+    );
+    let growth_events_before_duplicate: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store WHERE event_type = 'CharacterGrowthApplied'",
+    )
+    .fetch_one(&primary)
+    .await
+    .unwrap();
+    let duplicate_growth_roll =
+        server_roll_skill_growth(growth_after).expect("server-owned duplicate growth evidence");
+    let duplicate_skill_growth = repository
+        .record_growth(
+            &metadata(
+                AUTHORITY_ID,
+                KEEPER_ID,
+                "human_keeper",
+                "growth_event_p08_duplicate",
+                "growth",
+                0,
+                "p08_growth_duplicate",
+                "private_to_player",
+                PLAYER_ID,
+                "rules_engine_decision",
+            ),
+            &RecordGrowthRequest {
+                growth_event_id: "growth_event_p08_duplicate".to_owned(),
+                campaign_id: CAMPAIGN_ID.to_owned(),
+                session_id: SESSION_ID.to_owned(),
+                ending_event_id: "ending_event_p08_tutorial".to_owned(),
+                character_id: CHARACTER_ID.to_owned(),
+                source_sheet_version_id: "sheet_p08_evelyn_v3".to_owned(),
+                new_sheet_version_id: "sheet_p08_evelyn_v4_duplicate".to_owned(),
+                skill_name: "Library Use".to_owned(),
+                growth_rolls: duplicate_growth_roll.evidence().clone(),
+            },
+        )
+        .await;
+    assert!(matches!(
+        duplicate_skill_growth,
+        Err(CoreDomainRepositoryError::Integrity(
+            "growth_skill_already_recorded"
+        ))
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM public.event_store \
+             WHERE event_type = 'CharacterGrowthApplied'",
+        )
+        .fetch_one(&primary)
+        .await
+        .unwrap(),
+        growth_events_before_duplicate,
+        "semantic duplicate growth must be rejected before canonical append"
     );
 
     repository
@@ -1250,7 +1348,7 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
         growth_roll.evidence().increase().map(|roll| roll.roll_id())
     );
 
-    let child_counts: (i64, i64, i64, i64, i64) = sqlx::query_as(
+    let child_counts: (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
         r#"
         SELECT
           (SELECT count(*) FROM public.scenarios WHERE campaign_id = $1),
@@ -1258,7 +1356,14 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
           (SELECT count(*) FROM core_domain.sessions WHERE campaign_id = $1),
           (SELECT count(*) FROM public.scenes WHERE campaign_id = $1),
           (SELECT count(*) FROM public.campaign_fork_materializations
-            WHERE campaign_id = $1)
+            WHERE campaign_id = $1),
+          (SELECT count(*) FROM public.campaign_fork_public_events
+            WHERE campaign_id = $1),
+          (SELECT count(*) FROM public.campaign_fork_clues
+            WHERE campaign_id = $1),
+          (SELECT count(*) FROM public.combat_states WHERE campaign_id = $1),
+          (SELECT count(*) FROM public.chase_states WHERE campaign_id = $1),
+          (SELECT count(*) FROM public.ending_events WHERE campaign_id = $1)
         "#,
     )
     .bind(CHILD_CAMPAIGN_ID)
@@ -1266,9 +1371,26 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
     .await
     .expect("load child fork materialization");
     assert_eq!(
-        child_counts,
+        (
+            child_counts.0,
+            child_counts.1,
+            child_counts.2,
+            child_counts.3,
+            child_counts.4
+        ),
         (1, 1, 1, 2, 1),
         "fork must materialize real child-owned scenario, character, session, scenes and manifest"
+    );
+    assert!(child_counts.5 > 0);
+    assert_eq!(
+        (
+            child_counts.6,
+            child_counts.7,
+            child_counts.8,
+            child_counts.9
+        ),
+        (1, 1, 1, 1),
+        "clue, combat, chase and conclusion copy scopes must be queryable in the child"
     );
     let child_visibility = sqlx::query(
         r#"
@@ -1338,13 +1460,13 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
             .unwrap(),
         later_growth_after
     );
-    let materialized_visibility = sqlx::query_scalar::<_, String>(
+    let materialized_visibility: Vec<(String, String, String)> = sqlx::query_as(
         r#"
-        SELECT DISTINCT visibility_label
+        SELECT DISTINCT visibility_label, visibility_subject, data_subject_id
           FROM public.event_store
          WHERE campaign_id = $1
            AND event_type = 'CampaignForkMaterialized'
-         ORDER BY visibility_label
+         ORDER BY visibility_label, visibility_subject, data_subject_id
         "#,
     )
     .bind(CHILD_CAMPAIGN_ID)
@@ -1354,10 +1476,52 @@ async fn tutorial_runs_through_real_repository_event_store_outbox_and_witness() 
     assert_eq!(
         materialized_visibility,
         vec![
-            "keeper_only".to_owned(),
-            "party_visible".to_owned(),
-            "private_to_player".to_owned()
+            (
+                "keeper_only".to_owned(),
+                "not_applicable".to_owned(),
+                "not_applicable".to_owned()
+            ),
+            (
+                "party_visible".to_owned(),
+                "not_applicable".to_owned(),
+                "not_applicable".to_owned()
+            ),
+            (
+                "private_to_player".to_owned(),
+                PLAYER_ID.to_owned(),
+                PLAYER_ID.to_owned()
+            )
         ]
+    );
+    let private_fork_crypto_binding: (i64, i64) = sqlx::query_as(
+        r#"
+        SELECT
+          count(*) FILTER (
+            WHERE event.visibility_label = 'private_to_player'
+          ),
+          count(*) FILTER (
+            WHERE event.visibility_label = 'private_to_player'
+              AND event.data_subject_id = event.visibility_subject
+              AND subject_key.subject_id = event.data_subject_id
+              AND subject_key.key_reference = event.payload_key_reference
+              AND subject_key.wrapped_key IS NOT NULL
+              AND subject_key.destroyed_at IS NULL
+          )
+          FROM public.event_store AS event
+          LEFT JOIN public.privacy_subject_keys AS subject_key
+            ON subject_key.subject_id = event.data_subject_id
+         WHERE event.campaign_id = $1
+           AND event.event_type = 'CampaignForkMaterialized'
+        "#,
+    )
+    .bind(CHILD_CAMPAIGN_ID)
+    .fetch_one(&primary)
+    .await
+    .expect("verify private fork payload crypto binding");
+    assert!(private_fork_crypto_binding.0 > 0);
+    assert_eq!(
+        private_fork_crypto_binding.1, private_fork_crypto_binding.0,
+        "every owner-private fork payload must use that player's live subject key"
     );
 
     let actual_event_types = sqlx::query_scalar::<_, String>(
