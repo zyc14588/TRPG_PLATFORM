@@ -3438,7 +3438,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `scripts/ci/repo_truth_test_security_cases.py` | 10391 | `f463bf0e333930fee64b5aad68365adf9a465c23ac45158a47cb7a3bc8764d0c` | `100644` |
 | `scripts/ci/repo_truth_test_support.py` | 1132 | `9f74d550ddb9f9d354e078cf38f53647113b35260270f261ea1b83405c8b2eb0` | `100644` |
 | `scripts/ci/service-process-smoke.sh` | 12098 | `83982657e5d2ddaf7cc19b3a6b7f0e28ade9935604d49a2f30406573bacd993e` | `100755` |
-| `scripts/ci/test-all.sh` | 10171 | `710ced553664d7e36dc8a76859dbb4bc3c294dd630ee85c59a9817b68a1c4183` | `100755` |
+| `scripts/ci/test-all.sh` | 10216 | `d244e73dcea9f2e193bff6206bca298bd7ea74ee08cf335e1e05a23f7f5b7828` | `100755` |
 | `scripts/ci/test_dependency_directions.py` | 3585 | `9415e655efcd1438620bc97446396448298c6538758bf70f2546cd72f6d0bfac` | `100644` |
 | `scripts/ci/test_product_boundaries.py` | 3033 | `4cc23ff94d0f343b9ad6ce35dd5bd2c3e5a51dfe30dddc346af6a0c147c33444` | `100755` |
 | `scripts/ci/test_repo_truth.py` | 558 | `901f9c085ad2fde366cfeba172a71d640b6c647f7652608d7838d1cb270e5148` | `100644` |
