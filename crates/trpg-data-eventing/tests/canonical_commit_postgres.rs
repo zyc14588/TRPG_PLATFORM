@@ -125,6 +125,7 @@ fn draft(commit_id: &str, expected_version: i64, event_types: &[&str]) -> Atomic
             .map(|(index, event_type)| CanonicalEventDraft {
                 event_type: (*event_type).to_owned(),
                 payload_json: format!(r#"{{"index":{index},"commit":"{commit_id}"}}"#),
+                visibility: None,
                 projection_targets: Vec::new(),
             })
             .collect(),

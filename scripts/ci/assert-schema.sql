@@ -1004,7 +1004,7 @@ BEGIN
            'rag_snapshot_chunk'::regclass
        );
     IF trigger_signature IS NULL
-       OR trigger_signature <> '9c5ea9fba170ea19b3da21e31f4359f7' THEN
+       OR trigger_signature <> 'd8bc92078fbcad42090f4d4c3dcd8360' THEN
         RAISE EXCEPTION 'event persistence trigger relation/enabled/definition signature drifted: %',
             trigger_signature;
     END IF;
@@ -1045,13 +1045,14 @@ BEGIN
          'enforce_projection_checkpoint_monotonicity()'::regprocedure,
          'enforce_canonical_event_projection_document()'::regprocedure,
          'enforce_rag_snapshot_chunk_source()'::regprocedure,
+         'enforce_campaign_fork_empty_child_history()'::regprocedure,
          'lock_rag_snapshot(text,text)'::regprocedure,
          'canonical_projection_json(jsonb)'::regprocedure,
          'projection_hash_field(integer,bytea)'::regprocedure,
          'compute_canonical_projection_hash_v3(text,event_store)'::regprocedure
     );
     IF trigger_function_signature IS NULL
-       OR trigger_function_signature <> '81e8f54d925bbae9be6b29880a0cc5cf' THEN
+       OR trigger_function_signature <> '2b4abc44080f278d09f382cd795cad32' THEN
         RAISE EXCEPTION 'event persistence trigger function definition/execution signature drifted: %',
             trigger_function_signature;
     END IF;
@@ -1065,6 +1066,7 @@ BEGIN
                    'enforce_canonical_audit_chain()'::regprocedure,
                    'enforce_canonical_event_projection_document()'::regprocedure,
                    'enforce_rag_snapshot_chunk_source()'::regprocedure,
+                   'enforce_campaign_fork_empty_child_history()'::regprocedure,
                    'lock_rag_snapshot(text,text)'::regprocedure,
                    'canonical_projection_json(jsonb)'::regprocedure,
                    'projection_hash_field(integer,bytea)'::regprocedure,
@@ -1946,9 +1948,610 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'P07 player action intent does not reject client dice fields';
     END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000300
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 combat/chase/conclusion migration is not applied';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000400
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 fork materialization/replay migration is not applied';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000500
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 complete fork scope migration is not applied';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000600
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 child lineage uniqueness migration is not applied';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000700
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 global gameplay roll migration is not applied';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000800
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 production rebuild authorization migration is not applied';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM public._sqlx_migrations
+         WHERE version = 20260727000900
+           AND success
+    ) THEN
+        RAISE EXCEPTION 'P08 non-null projection shape migration is not applied';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('combat_states'),
+              ('chase_states'),
+              ('gameplay_roll_consumptions'),
+              ('ending_events'),
+              ('growth_events'),
+              ('campaign_fork_materializations'),
+              ('campaign_fork_public_events'),
+              ('campaign_fork_clues'),
+              ('campaign_fork_npc_states')
+          ) AS expected(table_name)
+         WHERE to_regclass(format('public.%I', expected.table_name)) IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P08 persistent aggregate table set is incomplete';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('campaign_forks', 'child_snapshot_hash'),
+              ('campaign_forks', 'copy_scope_json'),
+              ('campaign_forks', 'snapshot_json'),
+              ('campaign_forks', 'materialization_version'),
+              ('growth_events', 'increase_roll_id'),
+              ('reconsiderations', 'review_workflow_version'),
+              ('reconsiderations', 'review_summary'),
+              ('reconsiderations', 'outcome'),
+              ('reconsiderations', 'corrected_event_type'),
+              ('reconsiderations', 'corrected_payload')
+          ) AS expected(table_name, column_name)
+         WHERE NOT EXISTS (
+             SELECT 1
+               FROM information_schema.columns AS column_info
+              WHERE column_info.table_schema = 'public'
+                AND column_info.table_name = expected.table_name
+                AND column_info.column_name = expected.column_name
+         )
+    ) THEN
+        RAISE EXCEPTION 'P08 fork/reconsideration hardening columns are incomplete';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('combat_states', 'combat_states_event_guard'),
+              ('chase_states', 'chase_states_event_guard'),
+              ('gameplay_roll_consumptions',
+               'gameplay_roll_consumptions_event_guard'),
+              ('ending_events', 'ending_events_event_guard'),
+              ('growth_events', 'growth_events_event_guard'),
+              ('campaign_fork_materializations',
+               'campaign_fork_materializations_event_guard'),
+              ('campaign_fork_public_events',
+               'campaign_fork_public_events_event_guard'),
+              ('campaign_fork_clues',
+               'campaign_fork_clues_event_guard'),
+              ('campaign_fork_npc_states',
+               'campaign_fork_npc_states_event_guard')
+          ) AS expected(table_name, trigger_name)
+          LEFT JOIN pg_class AS relation
+            ON relation.oid = to_regclass(
+                format('public.%I', expected.table_name)
+            )
+          LEFT JOIN pg_trigger AS trigger
+            ON trigger.tgrelid = relation.oid
+           AND trigger.tgname = expected.trigger_name
+           AND NOT trigger.tgisinternal
+         WHERE trigger.oid IS NULL
+    ) THEN
+        RAISE EXCEPTION 'P08 canonical-event projection guard is incomplete';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('scenarios', 'scenarios_event_guard'),
+              ('characters', 'characters_event_guard'),
+              ('character_sheet_versions',
+               'character_sheet_versions_event_guard'),
+              ('scenes', 'scenes_event_guard'),
+              ('combat_states', 'combat_states_event_guard'),
+              ('chase_states', 'chase_states_event_guard'),
+              ('ending_events', 'ending_events_event_guard'),
+              ('campaign_fork_public_events',
+               'campaign_fork_public_events_event_guard'),
+              ('campaign_fork_clues',
+               'campaign_fork_clues_event_guard'),
+              ('campaign_fork_npc_states',
+               'campaign_fork_npc_states_event_guard')
+          ) AS expected(table_name, trigger_name)
+         WHERE NOT EXISTS (
+             SELECT 1
+               FROM pg_trigger
+              WHERE tgrelid = to_regclass(
+                        format('public.%I', expected.table_name)
+                    )
+                AND tgname = expected.trigger_name
+                AND NOT tgisinternal
+                AND encode(tgargs, 'escape')
+                    LIKE '%CampaignForkMaterialized%'
+         )
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid = 'core_domain.sessions'::regclass
+           AND tgname = 'sessions_event_guard'
+           AND NOT tgisinternal
+           AND encode(tgargs, 'escape') LIKE '%CampaignForkMaterialized%'
+    ) THEN
+        RAISE EXCEPTION 'P08 fork materialization projection allow-list is incomplete';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid = 'public.reconsiderations'::regclass
+           AND tgname = 'reconsiderations_event_guard'
+           AND encode(tgargs, 'escape') LIKE '%ReconsiderationUpheld%'
+           AND encode(tgargs, 'escape') LIKE '%ReconsiderationCorrected%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid = 'public.characters'::regclass
+           AND tgname = 'characters_event_guard'
+           AND encode(tgargs, 'escape') LIKE '%SanityLossApplied%'
+           AND encode(tgargs, 'escape') LIKE '%CharacterGrowthApplied%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid = 'public.character_sheet_versions'::regclass
+           AND tgname = 'character_sheet_versions_event_guard'
+           AND encode(tgargs, 'escape') LIKE '%SanityLossApplied%'
+           AND encode(tgargs, 'escape') LIKE '%CharacterGrowthApplied%'
+    ) THEN
+        RAISE EXCEPTION 'P08 correction/growth event allow-list is incomplete';
+    END IF;
+    IF (
+        SELECT count(*)
+          FROM pg_constraint
+         WHERE conrelid IN (
+             'public.combat_states'::regclass,
+             'public.chase_states'::regclass,
+             'public.ending_events'::regclass,
+             'public.growth_events'::regclass,
+             'core_domain.session_ending_reservations'::regclass
+         )
+           AND confrelid = 'core_domain.sessions'::regclass
+           AND contype = 'f'
+           AND condeferrable
+           AND condeferred
+    ) <> 5 THEN
+        RAISE EXCEPTION 'P08 session references would block projection rebuild';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+              ('combat_states'),
+              ('chase_states'),
+              ('gameplay_roll_consumptions'),
+              ('ending_events'),
+              ('growth_events'),
+              ('campaign_fork_materializations'),
+              ('campaign_fork_public_events'),
+              ('campaign_fork_clues'),
+              ('campaign_fork_npc_states')
+          ) AS expected(table_name)
+         WHERE has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'SELECT'
+               )
+            OR has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'INSERT'
+               )
+            OR has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'UPDATE'
+               )
+            OR has_table_privilege(
+                   'trpg_canonical_service',
+                   format('public.%I', expected.table_name),
+                   'DELETE'
+               )
+            OR NOT has_table_privilege(
+                   'trpg_api_service',
+                   format('public.%I', expected.table_name),
+                   'SELECT'
+               )
+            OR has_table_privilege(
+                   'trpg_api_service',
+                   format('public.%I', expected.table_name),
+                   'DELETE'
+               )
+    ) THEN
+        RAISE EXCEPTION 'P08 table privilege boundary drifted';
+    END IF;
+    IF NOT has_function_privilege(
+               'trpg_api_service',
+               'core_domain.clear_p08_rebuildable_projections(text,text)',
+               'EXECUTE'
+           )
+       OR has_function_privilege(
+               'trpg_canonical_service',
+               'core_domain.clear_p08_rebuildable_projections(text,text)',
+               'EXECUTE'
+           )
+       OR has_function_privilege(
+               'trpg_worker_service',
+               'core_domain.clear_p08_rebuildable_projections(text,text)',
+               'EXECUTE'
+           )
+       OR has_function_privilege(
+               'trpg_realtime_service',
+               'core_domain.clear_p08_rebuildable_projections(text,text)',
+               'EXECUTE'
+           )
+       OR NOT EXISTS (
+            SELECT 1
+              FROM pg_proc AS procedure
+              JOIN pg_namespace AS namespace
+                ON namespace.oid = procedure.pronamespace
+             WHERE namespace.nspname = 'core_domain'
+               AND procedure.proname =
+                   'clear_p08_rebuildable_projections'
+               AND procedure.prosecdef
+               AND pg_get_functiondef(procedure.oid)
+                   LIKE '%P08 projection rebuild capability rejected%'
+               AND pg_get_functiondef(procedure.oid)
+                   LIKE '%verified_hmac%'
+               AND pg_get_functiondef(procedure.oid)
+                   LIKE '%formal_commit%'
+               AND pg_get_functiondef(procedure.oid)
+                   LIKE '%projection_targets%'
+       ) THEN
+        RAISE EXCEPTION 'P08 rebuild repair capability boundary drifted';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'public.campaign_forks'::regclass
+           AND pg_get_constraintdef(oid) LIKE '%child_snapshot_hash%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%child_snapshot_hash IS NOT NULL%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%copy_scope_json IS NOT NULL%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%snapshot_json IS NOT NULL%'
+           AND pg_get_constraintdef(oid) LIKE '%AI_INTERNAL_MEMORY%'
+           AND pg_get_constraintdef(oid) LIKE '%materialization_version%'
+           AND pg_get_constraintdef(oid) LIKE '%child_campaign_id%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'public.reconsiderations'::regclass
+           AND conname = 'reconsiderations_v2_append_only_shape'
+           AND pg_get_constraintdef(oid)
+               LIKE '%review_summary IS NOT NULL%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%resolution IS NOT NULL%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%corrected_event_type IS NOT NULL%'
+           AND pg_get_constraintdef(oid)
+               LIKE '%corrected_payload IS NOT NULL%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid =
+               'public.campaign_fork_materializations'::regclass
+           AND pg_get_constraintdef(oid) LIKE '%child_snapshot_hash%'
+           AND pg_get_constraintdef(oid) LIKE '%child_state_json%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'public.growth_events'::regclass
+           AND pg_get_constraintdef(oid) LIKE '%improvement_check_roll%'
+           AND pg_get_constraintdef(oid) LIKE '%increase_roll%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'public.growth_events'::regclass
+           AND pg_get_constraintdef(oid) LIKE '%increase_roll_id%'
+           AND pg_get_constraintdef(oid) LIKE '%increase_roll IS NULL%'
+           AND pg_get_constraintdef(oid) LIKE '%server_roll_id%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid =
+               'public.gameplay_roll_consumptions'::regclass
+           AND contype = 'p'
+           AND pg_get_constraintdef(oid) LIKE '%roll_id%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid =
+               'public.gameplay_roll_consumptions'::regclass
+           AND contype = 'c'
+           AND pg_get_constraintdef(oid) LIKE '%aggregate_kind%'
+           AND pg_get_constraintdef(oid) LIKE '%GROWTH%'
+    ) OR NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid =
+               'public.gameplay_roll_consumptions'::regclass
+           AND contype = 'c'
+           AND pg_get_constraintdef(oid) LIKE '%GROWTH_PERCENTILE%'
+           AND pg_get_constraintdef(oid) LIKE '%GROWTH_INCREASE_D10%'
+    ) OR to_regclass(
+        'public.event_store_one_fork_lineage_per_child_idx'
+    ) IS NULL OR to_regclass(
+        'public.campaign_forks_child_lineage_unique'
+    ) IS NULL
+    OR NOT EXISTS (
+        SELECT 1
+          FROM pg_indexes
+         WHERE schemaname = 'public'
+           AND indexname =
+               'event_store_one_fork_lineage_per_child_idx'
+           AND indexdef LIKE '%projection_targets%'
+           AND indexdef LIKE '%public.campaign_fork_materializations%'
+    )
+    OR NOT EXISTS (
+        SELECT 1
+          FROM pg_proc AS procedure
+          JOIN pg_namespace AS namespace
+            ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'public'
+           AND procedure.proname =
+               'enforce_campaign_fork_empty_child_history'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%p08-campaign-fork-empty:%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%CampaignForkRecorded%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%public.campaign_fork_materializations%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%CampaignInviteAccepted%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%campaign fork child canonical history is not empty%'
+    )
+    OR NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid = 'public.event_store'::regclass
+           AND tgname =
+               'event_store_campaign_fork_empty_child_guard'
+           AND NOT tgisinternal
+    )
+    OR NOT EXISTS (
+        SELECT 1
+          FROM pg_proc AS procedure
+          JOIN pg_namespace AS namespace
+            ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'public'
+           AND procedure.proname = 'enforce_core_projection_event'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%trpg.p08_projection_rebuild%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%CharacterGrowthApplied%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%suffix_event.event_type <> ''CharacterGrowthApplied''%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%growth_rewind_allowed%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%version_target%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%public.characters%'
+    )
+    OR NOT EXISTS (
+        SELECT 1
+          FROM pg_trigger
+         WHERE tgrelid =
+               'public.gameplay_roll_consumptions'::regclass
+           AND tgname = 'gameplay_roll_consumptions_event_guard'
+           AND NOT tgisinternal
+           AND encode(tgargs, 'escape') LIKE '%CombatStateRecorded%'
+           AND encode(tgargs, 'escape') LIKE '%ChaseStateRecorded%'
+           AND encode(tgargs, 'escape') LIKE '%CharacterGrowthApplied%'
+    )
+    OR to_regprocedure(
+        'core_domain.gameplay_roll_reservation_projection_id(jsonb)'
+    ) IS NULL
+    OR NOT EXISTS (
+        SELECT 1
+          FROM pg_proc AS procedure
+          JOIN pg_namespace AS namespace
+            ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'core_domain'
+           AND procedure.proname =
+               'reserve_gameplay_roll_consumptions'
+           AND procedure.prosecdef
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%formal_commits%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%gameplay roll reservation is not HMAC-bound%'
+           AND pg_get_functiondef(procedure.oid)
+               LIKE '%ON CONFLICT (roll_id) DO NOTHING%'
+    ) THEN
+        RAISE EXCEPTION 'P08 snapshot, fork serialization, growth, or global roll evidence is not physical';
+    END IF;
+    IF NOT has_function_privilege(
+           'trpg_canonical_service',
+           'core_domain.reserve_gameplay_roll_consumptions(text,jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_canonical_service',
+           'core_domain.gameplay_roll_reservation_projection_id(jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_api_service',
+           'core_domain.reserve_gameplay_roll_consumptions(text,jsonb)',
+           'EXECUTE'
+       )
+       OR NOT has_function_privilege(
+           'trpg_api_service',
+           'core_domain.gameplay_roll_reservation_projection_id(jsonb)',
+           'EXECUTE'
+       )
+       OR has_function_privilege(
+           'trpg_worker_service',
+           'core_domain.reserve_gameplay_roll_consumptions(text,jsonb)',
+           'EXECUTE'
+       )
+       OR EXISTS (
+           SELECT 1
+             FROM pg_proc AS procedure
+             JOIN pg_namespace AS namespace
+               ON namespace.oid = procedure.pronamespace,
+                  LATERAL aclexplode(procedure.proacl) AS privilege
+            WHERE namespace.nspname = 'core_domain'
+              AND procedure.proname IN (
+                  'reserve_gameplay_roll_consumptions',
+                  'gameplay_roll_reservation_projection_id'
+              )
+              AND privilege.grantee = 0
+              AND privilege.privilege_type = 'EXECUTE'
+       ) THEN
+        RAISE EXCEPTION 'P08 canonical roll reservation privilege boundary drifted';
+    END IF;
+
+    BEGIN
+        CREATE TEMP TABLE p08_fork_shape_probe (
+            LIKE public.campaign_forks
+            INCLUDING DEFAULTS
+            INCLUDING CONSTRAINTS
+        );
+        INSERT INTO p08_fork_shape_probe (
+            fork_id, campaign_id, parent_campaign_id, child_campaign_id,
+            source_session_id, source_snapshot_hash, reason, version,
+            visibility_label, visibility_subject, provenance_kind,
+            provenance_reference, provenance_recorded_by,
+            last_event_sequence, materialization_version,
+            child_snapshot_hash, copy_scope_json, snapshot_json
+        ) VALUES (
+            'fork_probe', 'child_probe', 'parent_probe', 'child_probe',
+            'session_probe',
+            'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'constraint probe', 1, 'keeper_only', 'not_applicable',
+            'system_fixture', 'constraint_probe', 'schema_assertion',
+            1, 2, NULL, NULL, NULL
+        );
+        RAISE EXCEPTION 'P08 v2 fork NULL shape bypassed its CHECK constraint';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        CREATE TEMP TABLE p08_reviewed_shape_probe (
+            LIKE public.reconsiderations
+            INCLUDING DEFAULTS
+            INCLUDING CONSTRAINTS
+        );
+        INSERT INTO p08_reviewed_shape_probe (
+            reconsideration_id, campaign_id, original_event_sequence,
+            requested_by, reason, state, resolution, event_chain, version,
+            visibility_label, visibility_subject, provenance_kind,
+            provenance_reference, provenance_recorded_by,
+            last_event_sequence, review_workflow_version, review_summary,
+            outcome, corrected_event_type, corrected_payload
+        ) VALUES (
+            'reviewed_probe', 'campaign_probe', 1, 'user_probe',
+            'constraint probe', 'REVIEWED', NULL, '["event_probe"]'::JSONB,
+            1, 'keeper_only', 'not_applicable', 'system_fixture',
+            'constraint_probe', 'schema_assertion', 1, 2, NULL,
+            NULL, NULL, NULL
+        );
+        RAISE EXCEPTION 'P08 REVIEWED NULL evidence bypassed its CHECK constraint';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        CREATE TEMP TABLE p08_upheld_shape_probe (
+            LIKE public.reconsiderations
+            INCLUDING DEFAULTS
+            INCLUDING CONSTRAINTS
+        );
+        INSERT INTO p08_upheld_shape_probe (
+            reconsideration_id, campaign_id, original_event_sequence,
+            requested_by, reason, state, resolution, event_chain, version,
+            visibility_label, visibility_subject, provenance_kind,
+            provenance_reference, provenance_recorded_by,
+            last_event_sequence, review_workflow_version, review_summary,
+            outcome, corrected_event_type, corrected_payload
+        ) VALUES (
+            'upheld_probe', 'campaign_probe', 1, 'user_probe',
+            'constraint probe', 'RESOLVED', NULL, '["event_probe"]'::JSONB,
+            1, 'keeper_only', 'not_applicable', 'system_fixture',
+            'constraint_probe', 'schema_assertion', 1, 2,
+            'reviewed evidence', 'UPHELD', NULL, NULL
+        );
+        RAISE EXCEPTION 'P08 UPHELD NULL resolution bypassed its CHECK constraint';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
+        CREATE TEMP TABLE p08_corrected_shape_probe (
+            LIKE public.reconsiderations
+            INCLUDING DEFAULTS
+            INCLUDING CONSTRAINTS
+        );
+        INSERT INTO p08_corrected_shape_probe (
+            reconsideration_id, campaign_id, original_event_sequence,
+            requested_by, reason, state, resolution, event_chain, version,
+            visibility_label, visibility_subject, provenance_kind,
+            provenance_reference, provenance_recorded_by,
+            last_event_sequence, review_workflow_version, review_summary,
+            outcome, corrected_event_type, corrected_payload
+        ) VALUES (
+            'corrected_probe', 'campaign_probe', 1, 'user_probe',
+            'constraint probe', 'RESOLVED', 'corrected',
+            '["event_probe"]'::JSONB, 1, 'keeper_only', 'not_applicable',
+            'system_fixture', 'constraint_probe', 'schema_assertion',
+            1, 2, 'reviewed evidence', 'CORRECTED',
+            'CorrectedEvent', NULL
+        );
+        RAISE EXCEPTION 'P08 CORRECTED NULL payload bypassed its CHECK constraint';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
 END;
 $$;
 
 SELECT 'P07_SCHEMA_ASSERTION_OK' AS schema_assertion;
+SELECT 'P08_SCHEMA_ASSERTION_OK' AS schema_assertion;
 
 ROLLBACK;

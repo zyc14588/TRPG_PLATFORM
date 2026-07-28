@@ -113,6 +113,7 @@ fn draft(suffix: u32) -> AtomicCommitDraft {
         events: vec![CanonicalEventDraft {
             event_type: "ClueDiscovered".to_owned(),
             payload_json: r#"{"clue":"harbor ledger"}"#.to_owned(),
+            visibility: None,
             projection_targets: Vec::new(),
         }],
         audit: PolicyAuditDraft {

@@ -138,6 +138,11 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 : "${P07_RESET_DATABASE:?P07_RESET_DATABASE must name the dedicated player-action database}"
 : "${P07_WITNESS_RESET_DATABASE:?P07_WITNESS_RESET_DATABASE must name the dedicated player-action witness database}"
 : "${P07_NATS_URL:?P07_NATS_URL is required for the real player-action Realtime gate}"
+: "${P08_DATABASE_URL:?P08_DATABASE_URL is required for the real Tutorial gate}"
+: "${P08_WITNESS_DATABASE_URL:?P08_WITNESS_DATABASE_URL is required for the Tutorial witness gate}"
+: "${P08_ALLOW_DATABASE_RESET:?P08_ALLOW_DATABASE_RESET is required for the destructive Tutorial gate}"
+: "${P08_RESET_DATABASE:?P08_RESET_DATABASE must name the dedicated Tutorial database}"
+: "${P08_WITNESS_RESET_DATABASE:?P08_WITNESS_RESET_DATABASE must name the dedicated Tutorial witness database}"
 cargo test --workspace --all-features --locked --no-fail-fast -- --test-threads=1
 psql "$P03_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
   -f scripts/ci/assert-schema.sql

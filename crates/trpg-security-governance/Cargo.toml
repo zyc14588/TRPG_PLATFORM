@@ -25,6 +25,7 @@ url = "2.5"
 zeroize = "1.8"
 
 [dev-dependencies]
+tempfile = "3.23"
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
 trpg-data-eventing = { path = "../trpg-data-eventing" }
 trpg-test-support = { path = "../trpg-contracts/test-support" }

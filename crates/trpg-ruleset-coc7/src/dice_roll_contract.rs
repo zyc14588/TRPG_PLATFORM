@@ -2,10 +2,12 @@ use crate::{append_coc7_event, Coc7EventPayload};
 use rand_core::{OsRng, RngCore};
 use trpg_contracts::EventType;
 use trpg_shared_kernel::{
-    AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult, TrpgError,
+    AuthorityContract, CommandEnvelope, EventEnvelope, EventStore, KernelResult,
+    ServerGrowthRollEvidence, TrpgError,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SuccessLevel {
     Critical,
     Extreme,
@@ -39,6 +41,36 @@ pub struct DiceRollOutcome {
 pub struct ServerDiceRoll {
     roll_id: String,
     outcome: DiceRollOutcome,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkillGrowthOutcome {
+    pub skill_before: u8,
+    pub improvement_check_roll: u8,
+    pub increase_roll: Option<u8>,
+    pub skill_after: u8,
+}
+
+/// Opaque proof that both COC7 growth rolls came from the rules service RNG.
+/// The improvement d10 is generated only after the percentile check qualifies.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServerSkillGrowthRoll {
+    evidence: ServerGrowthRollEvidence,
+    outcome: SkillGrowthOutcome,
+}
+
+impl ServerSkillGrowthRoll {
+    pub fn roll_id(&self) -> &str {
+        self.evidence.improvement_check().roll_id()
+    }
+
+    pub const fn outcome(&self) -> &SkillGrowthOutcome {
+        &self.outcome
+    }
+
+    pub const fn evidence(&self) -> &ServerGrowthRollEvidence {
+        &self.evidence
+    }
 }
 
 impl ServerDiceRoll {
@@ -161,6 +193,47 @@ pub fn server_roll_skill_check(
         roll_id: format!("dice_{}", hex_encode(&roll_id_bytes)),
         outcome,
     })
+}
+
+pub fn adjudicate_skill_growth(
+    skill_before: u8,
+    improvement_check_roll: u8,
+    increase_roll: u8,
+) -> KernelResult<SkillGrowthOutcome> {
+    if skill_before > 99
+        || !(1..=100).contains(&improvement_check_roll)
+        || !(1..=10).contains(&increase_roll)
+    {
+        return Err(TrpgError::InvalidConfiguration("skill_growth_range"));
+    }
+    let qualifies = skill_before < 99
+        && (improvement_check_roll > skill_before || improvement_check_roll >= 96);
+    let applied_increase = qualifies.then_some(increase_roll);
+    Ok(SkillGrowthOutcome {
+        skill_before,
+        improvement_check_roll,
+        increase_roll: applied_increase,
+        skill_after: if qualifies {
+            skill_before.saturating_add(increase_roll).min(99)
+        } else {
+            skill_before
+        },
+    })
+}
+
+pub fn server_roll_skill_growth(skill_before: u8) -> KernelResult<ServerSkillGrowthRoll> {
+    let evidence = trpg_shared_kernel::server_growth_roll_evidence(skill_before)?;
+    let improvement_check_roll = evidence.improvement_check().value();
+    let increase_roll = evidence.increase().map(|roll| roll.value());
+    let outcome = SkillGrowthOutcome {
+        skill_before,
+        improvement_check_roll,
+        increase_roll,
+        skill_after: increase_roll
+            .map(|roll| skill_before.saturating_add(roll).min(99))
+            .unwrap_or(skill_before),
+    };
+    Ok(ServerSkillGrowthRoll { evidence, outcome })
 }
 
 pub fn record_dice_roll_contract<T>(

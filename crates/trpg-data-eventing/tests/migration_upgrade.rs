@@ -1049,6 +1049,69 @@ async fn migration_upgrade_covers_empty_b24_repeat_drift_and_constraints() {
         .contains("formal commit exact event/outbox set changed after commit"));
     commit_reuse_transaction.rollback().await.unwrap();
 
+    // Before child-owned v2 materialization, fork lineage events were stored
+    // on the parent campaign stream. One parent can legitimately have several
+    // immutable children, so the v2 child uniqueness index must exclude those
+    // rows while upgrading an already-populated database.
+    reset_database(&pool).await;
+    migrator_through(current, 20260727000600)
+        .run(&pool)
+        .await
+        .expect("apply schema immediately before child-owned lineage index");
+    sqlx::query("ALTER TABLE public.event_store DISABLE TRIGGER USER")
+        .execute(&pool)
+        .await
+        .unwrap();
+    for (stream_id, idempotency_key) in [
+        ("legacy_parent_fork_child_a", "legacy_parent_fork_a"),
+        ("legacy_parent_fork_child_b", "legacy_parent_fork_b"),
+    ] {
+        insert_event(
+            &pool,
+            EventInsert {
+                idempotency_key,
+                ..EventInsert::valid("legacy_fork_parent", stream_id)
+            },
+        )
+        .await
+        .expect("seed a verified legacy parent-owned fork event");
+    }
+    sqlx::query(
+        "UPDATE public.event_store \
+         SET event_type = 'CampaignForkRecorded' \
+         WHERE campaign_id = 'legacy_fork_parent'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query("ALTER TABLE public.event_store ENABLE TRIGGER USER")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    current
+        .run(&pool)
+        .await
+        .expect("multiple legacy parent-owned forks upgrade to child-owned v2");
+    let legacy_parent_forks: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM public.event_store \
+         WHERE campaign_id = 'legacy_fork_parent' \
+           AND event_type = 'CampaignForkRecorded'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(legacy_parent_forks, 2);
+    let child_lineage_index: String = sqlx::query_scalar(
+        "SELECT indexdef FROM pg_indexes \
+         WHERE schemaname = 'public' \
+           AND indexname = 'event_store_one_fork_lineage_per_child_idx'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(child_lineage_index.contains("public.campaign_fork_materializations"));
+
     // A genuine b-24 SQLx ledger and data set upgrades without checksum edits.
     reset_database(&pool).await;
     b24.run(&pool)

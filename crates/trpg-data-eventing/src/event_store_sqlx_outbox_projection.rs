@@ -267,10 +267,25 @@ fn payload_associated_data(fields: &[&str]) -> Result<Zeroizing<Vec<u8>>, Payloa
 pub struct CanonicalEventDraft {
     pub event_type: String,
     pub payload_json: String,
+    /// A narrowly scoped event-level visibility envelope. This is used by a
+    /// keeper-authorized campaign fork when one atomic command materializes
+    /// rows that retain different source visibility labels. The command audit
+    /// remains keeper-only; each override is request-hash and HMAC protected.
+    pub visibility: Option<CanonicalEventVisibility>,
     /// Exact read-model rows this event is allowed to insert or advance.
     /// The list is persisted beside the encrypted payload and covered by the
     /// versioned event HMAC; projection triggers reject every other row.
     pub projection_targets: Vec<CanonicalProjectionTarget>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonicalEventVisibility {
+    pub label: String,
+    pub subject: String,
+    /// Payload-erasure subject for this event. Private player materializations
+    /// must use the same player identifier as the visibility subject so their
+    /// ciphertext is covered by that subject's crypto-erasure key.
+    pub data_subject_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
@@ -994,6 +1009,7 @@ fn canonical_request_draft(request: &CanonicalCommitRequest) -> KernelResult<Ato
             .map(|event| CanonicalEventDraft {
                 event_type: event.event_type.clone(),
                 payload_json: event.payload_json.clone(),
+                visibility: None,
                 projection_targets: Vec::new(),
             })
             .collect(),
@@ -1039,6 +1055,8 @@ enum WitnessPhase {
 enum AtomicProjection<'a> {
     PlayerAction(&'a serde_json::Value),
     CampaignInviteAcceptance(&'a serde_json::Value),
+    GameplayRollReservation(&'a serde_json::Value),
+    SessionEndingReservation(&'a serde_json::Value),
 }
 
 impl WitnessPhase {
@@ -1336,6 +1354,38 @@ impl PostgresCanonicalStore {
         self.commit_with_projection(
             draft,
             Some(AtomicProjection::CampaignInviteAcceptance(projection)),
+        )
+        .await
+    }
+
+    /// Atomically appends one P08 gameplay event and permanently reserves
+    /// every opaque server roll consumed by that event. The remaining state
+    /// projections stay rebuildable, but a cancellation or projection error
+    /// after this transaction can no longer make the same roll reusable.
+    pub(crate) async fn commit_gameplay_roll_reservation(
+        &self,
+        draft: &AtomicCommitDraft,
+        projection: &serde_json::Value,
+    ) -> Result<PersistedCommit, CanonicalStoreError> {
+        self.commit_with_projection(
+            draft,
+            Some(AtomicProjection::GameplayRollReservation(projection)),
+        )
+        .await
+    }
+
+    /// Atomically appends one EndingRecorded event and reserves the Session's
+    /// single canonical ending. The ending read model remains independently
+    /// rebuildable, while a projector crash can no longer make the Session
+    /// available to a different ending command.
+    pub(crate) async fn commit_session_ending_reservation(
+        &self,
+        draft: &AtomicCommitDraft,
+        projection: &serde_json::Value,
+    ) -> Result<PersistedCommit, CanonicalStoreError> {
+        self.commit_with_projection(
+            draft,
+            Some(AtomicProjection::SessionEndingReservation(projection)),
         )
         .await
     }
@@ -1807,8 +1857,11 @@ impl PostgresCanonicalStore {
                     || event.get::<i64, _>("expected_version") != formal_expected_version
                     || event_stream_version != first_stream_version + index as i64
                     || event_idempotency_operation != CANONICAL_IDEMPOTENCY_OPERATION
-                    || event_visibility_label != audit.visibility_label
-                    || event_visibility_subject != audit.visibility_subject
+                    || ((event_visibility_label != audit.visibility_label
+                        || event_visibility_subject != audit.visibility_subject)
+                        && !(audit.resource_type == "campaign_fork"
+                            && audit.action == "write_official_state"
+                            && event.get::<String, _>("event_type") == "CampaignForkMaterialized"))
                     || event.get::<String, _>("fact_provenance_kind") != audit.provenance_kind
                     || event.get::<String, _>("fact_provenance_reference")
                         != audit.provenance_reference
@@ -2138,26 +2191,42 @@ impl PostgresCanonicalStore {
             });
         }
 
-        let data_subject_id = draft.data_subject_id.as_str();
-        let subject_payload_cipher = if data_subject_id == "not_applicable" {
-            None
-        } else {
-            Some(
-                load_or_create_subject_payload_cipher(
-                    &mut transaction,
-                    self.payload_cipher.as_ref(),
-                    data_subject_id,
-                )
-                .await?,
-            )
-        };
-        let payload_cipher = subject_payload_cipher
-            .as_ref()
-            .unwrap_or(self.payload_cipher.as_ref());
-
         let mut event_sequences = Vec::with_capacity(draft.events.len());
         let mut event_hashes = Vec::with_capacity(draft.events.len());
         for (index, event) in draft.events.iter().enumerate() {
+            let event_visibility_label = event
+                .visibility
+                .as_ref()
+                .map_or(draft.visibility_label.as_str(), |value| {
+                    value.label.as_str()
+                });
+            let event_visibility_subject = event
+                .visibility
+                .as_ref()
+                .map_or(draft.visibility_subject.as_str(), |value| {
+                    value.subject.as_str()
+                });
+            let event_data_subject_id = event
+                .visibility
+                .as_ref()
+                .map_or(draft.data_subject_id.as_str(), |value| {
+                    value.data_subject_id.as_str()
+                });
+            let subject_payload_cipher = if event_data_subject_id == "not_applicable" {
+                None
+            } else {
+                Some(
+                    load_or_create_subject_payload_cipher(
+                        &mut transaction,
+                        self.payload_cipher.as_ref(),
+                        event_data_subject_id,
+                    )
+                    .await?,
+                )
+            };
+            let payload_cipher = subject_payload_cipher
+                .as_ref()
+                .unwrap_or(self.payload_cipher.as_ref());
             let payload: Value = serde_json::from_str(&event.payload_json)
                 .map_err(|_| CanonicalStoreError::Validation("event_payload_must_be_json"))?;
             let derivation = rag_derivation_fields(&event.event_type, &payload)?;
@@ -2168,7 +2237,7 @@ impl PostgresCanonicalStore {
                 retention_policy: deletion_retention_policy,
             } = deletion_request_fields(&event.event_type, &payload)?;
             if let Some(subject_id) = deletion_subject_id.as_deref() {
-                if subject_id != data_subject_id
+                if subject_id != event_data_subject_id
                     || subject_id != draft.audit.resource_id
                     || draft.audit.resource_type != "data_subject"
                     || draft.provenance_kind != "user_statement"
@@ -2252,7 +2321,7 @@ impl PostgresCanonicalStore {
                 expected_version: draft.expected_version,
                 authority_mode: draft.authority_mode.clone(),
                 authority_contract_version: draft.authority_contract_version,
-                visibility_label: draft.visibility_label.clone(),
+                visibility_label: event_visibility_label.to_owned(),
                 provenance_kind: draft.provenance_kind.clone(),
                 provenance_reference: draft.provenance_reference.clone(),
                 provenance_recorded_by: draft.provenance_recorded_by.clone(),
@@ -2266,7 +2335,7 @@ impl PostgresCanonicalStore {
                 resource_id: draft.audit.resource_id.clone(),
                 authority_contract_id: draft.authority_contract_id.clone(),
                 authority_owner: draft.authority_owner.clone(),
-                visibility_subject: draft.visibility_subject.clone(),
+                visibility_subject: event_visibility_subject.to_owned(),
                 trace_id: draft.trace_id.clone(),
                 stream_id: draft.stream_id.clone(),
                 event_schema_version: crate::persistence::CURRENT_EVENT_SCHEMA_VERSION,
@@ -2278,7 +2347,7 @@ impl PostgresCanonicalStore {
                 payload_ciphertext: Some(encrypted_payload.ciphertext().to_vec()),
                 payload_key_reference: Some(encrypted_payload.key_reference().as_str().to_owned()),
                 payload_nonce: Some(encrypted_payload.nonce().as_slice().to_vec()),
-                data_subject_id: data_subject_id.to_owned(),
+                data_subject_id: event_data_subject_id.to_owned(),
                 projection_targets_json: projection_targets_json.clone(),
                 recorded_at_micros: recorded_at.timestamp_micros(),
                 derived_source_event_sequence: derivation.source_event_sequence,
@@ -2336,7 +2405,7 @@ impl PostgresCanonicalStore {
             .bind(draft.expected_version)
             .bind(&draft.authority_mode)
             .bind(draft.authority_contract_version)
-            .bind(&draft.visibility_label)
+            .bind(event_visibility_label)
             .bind(&draft.provenance_kind)
             .bind(&draft.provenance_reference)
             .bind(&draft.provenance_recorded_by)
@@ -2352,7 +2421,7 @@ impl PostgresCanonicalStore {
             .bind(&draft.audit.resource_id)
             .bind(&draft.authority_contract_id)
             .bind(&draft.authority_owner)
-            .bind(&draft.visibility_subject)
+            .bind(event_visibility_subject)
             .bind(&draft.trace_id)
             .bind(&event_hash)
             .bind(&draft.stream_id)
@@ -2365,7 +2434,7 @@ impl PostgresCanonicalStore {
             .bind(encrypted_payload.ciphertext())
             .bind(encrypted_payload.key_reference().as_str())
             .bind(encrypted_payload.nonce().as_slice())
-            .bind(data_subject_id)
+            .bind(event_data_subject_id)
             .bind(derivation.source_event_sequence)
             .bind(derivation.snapshot_id)
             .bind(derivation.chunk_id)
@@ -2407,7 +2476,7 @@ impl PostgresCanonicalStore {
             .bind(sequence)
             .bind(crate::NATS_EVENTS_APPENDED)
             .bind(format!("outbox:{event_idempotency_key}"))
-            .bind(&draft.visibility_label)
+            .bind(event_visibility_label)
             .bind(&draft.correlation_id)
             .bind(&draft.causation_id)
             .bind(Json(protected_payload))
@@ -2419,11 +2488,11 @@ impl PostgresCanonicalStore {
             .bind(request_hash)
             .bind("formal_commit")
             .bind("verified_hmac")
-            .bind(&draft.visibility_subject)
+            .bind(event_visibility_subject)
             .bind(encrypted_payload.ciphertext())
             .bind(encrypted_payload.key_reference().as_str())
             .bind(encrypted_payload.nonce().as_slice())
-            .bind(data_subject_id)
+            .bind(event_data_subject_id)
             .execute(&mut *transaction)
             .await
             .map_err(|_| CanonicalStoreError::PrimaryWrite {
@@ -2511,6 +2580,20 @@ impl PostgresCanonicalStore {
                         "set_campaign_invite_projection_capability",
                         "apply_campaign_invite_acceptance",
                         "SELECT core_domain.apply_campaign_invite_acceptance($1, $2::JSONB)",
+                    ),
+                    AtomicProjection::GameplayRollReservation(projection) => (
+                        projection,
+                        "gameplay_roll_reservation_must_be_object",
+                        "set_gameplay_roll_reservation_capability",
+                        "reserve_gameplay_roll_consumptions",
+                        "SELECT core_domain.reserve_gameplay_roll_consumptions($1, $2::JSONB)",
+                    ),
+                    AtomicProjection::SessionEndingReservation(projection) => (
+                        projection,
+                        "session_ending_reservation_must_be_object",
+                        "set_session_ending_reservation_capability",
+                        "reserve_session_ending",
+                        "SELECT core_domain.reserve_session_ending($1, $2::JSONB)",
                     ),
                 };
             if !projection.is_object() {
@@ -3589,6 +3672,35 @@ fn same_endpoint(primary: &PgConnectOptions, witness: &PgConnectOptions) -> bool
     primary.get_host() == witness.get_host() && primary.get_port() == witness.get_port()
 }
 
+fn validate_visibility(label: &str, subject: &str) -> Result<(), CanonicalStoreError> {
+    if !matches!(
+        label,
+        "public"
+            | "party_visible"
+            | "private_to_player"
+            | "private_to_group"
+            | "keeper_only"
+            | "investigator_private"
+            | "ai_internal"
+            | "system_only"
+            | "spectator_visible"
+            | "spectator_hidden"
+            | "system_private"
+    ) {
+        return Err(CanonicalStoreError::Validation("unknown_visibility_label"));
+    }
+    if matches!(
+        label,
+        "private_to_player" | "private_to_group" | "investigator_private"
+    ) == (subject == "not_applicable")
+    {
+        return Err(CanonicalStoreError::Validation(
+            "visibility_subject_mismatch",
+        ));
+    }
+    Ok(())
+}
+
 fn normalize_and_validate(
     draft: &AtomicCommitDraft,
 ) -> Result<AtomicCommitDraft, CanonicalStoreError> {
@@ -3669,31 +3781,7 @@ fn normalize_and_validate(
             "stream_audit_resource_mismatch",
         ));
     }
-    if !matches!(
-        draft.visibility_label.as_str(),
-        "public"
-            | "party_visible"
-            | "private_to_player"
-            | "private_to_group"
-            | "keeper_only"
-            | "investigator_private"
-            | "ai_internal"
-            | "system_only"
-            | "spectator_visible"
-            | "spectator_hidden"
-            | "system_private"
-    ) {
-        return Err(CanonicalStoreError::Validation("unknown_visibility_label"));
-    }
-    if matches!(
-        draft.visibility_label.as_str(),
-        "private_to_player" | "private_to_group" | "investigator_private"
-    ) == (draft.visibility_subject == "not_applicable")
-    {
-        return Err(CanonicalStoreError::Validation(
-            "visibility_subject_mismatch",
-        ));
-    }
+    validate_visibility(&draft.visibility_label, &draft.visibility_subject)?;
     if draft.data_subject_id != "not_applicable" && EntityId::new(&draft.data_subject_id).is_err() {
         return Err(CanonicalStoreError::Validation("data_subject_invalid"));
     }
@@ -3724,6 +3812,38 @@ fn normalize_and_validate(
             .map_err(|_| CanonicalStoreError::Validation("event_payload_must_be_json"))?;
         event.payload_json = serde_json::to_string(&value)
             .map_err(|_| CanonicalStoreError::Validation("event_payload_must_be_json"))?;
+        if let Some(visibility) = &event.visibility {
+            if draft.audit.resource_type != "campaign_fork"
+                || draft.audit.action != "write_official_state"
+                || event.event_type != "CampaignForkMaterialized"
+            {
+                return Err(CanonicalStoreError::Validation(
+                    "event_visibility_override_not_allowed",
+                ));
+            }
+            validate_visibility(&visibility.label, &visibility.subject)?;
+            if visibility.data_subject_id != "not_applicable"
+                && EntityId::new(&visibility.data_subject_id).is_err()
+            {
+                return Err(CanonicalStoreError::Validation(
+                    "event_data_subject_invalid",
+                ));
+            }
+            if matches!(
+                visibility.label.as_str(),
+                "private_to_player" | "private_to_group" | "investigator_private"
+            ) {
+                if visibility.data_subject_id != visibility.subject {
+                    return Err(CanonicalStoreError::Validation(
+                        "private_event_data_subject_mismatch",
+                    ));
+                }
+            } else if visibility.data_subject_id != "not_applicable" {
+                return Err(CanonicalStoreError::Validation(
+                    "non_private_event_data_subject_mismatch",
+                ));
+            }
+        }
         if event.projection_targets.len() > 32 {
             return Err(CanonicalStoreError::Validation(
                 "projection_target_limit_exceeded",
@@ -3826,6 +3946,31 @@ fn request_hash(draft: &AtomicCommitDraft) -> String {
     for event in &draft.events {
         fields.push(event.event_type.clone());
         fields.push(event.payload_json.clone());
+        if let Some(visibility) = &event.visibility {
+            fields.push("event_visibility_override_v2".to_owned());
+            fields.push(visibility.label.clone());
+            fields.push(visibility.subject.clone());
+            fields.push(visibility.data_subject_id.clone());
+        }
+        fields.push(event.projection_targets.len().to_string());
+        for target in &event.projection_targets {
+            fields.push(target.relation.clone());
+            fields.push(target.row_id.clone());
+        }
+    }
+    sha256_fields(&fields)
+}
+
+fn request_hash_with_event_visibility_v1(draft: &AtomicCommitDraft) -> String {
+    let mut fields = request_hash_base_fields(draft);
+    for event in &draft.events {
+        fields.push(event.event_type.clone());
+        fields.push(event.payload_json.clone());
+        if let Some(visibility) = &event.visibility {
+            fields.push("event_visibility_override_v1".to_owned());
+            fields.push(visibility.label.clone());
+            fields.push(visibility.subject.clone());
+        }
         fields.push(event.projection_targets.len().to_string());
         for target in &event.projection_targets {
             fields.push(target.relation.clone());
@@ -3837,10 +3982,16 @@ fn request_hash(draft: &AtomicCommitDraft) -> String {
 
 fn stored_request_hash_matches(draft: &AtomicCommitDraft, stored_hash: &str) -> bool {
     stored_hash == request_hash(draft)
+        || (draft.events.iter().all(|event| {
+            event
+                .visibility
+                .as_ref()
+                .is_none_or(|visibility| visibility.data_subject_id == draft.data_subject_id)
+        }) && stored_hash == request_hash_with_event_visibility_v1(draft))
         || (draft
             .events
             .iter()
-            .all(|event| event.projection_targets.is_empty())
+            .all(|event| event.projection_targets.is_empty() && event.visibility.is_none())
             && stored_hash == legacy_request_hash_without_projection_targets(draft))
 }
 
@@ -4296,6 +4447,40 @@ mod tests {
             });
         let draft = normalize_and_validate(&draft).unwrap();
         assert!(!stored_request_hash_matches(&draft, &legacy_hash));
+
+        let mut fork_draft = draft.clone();
+        fork_draft.audit.resource_type = "campaign_fork".to_owned();
+        fork_draft.events[0].event_type = "CampaignForkMaterialized".to_owned();
+        let hash_without_override = request_hash(&normalize_and_validate(&fork_draft).unwrap());
+        fork_draft.events[0].visibility = Some(CanonicalEventVisibility {
+            label: "private_to_player".to_owned(),
+            subject: "player_legacy_retry".to_owned(),
+            data_subject_id: "player_legacy_retry".to_owned(),
+        });
+        let fork_draft = normalize_and_validate(&fork_draft).unwrap();
+        assert_ne!(request_hash(&fork_draft), hash_without_override);
+
+        let mut mismatched_subject_draft = fork_draft.clone();
+        mismatched_subject_draft.events[0]
+            .visibility
+            .as_mut()
+            .unwrap()
+            .data_subject_id = "not_applicable".to_owned();
+        assert!(matches!(
+            normalize_and_validate(&mismatched_subject_draft),
+            Err(CanonicalStoreError::Validation(
+                "private_event_data_subject_mismatch"
+            ))
+        ));
+
+        let mut unrelated_draft = fork_draft;
+        unrelated_draft.audit.resource_type = "scene".to_owned();
+        assert!(matches!(
+            normalize_and_validate(&unrelated_draft),
+            Err(CanonicalStoreError::Validation(
+                "event_visibility_override_not_allowed"
+            ))
+        ));
     }
 
     #[test]

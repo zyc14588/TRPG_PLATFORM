@@ -1,0 +1,251 @@
+use rand_core::{OsRng, RngCore};
+
+use crate::{KernelResult, TrpgError};
+
+/// Opaque evidence for a percentile roll produced by the server OS CSPRNG.
+/// The fields are intentionally private and the type is not deserializable.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServerPercentileRoll {
+    roll_id: String,
+    value: u8,
+    selected_tens_digit: u8,
+    ones_digit: u8,
+}
+
+impl ServerPercentileRoll {
+    pub fn roll_id(&self) -> &str {
+        &self.roll_id
+    }
+
+    pub const fn value(&self) -> u8 {
+        self.value
+    }
+
+    pub const fn selected_tens_digit(&self) -> u8 {
+        self.selected_tens_digit
+    }
+
+    pub const fn ones_digit(&self) -> u8 {
+        self.ones_digit
+    }
+}
+
+/// Opaque evidence for a d10 roll produced by the server OS CSPRNG.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServerD10Roll {
+    roll_id: String,
+    value: u8,
+}
+
+impl ServerD10Roll {
+    pub fn roll_id(&self) -> &str {
+        &self.roll_id
+    }
+
+    pub const fn value(&self) -> u8 {
+        self.value
+    }
+}
+
+/// Opaque evidence for a bounded damage roll produced by the server OS CSPRNG.
+///
+/// The individual dice are retained so rules and persistence can independently
+/// verify the total without accepting a caller-selected damage value.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServerDamageRoll {
+    roll_id: String,
+    dice_count: u8,
+    die_sides: u8,
+    flat_bonus: i8,
+    dice_values: Vec<u8>,
+    value: u8,
+}
+
+impl ServerDamageRoll {
+    pub fn roll_id(&self) -> &str {
+        &self.roll_id
+    }
+
+    pub const fn dice_count(&self) -> u8 {
+        self.dice_count
+    }
+
+    pub const fn die_sides(&self) -> u8 {
+        self.die_sides
+    }
+
+    pub const fn flat_bonus(&self) -> i8 {
+        self.flat_bonus
+    }
+
+    pub fn dice_values(&self) -> &[u8] {
+        &self.dice_values
+    }
+
+    pub const fn value(&self) -> u8 {
+        self.value
+    }
+}
+
+/// Opaque evidence for one atomically generated skill-improvement attempt.
+///
+/// There is deliberately no constructor from pre-existing rolls. The
+/// percentile check and its conditional increase die are sampled together so
+/// consumers cannot cherry-pick components from separate attempts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServerGrowthRollEvidence {
+    improvement_check: ServerPercentileRoll,
+    increase: Option<ServerD10Roll>,
+}
+
+impl ServerGrowthRollEvidence {
+    pub const fn improvement_check(&self) -> &ServerPercentileRoll {
+        &self.improvement_check
+    }
+
+    pub const fn increase(&self) -> Option<&ServerD10Roll> {
+        self.increase.as_ref()
+    }
+}
+
+pub fn server_percentile_roll() -> KernelResult<ServerPercentileRoll> {
+    let mut rng = OsRng;
+    let selected_tens_digit = sample_decimal_digit(&mut rng);
+    let ones_digit = sample_decimal_digit(&mut rng);
+    let value = percentile_from_digits(selected_tens_digit, ones_digit)?;
+    Ok(ServerPercentileRoll {
+        roll_id: random_id("server_percentile", &mut rng),
+        value,
+        selected_tens_digit,
+        ones_digit,
+    })
+}
+
+fn server_d10_roll() -> ServerD10Roll {
+    let mut rng = OsRng;
+    ServerD10Roll {
+        roll_id: random_id("server_d10", &mut rng),
+        value: sample_decimal_digit(&mut rng) + 1,
+    }
+}
+
+pub fn server_growth_roll_evidence(skill_before: u8) -> KernelResult<ServerGrowthRollEvidence> {
+    if skill_before > 99 {
+        return Err(TrpgError::InvalidConfiguration("skill_growth_range"));
+    }
+    let improvement_check = server_percentile_roll()?;
+    let improvement_check_roll = improvement_check.value();
+    let qualifies = skill_before < 99
+        && (improvement_check_roll > skill_before || improvement_check_roll >= 96);
+    let increase = qualifies.then(server_d10_roll);
+    Ok(ServerGrowthRollEvidence {
+        improvement_check,
+        increase,
+    })
+}
+
+pub fn server_damage_roll(
+    dice_count: u8,
+    die_sides: u8,
+    flat_bonus: i8,
+) -> KernelResult<ServerDamageRoll> {
+    if !(1..=10).contains(&dice_count)
+        || !(2..=100).contains(&die_sides)
+        || !(-20..=20).contains(&flat_bonus)
+    {
+        return Err(TrpgError::InvalidConfiguration("server_damage_formula"));
+    }
+    let mut rng = OsRng;
+    let dice_values = (0..dice_count)
+        .map(|_| sample_die(&mut rng, die_sides))
+        .collect::<Vec<_>>();
+    let total = dice_values
+        .iter()
+        .try_fold(i16::from(flat_bonus), |sum, value| {
+            sum.checked_add(i16::from(*value))
+        })
+        .filter(|value| (0..=i16::from(u8::MAX)).contains(value))
+        .ok_or(TrpgError::InvalidConfiguration("server_damage_total"))?;
+    Ok(ServerDamageRoll {
+        roll_id: random_id("server_damage", &mut rng),
+        dice_count,
+        die_sides,
+        flat_bonus,
+        dice_values,
+        value: u8::try_from(total)
+            .map_err(|_| TrpgError::InvalidConfiguration("server_damage_total"))?,
+    })
+}
+
+fn percentile_from_digits(tens_digit: u8, ones_digit: u8) -> KernelResult<u8> {
+    if tens_digit > 9 || ones_digit > 9 {
+        return Err(TrpgError::InvalidConfiguration("server_percentile_digit"));
+    }
+    let value = tens_digit * 10 + ones_digit;
+    Ok(if value == 0 { 100 } else { value })
+}
+
+fn sample_decimal_digit(rng: &mut impl RngCore) -> u8 {
+    const ACCEPT_BELOW: u32 = u32::MAX - (u32::MAX % 10);
+    loop {
+        let value = rng.next_u32();
+        if value < ACCEPT_BELOW {
+            return (value % 10) as u8;
+        }
+    }
+}
+
+fn sample_die(rng: &mut impl RngCore, sides: u8) -> u8 {
+    let sides = u32::from(sides);
+    let accept_below = u32::MAX - (u32::MAX % sides);
+    loop {
+        let value = rng.next_u32();
+        if value < accept_below {
+            return u8::try_from(value % sides + 1).expect("die sides are bounded to u8");
+        }
+    }
+}
+
+fn random_id(prefix: &str, rng: &mut impl RngCore) -> String {
+    let mut bytes = [0_u8; 16];
+    rng.fill_bytes(&mut bytes);
+    format!("{prefix}_{}", hex_encode(&bytes))
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn server_roll_evidence_is_range_checked_and_distinct() {
+        let percentile = server_percentile_roll().unwrap();
+        let d10 = server_d10_roll();
+        let damage = server_damage_roll(2, 6, 1).unwrap();
+        let growth = server_growth_roll_evidence(50).unwrap();
+        assert!((1..=100).contains(&percentile.value()));
+        assert!((1..=10).contains(&d10.value()));
+        assert!((3..=13).contains(&damage.value()));
+        assert!((1..=100).contains(&growth.improvement_check().value()));
+        let growth_qualifies =
+            growth.improvement_check().value() > 50 || growth.improvement_check().value() >= 96;
+        assert_eq!(growth.increase().is_some(), growth_qualifies);
+        assert!(growth
+            .increase()
+            .is_none_or(|increase| (1..=10).contains(&increase.value())
+                && increase.roll_id() != growth.improvement_check().roll_id()));
+        assert_eq!(damage.dice_values().len(), 2);
+        assert_ne!(percentile.roll_id(), d10.roll_id());
+        assert_ne!(percentile.roll_id(), damage.roll_id());
+        assert!(server_growth_roll_evidence(100).is_err());
+    }
+}

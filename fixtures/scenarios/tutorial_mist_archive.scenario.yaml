@@ -46,6 +46,28 @@ npcs:
     lies:
       - 她声称昨晚没有人进出地下室。
     revealable_clues: [clue_wrong_signature, clue_salt_receipt]
+    combat_profile:
+      dexterity: 80
+      skill_targets:
+        melee: 60
+        firearm: 80
+        dodge: 40
+        first_aid: 30
+        medicine: 10
+      weapon_loadout:
+        melee:
+          weapon_id: selected_melee_weapon
+          damage_formula: {dice_count: 1, die_sides: 6, flat_bonus: 0}
+        firearm:
+          weapon_id: selected_firearm
+          damage_formula: {dice_count: 1, die_sides: 6, flat_bonus: 5}
+      current_hp: 8
+      max_hp: 8
+      armor: 0
+      condition: ABLE
+    chase_profile:
+      role: PURSUER
+      movement_rate: 8
 clues:
   - id: clue_wrong_signature
     type: core
@@ -75,8 +97,26 @@ timeline:
     starts_at: 18:20
     fires_at: 20:00
     effect: Marta attempts to lock the investigators inside.
+encounters:
+  - id: encounter_basement_confrontation
+    type: combat
+    scene_id: scene_basement
+    participants: [investigator, npc_marta]
+  - id: encounter_archive_escape
+    type: chase
+    scene_id: scene_basement
+    participants: [investigator, npc_marta]
+    initial_range: 2
 endings:
   - id: ending_expose_marta
     condition: clue_wrong_signature and clue_salt_receipt discovered
+    growth_awards:
+      - skill_name: Library Use
+        reason: Correctly connected the archive records.
+      - skill_name: Psychology
+        reason: Correctly read Marta's motives during the confrontation.
   - id: ending_salt_cellar_escape
     condition: scene_basement entered and danger resolved
+    growth_awards:
+      - skill_name: Dodge
+        reason: Escaped the collapsing salt cellar.

@@ -112,6 +112,7 @@ fn private_event_draft(nonce: u128, subject_id: &str) -> AtomicCommitDraft {
         events: vec![CanonicalEventDraft {
             event_type: "PrivatePlayerMemoryRecorded".to_owned(),
             payload_json: format!(r#"{{"private_memory":"deletion-secret-{nonce}"}}"#),
+            visibility: None,
             projection_targets: Vec::new(),
         }],
         audit: PolicyAuditDraft {
@@ -169,6 +170,7 @@ fn deletion_request_draft(nonce: u128, subject_id: &str, job_id: &str) -> Atomic
                 }
             })
             .to_string(),
+            visibility: None,
             projection_targets: Vec::new(),
         }],
         audit: PolicyAuditDraft {
@@ -255,8 +257,11 @@ async fn data_deletion_persists_blocks_on_hold_and_verifies_every_real_surface()
     let subject_id = format!("subject_{nonce}");
     let job_id = format!("delete_{nonce}");
     let hold_reference = format!("hold_{nonce}");
-    let root = std::env::temp_dir().join(format!("p05-deletion-e2e-{nonce}"));
-    let export_root = root.join("exports");
+    let root = tempfile::Builder::new()
+        .prefix("p05-deletion-e2e-")
+        .tempdir()
+        .unwrap();
+    let export_root = root.path().join("exports");
     fs::create_dir_all(export_root.join(&subject_id)).unwrap();
     fs::write(
         export_root.join(&subject_id).join("export.bin"),
@@ -329,6 +334,7 @@ async fn data_deletion_persists_blocks_on_hold_and_verifies_every_real_surface()
             "embedding_hash": rag_chunk.embedding_hash(),
         })
         .to_string(),
+        visibility: None,
         projection_targets: Vec::new(),
     }];
     let derivation = store
@@ -645,7 +651,7 @@ async fn data_deletion_persists_blocks_on_hold_and_verifies_every_real_surface()
     assert_eq!(still_completed.status, DeletionJobStatus::Completed);
     assert!(still_completed.all_targets_verified());
 
-    fs::remove_dir_all(root).unwrap();
+    root.close().unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1099,12 +1105,11 @@ async fn destroyed_subject_key_cannot_retain_key_material_on_insert() {
 
 #[tokio::test]
 async fn filesystem_verification_does_not_misreport_io_failures_as_absence() {
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let non_directory_root =
-        std::env::temp_dir().join(format!("p05-deletion-verification-root-{nonce}"));
+    let root = tempfile::Builder::new()
+        .prefix("p05-deletion-verification-")
+        .tempdir()
+        .unwrap();
+    let non_directory_root = root.path().join("not-a-directory");
     fs::write(&non_directory_root, b"not-a-directory").unwrap();
     let surface =
         FilesystemDeletionSurface::new(&non_directory_root, DeletionTarget::ObjectStorage).unwrap();
@@ -1116,6 +1121,7 @@ async fn filesystem_verification_does_not_misreport_io_failures_as_absence() {
 
     assert_eq!(error, PrivacyError::Storage);
     fs::remove_file(non_directory_root).unwrap();
+    root.close().unwrap();
 }
 
 #[tokio::test]

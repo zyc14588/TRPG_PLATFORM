@@ -1,7 +1,8 @@
 use trpg_domain_core::ddd::AuthorityMode;
 use trpg_domain_core::domain_entities_value_objects::{
     CampaignAggregate, CampaignInvite, Character, CharacterState, CoreDomainEvent, CoreEntityError,
-    MembershipRole, Reconsideration, ReconsiderationState, Session, SessionState, UserId,
+    MembershipRole, Reconsideration, ReconsiderationOutcome, ReconsiderationState, Session,
+    SessionState, UserId,
 };
 use trpg_test_support::authority_contract;
 
@@ -126,16 +127,23 @@ fn reconsideration_is_append_only_and_core_events_are_versioned() {
     )
     .unwrap();
     reconsideration
-        .append_review_event("event_reconsideration_reviewed", false)
+        .append_review_event("event_reconsideration_reviewed")
         .unwrap();
     reconsideration
-        .append_review_event("event_reconsideration_resolved", true)
+        .resolve(
+            "event_reconsideration_corrected",
+            ReconsiderationOutcome::Corrected,
+        )
         .unwrap();
     assert_eq!(reconsideration.state, ReconsiderationState::Resolved);
+    assert_eq!(
+        reconsideration.outcome,
+        Some(ReconsiderationOutcome::Corrected)
+    );
     assert_eq!(reconsideration.event_chain.len(), 3);
     assert_eq!(
         reconsideration
-            .append_review_event("event_after_resolution", true)
+            .resolve("event_after_resolution", ReconsiderationOutcome::Upheld)
             .unwrap_err(),
         CoreEntityError::EventChainInvalid
     );

@@ -503,6 +503,13 @@ pub enum ReconsiderationState {
     Resolved,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ReconsiderationOutcome {
+    Upheld,
+    Corrected,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Reconsideration {
     pub reconsideration_id: ReconsiderationId,
@@ -510,6 +517,7 @@ pub struct Reconsideration {
     pub original_event_sequence: u64,
     pub requested_by: UserId,
     pub state: ReconsiderationState,
+    pub outcome: Option<ReconsiderationOutcome>,
     pub event_chain: Vec<EntityId>,
     pub version: u64,
 }
@@ -531,6 +539,7 @@ impl Reconsideration {
             original_event_sequence,
             requested_by: UserId::new(requested_by)?,
             state: ReconsiderationState::Requested,
+            outcome: None,
             event_chain: vec![
                 EntityId::new(request_event_id).map_err(|_| CoreEntityError::InvalidIdentifier)?
             ],
@@ -538,29 +547,173 @@ impl Reconsideration {
         })
     }
 
-    pub fn append_review_event(
-        &mut self,
-        event_id: impl Into<String>,
-        resolved: bool,
-    ) -> CoreEntityResult<()> {
-        if self.state == ReconsiderationState::Resolved {
+    pub fn append_review_event(&mut self, event_id: impl Into<String>) -> CoreEntityResult<()> {
+        if self.state != ReconsiderationState::Requested {
             return Err(CoreEntityError::EventChainInvalid);
         }
         self.event_chain
             .push(EntityId::new(event_id).map_err(|_| CoreEntityError::InvalidIdentifier)?);
-        self.state = if resolved {
-            ReconsiderationState::Resolved
-        } else {
-            ReconsiderationState::Reviewed
-        };
+        self.state = ReconsiderationState::Reviewed;
         self.version += 1;
         Ok(())
+    }
+
+    pub fn resolve(
+        &mut self,
+        event_id: impl Into<String>,
+        outcome: ReconsiderationOutcome,
+    ) -> CoreEntityResult<()> {
+        if self.state != ReconsiderationState::Reviewed {
+            return Err(CoreEntityError::EventChainInvalid);
+        }
+        self.event_chain
+            .push(EntityId::new(event_id).map_err(|_| CoreEntityError::InvalidIdentifier)?);
+        self.state = ReconsiderationState::Resolved;
+        self.outcome = Some(outcome);
+        self.version += 1;
+        Ok(())
+    }
+}
+
+/// A child projection row derived from an immutable campaign-fork snapshot.
+/// IDs are child-owned and deterministic; source IDs are retained only inside
+/// the fork snapshot and materialization manifest for lineage/replay.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(tag = "row_type", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CampaignForkMaterializedRow {
+    Scenario {
+        scenario_id: String,
+        ruleset_id: String,
+        format_version: String,
+        content_hash: String,
+        document_json: String,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    Character {
+        character_id: String,
+        owner_user_id: String,
+        display_name: String,
+        state: String,
+        initial_version_locked: bool,
+        sheet_version_id: String,
+        sheet_json: String,
+        sheet_locked: bool,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    Session {
+        session_id: String,
+        room_id: String,
+        scenario_id: String,
+        state: String,
+        active_scene_id: Option<String>,
+        started_at_unix_ms: u64,
+        ended_at_unix_ms: u64,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    Scene {
+        scene_id: String,
+        session_id: String,
+        scenario_id: String,
+        room_id: String,
+        scene_key: String,
+        name: String,
+        state: String,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    PublicEvent {
+        fork_event_id: String,
+        source_event_sequence: u64,
+        source_event_type: String,
+        source_resource_type: String,
+        source_resource_id: String,
+        source_payload_json: String,
+        source_event_integrity_hash: String,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    DiscoveredClue {
+        fork_clue_id: String,
+        source_clue_id: String,
+        importance: String,
+        outcome: String,
+        cost: Option<String>,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    NpcState {
+        npc_state_id: String,
+        source_npc_id: String,
+        state_json: String,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    Combat {
+        combat_id: String,
+        session_id: String,
+        status: String,
+        round: u64,
+        current_turn_index: u64,
+        state_json: String,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    Chase {
+        chase_id: String,
+        session_id: String,
+        status: String,
+        range_band: u8,
+        segment: u64,
+        state_json: String,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+    Conclusion {
+        ending_event_id: String,
+        session_id: String,
+        ending_id: String,
+        summary: String,
+        ended_at_unix_ms: u64,
+        visibility_label: String,
+        visibility_subject: String,
+    },
+}
+
+impl CampaignForkMaterializedRow {
+    pub const fn projection_target_count(&self) -> usize {
+        match self {
+            Self::Character { .. } => 2,
+            Self::Scenario { .. }
+            | Self::Session { .. }
+            | Self::Scene { .. }
+            | Self::PublicEvent { .. }
+            | Self::DiscoveredClue { .. }
+            | Self::NpcState { .. }
+            | Self::Combat { .. }
+            | Self::Chase { .. }
+            | Self::Conclusion { .. } => 1,
+        }
     }
 }
 
 /// Versioned canonical payloads for P06 aggregates. The Event Store envelope
 /// carries authority, visibility, provenance and command metadata; these
 /// payloads carry only aggregate facts needed to rebuild projections.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub struct CharacterCombatHealthUpdate {
+    pub character_id: String,
+    pub new_sheet_version_id: String,
+    pub source_sheet_version: u64,
+    pub source_character_version: u64,
+    pub hp_before: u8,
+    pub hp_after: u8,
+    pub condition_before: String,
+    pub condition_after: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(tag = "event_type", content = "data")]
 pub enum CoreDomainEvent {
@@ -655,7 +808,29 @@ pub enum CoreDomainEvent {
         child_campaign_id: String,
         source_session_id: String,
         snapshot_hash: String,
+        child_snapshot_hash: String,
+        copy_scopes: Vec<crate::fork_canon_lineage::CopyScope>,
+        canonical_snapshot_json: String,
         reason: String,
+    },
+    CampaignForkMaterializationRecorded {
+        schema_version: u16,
+        fork_id: String,
+        child_campaign_id: String,
+        child_session_id: String,
+        child_scenario_id: String,
+        child_snapshot_hash: String,
+        child_state_json: String,
+        materialized_row_count: u64,
+        batch_count: u64,
+    },
+    CampaignForkMaterialized {
+        schema_version: u16,
+        fork_id: String,
+        child_campaign_id: String,
+        batch_index: u64,
+        batch_count: u64,
+        rows: Vec<CampaignForkMaterializedRow>,
     },
     ReconsiderationRequested {
         schema_version: u16,
@@ -669,8 +844,73 @@ pub enum CoreDomainEvent {
         schema_version: u16,
         reconsideration_id: String,
         review_event_id: String,
-        resolved: bool,
+        review_summary: String,
+    },
+    ReconsiderationUpheld {
+        schema_version: u16,
+        reconsideration_id: String,
+        resolution_event_id: String,
+        original_event_sequence: u64,
         resolution: String,
+    },
+    ReconsiderationCorrected {
+        schema_version: u16,
+        reconsideration_id: String,
+        resolution_event_id: String,
+        original_event_sequence: u64,
+        resolution: String,
+        corrected_event_type: String,
+        corrected_payload_json: String,
+    },
+    CombatStateRecorded {
+        schema_version: u16,
+        combat_id: String,
+        campaign_id: String,
+        session_id: String,
+        status: String,
+        round: u64,
+        turn_index: u64,
+        version: u64,
+        state_json: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        character_health_updates: Vec<CharacterCombatHealthUpdate>,
+    },
+    ChaseStateRecorded {
+        schema_version: u16,
+        chase_id: String,
+        campaign_id: String,
+        session_id: String,
+        status: String,
+        range_band: u8,
+        segment: u64,
+        version: u64,
+        state_json: String,
+    },
+    EndingRecorded {
+        schema_version: u16,
+        ending_event_id: String,
+        campaign_id: String,
+        session_id: String,
+        ending_id: String,
+        summary: String,
+        ended_at_unix_ms: u64,
+    },
+    CharacterGrowthApplied {
+        schema_version: u16,
+        growth_event_id: String,
+        campaign_id: String,
+        session_id: String,
+        ending_event_id: String,
+        character_id: String,
+        source_sheet_version_id: String,
+        new_sheet_version_id: String,
+        skill_name: String,
+        skill_before: u8,
+        improvement_check_roll: u8,
+        increase_roll: Option<u8>,
+        skill_after: u8,
+        server_roll_id: String,
+        increase_roll_id: Option<String>,
     },
 }
 
@@ -690,8 +930,18 @@ impl CoreDomainEvent {
             Self::SessionStateChanged { .. } => "SessionStateChanged",
             Self::SceneSwitched { .. } => "SceneSwitched",
             Self::CampaignForkRecorded { .. } => "CampaignForkRecorded",
+            Self::CampaignForkMaterializationRecorded { .. } => {
+                "CampaignForkMaterializationRecorded"
+            }
+            Self::CampaignForkMaterialized { .. } => "CampaignForkMaterialized",
             Self::ReconsiderationRequested { .. } => "ReconsiderationRequested",
             Self::ReconsiderationReviewed { .. } => "ReconsiderationReviewed",
+            Self::ReconsiderationUpheld { .. } => "ReconsiderationUpheld",
+            Self::ReconsiderationCorrected { .. } => "ReconsiderationCorrected",
+            Self::CombatStateRecorded { .. } => "CombatStateRecorded",
+            Self::ChaseStateRecorded { .. } => "ChaseStateRecorded",
+            Self::EndingRecorded { .. } => "EndingRecorded",
+            Self::CharacterGrowthApplied { .. } => "CharacterGrowthApplied",
         }
     }
 
@@ -708,8 +958,16 @@ impl CoreDomainEvent {
             | Self::SessionStateChanged { schema_version, .. }
             | Self::SceneSwitched { schema_version, .. }
             | Self::CampaignForkRecorded { schema_version, .. }
+            | Self::CampaignForkMaterializationRecorded { schema_version, .. }
+            | Self::CampaignForkMaterialized { schema_version, .. }
             | Self::ReconsiderationRequested { schema_version, .. }
-            | Self::ReconsiderationReviewed { schema_version, .. } => *schema_version,
+            | Self::ReconsiderationReviewed { schema_version, .. }
+            | Self::ReconsiderationUpheld { schema_version, .. }
+            | Self::ReconsiderationCorrected { schema_version, .. }
+            | Self::CombatStateRecorded { schema_version, .. }
+            | Self::ChaseStateRecorded { schema_version, .. }
+            | Self::EndingRecorded { schema_version, .. }
+            | Self::CharacterGrowthApplied { schema_version, .. } => *schema_version,
         }
     }
 

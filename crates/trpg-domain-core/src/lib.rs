@@ -3,6 +3,7 @@ pub mod adr_0003_authority_contract_authority_contract;
 pub mod authority_contract;
 pub mod authority_contract_guard;
 pub mod authority_contract_impl;
+pub mod canonical_gameplay_state;
 pub mod character_combat_san_chase;
 pub mod character_combat_san_chase_impl {
     pub use crate::character_combat_san_chase::*;

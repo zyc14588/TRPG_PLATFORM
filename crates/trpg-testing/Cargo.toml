@@ -17,6 +17,8 @@ trpg-test-support = { path = "../trpg-contracts/test-support" }
 
 [dev-dependencies]
 serde_json = "1.0"
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "chrono", "json", "macros", "migrate"] }
 trpg-api = { path = "../trpg-api" }
+trpg-data-eventing = { path = "../trpg-data-eventing" }
 trpg-ruleset-coc7 = { path = "../trpg-ruleset-coc7" }
 trpg-runtime = { path = "../trpg-runtime" }

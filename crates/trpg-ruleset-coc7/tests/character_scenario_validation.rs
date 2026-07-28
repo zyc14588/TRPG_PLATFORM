@@ -68,6 +68,54 @@ fn core_clues_need_two_independent_acquisition_paths() {
 }
 
 #[test]
+fn encounters_reject_duplicate_or_unusable_participants() {
+    for invalid in [
+        TUTORIAL_SCENARIO.replace(
+            "participants: [investigator, npc_marta]",
+            "participants: [npc_marta, npc_marta]",
+        ),
+        TUTORIAL_SCENARIO.replacen(
+            "participants: [investigator, npc_marta]",
+            "participants: [investigator, \"npc marta\"]",
+            1,
+        ),
+        TUTORIAL_SCENARIO.replace(
+            "  - id: encounter_archive_escape\n    type: chase\n    scene_id: scene_basement\n    participants: [investigator, npc_marta]",
+            "  - id: encounter_archive_escape\n    type: chase\n    scene_id: scene_basement\n    participants: [investigator, \"npc!marta\"]",
+        ),
+    ] {
+        assert_eq!(
+            parse_scenario_yaml(&invalid),
+            Err(CharacterScenarioError::InvalidScenarioField("encounters"))
+        );
+    }
+}
+
+#[test]
+fn endings_reject_unselectable_whitespace_padded_ids_and_awards() {
+    for invalid in [
+        TUTORIAL_SCENARIO.replace(
+            "  - id: ending_expose_marta",
+            "  - id: \" ending_expose_marta \"",
+        ),
+        TUTORIAL_SCENARIO.replace(
+            "      - skill_name: Library Use",
+            "      - skill_name: \" Library Use \"",
+        ),
+        TUTORIAL_SCENARIO.replace(
+            "      - skill_name: Psychology",
+            "      - skill_name: Library Use",
+        ),
+        TUTORIAL_SCENARIO.replace("Library Use", &"L".repeat(129)),
+    ] {
+        assert_eq!(
+            parse_scenario_yaml(&invalid),
+            Err(CharacterScenarioError::InvalidScenarioField("endings"))
+        );
+    }
+}
+
+#[test]
 fn character_sheet_validation_rejects_invalid_coc7_data() {
     let valid = valid_character();
     let derived = valid.validate().expect("valid COC7 sheet");
