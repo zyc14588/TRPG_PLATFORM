@@ -13,8 +13,31 @@ const DEV_SMOKE: &str = include_str!("../../../scripts/dev/smoke.ps1");
 const PROCESS_SMOKE: &str = include_str!("../../../scripts/ci/service-process-smoke.sh");
 const PRODUCTION_SECURITY_SMOKE: &str =
     include_str!("../../../scripts/ci/production-security-smoke.sh");
-const AGENT_WORKER: &str = include_str!("../../../apps/agent-worker/src/main.rs");
-const API_SERVER: &str = include_str!("../../../apps/api-server/src/main.rs");
+const PRODUCTION_SECURITY_RUNTIME_PHASE: &str = include_str!(
+    "../../../scripts/ci/production-security-smoke/04_runtime_and_witness_privileges.sh"
+);
+const AGENT_WORKER_SOURCES: &[&str] = &[
+    include_str!("../../../apps/agent-worker/src/main.rs"),
+    include_str!("../../../apps/agent-worker/src/main_sections/01_module_prelude.rs"),
+    include_str!(
+        "../../../apps/agent-worker/src/main_sections/02_agent_worker_process_from_environment.rs"
+    ),
+    include_str!("../../../apps/agent-worker/src/main_sections/03_background_cycle_error.rs"),
+    include_str!(
+        "../../../apps/agent-worker/src/main_sections/04_eventing_worker_rollout_flag_is_explicit_and_fail_closed.rs"
+    ),
+];
+const API_SERVER_SOURCES: &[&str] = &[
+    include_str!("../../../apps/api-server/src/main.rs"),
+    include_str!("../../../apps/api-server/src/main_sections/01_module_prelude.rs"),
+    include_str!(
+        "../../../apps/api-server/src/main_sections/02_policy_and_audit_from_environment.rs"
+    ),
+];
+
+fn source_contains(sources: &[&str], needle: &str) -> bool {
+    sources.iter().any(|source| source.contains(needle))
+}
 
 fn top_level_mapping_entry<'a>(document: &'a str, section: &str, entry: &str) -> &'a str {
     let section_marker = format!("{section}:");
@@ -103,10 +126,10 @@ fn s09_compose_builds_real_services_and_local_policy_sidecars() {
             "-f \"$root/docker-compose.ci.yml\"",
         ]
     );
-    assert!(PRODUCTION_SECURITY_SMOKE.contains("\"${compose_command[@]}\" build api web"));
-    assert!(PRODUCTION_SECURITY_SMOKE
+    assert!(PRODUCTION_SECURITY_RUNTIME_PHASE.contains("\"${compose_command[@]}\" build api web"));
+    assert!(PRODUCTION_SECURITY_RUNTIME_PHASE
         .contains("\"${compose_command[@]}\" up --detach --no-build --wait"));
-    assert!(!PRODUCTION_SECURITY_SMOKE.contains("up --detach --build"));
+    assert!(!PRODUCTION_SECURITY_RUNTIME_PHASE.contains("up --detach --build"));
     for secret in [
         "nats_url",
         "nats_authorization",
@@ -176,25 +199,34 @@ fn s09_compose_builds_real_services_and_local_policy_sidecars() {
     assert!(!CI_COMPOSE.contains("coc_ai_trpg.placeholder"));
     assert!(!CI_COMPOSE.contains("not_implemented"));
     assert!(
-        !AGENT_WORKER.contains("workflow.apply_migration()"),
+        !source_contains(AGENT_WORKER_SOURCES, "workflow.apply_migration()"),
         "the least-privileged worker must not execute owner migrations"
     );
-    for (service, source) in [("api", API_SERVER), ("agent-worker", AGENT_WORKER)] {
+    for (service, sources) in [
+        ("api", API_SERVER_SOURCES),
+        ("agent-worker", AGENT_WORKER_SOURCES),
+    ] {
         assert!(
-            !source.contains(".prepare_for_service()"),
+            !source_contains(sources, ".prepare_for_service()"),
             "{service} must not execute canonical owner migrations/recovery"
         );
     }
     assert!(
-        API_SERVER.contains("IdentityService::from_prepared_postgres_with_security_and_redis_tls("),
+        source_contains(
+            API_SERVER_SOURCES,
+            "IdentityService::from_prepared_postgres_with_security_and_redis_tls("
+        ),
         "the API must connect to the identity schema prepared by the migration runner"
     );
     assert!(
-        !API_SERVER.contains("IdentityService::from_postgres_with_security_and_redis_tls("),
+        !source_contains(
+            API_SERVER_SOURCES,
+            "IdentityService::from_postgres_with_security_and_redis_tls("
+        ),
         "the API must not invoke the identity constructor that executes owner migrations"
     );
     assert!(
-        !AGENT_WORKER.contains("deletion_repository.migrate()"),
+        !source_contains(AGENT_WORKER_SOURCES, "deletion_repository.migrate()"),
         "the least-privileged worker must not execute deletion migrations"
     );
     assert!(DEV_SMOKE.contains("release_readiness.py"));

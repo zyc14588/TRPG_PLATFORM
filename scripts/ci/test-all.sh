@@ -34,6 +34,8 @@ fi
 test -z "$(git status --porcelain=v1)"
 
 python3 scripts/ci/repo_truth.py --check
+python3 scripts/ci/check_source_file_size.py --check
+python3 scripts/ci/test_source_file_size.py
 python3 scripts/ci/validate_workflows.py
 python3 scripts/ci/discover_tests.py --check
 python3 scripts/ci/verify_test_inventory.py --report "$tool_dir/test-inventory.json"
@@ -54,6 +56,7 @@ bash -n scripts/ci/p07-integration-services.sh
 bash -n scripts/ci/p07-stop-integration-services.sh
 bash -n scripts/ci/generate-integration-evidence.sh
 bash -n scripts/ci/production-security-smoke.sh
+bash -n scripts/ci/production-security-smoke/*.sh
 bash -n scripts/backup_restore/smoke.sh
 bash -n scripts/projection_rebuild/verify.sh
 
@@ -76,7 +79,18 @@ tar -xzf "$tool_dir/actionlint.tar.gz" -C "$tool_dir" actionlint
 curl -fsSLo "$tool_dir/shellcheck.tar.xz" https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz
 printf '%s  %s\n' 6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbedf87 "$tool_dir/shellcheck.tar.xz" | sha256sum -c -
 tar -xJf "$tool_dir/shellcheck.tar.xz" -C "$tool_dir"
-"$tool_dir/shellcheck-v0.10.0/shellcheck" scripts/ci/*.sh scripts/backup_restore/*.sh scripts/projection_rebuild/*.sh
+ci_shell_scripts=()
+for script in scripts/ci/*.sh; do
+  if [[ "$script" != "scripts/ci/production-security-smoke.sh" ]]; then
+    ci_shell_scripts+=("$script")
+  fi
+done
+"$tool_dir/shellcheck-v0.10.0/shellcheck" \
+  "${ci_shell_scripts[@]}" \
+  scripts/backup_restore/*.sh \
+  scripts/projection_rebuild/*.sh
+"$tool_dir/shellcheck-v0.10.0/shellcheck" -x \
+  scripts/ci/production-security-smoke.sh
 
 if [[ "$mode" == "contracts" ]]; then
   python3 scripts/ci/test_repo_truth.py
@@ -153,7 +167,7 @@ pnpm --filter ./apps/web... build
 pnpm --filter ./apps/web... test
 ./scripts/ci/service-process-smoke.sh
 
-curl -fsSLo "$tool_dir/opa" https://openpolicyagent.org/downloads/v1.18.2/opa_linux_amd64_static
+curl --retry 4 --retry-all-errors --retry-delay 2 -fsSLo "$tool_dir/opa" https://openpolicyagent.org/downloads/v1.18.2/opa_linux_amd64_static
 printf '%s  %s\n' 9903e5125ac281104f2c4b7371d10cc3b74a98933743fcbfc174f9bf0ab20de8 "$tool_dir/opa" | sha256sum -c -
 chmod 0755 "$tool_dir/opa"
 "$tool_dir/opa" version

@@ -1,0 +1,263 @@
+
+impl FormalCommitAuthorizer {
+    pub fn new(
+        identity_verifier: IdentityVerifier,
+        policy: OpenFgaOpaPolicyAdapter,
+        audit: FormalCommitAudit,
+    ) -> Self {
+        Self {
+            identity_verifier,
+            policy,
+            audit,
+        }
+    }
+
+    pub fn authorize<T>(
+        &self,
+        workflow_authentication: &AuthenticationContext,
+        authorizing_authentication: Option<&AuthenticationContext>,
+        command: &CommandEnvelope<T>,
+        requested_role: &str,
+        now_unix_ms: u64,
+    ) -> KernelResult<FormalAuthorization> {
+        let resource = command.authenticated_context().resource();
+        self.authorize_scoped_action(
+            workflow_authentication,
+            authorizing_authentication,
+            command,
+            "write_official_state",
+            resource.resource_type().as_str(),
+            resource.resource_id().as_str(),
+            requested_role,
+            now_unix_ms,
+        )
+    }
+
+    /// Authorizes a domain-specific formal action while retaining the command's
+    /// authenticated campaign/authority binding. The exact action and target
+    /// resource are sent to both policy engines and written to the canonical
+    /// audit record; they cannot be smuggled only in application metadata.
+    #[allow(clippy::too_many_arguments)]
+    pub fn authorize_scoped_action<T>(
+        &self,
+        workflow_authentication: &AuthenticationContext,
+        authorizing_authentication: Option<&AuthenticationContext>,
+        command: &CommandEnvelope<T>,
+        action: &str,
+        resource_type: &str,
+        resource_id: &str,
+        requested_role: &str,
+        now_unix_ms: u64,
+    ) -> KernelResult<FormalAuthorization> {
+        if requested_role.trim().is_empty() {
+            return Err(TrpgError::InvalidConfiguration(
+                "formal_commit_requested_role_required",
+            ));
+        }
+        if action.trim().is_empty()
+            || resource_type.trim().is_empty()
+            || resource_id.trim().is_empty()
+        {
+            return Err(TrpgError::InvalidConfiguration(
+                "formal_commit_policy_scope_required",
+            ));
+        }
+        let campaign_id = command.authenticated_context().resource().campaign_id();
+        let contract = self
+            .identity_verifier
+            .authority_contract(campaign_id)
+            .map_err(|_| TrpgError::AuthorityViolation)?;
+        contract.validate_command(command)?;
+        self.identity_verifier
+            .verify_actor(
+                workflow_authentication,
+                &command.actor,
+                campaign_id,
+                now_unix_ms,
+            )
+            .map_err(|_| TrpgError::InternalIdentityInvalid)?;
+        if let Some(authentication) = authorizing_authentication {
+            self.identity_verifier
+                .verify(authentication, now_unix_ms)
+                .map_err(|_| TrpgError::InternalIdentityInvalid)?;
+            authentication
+                .require_campaign(campaign_id)
+                .map_err(|_| TrpgError::CampaignScopeMismatch)?;
+        }
+        let audit_authentication = authorizing_authentication.unwrap_or(workflow_authentication);
+
+        let principal_role = formal_principal_role(command.actor.role())?;
+        let request = PolicyAuthorizationRequest {
+            actor_id: command.actor.id().to_string(),
+            principal_role: principal_role.to_owned(),
+            campaign_id: campaign_id.to_string(),
+            resource_type: resource_type.to_owned(),
+            resource_id: resource_id.to_owned(),
+            action: action.to_owned(),
+            authority_mode: authority_mode_name(&command.authority_mode).to_owned(),
+            requested_role: None,
+            target_visibility: visibility_name(command.visibility.label()).to_owned(),
+            target_visibility_subject: command.visibility.subject_id().map(ToString::to_string),
+            trace_id: command.authenticated_context().trace_id().to_string(),
+        };
+
+        let evidence = match self.policy.evaluate(&request) {
+            Ok(evidence) => evidence,
+            Err(error) => {
+                let (openfga_revision, opa_revision) = self.policy.revision_snapshot();
+                self.audit.record_policy_decision(
+                    audit_authentication,
+                    command,
+                    &request,
+                    requested_role,
+                    AuditDecision::Unavailable,
+                    "policy-unavailable",
+                    openfga_revision,
+                    "policy-unavailable",
+                    opa_revision,
+                )?;
+                return Err(error);
+            }
+        };
+        if let Err(error) = evidence.validate() {
+            let (openfga_revision, opa_revision) = self.policy.revision_snapshot();
+            self.audit.record_policy_decision(
+                audit_authentication,
+                command,
+                &request,
+                requested_role,
+                AuditDecision::Unavailable,
+                "policy-evidence-untrusted",
+                openfga_revision,
+                "policy-evidence-untrusted",
+                opa_revision,
+            )?;
+            return Err(error);
+        }
+        self.record_evidence(
+            audit_authentication,
+            command,
+            &request,
+            requested_role,
+            &evidence,
+        )?;
+        if !evidence.openfga.allowed || !evidence.opa.allowed {
+            return Err(TrpgError::PolicyDenied);
+        }
+        let (actor_origin, authentication_reference) = audit_actor(audit_authentication);
+        Ok(FormalAuthorization {
+            canonical_audit: CanonicalPolicyAudit {
+                actor_id: audit_authentication.subject_id().to_string(),
+                actor_origin: actor_origin.to_owned(),
+                authentication_reference: authentication_reference.to_owned(),
+                resource_type: request.resource_type.clone(),
+                resource_id: request.resource_id.clone(),
+                action: request.action.clone(),
+                requested_role: requested_role.to_owned(),
+                openfga_decision_id: evidence.openfga.decision_id.clone(),
+                openfga_policy_revision: evidence.openfga.policy_revision.clone(),
+                opa_decision_id: evidence.opa.decision_id.clone(),
+                opa_policy_revision: evidence.opa.policy_revision.clone(),
+            },
+            contract,
+        })
+    }
+
+    /// Authorizes an action whose requesting user must be a current member of
+    /// the exact campaign carried by the command. Merely presenting a session
+    /// that is scoped to a campaign is insufficient: the live membership is
+    /// rechecked through the identity trust anchor before policy evaluation.
+    #[allow(clippy::too_many_arguments)]
+    pub fn authorize_campaign_member_scoped_action<T>(
+        &self,
+        workflow_authentication: &AuthenticationContext,
+        authorizing_authentication: Option<&AuthenticationContext>,
+        command: &CommandEnvelope<T>,
+        action: &str,
+        resource_type: &str,
+        resource_id: &str,
+        requested_role: &str,
+        now_unix_ms: u64,
+    ) -> KernelResult<FormalAuthorization> {
+        let authentication = authorizing_authentication.ok_or(TrpgError::AuthorizationDenied)?;
+        let campaign_id = command.authenticated_context().resource().campaign_id();
+        self.identity_verifier
+            .authorize_replay(authentication, campaign_id, now_unix_ms)
+            .map_err(|_| TrpgError::AuthorizationDenied)?;
+        self.authorize_scoped_action(
+            workflow_authentication,
+            Some(authentication),
+            command,
+            action,
+            resource_type,
+            resource_id,
+            requested_role,
+            now_unix_ms,
+        )
+    }
+
+    fn record_evidence<T>(
+        &self,
+        authentication: &AuthenticationContext,
+        command: &CommandEnvelope<T>,
+        request: &PolicyAuthorizationRequest,
+        requested_role: &str,
+        evidence: &PolicyEvidence,
+    ) -> KernelResult<AuditRecord> {
+        self.audit.record_policy_decision(
+            authentication,
+            command,
+            request,
+            requested_role,
+            if evidence.openfga.allowed && evidence.opa.allowed {
+                AuditDecision::Permit
+            } else {
+                AuditDecision::Deny
+            },
+            &evidence.openfga.decision_id,
+            &evidence.openfga.policy_revision,
+            &evidence.opa.decision_id,
+            &evidence.opa.policy_revision,
+        )
+    }
+}
+
+fn audit_actor(authentication: &AuthenticationContext) -> (&'static str, &str) {
+    match authentication.kind() {
+        PrincipalKind::UserSession { session_id, .. } => ("user_session", session_id.as_str()),
+        PrincipalKind::Workload { .. } => ("workload", authentication.subject_id().as_str()),
+        PrincipalKind::AgentRun { run_id, .. } => ("agent_run", run_id.as_str()),
+    }
+}
+
+fn formal_principal_role(role: &ActorRole) -> KernelResult<&'static str> {
+    match role {
+        ActorRole::Workflow => Ok("workflow"),
+        ActorRole::RulesEngine => Ok("rules_engine"),
+        ActorRole::System => Ok("system"),
+        _ => Err(TrpgError::AuthorityViolation),
+    }
+}
+
+fn authority_mode_name(mode: &AuthorityMode) -> &'static str {
+    match mode {
+        AuthorityMode::HumanKp => "human_kp",
+        AuthorityMode::AiKp => "ai_kp",
+    }
+}
+
+fn visibility_name(label: &VisibilityLabel) -> &'static str {
+    label.as_str()
+}
+
+fn provenance_kind_name(kind: &trpg_shared_kernel::ProvenanceKind) -> &'static str {
+    match kind {
+        trpg_shared_kernel::ProvenanceKind::UserStatement => "user_statement",
+        trpg_shared_kernel::ProvenanceKind::HumanKeeperStatement => "human_keeper_statement",
+        trpg_shared_kernel::ProvenanceKind::RulesEngineDecision => "rules_engine_decision",
+        trpg_shared_kernel::ProvenanceKind::ToolResult => "tool_result",
+        trpg_shared_kernel::ProvenanceKind::AgentProposal => "agent_proposal",
+        trpg_shared_kernel::ProvenanceKind::ImportedSource => "imported_source",
+        trpg_shared_kernel::ProvenanceKind::SystemFixture => "system_fixture",
+    }
+}
