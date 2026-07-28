@@ -1,7 +1,7 @@
 # Repository Source Manifest v1
 
-Repository files: 4300
-Hashed files: 4297
+Repository files: 4301
+Hashed files: 4298
 
 All tracked paths are listed. The three generated outputs use a self-reference sentinel instead of an impossible self-hash.
 CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manifest.py` requires all three outputs to be byte-identical.
@@ -2915,6 +2915,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `docs/codex/99-appendix/research_notes_2026_06_30.md` | 3639 | `4e37e30bce3081eddf96964654fe8883307bc8b6930c33df30dcf05d81328eab` | `100644` |
 | `docs/codex/99-appendix/unresolved-codex-questions.md` | 2127 | `c65f2b0cfd55dca2c08f2d08d0c2b7dbb6b096687abec1b581720eeb8749df38` | `100644` |
 | `docs/codex/99-appendix/unresolved_questions.md` | 4300 | `9b96b814da244a80ee5f6a2b591c550995409ade925bc30b1eda1d328c41f1ad` | `100644` |
+| `docs/reports/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md` | 9799 | `13ff7b845ce7c25c4fb9cafa21a5b8571fe0bd34b59ada241aa5dbacc42d13b0` | `100644` |
 | `docs/reports/stages/S00_ACCEPTANCE_EVIDENCE.md` | 1260 | `a0143961350148c2921dfeaf386f1797ce4f4fe0725633609bb026f5f3352be6` | `100644` |
 | `docs/reports/stages/S00_TEST_RESULTS.md` | 1238 | `5ac738da463dc679574174e66f6e39dd47fcff33a046784b147d872d1c0ff20b` | `100644` |
 | `docs/reports/stages/S00_TRACEABILITY.md` | 1133 | `78d61ed20f14ec8be26adf72f314c9f7d95183c19af158d1ce46576d0a2f7e4a` | `100644` |
