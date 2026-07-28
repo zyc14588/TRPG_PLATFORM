@@ -34,6 +34,41 @@ PINNED_GATE_DOWNLOADS = (
         "9903e5125ac281104f2c4b7371d10cc3b74a98933743fcbfc174f9bf0ab20de8",
     ),
 )
+RELEASE_RELEVANT_PATHS = (
+    "apps/api-server/src/main.rs",
+    "crates/trpg-runtime/src/lib.rs",
+    "migrations/0001_release_relevant.sql",
+    "compose.yml",
+    "compose.production.yml",
+    "Cargo.toml",
+    "Cargo.lock",
+    "pnpm-lock.yaml",
+    "policies/opa/release.rego",
+)
+
+
+def release_trigger_errors(
+    text: str, changed_paths: tuple[str, ...] = RELEASE_RELEVANT_PATHS
+) -> list[str]:
+    errors = []
+    for event in ("push", "pull_request"):
+        match = re.search(
+            rf"(?ms)^  {event}:\s*\n((?:    .*\n?)*)",
+            text,
+        )
+        if match is None:
+            errors.append(f"release.yml: missing {event} trigger")
+            continue
+        block = match.group(1)
+        if re.search(r"(?m)^    paths(?:-ignore)?:", block):
+            errors.extend(
+                (
+                    "release.yml: "
+                    f"{event} path filtering cannot prove release evidence for {path}"
+                )
+                for path in changed_paths
+            )
+    return errors
 
 
 def validate(root: Path = ROOT) -> list[str]:
@@ -67,6 +102,8 @@ def validate(root: Path = ROOT) -> list[str]:
     for path in workflows:
         text = path.read_text(encoding="utf-8")
         relative = path.relative_to(root).as_posix()
+        if relative == ".github/workflows/release.yml":
+            errors.extend(release_trigger_errors(text))
         for token in ("permissions:", "timeout-minutes:", "concurrency:", "cancel-in-progress: true"):
             if token not in text:
                 errors.append(f"{relative}: missing {token}")

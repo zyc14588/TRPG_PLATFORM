@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from p00_negative_case import CASES, rejection_errors
 from repo_truth_test_support import *
+from validate_workflows import RELEASE_RELEVANT_PATHS, release_trigger_errors
 
 
 class EvidenceArtifactCases:
@@ -32,6 +34,16 @@ class EvidenceArtifactCases:
             self.assertEqual(payload["status"], "FAIL")
             self.assertEqual(payload["semantic_status"], "FAIL")
             self.assertEqual(payload["github_sha"], payload["base_commit"])
+            self.assertEqual(
+                payload["tree_sha"],
+                subprocess.run(
+                    ["git", "rev-parse", "HEAD^{tree}"],
+                    cwd=ROOT,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip(),
+            )
             self.assertEqual(set(payload["report_files"]), set(payload["generated_artifact_sha256"]))
             self.assertEqual(
                 set(payload["command_artifact_sha256"]),
@@ -95,6 +107,13 @@ class EvidenceArtifactCases:
             )
             payload["command"] = actual_command
             payload["command_argv"] = actual_argv
+            tree_sha = payload["tree_sha"]
+            payload["tree_sha"] = "0" * len(tree_sha)
+            self.assertIn(
+                "tree_sha mismatch",
+                validate_evidence(payload, artifact_base=report.parent),
+            )
+            payload["tree_sha"] = tree_sha
             digest = payload["artifact_sha256"].pop("MANIFEST.md")
             payload["artifact_sha256"][str((ROOT / "MANIFEST.md").resolve())] = digest
             self.assertTrue(
@@ -122,6 +141,41 @@ class EvidenceArtifactCases:
             self.assertIn(
                 "tool version not verified: pnpm",
                 validate_evidence(payload, artifact_base=report.parent),
+            )
+
+    def test_expected_negative_rejection_requires_exact_exit_and_error_type(
+        self,
+    ) -> None:
+        marker = (
+            "FAIL: "
+            "test_release_readiness_recognizes_product_entries_but_keeps_later_blockers"
+        )
+        self.assertEqual(rejection_errors(CASES[0], 1, marker), [])
+        self.assertTrue(rejection_errors(CASES[0], 0, marker))
+        self.assertTrue(rejection_errors(CASES[0], 1, "unrelated failure"))
+
+    def test_release_trigger_covers_all_release_relevant_change_classes(self) -> None:
+        release_path = ROOT / ".github/workflows/release.yml"
+        release_text = release_path.read_text(encoding="utf-8")
+        self.assertEqual(
+            release_trigger_errors(release_text, RELEASE_RELEVANT_PATHS),
+            [],
+        )
+        narrowed = release_text.replace(
+            "  push:\n    branches: [master]\n",
+            (
+                "  push:\n"
+                "    branches: [master]\n"
+                "    paths:\n"
+                "      - scripts/ci/**\n"
+            ),
+            1,
+        )
+        errors = release_trigger_errors(narrowed, RELEASE_RELEVANT_PATHS)
+        for changed_path in RELEASE_RELEVANT_PATHS:
+            self.assertTrue(
+                any(changed_path in error for error in errors),
+                changed_path,
             )
 
     def test_aggregate_evidence_separates_command_artifacts_from_hashed_attachments(

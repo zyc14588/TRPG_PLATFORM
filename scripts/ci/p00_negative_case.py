@@ -20,6 +20,17 @@ CASES = (
     "CASE-05_readiness_provenance_removed",
 )
 
+EXPECTED_REJECTIONS = {
+    CASES[0]: (
+        1,
+        ("FAIL: test_release_readiness_recognizes_product_entries_but_keeps_later_blockers",),
+    ),
+    CASES[1]: (1, ("missing script scripts/ci/generate_evidence.py",)),
+    CASES[2]: (1, ("missing field: generated_at_utc",)),
+    CASES[3]: (1, ("manifest drift:",)),
+    CASES[4]: (1, ("release readiness base_commit mismatch",)),
+}
+
 
 def run(command: list[str]) -> tuple[int, str]:
     result = subprocess.run(
@@ -35,6 +46,19 @@ def run(command: list[str]) -> tuple[int, str]:
         f"[exit_code]\n{result.returncode}\n"
     )
     return result.returncode, output
+
+
+def rejection_errors(case_name: str, exit_code: int, output: str) -> list[str]:
+    expected_exit_code, expected_markers = EXPECTED_REJECTIONS[case_name]
+    errors = []
+    if exit_code != expected_exit_code:
+        errors.append(
+            f"expected validation exit {expected_exit_code}, got {exit_code}"
+        )
+    for marker in expected_markers:
+        if marker not in output:
+            errors.append(f"expected rejection marker missing: {marker}")
+    return errors
 
 
 def text_diff(name: str, before: str, after: str) -> str:
@@ -111,12 +135,19 @@ def main() -> int:
     baseline_output = ""
     diff = ""
     if args.case == CASES[0]:
-        path = ROOT / "scripts/ci/test_repo_truth.py"
+        path = ROOT / "scripts/ci/repo_truth_test_security_cases.py"
         before = path.read_bytes()
         needle = b'self.assertEqual(report["status"], "BLOCKED")'
         if before.count(needle) != 1:
             raise SystemExit("expected one readiness assertion to inject")
-        baseline = validation = [sys.executable, "scripts/ci/test_repo_truth.py"]
+        baseline = validation = [
+            sys.executable,
+            "scripts/ci/test_repo_truth.py",
+            (
+                "RepositoryTruthNegativeTests."
+                "test_release_readiness_recognizes_product_entries_but_keeps_later_blockers"
+            ),
+        ]
         restore = (path, before)
         injected = before.replace(needle, b'self.assertEqual(report["status"], "READY")')
         baseline_code, baseline_output = run(baseline)
@@ -156,7 +187,11 @@ def main() -> int:
         (output_dir / "validation-output.txt").write_text(validation_output, encoding="utf-8", newline="\n")
         (output_dir / "fault.diff").write_text(diff, encoding="utf-8", newline="\n")
         (output_dir / "exit-code.txt").write_text(f"{validation_code}\n", encoding="utf-8")
-        if validation_code == 0:
+        expectation_errors = rejection_errors(
+            args.case, validation_code, validation_output
+        )
+        if expectation_errors:
+            print("\n".join(expectation_errors), file=sys.stderr)
             return 1
         hashes = []
         for name in ("baseline-output.txt", "validation-output.txt", "fault.diff", "exit-code.txt"):

@@ -1,7 +1,8 @@
 {
-  "schema_version": "p00-6",
+  "schema_version": "p00-7",
   "required": [
     "base_commit",
+    "tree_sha",
     "worktree_diff_sha256",
     "generated_at_utc",
     "generator_version",

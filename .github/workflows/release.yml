@@ -6,10 +6,6 @@ on:
     branches: [master]
   push:
     branches: [master]
-    paths:
-      - .github/workflows/release.yml
-      - scripts/ci/**
-      - P00_REMOTE_CANONICALIZATION_DECISION.md
 
 permissions:
   contents: read
