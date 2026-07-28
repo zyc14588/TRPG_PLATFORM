@@ -167,7 +167,9 @@ pnpm --filter ./apps/web... build
 pnpm --filter ./apps/web... test
 ./scripts/ci/service-process-smoke.sh
 
-curl -fsSLo "$tool_dir/opa" https://openpolicyagent.org/downloads/v1.18.2/opa_linux_amd64_static
+curl --retry 4 --retry-all-errors --retry-delay 2 \
+  -fsSLo "$tool_dir/opa" \
+  https://openpolicyagent.org/downloads/v1.18.2/opa_linux_amd64_static
 printf '%s  %s\n' 9903e5125ac281104f2c4b7371d10cc3b74a98933743fcbfc174f9bf0ab20de8 "$tool_dir/opa" | sha256sum -c -
 chmod 0755 "$tool_dir/opa"
 "$tool_dir/opa" version
