@@ -1737,9 +1737,9 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-data-eventing/tests/projection_resume/02_projection_resume_phases/01_canonicalization_and_resume.rs` | 12738 | `fa95f68d235884e6b78b0e2dcfdcc61111a50e6992bcbc3b4a222b4f6b5dc9bf` | `100644` |
 | `crates/trpg-data-eventing/tests/projection_resume/02_projection_resume_phases/02_forced_rebuild_and_checkpoint_guards.rs` | 6804 | `5b05795da8d1d68435fde66b879230f1a2ac29093c7c068c60c44897a7a9a13c` | `100644` |
 | `crates/trpg-data-eventing/tests/projection_resume/03_hash_one.rs` | 720 | `d8d71e66318680d8ccb89bd1700fd7667eea29a0ea2168cce490f06b15897508` | `100644` |
-| `crates/trpg-data-eventing/tests/rag_snapshot_contract_tests.rs` | 411 | `f71aab432e7cfed2bc5d704a3dfd66b36de842a6591202bcf2e42a5fa694adf2` | `100644` |
+| `crates/trpg-data-eventing/tests/rag_snapshot_contract_tests.rs` | 417 | `5e0d018c051405cf6865ca7d13521fc87a3efc185018ccfcc690390c2c9f57a7` | `100644` |
 | `crates/trpg-data-eventing/tests/rag_snapshot_contract_tests/01_module_prelude.rs` | 6217 | `0df1eb34bd7577166b357a9d52ed728af96747af8f53b91495e812057d120147` | `100644` |
-| `crates/trpg-data-eventing/tests/rag_snapshot_contract_tests/02_pgvector_snapshot_is_rebuildable_and_filters_visibility_before_materiali.rs` | 266 | `c607cf703f35c30c867391bcaa8de5e0fdcfc3f12ab02482fc95ae9b043e3c00` | `100644` |
+| `crates/trpg-data-eventing/tests/rag_snapshot_contract_tests/02_pgvector_snapshot_is_rebuildable_and_filters_visibility_before_materialization.rs` | 266 | `c607cf703f35c30c867391bcaa8de5e0fdcfc3f12ab02482fc95ae9b043e3c00` | `100644` |
 | `crates/trpg-data-eventing/tests/rag_snapshot_contract_tests/02_rag_snapshot_phases/01_materialize_and_query_visibility.rs` | 12096 | `abdfbb2cf7a165c509d99756701ab4519bab70d3921690d2f5c7a6dce4b44be1` | `100644` |
 | `crates/trpg-data-eventing/tests/rag_snapshot_contract_tests/02_rag_snapshot_phases/02_rebuild_integrity_and_expiry.rs` | 7322 | `8a32afd74be38bd43b5f73df7fdf0286be7229417978eff9fcf58969c237e611` | `100644` |
 | `crates/trpg-data-eventing/tests/rag_snapshot_contract_tests/03_raw_snapshot_chunk_insert.rs` | 2028 | `7399c303c4176355100142128fbfcc1288e392c79c2579a116ecc5b9f30a998b` | `100644` |
