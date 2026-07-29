@@ -3,11 +3,19 @@ use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, RwLock};
+use std::str::FromStr;
+use std::sync::{Arc, Mutex, RwLock};
 
+use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};
+use sqlx::postgres::{PgConnectOptions, PgConnection, PgSslMode};
+use sqlx::{Connection, Row};
 use trpg_shared_kernel::{KernelResult, TrpgError};
 use zeroize::Zeroizing;
+
+type HmacSha256 = Hmac<Sha256>;
+pub const LEDGER_CHECKPOINT_GENESIS_HASH: &str =
+    "hmac-sha256:0000000000000000000000000000000000000000000000000000000000000000";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Deserialize, serde::Serialize)]
 pub enum SecretBackend {
@@ -146,6 +154,82 @@ impl SecretValue {
 impl SecretKey32 {
     pub fn expose_to<R>(&self, consumer: impl FnOnce(&[u8; 32]) -> R) -> R {
         consumer(&self.0)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LedgerCheckpoint {
+    sequence: u64,
+    previous_chain_head: String,
+    chain_head: String,
+    integrity_key_id: String,
+    checkpoint_mac: String,
+}
+
+impl LedgerCheckpoint {
+    pub fn new(
+        sequence: u64,
+        previous_chain_head: impl Into<String>,
+        chain_head: impl Into<String>,
+        integrity_key_id: impl Into<String>,
+        checkpoint_mac: impl Into<String>,
+    ) -> KernelResult<Self> {
+        let checkpoint = Self {
+            sequence,
+            previous_chain_head: previous_chain_head.into(),
+            chain_head: chain_head.into(),
+            integrity_key_id: integrity_key_id.into(),
+            checkpoint_mac: checkpoint_mac.into(),
+        };
+        if checkpoint.sequence == 0
+            || !valid_hmac_sha256_label(&checkpoint.previous_chain_head)
+            || !valid_hmac_sha256_label(&checkpoint.chain_head)
+            || checkpoint.integrity_key_id.trim().is_empty()
+            || checkpoint.integrity_key_id.len() > 128
+            || !valid_hmac_sha256_label(&checkpoint.checkpoint_mac)
+        {
+            return Err(TrpgError::AuditIntegrityViolation);
+        }
+        Ok(checkpoint)
+    }
+
+    pub const fn sequence(&self) -> u64 {
+        self.sequence
+    }
+
+    pub fn previous_chain_head(&self) -> &str {
+        &self.previous_chain_head
+    }
+
+    pub fn chain_head(&self) -> &str {
+        &self.chain_head
+    }
+
+    pub fn integrity_key_id(&self) -> &str {
+        &self.integrity_key_id
+    }
+
+    pub fn checkpoint_mac(&self) -> &str {
+        &self.checkpoint_mac
+    }
+}
+
+pub trait LedgerCheckpointStore: Send + Sync {
+    fn latest(&self, ledger_id: &str) -> KernelResult<Option<LedgerCheckpoint>>;
+    fn append(&self, ledger_id: &str, checkpoint: &LedgerCheckpoint) -> KernelResult<()>;
+}
+
+#[derive(Clone)]
+pub struct PostgresLedgerCheckpointStore {
+    options: PgConnectOptions,
+}
+
+impl fmt::Debug for PostgresLedgerCheckpointStore {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PostgresLedgerCheckpointStore")
+            .field("connection", &"[REDACTED]")
+            .finish()
     }
 }
 

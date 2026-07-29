@@ -11,17 +11,22 @@ use std::time::Duration;
 use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use trpg_agent_runtime::agent_runtime::AgentResult;
 use trpg_agent_runtime::local_model_certification::{
     CertificationInput, LocalModelCertificate, LocalModelCertificationAuthority,
 };
 
-type HmacSha256 = Hmac<Sha256>;
+#[path = "certification_ledger_integrity/checkpoint_store.rs"]
+mod checkpoint_store;
+use checkpoint_store::TestFileCheckpointStore;
+#[path = "certification_ledger_integrity/crash_boundaries.rs"]
+mod crash_boundaries;
 
+type HmacSha256 = Hmac<Sha256>;
 static NEXT_DIR: AtomicU64 = AtomicU64::new(1);
 const SIGNING_KEY: [u8; 32] = [0x5a; 32];
 const CHILD_PATH: &str = "TRPG_CERTIFICATION_LEDGER_CHILD_PATH";
 const CHILD_ID: &str = "TRPG_CERTIFICATION_LEDGER_CHILD_ID";
-
 fn test_root() -> PathBuf {
     let suffix = NEXT_DIR.fetch_add(1, Ordering::Relaxed);
     let root = std::env::temp_dir().join(format!(
@@ -33,15 +38,22 @@ fn test_root() -> PathBuf {
     fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
     root
 }
-
 fn companion(path: &Path, suffix: &str) -> PathBuf {
     let mut name = path.as_os_str().to_os_string();
     name.push(suffix);
     PathBuf::from(name)
 }
-
 fn open_authority(path: &Path) -> LocalModelCertificationAuthority {
-    LocalModelCertificationAuthority::new("test-signing-key", &SIGNING_KEY, path).unwrap()
+    open_authority_result(path).unwrap()
+}
+
+fn open_authority_result(path: &Path) -> AgentResult<LocalModelCertificationAuthority> {
+    LocalModelCertificationAuthority::new_with_checkpoint(
+        "test-signing-key",
+        &SIGNING_KEY,
+        path,
+        TestFileCheckpointStore::shared(companion(path, ".external-witness")),
+    )
 }
 
 fn input(model_id: &str) -> CertificationInput {
@@ -94,8 +106,7 @@ fn assert_tamper_rejected(mutate: impl FnOnce(&Path, &mut Vec<String>)) {
     let (root, path, _) = populated_registry();
     let mut lines = registry_lines(&path);
     mutate(&path, &mut lines);
-    let rejected =
-        LocalModelCertificationAuthority::new("test-signing-key", &SIGNING_KEY, &path).is_err();
+    let rejected = open_authority_result(&path).is_err();
     fs::remove_dir_all(root).unwrap();
     assert!(rejected, "tampered certification registry must fail closed");
 }
@@ -137,47 +148,65 @@ fn certification_registry_rejects_reorder_copy_deletion_mutation_and_partial_lin
 }
 
 #[test]
-fn certification_registry_rejects_old_snapshot_and_crash_boundary_mismatches() {
+fn certification_registry_rejects_combined_log_and_anchor_snapshot_rollback() {
     let root = test_root();
     let path = root.join("certification-registry.jsonl");
     let authority = open_authority(&path);
-    issue(&authority, "model-one");
+    let certificate = issue(&authority, "model-one");
     let old_log = fs::read(&path).unwrap();
-    issue(&authority, "model-two");
+    let anchor_path = companion(&path, ".head");
+    let old_anchor = fs::read(&anchor_path).unwrap();
+
+    authority.revoke(&certificate).unwrap();
+    assert!(authority
+        .ensure_ai_keeper_model(
+            &certificate,
+            certificate.model_id(),
+            certificate.model_artifact_sha256()
+        )
+        .is_err());
     drop(authority);
 
-    fs::write(&path, &old_log).unwrap();
-    let old_log_rejected =
-        LocalModelCertificationAuthority::new("test-signing-key", &SIGNING_KEY, &path).is_err();
-    fs::remove_dir_all(&root).unwrap();
-    assert!(old_log_rejected, "an old log must not pass a newer anchor");
-
-    let root = test_root();
-    let path = root.join("certification-registry.jsonl");
-    let authority = open_authority(&path);
-    issue(&authority, "model-one");
-    let old_anchor_path = companion(&path, ".head");
-    let old_anchor = fs::read(&old_anchor_path).unwrap();
-    issue(&authority, "model-two");
-    drop(authority);
-    fs::write(&old_anchor_path, &old_anchor).unwrap();
-    let stale_anchor_rejected =
-        LocalModelCertificationAuthority::new("test-signing-key", &SIGNING_KEY, &path).is_err();
+    fs::write(&path, old_log).unwrap();
+    fs::write(&anchor_path, old_anchor).unwrap();
+    let reactivated = open_authority_result(&path)
+        .and_then(|authority| {
+            authority.ensure_ai_keeper_model(
+                &certificate,
+                certificate.model_id(),
+                certificate.model_artifact_sha256(),
+            )
+        })
+        .is_ok();
     fs::remove_dir_all(root).unwrap();
-    assert!(
-        stale_anchor_rejected,
-        "a synced log without its new anchor must fail closed"
-    );
 
-    assert!(!old_anchor.is_empty());
+    assert!(
+        !reactivated,
+        "restoring the log and its sibling anchor must not reactivate a revoked certificate"
+    );
+}
+
+#[test]
+fn certification_registry_rejects_a_forged_external_checkpoint_mac() {
+    let (root, path, _) = populated_registry();
+    let witness_path = companion(&path, ".external-witness");
+    let mut encoded = fs::read_to_string(&witness_path).unwrap().into_bytes();
+    let mac = encoded
+        .windows(b"hmac-sha256:".len())
+        .rposition(|window| window == b"hmac-sha256:")
+        .unwrap()
+        + b"hmac-sha256:".len();
+    encoded[mac] = if encoded[mac] == b'a' { b'b' } else { b'a' };
+    fs::write(witness_path, encoded).unwrap();
+    assert!(open_authority_result(&path).is_err());
+    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
 fn certification_registry_ignores_uncommitted_anchor_temporary_file() {
     let (root, path, _) = populated_registry();
     fs::write(companion(&path, ".head.tmp-crash"), b"uncommitted").unwrap();
-    let reopened =
-        LocalModelCertificationAuthority::new("test-signing-key", &SIGNING_KEY, &path).is_ok();
+    let reopened = open_authority_result(&path).is_ok();
     fs::remove_dir_all(root).unwrap();
     assert!(
         reopened,
@@ -219,36 +248,42 @@ fn certification_previous_format_migration_is_explicit_auditable_and_one_time() 
         .collect();
     let encoded = format!("{}\n", previous.join("\n"));
     fs::remove_file(companion(&path, ".head")).unwrap();
+    fs::remove_file(companion(&path, ".external-witness")).unwrap();
     fs::write(&path, encoded.as_bytes()).unwrap();
     let digest = format!("sha256:{:x}", Sha256::digest(encoded.as_bytes()));
 
+    assert!(open_authority_result(&path).is_err());
     assert!(
-        LocalModelCertificationAuthority::new("test-signing-key", &SIGNING_KEY, &path).is_err()
+        LocalModelCertificationAuthority::migrate_previous_registry_with_checkpoint(
+            "test-signing-key",
+            &SIGNING_KEY,
+            &path,
+            previous.len() as u64,
+            &format!("sha256:{}", "0".repeat(64)),
+            TestFileCheckpointStore::shared(companion(&path, ".external-witness")),
+        )
+        .is_err()
     );
-    assert!(LocalModelCertificationAuthority::migrate_previous_registry(
-        "test-signing-key",
-        &SIGNING_KEY,
-        &path,
-        previous.len() as u64,
-        &format!("sha256:{}", "0".repeat(64)),
-    )
-    .is_err());
-    LocalModelCertificationAuthority::migrate_previous_registry(
+    LocalModelCertificationAuthority::migrate_previous_registry_with_checkpoint(
         "test-signing-key",
         &SIGNING_KEY,
         &path,
         previous.len() as u64,
         &digest,
+        TestFileCheckpointStore::shared(companion(&path, ".external-witness")),
     )
     .unwrap();
-    assert!(LocalModelCertificationAuthority::migrate_previous_registry(
-        "test-signing-key",
-        &SIGNING_KEY,
-        &path,
-        previous.len() as u64,
-        &digest,
-    )
-    .is_err());
+    assert!(
+        LocalModelCertificationAuthority::migrate_previous_registry_with_checkpoint(
+            "test-signing-key",
+            &SIGNING_KEY,
+            &path,
+            previous.len() as u64,
+            &digest,
+            TestFileCheckpointStore::shared(companion(&path, ".external-witness")),
+        )
+        .is_err()
+    );
 
     let records: Vec<Value> = registry_lines(&path)
         .iter()
@@ -257,6 +292,34 @@ fn certification_previous_format_migration_is_explicit_auditable_and_one_time() 
     assert!(records
         .iter()
         .all(|record| record["source"] == "previous_format_migration"));
+    let authority = open_authority(&path);
+    assert!(authority
+        .ensure_ai_keeper_model(
+            &revoked,
+            revoked.model_id(),
+            revoked.model_artifact_sha256()
+        )
+        .is_err());
+    drop(authority);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn certification_anchored_format_requires_controlled_checkpoint_migration() {
+    let (root, path, revoked) = populated_registry();
+    let encoded = fs::read(&path).unwrap();
+    let digest = format!("sha256:{:x}", Sha256::digest(&encoded));
+    fs::remove_file(companion(&path, ".external-witness")).unwrap();
+    assert!(open_authority_result(&path).is_err());
+    LocalModelCertificationAuthority::migrate_anchored_registry_checkpoint(
+        "test-signing-key",
+        &SIGNING_KEY,
+        &path,
+        registry_lines(&path).len() as u64,
+        &digest,
+        TestFileCheckpointStore::shared(companion(&path, ".external-witness")),
+    )
+    .unwrap();
     let authority = open_authority(&path);
     assert!(authority
         .ensure_ai_keeper_model(

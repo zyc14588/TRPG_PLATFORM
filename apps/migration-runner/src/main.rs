@@ -1,9 +1,11 @@
 use std::process::ExitCode;
 
+use sqlx::{Connection, PgConnection};
 use trpg_contracts::{run_service, RoleRuntimeProbe, ServiceKind, ServiceSpec};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::PostgresCanonicalStore;
 use trpg_security_governance::secret::{
-    MountedFileSecretResolver, SecretManager, SecretReference, SecretValue,
+    MountedFileSecretResolver, PostgresLedgerCheckpointStore, SecretManager, SecretReference,
+    SecretResolver, SecretValue,
 };
 
 fn main() -> ExitCode {
@@ -27,6 +29,13 @@ struct MigrationRuntime {
 
 impl MigrationRuntime {
     fn from_environment() -> Result<Self, String> {
+        let runtime = tokio::runtime::Runtime::new()
+            .map_err(|_| "MIGRATION_RUNTIME_INITIALIZATION_FAILED".to_owned())?;
+        let bootstrap_resolver =
+            MountedFileSecretResolver::new(required_environment("TRPG_SECRET_MOUNT")?)
+                .map_err(|_| "SECRET_MOUNT_INVALID".to_owned())?;
+        bootstrap_witness_migrations(&runtime, &bootstrap_resolver)?;
+
         let manager = production_secret_manager()?;
         let primary_url = resolve_mounted_secret(&manager, "TRPG_DATABASE_URL")?;
         let witness_url = resolve_mounted_secret(&manager, "TRPG_WITNESS_DATABASE_URL")?;
@@ -38,8 +47,6 @@ impl MigrationRuntime {
         let payload_key = resolve_mounted_secret(&manager, "TRPG_PAYLOAD_ENCRYPTION_KEY")?
             .to_key32()
             .map_err(|_| "PAYLOAD_ENCRYPTION_KEY_INVALID".to_owned())?;
-        let runtime = tokio::runtime::Runtime::new()
-            .map_err(|_| "MIGRATION_RUNTIME_INITIALIZATION_FAILED".to_owned())?;
         let mut connection = None;
         expose_store_connection(
             &runtime,
@@ -74,6 +81,37 @@ impl MigrationRuntime {
                 .count()
         ))
     }
+}
+
+fn bootstrap_witness_migrations(
+    runtime: &tokio::runtime::Runtime,
+    resolver: &MountedFileSecretResolver,
+) -> Result<(), String> {
+    let id = required_environment("TRPG_WITNESS_DATABASE_URL_SECRET_ID")?;
+    let version = required_environment("TRPG_WITNESS_DATABASE_URL_SECRET_VERSION")?
+        .parse::<u64>()
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or_else(|| "TRPG_WITNESS_DATABASE_URL_SECRET_VERSION_INVALID".to_owned())?;
+    let reference = SecretReference::mounted(id, version)
+        .map_err(|_| "WITNESS_DATABASE_URL_SECRET_REFERENCE_INVALID".to_owned())?;
+    resolver
+        .resolve(&reference)
+        .map_err(|_| "WITNESS_DATABASE_URL_SECRET_RESOLUTION_FAILED".to_owned())?
+        .expose_utf8_to(|witness_url| {
+            PostgresLedgerCheckpointStore::connect(witness_url)
+                .map_err(|_| "WITNESS_BOOTSTRAP_TLS_POLICY_FAILED".to_owned())?;
+            runtime.block_on(async {
+                let mut connection = PgConnection::connect(witness_url)
+                    .await
+                    .map_err(|_| "WITNESS_BOOTSTRAP_CONNECTION_FAILED".to_owned())?;
+                trpg_data_eventing::persistence_migrations::witness_migrator()
+                    .run(&mut connection)
+                    .await
+                    .map_err(|_| "WITNESS_BOOTSTRAP_MIGRATION_FAILED".to_owned())
+            })
+        })
+        .map_err(|_| "WITNESS_DATABASE_URL_SECRET_INVALID".to_owned())?
 }
 
 fn required_environment(name: &str) -> Result<String, String> {

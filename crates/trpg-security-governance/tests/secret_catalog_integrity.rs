@@ -10,13 +10,24 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use trpg_security_governance::secret::{
-    migrate_previous_secret_catalog, MountedFileSecretResolver, SecretManager, SecretReference,
+    migrate_anchored_secret_catalog, migrate_previous_secret_catalog_with_checkpoint,
+    MountedFileSecretResolver, SecretBackend, SecretManager, SecretReference,
 };
+use trpg_shared_kernel::KernelResult;
+
+#[path = "common/ledger_checkpoint_store.rs"]
+mod ledger_checkpoint_store;
+use ledger_checkpoint_store::TestFileCheckpointStore;
 
 static NEXT_DIR: AtomicU64 = AtomicU64::new(1);
 const CHILD_ROOT: &str = "TRPG_SECRET_CATALOG_CHILD_ROOT";
 const CHILD_PATH: &str = "TRPG_SECRET_CATALOG_CHILD_PATH";
 const CHILD_ID: &str = "TRPG_SECRET_CATALOG_CHILD_ID";
+const INTEGRITY_KEY: [u8; 32] = [0x7c; 32];
+
+#[path = "secret_catalog_integrity/previous_format.rs"]
+mod previous_format;
+use previous_format::replace_with_previous_anchored_format;
 
 fn test_root() -> PathBuf {
     let suffix = NEXT_DIR.fetch_add(1, Ordering::Relaxed);
@@ -37,7 +48,20 @@ fn companion(path: &Path, suffix: &str) -> PathBuf {
 }
 
 fn open_manager(root: &Path, path: &Path) -> SecretManager<MountedFileSecretResolver> {
-    SecretManager::new_durable(MountedFileSecretResolver::new(root).unwrap(), path).unwrap()
+    open_manager_result(root, path).unwrap()
+}
+
+fn open_manager_result(
+    root: &Path,
+    path: &Path,
+) -> KernelResult<SecretManager<MountedFileSecretResolver>> {
+    SecretManager::new_durable_with_checkpoint(
+        MountedFileSecretResolver::new(root)?,
+        path,
+        "test-secret-catalog-key",
+        &INTEGRITY_KEY,
+        TestFileCheckpointStore::shared(companion(path, ".external-witness")),
+    )
 }
 
 fn populated_catalog() -> (PathBuf, PathBuf, SecretReference) {
@@ -69,8 +93,7 @@ fn assert_tamper_rejected(mutate: impl FnOnce(&Path, &mut Vec<String>)) {
     let (root, path, _) = populated_catalog();
     let mut lines = catalog_lines(&path);
     mutate(&path, &mut lines);
-    let rejected =
-        SecretManager::new_durable(MountedFileSecretResolver::new(&root).unwrap(), &path).is_err();
+    let rejected = open_manager_result(&root, &path).is_err();
     fs::remove_dir_all(root).unwrap();
     assert!(rejected, "tampered secret catalog must fail closed");
 }
@@ -123,8 +146,7 @@ fn secret_catalog_rejects_old_snapshot_and_crash_boundary_mismatches() {
     manager.rotate(&first, &second).unwrap();
     drop(manager);
     fs::write(&path, old_log).unwrap();
-    let old_log_rejected =
-        SecretManager::new_durable(MountedFileSecretResolver::new(&root).unwrap(), &path).is_err();
+    let old_log_rejected = open_manager_result(&root, &path).is_err();
     fs::remove_dir_all(&root).unwrap();
     assert!(old_log_rejected, "an old log must not pass a newer anchor");
 
@@ -137,22 +159,83 @@ fn secret_catalog_rejects_old_snapshot_and_crash_boundary_mismatches() {
     manager.rotate(&first, &second).unwrap();
     drop(manager);
     fs::write(&anchor_path, &old_anchor).unwrap();
-    let stale_anchor_rejected =
-        SecretManager::new_durable(MountedFileSecretResolver::new(&root).unwrap(), &path).is_err();
+    let stale_anchor_rejected = open_manager_result(&root, &path).is_err();
     fs::remove_dir_all(root).unwrap();
     assert!(
         stale_anchor_rejected,
         "a synced log without its new anchor must fail closed"
     );
     assert!(!old_anchor.is_empty());
+
+    let root = test_root();
+    let path = root.join("secret-catalog.jsonl");
+    let manager = open_manager(&root, &path);
+    manager.register(&first).unwrap();
+    let witness_path = companion(&path, ".external-witness");
+    let old_witness = fs::read(&witness_path).unwrap();
+    manager.rotate(&first, &second).unwrap();
+    drop(manager);
+    fs::write(witness_path, old_witness).unwrap();
+    assert!(
+        open_manager_result(&root, &path).is_err(),
+        "synced local state ahead of its external checkpoint must fail closed"
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn secret_catalog_rejects_combined_log_and_anchor_snapshot_rollback() {
+    let root = test_root();
+    let path = root.join("secret-catalog.jsonl");
+    let secret_path = root.join("provider.v1");
+    fs::write(&secret_path, b"acceptance-secret").unwrap();
+    #[cfg(unix)]
+    fs::set_permissions(&secret_path, fs::Permissions::from_mode(0o600)).unwrap();
+    let reference = SecretReference::mounted("provider", 1).unwrap();
+    let manager = open_manager(&root, &path);
+    manager.register(&reference).unwrap();
+    let old_log = fs::read(&path).unwrap();
+    let anchor_path = companion(&path, ".head");
+    let old_anchor = fs::read(&anchor_path).unwrap();
+
+    manager.revoke(&reference).unwrap();
+    assert!(manager.resolve(&reference).is_err());
+    drop(manager);
+
+    fs::write(&path, old_log).unwrap();
+    fs::write(&anchor_path, old_anchor).unwrap();
+    let reactivated = open_manager_result(&root, &path)
+        .and_then(|manager| manager.resolve(&reference))
+        .is_ok();
+    fs::remove_dir_all(root).unwrap();
+
+    assert!(
+        !reactivated,
+        "restoring the catalog and its sibling anchor must not reactivate a revoked secret"
+    );
+}
+
+#[test]
+fn secret_catalog_rejects_a_forged_external_checkpoint_mac() {
+    let (root, path, _) = populated_catalog();
+    let witness_path = companion(&path, ".external-witness");
+    let mut encoded = fs::read_to_string(&witness_path).unwrap().into_bytes();
+    let mac = encoded
+        .windows(b"hmac-sha256:".len())
+        .rposition(|window| window == b"hmac-sha256:")
+        .unwrap()
+        + b"hmac-sha256:".len();
+    encoded[mac] = if encoded[mac] == b'a' { b'b' } else { b'a' };
+    fs::write(witness_path, encoded).unwrap();
+    assert!(open_manager_result(&root, &path).is_err());
+    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
 fn secret_catalog_ignores_uncommitted_anchor_temporary_file() {
     let (root, path, _) = populated_catalog();
     fs::write(companion(&path, ".head.tmp-crash"), b"uncommitted").unwrap();
-    let reopened =
-        SecretManager::new_durable(MountedFileSecretResolver::new(&root).unwrap(), &path).is_ok();
+    let reopened = open_manager_result(&root, &path).is_ok();
     fs::remove_dir_all(root).unwrap();
     assert!(
         reopened,
@@ -172,20 +255,38 @@ fn secret_catalog_previous_format_migration_is_explicit_auditable_and_one_time()
         .collect();
     let encoded = format!("{}\n", previous.join("\n"));
     fs::remove_file(companion(&path, ".head")).unwrap();
+    fs::remove_file(companion(&path, ".external-witness")).unwrap();
     fs::write(&path, encoded.as_bytes()).unwrap();
     let digest = format!("sha256:{:x}", Sha256::digest(encoded.as_bytes()));
 
-    assert!(
-        SecretManager::new_durable(MountedFileSecretResolver::new(&root).unwrap(), &path).is_err()
-    );
-    assert!(migrate_previous_secret_catalog(
+    assert!(open_manager_result(&root, &path).is_err());
+    assert!(migrate_previous_secret_catalog_with_checkpoint(
         &path,
         previous.len() as u64,
-        &format!("sha256:{}", "0".repeat(64))
+        &format!("sha256:{}", "0".repeat(64)),
+        "test-secret-catalog-key",
+        &INTEGRITY_KEY,
+        TestFileCheckpointStore::shared(companion(&path, ".external-witness")),
     )
     .is_err());
-    migrate_previous_secret_catalog(&path, previous.len() as u64, &digest).unwrap();
-    assert!(migrate_previous_secret_catalog(&path, previous.len() as u64, &digest).is_err());
+    migrate_previous_secret_catalog_with_checkpoint(
+        &path,
+        previous.len() as u64,
+        &digest,
+        "test-secret-catalog-key",
+        &INTEGRITY_KEY,
+        TestFileCheckpointStore::shared(companion(&path, ".external-witness")),
+    )
+    .unwrap();
+    assert!(migrate_previous_secret_catalog_with_checkpoint(
+        &path,
+        previous.len() as u64,
+        &digest,
+        "test-secret-catalog-key",
+        &INTEGRITY_KEY,
+        TestFileCheckpointStore::shared(companion(&path, ".external-witness")),
+    )
+    .is_err());
 
     let records: Vec<Value> = catalog_lines(&path)
         .iter()
@@ -194,6 +295,29 @@ fn secret_catalog_previous_format_migration_is_explicit_auditable_and_one_time()
     assert!(records
         .iter()
         .all(|record| record["source"] == "previous_format_migration"));
+    let manager = open_manager(&root, &path);
+    assert!(manager.resolve(&revoked).is_err());
+    drop(manager);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn secret_catalog_anchored_format_has_a_controlled_hmac_upgrade() {
+    let (root, path, revoked) = populated_catalog();
+    replace_with_previous_anchored_format(&path);
+    fs::remove_file(companion(&path, ".external-witness")).unwrap();
+    let encoded = fs::read(&path).unwrap();
+    let digest = format!("sha256:{:x}", Sha256::digest(&encoded));
+    assert!(open_manager_result(&root, &path).is_err());
+    migrate_anchored_secret_catalog(
+        &path,
+        catalog_lines(&path).len() as u64,
+        &digest,
+        "test-secret-catalog-key",
+        &INTEGRITY_KEY,
+        TestFileCheckpointStore::shared(companion(&path, ".external-witness")),
+    )
+    .unwrap();
     let manager = open_manager(&root, &path);
     assert!(manager.resolve(&revoked).is_err());
     drop(manager);

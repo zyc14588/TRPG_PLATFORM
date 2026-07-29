@@ -1,8 +1,43 @@
+/// Computes an assessment only. A caller-created assessment is deliberately
+/// not accepted by the AI Keeper gate; only a signed, registry-active
+/// `LocalModelCertificate` can cross that boundary.
+pub fn certify_local_model(input: &CertificationInput) -> LocalModelLevel {
+    if input.json_schema_support
+        && input.tool_call_support
+        && input.visibility_tests_pass
+        && input.prompt_injection_tests_pass
+        && input.rules_eval_pass
+        && input.latency_ms <= 2_000
+    {
+        LocalModelLevel::Level4
+    } else if input.json_schema_support && input.tool_call_support && input.visibility_tests_pass {
+        LocalModelLevel::Level3
+    } else if input.json_schema_support || input.tool_call_support {
+        LocalModelLevel::Level2
+    } else if !input.model_id.trim().is_empty() {
+        LocalModelLevel::Level1
+    } else {
+        LocalModelLevel::Level0
+    }
+}
+
 impl LocalModelCertificationAuthority {
+    /// The legacy constructor cannot establish an independent high-water
+    /// witness and therefore fails closed.
+    #[deprecated(note = "use new_with_checkpoint with an independent witness store")]
     pub fn new(
+        _signing_key_id: impl Into<String>,
+        _signing_key: &[u8; 32],
+        _registry_path: impl AsRef<Path>,
+    ) -> AgentResult<Self> {
+        Err(invalid_certification_configuration())
+    }
+
+    pub fn new_with_checkpoint(
         signing_key_id: impl Into<String>,
         signing_key: &[u8; 32],
         registry_path: impl AsRef<Path>,
+        checkpoint_store: Arc<dyn LedgerCheckpointStore>,
     ) -> AgentResult<Self> {
         let signing_key_id = signing_key_id.into();
         let registry_path = registry_path.as_ref();
@@ -22,90 +57,14 @@ impl LocalModelCertificationAuthority {
             signing_key: Zeroizing::new(*signing_key),
             registry_path: registry_path.to_path_buf(),
             anchor_path,
+            ledger_id: ledger_checkpoint_id("local-model-certification", registry_path)
+                .map_err(AgentError::Core)?,
+            checkpoint_store,
             lock_file,
             observed_head: Mutex::new(None),
         };
         authority.validate_registry()?;
         Ok(authority)
-    }
-
-    /// Explicitly upgrades the previous line-MAC format after the operator
-    /// supplies a trusted record count and whole-file digest. The migration is
-    /// one-time: an existing high-water anchor always causes rejection.
-    pub fn migrate_previous_registry(
-        signing_key_id: impl Into<String>,
-        signing_key: &[u8; 32],
-        registry_path: impl AsRef<Path>,
-        expected_records: u64,
-        expected_registry_sha256: &str,
-    ) -> AgentResult<()> {
-        let signing_key_id = signing_key_id.into();
-        let registry_path = registry_path.as_ref();
-        validate_registry_configuration(&signing_key_id, registry_path)?;
-        if expected_records == 0 || !valid_sha256_label(expected_registry_sha256) {
-            return Err(invalid_certification_configuration());
-        }
-        validate_private_file_if_present(registry_path)?;
-        if !registry_path.exists() {
-            return Err(invalid_certification_configuration());
-        }
-        let anchor_path = companion_path(registry_path, ".head");
-        if anchor_path.exists() {
-            return Err(invalid_certification_configuration());
-        }
-        let lock_path = companion_path(registry_path, ".lock");
-        let authority = Self {
-            signing_key_id,
-            signing_key: Zeroizing::new(*signing_key),
-            registry_path: registry_path.to_path_buf(),
-            anchor_path,
-            lock_file: open_or_create_private_file(&lock_path)?,
-            observed_head: Mutex::new(None),
-        };
-        authority.with_registry_lock(|observed_head| {
-            if authority.anchor_path.exists() {
-                return Err(invalid_certification_configuration());
-            }
-            let encoded = read_private_file(&authority.registry_path)?;
-            if !sha256_label(&encoded).eq_ignore_ascii_case(expected_registry_sha256) {
-                return Err(invalid_certification_configuration());
-            }
-            let lines = complete_lines(&encoded)?;
-            if u64::try_from(lines.len()).ok() != Some(expected_records) {
-                return Err(invalid_certification_configuration());
-            }
-
-            let mut records = Vec::with_capacity(lines.len());
-            let mut previous_hash = REGISTRY_GENESIS_HASH.to_owned();
-            for (index, line) in lines.into_iter().enumerate() {
-                let previous: PreviousRegistryEntry = serde_json::from_str(line)
-                    .map_err(|_| invalid_certification_configuration())?;
-                authority
-                    .verify_certificate_signature(&previous.certificate)
-                    .map_err(|_| invalid_certification_configuration())?;
-                authority.verify_previous_registry_mac(&previous)?;
-                let mut record = RegistryRecord {
-                    schema_version: REGISTRY_SCHEMA_VERSION,
-                    sequence: index as u64 + 1,
-                    previous_hash,
-                    source: RegistryRecordSource::PreviousFormatMigration,
-                    certificate: previous.certificate,
-                    state: previous.state,
-                    record_hash: String::new(),
-                };
-                record.record_hash = authority.registry_record_hash(&record)?;
-                previous_hash = record.record_hash.clone();
-                records.push(record);
-            }
-
-            write_private_atomic(&authority.registry_path, &encode_registry_records(&records)?)?;
-            let latest = records
-                .last()
-                .ok_or_else(invalid_certification_configuration)?;
-            authority.write_anchor(latest)?;
-            *observed_head = Some((latest.sequence, latest.record_hash.clone()));
-            Ok(())
-        })
     }
 
     pub fn issue_level4(
@@ -231,6 +190,7 @@ impl LocalModelCertificationAuthority {
                 .and_then(|()| file.sync_all())
                 .map_err(|_| invalid_certification_configuration())?;
             self.write_anchor(&record)?;
+            self.write_checkpoint(&record)?;
             *observed_head = Some((record.sequence, record.record_hash));
             Ok(())
         })
@@ -273,6 +233,19 @@ impl LocalModelCertificationAuthority {
             source: record.source,
             certificate: &record.certificate,
             state: record.state,
+        })
+        .map_err(|_| invalid_certification_configuration())?;
+        self.hmac_label(&payload)
+    }
+
+    fn registry_checkpoint_mac(&self, checkpoint: &LedgerCheckpoint) -> AgentResult<String> {
+        let payload = serde_json::to_vec(&RegistryCheckpointIntegrityPayload {
+            schema_version: REGISTRY_SCHEMA_VERSION,
+            ledger_id: &self.ledger_id,
+            sequence: checkpoint.sequence(),
+            previous_chain_head: checkpoint.previous_chain_head(),
+            chain_head: checkpoint.chain_head(),
+            signing_key_id: checkpoint.integrity_key_id(),
         })
         .map_err(|_| invalid_certification_configuration())?;
         self.hmac_label(&payload)

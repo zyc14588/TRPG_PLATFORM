@@ -35,6 +35,10 @@ use trpg_shared_kernel::{
     TrpgError, Visibility, VisibilityLabel,
 };
 
+#[path = "../certification_ledger_integrity/checkpoint_store.rs"]
+mod checkpoint_store;
+use checkpoint_store::TestFileCheckpointStore;
+
 static NEXT_AUDIT_ID: AtomicU64 = AtomicU64::new(1);
 static NEXT_CERTIFICATION_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -60,10 +64,11 @@ pub fn level4_certification(model_id: &str, model_artifact_sha256: &str) -> Cert
     #[cfg(unix)]
     fs::set_permissions(&root_path, fs::Permissions::from_mode(0o700)).unwrap();
     let registry_path = root_path.join("registry.jsonl");
-    let authority = LocalModelCertificationAuthority::new(
+    let authority = LocalModelCertificationAuthority::new_with_checkpoint(
         "test-certification-key",
         &[0x91; 32],
         &registry_path,
+        TestFileCheckpointStore::shared(root_path.join("registry.external-witness")),
     )
     .unwrap();
     let certificate = authority
