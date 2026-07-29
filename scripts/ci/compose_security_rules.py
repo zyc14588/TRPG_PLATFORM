@@ -66,6 +66,41 @@ def errors(root: Path = ROOT) -> list[str]:
         if image is None or "@sha256:" not in image.group(1):
             found.append(f"infrastructure image is not digest pinned: {service}")
 
+    agent_worker_block = service_blocks.get("agent-worker", "")
+    for fragment in (
+        "TRPG_OBJECT_STORAGE_CA_CERT_PATH: /tmp/trpg-ca-bundle.crt",
+        "- minio_tls_ca_certificate",
+    ):
+        if fragment not in agent_worker_block:
+            found.append(f"agent worker object-storage TLS binding is incomplete: {fragment}")
+    for forbidden_secret in ("minio_root_user", "minio_root_password"):
+        if re.search(
+            rf"(?m)^\s+- (?:source:\s+)?{re.escape(forbidden_secret)}\s*$",
+            agent_worker_block,
+        ):
+            found.append(
+                f"agent worker receives forbidden MinIO root secret: {forbidden_secret}"
+            )
+
+    minio_init_block = service_blocks.get("minio-init", "")
+    for fragment in (
+        "- object_storage_access_key",
+        "- object_storage_secret_key",
+        "minio bootstrap refused root application credentials",
+        '"s3:GetBucketVersioning"',
+        '"s3:ListBucketVersions"',
+        '"s3:DeleteObjectVersion"',
+        '"arn:aws:s3:::$$runtime_bucket/subjects/*"',
+        "admin policy create",
+        "admin user add",
+        "admin policy attach",
+        "TRPG_OBJECT_STORAGE_BUCKET: ${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}",
+        'runtime_bucket="$${TRPG_OBJECT_STORAGE_BUCKET:?TRPG_OBJECT_STORAGE_BUCKET is required}"',
+        'version enable "trpg/$$runtime_bucket"',
+    ):
+        if fragment not in minio_init_block:
+            found.append(f"MinIO least-privilege bootstrap is incomplete: {fragment}")
+
     declared_stages: set[str] = set()
     for instruction in re.findall(r"(?mi)^FROM\s+(.+)$", dockerfile):
         tokens = instruction.split()
@@ -336,6 +371,11 @@ def errors(root: Path = ROOT) -> list[str]:
         "docker secret create",
         "docker service update",
         "MinIO certificate fingerprint did not change after rotation",
+        "MinIO accepted an unrelated private CA",
+        "MinIO TLS accepted the wrong hostname",
+        "ar02_live_s3_version_erasure_closes_recoverable_history",
+        "object-storage service identity crossed the bucket boundary",
+        "object-storage service identity wrote outside subjects/",
         "--write-out '%{http_code} %{redirect_url}'",
         '[[ "$plaintext_proxy_status" != 308\\ https://* ]]',
         '"${compose_command[@]}" run --rm witness-role-bootstrap',
@@ -363,11 +403,24 @@ def errors(root: Path = ROOT) -> list[str]:
     entrypoint = (root / "config/container/trpg-entrypoint.sh").read_text(
         encoding="utf-8"
     )
+    service_process_smoke = (root / "scripts/ci/service-process-smoke.sh").read_text(
+        encoding="utf-8"
+    )
     security_manifest = (
         root / "crates/trpg-security-governance/Cargo.toml"
     ).read_text(encoding="utf-8")
     if "minio_tls_ca_certificate" not in entrypoint or "SSL_CERT_FILE" not in entrypoint:
         found.append("runtime does not trust the mounted MinIO CA without disabling TLS")
+    for fragment in (
+        "P05_MINIO_CA_CERT_PATH",
+        "TRPG_OBJECT_STORAGE_CA_CERT_PATH=$object_storage_ca_cert_path",
+        'SSL_CERT_FILE=${SSL_CERT_FILE:-$object_storage_ca_cert_path}',
+    ):
+        if fragment not in service_process_smoke:
+            found.append(
+                "service process smoke does not bind the private MinIO CA: "
+                f"{fragment}"
+            )
     required_secret_staging_fragments = (
         "private_secret_mount=/tmp/trpg-mounted-secrets",
         "install -d -o trpg -g trpg -m 0700",
@@ -380,6 +433,12 @@ def errors(root: Path = ROOT) -> list[str]:
                 "runtime does not stage Compose/Docker secrets into a private "
                 f"non-root mount: {fragment}"
             )
-    if "tokio-native-tls" not in security_manifest:
-        found.append("object-store client cannot consume the mounted native CA bundle")
+    if (
+        "aws-sdk-s3" not in security_manifest
+        or '"default-https-client"' not in security_manifest
+    ):
+        found.append(
+            "object-store client cannot consume the mounted CA bundle with the "
+            "version-aware SDK"
+        )
     return found

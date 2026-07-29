@@ -103,6 +103,84 @@ fi
 curl --fail --silent --show-error \
   --cacert "$runtime_directory/ca.crt" \
   https://localhost:29000/minio/health/live >/dev/null
+
+# Re-run the root-only bootstrap to prove that policy and service-identity
+# reconciliation is idempotent on an existing volume, then exercise the real
+# version-aware Rust deletion adapter against the rotated certificate.
+"${compose_command[@]}" run --rm minio-init
+SSL_CERT_FILE="$runtime_directory/ca.crt" \
+AR02_MINIO_ENDPOINT="https://localhost:29000" \
+AR02_MINIO_REGION="$TRPG_OBJECT_STORAGE_REGION" \
+AR02_MINIO_BUCKET="$TRPG_OBJECT_STORAGE_BUCKET" \
+AR02_MINIO_ROOT_ACCESS_KEY="$minio_root_user" \
+AR02_MINIO_ROOT_SECRET_KEY="$minio_root_password" \
+AR02_MINIO_SERVICE_ACCESS_KEY="$minio_service_user" \
+AR02_MINIO_SERVICE_SECRET_KEY="$minio_service_password" \
+AR02_MINIO_CA_CERT_PATH="$runtime_directory/ca.crt" \
+  cargo test -p trpg-security-governance \
+    ar02_live_s3_version_erasure_closes_recoverable_history \
+    -- --ignored --nocapture
+
+# Exercise the exact application identity from inside the isolated Compose
+# network. Root is used only to create and remove the negative-test bucket.
+"${compose_command[@]}" run --rm --entrypoint sh minio-init -ec '
+  set -eu
+  mkdir -p /tmp/mc/certs/CAs
+  cp /run/secrets/minio_tls_ca_certificate /tmp/mc/certs/CAs/trpg-ca.crt
+  chmod 0644 /tmp/mc/certs/CAs/trpg-ca.crt
+  export MC_CERTS_DIR=/tmp/mc/certs
+  bucket="${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}"
+  forbidden_bucket="${bucket}-forbidden"
+  root_access="$(cat /run/secrets/minio_root_user)"
+  root_secret="$(cat /run/secrets/minio_root_password)"
+  service_access="$(cat /run/secrets/object_storage_access_key)"
+  service_secret="$(cat /run/secrets/object_storage_secret_key)"
+  export MC_HOST_root="https://${root_access}:${root_secret}@minio:9000"
+  export MC_HOST_service="https://${service_access}:${service_secret}@minio:9000"
+  mc --config-dir /tmp/mc mb --ignore-existing "root/${forbidden_bucket}"
+  if mc --config-dir /tmp/mc ls service >/dev/null 2>&1; then
+    printf "object-storage service identity listed all buckets\n" >&2
+    exit 1
+  fi
+  if mc --config-dir /tmp/mc admin info service >/dev/null 2>&1; then
+    printf "object-storage service identity reached an admin API\n" >&2
+    exit 1
+  fi
+  if mc --config-dir /tmp/mc ls "service/${forbidden_bucket}" >/dev/null 2>&1; then
+    printf "object-storage service identity crossed the bucket boundary\n" >&2
+    exit 1
+  fi
+  if mc --config-dir /tmp/mc ls "service/${bucket}/outside-prefix/" >/dev/null 2>&1; then
+    printf "object-storage service identity listed outside subjects/\n" >&2
+    exit 1
+  fi
+  printf "allowed" >/tmp/allowed-object
+  mc --config-dir /tmp/mc cp \
+    /tmp/allowed-object "service/${bucket}/subjects/ar02-policy-probe/allowed"
+  mc --config-dir /tmp/mc ls \
+    "service/${bucket}/subjects/ar02-policy-probe/" >/dev/null
+  if mc --config-dir /tmp/mc cp \
+    /tmp/allowed-object "service/${bucket}/outside-prefix/denied" >/dev/null 2>&1; then
+    printf "object-storage service identity wrote outside subjects/\n" >&2
+    exit 1
+  fi
+  mc --config-dir /tmp/mc rm --force \
+    "service/${bucket}/subjects/ar02-policy-probe/allowed"
+  mc --config-dir /tmp/mc rb --force "root/${forbidden_bucket}"
+'
+if curl --fail --silent --show-error \
+  --cacert "$runtime_directory/wrong-ca.crt" \
+  https://localhost:29000/minio/health/live >/dev/null 2>&1; then
+  printf 'MinIO accepted an unrelated private CA\n' >&2
+  exit 1
+fi
+if curl --fail --silent --show-error --noproxy '*' \
+  --resolve ar02-wrong-host.invalid:29000:127.0.0.1 \
+  --cacert "$runtime_directory/ca.crt" \
+  https://ar02-wrong-host.invalid:29000/minio/health/live >/dev/null 2>&1; then
+  printf 'MinIO TLS accepted the wrong hostname\n' >&2
+  exit 1
+fi
 if curl --fail --silent http://localhost:29000/minio/health/live >/dev/null 2>&1; then
   printf 'MinIO accepted plaintext HTTP on its TLS endpoint\n' >&2
   exit 1

@@ -143,6 +143,8 @@ impl AgentWorkerProcess {
         let object_endpoint = required_environment("TRPG_OBJECT_STORAGE_ENDPOINT")?;
         let object_region = required_environment("TRPG_OBJECT_STORAGE_REGION")?;
         let object_bucket = required_environment("TRPG_OBJECT_STORAGE_BUCKET")?;
+        let object_ca_bundle = optional_path("TRPG_OBJECT_STORAGE_CA_CERT_PATH")?
+            .ok_or_else(|| "TRPG_OBJECT_STORAGE_CA_CERT_PATH_REQUIRED".to_owned())?;
         let object_access_key =
             resolve_mounted_secret(&secret_manager, "TRPG_OBJECT_STORAGE_ACCESS_KEY")?;
         let object_secret_key =
@@ -156,6 +158,7 @@ impl AgentWorkerProcess {
                         &object_bucket,
                         access_key,
                         secret_key,
+                        &object_ca_bundle,
                     ))
                 })
             })

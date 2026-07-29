@@ -5,6 +5,12 @@ openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 1 \
   -out "$runtime_directory/ca.crt" >/dev/null 2>&1
 chmod 0600 "$runtime_directory/ca.key"
 chmod 0644 "$runtime_directory/ca.crt"
+openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+  -subj "/CN=AR02 Deliberately Untrusted Root" \
+  -keyout "$runtime_directory/wrong-ca.key" \
+  -out "$runtime_directory/wrong-ca.crt" >/dev/null 2>&1
+chmod 0600 "$runtime_directory/wrong-ca.key"
+chmod 0644 "$runtime_directory/wrong-ca.crt"
 
 issue_certificate \
   postgres_server postgres serverAuth \
@@ -32,8 +38,10 @@ postgres_realtime_password="$(openssl rand -hex 24)"
 redis_healthcheck_password="$(openssl rand -hex 24)"
 redis_application_password="$(openssl rand -hex 24)"
 nats_password="$(openssl rand -hex 24)"
-minio_user="trpg_runtime_smoke"
-minio_password="$(openssl rand -hex 24)"
+minio_root_user="trpg_root_smoke"
+minio_root_password="$(openssl rand -hex 24)"
+minio_service_user="trpg_s3_erasure"
+minio_service_password="$(openssl rand -hex 24)"
 
 write_secret postgres_bootstrap_password "$postgres_owner_password"
 write_secret postgres_witness_owner_password "$postgres_witness_owner_password"
@@ -66,11 +74,11 @@ write_secret audit_hmac_key "$(openssl rand -hex 32)"
 write_secret redis_url "rediss://trpg_runtime:$redis_application_password@redis:6379"
 write_secret nats_url "tls://runtime_smoke:$nats_password@nats:4222"
 write_secret realtime_cache_key "$(openssl rand -hex 32)"
-write_secret object_storage_access_key "$minio_user"
-write_secret object_storage_secret_key "$minio_password"
+write_secret object_storage_access_key "$minio_service_user"
+write_secret object_storage_secret_key "$minio_service_password"
 write_secret redis_healthcheck_password "$redis_healthcheck_password"
-write_secret minio_root_user "$minio_user"
-write_secret minio_root_password "$minio_password"
+write_secret minio_root_user "$minio_root_user"
+write_secret minio_root_password "$minio_root_password"
 write_secret redis_acl \
   "user default off
 user healthcheck on >$redis_healthcheck_password ~* +ping

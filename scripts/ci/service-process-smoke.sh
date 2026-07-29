@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 release_dir="${CARGO_TARGET_DIR:-$root/target}/release"
@@ -43,6 +43,7 @@ redis_url="${TRPG_REDIS_URL:-${P02_REDIS_URL:-}}"
 object_storage_endpoint="${TRPG_OBJECT_STORAGE_ENDPOINT:-${P05_MINIO_ENDPOINT:-}}"
 object_storage_region="${TRPG_OBJECT_STORAGE_REGION:-${P05_MINIO_REGION:-}}"
 object_storage_bucket="${TRPG_OBJECT_STORAGE_BUCKET:-${P05_MINIO_BUCKET:-}}"
+object_storage_ca_cert_path="${TRPG_OBJECT_STORAGE_CA_CERT_PATH:-${P05_MINIO_CA_CERT_PATH:-}}"
 object_storage_access_key="${TRPG_OBJECT_STORAGE_ACCESS_KEY:-${P05_MINIO_ACCESS_KEY:-}}"
 object_storage_secret_key="${TRPG_OBJECT_STORAGE_SECRET_KEY:-${P05_MINIO_SECRET_KEY:-}}"
 
@@ -58,6 +59,9 @@ require_configuration "TRPG_REDIS_URL or P02_REDIS_URL" "$redis_url"
 require_configuration "TRPG_OBJECT_STORAGE_ENDPOINT or P05_MINIO_ENDPOINT" "$object_storage_endpoint"
 require_configuration "TRPG_OBJECT_STORAGE_REGION or P05_MINIO_REGION" "$object_storage_region"
 require_configuration "TRPG_OBJECT_STORAGE_BUCKET or P05_MINIO_BUCKET" "$object_storage_bucket"
+require_configuration \
+  "TRPG_OBJECT_STORAGE_CA_CERT_PATH or P05_MINIO_CA_CERT_PATH" \
+  "$object_storage_ca_cert_path"
 require_configuration \
   "TRPG_OBJECT_STORAGE_ACCESS_KEY or P05_MINIO_ACCESS_KEY" \
   "$object_storage_access_key"
@@ -157,6 +161,8 @@ start_service() {
       "TRPG_OBJECT_STORAGE_ENDPOINT=$object_storage_endpoint"
       "TRPG_OBJECT_STORAGE_REGION=$object_storage_region"
       "TRPG_OBJECT_STORAGE_BUCKET=$object_storage_bucket"
+      "TRPG_OBJECT_STORAGE_CA_CERT_PATH=$object_storage_ca_cert_path"
+      "SSL_CERT_FILE=${SSL_CERT_FILE:-$object_storage_ca_cert_path}"
       "TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_ID=object_storage_access_key"
       "TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_VERSION=1"
       "TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_ID=object_storage_secret_key"

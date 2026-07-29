@@ -321,6 +321,7 @@ services:
       TRPG_OBJECT_STORAGE_ENDPOINT: https://minio:9000
       TRPG_OBJECT_STORAGE_REGION: ${TRPG_OBJECT_STORAGE_REGION:-us-east-1}
       TRPG_OBJECT_STORAGE_BUCKET: ${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}
+      TRPG_OBJECT_STORAGE_CA_CERT_PATH: /tmp/trpg-ca-bundle.crt
       TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_ID: object_storage_access_key
       TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_VERSION: "1"
       TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_ID: object_storage_secret_key
@@ -638,12 +639,16 @@ services:
   minio-init:
     image: minio/mc@sha256:aead63c77f9db9107f1696fb08ecb0faeda23729cde94b0f663edf4fe09728e3
     restart: "no"
+    environment:
+      TRPG_OBJECT_STORAGE_BUCKET: ${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}
     depends_on:
       minio:
         condition: service_healthy
     secrets:
       - minio_root_user
       - minio_root_password
+      - object_storage_access_key
+      - object_storage_secret_key
       - minio_tls_ca_certificate
     networks:
       - backend
@@ -656,8 +661,54 @@ services:
         chmod 0644 /tmp/mc/certs/CAs/trpg-ca.crt
         export MC_CERTS_DIR=/tmp/mc/certs
         export MC_HOST_trpg="https://$$(cat /run/secrets/minio_root_user):$$(cat /run/secrets/minio_root_password)@minio:9000"
-        mc --config-dir /tmp/mc mb --ignore-existing "trpg/${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}"
-        mc --config-dir /tmp/mc version suspend "trpg/${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}"
+        runtime_bucket="$${TRPG_OBJECT_STORAGE_BUCKET:?TRPG_OBJECT_STORAGE_BUCKET is required}"
+        runtime_access="$$(cat /run/secrets/object_storage_access_key)"
+        runtime_secret="$$(cat /run/secrets/object_storage_secret_key)"
+        root_access="$$(cat /run/secrets/minio_root_user)"
+        if [ "$$runtime_access" = "$$root_access" ]; then
+          printf 'minio bootstrap refused root application credentials\n' >&2
+          exit 1
+        fi
+        mc --config-dir /tmp/mc mb --ignore-existing "trpg/$$runtime_bucket"
+        mc --config-dir /tmp/mc version enable "trpg/$$runtime_bucket"
+        cat >/tmp/trpg-object-erasure-policy.json <<POLICY
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:ListBucket",
+                "s3:ListBucketVersions"
+              ],
+              "Resource": ["arn:aws:s3:::$$runtime_bucket"],
+              "Condition": {
+                "StringLike": {"s3:prefix": ["subjects/*"]}
+              }
+            },
+            {
+              "Effect": "Allow",
+              "Action": ["s3:GetBucketVersioning"],
+              "Resource": ["arn:aws:s3:::$$runtime_bucket"]
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:DeleteObject",
+                "s3:DeleteObjectVersion",
+                "s3:PutObject"
+              ],
+              "Resource": ["arn:aws:s3:::$$runtime_bucket/subjects/*"]
+            }
+          ]
+        }
+        POLICY
+        mc --config-dir /tmp/mc admin policy create \
+          trpg trpg-object-erasure /tmp/trpg-object-erasure-policy.json
+        mc --config-dir /tmp/mc admin user rm trpg "$$runtime_access" >/dev/null 2>&1 || true
+        mc --config-dir /tmp/mc admin user add trpg "$$runtime_access" "$$runtime_secret"
+        mc --config-dir /tmp/mc admin policy attach \
+          trpg trpg-object-erasure --user "$$runtime_access"
 
   reverse-proxy:
     image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10

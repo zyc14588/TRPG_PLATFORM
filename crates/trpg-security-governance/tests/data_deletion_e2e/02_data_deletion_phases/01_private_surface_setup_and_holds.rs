@@ -15,6 +15,8 @@
         std::env::var("P05_MINIO_ACCESS_KEY").expect("P05_MINIO_ACCESS_KEY is required");
     let object_secret_key =
         std::env::var("P05_MINIO_SECRET_KEY").expect("P05_MINIO_SECRET_KEY is required");
+    let object_ca_bundle = std::env::var("P05_MINIO_CA_CERT_PATH")
+        .expect("P05_MINIO_CA_CERT_PATH is required");
     let store = PostgresCanonicalStore::connect(
         &database_url,
         &witness_url,
@@ -215,6 +217,7 @@
         &object_bucket,
         &object_access_key,
         &object_secret_key,
+        Path::new(&object_ca_bundle),
     )
     .await
     .expect("connect real S3-compatible object deletion surface");

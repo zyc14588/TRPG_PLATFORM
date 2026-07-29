@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -13,9 +13,12 @@ use crate::{
     SecurityGovernanceRepository,
 };
 use async_trait::async_trait;
+use aws_sdk_s3::config::{BehaviorVersion, Credentials, Region};
+use aws_sdk_s3::primitives::ByteStream;
+use aws_sdk_s3::types::{BucketVersioningStatus, Delete, ObjectIdentifier};
+use aws_sdk_s3::Client as S3Client;
 use percent_encoding::percent_decode_str;
 use redis::aio::ConnectionManager;
-use s3::{creds::Credentials, serde_types::ObjectIdentifier, Bucket, Region};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::migrate::Migrator;

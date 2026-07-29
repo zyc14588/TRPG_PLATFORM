@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 github_env="${1:-${GITHUB_ENV:-}}"
@@ -27,9 +27,12 @@ fi
 tls_directory="$(mktemp -d "$runtime_root/trpg-postgres-tls.XXXXXX")"
 backup_directory="$(mktemp -d "$runtime_root/trpg-backup.XXXXXX")"
 libpq_service_file="$backup_directory/pg_service.conf"
-minio_access_key="trpg_ci_access"
-minio_secret_key="trpg_ci_secret_key_20260725"
+minio_root_access_key="trpg_ci_root"
+minio_root_secret_key="$(openssl rand -hex 24)"
+minio_service_access_key="trpg_ci_erasure"
+minio_service_secret_key="$(openssl rand -hex 24)"
 minio_bucket="trpg-ci-deletion"
+minio_ca_bundle="$tls_directory/minio-ca-bundle.crt"
 tls_hostname="localhost"
 postgres_password="$(openssl rand -hex 24)"
 
@@ -52,6 +55,8 @@ openssl x509 -req -sha256 -days 1 \
   -out "$tls_directory/server.crt" >/dev/null 2>&1
 chmod 0600 "$tls_directory/ca.key" "$tls_directory/server.key"
 chmod 0644 "$tls_directory/ca.crt" "$tls_directory/server.crt"
+cat /etc/ssl/certs/ca-certificates.crt "$tls_directory/ca.crt" >"$minio_ca_bundle"
+chmod 0644 "$minio_ca_bundle"
 {
   printf 'local all all trust\n'
   printf 'hostnossl all all 0.0.0.0/0 reject\n'
@@ -95,11 +100,21 @@ docker run -d --name trpg-opa \
   "$opa_image" \
   run --server --addr=0.0.0.0:8181 /policy
 docker run -d --name trpg-minio \
-  -e "MINIO_ROOT_USER=$minio_access_key" \
-  -e "MINIO_ROOT_PASSWORD=$minio_secret_key" \
+  -e "MINIO_ROOT_USER=$minio_root_access_key" \
+  -e "MINIO_ROOT_PASSWORD=$minio_root_secret_key" \
   -p 127.0.0.1:19000:9000 \
+  -v "$tls_directory:/cert-source:ro" \
+  --entrypoint sh \
   "$minio_image" \
-  server /data --console-address :9001
+  -ec '
+    umask 077
+    mkdir -p /root/.minio/certs
+    cp /cert-source/server.crt /root/.minio/certs/public.crt
+    cp /cert-source/server.key /root/.minio/certs/private.key
+    chmod 0644 /root/.minio/certs/public.crt
+    chmod 0600 /root/.minio/certs/private.key
+    exec minio server /data --console-address :9001
+  '
 
 wait_for_postgres() {
   local container="$1"
@@ -204,7 +219,8 @@ fi
 
 minio_ready=false
 for _ in $(seq 1 120); do
-  if curl -fsS http://127.0.0.1:19000/minio/health/live >/dev/null 2>&1; then
+  if curl -fsS --cacert "$tls_directory/ca.crt" \
+    https://localhost:19000/minio/health/live >/dev/null 2>&1; then
     minio_ready=true
     break
   fi
@@ -214,10 +230,52 @@ if [[ "$minio_ready" != true ]]; then
   docker logs trpg-minio >&2
   exit 1
 fi
-docker run --rm --network host \
-  -e "MC_HOST_trpg=http://$minio_access_key:$minio_secret_key@127.0.0.1:19000" \
+docker run --rm --network host --entrypoint sh \
+  -v "$tls_directory:/cert-source:ro" \
+  -e "MINIO_ROOT_ACCESS_KEY=$minio_root_access_key" \
+  -e "MINIO_ROOT_SECRET_KEY=$minio_root_secret_key" \
+  -e "MINIO_SERVICE_ACCESS_KEY=$minio_service_access_key" \
+  -e "MINIO_SERVICE_SECRET_KEY=$minio_service_secret_key" \
+  -e "MINIO_BUCKET=$minio_bucket" \
   "$minio_client_image" \
-  mb --ignore-existing "trpg/$minio_bucket"
+  -ec '
+    set -eu
+    mkdir -p /tmp/mc/certs/CAs
+    cp /cert-source/ca.crt /tmp/mc/certs/CAs/trpg-ca.crt
+    export MC_CERTS_DIR=/tmp/mc/certs
+    export MC_HOST_trpg="https://${MINIO_ROOT_ACCESS_KEY}:${MINIO_ROOT_SECRET_KEY}@localhost:19000"
+    mc --config-dir /tmp/mc mb --ignore-existing "trpg/${MINIO_BUCKET}"
+    mc --config-dir /tmp/mc version enable "trpg/${MINIO_BUCKET}"
+    cat >/tmp/trpg-object-erasure-policy.json <<POLICY
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:ListBucketVersions"],
+      "Resource": ["arn:aws:s3:::${MINIO_BUCKET}"],
+      "Condition": {"StringLike": {"s3:prefix": ["subjects/*"]}}
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetBucketVersioning"],
+      "Resource": ["arn:aws:s3:::${MINIO_BUCKET}"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion", "s3:PutObject"],
+      "Resource": ["arn:aws:s3:::${MINIO_BUCKET}/subjects/*"]
+    }
+  ]
+}
+POLICY
+    mc --config-dir /tmp/mc admin policy create \
+      trpg trpg-object-erasure /tmp/trpg-object-erasure-policy.json
+    mc --config-dir /tmp/mc admin user add \
+      trpg "$MINIO_SERVICE_ACCESS_KEY" "$MINIO_SERVICE_SECRET_KEY"
+    mc --config-dir /tmp/mc admin policy attach \
+      trpg trpg-object-erasure --user "$MINIO_SERVICE_ACCESS_KEY"
+  '
 
 server_major="$(
   docker exec trpg-primary-postgres postgres --version |
@@ -356,9 +414,11 @@ TRPG_POSTGRES_CLIENT_MOUNT_ROOT=${runtime_root}
 TMPDIR=${runtime_root}
 P05_REDIS_URL=redis://127.0.0.1:16379
 P05_NATS_URL=nats://127.0.0.1:14222
-P05_MINIO_ENDPOINT=http://127.0.0.1:19000
+P05_MINIO_ENDPOINT=https://localhost:19000
 P05_MINIO_REGION=us-east-1
 P05_MINIO_BUCKET=trpg-ci-deletion
+P05_MINIO_CA_CERT_PATH=${minio_ca_bundle}
+SSL_CERT_FILE=${minio_ca_bundle}
 ENVIRONMENT
 
 {
@@ -377,8 +437,8 @@ ENVIRONMENT
   printf 'P02_BACKUP_DIR=%s\n' "$backup_directory/artifacts"
   printf 'P04_PG_DUMP=%s\n' "$pg_dump_path"
   printf 'P04_PG_RESTORE=%s\n' "$pg_restore_path"
-  printf 'P05_MINIO_ACCESS_KEY=%s\n' "$minio_access_key"
-  printf 'P05_MINIO_SECRET_KEY=%s\n' "$minio_secret_key"
+  printf 'P05_MINIO_ACCESS_KEY=%s\n' "$minio_service_access_key"
+  printf 'P05_MINIO_SECRET_KEY=%s\n' "$minio_service_secret_key"
 } >>"$github_env"
 
 python3 "$root/scripts/ci/p02_policy_bootstrap.py" --github-env "$github_env"

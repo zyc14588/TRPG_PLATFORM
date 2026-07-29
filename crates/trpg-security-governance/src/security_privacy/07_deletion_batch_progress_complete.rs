@@ -11,17 +11,62 @@ impl DeletionBatchProgress {
     }
 }
 
+const S3_LIST_PAGE_SIZE: i32 = 100;
+const S3_DELETE_REQUEST_SIZE: usize = 1_000;
+const S3_MAX_LIST_PAGES: usize = 100_000;
+const S3_MAX_ERASURE_PASSES: usize = 8;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum S3VersioningMode {
+    NeverVersioned,
+    VersionHistory,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct S3VersionIdentifier {
+    key: String,
+    version_id: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct S3ListedObjects {
+    identifiers: Vec<S3VersionIdentifier>,
+    page_count: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct S3DeleteReceiptSummary {
+    pub request_count: u64,
+    pub requested_count: u64,
+    pub confirmed_count: u64,
+    pub error_count: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct S3ErasureEvidence {
+    pub bucket: String,
+    pub prefix: String,
+    pub page_count: u64,
+    pub version_count: u64,
+    pub delete_receipt_summary: S3DeleteReceiptSummary,
+    pub final_verified_at_unix_ms: u64,
+    pub manifest_sha256: String,
+}
+
 #[derive(Clone)]
 pub struct S3ObjectDeletionSurface {
-    bucket: Box<Bucket>,
+    client: S3Client,
+    bucket: String,
+    last_evidence: std::sync::Arc<std::sync::Mutex<Option<S3ErasureEvidence>>>,
 }
 
 impl std::fmt::Debug for S3ObjectDeletionSurface {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("S3ObjectDeletionSurface")
-            .field("bucket", &self.bucket.name)
+            .field("bucket", &self.bucket)
             .field("endpoint", &"[REDACTED]")
+            .field("credentials", &"[REDACTED]")
             .finish()
     }
 }
@@ -33,33 +78,63 @@ impl S3ObjectDeletionSurface {
         bucket_name: &str,
         access_key: &str,
         secret_key: &str,
+        ca_bundle_path: &Path,
     ) -> Result<Self, PrivacyError> {
-        validate_secure_service_url(endpoint, "http", "https")?;
+        validate_s3_tls_binding(endpoint, ca_bundle_path)?;
         validate_id(region)?;
         validate_id(bucket_name)?;
         if access_key.trim().is_empty() || secret_key.len() < 8 {
             return Err(PrivacyError::InvalidInput);
         }
-        let credentials = Credentials::new(Some(access_key), Some(secret_key), None, None, None)
-            .map_err(|_| PrivacyError::Storage)?;
-        let region = Region::Custom {
-            region: region.to_owned(),
-            endpoint: endpoint.trim_end_matches('/').to_owned(),
+        let credentials = Credentials::new(
+            access_key,
+            secret_key,
+            None,
+            None,
+            "trpg-object-erasure-service-account",
+        );
+        // The default HTTPS client loads roots through rustls-native-certs. The
+        // validation above pins that loader's SSL_CERT_FILE to this exact bundle.
+        let config = aws_sdk_s3::Config::builder()
+            .behavior_version(BehaviorVersion::latest())
+            .region(Region::new(region.to_owned()))
+            .credentials_provider(credentials)
+            .endpoint_url(endpoint.trim_end_matches('/'))
+            .force_path_style(true)
+            .build();
+        let surface = Self {
+            client: S3Client::from_conf(config),
+            bucket: bucket_name.to_owned(),
+            last_evidence: std::sync::Arc::new(std::sync::Mutex::new(None)),
         };
-        let bucket = Bucket::new(bucket_name, region, credentials)
-            .map_err(|_| PrivacyError::Storage)?
-            .with_path_style();
-        if !bucket.exists().await.map_err(|_| PrivacyError::Storage)? {
-            return Err(PrivacyError::Storage);
+
+        // Root and broadly administrative credentials can perform both calls.
+        // The deletion worker must fail closed instead of accepting them.
+        if surface.client.list_buckets().send().await.is_ok()
+            || surface
+                .client
+                .get_bucket_acl()
+                .bucket(&surface.bucket)
+                .send()
+                .await
+                .is_ok()
+        {
+            return Err(PrivacyError::InvalidInput);
         }
-        let surface = Self { bucket };
-        surface.verify_unversioned_bucket_at_startup().await?;
+        surface.versioning_mode().await?;
         Ok(surface)
     }
 
     pub fn subject_prefix(subject_id: &str) -> Result<String, PrivacyError> {
         validate_id(subject_id)?;
         Ok(format!("subjects/{}/", sha256_hex(subject_id.as_bytes())))
+    }
+
+    pub fn last_erasure_evidence(&self) -> Result<Option<S3ErasureEvidence>, PrivacyError> {
+        self.last_evidence
+            .lock()
+            .map(|evidence| evidence.clone())
+            .map_err(|_| PrivacyError::Storage)
     }
 
     pub async fn put_protected_object(
@@ -73,68 +148,380 @@ impl S3ObjectDeletionSurface {
             return Err(PrivacyError::InvalidInput);
         }
         let key = format!("{}{}", Self::subject_prefix(subject_id)?, object_id);
-        self.bucket
-            .put_object(key, protected_payload)
+        self.client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .body(ByteStream::from(protected_payload.to_vec()))
+            .send()
             .await
             .map(|_| ())
             .map_err(|_| PrivacyError::Storage)
     }
 
-    async fn subject_keys(&self, subject_id: &str) -> Result<Vec<String>, PrivacyError> {
-        let prefix = Self::subject_prefix(subject_id)?;
-        self.bucket
-            .list(prefix, None)
+    async fn versioning_mode(&self) -> Result<S3VersioningMode, PrivacyError> {
+        let output = self
+            .client
+            .get_bucket_versioning()
+            .bucket(&self.bucket)
+            .send()
             .await
-            .map(|pages| {
-                pages
-                    .into_iter()
-                    .flat_map(|page| page.contents)
-                    .map(|object| object.key)
-                    .collect()
-            })
-            .map_err(|_| PrivacyError::Storage)
+            .map_err(|_| PrivacyError::Storage)?;
+        match output.status() {
+            None => Ok(S3VersioningMode::NeverVersioned),
+            Some(BucketVersioningStatus::Enabled | BucketVersioningStatus::Suspended) => {
+                Ok(S3VersioningMode::VersionHistory)
+            }
+            Some(_) => Err(PrivacyError::InvalidPersistedState),
+        }
     }
 
-    /// The current adapter can prove deletion only for an unversioned bucket.
-    /// Probe once while constructing the surface; a versioned bucket would
-    /// make a normal DELETE retain recoverable historical bytes. Runtime
-    /// bucket-policy changes require constructing a fresh surface.
-    async fn verify_unversioned_bucket_at_startup(&self) -> Result<(), PrivacyError> {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| PrivacyError::Storage)?
-            .as_nanos();
-        let key = format!(
-            ".trpg-erasure-versioning-probe/{}-{nonce}",
-            std::process::id()
-        );
-        let response = self
-            .bucket
-            .put_object(&key, b"versioning-probe")
-            .await
-            .map_err(|_| PrivacyError::Storage)?;
-        let version_id = response
-            .headers()
-            .get("x-amz-version-id")
-            .filter(|value| !value.trim().is_empty() && value.as_str() != "null")
-            .cloned();
-        if let Some(version_id) = version_id {
-            let cleanup = self
-                .bucket
-                .delete_objects(vec![ObjectIdentifier::with_version(&key, version_id)])
+    async fn list_version_history(
+        &self,
+        prefix: &str,
+    ) -> Result<S3ListedObjects, PrivacyError> {
+        let mut identifiers = Vec::new();
+        let mut seen = HashSet::new();
+        let mut key_marker = None;
+        let mut version_id_marker = None;
+        let mut page_count = 0_u64;
+        loop {
+            page_count = page_count
+                .checked_add(1)
+                .ok_or(PrivacyError::InvalidPersistedState)?;
+            if page_count as usize > S3_MAX_LIST_PAGES {
+                return Err(PrivacyError::InvalidPersistedState);
+            }
+            let output = self
+                .client
+                .list_object_versions()
+                .bucket(&self.bucket)
+                .prefix(prefix)
+                .max_keys(S3_LIST_PAGE_SIZE)
+                .set_key_marker(key_marker.clone())
+                .set_version_id_marker(version_id_marker.clone())
+                .send()
                 .await
                 .map_err(|_| PrivacyError::Storage)?;
-            if !cleanup.errors.is_empty() {
+            for (key, version_id) in output
+                .versions()
+                .iter()
+                .map(|entry| (entry.key(), entry.version_id()))
+                .chain(
+                    output
+                        .delete_markers()
+                        .iter()
+                        .map(|entry| (entry.key(), entry.version_id())),
+                )
+            {
+                let key = key
+                    .filter(|key| key.starts_with(prefix))
+                    .ok_or(PrivacyError::InvalidPersistedState)?;
+                let version_id = version_id
+                    .filter(|version_id| !version_id.trim().is_empty())
+                    .ok_or(PrivacyError::InvalidPersistedState)?;
+                let identifier = S3VersionIdentifier {
+                    key: key.to_owned(),
+                    version_id: Some(version_id.to_owned()),
+                };
+                if !seen.insert(identifier.clone()) {
+                    return Err(PrivacyError::InvalidPersistedState);
+                }
+                identifiers.push(identifier);
+            }
+            let truncated = output
+                .is_truncated()
+                .ok_or(PrivacyError::InvalidPersistedState)?;
+            if !truncated {
+                break;
+            }
+            let next_key_marker = output
+                .next_key_marker()
+                .filter(|marker| !marker.is_empty())
+                .ok_or(PrivacyError::InvalidPersistedState)?
+                .to_owned();
+            let next_version_id_marker =
+                output.next_version_id_marker().map(ToOwned::to_owned);
+            if key_marker.as_deref() == Some(next_key_marker.as_str())
+                && version_id_marker == next_version_id_marker
+            {
+                return Err(PrivacyError::InvalidPersistedState);
+            }
+            key_marker = Some(next_key_marker);
+            version_id_marker = next_version_id_marker;
+        }
+        Ok(S3ListedObjects {
+            identifiers,
+            page_count,
+        })
+    }
+
+    async fn list_unversioned(
+        &self,
+        prefix: &str,
+    ) -> Result<S3ListedObjects, PrivacyError> {
+        let mut identifiers = Vec::new();
+        let mut seen = HashSet::new();
+        let mut continuation_token = None;
+        let mut page_count = 0_u64;
+        loop {
+            page_count = page_count
+                .checked_add(1)
+                .ok_or(PrivacyError::InvalidPersistedState)?;
+            if page_count as usize > S3_MAX_LIST_PAGES {
+                return Err(PrivacyError::InvalidPersistedState);
+            }
+            let output = self
+                .client
+                .list_objects_v2()
+                .bucket(&self.bucket)
+                .prefix(prefix)
+                .max_keys(S3_LIST_PAGE_SIZE)
+                .set_continuation_token(continuation_token.clone())
+                .send()
+                .await
+                .map_err(|_| PrivacyError::Storage)?;
+            for key in output.contents().iter().map(|entry| entry.key()) {
+                let key = key
+                    .filter(|key| key.starts_with(prefix))
+                    .ok_or(PrivacyError::InvalidPersistedState)?;
+                let identifier = S3VersionIdentifier {
+                    key: key.to_owned(),
+                    version_id: None,
+                };
+                if !seen.insert(identifier.clone()) {
+                    return Err(PrivacyError::InvalidPersistedState);
+                }
+                identifiers.push(identifier);
+            }
+            let truncated = output
+                .is_truncated()
+                .ok_or(PrivacyError::InvalidPersistedState)?;
+            if !truncated {
+                break;
+            }
+            let next_token = output
+                .next_continuation_token()
+                .filter(|token| !token.is_empty())
+                .ok_or(PrivacyError::InvalidPersistedState)?
+                .to_owned();
+            if continuation_token.as_deref() == Some(next_token.as_str()) {
+                return Err(PrivacyError::InvalidPersistedState);
+            }
+            continuation_token = Some(next_token);
+        }
+        Ok(S3ListedObjects {
+            identifiers,
+            page_count,
+        })
+    }
+
+    async fn list_subject_objects(
+        &self,
+        mode: S3VersioningMode,
+        prefix: &str,
+    ) -> Result<S3ListedObjects, PrivacyError> {
+        match mode {
+            S3VersioningMode::NeverVersioned => self.list_unversioned(prefix).await,
+            S3VersioningMode::VersionHistory => self.list_version_history(prefix).await,
+        }
+    }
+
+    async fn delete_identifiers(
+        &self,
+        identifiers: &[S3VersionIdentifier],
+        summary: &mut S3DeleteReceiptSummary,
+    ) -> Result<(), PrivacyError> {
+        for chunk in identifiers.chunks(S3_DELETE_REQUEST_SIZE) {
+            let objects = chunk
+                .iter()
+                .map(|identifier| {
+                    ObjectIdentifier::builder()
+                        .key(&identifier.key)
+                        .set_version_id(identifier.version_id.clone())
+                        .build()
+                        .map_err(|_| PrivacyError::InvalidPersistedState)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let delete = Delete::builder()
+                .set_objects(Some(objects))
+                .quiet(false)
+                .build()
+                .map_err(|_| PrivacyError::InvalidPersistedState)?;
+            summary.request_count = summary
+                .request_count
+                .checked_add(1)
+                .ok_or(PrivacyError::InvalidPersistedState)?;
+            summary.requested_count = summary
+                .requested_count
+                .checked_add(chunk.len() as u64)
+                .ok_or(PrivacyError::InvalidPersistedState)?;
+            let output = self
+                .client
+                .delete_objects()
+                .bucket(&self.bucket)
+                .delete(delete)
+                .send()
+                .await
+                .map_err(|_| PrivacyError::Storage)?;
+            summary.error_count = summary
+                .error_count
+                .checked_add(output.errors().len() as u64)
+                .ok_or(PrivacyError::InvalidPersistedState)?;
+            if !output.errors().is_empty() {
                 return Err(PrivacyError::Storage);
             }
-            return Err(PrivacyError::InvalidPersistedState);
+            let expected = chunk
+                .iter()
+                .cloned()
+                .collect::<HashSet<S3VersionIdentifier>>();
+            let confirmed = output
+                .deleted()
+                .iter()
+                .map(|deleted| {
+                    let key = deleted
+                        .key()
+                        .filter(|key| !key.is_empty())
+                        .ok_or(PrivacyError::InvalidPersistedState)?;
+                    Ok(S3VersionIdentifier {
+                        key: key.to_owned(),
+                        version_id: deleted.version_id().map(ToOwned::to_owned),
+                    })
+                })
+                .collect::<Result<HashSet<_>, PrivacyError>>()?;
+            if confirmed != expected {
+                return Err(PrivacyError::Storage);
+            }
+            summary.confirmed_count = summary
+                .confirmed_count
+                .checked_add(confirmed.len() as u64)
+                .ok_or(PrivacyError::InvalidPersistedState)?;
         }
-        self.bucket
-            .delete_object(&key)
-            .await
-            .map_err(|_| PrivacyError::Storage)?;
         Ok(())
     }
+
+    async fn erase_subject(&self, subject_id: &str) -> Result<(), PrivacyError> {
+        let prefix = Self::subject_prefix(subject_id)?;
+        let mut all_identifiers = HashSet::new();
+        let mut page_count = 0_u64;
+        let mut summary = S3DeleteReceiptSummary {
+            request_count: 0,
+            requested_count: 0,
+            confirmed_count: 0,
+            error_count: 0,
+        };
+        for _ in 0..S3_MAX_ERASURE_PASSES {
+            // Re-read on every pass so a concurrent NeverVersioned -> Enabled
+            // transition cannot leave a newly created historical version behind.
+            let mode = self.versioning_mode().await?;
+            let listed = self.list_subject_objects(mode, &prefix).await?;
+            page_count = page_count
+                .checked_add(listed.page_count)
+                .ok_or(PrivacyError::InvalidPersistedState)?;
+            if listed.identifiers.is_empty() {
+                let manifest_sha256 =
+                    s3_erasure_manifest_sha256(&self.bucket, &prefix, &all_identifiers);
+                let evidence = S3ErasureEvidence {
+                    bucket: self.bucket.clone(),
+                    prefix,
+                    page_count,
+                    version_count: all_identifiers.len() as u64,
+                    delete_receipt_summary: summary,
+                    final_verified_at_unix_ms: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map_err(|_| PrivacyError::Storage)?
+                        .as_millis()
+                        .try_into()
+                        .map_err(|_| PrivacyError::InvalidPersistedState)?,
+                    manifest_sha256,
+                };
+                let encoded =
+                    serde_json::to_string(&evidence).map_err(|_| PrivacyError::Storage)?;
+                *self
+                    .last_evidence
+                    .lock()
+                    .map_err(|_| PrivacyError::Storage)? = Some(evidence);
+                eprintln!("trpg_object_erasure_evidence={encoded}");
+                return Ok(());
+            }
+            all_identifiers.extend(listed.identifiers.iter().cloned());
+            self.delete_identifiers(&listed.identifiers, &mut summary)
+                .await?;
+        }
+        Err(PrivacyError::Storage)
+    }
+}
+
+fn validate_s3_tls_binding(endpoint: &str, ca_bundle_path: &Path) -> Result<(), PrivacyError> {
+    let parsed = Url::parse(endpoint).map_err(|_| PrivacyError::InvalidInput)?;
+    if parsed.scheme() != "https"
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || !matches!(parsed.path(), "" | "/")
+    {
+        return Err(PrivacyError::InvalidInput);
+    }
+    if !ca_bundle_path.is_absolute() {
+        return Err(PrivacyError::InvalidInput);
+    }
+    let metadata =
+        std::fs::symlink_metadata(ca_bundle_path).map_err(|_| PrivacyError::InvalidInput)?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err(PrivacyError::InvalidInput);
+    }
+    let canonical_ca =
+        std::fs::canonicalize(ca_bundle_path).map_err(|_| PrivacyError::InvalidInput)?;
+    let configured_ca = std::env::var_os("SSL_CERT_FILE")
+        .map(PathBuf::from)
+        .ok_or(PrivacyError::InvalidInput)?;
+    let canonical_configured =
+        std::fs::canonicalize(configured_ca).map_err(|_| PrivacyError::InvalidInput)?;
+    if canonical_ca != canonical_configured {
+        return Err(PrivacyError::InvalidInput);
+    }
+    let pem = std::fs::read(ca_bundle_path).map_err(|_| PrivacyError::InvalidInput)?;
+    if !pem
+        .windows(b"-----BEGIN CERTIFICATE-----".len())
+        .any(|window| window == b"-----BEGIN CERTIFICATE-----")
+        || !pem
+            .windows(b"-----END CERTIFICATE-----".len())
+            .any(|window| window == b"-----END CERTIFICATE-----")
+    {
+        return Err(PrivacyError::InvalidInput);
+    }
+    Ok(())
+}
+
+fn s3_erasure_manifest_sha256(
+    bucket: &str,
+    prefix: &str,
+    identifiers: &HashSet<S3VersionIdentifier>,
+) -> String {
+    let mut identifiers = identifiers.iter().collect::<Vec<_>>();
+    identifiers.sort_by(|left, right| {
+        (&left.key, &left.version_id).cmp(&(&right.key, &right.version_id))
+    });
+    let mut manifest = Sha256::new();
+    manifest.update((bucket.len() as u64).to_be_bytes());
+    manifest.update(bucket.as_bytes());
+    manifest.update((prefix.len() as u64).to_be_bytes());
+    manifest.update(prefix.as_bytes());
+    for identifier in identifiers {
+        manifest.update((identifier.key.len() as u64).to_be_bytes());
+        manifest.update(identifier.key.as_bytes());
+        match identifier.version_id.as_deref() {
+            Some(version_id) => {
+                manifest.update([1]);
+                manifest.update((version_id.len() as u64).to_be_bytes());
+                manifest.update(version_id.as_bytes());
+            }
+            None => manifest.update([0]),
+        }
+    }
+    format!("{:x}", manifest.finalize())
 }
 
 #[async_trait]
@@ -151,17 +538,18 @@ impl DeletionSurface for S3ObjectDeletionSurface {
         if cursor != 1 {
             return Err(PrivacyError::InvalidPersistedState);
         }
-        for key in self.subject_keys(context.subject_id()).await? {
-            self.bucket
-                .delete_object(key)
-                .await
-                .map_err(|_| PrivacyError::Storage)?;
-        }
+        self.erase_subject(context.subject_id()).await?;
         DeletionBatchProgress::complete(cursor)
     }
 
     async fn verify_absent(&self, subject_id: &str) -> Result<bool, PrivacyError> {
-        Ok(self.subject_keys(subject_id).await?.is_empty())
+        let mode = self.versioning_mode().await?;
+        let prefix = Self::subject_prefix(subject_id)?;
+        Ok(self
+            .list_subject_objects(mode, &prefix)
+            .await?
+            .identifiers
+            .is_empty())
     }
 }
 
