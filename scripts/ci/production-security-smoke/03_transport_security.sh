@@ -122,7 +122,7 @@ AR02_MINIO_CA_CERT_PATH="$runtime_directory/ca.crt" \
     -- --ignored --nocapture
 
 # Exercise the exact application identity from inside the isolated Compose
-# network. Root is used only to create and remove the negative-test bucket.
+# network. Root is used only for fixture creation and cleanup.
 "${compose_command[@]}" run --rm --entrypoint sh minio-init -ec '
   set -eu
   mkdir -p /tmp/mc/certs/CAs
@@ -164,8 +164,8 @@ AR02_MINIO_CA_CERT_PATH="$runtime_directory/ca.crt" \
     printf "object-storage service identity wrote outside subjects/\n" >&2
     exit 1
   fi
-  mc --config-dir /tmp/mc rm --force \
-    "service/${bucket}/subjects/ar02-policy-probe/allowed"
+  mc --config-dir /tmp/mc rm --recursive --force --versions \
+    "root/${bucket}/subjects/ar02-policy-probe/"
   mc --config-dir /tmp/mc rb --force "root/${forbidden_bucket}"
 '
 if curl --fail --silent --show-error \
