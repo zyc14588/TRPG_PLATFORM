@@ -5,6 +5,7 @@ impl PostgresDeletionRepository {
         &self,
         job_id: &str,
         subject_id: &str,
+        claim_token: &str,
     ) -> Result<(), PrivacyError> {
         let mut transaction = self
             .pool
@@ -17,11 +18,13 @@ impl PostgresDeletionRepository {
                  updated_at = statement_timestamp() \
              WHERE job_id = $1 AND subject_id = $2 \
                AND status IN ('running', 'verifying') \
+               AND execution_claim_token = $4 \
                AND lease_expires_at > statement_timestamp()",
         )
         .bind(job_id)
         .bind(subject_id)
         .bind(DELETION_EXECUTION_LEASE_SECONDS)
+        .bind(claim_token)
         .execute(&mut *transaction)
         .await
         .map_err(|_| PrivacyError::Database)?
@@ -34,11 +37,13 @@ impl PostgresDeletionRepository {
                  lease_expires_at = statement_timestamp() + make_interval(secs => $3), \
                  updated_at = statement_timestamp() \
              WHERE subject_id = $2 AND job_id = $1 AND status = 'running' \
+               AND execution_claim_token = $4 \
                AND lease_expires_at > statement_timestamp()",
         )
         .bind(job_id)
         .bind(subject_id)
         .bind(DELETION_EXECUTION_LEASE_SECONDS)
+        .bind(claim_token)
         .execute(&mut *transaction)
         .await
         .map_err(|_| PrivacyError::Database)?
@@ -80,7 +85,8 @@ impl PostgresDeletionRepository {
         let subject_id: String = row.get("subject_id");
         sqlx::query(
             "UPDATE privacy_subject_deletion_fences SET status = 'failed', \
-                    lease_expires_at = NULL, updated_at = statement_timestamp() \
+                    lease_expires_at = NULL, execution_claim_token = NULL, \
+                    updated_at = statement_timestamp() \
              WHERE subject_id = $1 AND job_id = $2 AND status = 'running'",
         )
         .bind(&subject_id)
@@ -90,7 +96,7 @@ impl PostgresDeletionRepository {
         .map_err(|_| PrivacyError::Database)?;
         let affected = sqlx::query(
             "UPDATE privacy_deletion_jobs SET status = 'failed', failure_code = $2, \
-                    lease_expires_at = NULL, \
+                    lease_expires_at = NULL, execution_claim_token = NULL, \
                     lease_recovery_count = lease_recovery_count + 1, \
                     last_lease_expired_at = statement_timestamp(), \
                     updated_at = statement_timestamp() \
@@ -165,6 +171,7 @@ impl PostgresDeletionRepository {
         target: DeletionTarget,
         status: DeletionTargetStatus,
         error_code: Option<&str>,
+        claim_token: &str,
     ) -> Result<(), PrivacyError> {
         let affected = sqlx::query(
             "UPDATE privacy_deletion_job_targets SET status = $3, error_code = $4, \
@@ -176,8 +183,10 @@ impl PostgresDeletionRepository {
                    JOIN privacy_subject_deletion_fences AS fence \
                      ON fence.job_id = job.job_id AND fence.subject_id = job.subject_id \
                   WHERE job.job_id = $1 AND job.status IN ('running', 'verifying') \
+                    AND job.execution_claim_token = $5 \
                     AND job.lease_expires_at > statement_timestamp() \
                     AND fence.status = 'running' \
+                    AND fence.execution_claim_token = $5 \
                     AND fence.lease_expires_at > statement_timestamp()\
                )",
         )
@@ -185,6 +194,7 @@ impl PostgresDeletionRepository {
         .bind(target.as_str())
         .bind(status.as_str())
         .bind(error_code)
+        .bind(claim_token)
         .execute(&self.pool)
         .await
         .map_err(|_| PrivacyError::Database)?
@@ -223,6 +233,7 @@ impl PostgresDeletionRepository {
         target: DeletionTarget,
         expected_cursor: u64,
         next_cursor: u64,
+        claim_token: &str,
     ) -> Result<(), PrivacyError> {
         if expected_cursor == 0 || next_cursor <= expected_cursor {
             return Err(PrivacyError::InvalidPersistedState);
@@ -242,8 +253,10 @@ impl PostgresDeletionRepository {
                     JOIN privacy_subject_deletion_fences AS fence \
                       ON fence.job_id = job.job_id AND fence.subject_id = job.subject_id \
                     WHERE job.job_id = $1 AND job.status = 'running' \
+                      AND job.execution_claim_token = $5 \
                       AND job.lease_expires_at > statement_timestamp() \
                       AND fence.status = 'running' \
+                      AND fence.execution_claim_token = $5 \
                       AND fence.lease_expires_at > statement_timestamp()\
                 )",
         )
@@ -251,6 +264,7 @@ impl PostgresDeletionRepository {
         .bind(target.as_str())
         .bind(expected_cursor)
         .bind(next_cursor)
+        .bind(claim_token)
         .execute(&self.pool)
         .await
         .map_err(|_| PrivacyError::Database)?

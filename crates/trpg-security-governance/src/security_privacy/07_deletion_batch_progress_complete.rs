@@ -145,13 +145,13 @@ impl DeletionSurface for S3ObjectDeletionSurface {
 
     async fn delete_subject_batch(
         &self,
-        subject_id: &str,
+        context: &DeletionExecutionContext,
         cursor: u64,
     ) -> Result<DeletionBatchProgress, PrivacyError> {
         if cursor != 1 {
             return Err(PrivacyError::InvalidPersistedState);
         }
-        for key in self.subject_keys(subject_id).await? {
+        for key in self.subject_keys(context.subject_id()).await? {
             self.bucket
                 .delete_object(key)
                 .await

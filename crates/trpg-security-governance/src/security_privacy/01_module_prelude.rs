@@ -264,6 +264,52 @@ impl DeletionJob {
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct DeletionExecutionContext {
+    job_id: String,
+    subject_id: String,
+    claim_token: String,
+}
+
+impl DeletionExecutionContext {
+    fn new(job_id: &str, subject_id: &str, claim_token: String) -> Self {
+        Self {
+            job_id: job_id.to_owned(),
+            subject_id: subject_id.to_owned(),
+            claim_token,
+        }
+    }
+
+    pub fn job_id(&self) -> &str {
+        &self.job_id
+    }
+
+    pub fn subject_id(&self) -> &str {
+        &self.subject_id
+    }
+
+    pub(crate) fn claim_token(&self) -> &str {
+        &self.claim_token
+    }
+}
+
+impl std::fmt::Debug for DeletionExecutionContext {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("DeletionExecutionContext")
+            .field("job_id", &self.job_id)
+            .field("subject_id", &self.subject_id)
+            .field("claim_token", &"[REDACTED]")
+            .finish()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DeletionRevalidationClaim {
+    run_id: String,
+    claim_token: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PrivacyError {
     InvalidInput,

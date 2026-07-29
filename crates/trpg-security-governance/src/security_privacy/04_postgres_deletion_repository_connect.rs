@@ -37,8 +37,24 @@ impl PostgresDeletionRepository {
             "SELECT to_regclass('public.privacy_deletion_jobs') IS NOT NULL \
                     AND to_regclass('public.privacy_deletion_job_targets') IS NOT NULL \
                     AND to_regclass('public.privacy_subject_deletion_fences') IS NOT NULL \
+                    AND to_regclass('public.privacy_deletion_revalidation_runs') IS NOT NULL \
+                    AND to_regclass('public.privacy_deletion_revalidation_results') IS NOT NULL \
                     AND to_regprocedure('public.enforce_privacy_deletion_job_evidence()') \
-                        IS NOT NULL",
+                        IS NOT NULL \
+                    AND to_regprocedure(\
+                        'public.erase_privacy_database_subject(text,text,text)'\
+                    ) IS NOT NULL \
+                    AND to_regprocedure(\
+                        'public.erase_privacy_rag_subject(text,text,text)'\
+                    ) IS NOT NULL \
+                    AND to_regprocedure(\
+                        'public.begin_privacy_deletion_revalidation(text,text)'\
+                    ) IS NOT NULL \
+                    AND to_regprocedure(\
+                        'public.record_privacy_deletion_revalidation_result(\
+                            text,text,text,text,text,text,text,text\
+                        )'\
+                    ) IS NOT NULL",
         )
         .fetch_one(&self.pool)
         .await
@@ -284,6 +300,7 @@ impl PostgresDeletionRepository {
         &self,
         job_id: &str,
         status: DeletionJobStatus,
+        claim_token: &str,
     ) -> Result<(), PrivacyError> {
         if status != DeletionJobStatus::Verifying {
             return Err(PrivacyError::InvalidInput);
@@ -292,16 +309,19 @@ impl PostgresDeletionRepository {
             "UPDATE privacy_deletion_jobs AS job \
                 SET status = $2, failure_code = NULL, updated_at = statement_timestamp() \
               WHERE job.job_id = $1 AND job.status = 'running' \
+                AND job.execution_claim_token = $3 \
                 AND job.lease_expires_at > statement_timestamp() \
                 AND EXISTS (\
                     SELECT 1 FROM privacy_subject_deletion_fences AS fence \
                      WHERE fence.subject_id = job.subject_id \
                        AND fence.job_id = job.job_id AND fence.status = 'running' \
+                       AND fence.execution_claim_token = $3 \
                        AND fence.lease_expires_at > statement_timestamp()\
                 )",
         )
         .bind(job_id)
         .bind(status.as_str())
+        .bind(claim_token)
         .execute(&self.pool)
         .await
         .map_err(|_| PrivacyError::Database)?

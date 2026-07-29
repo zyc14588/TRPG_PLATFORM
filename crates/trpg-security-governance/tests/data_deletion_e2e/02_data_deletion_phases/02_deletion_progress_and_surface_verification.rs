@@ -80,11 +80,117 @@
     assert!(protected_wire.contains("protected_payload"));
     assert!(!protected_wire.contains("deletion-secret"));
 
-    // Completion is idempotent and does not recreate or reclassify data.
+    let completion_updated_at: String = sqlx::query_scalar(
+        "SELECT updated_at::text FROM privacy_deletion_jobs WHERE job_id = $1",
+    )
+    .bind(&job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    // A clean post-completion revalidation appends a result without mutating
+    // the original job or its verified target evidence.
     assert_eq!(
         worker.execute(&job_id).await.unwrap().status,
         DeletionJobStatus::Completed
     );
+    let passed_revalidation = sqlx::query(
+        "SELECT result.result_status, result.alert_status \
+           FROM privacy_deletion_revalidation_results AS result \
+           JOIN privacy_deletion_revalidation_runs AS run \
+             ON run.run_id = result.run_id \
+          WHERE run.job_id = $1 \
+          ORDER BY run.started_at DESC, run.run_id DESC LIMIT 1",
+    )
+    .bind(&job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        passed_revalidation.get::<String, _>("result_status"),
+        "passed"
+    );
+    assert_eq!(
+        passed_revalidation.get::<String, _>("alert_status"),
+        "not_required"
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, String>(
+            "SELECT updated_at::text FROM privacy_deletion_jobs WHERE job_id = $1",
+        )
+        .bind(&job_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        completion_updated_at
+    );
+
+    // Restore a real external surface after completion. Revalidation is
+    // deliberately verify-only: it must expose resurgence, append durable
+    // failure/alert evidence, and leave the completion proof untouched.
+    fs::create_dir_all(export_root.join(&subject_id)).unwrap();
+    fs::write(
+        export_root.join(&subject_id).join("resurfaced-export.bin"),
+        b"resurfaced-protected-export",
+    )
+    .unwrap();
+    assert_eq!(
+        worker.execute(&job_id).await.unwrap_err(),
+        PrivacyError::VerificationFailed(DeletionTarget::Export)
+    );
+    assert!(
+        export_root.join(&subject_id).exists(),
+        "revalidation must not erase resurfaced data before recording failure"
+    );
+    let failed_revalidation = sqlx::query(
+        "SELECT result.result_id, result.result_status, result.failure_target, \
+                result.error_code, result.alert_status, result.evidence_hash \
+           FROM privacy_deletion_revalidation_results AS result \
+           JOIN privacy_deletion_revalidation_runs AS run \
+             ON run.run_id = result.run_id \
+          WHERE run.job_id = $1 \
+          ORDER BY run.started_at DESC, run.run_id DESC LIMIT 1",
+    )
+    .bind(&job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        failed_revalidation.get::<String, _>("result_status"),
+        "failed"
+    );
+    assert_eq!(
+        failed_revalidation.get::<String, _>("failure_target"),
+        "export"
+    );
+    assert_eq!(
+        failed_revalidation.get::<String, _>("error_code"),
+        "DELETION_VERIFICATION_FAILED"
+    );
+    assert_eq!(
+        failed_revalidation.get::<String, _>("alert_status"),
+        "pending_acknowledgement"
+    );
+    assert!(failed_revalidation
+        .get::<String, _>("evidence_hash")
+        .starts_with("sha256:"));
+    let result_id = failed_revalidation.get::<String, _>("result_id");
+    let immutable_result = sqlx::query(
+        "UPDATE privacy_deletion_revalidation_results \
+            SET alert_status = 'not_required' WHERE result_id = $1",
+    )
+    .bind(result_id)
+    .execute(&pool)
+    .await
+    .expect_err("terminal revalidation evidence must be immutable");
+    assert_eq!(
+        immutable_result
+            .as_database_error()
+            .and_then(|error| error.code())
+            .as_deref(),
+        Some("P0001")
+    );
+
     let incomplete_completed_worker =
         DeletionWorker::new(repository.clone(), Arc::new(legal_holds), Vec::new()).unwrap();
     assert_eq!(
@@ -97,6 +203,16 @@
     let still_completed = repository.load(&job_id).await.unwrap();
     assert_eq!(still_completed.status, DeletionJobStatus::Completed);
     assert!(still_completed.all_targets_verified());
+    assert_eq!(
+        sqlx::query_scalar::<_, String>(
+            "SELECT updated_at::text FROM privacy_deletion_jobs WHERE job_id = $1",
+        )
+        .bind(&job_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        completion_updated_at
+    );
 
     root.close().unwrap();
 }

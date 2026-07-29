@@ -53,36 +53,43 @@ async fn exhausted_lease_recovery_remains_terminal_and_is_not_requeued() {
         DeletionWorker::new(repository.clone(), Arc::new(legal_holds), Vec::new()).unwrap();
 
     for recovery in 1..=MAX_DELETION_LEASE_RECOVERIES {
+        let claim_token = format!("exhausted-lease-claim-{nonce}-{recovery}");
         if recovery == 1 {
             sqlx::query(
                 "INSERT INTO privacy_subject_deletion_fences \
-                 (subject_id, job_id, status, lease_expires_at) \
-                 VALUES ($1, $2, 'running', statement_timestamp() + interval '1 second')",
+                 (subject_id, job_id, status, lease_expires_at, execution_claim_token) \
+                 VALUES ($1, $2, 'running', \
+                         statement_timestamp() + interval '1 second', $3)",
             )
             .bind(&subject_id)
             .bind(&job_id)
+            .bind(&claim_token)
             .execute(&pool)
             .await
             .unwrap();
         } else {
             sqlx::query(
                 "UPDATE privacy_subject_deletion_fences SET status = 'running', \
+                 execution_claim_token = $3, \
                  lease_expires_at = statement_timestamp() + interval '1 second', \
                  updated_at = statement_timestamp() \
                  WHERE subject_id = $1 AND job_id = $2 AND status = 'failed'",
             )
             .bind(&subject_id)
             .bind(&job_id)
+            .bind(&claim_token)
             .execute(&pool)
             .await
             .unwrap();
         }
         sqlx::query(
             "UPDATE privacy_deletion_jobs SET status = 'running', failure_code = NULL, \
+             execution_claim_token = $2, \
              lease_expires_at = statement_timestamp() + interval '1 second', \
              updated_at = statement_timestamp() WHERE job_id = $1",
         )
         .bind(&job_id)
+        .bind(&claim_token)
         .execute(&pool)
         .await
         .unwrap();
@@ -121,6 +128,7 @@ async fn exhausted_lease_recovery_remains_terminal_and_is_not_requeued() {
     assert!(
         sqlx::query(
             "UPDATE privacy_deletion_jobs SET status = 'running', failure_code = NULL, \
+             execution_claim_token = 'exhausted-terminal-claim', \
              lease_expires_at = statement_timestamp() + interval '5 minutes' \
              WHERE job_id = $1",
         )

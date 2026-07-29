@@ -7,9 +7,10 @@ impl DeletionSurface for NatsQueueDeletionSurface {
 
     async fn delete_subject_batch(
         &self,
-        subject_id: &str,
+        context: &DeletionExecutionContext,
         cursor: u64,
     ) -> Result<DeletionBatchProgress, PrivacyError> {
+        let subject_id = context.subject_id();
         validate_id(subject_id)?;
         if cursor == 0 {
             return Err(PrivacyError::InvalidPersistedState);
@@ -158,110 +159,20 @@ impl PostgresRecordDeletionSurface {
         Ok(Self { pool, target })
     }
 
-    async fn delete_database_subject(&self, subject_id: &str) -> Result<(), PrivacyError> {
-        let mut transaction = self
-            .pool
-            .begin()
-            .await
-            .map_err(|_| PrivacyError::Database)?;
+    async fn delete_database_subject(
+        &self,
+        context: &DeletionExecutionContext,
+    ) -> Result<(), PrivacyError> {
         sqlx::query(
-            "SELECT pg_advisory_xact_lock(hashtextextended('privacy_subject_delete:' || $1, 0))",
+            "SELECT public.erase_privacy_database_subject($1, $2, $3)",
         )
-        .bind(subject_id)
-        .execute(&mut *transaction)
+        .bind(context.job_id())
+        .bind(context.subject_id())
+        .bind(context.claim_token())
+        .execute(&self.pool)
         .await
-        .map_err(|_| PrivacyError::Database)?;
-        let owns_immutable_authority: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM authority_contracts WHERE authority_owner = $1)",
-        )
-        .bind(subject_id)
-        .fetch_one(&mut *transaction)
-        .await
-        .map_err(|_| PrivacyError::Database)?;
-        if owns_immutable_authority {
-            return Err(PrivacyError::ProtectedCanonicalIdentity);
-        }
-
-        sqlx::query("DELETE FROM sessions WHERE user_id = $1")
-            .bind(subject_id)
-            .execute(&mut *transaction)
-            .await
-            .map_err(|_| PrivacyError::Database)?;
-        sqlx::query(
-            "UPDATE campaign_group_memberships SET revoked_at = COALESCE(revoked_at, now()) \
-             WHERE user_id = $1",
-        )
-        .bind(subject_id)
-        .execute(&mut *transaction)
-        .await
-        .map_err(|_| PrivacyError::Database)?;
-        sqlx::query(
-            "UPDATE campaign_memberships SET revoked_at = COALESCE(revoked_at, now()) \
-             WHERE user_id = $1",
-        )
-        .bind(subject_id)
-        .execute(&mut *transaction)
-        .await
-        .map_err(|_| PrivacyError::Database)?;
-
-        let digest = sha256_hex(subject_id.as_bytes());
-        let expected_erasure_digest = format!("sha256:{digest}");
-        let persisted_erasure_digest = sqlx::query_scalar::<_, String>(
-            "SELECT erasure_digest FROM privacy_erased_subjects WHERE subject_id = $1",
-        )
-        .bind(subject_id)
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(|_| PrivacyError::Database)?;
-        if persisted_erasure_digest
-            .as_deref()
-            .is_some_and(|persisted| persisted != expected_erasure_digest)
-        {
-            return Err(PrivacyError::InvalidPersistedState);
-        }
-        sqlx::query(
-            "UPDATE users SET login_normalized = $2, password_hash = $3, \
-             disabled_at = COALESCE(disabled_at, now()) WHERE user_id = $1",
-        )
-        .bind(subject_id)
-        .bind(format!("deleted_{digest}"))
-        .bind(format!("DELETED_ACCOUNT_NO_LOGIN_{digest}"))
-        .execute(&mut *transaction)
-        .await
-        .map_err(|_| PrivacyError::Database)?;
-        sqlx::query(
-            "UPDATE cloud_egress_consents SET granted = false, updated_at = now() \
-             WHERE subject_id = $1 AND granted = true",
-        )
-        .bind(subject_id)
-        .execute(&mut *transaction)
-        .await
-        .map_err(|_| PrivacyError::Database)?;
-        if persisted_erasure_digest.is_none() {
-            sqlx::query(
-                "INSERT INTO privacy_erased_subjects (subject_id, erasure_digest) \
-                 VALUES ($1, $2)",
-            )
-            .bind(subject_id)
-            .bind(expected_erasure_digest)
-            .execute(&mut *transaction)
-            .await
-            .map_err(|_| PrivacyError::Database)?;
-        }
-        // Remove rows written by pre-P05 test/preview implementations. They
-        // are not used as proof of production deletion.
-        sqlx::query(
-            "DELETE FROM privacy_deletion_surface_records \
-             WHERE surface = 'database' AND subject_id = $1",
-        )
-        .bind(subject_id)
-        .execute(&mut *transaction)
-        .await
-        .map_err(|_| PrivacyError::Database)?;
-        transaction
-            .commit()
-            .await
-            .map_err(|_| PrivacyError::Database)
+        .map_err(deletion_surface_write_error)?;
+        Ok(())
     }
 
     async fn verify_database_subject(&self, subject_id: &str) -> Result<bool, PrivacyError> {

@@ -1,7 +1,11 @@
 
 impl PostgresDeletionRepository {
 
-    async fn claim_execution(&self, job_id: &str, subject_id: &str) -> Result<bool, PrivacyError> {
+    async fn claim_execution(
+        &self,
+        job_id: &str,
+        subject_id: &str,
+    ) -> Result<Option<String>, PrivacyError> {
         let mut transaction = self
             .pool
             .begin()
@@ -39,7 +43,8 @@ impl PostgresDeletionRepository {
             }
             sqlx::query(
                 "UPDATE privacy_subject_deletion_fences SET status = 'failed', \
-                        lease_expires_at = NULL, updated_at = statement_timestamp() \
+                        lease_expires_at = NULL, execution_claim_token = NULL, \
+                        updated_at = statement_timestamp() \
                  WHERE subject_id = $1 AND job_id = $2 AND status = 'running'",
             )
             .bind(subject_id)
@@ -49,7 +54,7 @@ impl PostgresDeletionRepository {
             .map_err(|_| PrivacyError::Database)?;
             let affected = sqlx::query(
                 "UPDATE privacy_deletion_jobs SET status = 'failed', failure_code = $2, \
-                        lease_expires_at = NULL, \
+                        lease_expires_at = NULL, execution_claim_token = NULL, \
                         lease_recovery_count = lease_recovery_count + 1, \
                         last_lease_expired_at = statement_timestamp(), \
                         updated_at = statement_timestamp() \
@@ -70,7 +75,7 @@ impl PostgresDeletionRepository {
             lease_recovery_count += 1;
         }
         if status == "completed" {
-            return Ok(false);
+            return Ok(None);
         }
         if status == "failed" && failure_code.as_deref() != Some(DELETION_LEASE_EXPIRED_CODE) {
             return Err(PrivacyError::InvalidPersistedState);
@@ -103,8 +108,12 @@ impl PostgresDeletionRepository {
                 .commit()
                 .await
                 .map_err(|_| PrivacyError::Database)?;
-            return Ok(false);
+            return Ok(None);
         }
+        let claim_token: String = sqlx::query_scalar("SELECT gen_random_uuid()::text")
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(|_| PrivacyError::Database)?;
         let existing_fence = sqlx::query(
             "SELECT job_id, status FROM privacy_subject_deletion_fences \
              WHERE subject_id = $1 FOR UPDATE",
@@ -121,35 +130,40 @@ impl PostgresDeletionRepository {
             }
             sqlx::query(
                 "UPDATE privacy_subject_deletion_fences SET status = 'running', \
+                 execution_claim_token = $3, \
                  lease_expires_at = statement_timestamp() + make_interval(secs => $2), \
                  updated_at = statement_timestamp() WHERE subject_id = $1",
             )
             .bind(subject_id)
             .bind(DELETION_EXECUTION_LEASE_SECONDS)
+            .bind(&claim_token)
             .execute(&mut *transaction)
             .await
             .map_err(|_| PrivacyError::Database)?;
         } else {
             sqlx::query(
                 "INSERT INTO privacy_subject_deletion_fences \
-                 (subject_id, job_id, status, lease_expires_at) \
+                 (subject_id, job_id, status, lease_expires_at, execution_claim_token) \
                  VALUES ($1, $2, 'running', \
-                         statement_timestamp() + make_interval(secs => $3))",
+                         statement_timestamp() + make_interval(secs => $3), $4)",
             )
             .bind(subject_id)
             .bind(job_id)
             .bind(DELETION_EXECUTION_LEASE_SECONDS)
+            .bind(&claim_token)
             .execute(&mut *transaction)
             .await
             .map_err(|_| PrivacyError::Database)?;
         }
         let affected = sqlx::query(
             "UPDATE privacy_deletion_jobs SET status = 'running', failure_code = NULL, \
+             execution_claim_token = $3, \
              lease_expires_at = statement_timestamp() + make_interval(secs => $2), \
              updated_at = statement_timestamp() WHERE job_id = $1",
         )
         .bind(job_id)
         .bind(DELETION_EXECUTION_LEASE_SECONDS)
+        .bind(&claim_token)
         .execute(&mut *transaction)
         .await
         .map_err(|_| PrivacyError::Database)?
@@ -161,7 +175,7 @@ impl PostgresDeletionRepository {
             .commit()
             .await
             .map_err(|_| PrivacyError::Database)?;
-        Ok(true)
+        Ok(Some(claim_token))
     }
 
     async fn finish_execution(
@@ -170,6 +184,7 @@ impl PostgresDeletionRepository {
         subject_id: &str,
         status: DeletionJobStatus,
         failure_code: Option<&str>,
+        claim_token: &str,
     ) -> Result<(), PrivacyError> {
         let fence_status = match status {
             DeletionJobStatus::Completed => "completed",
@@ -183,13 +198,16 @@ impl PostgresDeletionRepository {
             .map_err(|_| PrivacyError::Database)?;
         let affected = sqlx::query(
             "UPDATE privacy_subject_deletion_fences SET status = $3, \
-                    lease_expires_at = NULL, updated_at = statement_timestamp() \
+                    lease_expires_at = NULL, execution_claim_token = NULL, \
+                    updated_at = statement_timestamp() \
              WHERE subject_id = $1 AND job_id = $2 AND status = 'running' \
+               AND execution_claim_token = $4 \
                AND lease_expires_at > statement_timestamp()",
         )
         .bind(subject_id)
         .bind(job_id)
         .bind(fence_status)
+        .bind(claim_token)
         .execute(&mut *transaction)
         .await
         .map_err(|_| PrivacyError::Database)?
@@ -199,13 +217,16 @@ impl PostgresDeletionRepository {
         }
         let affected = sqlx::query(
             "UPDATE privacy_deletion_jobs SET status = $2, failure_code = $3, \
-                    lease_expires_at = NULL, updated_at = statement_timestamp() \
+                    lease_expires_at = NULL, execution_claim_token = NULL, \
+                    updated_at = statement_timestamp() \
              WHERE job_id = $1 AND status IN ('running', 'verifying') \
+               AND execution_claim_token = $4 \
                AND lease_expires_at > statement_timestamp()",
         )
         .bind(job_id)
         .bind(status.as_str())
         .bind(failure_code)
+        .bind(claim_token)
         .execute(&mut *transaction)
         .await
         .map_err(|_| PrivacyError::Database)?
@@ -217,6 +238,56 @@ impl PostgresDeletionRepository {
             .commit()
             .await
             .map_err(|_| PrivacyError::Database)
+    }
+
+    async fn begin_revalidation(
+        &self,
+        job_id: &str,
+        subject_id: &str,
+    ) -> Result<DeletionRevalidationClaim, PrivacyError> {
+        let row = sqlx::query(
+            "SELECT run_id, claim_token \
+               FROM public.begin_privacy_deletion_revalidation($1, $2)",
+        )
+        .bind(job_id)
+        .bind(subject_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|_| PrivacyError::Database)?;
+        Ok(DeletionRevalidationClaim {
+            run_id: row.try_get("run_id").map_err(db_error)?,
+            claim_token: row.try_get("claim_token").map_err(db_error)?,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn record_revalidation_result(
+        &self,
+        claim: &DeletionRevalidationClaim,
+        job_id: &str,
+        subject_id: &str,
+        result_status: &str,
+        failure_target: Option<DeletionTarget>,
+        error_code: Option<&str>,
+        evidence_hash: &str,
+    ) -> Result<(), PrivacyError> {
+        sqlx::query(
+            "SELECT public.record_privacy_deletion_revalidation_result(\
+                $1, $2, $3, $4, $5, $6, $7, $8\
+             )",
+        )
+        .bind(&claim.run_id)
+        .bind(job_id)
+        .bind(subject_id)
+        .bind(&claim.claim_token)
+        .bind(result_status)
+        .bind(failure_target.map(DeletionTarget::as_str))
+        .bind(error_code)
+        .bind(evidence_hash)
+        .execute(&self.pool)
+        .await
+        .map_err(|_| PrivacyError::Database)?;
+        Ok(())
     }
 }
 
@@ -247,6 +318,18 @@ fn deletion_evidence_write_error(error: sqlx::Error) -> PrivacyError {
                     == "deletion evidence does not match the canonical request event" =>
         {
             PrivacyError::DeletionEvidenceMismatch
+        }
+        _ => PrivacyError::Database,
+    }
+}
+
+fn deletion_surface_write_error(error: sqlx::Error) -> PrivacyError {
+    match error.as_database_error().map(|database_error| database_error.message()) {
+        Some("canonical authority owner requires a campaign fork before erasure") => {
+            PrivacyError::ProtectedCanonicalIdentity
+        }
+        Some("persisted erasure digest does not match data subject") => {
+            PrivacyError::InvalidPersistedState
         }
         _ => PrivacyError::Database,
     }
@@ -339,7 +422,7 @@ pub trait DeletionSurface: Send + Sync {
     fn target(&self) -> DeletionTarget;
     async fn delete_subject_batch(
         &self,
-        subject_id: &str,
+        context: &DeletionExecutionContext,
         cursor: u64,
     ) -> Result<DeletionBatchProgress, PrivacyError>;
     async fn verify_absent(&self, subject_id: &str) -> Result<bool, PrivacyError>;

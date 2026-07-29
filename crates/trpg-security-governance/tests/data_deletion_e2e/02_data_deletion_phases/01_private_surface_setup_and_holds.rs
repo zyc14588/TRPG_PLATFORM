@@ -36,6 +36,39 @@
         .expect("connect P05 PostgreSQL");
     let repository = PostgresDeletionRepository::new(pool.clone());
     repository.migrate().await.expect("apply privacy schema");
+    sqlx::query(
+        "ALTER ROLE trpg_worker_login \
+         PASSWORD 'ar01-data-deletion-e2e-worker-only'",
+    )
+    .execute(&pool)
+    .await
+    .expect("migration owner configures the isolated worker test login");
+    let worker_options = PgConnectOptions::from_str(&database_url)
+        .expect("parse P05 database URL")
+        .username("trpg_worker_login")
+        .password("ar01-data-deletion-e2e-worker-only");
+    let worker_pool = PgPoolOptions::new()
+        .max_connections(10)
+        .connect_with(worker_options)
+        .await
+        .expect("authenticate the real trpg_worker_login");
+    let worker_identity: (String, String) =
+        sqlx::query_as("SELECT session_user::text, current_user::text")
+            .fetch_one(&worker_pool)
+            .await
+            .expect("query authenticated worker identity");
+    assert_eq!(
+        worker_identity,
+        (
+            "trpg_worker_login".to_owned(),
+            "trpg_worker_login".to_owned()
+        )
+    );
+    let worker_repository = PostgresDeletionRepository::new(worker_pool.clone());
+    worker_repository
+        .check_readiness()
+        .await
+        .expect("worker can read the constrained deletion schema");
 
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -135,8 +168,9 @@
         .expect("index actual pgvector RAG read model");
 
     let database =
-        PostgresRecordDeletionSurface::new(pool.clone(), DeletionTarget::Database).unwrap();
-    let rag = PostgresRecordDeletionSurface::new(pool.clone(), DeletionTarget::RagIndex).unwrap();
+        PostgresRecordDeletionSurface::new(worker_pool.clone(), DeletionTarget::Database).unwrap();
+    let rag =
+        PostgresRecordDeletionSurface::new(worker_pool.clone(), DeletionTarget::RagIndex).unwrap();
     let cache_key = format!("privacy_projection_{nonce}");
     let production_cache = RedisProjectionCache::connect(
         &redis_url,
@@ -218,7 +252,7 @@
     let queue = NatsQueueDeletionSurface::connect_crypto_erasure(
         &nats_url,
         "TRPG_CANONICAL_EVENTS",
-        pool.clone(),
+        worker_pool.clone(),
     )
     .await
     .unwrap();
@@ -231,7 +265,7 @@
             .await
             .unwrap();
     }
-    let backup_key = BackupKeyDeletionSurface::new(pool.clone());
+    let backup_key = BackupKeyDeletionSurface::new(worker_pool.clone());
 
     let legal_holds = PostgresLegalHoldResolver::new(pool.clone());
     legal_holds
@@ -257,8 +291,8 @@
     );
 
     let worker = DeletionWorker::new(
-        repository.clone(),
-        Arc::new(legal_holds.clone()),
+        worker_repository.clone(),
+        Arc::new(PostgresLegalHoldResolver::new(worker_pool)),
         vec![
             Box::new(database),
             Box::new(rag),
@@ -310,6 +344,192 @@
     assert_eq!(confirmed.status, DeletionJobStatus::Requested);
     assert_eq!(confirmed.evidence_status, DeletionEvidenceStatus::Confirmed);
     assert_eq!(confirmed.targets.len(), REQUIRED_DELETION_TARGETS.len());
+
+    let probe_nonce = nonce + 1;
+    let probe_subject_id = format!("claim_probe_subject_{probe_nonce}");
+    let probe_job_id = format!("claim_probe_job_{probe_nonce}");
+    let (probe_event_sequence, probe_event_hash) =
+        commit_deletion_request(
+            &store,
+            &pool,
+            probe_nonce,
+            &probe_subject_id,
+            &probe_job_id,
+        )
+        .await;
+    repository
+        .record_confirmed(
+            &probe_job_id,
+            &probe_subject_id,
+            "privacy_officer",
+            "user_erasure_v1",
+            &deletion_evidence(probe_nonce),
+            probe_event_sequence,
+            &probe_event_hash,
+        )
+        .await
+        .expect("record the constrained-claim negative fixture");
+    let probe_claim_token = format!("ar01-claim-token-{probe_nonce}");
+    let mut probe_transaction = pool.begin().await.unwrap();
+    sqlx::query(
+        "UPDATE privacy_deletion_jobs \
+            SET status = 'running', execution_claim_token = $2, \
+                lease_expires_at = statement_timestamp() + interval '5 minutes' \
+          WHERE job_id = $1",
+    )
+    .bind(&probe_job_id)
+    .bind(&probe_claim_token)
+    .execute(&mut *probe_transaction)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO privacy_subject_deletion_fences \
+         (subject_id, job_id, status, lease_expires_at, execution_claim_token) \
+         VALUES ($1, $2, 'running', \
+                 statement_timestamp() + interval '5 minutes', $3)",
+    )
+    .bind(&probe_subject_id)
+    .bind(&probe_job_id)
+    .bind(&probe_claim_token)
+    .execute(&mut *probe_transaction)
+    .await
+    .unwrap();
+    probe_transaction.commit().await.unwrap();
+
+    let wrong_claim = sqlx::query(
+        "SELECT public.erase_privacy_database_subject($1, $2, $3)",
+    )
+    .bind(&probe_job_id)
+    .bind(&probe_subject_id)
+    .bind("wrong-claim-token")
+    .execute(worker_repository.pool())
+    .await
+    .expect_err("a wrong deletion claim token must fail closed");
+    assert_eq!(
+        wrong_claim
+            .as_database_error()
+            .and_then(|error| error.code())
+            .as_deref(),
+        Some("42501")
+    );
+
+    let non_target = sqlx::query(
+        "SELECT public.erase_privacy_database_subject($1, $2, $3)",
+    )
+    .bind(&probe_job_id)
+    .bind(&subject_id)
+    .bind(&probe_claim_token)
+    .execute(worker_repository.pool())
+    .await
+    .expect_err("a live claim must not authorize another subject");
+    assert_eq!(
+        non_target
+            .as_database_error()
+            .and_then(|error| error.code())
+            .as_deref(),
+        Some("42501")
+    );
+
+    let non_running = sqlx::query(
+        "SELECT public.erase_privacy_database_subject($1, $2, $3)",
+    )
+    .bind(&job_id)
+    .bind(&subject_id)
+    .bind(&probe_claim_token)
+    .execute(worker_repository.pool())
+    .await
+    .expect_err("a requested job must not authorize erasure");
+    assert_eq!(
+        non_running
+            .as_database_error()
+            .and_then(|error| error.code())
+            .as_deref(),
+        Some("42501")
+    );
+
+    let arbitrary_update =
+        sqlx::query("UPDATE users SET disabled_at = now() WHERE user_id = $1")
+            .bind(&subject_id)
+            .execute(worker_repository.pool())
+            .await
+            .expect_err("worker must not retain direct arbitrary user updates");
+    assert_eq!(
+        arbitrary_update
+            .as_database_error()
+            .and_then(|error| error.code())
+            .as_deref(),
+        Some("42501")
+    );
+
+    sqlx::query(
+        "INSERT INTO privacy_deletion_surface_records \
+         (surface, subject_id, record_key, protected_payload) \
+         VALUES ('database', $1, 'legacy-preview', decode('00', 'hex'))",
+    )
+    .bind(&probe_subject_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let legacy_cleanup = sqlx::query(
+        "DELETE FROM privacy_deletion_surface_records \
+         WHERE surface = 'database' AND subject_id = $1",
+    )
+    .bind(&probe_subject_id)
+    .execute(worker_repository.pool())
+    .await
+    .expect_err("worker must not gain legacy evidence-table DELETE");
+    assert_eq!(
+        legacy_cleanup
+            .as_database_error()
+            .and_then(|error| error.code())
+            .as_deref(),
+        Some("42501")
+    );
+
+    sqlx::query(
+        "SELECT public.erase_privacy_database_subject($1, $2, $3)",
+    )
+    .bind(&probe_job_id)
+    .bind(&probe_subject_id)
+    .bind(&probe_claim_token)
+    .execute(worker_repository.pool())
+    .await
+    .expect("the exact live claim authorizes its fixed-predicate erasure");
+
+    let mut probe_cleanup = pool.begin().await.unwrap();
+    let fence_cleanup = sqlx::query(
+        "UPDATE privacy_subject_deletion_fences \
+            SET status = 'failed', lease_expires_at = NULL, \
+                execution_claim_token = NULL, updated_at = statement_timestamp() \
+          WHERE subject_id = $1 AND job_id = $2 AND status = 'running' \
+            AND execution_claim_token = $3",
+    )
+    .bind(&probe_subject_id)
+    .bind(&probe_job_id)
+    .bind(&probe_claim_token)
+    .execute(&mut *probe_cleanup)
+    .await
+    .unwrap()
+    .rows_affected();
+    assert_eq!(fence_cleanup, 1);
+    let job_cleanup = sqlx::query(
+        "UPDATE privacy_deletion_jobs \
+            SET status = 'failed', failure_code = 'AR01_CLAIM_PROBE_COMPLETE', \
+                lease_expires_at = NULL, execution_claim_token = NULL, \
+                updated_at = statement_timestamp() \
+          WHERE job_id = $1 AND subject_id = $2 AND status = 'running' \
+            AND execution_claim_token = $3",
+    )
+    .bind(&probe_job_id)
+    .bind(&probe_subject_id)
+    .bind(&probe_claim_token)
+    .execute(&mut *probe_cleanup)
+    .await
+    .unwrap()
+    .rows_affected();
+    assert_eq!(job_cleanup, 1);
+    probe_cleanup.commit().await.unwrap();
+
     publisher
         .publish_batch()
         .await

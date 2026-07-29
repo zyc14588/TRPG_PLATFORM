@@ -7,22 +7,22 @@ impl DeletionSurface for RedisCacheDeletionSurface {
 
     async fn delete_subject_batch(
         &self,
-        subject_id: &str,
+        context: &DeletionExecutionContext,
         cursor: u64,
     ) -> Result<DeletionBatchProgress, PrivacyError> {
         if cursor != 1 {
             return Err(PrivacyError::InvalidPersistedState);
         }
-        validate_id(subject_id)?;
+        validate_id(context.subject_id())?;
         let mut connection = self.connection.clone();
         redis::Script::new(REDIS_DELETE_SUBJECT_KEYS)
-            .key(self.subject_index_key(subject_id))
+            .key(self.subject_index_key(context.subject_id()))
             .invoke_async::<i64>(&mut connection)
             .await
             .map(|_| ())
             .map_err(|_| PrivacyError::Cache)?;
         let independently_classified = self
-            .independently_classified_subject_entries(subject_id)
+            .independently_classified_subject_entries(context.subject_id())
             .await?;
         if !independently_classified.is_empty() {
             redis::cmd("DEL")

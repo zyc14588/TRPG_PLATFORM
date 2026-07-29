@@ -1,8 +1,9 @@
 use std::fs;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::Row;
 use trpg_data_eventing::cache_redis_impl::{ProjectionCacheEntry, RedisProjectionCache};
 use trpg_data_eventing::event_bus_nats_impl::JetStreamOutboxPublisher;
@@ -12,10 +13,11 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
 use trpg_data_eventing::postgre_sql_sq_lx_pgvector::PostgresRagSnapshotRepository;
 use trpg_data_eventing::rag_snapshot::RagSnapshotChunkDraft;
 use trpg_security_governance::security_privacy::{
-    BackupKeyDeletionSurface, DeletionBatchProgress, DeletionEvidenceStatus, DeletionJobStatus,
-    DeletionRequestEvidence, DeletionSurface, DeletionTarget, DeletionTargetStatus, DeletionWorker,
-    FilesystemDeletionSurface, NatsQueueDeletionSurface, PostgresDeletionRepository,
-    PostgresLegalHoldResolver, PostgresRecordDeletionSurface, PrivacyError,
+    BackupKeyDeletionSurface, DeletionBatchProgress, DeletionEvidenceStatus,
+    DeletionExecutionContext, DeletionJobStatus, DeletionRequestEvidence, DeletionSurface,
+    DeletionTarget, DeletionTargetStatus, DeletionWorker, FilesystemDeletionSurface,
+    NatsQueueDeletionSurface, PostgresDeletionRepository, PostgresLegalHoldResolver,
+    PostgresRecordDeletionSurface, PrivacyError,
     RedisCacheDeletionSurface, S3ObjectDeletionSurface, MAX_DELETION_LEASE_RECOVERIES,
     REQUIRED_DELETION_TARGETS,
 };
@@ -39,24 +41,26 @@ impl DeletionSurface for SimulatedLeaseLossSurface {
 
     async fn delete_subject_batch(
         &self,
-        subject_id: &str,
+        context: &DeletionExecutionContext,
         _cursor: u64,
     ) -> Result<DeletionBatchProgress, PrivacyError> {
         let mut transaction = self.pool.begin().await.unwrap();
         sqlx::query(
             "UPDATE privacy_deletion_jobs SET status = 'failed', \
-             failure_code = 'SIMULATED_LEASE_LOSS', lease_expires_at = NULL \
+             failure_code = 'SIMULATED_LEASE_LOSS', lease_expires_at = NULL, \
+             execution_claim_token = NULL \
              WHERE subject_id = $1 AND status = 'running'",
         )
-        .bind(subject_id)
+        .bind(context.subject_id())
         .execute(&mut *transaction)
         .await
         .unwrap();
         sqlx::query(
             "UPDATE privacy_subject_deletion_fences SET status = 'failed', \
-             lease_expires_at = NULL WHERE subject_id = $1 AND status = 'running'",
+             lease_expires_at = NULL, execution_claim_token = NULL \
+             WHERE subject_id = $1 AND status = 'running'",
         )
-        .bind(subject_id)
+        .bind(context.subject_id())
         .execute(&mut *transaction)
         .await
         .unwrap();

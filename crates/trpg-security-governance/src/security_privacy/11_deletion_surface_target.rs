@@ -7,42 +7,26 @@ impl DeletionSurface for PostgresRecordDeletionSurface {
 
     async fn delete_subject_batch(
         &self,
-        subject_id: &str,
+        context: &DeletionExecutionContext,
         cursor: u64,
     ) -> Result<DeletionBatchProgress, PrivacyError> {
         if cursor != 1 {
             return Err(PrivacyError::InvalidPersistedState);
         }
-        validate_id(subject_id)?;
+        validate_id(context.subject_id())?;
         match self.target {
-            DeletionTarget::Database => self.delete_database_subject(subject_id).await,
+            DeletionTarget::Database => self.delete_database_subject(context).await,
             DeletionTarget::RagIndex => {
-                let mut transaction = self
-                    .pool
-                    .begin()
-                    .await
-                    .map_err(|_| PrivacyError::Database)?;
                 sqlx::query(
-                    "DELETE FROM rag_snapshot_chunk WHERE visibility_subject = $1 \
-                     OR source_event_sequence IN (SELECT sequence FROM event_store \
-                                                   WHERE data_subject_id = $1)",
+                    "SELECT public.erase_privacy_rag_subject($1, $2, $3)",
                 )
-                .bind(subject_id)
-                .execute(&mut *transaction)
+                .bind(context.job_id())
+                .bind(context.subject_id())
+                .bind(context.claim_token())
+                .execute(&self.pool)
                 .await
                 .map_err(|_| PrivacyError::Database)?;
-                sqlx::query(
-                    "DELETE FROM privacy_deletion_surface_records \
-                     WHERE surface = 'rag_index' AND subject_id = $1",
-                )
-                .bind(subject_id)
-                .execute(&mut *transaction)
-                .await
-                .map_err(|_| PrivacyError::Database)?;
-                transaction
-                    .commit()
-                    .await
-                    .map_err(|_| PrivacyError::Database)
+                Ok(())
             }
             _ => Err(PrivacyError::InvalidInput),
         }?;
@@ -107,13 +91,13 @@ impl DeletionSurface for FilesystemDeletionSurface {
 
     async fn delete_subject_batch(
         &self,
-        subject_id: &str,
+        context: &DeletionExecutionContext,
         cursor: u64,
     ) -> Result<DeletionBatchProgress, PrivacyError> {
         if cursor != 1 {
             return Err(PrivacyError::InvalidPersistedState);
         }
-        let path = self.subject_path(subject_id)?;
+        let path = self.subject_path(context.subject_id())?;
         match tokio::fs::remove_dir_all(path).await {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -175,12 +159,13 @@ impl DeletionSurface for BackupKeyDeletionSurface {
 
     async fn delete_subject_batch(
         &self,
-        subject_id: &str,
+        context: &DeletionExecutionContext,
         cursor: u64,
     ) -> Result<DeletionBatchProgress, PrivacyError> {
         if cursor != 1 {
             return Err(PrivacyError::InvalidPersistedState);
         }
+        let subject_id = context.subject_id();
         validate_id(subject_id)?;
         let affected = sqlx::query(
             "UPDATE privacy_subject_keys SET wrapped_key = NULL, destroyed_at = now() \
