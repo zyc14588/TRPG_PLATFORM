@@ -3,3 +3,4 @@
 
 include!("local_model_certification/01_module_prelude.rs");
 include!("local_model_certification/02_local_model_certification_authority_new.rs");
+include!("local_model_certification/03_registry_ledger_storage.rs");

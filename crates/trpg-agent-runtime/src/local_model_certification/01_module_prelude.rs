@@ -1,17 +1,21 @@
-use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
 use crate::agent_runtime::{AgentError, AgentResult};
 
 type HmacSha256 = Hmac<Sha256>;
 const MAX_CERTIFICATE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+const REGISTRY_SCHEMA_VERSION: u32 = 1;
+const REGISTRY_GENESIS_HASH: &str =
+    "hmac-sha256:0000000000000000000000000000000000000000000000000000000000000000";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum LocalModelLevel {
@@ -123,20 +127,71 @@ enum RegistryState {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct RegistryEntry {
+#[serde(deny_unknown_fields)]
+struct PreviousRegistryEntry {
     certificate: LocalModelCertificate,
     state: RegistryState,
     registry_mac: String,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum RegistryRecordSource {
+    Native,
+    PreviousFormatMigration,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RegistryRecord {
+    schema_version: u32,
+    sequence: u64,
+    previous_hash: String,
+    source: RegistryRecordSource,
+    certificate: LocalModelCertificate,
+    state: RegistryState,
+    record_hash: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RegistryHeadAnchor {
+    schema_version: u32,
+    sequence: u64,
+    chain_head: String,
+    signing_key_id: String,
+    anchor_mac: String,
+}
+
+#[derive(Serialize)]
+struct RegistryIntegrityPayload<'a> {
+    schema_version: u32,
+    sequence: u64,
+    previous_hash: &'a str,
+    source: RegistryRecordSource,
+    certificate: &'a LocalModelCertificate,
+    state: RegistryState,
+}
+
+#[derive(Serialize)]
+struct RegistryAnchorIntegrityPayload<'a> {
+    schema_version: u32,
+    sequence: u64,
+    chain_head: &'a str,
+    signing_key_id: &'a str,
+}
+
 /// Signing authority plus append-only durable registry. The HMAC key is
 /// zeroized, certificate fields are model/artifact/suite/time bound, and every
-/// registry state transition carries a second MAC so editing a registry file
-/// cannot reactivate a revoked certificate.
+/// registry state transition is chained to an independently persisted,
+/// authenticated high-water anchor.
 pub struct LocalModelCertificationAuthority {
     signing_key_id: String,
     signing_key: Zeroizing<[u8; 32]>,
     registry_path: PathBuf,
+    anchor_path: PathBuf,
+    lock_file: File,
+    observed_head: Mutex<Option<(u64, String)>>,
 }
 
 impl std::fmt::Debug for LocalModelCertificationAuthority {
@@ -146,6 +201,7 @@ impl std::fmt::Debug for LocalModelCertificationAuthority {
             .field("signing_key_id", &self.signing_key_id)
             .field("signing_key", &"[REDACTED]")
             .field("registry_path", &self.registry_path)
+            .field("anchor_path", &self.anchor_path)
             .finish()
     }
 }

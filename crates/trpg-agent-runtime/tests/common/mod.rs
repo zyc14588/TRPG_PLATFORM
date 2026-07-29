@@ -1,3 +1,6 @@
+use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -38,21 +41,25 @@ static NEXT_CERTIFICATION_ID: AtomicU64 = AtomicU64::new(1);
 pub struct CertificationFixture {
     pub authority: LocalModelCertificationAuthority,
     pub certificate: LocalModelCertificate,
-    registry_path: std::path::PathBuf,
+    root_path: std::path::PathBuf,
 }
 
 impl Drop for CertificationFixture {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.registry_path);
+        let _ = fs::remove_dir_all(&self.root_path);
     }
 }
 
 pub fn level4_certification(model_id: &str, model_artifact_sha256: &str) -> CertificationFixture {
     let nonce = NEXT_CERTIFICATION_ID.fetch_add(1, Ordering::Relaxed);
-    let registry_path = std::env::temp_dir().join(format!(
-        "trpg-local-model-certification-{}-{nonce}.jsonl",
+    let root_path = std::env::temp_dir().join(format!(
+        "trpg-local-model-certification-{}-{nonce}",
         std::process::id()
     ));
+    fs::create_dir_all(&root_path).unwrap();
+    #[cfg(unix)]
+    fs::set_permissions(&root_path, fs::Permissions::from_mode(0o700)).unwrap();
+    let registry_path = root_path.join("registry.jsonl");
     let authority = LocalModelCertificationAuthority::new(
         "test-certification-key",
         &[0x91; 32],
@@ -78,7 +85,7 @@ pub fn level4_certification(model_id: &str, model_artifact_sha256: &str) -> Cert
     CertificationFixture {
         authority,
         certificate,
-        registry_path,
+        root_path,
     }
 }
 

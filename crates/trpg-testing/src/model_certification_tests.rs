@@ -73,11 +73,18 @@ pub fn uncertified_local_model() -> CertificationInput {
 pub fn level4_is_required_for_ai_keeper() -> bool {
     let level = certify_local_model(&certified_local_model());
     let weak_level = certify_local_model(&uncertified_local_model());
-    let registry_path = std::env::temp_dir().join(format!(
-        "trpg-testing-model-certification-{}.jsonl",
+    let registry_root = std::env::temp_dir().join(format!(
+        "trpg-testing-model-certification-{}",
         std::process::id()
     ));
-    let _ = std::fs::remove_file(&registry_path);
+    let _ = std::fs::remove_dir_all(&registry_root);
+    std::fs::create_dir_all(&registry_root).ok();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&registry_root, std::fs::Permissions::from_mode(0o700)).ok();
+    }
+    let registry_path = registry_root.join("registry.jsonl");
     let result = (|| {
         let authority = LocalModelCertificationAuthority::new(
             "testing-certification-key",
@@ -110,7 +117,7 @@ pub fn level4_is_required_for_ai_keeper() -> bool {
         )
     })()
     .unwrap_or(false);
-    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_dir_all(registry_root);
     result
 }
 
