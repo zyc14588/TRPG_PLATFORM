@@ -44,6 +44,7 @@ python3 scripts/ci/verify_evidence_schema.py
 python3 scripts/ci/verify_compose_security.py --check
 python3 scripts/ci/check_dependency_directions.py
 python3 scripts/ci/test_dependency_directions.py
+python3 scripts/ci/check_rustsec_exceptions.py
 python3 scripts/ci/check_product_boundaries.py
 python3 scripts/ci/test_product_boundaries.py
 
