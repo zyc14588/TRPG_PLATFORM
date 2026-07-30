@@ -41,6 +41,14 @@ pub enum CoreDomainEvent {
         sheet_version_id: String,
         sheet_json: String,
     },
+    CharacterUpdated {
+        schema_version: u16,
+        character_id: String,
+        campaign_id: String,
+        display_name: String,
+        sheet_version_id: String,
+        sheet_json: String,
+    },
     CharacterSubmitted {
         schema_version: u16,
         character_id: String,
@@ -69,6 +77,15 @@ pub enum CoreDomainEvent {
         scene_key: String,
         scene_name: String,
         started_at_unix_ms: u64,
+    },
+    CharacterJoinedSession {
+        schema_version: u16,
+        join_id: String,
+        campaign_id: String,
+        session_id: String,
+        character_id: String,
+        owner_user_id: String,
+        joined_at_unix_ms: u64,
     },
     SessionStateChanged {
         schema_version: u16,
@@ -116,6 +133,14 @@ pub enum CoreDomainEvent {
         batch_index: u64,
         batch_count: u64,
         rows: Vec<CampaignForkMaterializedRow>,
+    },
+    CampaignExportRequested {
+        schema_version: u16,
+        export_id: String,
+        campaign_id: String,
+        requested_by: String,
+        audience: String,
+        requested_at_unix_ms: u64,
     },
     ReconsiderationRequested {
         schema_version: u16,
@@ -208,10 +233,12 @@ impl CoreDomainEvent {
             Self::CampaignInviteIssued { .. } => "CampaignInviteIssued",
             Self::CampaignInviteAccepted { .. } => "CampaignInviteAccepted",
             Self::CharacterCreated { .. } => "CharacterCreated",
+            Self::CharacterUpdated { .. } => "CharacterUpdated",
             Self::CharacterSubmitted { .. } => "CharacterSubmitted",
             Self::CharacterInitialVersionApproved { .. } => "CharacterInitialVersionApproved",
             Self::ScenarioImported { .. } => "ScenarioImported",
             Self::SessionStarted { .. } => "SessionStarted",
+            Self::CharacterJoinedSession { .. } => "CharacterJoinedSession",
             Self::SessionStateChanged { .. } => "SessionStateChanged",
             Self::SceneSwitched { .. } => "SceneSwitched",
             Self::CampaignForkRecorded { .. } => "CampaignForkRecorded",
@@ -219,6 +246,7 @@ impl CoreDomainEvent {
                 "CampaignForkMaterializationRecorded"
             }
             Self::CampaignForkMaterialized { .. } => "CampaignForkMaterialized",
+            Self::CampaignExportRequested { .. } => "CampaignExportRequested",
             Self::ReconsiderationRequested { .. } => "ReconsiderationRequested",
             Self::ReconsiderationReviewed { .. } => "ReconsiderationReviewed",
             Self::ReconsiderationUpheld { .. } => "ReconsiderationUpheld",
@@ -236,15 +264,18 @@ impl CoreDomainEvent {
             | Self::CampaignInviteIssued { schema_version, .. }
             | Self::CampaignInviteAccepted { schema_version, .. }
             | Self::CharacterCreated { schema_version, .. }
+            | Self::CharacterUpdated { schema_version, .. }
             | Self::CharacterSubmitted { schema_version, .. }
             | Self::CharacterInitialVersionApproved { schema_version, .. }
             | Self::ScenarioImported { schema_version, .. }
             | Self::SessionStarted { schema_version, .. }
+            | Self::CharacterJoinedSession { schema_version, .. }
             | Self::SessionStateChanged { schema_version, .. }
             | Self::SceneSwitched { schema_version, .. }
             | Self::CampaignForkRecorded { schema_version, .. }
             | Self::CampaignForkMaterializationRecorded { schema_version, .. }
             | Self::CampaignForkMaterialized { schema_version, .. }
+            | Self::CampaignExportRequested { schema_version, .. }
             | Self::ReconsiderationRequested { schema_version, .. }
             | Self::ReconsiderationReviewed { schema_version, .. }
             | Self::ReconsiderationUpheld { schema_version, .. }

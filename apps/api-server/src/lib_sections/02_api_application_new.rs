@@ -73,6 +73,35 @@ impl ApiApplication {
     }
 
     #[allow(clippy::too_many_arguments)]
+    pub fn new_production_governed_with_v1_lifecycle(
+        identity: IdentityService,
+        policy: OpenFgaOpaPolicyAdapter,
+        audit: FileAuditLog,
+        canonical_runtime: tokio::runtime::Runtime,
+        canonical_store: PostgresCanonicalStore,
+        privacy_runtime: tokio::runtime::Runtime,
+        deletion_repository: PostgresDeletionRepository,
+        core_domain_database_url: &str,
+    ) -> Result<Self, String> {
+        let repository = canonical_runtime
+            .block_on(CoreDomainRepository::connect(
+                core_domain_database_url,
+                canonical_store.clone(),
+            ))
+            .map_err(|_| "CORE_DOMAIN_DATABASE_CONNECTION_FAILED".to_owned())?;
+        Ok(Self::new_production_governed_internal(
+            identity,
+            policy,
+            audit,
+            canonical_runtime,
+            canonical_store,
+            privacy_runtime,
+            deletion_repository,
+            Some(repository),
+        ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn new_production_governed_internal(
         identity: IdentityService,
         policy: OpenFgaOpaPolicyAdapter,
@@ -113,6 +142,9 @@ impl ApiApplication {
                 agent_events: trpg_agent_runtime::AgentEventStore::with_formal_custody(
                     authorizer, canonical,
                 ),
+                lifecycle_port: player_action_repository
+                    .clone()
+                    .map(RepositoryCampaignCharacterPort::new),
                 player_action_port: player_action_repository.map(RepositoryPlayerActionPort::new),
             })),
         }
@@ -149,6 +181,12 @@ impl ApiApplication {
             ("POST", "/auth/login") => Some(self.login(request)),
             ("POST", "/auth/refresh") => Some(self.refresh(request)),
             ("POST", "/auth/logout") => Some(self.logout(request)),
+            ("GET", "/api/v1/openapi.json") => {
+                Some(HttpResponse::json(
+                    200,
+                    trpg_api::api_contracts::v1_openapi_document(),
+                ))
+            }
             _ => self.handle_campaign_route(request),
         }
     }
@@ -223,6 +261,9 @@ impl ApiApplication {
             .split_once('?')
             .map_or((request.path.as_str(), ""), |(path, query)| (path, query));
         let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
+        if segments.starts_with(&["api", "v1"]) {
+            return self.handle_v1_route(request, &segments[2..]);
+        }
         match (request.method.as_str(), segments.as_slice()) {
             ("GET", ["campaigns", campaign_id, "authority"]) => {
                 Some(self.get_authority(request, campaign_id))
@@ -350,3 +391,5 @@ impl ApiApplication {
         }
     }
 }
+
+include!("07_v1_lifecycle.rs");

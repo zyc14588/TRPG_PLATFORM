@@ -11,7 +11,9 @@ use trpg_api::api_contracts::{
     CoreApiError, CoreApiFuture, CreateCampaignApiRequest, CreateCharacterApiRequest,
     IssueInviteApiRequest, IssuedInviteApiResponse,
 };
-use trpg_data_eventing::event_store_sqlx_outbox_projection::{PersistedCommit, PolicyAuditDraft};
+use trpg_data_eventing::event_store_sqlx_outbox_projection::{
+    CanonicalStoreError, PersistedCommit, PolicyAuditDraft,
+};
 use trpg_data_eventing::persistence_postgresql::{
     AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainRepository,
     CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest, IssueInviteRequest,
@@ -96,15 +98,27 @@ impl RepositoryCampaignCharacterPort {
 
     fn map_error(error: CoreDomainRepositoryError) -> CoreApiError {
         match error {
-            CoreDomainRepositoryError::Forbidden
-            | CoreDomainRepositoryError::PolicyEvidenceMismatch => CoreApiError::Forbidden,
+            CoreDomainRepositoryError::PolicyEvidenceMismatch => CoreApiError::Forbidden,
+            CoreDomainRepositoryError::Forbidden | CoreDomainRepositoryError::NotFound(_) => {
+                CoreApiError::NotFound
+            }
+            CoreDomainRepositoryError::InvalidInput(field)
+                if field.ends_with("expected_version") =>
+            {
+                CoreApiError::Conflict("version_conflict")
+            }
             CoreDomainRepositoryError::InvalidInput(field) => CoreApiError::InvalidInput(field),
             CoreDomainRepositoryError::Domain(_) => CoreApiError::Conflict("domain_transition"),
             CoreDomainRepositoryError::ConcurrentStart => {
                 CoreApiError::Conflict("concurrent_start")
             }
             CoreDomainRepositoryError::Integrity(_) => CoreApiError::Conflict("integrity_conflict"),
-            CoreDomainRepositoryError::NotFound(_) => CoreApiError::Conflict("not_found"),
+            CoreDomainRepositoryError::Canonical(CanonicalStoreError::IdempotencyConflict) => {
+                CoreApiError::Conflict("idempotency_conflict")
+            }
+            CoreDomainRepositoryError::Canonical(CanonicalStoreError::VersionConflict {
+                ..
+            }) => CoreApiError::Conflict("version_conflict"),
             CoreDomainRepositoryError::Canonical(_)
             | CoreDomainRepositoryError::Database(_)
             | CoreDomainRepositoryError::Serialization => CoreApiError::Unavailable("repository"),
@@ -314,3 +328,5 @@ impl CampaignCharacterCommandPort for RepositoryCampaignCharacterPort {
         })
     }
 }
+
+include!("core_domain_v1.rs");

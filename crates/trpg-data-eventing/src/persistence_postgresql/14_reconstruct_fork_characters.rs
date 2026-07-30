@@ -18,6 +18,7 @@ fn reconstruct_fork_characters(
         if matches!(
             replay.event_type.as_str(),
             "CharacterCreated"
+                | "CharacterUpdated"
                 | "CharacterSubmitted"
                 | "CharacterInitialVersionApproved"
                 | "PlayerActionSubmitted"
@@ -83,6 +84,54 @@ fn reconstruct_fork_characters(
                         }),
                     },
                 );
+            }
+            "CharacterUpdated" => {
+                let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+                    .map_err(|_| {
+                        CoreDomainRepositoryError::Integrity("fork_character_update_payload")
+                    })?;
+                let CoreDomainEvent::CharacterUpdated {
+                    character_id,
+                    campaign_id: event_campaign_id,
+                    display_name,
+                    sheet_json,
+                    ..
+                } = event
+                else {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_update_event",
+                    ));
+                };
+                if event_campaign_id != campaign_id {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_update_campaign",
+                    ));
+                }
+                let character = characters.get_mut(&character_id).ok_or(
+                    CoreDomainRepositoryError::Integrity("fork_character_update_chain"),
+                )?;
+                if character.state != "DRAFT" || character.initial_version_locked {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_update_locked",
+                    ));
+                }
+                let sheet_json: Value = serde_json::from_str(&sheet_json).map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("fork_character_update_sheet")
+                })?;
+                if !sheet_json.is_object() {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_update_sheet",
+                    ));
+                }
+                character.display_name = display_name;
+                character.visibility_label = replay.visibility_label.clone();
+                character.visibility_subject = replay.visibility_subject.clone();
+                character.current_sheet = Some(ForkSnapshotSheet {
+                    sheet_json,
+                    locked: false,
+                    visibility_label: replay.visibility_label.clone(),
+                    visibility_subject: replay.visibility_subject.clone(),
+                });
             }
             "CharacterSubmitted" | "CharacterInitialVersionApproved" => {
                 let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())

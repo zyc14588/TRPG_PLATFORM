@@ -5,8 +5,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Deserialize;
 use serde_json::json;
 use trpg_api::api_contracts::{
-    ApiCommandFields, AuthorizedCoreApiContext, ConfirmPlayerActionApiRequest, CoreApiError,
-    PlayerActionApi, SubmitPlayerActionApiRequest,
+    AcceptInviteApiRequest, ApiCommandFields, AuthorizedCoreApiContext, ChangeSessionStateApiRequest,
+    CharacterTransitionApiRequest, ConfirmPlayerActionApiRequest, CoreApiError,
+    CreateCampaignApiRequest, CreateCharacterApiRequest, ForkCampaignApiRequest,
+    ImportScenarioApiRequest, IssueInviteApiRequest, JoinCharacterSessionApiRequest,
+    PlayerActionApi, RequestCampaignExportApiRequest, RequestReconsiderationApiRequest,
+    ResolveReconsiderationApiRequest, ReviewReconsiderationApiRequest, StartSessionApiRequest,
+    SubmitPlayerActionApiRequest, SwitchSceneApiRequest, UpdateCharacterApiRequest, V1LifecycleApi,
 };
 use trpg_contracts::{HttpRequest, HttpResponse};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
@@ -31,11 +36,12 @@ use trpg_shared_kernel::error_model::{
     describe_error, InternalErrorContext, TrustedErrorLogEntry, TrustedErrorLogSink,
 };
 use trpg_shared_kernel::{
-    AuthenticatedCommandContext, AuthorityMode, CanonicalCommitPort, CommandEnvelope,
+    Actor, ActorRole, AuthenticatedCommandContext, AuthorityMode, CanonicalCommitPort, CommandEnvelope,
     CommandMetadata, EntityId, FactProvenance, FormalWritePath, ProvenanceKind, ResourceRef,
     TrpgError, Visibility, VisibilityLabel,
 };
 
+use core_domain::RepositoryCampaignCharacterPort;
 use middleware::{ApiAuthError, AuthenticationMiddleware};
 use player_action::RepositoryPlayerActionPort;
 
@@ -64,6 +70,7 @@ struct CanonicalCustody {
     deletion_repository: PostgresDeletionRepository,
     runtime_events: trpg_runtime::EventStore<trpg_runtime::RuntimeEventPayload>,
     agent_events: trpg_agent_runtime::AgentEventStore<trpg_agent_runtime::AgentEventPayload>,
+    lifecycle_port: Option<RepositoryCampaignCharacterPort>,
     player_action_port: Option<RepositoryPlayerActionPort>,
 }
 

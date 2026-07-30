@@ -129,6 +129,76 @@ async fn apply_session_replay_event(
                 ));
             }
         }
+        CoreDomainEvent::CharacterJoinedSession {
+            join_id,
+            campaign_id,
+            session_id,
+            character_id,
+            owner_user_id,
+            joined_at_unix_ms,
+            ..
+        } => {
+            if campaign_id != replay.campaign_id {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "session_character_replay_campaign",
+                ));
+            }
+            let joined_at =
+                timestamp_from_unix_ms(joined_at_unix_ms, "character_session.joined_at")?;
+            sqlx::query(
+                r#"
+                INSERT INTO core_domain.session_characters (
+                    join_id, campaign_id, session_id, character_id,
+                    owner_user_id, joined_by, joined_at, version,
+                    visibility_label, visibility_subject,
+                    provenance_kind, provenance_reference, provenance_recorded_by,
+                    last_event_sequence
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $5, $6, 1,
+                    $7, $8, $9, $10, $11, $12
+                )
+                ON CONFLICT (join_id) DO NOTHING
+                "#,
+            )
+            .bind(&join_id)
+            .bind(&campaign_id)
+            .bind(&session_id)
+            .bind(&character_id)
+            .bind(&owner_user_id)
+            .bind(joined_at)
+            .bind(&replay.visibility_label)
+            .bind(&replay.visibility_subject)
+            .bind(&replay.provenance_kind)
+            .bind(&replay.provenance_reference)
+            .bind(&replay.provenance_recorded_by)
+            .bind(replay.sequence)
+            .execute(&mut **transaction)
+            .await
+            .map_err(database_error("replay_character_session_join"))?;
+            let persisted = sqlx::query(
+                r#"
+                SELECT campaign_id, session_id, character_id, owner_user_id,
+                       joined_at, last_event_sequence
+                  FROM core_domain.session_characters
+                 WHERE join_id = $1
+                "#,
+            )
+            .bind(&join_id)
+            .fetch_one(&mut **transaction)
+            .await
+            .map_err(database_error("verify_replayed_character_session_join"))?;
+            if persisted.get::<String, _>("campaign_id") != campaign_id
+                || persisted.get::<String, _>("session_id") != session_id
+                || persisted.get::<String, _>("character_id") != character_id
+                || persisted.get::<String, _>("owner_user_id") != owner_user_id
+                || persisted.get::<DateTime<Utc>, _>("joined_at") != joined_at
+                || persisted.get::<i64, _>("last_event_sequence") != replay.sequence
+            {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "session_character_replay_conflict",
+                ));
+            }
+        }
         CoreDomainEvent::SessionStateChanged {
             session_id,
             from,

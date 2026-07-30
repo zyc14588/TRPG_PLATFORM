@@ -1,6 +1,10 @@
 // Source is organized into ordered, responsibility-focused sections.
 // `include!` preserves this module's privacy boundary and public API.
 
+pub type LifecycleReconsiderationOutcome =
+    trpg_domain_core::domain_entities_value_objects::ReconsiderationOutcome;
+pub type LifecycleSessionState = trpg_domain_core::domain_entities_value_objects::SessionState;
+
 include!("persistence_postgresql/01_storage_tables.rs");
 include!("persistence_postgresql/02_authority_contract_snapshot.rs");
 include!("persistence_postgresql/03_fork_snapshot_session.rs");
@@ -69,3 +73,4 @@ include!("persistence_postgresql/43_core_domain_repository_record_growth.rs");
 include!("persistence_postgresql/44_core_domain_repository_prepare_combat_health_projections.rs");
 include!("persistence_postgresql/45_core_domain_repository_lock_unconsumed_gameplay_rolls.rs");
 include!("persistence_postgresql/46_core_domain_repository_validate_initial_chase_participants.rs");
+include!("persistence_postgresql/47_core_domain_repository_v1_lifecycle.rs");

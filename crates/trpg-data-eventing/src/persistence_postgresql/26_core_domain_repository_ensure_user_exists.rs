@@ -255,6 +255,7 @@ impl CoreDomainRepository {
             INSERT INTO public.campaign_memberships (
                 campaign_id, user_id, role, granted_by, granted_at
             ) VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (campaign_id, user_id) DO NOTHING
             "#,
         )
         .bind(&request.campaign_id)
@@ -278,6 +279,7 @@ impl CoreDomainRepository {
                 $1, $2, $3, $4, 1, $5, $6, $7, $8, $9, $10, $11,
                 $12, $13, $14, $15, TRUE, 'FORK_ONLY'
             )
+            ON CONFLICT (contract_id) DO NOTHING
             "#,
         )
         .bind(&request.authority.contract_id)
@@ -298,6 +300,62 @@ impl CoreDomainRepository {
         .execute(&mut *transaction)
         .await
         .map_err(database_error("insert_authority_contract"))?;
+        let preprovisioned_identity_matches: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                  FROM public.campaign_memberships AS membership
+                  JOIN public.authority_contracts AS authority
+                    ON authority.campaign_id = membership.campaign_id
+                 WHERE membership.campaign_id = $1
+                   AND membership.user_id = $2
+                   AND membership.role = $3
+                   AND membership.revoked_at IS NULL
+                   AND authority.contract_id = $4
+                   AND authority.authority_mode = $5
+                   AND authority.authority_owner = $6
+                   AND authority.contract_version = 1
+                   AND authority.ruleset_version = $7
+                   AND authority.house_rules_version = $8
+                   AND authority.scenario_version = $9
+                   AND authority.prompt_version = $10
+                   AND authority.agent_pack_version = $11
+                   AND authority.tool_schema_version = $12
+                   AND authority.safety_profile_version = $13
+                   AND authority.ai_provider_snapshot = $14
+                   AND authority.model_route_snapshot = $15
+                   AND authority.character_sheet_template_version = $16
+                   AND authority.created_at = $17
+                   AND authority.locked
+                   AND authority.change_policy = 'FORK_ONLY'
+            )
+            "#,
+        )
+        .bind(&request.campaign_id)
+        .bind(&request.owner_user_id)
+        .bind(membership_role)
+        .bind(&request.authority.contract_id)
+        .bind(&request.authority.authority_mode)
+        .bind(&request.authority.authority_owner)
+        .bind(&request.authority.ruleset_version)
+        .bind(&request.authority.house_rules_version)
+        .bind(&request.authority.scenario_version)
+        .bind(&request.authority.prompt_version)
+        .bind(&request.authority.agent_pack_version)
+        .bind(&request.authority.tool_schema_version)
+        .bind(&request.authority.safety_profile_version)
+        .bind(&request.authority.ai_provider_snapshot)
+        .bind(&request.authority.model_route_snapshot)
+        .bind(&request.authority.character_sheet_template_version)
+        .bind(created_at)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(database_error("verify_campaign_identity_preprovision"))?;
+        if !preprovisioned_identity_matches {
+            return Err(CoreDomainRepositoryError::Integrity(
+                "campaign_identity_preprovision_mismatch",
+            ));
+        }
         sqlx::query(
             r#"
             INSERT INTO public.rooms (
