@@ -7,4 +7,5 @@ license = "UNLICENSED"
 
 [dependencies]
 trpg-contracts = { path = "../../crates/trpg-contracts" }
+trpg-ops = { path = "../../crates/trpg-ops" }
 trpg-platform = { path = "../../crates/trpg-platform" }

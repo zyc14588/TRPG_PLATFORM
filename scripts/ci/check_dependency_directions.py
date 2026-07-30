@@ -96,7 +96,7 @@ ALLOWED_NORMAL_DEPENDENCIES: dict[str, set[str]] = {
         "trpg-runtime",
         "trpg-security-governance",
     },
-    "admin-server": {"trpg-contracts", "trpg-platform"},
+    "admin-server": {"trpg-contracts", "trpg-ops", "trpg-platform"},
     "migration-runner": {
         "trpg-contracts",
         "trpg-data-eventing",

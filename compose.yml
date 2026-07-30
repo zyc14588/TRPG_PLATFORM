@@ -386,10 +386,77 @@ services:
     command: ["admin-server"]
     environment:
       TRPG_ADMIN_SERVER_BIND: 0.0.0.0:8083
+      TRPG_SECRET_MOUNT: /run/secrets
+      TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
+      TRPG_DATABASE_URL_SECRET_ID: api_database_url
+      TRPG_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_append_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_IDENTITY_SIGNING_KEY_SECRET_ID: identity_signing_key
+      TRPG_IDENTITY_SIGNING_KEY_SECRET_VERSION: "1"
+      TRPG_REDIS_URL_SECRET_ID: redis_url
+      TRPG_REDIS_URL_SECRET_VERSION: "1"
+      TRPG_ADMIN_BOOTSTRAP_TOKEN_SECRET_ID: admin_bootstrap_token
+      TRPG_ADMIN_BOOTSTRAP_TOKEN_SECRET_VERSION: "1"
+      TRPG_CANONICAL_HMAC_KEY_ID: ${TRPG_CANONICAL_HMAC_KEY_ID:?set canonical key id}
+      TRPG_CANONICAL_HMAC_KEY_SECRET_ID: canonical_hmac_key
+      TRPG_CANONICAL_HMAC_KEY_SECRET_VERSION: "1"
+      TRPG_AUDIT_HMAC_KEY_ID: ${TRPG_AUDIT_HMAC_KEY_ID:?set audit key id}
+      TRPG_AUDIT_HMAC_KEY_SECRET_ID: audit_hmac_key
+      TRPG_AUDIT_HMAC_KEY_SECRET_VERSION: "1"
+      TRPG_ADMIN_STATE_PATH: /var/lib/trpg/admin/control-state.json
+      TRPG_ADMIN_AUDIT_LOG_PATH: /var/lib/trpg/audit/admin.jsonl
+      TRPG_POSTGRES_CA_CERT_PATH: /run/secrets/postgres_ca_certificate
+      TRPG_REDIS_CA_CERT_PATH: /run/secrets/redis_tls_ca_certificate
+      TRPG_REDIS_CLIENT_CERT_PATH: /run/secrets/redis_client_tls_certificate
+      TRPG_REDIS_CLIENT_KEY_PATH: /run/secrets/redis_client_tls_private_key
+      TRPG_ADMIN_CURL_PATH: /usr/bin/curl
+      TRPG_ADMIN_PSQL_PATH: /usr/local/libexec/trpg/psql
+      TRPG_ADMIN_PROVIDER_CA_PATH: /run/secrets/provider_ca_certificate
+      TRPG_ADMIN_PG_DUMP_PATH: /usr/local/libexec/trpg/pg_dump
+      TRPG_ADMIN_PG_RESTORE_PATH: /usr/local/libexec/trpg/pg_restore
+      TRPG_ADMIN_PG_SERVICE_FILE_PATH: /tmp/trpg-mounted-secrets/admin_pg_service_file.v1
+      TRPG_ADMIN_PG_PASSFILE_PATH: /tmp/trpg-mounted-secrets/admin_pg_passfile.v1
+      TRPG_ADMIN_BACKUP_SOURCE_SERVICE: trpg_backup_source
+      TRPG_ADMIN_RESTORE_TARGET_SERVICE: trpg_restore_target
+      TRPG_ADMIN_BACKUP_DIRECTORY: /var/lib/trpg/backups
+      TRPG_ADMIN_SAFETY_DIRECTORY: /var/lib/trpg/restore-safety-points
+      TRPG_ADMIN_CERTIFICATION_DIRECTORY: /var/lib/trpg/model-certification-requests
+    secrets:
+      - source: api_database_url
+        target: api_database_url.v1
+      - source: witness_append_database_url
+        target: witness_append_database_url.v1
+      - source: identity_signing_key
+        target: identity_signing_key.v1
+      - source: redis_url
+        target: redis_url.v1
+      - source: canonical_hmac_key
+        target: canonical_hmac_key.v1
+      - source: audit_hmac_key
+        target: audit_hmac_key.v1
+      - source: admin_bootstrap_token
+        target: admin_bootstrap_token.v1
+      - source: provider_credential
+        target: provider_credential.v1
+      - source: admin_pg_service_file
+        target: admin_pg_service_file.v1
+      - source: admin_pg_passfile
+        target: admin_pg_passfile.v1
+      - postgres_ca_certificate
+      - redis_tls_ca_certificate
+      - redis_client_tls_certificate
+      - redis_client_tls_private_key
+      - provider_ca_certificate
     volumes:
       - admin_state:/var/lib/trpg
     networks:
       - backend
+    depends_on:
+      migration-runner:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       <<: *rust-healthcheck
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8083/health/ready"]
@@ -450,6 +517,8 @@ services:
       POSTGRES_USER: trpg_database_owner
     secrets:
       - postgres_bootstrap_password
+      - postgres_backup_password
+      - postgres_restore_password
       - postgres_api_password
       - postgres_canonical_password
       - postgres_worker_password
@@ -770,6 +839,12 @@ secrets:
   postgres_realtime_password:
     external: true
     name: ${TRPG_POSTGRES_REALTIME_PASSWORD_SECRET:-trpg_postgres_realtime_password}
+  postgres_backup_password:
+    external: true
+    name: ${TRPG_POSTGRES_BACKUP_PASSWORD_SECRET:-trpg_postgres_backup_password}
+  postgres_restore_password:
+    external: true
+    name: ${TRPG_POSTGRES_RESTORE_PASSWORD_SECRET:-trpg_postgres_restore_password}
   owner_database_url:
     external: true
     name: ${TRPG_OWNER_DATABASE_URL_SECRET:-trpg_owner_database_url}
@@ -806,6 +881,21 @@ secrets:
   audit_hmac_key:
     external: true
     name: ${TRPG_AUDIT_HMAC_KEY_SECRET:-trpg_audit_hmac_key}
+  admin_bootstrap_token:
+    external: true
+    name: ${TRPG_ADMIN_BOOTSTRAP_TOKEN_SECRET:-trpg_admin_bootstrap_token}
+  provider_credential:
+    external: true
+    name: ${TRPG_PROVIDER_CREDENTIAL_SECRET:-trpg_provider_credential}
+  provider_ca_certificate:
+    external: true
+    name: ${TRPG_PROVIDER_CA_CERTIFICATE_SECRET:-trpg_provider_ca_certificate}
+  admin_pg_service_file:
+    external: true
+    name: ${TRPG_ADMIN_PG_SERVICE_FILE_SECRET:-trpg_admin_pg_service_file}
+  admin_pg_passfile:
+    external: true
+    name: ${TRPG_ADMIN_PG_PASSFILE_SECRET:-trpg_admin_pg_passfile}
   redis_url:
     external: true
     name: ${TRPG_REDIS_URL_SECRET:-trpg_redis_url}

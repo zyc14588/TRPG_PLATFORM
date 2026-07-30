@@ -7,6 +7,7 @@ name = "admin-server"
 version = "0.1.0"
 dependencies = [
  "trpg-contracts",
+ "trpg-ops",
  "trpg-platform",
 ]
 
@@ -3774,6 +3775,7 @@ dependencies = [
  "percent-encoding",
  "redis",
  "rustix",
+ "rustls",
  "serde",
  "serde_json",
  "sha2 0.10.9",

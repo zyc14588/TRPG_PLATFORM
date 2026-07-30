@@ -124,6 +124,7 @@ impl<R: SecretResolver> SecretManager<R> {
         resolver: R,
         catalog_path: impl AsRef<Path>,
     ) -> KernelResult<Self> {
+        install_process_crypto_provider();
         let integrity_key_id = required_bootstrap_environment("TRPG_CANONICAL_HMAC_KEY_ID")?;
         let integrity_reference =
             bootstrap_mounted_reference("TRPG_CANONICAL_HMAC_KEY_SECRET_ID", "TRPG_CANONICAL_HMAC_KEY_SECRET_VERSION")?;
@@ -144,6 +145,13 @@ impl<R: SecretResolver> SecretManager<R> {
             )
         })
     }
+}
+
+fn install_process_crypto_provider() {
+    // Several production adapters intentionally select different rustls
+    // backends. Install one audited process-wide provider before any TLS
+    // builder asks rustls to guess between the compiled implementations.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 }
 
 fn required_bootstrap_environment(name: &str) -> KernelResult<String> {

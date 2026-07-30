@@ -12,6 +12,7 @@ aws-sdk-s3 = { version = "1.140.0", default-features = false, features = ["defau
 hmac = "0.12"
 percent-encoding = "2.3"
 redis = { version = "1.0", default-features = false, features = ["aio", "connection-manager", "script", "tokio-rustls-comp"] }
+rustls = { version = "0.23.42", default-features = false, features = ["aws-lc-rs", "std", "tls12"] }
 rustix = { version = "1.1", features = ["fs"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

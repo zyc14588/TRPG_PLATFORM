@@ -51,6 +51,12 @@ secrets:
   postgres_realtime_password:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_realtime_password
+  postgres_backup_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_backup_password
+  postgres_restore_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_restore_password
   owner_database_url:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/owner_database_url
@@ -87,6 +93,21 @@ secrets:
   audit_hmac_key:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/audit_hmac_key
+  admin_bootstrap_token:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/admin_bootstrap_token
+  provider_credential:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/provider_credential
+  provider_ca_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/provider_ca_certificate
+  admin_pg_service_file:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/admin_pg_service_file
+  admin_pg_passfile:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/admin_pg_passfile
   redis_url:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_url

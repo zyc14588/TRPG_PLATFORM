@@ -35,6 +35,8 @@ postgres_api_password="$(openssl rand -hex 24)"
 postgres_canonical_password="$(openssl rand -hex 24)"
 postgres_worker_password="$(openssl rand -hex 24)"
 postgres_realtime_password="$(openssl rand -hex 24)"
+postgres_backup_password="$(openssl rand -hex 24)"
+postgres_restore_password="$(openssl rand -hex 24)"
 redis_healthcheck_password="$(openssl rand -hex 24)"
 redis_application_password="$(openssl rand -hex 24)"
 nats_password="$(openssl rand -hex 24)"
@@ -51,6 +53,8 @@ write_secret postgres_api_password "$postgres_api_password"
 write_secret postgres_canonical_password "$postgres_canonical_password"
 write_secret postgres_worker_password "$postgres_worker_password"
 write_secret postgres_realtime_password "$postgres_realtime_password"
+write_secret postgres_backup_password "$postgres_backup_password"
+write_secret postgres_restore_password "$postgres_restore_password"
 write_secret owner_database_url \
   "postgresql://trpg_database_owner:$postgres_owner_password@postgres:5432/coc_ai_trpg?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca_certificate"
 write_secret api_database_url \
@@ -71,6 +75,27 @@ write_secret identity_signing_key "$(openssl rand -hex 32)"
 write_secret canonical_hmac_key "$(openssl rand -hex 32)"
 write_secret payload_encryption_key "$(openssl rand -hex 32)"
 write_secret audit_hmac_key "$(openssl rand -hex 32)"
+write_secret admin_bootstrap_token "$(openssl rand -hex 32)"
+write_secret provider_credential "$(openssl rand -hex 32)"
+copy_secret provider_ca_certificate "$runtime_directory/ca.crt"
+write_secret admin_pg_service_file \
+  "[trpg_backup_source]
+host=postgres
+port=5432
+dbname=coc_ai_trpg
+user=trpg_backup_login
+sslmode=verify-full
+sslrootcert=/run/secrets/postgres_ca_certificate
+[trpg_restore_target]
+host=postgres
+port=5432
+dbname=coc_ai_trpg_restore
+user=trpg_restore_login
+sslmode=verify-full
+sslrootcert=/run/secrets/postgres_ca_certificate"
+write_secret admin_pg_passfile \
+  "postgres:5432:coc_ai_trpg:trpg_backup_login:$postgres_backup_password
+postgres:5432:coc_ai_trpg_restore:trpg_restore_login:$postgres_restore_password"
 write_secret redis_url "rediss://trpg_runtime:$redis_application_password@redis:6379"
 write_secret nats_url "tls://runtime_smoke:$nats_password@nats:4222"
 write_secret realtime_cache_key "$(openssl rand -hex 32)"

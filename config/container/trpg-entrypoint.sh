@@ -2,12 +2,18 @@
 set -eu
 
 for runtime_directory in \
+    /var/lib/trpg/admin \
     /var/lib/trpg/secret-catalog \
     /var/lib/trpg/audit \
-    /var/lib/trpg/exports
+    /var/lib/trpg/exports \
+    /var/lib/trpg/home \
+    /var/lib/trpg/backups \
+    /var/lib/trpg/restore-safety-points \
+    /var/lib/trpg/model-certification-requests
 do
     install -d -o trpg -g trpg -m 0700 "$runtime_directory"
 done
+export HOME=/var/lib/trpg/home
 
 if [ "${TRPG_SECRET_MOUNT:-}" = /run/secrets ]; then
     private_secret_mount=/tmp/trpg-mounted-secrets

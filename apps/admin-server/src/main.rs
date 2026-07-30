@@ -1,50 +1,42 @@
 use std::process::ExitCode;
+use std::sync::Arc;
 
-use trpg_contracts::{run_service, RoleRuntimeProbe, ServiceKind, ServiceSpec};
+use admin_server::{AdminApplication, ProductionAdminOperations};
+use trpg_contracts::{run_service_with_handler, RoleRuntimeProbe, ServiceKind, ServiceSpec};
+use trpg_platform::admin_control_plane::AdminControlPlane;
 
 fn main() -> ExitCode {
-    run(
-        ServiceKind::AdminServer,
-        RoleRuntimeProbe::spawn("admin_runtime", || {
-            let invariants = trpg_platform::PLATFORM_INFRASTRUCTURE_INVARIANTS;
-            if invariants.len() >= 5
-                && invariants.contains(&"business_layer_must_not_call_llm_directly")
-                && invariants.contains(&"formal_decisions_go_through_tool_rules_state_event_log")
-            {
-                Ok(format!(
-                    "platform policy initialized; invariants={}",
-                    invariants.len()
-                ))
-            } else {
-                Err("required platform policy is missing".to_owned())
-            }
-        }),
-    )
+    let operations = match ProductionAdminOperations::from_environment() {
+        Ok(operations) => Arc::new(operations),
+        Err(code) => return startup_failure(code),
+    };
+    let control = match AdminControlPlane::from_environment(operations) {
+        Ok(control) => control,
+        Err(error) => return startup_failure(error.code()),
+    };
+    let application = AdminApplication::new(control);
+    let readiness_application = application.clone();
+    let runtime =
+        match RoleRuntimeProbe::spawn("admin_runtime", move || readiness_application.readiness()) {
+            Ok(runtime) => runtime,
+            Err(error) => return startup_failure(error.code.as_str()),
+        };
+    let spec =
+        match ServiceSpec::from_environment(ServiceKind::AdminServer, env!("CARGO_PKG_VERSION")) {
+            Ok(spec) => spec,
+            Err(error) => return startup_failure(error.code.as_str()),
+        };
+    match run_service_with_handler(
+        spec,
+        vec![runtime],
+        Box::new(move |request| application.handle(request)),
+    ) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => startup_failure(error.code.as_str()),
+    }
 }
 
-fn run(
-    kind: ServiceKind,
-    runtime: Result<RoleRuntimeProbe, trpg_contracts::ServiceError>,
-) -> ExitCode {
-    let runtime = match runtime {
-        Ok(runtime) => runtime,
-        Err(error) => {
-            eprintln!("service={} error={}", kind.as_str(), error.code);
-            return ExitCode::FAILURE;
-        }
-    };
-    let spec = match ServiceSpec::from_environment(kind, env!("CARGO_PKG_VERSION")) {
-        Ok(spec) => spec,
-        Err(error) => {
-            eprintln!("service={} error={}", kind.as_str(), error.code);
-            return ExitCode::FAILURE;
-        }
-    };
-    match run_service(spec, vec![runtime]) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("service={} error={}", kind.as_str(), error.code);
-            ExitCode::FAILURE
-        }
-    }
+fn startup_failure(code: &str) -> ExitCode {
+    eprintln!("service=admin-server error={code}");
+    ExitCode::FAILURE
 }
