@@ -264,6 +264,12 @@ impl ApiApplication {
                     "confirm",
                 ],
             ) => Some(self.confirm_player_action(request, campaign_id, action_id)),
+            ("POST", ["campaigns", campaign_id, "agent-jobs"]) => {
+                Some(self.request_agent_job(request, campaign_id))
+            }
+            ("POST", ["campaigns", campaign_id, "agent-jobs", job_id, "approve"]) => {
+                Some(self.approve_agent_job(request, campaign_id, job_id))
+            }
             ("POST", ["campaigns", campaign_id, "reconsiderations"]) => {
                 Some(self.v1_request_reconsideration(request, campaign_id))
             }

@@ -150,6 +150,7 @@ for database in \
   p06_core_domain \
   p07_player_action \
   p08_tutorial \
+  ar09_agent_jobs \
   trpg_backup_source \
   trpg_backup_target; do
   docker exec trpg-primary-postgres createdb -U postgres "$database"
@@ -171,6 +172,21 @@ done
 docker exec -i trpg-primary-postgres \
   psql -X -v ON_ERROR_STOP=1 -U postgres -d p03_migration_upgrade \
   <"$root/scripts/ci/bootstrap-integration-database-roles.sql"
+docker exec -i trpg-primary-postgres \
+  psql -X -v ON_ERROR_STOP=1 -U postgres -d ar09_agent_jobs \
+  --set=role_password="$postgres_password" <<'SQL'
+ALTER ROLE trpg_api_login PASSWORD :'role_password';
+ALTER ROLE trpg_worker_login PASSWORD :'role_password';
+ALTER ROLE trpg_canonical_login PASSWORD :'role_password';
+SQL
+for migration in "$root"/migrations/*.sql; do
+  if [[ "$migration" == *.down.sql ]]; then
+    continue
+  fi
+  docker exec -i trpg-primary-postgres \
+    psql -X -v ON_ERROR_STOP=1 -1 -U postgres -d ar09_agent_jobs \
+    <"$migration" >/dev/null
+done
 
 docker exec trpg-tls-postgres install -d -m 0700 -o postgres -g postgres /var/lib/postgresql/tls
 docker cp "$tls_directory/server.crt" trpg-tls-postgres:/var/lib/postgresql/tls/server.crt
@@ -409,6 +425,10 @@ P08_WITNESS_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15
 P08_ALLOW_DATABASE_RESET=1
 P08_RESET_DATABASE=p08_tutorial
 P08_WITNESS_RESET_DATABASE=p08_tutorial_witness
+AR09_AGENT_JOB_FIXTURE_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs
+AR09_AGENT_JOB_API_DATABASE_URL=postgresql://trpg_api_login:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs
+AR09_AGENT_JOB_WORKER_DATABASE_URL=postgresql://trpg_worker_login:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs
+AR09_AGENT_JOB_CANONICAL_DATABASE_URL=postgresql://trpg_canonical_login:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs
 TRPG_POSTGRES_CLIENT_IMAGE=${postgres_client_image}
 TRPG_POSTGRES_CLIENT_MOUNT_ROOT=${runtime_root}
 TMPDIR=${runtime_root}

@@ -1,10 +1,11 @@
 use std::process::ExitCode;
 
-use api_server::ApiApplication;
+use api_server::{AgentJobRouteConfiguration, ApiApplication};
 use trpg_contracts::{run_service_with_handler, RoleRuntimeProbe, ServiceKind, ServiceSpec};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::PostgresCanonicalStore;
 use trpg_data_eventing::persistence_postgresql::CoreDomainRepository;
 use trpg_identity::IdentityService;
+use trpg_runtime::durable_workflow::DurableWorkflowStore;
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
 };
@@ -144,18 +145,55 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let application = if player_action_writes_enabled {
-        let player_action_repository = match core_domain_repository_from_environment(
+    let player_action_repository = if player_action_writes_enabled {
+        match core_domain_repository_from_environment(
             &database_url,
             &canonical_runtime,
             canonical_store.clone(),
         ) {
-            Ok(repository) => repository,
+            Ok(repository) => Some(repository),
+            Err(error) => {
+                eprintln!("service=api-server error={error}");
+                return ExitCode::FAILURE;
+            }
+        }
+    } else {
+        None
+    };
+    let agent_job_route = match optional_agent_job_route_from_environment() {
+        Ok(route) => route,
+        Err(error) => {
+            eprintln!("service=api-server error={error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let application = if let Some(route) = agent_job_route {
+        let workflow = match agent_workflow_from_environment(&database_url, &canonical_runtime) {
+            Ok(workflow) => workflow,
             Err(error) => {
                 eprintln!("service=api-server error={error}");
                 return ExitCode::FAILURE;
             }
         };
+        match ApiApplication::new_production_governed_with_agent_jobs(
+            identity,
+            policy,
+            audit,
+            canonical_runtime,
+            canonical_store,
+            privacy_runtime,
+            deletion_repository,
+            player_action_repository,
+            workflow,
+            route,
+        ) {
+            Ok(application) => application,
+            Err(error) => {
+                eprintln!("service=api-server error={error}");
+                return ExitCode::FAILURE;
+            }
+        }
+    } else if let Some(player_action_repository) = player_action_repository {
         ApiApplication::new_production_governed_with_player_actions(
             identity,
             policy,
@@ -204,6 +242,48 @@ fn core_domain_repository_from_environment(
     connection
         .ok_or_else(|| "CORE_DOMAIN_DATABASE_CONNECTION_NOT_ATTEMPTED".to_owned())?
         .map_err(|_| "CORE_DOMAIN_DATABASE_CONNECTION_FAILED".to_owned())
+}
+
+fn optional_agent_job_route_from_environment(
+) -> Result<Option<AgentJobRouteConfiguration>, String> {
+    let provider_type = match std::env::var("TRPG_MODEL_PROVIDER_TYPE") {
+        Err(std::env::VarError::NotPresent) => return Ok(None),
+        Err(std::env::VarError::NotUnicode(_)) => {
+            return Err("TRPG_MODEL_PROVIDER_TYPE_INVALID".to_owned())
+        }
+        Ok(value) if value.trim().is_empty() => {
+            return Err("TRPG_MODEL_PROVIDER_TYPE_INVALID".to_owned())
+        }
+        Ok(value) => value,
+    };
+    Ok(Some(AgentJobRouteConfiguration {
+        provider_id: required_environment("TRPG_MODEL_PROVIDER_ID")?,
+        provider_type,
+        model_id: required_environment("TRPG_MODEL_ID")?,
+        model_artifact_sha256: required_environment("TRPG_MODEL_ARTIFACT_SHA256")?,
+        route_authorization_event_id: required_environment(
+            "TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID",
+        )?,
+    }))
+}
+
+fn agent_workflow_from_environment(
+    database_url: &SecretValue,
+    runtime: &tokio::runtime::Runtime,
+) -> Result<DurableWorkflowStore, String> {
+    let mut connection = None;
+    database_url
+        .expose_utf8_to(|database| {
+            connection = Some(runtime.block_on(DurableWorkflowStore::connect(database)));
+        })
+        .map_err(|_| "DATABASE_URL_SECRET_INVALID".to_owned())?;
+    let workflow = connection
+        .ok_or_else(|| "AGENT_JOB_DATABASE_CONNECTION_NOT_ATTEMPTED".to_owned())?
+        .map_err(|_| "AGENT_JOB_DATABASE_CONNECTION_FAILED".to_owned())?;
+    runtime
+        .block_on(workflow.check_agent_job_readiness())
+        .map_err(|_| "AGENT_JOB_SCHEMA_NOT_READY".to_owned())?;
+    Ok(workflow)
 }
 
 fn deletion_repository_from_environment(

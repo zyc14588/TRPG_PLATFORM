@@ -45,6 +45,12 @@ docker compose version >/dev/null 2>&1 || { printf 'bootstrap error=DOCKER_COMPO
 for value in "$provider_type" "$provider_url" "$provider_model"; do
   [[ -n "$value" && ${#value} -le 256 ]] || { printf 'bootstrap error=PROVIDER_CONFIGURATION_INVALID\n' >&2; exit 2; }
 done
+case "$provider_type" in
+  cloud|cloud-provider|openai|anthropic) runtime_provider_type=cloud ;;
+  ollama) runtime_provider_type=ollama ;;
+  llama_cpp|llama.cpp) runtime_provider_type=llama_cpp ;;
+  *) printf 'bootstrap error=PROVIDER_TYPE_INVALID\n' >&2; exit 2 ;;
+esac
 if ! python3 - "$provider_url" <<'PY'; then
 import sys
 from urllib.parse import urlsplit
@@ -269,6 +275,12 @@ export TRPG_CANONICAL_HMAC_KEY_ID="$project-canonical-v1"
 export TRPG_PAYLOAD_ENCRYPTION_KEY_ID="$project-payload-v1"
 export TRPG_AUDIT_HMAC_KEY_ID="$project-audit-v1"
 export TRPG_OBJECT_STORAGE_BUCKET="trpg-$project"
+export TRPG_MODEL_PROVIDER_TYPE="$runtime_provider_type"
+export TRPG_MODEL_PROVIDER_ID="$project-provider"
+export TRPG_MODEL_ID="$provider_model"
+export TRPG_MODEL_ARTIFACT_SHA256="${provider_sha256,,}"
+export TRPG_MODEL_PROVIDER_BASE_URL="$provider_url"
+export TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID="$project-provider-route-v1"
 compose=(docker compose --project-name "$project" -f "$root/compose.yml")
 [[ -z "$extra_compose_file" ]] || compose+=(-f "$extra_compose_file")
 compose+=(-f "$overlay")

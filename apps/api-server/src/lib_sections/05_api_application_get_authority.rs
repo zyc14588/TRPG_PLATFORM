@@ -177,6 +177,13 @@ impl CanonicalCustody {
             .map_err(|_| "canonical runtime lock poisoned".to_owned())?
             .block_on(self.store.verify_integrity())
             .map_err(|error| error.to_string())?;
+        if let Some(agent_jobs) = &self.agent_jobs {
+            self.runtime
+                .lock()
+                .map_err(|_| "agent job runtime lock poisoned".to_owned())?
+                .block_on(agent_jobs.workflow.check_agent_job_readiness())
+                .map_err(|error| format!("AGENT_JOB_SCHEMA_NOT_READY:{error}"))?;
+        }
         self.privacy_runtime
             .lock()
             .map_err(|_| "privacy runtime lock poisoned".to_owned())?

@@ -46,6 +46,7 @@ impl ApiApplication {
             privacy_runtime,
             deletion_repository,
             None,
+            None,
         )
     }
 
@@ -69,6 +70,7 @@ impl ApiApplication {
             privacy_runtime,
             deletion_repository,
             Some(player_action_repository),
+            None,
         )
     }
 
@@ -98,6 +100,34 @@ impl ApiApplication {
             privacy_runtime,
             deletion_repository,
             Some(repository),
+            None,
+        ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_production_governed_with_agent_jobs(
+        identity: IdentityService,
+        policy: OpenFgaOpaPolicyAdapter,
+        audit: FileAuditLog,
+        canonical_runtime: tokio::runtime::Runtime,
+        canonical_store: PostgresCanonicalStore,
+        privacy_runtime: tokio::runtime::Runtime,
+        deletion_repository: PostgresDeletionRepository,
+        player_action_repository: Option<CoreDomainRepository>,
+        workflow: DurableWorkflowStore,
+        route: AgentJobRouteConfiguration,
+    ) -> Result<Self, String> {
+        route.validate()?;
+        Ok(Self::new_production_governed_internal(
+            identity,
+            policy,
+            audit,
+            canonical_runtime,
+            canonical_store,
+            privacy_runtime,
+            deletion_repository,
+            player_action_repository,
+            Some(AgentJobGateway { workflow, route }),
         ))
     }
 
@@ -111,6 +141,7 @@ impl ApiApplication {
         privacy_runtime: tokio::runtime::Runtime,
         deletion_repository: PostgresDeletionRepository,
         player_action_repository: Option<CoreDomainRepository>,
+        agent_jobs: Option<AgentJobGateway>,
     ) -> Self {
         let identity_verifier = identity.verifier();
         let audit = FormalCommitAudit::from_file_log(audit);
@@ -146,6 +177,7 @@ impl ApiApplication {
                     .clone()
                     .map(RepositoryCampaignCharacterPort::new),
                 player_action_port: player_action_repository.map(RepositoryPlayerActionPort::new),
+                agent_jobs,
             })),
         }
     }
@@ -282,6 +314,12 @@ impl ApiApplication {
             }
             ("POST", ["campaigns", campaign_id, "player-actions", action_id, "confirm"]) => {
                 Some(self.confirm_player_action(request, campaign_id, action_id))
+            }
+            ("POST", ["campaigns", campaign_id, "agent-jobs"]) => {
+                Some(self.request_agent_job(request, campaign_id))
+            }
+            ("POST", ["campaigns", campaign_id, "agent-jobs", job_id, "approve"]) => {
+                Some(self.approve_agent_job(request, campaign_id, job_id))
             }
             ("GET", ["campaigns", campaign_id, "privacy", "deletions", job_id]) => {
                 Some(self.get_deletion_status(request, campaign_id, job_id))

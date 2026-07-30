@@ -20,6 +20,12 @@ export TRPG_CANONICAL_HMAC_KEY_ID="$project-canonical-v1"
 export TRPG_PAYLOAD_ENCRYPTION_KEY_ID="$project-payload-v1"
 export TRPG_AUDIT_HMAC_KEY_ID="$project-audit-v1"
 export TRPG_OBJECT_STORAGE_BUCKET="trpg-$project"
+export TRPG_MODEL_PROVIDER_TYPE="cloud"
+export TRPG_MODEL_PROVIDER_ID="$project-provider"
+export TRPG_MODEL_ID="ar10-exact-model"
+export TRPG_MODEL_ARTIFACT_SHA256="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+export TRPG_MODEL_PROVIDER_BASE_URL="https://provider.test:9443/v1"
+export TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID="$project-provider-route-v1"
 compose=(docker compose --project-name "$project" -f "$root/compose.yml")
 
 cleanup() {

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -19,13 +19,15 @@ use trpg_security_governance::formal_commit_audit::{FormalCommitAudit, FormalCom
 use trpg_security_governance::policy_adapter::OpenFgaOpaPolicyAdapter;
 use trpg_security_governance::tamper_evident_audit::FileAuditLog;
 use trpg_shared_kernel::{
-    AuthenticatedCommandContext, CanonicalCommitPort, CommandEnvelope, CommandMetadata, EntityId,
-    FactProvenance, FormalWritePath, ProvenanceKind, ResourceRef, Visibility,
+    server_percentile_roll, AuthenticatedCommandContext, CanonicalCommitPort, CommandEnvelope,
+    CommandMetadata, EntityId, FactProvenance, FormalWritePath, ProvenanceKind, ResourceRef,
+    Visibility,
 };
 
 use crate::agent_runtime::{
     evaluate_agent_tool_request, evaluate_prompt_injection, AgentDecision, AgentDecisionCommitter,
-    AgentEventPayload, AgentKind, AgentTool, EventStore as AgentEventStore, ToolRequest,
+    AgentError, AgentEventPayload, AgentKind, AgentTool, AgentToolExecutionOutput,
+    AgentToolExecutor, EventStore as AgentEventStore, ToolRequest,
 };
 use crate::local_model_certification::{LocalModelCertificate, LocalModelCertificationAuthority};
 use crate::model_provider::{
@@ -214,6 +216,97 @@ impl AgentJobToolPort for RejectingAgentJobToolPort {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct GovernedAgentJobToolPort {
+    workflow: DurableWorkflowStore,
+}
+
+impl GovernedAgentJobToolPort {
+    pub fn new(workflow: DurableWorkflowStore) -> Self {
+        Self { workflow }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SkillCheckToolArguments {
+    character_id: String,
+    skill_name: String,
+    adjustment: String,
+}
+
+#[async_trait]
+impl AgentJobToolPort for GovernedAgentJobToolPort {
+    async fn execute(
+        &self,
+        job: &DurableAgentJob,
+        call: &AgentJobToolCall,
+        idempotency_key: &str,
+    ) -> AgentJobResult<AgentJobToolResult> {
+        if job.authority_mode != "AI_KP"
+            || job.agent_kind != "ai_keeper_orchestrator"
+            || call.name != "request_skill_check"
+            || idempotency_key != format!("{}:tool", job.idempotency_key)
+        {
+            return Err(AgentJobError::terminal("AGENT_TOOL_PERMISSION_DENIED"));
+        }
+        let arguments: SkillCheckToolArguments = serde_json::from_value(call.arguments.clone())
+            .map_err(|_| AgentJobError::terminal("AGENT_TOOL_ARGUMENTS_INVALID"))?;
+        if arguments.adjustment != "NONE" {
+            return Err(AgentJobError::terminal("AGENT_TOOL_ARGUMENTS_INVALID"));
+        }
+        let target = self
+            .workflow
+            .load_agent_skill_target(
+                &job.campaign_id,
+                &arguments.character_id,
+                &arguments.skill_name,
+            )
+            .await
+            .map_err(|error| match error {
+                WorkflowStoreError::NotFound => {
+                    AgentJobError::terminal("AGENT_SKILL_TARGET_NOT_FOUND")
+                }
+                other => map_store_error(other),
+            })?;
+        let roll = server_percentile_roll()
+            .map_err(|_| AgentJobError::retryable("AGENT_SERVER_DICE_UNAVAILABLE"))?;
+        let result = json!({
+            "adjustment": "NONE",
+            "character_id": arguments.character_id,
+            "roll": roll.value(),
+            "roll_id": roll.roll_id(),
+            "selected_tens_digit": roll.selected_tens_digit(),
+            "skill_name": arguments.skill_name,
+            "success_level": coc7_success_level(roll.value(), target),
+            "target": target,
+            "ones_digit": roll.ones_digit(),
+        });
+        let result_json = serde_json::to_string(&result)
+            .map_err(|_| AgentJobError::terminal("AGENT_TOOL_RESULT_INVALID"))?;
+        Ok(AgentJobToolResult {
+            execution_id: roll.roll_id().to_owned(),
+            result_hash: sha256_label(result_json.as_bytes()),
+        })
+    }
+}
+
+fn coc7_success_level(roll: u8, target: u8) -> &'static str {
+    if roll == 1 {
+        "CRITICAL"
+    } else if (target < 50 && roll >= 96) || (target >= 50 && roll == 100) {
+        "FUMBLE"
+    } else if roll <= target / 5 {
+        "EXTREME"
+    } else if roll <= target / 2 {
+        "HARD"
+    } else if roll <= target {
+        "REGULAR"
+    } else {
+        "FAILURE"
+    }
+}
+
 #[async_trait]
 pub trait AgentJobDecisionPort: Send + Sync {
     async fn authorize_execution(
@@ -249,9 +342,52 @@ pub struct ProductionAgentIdentityConfiguration<'a> {
 pub struct GovernedAgentDecisionPort {
     identity: Mutex<IdentityService>,
     committer: AgentDecisionCommitter,
+    prepared_tools: Arc<PreparedAgentToolExecutor>,
     events: Mutex<AgentEventStore<AgentEventPayload>>,
     workload_id: String,
     internal_credential_ttl_ms: u64,
+}
+
+#[derive(Debug, Default)]
+struct PreparedAgentToolExecutor {
+    results: Mutex<HashMap<String, AgentToolExecutionOutput>>,
+}
+
+impl PreparedAgentToolExecutor {
+    fn prepare(&self, decision_id: &str, result: AgentToolExecutionOutput) -> AgentJobResult<()> {
+        let mut results = self
+            .results
+            .lock()
+            .map_err(|_| AgentJobError::retryable("AGENT_TOOL_RESULT_LOCK_UNAVAILABLE"))?;
+        if results
+            .get(decision_id)
+            .is_some_and(|existing| existing != &result)
+        {
+            return Err(AgentJobError::terminal("AGENT_TOOL_RESULT_CONFLICT"));
+        }
+        results.insert(decision_id.to_owned(), result);
+        Ok(())
+    }
+
+    fn clear(&self, decision_id: &str) {
+        if let Ok(mut results) = self.results.lock() {
+            results.remove(decision_id);
+        }
+    }
+}
+
+impl AgentToolExecutor for PreparedAgentToolExecutor {
+    fn execute(
+        &self,
+        decision: &AgentDecision,
+    ) -> crate::agent_runtime::AgentResult<AgentToolExecutionOutput> {
+        self.results
+            .lock()
+            .map_err(|_| AgentError::ToolPermissionDenied)?
+            .get(decision.decision_id.as_str())
+            .cloned()
+            .ok_or(AgentError::ToolPermissionDenied)
+    }
 }
 
 impl fmt::Debug for GovernedAgentDecisionPort {
@@ -303,12 +439,17 @@ impl GovernedAgentDecisionPort {
             policy,
             FormalCommitAudit::from_file_log(audit),
         );
-        let committer = AgentDecisionCommitter::new(verifier)
-            .map_err(|_| AgentJobError::terminal("AGENT_COMMITTER_INVALID"))?;
+        let prepared_tools = Arc::new(PreparedAgentToolExecutor::default());
+        let committer = AgentDecisionCommitter::with_tool_executor(
+            verifier,
+            Arc::clone(&prepared_tools) as Arc<dyn AgentToolExecutor>,
+        )
+        .map_err(|_| AgentJobError::terminal("AGENT_COMMITTER_INVALID"))?;
         let events = AgentEventStore::with_formal_custody(authorizer, canonical);
         Ok(Self {
             identity: Mutex::new(identity),
             committer,
+            prepared_tools,
             events: Mutex::new(events),
             workload_id: configuration.workload_id.to_owned(),
             internal_credential_ttl_ms: configuration.internal_credential_ttl_ms,
@@ -404,15 +545,19 @@ impl AgentJobDecisionPort for GovernedAgentDecisionPort {
         tool_result: Option<&AgentJobToolResult>,
         now_unix_ms: i64,
     ) -> AgentJobResult<AgentJobCommitReceipt> {
-        if job.authority_mode != "AI_KP"
-            || job.agent_kind != "ai_keeper_orchestrator"
-            || decision.tool.is_some()
-            || tool_result.is_some()
-        {
+        if job.authority_mode != "AI_KP" || job.agent_kind != "ai_keeper_orchestrator" {
             return Err(AgentJobError::terminal(
-                "AGENT_TOOL_EXECUTION_PORT_REQUIRED",
+                "AGENT_JOB_AUTHORITY_SNAPSHOT_MISMATCH",
             ));
         }
+        let tool = match (decision.tool.as_ref(), tool_result) {
+            (None, None) => AgentTool::NarrationOnly,
+            (Some(call), Some(result)) => {
+                validate_tool_result(result)?;
+                parse_agent_tool(&call.name)?
+            }
+            _ => return Err(AgentJobError::terminal("AGENT_TOOL_RESULT_INVALID")),
+        };
         let now_unix_ms = u64::try_from(now_unix_ms)
             .map_err(|_| AgentJobError::terminal("AGENT_JOB_TIME_INVALID"))?;
         let expires_at_unix_ms = now_unix_ms
@@ -485,8 +630,7 @@ impl AgentJobDecisionPort for GovernedAgentDecisionPort {
             expires_at_unix_ms,
         )
         .map_err(|_| AgentJobError::terminal("AGENT_COMMAND_CONTEXT_INVALID"))?;
-        let tool_request =
-            ToolRequest::formal(AgentKind::AiKeeperOrchestrator, AgentTool::NarrationOnly);
+        let tool_request = ToolRequest::formal(AgentKind::AiKeeperOrchestrator, tool);
         let agent_decision = AgentDecision::new(
             format!("decision_{}", job.job_id),
             tool_request,
@@ -526,16 +670,25 @@ impl AgentJobDecisionPort for GovernedAgentDecisionPort {
             .events
             .lock()
             .map_err(|_| AgentJobError::retryable("AGENT_EVENT_CUSTODY_LOCK_UNAVAILABLE"))?;
-        let committed = self
-            .committer
-            .commit(
-                &mut events,
-                &command,
-                &workflow_authentication,
-                agent_decision,
-                now_unix_ms,
-            )
-            .map_err(|error| AgentJobError::terminal(error.code()))?;
+        if let Some(result) = tool_result {
+            self.prepared_tools.prepare(
+                agent_decision.decision_id.as_str(),
+                AgentToolExecutionOutput {
+                    execution_id: result.execution_id.clone(),
+                    result_hash: result.result_hash.clone(),
+                },
+            )?;
+        }
+        let commit_result = self.committer.commit(
+            &mut events,
+            &command,
+            &workflow_authentication,
+            agent_decision.clone(),
+            now_unix_ms,
+        );
+        self.prepared_tools
+            .clear(agent_decision.decision_id.as_str());
+        let committed = commit_result.map_err(|error| AgentJobError::terminal(error.code()))?;
         let event_sequences = committed
             .into_iter()
             .map(|event| {

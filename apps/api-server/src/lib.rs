@@ -14,3 +14,4 @@ include!("lib_sections/03_api_application_authorized_player_action_context.rs");
 include!("lib_sections/04_api_application_request_deletion.rs");
 include!("lib_sections/05_api_application_get_authority.rs");
 include!("lib_sections/06_deletion_status_response.rs");
+include!("lib_sections/08_agent_job_gateway.rs");

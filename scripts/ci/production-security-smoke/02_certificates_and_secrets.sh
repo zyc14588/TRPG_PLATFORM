@@ -149,6 +149,12 @@ export TRPG_AUDIT_HMAC_KEY_ID="runtime-smoke-audit-v1"
 export TRPG_OBJECT_STORAGE_BUCKET="trpg-runtime-smoke"
 export TRPG_OBJECT_STORAGE_REGION="us-east-1"
 export TRPG_IMAGE_TAG="runtime-smoke"
+export TRPG_MODEL_PROVIDER_TYPE="cloud"
+export TRPG_MODEL_PROVIDER_ID="runtime-smoke-provider"
+export TRPG_MODEL_ID="runtime-smoke-model"
+export TRPG_MODEL_ARTIFACT_SHA256="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+export TRPG_MODEL_PROVIDER_BASE_URL="https://provider.invalid/v1"
+export TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID="runtime-smoke-provider-route-v1"
 
 python3 "$root/scripts/ci/verify_compose_security.py" --check
 "${compose_command[@]}" config --quiet

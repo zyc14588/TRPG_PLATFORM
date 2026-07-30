@@ -141,6 +141,15 @@ pub struct DurableAgentApproval {
     pub idempotency_key: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AgentJobApprovalDraft {
+    pub approval_id: String,
+    pub job_id: String,
+    pub approval_event_sequence: i64,
+    pub approved_by: String,
+    pub idempotency_key: String,
+}
+
 impl DurableWorkflowStore {
     pub async fn check_agent_job_readiness(&self) -> Result<(), WorkflowStoreError> {
         let ready: bool = sqlx::query_scalar(
@@ -920,6 +929,100 @@ impl DurableWorkflowStore {
             approved_by: row.get("approved_by"),
             idempotency_key: row.get("idempotency_key"),
         }))
+    }
+
+    pub async fn record_agent_job_approval(
+        &self,
+        draft: &AgentJobApprovalDraft,
+    ) -> Result<DurableAgentApproval, WorkflowStoreError> {
+        for (value, reason) in [
+            (&draft.approval_id, "approval_id_required"),
+            (&draft.job_id, "job_id_required"),
+            (&draft.approved_by, "approved_by_required"),
+            (&draft.idempotency_key, "approval_idempotency_key_required"),
+        ] {
+            validate_identifier(value, reason)?;
+        }
+        if draft.approval_event_sequence <= 0 {
+            return Err(WorkflowStoreError::Validation(
+                "approval_event_sequence_invalid",
+            ));
+        }
+        let inserted = sqlx::query(
+            r#"
+            INSERT INTO agent_job_approvals (
+                approval_id, job_id, approval_event_sequence,
+                approved_by, idempotency_key
+            ) VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT DO NOTHING
+            "#,
+        )
+        .bind(&draft.approval_id)
+        .bind(&draft.job_id)
+        .bind(draft.approval_event_sequence)
+        .bind(&draft.approved_by)
+        .bind(&draft.idempotency_key)
+        .execute(&self.pool)
+        .await
+        .map_err(|_| WorkflowStoreError::Database("record_agent_job_approval"))?;
+        let approval = self
+            .load_agent_job_approval(&draft.job_id)
+            .await?
+            .ok_or(WorkflowStoreError::IntegrityViolation(
+                "agent_job_approval_missing",
+            ))?;
+        if inserted.rows_affected() == 0
+            && (approval.approval_id != draft.approval_id
+                || approval.approval_event_sequence != draft.approval_event_sequence
+                || approval.approved_by != draft.approved_by
+                || approval.idempotency_key != draft.idempotency_key)
+        {
+            return Err(WorkflowStoreError::IdempotencyConflict);
+        }
+        Ok(approval)
+    }
+
+    pub async fn load_agent_skill_target(
+        &self,
+        campaign_id: &str,
+        character_id: &str,
+        skill_name: &str,
+    ) -> Result<u8, WorkflowStoreError> {
+        validate_identifier(campaign_id, "campaign_id_required")?;
+        validate_identifier(character_id, "character_id_required")?;
+        if skill_name.trim().is_empty()
+            || skill_name.len() > 128
+            || skill_name.chars().any(char::is_control)
+        {
+            return Err(WorkflowStoreError::Validation("skill_name_invalid"));
+        }
+        let target: Option<i32> = sqlx::query_scalar(
+            r#"
+            SELECT CASE
+                     WHEN jsonb_typeof(sheet.sheet_json -> 'skills' -> $3) = 'number'
+                     THEN (sheet.sheet_json -> 'skills' ->> $3)::integer
+                   END
+              FROM characters AS character
+              JOIN character_sheet_versions AS sheet
+                ON sheet.character_id = character.character_id
+               AND sheet.version = character.current_sheet_version
+             WHERE character.campaign_id = $1
+               AND character.character_id = $2
+               AND character.state = 'APPROVED'
+               AND sheet.locked
+            "#,
+        )
+        .bind(campaign_id)
+        .bind(character_id)
+        .bind(skill_name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|_| WorkflowStoreError::Database("load_agent_skill_target"))?
+        .flatten();
+        target
+            .and_then(|target| u8::try_from(target).ok())
+            .filter(|target| *target <= 100)
+            .ok_or(WorkflowStoreError::NotFound)
     }
 }
 

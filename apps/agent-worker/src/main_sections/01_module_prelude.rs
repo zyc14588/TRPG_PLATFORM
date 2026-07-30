@@ -8,9 +8,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
 use trpg_agent_runtime::agent_job::{
-    AgentJobExecutionConfig, AgentJobOutcome, AgentJobWorker, CertifiedLocalModel,
-    GovernedAgentDecisionPort, ProductionAgentIdentityConfiguration,
-    RejectingAgentJobToolPort,
+    AgentJobError, AgentJobExecutionConfig, AgentJobOutcome, AgentJobRepository, AgentJobResult,
+    AgentJobWorker, CertifiedLocalModel, GovernedAgentDecisionPort, GovernedAgentJobToolPort,
+    ProductionAgentIdentityConfiguration,
 };
 use trpg_agent_runtime::local_model_certification::{
     LocalModelCertificate, LocalModelCertificationAuthority,
@@ -23,11 +23,15 @@ use trpg_agent_runtime::model_provider_local_cloud_impl::HttpModelProvider;
 use trpg_contracts::{run_service, RoleRuntimeProbe, ServiceKind, ServiceSpec};
 use trpg_data_eventing::event_bus_nats_impl::{JetStreamOutboxPublisher, PublishBatchResult};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
-    PostgresCanonicalCommitPort, PostgresCanonicalStore,
+    CanonicalStoreError, PostgresCanonicalCommitPort, PostgresCanonicalStore,
 };
 use trpg_extension_sdk::plugin_host::{HostedPlugin, HostedPluginManifest, PluginHost};
 use trpg_extension_sdk::{ExtensionCapability, ExtensionCapabilityGrantSet};
-use trpg_runtime::durable_workflow::DurableWorkflowStore;
+use trpg_runtime::durable_workflow::{
+    AgentJobEvidenceDraft, AgentJobTransitionDraft, DurableAgentApproval,
+    DurableAgentAuthoritySnapshot, DurableAgentContextSnapshot, DurableAgentJob,
+    DurableWorkflowStore,
+};
 use trpg_security_governance::secret::{
     MountedFileSecretResolver, PostgresLedgerCheckpointStore, SecretManager, SecretReference,
     SecretValue,

@@ -25,6 +25,10 @@ use trpg_identity::{
 use trpg_platform::security_privacy_copyright::{
     request_data_deletion_canonical, RequestDataDeletion,
 };
+use trpg_runtime::durable_workflow::{
+    AgentJobApprovalDraft, AgentJobEnqueueDraft, DurableWorkflowStore, WorkflowState,
+    WorkflowStoreError,
+};
 use trpg_security_governance::authorize_campaign_membership_change;
 use trpg_security_governance::formal_commit_audit::{FormalCommitAudit, FormalCommitAuthorizer};
 use trpg_security_governance::policy_adapter::OpenFgaOpaPolicyAdapter;
@@ -36,9 +40,10 @@ use trpg_shared_kernel::error_model::{
     describe_error, InternalErrorContext, TrustedErrorLogEntry, TrustedErrorLogSink,
 };
 use trpg_shared_kernel::{
-    Actor, ActorRole, AuthenticatedCommandContext, AuthorityMode, CanonicalCommitPort, CommandEnvelope,
-    CommandMetadata, EntityId, FactProvenance, FormalWritePath, ProvenanceKind, ResourceRef,
-    TrpgError, Visibility, VisibilityLabel,
+    Actor, ActorRole, AuthenticatedCommandContext, AuthorityMode, CanonicalCommitEvent,
+    CanonicalCommitPort, CanonicalCommitRequest, CommandEnvelope, CommandMetadata, EntityId,
+    EventActorOriginWire, FactProvenance, FormalWritePath, ProvenanceKind, ResourceRef, TrpgError,
+    Visibility, VisibilityLabel,
 };
 
 use core_domain::RepositoryCampaignCharacterPort;
@@ -72,6 +77,7 @@ struct CanonicalCustody {
     agent_events: trpg_agent_runtime::AgentEventStore<trpg_agent_runtime::AgentEventPayload>,
     lifecycle_port: Option<RepositoryCampaignCharacterPort>,
     player_action_port: Option<RepositoryPlayerActionPort>,
+    agent_jobs: Option<AgentJobGateway>,
 }
 
 struct VisibleReplayPage {

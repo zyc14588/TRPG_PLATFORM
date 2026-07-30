@@ -66,6 +66,36 @@ impl AgentWorkerProcess {
         runtime
             .block_on(canonical.verify_integrity())
             .map_err(|_| "CANONICAL_STORE_NOT_READY".to_owned())?;
+        let agent_commit_canonical = if model_provider.is_some() {
+            let canonical_database_url =
+                resolve_mounted_secret(&secret_manager, "TRPG_CANONICAL_DATABASE_URL")?;
+            let store = canonical_database_url
+                .expose_utf8_to(|database| {
+                    witness_url.expose_utf8_to(|witness| {
+                        integrity_key.expose_to(|integrity| {
+                            payload_key.expose_to(|payload| {
+                                runtime.block_on(PostgresCanonicalStore::connect(
+                                    database,
+                                    witness,
+                                    &integrity_key_id,
+                                    integrity,
+                                    &payload_key_id,
+                                    payload,
+                                ))
+                            })
+                        })
+                    })
+                })
+                .map_err(|_| "CANONICAL_DATABASE_URL_SECRET_INVALID".to_owned())?
+                .map_err(|_| "WITNESS_DATABASE_URL_SECRET_INVALID".to_owned())?
+                .map_err(|_| "AGENT_CANONICAL_STORE_CONNECTION_FAILED".to_owned())?;
+            runtime
+                .block_on(store.verify_integrity())
+                .map_err(|_| "AGENT_CANONICAL_STORE_NOT_READY".to_owned())?;
+            Some(store)
+        } else {
+            None
+        };
         let nats_ca = optional_path("TRPG_NATS_CA_CERT_PATH")?;
         let nats_client_certificate = optional_path("TRPG_NATS_CLIENT_CERT_PATH")?;
         let nats_client_private_key = optional_path("TRPG_NATS_CLIENT_KEY_PATH")?;
@@ -214,6 +244,7 @@ impl AgentWorkerProcess {
             workflow.clone(),
             model_provider,
             canonical,
+            agent_commit_canonical,
             &secret_manager,
             &database_url,
             &redis_url,
@@ -345,16 +376,22 @@ impl AgentWorkerProcess {
             {
                 return Err("provider boundary initialization is incomplete".to_owned());
             }
-            let provider_status = if let Some(model_route) = &model_route {
-                if model_route.fallback_policy != "none_no_automatic_fallback"
-                    || model_route.privacy_boundary != "explicit_route_authorization_event"
-                {
-                    return Err("model provider route authorization is incomplete".to_owned());
-                }
-                model_route.provider_type.route_name()
-            } else {
-                "not_configured"
-            };
+            let (provider_status, agent_job_status) =
+                if let Some(model_route) = &model_route {
+                    if model_route.fallback_policy
+                        != "none_no_automatic_fallback"
+                        || model_route.privacy_boundary
+                            != "explicit_route_authorization_event"
+                    {
+                        return Err(
+                            "model provider route authorization is incomplete"
+                                .to_owned(),
+                        );
+                    }
+                    (model_route.provider_type.route_name(), "ready")
+                } else {
+                    ("not_configured", "disabled_no_provider")
+                };
             if let Some(error) = probe_health
                 .lock()
                 .map_err(|_| "outbox health lock poisoned".to_owned())?
@@ -364,8 +401,9 @@ impl AgentWorkerProcess {
             }
             plugins.check_readiness()?;
             Ok(format!(
-                "gateway/runtime/provider adapter ready; provider_status={}; durable agent jobs, workflow, and sandboxed plugins ready; eventing_workers_status=enabled; plugins={}",
+                "gateway/runtime/provider adapter ready; provider_status={}; durable_agent_jobs_status={}; workflow and sandboxed plugins ready; eventing_workers_status=enabled; plugins={}",
                 provider_status,
+                agent_job_status,
                 plugins.plugin_count(),
             ))
         })

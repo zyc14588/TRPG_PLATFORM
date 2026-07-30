@@ -1,3 +1,6 @@
+#[doc(hidden)]
+pub use async_trait::async_trait as repository_async_trait;
+
 pub mod adr_0009_agent_governance;
 pub mod adr_0009_agent_governance_agent_governance;
 pub mod adr_0010_rag_snapshot;
@@ -32,7 +35,7 @@ pub use agent_job::{
     AgentJobCommitReceipt, AgentJobDecisionPort, AgentJobError, AgentJobExecutionConfig,
     AgentJobOutcome, AgentJobRepository, AgentJobToolCall, AgentJobToolPort, AgentJobToolResult,
     AgentJobWorker, AgentStructuredDecision, CertifiedLocalModel, GovernedAgentDecisionPort,
-    ProductionAgentIdentityConfiguration, RejectingAgentJobToolPort,
+    GovernedAgentJobToolPort, ProductionAgentIdentityConfiguration, RejectingAgentJobToolPort,
 };
 pub use agent_runtime::EventStore as AgentEventStore;
 pub use agent_runtime::{

@@ -158,6 +158,10 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 : "${P08_ALLOW_DATABASE_RESET:?P08_ALLOW_DATABASE_RESET is required for the destructive Tutorial gate}"
 : "${P08_RESET_DATABASE:?P08_RESET_DATABASE must name the dedicated Tutorial database}"
 : "${P08_WITNESS_RESET_DATABASE:?P08_WITNESS_RESET_DATABASE must name the dedicated Tutorial witness database}"
+: "${AR09_AGENT_JOB_FIXTURE_DATABASE_URL:?AR09_AGENT_JOB_FIXTURE_DATABASE_URL is required for the canonical fixture gate}"
+: "${AR09_AGENT_JOB_API_DATABASE_URL:?AR09_AGENT_JOB_API_DATABASE_URL is required for the API-role Agent Job gate}"
+: "${AR09_AGENT_JOB_WORKER_DATABASE_URL:?AR09_AGENT_JOB_WORKER_DATABASE_URL is required for the worker-role Agent Job gate}"
+: "${AR09_AGENT_JOB_CANONICAL_DATABASE_URL:?AR09_AGENT_JOB_CANONICAL_DATABASE_URL is required for the canonical-role Agent Job gate}"
 cargo test --workspace --all-features --locked --no-fail-fast -- --test-threads=1
 psql "$P03_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
   -f scripts/ci/assert-schema.sql
