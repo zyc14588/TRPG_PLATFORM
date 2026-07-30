@@ -1,5 +1,10 @@
 use crate::agent_runtime::{AgentError, AgentResult};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::watch;
 use trpg_security_governance::cloud_egress::CloudEgressAttempt;
 pub use trpg_security_governance::cloud_egress::{CloudContextFact, CloudEgressAuthorization};
 pub use trpg_security_governance::secret::SecretReference;
@@ -262,3 +267,6 @@ pub async fn send_audited_cloud_request<
         )
         .await
 }
+
+include!("model_provider_sections/01_request_contracts.rs");
+include!("model_provider_sections/02_execution_contracts.rs");

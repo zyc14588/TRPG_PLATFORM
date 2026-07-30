@@ -1,7 +1,9 @@
 
 impl AgentWorkerProcess {
     fn from_environment() -> Result<Self, String> {
-        let secret_manager = production_secret_manager()?;
+        let secret_manager = Arc::new(production_secret_manager()?);
+        let model_provider =
+            optional_model_provider_from_environment(Arc::clone(&secret_manager))?;
         let database_url = resolve_mounted_secret(&secret_manager, "TRPG_DATABASE_URL")?;
         let eventing_workers_enabled =
             boolean_environment("TRPG_P04_EVENTING_WORKERS_ENABLED", true)?;
@@ -206,6 +208,7 @@ impl AgentWorkerProcess {
             outbox,
             deletion,
             plugins,
+            model_provider,
         })
     }
 
@@ -277,6 +280,7 @@ impl AgentWorkerProcess {
             .map_err(|_| "OUTBOX_WORKER_START_FAILED".to_owned())?;
 
         let plugins = self.plugins;
+        let model_provider = self.model_provider;
         let probe_health = Arc::clone(&background_health);
         let probe = RoleRuntimeProbe::spawn("agent_worker_runtime", move || {
             let boundary = trpg_agent_runtime::provider_boundary_snapshot();
@@ -287,6 +291,17 @@ impl AgentWorkerProcess {
             {
                 return Err("provider boundary initialization is incomplete".to_owned());
             }
+            let provider_status = if let Some(model_provider) = &model_provider {
+                let model_route = model_provider.startup_route_snapshot();
+                if model_route.fallback_policy != "none_no_automatic_fallback"
+                    || model_route.privacy_boundary != "explicit_route_authorization_event"
+                {
+                    return Err("model provider route authorization is incomplete".to_owned());
+                }
+                model_provider.provider_type().route_name()
+            } else {
+                "transport_only_awaiting_ar09"
+            };
             if let Some(error) = probe_health
                 .lock()
                 .map_err(|_| "outbox health lock poisoned".to_owned())?
@@ -296,7 +311,8 @@ impl AgentWorkerProcess {
             }
             plugins.check_readiness()?;
             Ok(format!(
-                "gateway/runtime/provider adapter, durable workflow and sandboxed plugins ready; eventing_workers_status=enabled; plugins={}",
+                "gateway/runtime/provider adapter ready; provider_status={}; durable workflow and sandboxed plugins ready; eventing_workers_status=enabled; plugins={}",
+                provider_status,
                 plugins.plugin_count(),
             ))
         })
