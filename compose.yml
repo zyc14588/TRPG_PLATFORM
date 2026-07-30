@@ -229,6 +229,7 @@ services:
     command: ["realtime-server"]
     environment:
       TRPG_REALTIME_SERVER_BIND: 0.0.0.0:8081
+      TRPG_TENANT_ID: ${TRPG_TENANT_ID:-default}
       TRPG_SECRET_MOUNT: /run/secrets
       TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
       TRPG_DATABASE_URL_SECRET_ID: realtime_database_url

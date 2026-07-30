@@ -33,6 +33,8 @@ pub mod persistence_postgresql_impl;
 pub mod postgre_sql_sq_lx_pgvector;
 pub mod rag_snapshot;
 pub mod readme;
+pub mod realtime_identity;
+pub mod realtime_resume;
 pub mod redis_cache_presence;
 pub mod redis_presence;
 pub mod schema;

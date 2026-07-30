@@ -95,10 +95,25 @@ impl JetStreamOutboxPublisher {
             repository,
             projection,
             rag,
+            client: client.clone(),
             jetstream: async_nats::jetstream::new(client),
             metrics: Arc::new(EventingMetrics::default()),
             batch_size: 100,
         })
+    }
+
+    /// Subscribes only to canonical outbox subjects and exposes a payload-free
+    /// wake-up stream. Consumers must reload and authorize Event Store rows;
+    /// NATS is never treated as replay truth.
+    pub async fn subscribe_canonical_notifications(
+        &self,
+    ) -> Result<CanonicalNotificationSubscription, JetStreamOutboxError> {
+        let subscriber = self
+            .client
+            .subscribe("trpg.events.>")
+            .await
+            .map_err(|_| JetStreamOutboxError::NatsUnavailable)?;
+        Ok(CanonicalNotificationSubscription { subscriber })
     }
 
     pub fn with_metrics(mut self, metrics: Arc<EventingMetrics>) -> Self {
