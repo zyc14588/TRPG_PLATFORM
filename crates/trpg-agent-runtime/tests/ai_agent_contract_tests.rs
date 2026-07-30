@@ -147,6 +147,48 @@ fn ai_agent_commits_only_through_event_store_with_provenance() {
 }
 
 #[test]
+fn ai_keeper_narration_commits_one_canonical_event_without_tool_side_effect() {
+    let contract =
+        trpg_test_support::authority_contract("campaign_ar09_ai_narration", AuthorityMode::AiKp, 1)
+            .unwrap();
+    let authentication =
+        trpg_test_support::ai_keeper_authentication(contract.campaign_id().as_str());
+    let decision = AgentDecision::new(
+        "decision_ar09_ai_narration",
+        ToolRequest::formal(AgentKind::AiKeeperOrchestrator, AgentTool::NarrationOnly),
+        "The lantern throws a long shadow across the archive door.",
+        &authentication,
+    )
+    .unwrap();
+    let command = trpg_test_support::governed_command_for_contract(
+        &contract,
+        decision.clone(),
+        ActorRole::Workflow,
+    );
+    let (mut store, audit) = common::audited_store_with_handle(&contract);
+    let calls = Arc::new(AtomicU64::new(0));
+    let committer = counting_committer(&contract, calls.clone());
+
+    let events = ai_agent::submit_ai_agent_decision(
+        &committer,
+        &mut store,
+        &command,
+        &trpg_test_support::workflow_authentication(),
+        decision,
+        2,
+    )
+    .unwrap();
+
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].event_type, "DecisionCommitted");
+    assert_eq!(store.events(), events.as_slice());
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let audit_records = audit.verify().unwrap();
+    assert_eq!(audit_records.len(), 1);
+    assert_eq!(audit_records[0].action, "write_official_state");
+}
+
+#[test]
 fn ai_agent_exact_retry_returns_original_formal_events() {
     let request = ToolRequest::formal(
         AgentKind::AiKeeperOrchestrator,

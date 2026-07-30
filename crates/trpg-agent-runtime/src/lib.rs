@@ -3,6 +3,7 @@ pub mod adr_0009_agent_governance_agent_governance;
 pub mod adr_0010_rag_snapshot;
 pub mod agent_context_assembler;
 pub mod agent_evaluation_golden_scenario;
+pub mod agent_job;
 pub mod agent_pack_sdk;
 pub mod agent_runtime;
 pub mod agent_runtime_impl;
@@ -27,6 +28,12 @@ pub mod tool_protocol;
 pub mod working_memory_long_memory_rag;
 pub mod working_memory_rag_rag_snapshot;
 
+pub use agent_job::{
+    AgentJobCommitReceipt, AgentJobDecisionPort, AgentJobError, AgentJobExecutionConfig,
+    AgentJobOutcome, AgentJobRepository, AgentJobToolCall, AgentJobToolPort, AgentJobToolResult,
+    AgentJobWorker, AgentStructuredDecision, CertifiedLocalModel, GovernedAgentDecisionPort,
+    ProductionAgentIdentityConfiguration, RejectingAgentJobToolPort,
+};
 pub use agent_runtime::EventStore as AgentEventStore;
 pub use agent_runtime::{
     assemble_context, assemble_context_for_audience, evaluate_agent_tool_request,

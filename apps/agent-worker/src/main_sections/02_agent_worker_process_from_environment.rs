@@ -4,6 +4,9 @@ impl AgentWorkerProcess {
         let secret_manager = Arc::new(production_secret_manager()?);
         let model_provider =
             optional_model_provider_from_environment(Arc::clone(&secret_manager))?;
+        let model_route = model_provider
+            .as_ref()
+            .map(ExecutableModelProvider::startup_route_snapshot);
         let database_url = resolve_mounted_secret(&secret_manager, "TRPG_DATABASE_URL")?;
         let eventing_workers_enabled =
             boolean_environment("TRPG_P04_EVENTING_WORKERS_ENABLED", true)?;
@@ -202,13 +205,32 @@ impl AgentWorkerProcess {
             ],
         )
         .map_err(|_| "DELETION_WORKER_CONFIGURATION_INVALID".to_owned())?;
+        if model_provider.is_some() {
+            runtime
+                .block_on(workflow.check_agent_job_readiness())
+                .map_err(|error| format!("AGENT_JOB_SCHEMA_NOT_READY:{error}"))?;
+        }
+        let agent_jobs = optional_agent_job_worker_from_environment(
+            workflow.clone(),
+            model_provider,
+            canonical,
+            &secret_manager,
+            &database_url,
+            &redis_url,
+            &witness_url,
+            &worker_id,
+            redis_ca.as_deref(),
+            redis_client_certificate.as_deref(),
+            redis_client_private_key.as_deref(),
+        )?;
         Ok(Self {
             runtime,
             workflow,
             outbox,
             deletion,
             plugins,
-            model_provider,
+            model_route,
+            agent_jobs,
         })
     }
 
@@ -218,13 +240,21 @@ impl AgentWorkerProcess {
         let background_outbox = self.outbox.clone();
         let background_workflow = self.workflow.clone();
         let background_deletion = self.deletion;
+        let background_agent_jobs = self.agent_jobs;
         let background_runtime = self.runtime;
         let background_health_writer = Arc::clone(&background_health);
         let worker = thread::Builder::new()
             .name("agent-outbox-publisher".to_owned())
             .spawn(move || {
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| loop {
-                    let (delivery, projection, deletion) = background_runtime.block_on(async {
+                    let (delivery, projection, deletion, agent) =
+                        background_runtime.block_on(async {
+                        let agent = match &background_agent_jobs {
+                            Some(agent_jobs) => {
+                                agent_jobs.run_once(current_unix_ms()).await
+                            }
+                            None => Ok(AgentJobOutcome::Idle),
+                        };
                         let delivery = async {
                             background_workflow.check_readiness().await.map_err(|_| {
                                 trpg_data_eventing::event_bus_nats_impl::JetStreamOutboxError::Database(
@@ -244,8 +274,25 @@ impl AgentWorkerProcess {
                         // are independent of delivery/projection failures and therefore
                         // receive a distinct fail-closed health classification.
                         let deletion = background_deletion.execute_next(25).await;
-                        (delivery, projection, deletion)
+                        (delivery, projection, deletion, agent)
                     });
+                    if let Ok(outcome) = &agent {
+                        match outcome {
+                            AgentJobOutcome::RetryScheduled {
+                                job_id,
+                                error_code,
+                            }
+                            | AgentJobOutcome::TerminalFailure {
+                                job_id,
+                                error_code,
+                            } => eprintln!(
+                                "service=agent-worker agent_job_id={job_id} error={error_code}"
+                            ),
+                            AgentJobOutcome::Idle
+                            | AgentJobOutcome::Completed { .. }
+                            | AgentJobOutcome::AwaitingHumanApproval { .. } => {}
+                        }
+                    }
                     if let Ok(result) = &delivery {
                         if result.requires_operator_attention() {
                             let alert = result.alert_code().unwrap_or("OUTBOX_DELIVERY_ALERT");
@@ -259,10 +306,17 @@ impl AgentWorkerProcess {
                         }
                     }
                     if let Ok(mut health) = background_health_writer.lock() {
-                        health.record_cycle(
-                            Instant::now(),
-                            background_cycle_error(&delivery, &projection, &deletion),
-                        );
+                        let mut error =
+                            background_cycle_error(&delivery, &projection, &deletion);
+                        if let Err(agent_error) = &agent {
+                            let agent_error =
+                                format!("AGENT_JOB_CYCLE_FAILED:{}", agent_error.code());
+                            error = Some(match error {
+                                Some(existing) => format!("{existing};{agent_error}"),
+                                None => agent_error,
+                            });
+                        }
+                        health.record_cycle(Instant::now(), error);
                     }
                     match shutdown_receiver.recv_timeout(Duration::from_millis(100)) {
                         Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
@@ -280,7 +334,7 @@ impl AgentWorkerProcess {
             .map_err(|_| "OUTBOX_WORKER_START_FAILED".to_owned())?;
 
         let plugins = self.plugins;
-        let model_provider = self.model_provider;
+        let model_route = self.model_route;
         let probe_health = Arc::clone(&background_health);
         let probe = RoleRuntimeProbe::spawn("agent_worker_runtime", move || {
             let boundary = trpg_agent_runtime::provider_boundary_snapshot();
@@ -291,16 +345,15 @@ impl AgentWorkerProcess {
             {
                 return Err("provider boundary initialization is incomplete".to_owned());
             }
-            let provider_status = if let Some(model_provider) = &model_provider {
-                let model_route = model_provider.startup_route_snapshot();
+            let provider_status = if let Some(model_route) = &model_route {
                 if model_route.fallback_policy != "none_no_automatic_fallback"
                     || model_route.privacy_boundary != "explicit_route_authorization_event"
                 {
                     return Err("model provider route authorization is incomplete".to_owned());
                 }
-                model_provider.provider_type().route_name()
+                model_route.provider_type.route_name()
             } else {
-                "transport_only_awaiting_ar09"
+                "not_configured"
             };
             if let Some(error) = probe_health
                 .lock()
@@ -311,7 +364,7 @@ impl AgentWorkerProcess {
             }
             plugins.check_readiness()?;
             Ok(format!(
-                "gateway/runtime/provider adapter ready; provider_status={}; durable workflow and sandboxed plugins ready; eventing_workers_status=enabled; plugins={}",
+                "gateway/runtime/provider adapter ready; provider_status={}; durable agent jobs, workflow, and sandboxed plugins ready; eventing_workers_status=enabled; plugins={}",
                 provider_status,
                 plugins.plugin_count(),
             ))

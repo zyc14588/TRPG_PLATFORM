@@ -3590,6 +3590,7 @@ dependencies = [
  "trpg-contracts",
  "trpg-domain-core",
  "trpg-identity",
+ "trpg-runtime",
  "trpg-security-governance",
  "trpg-shared-kernel",
  "trpg-test-support",

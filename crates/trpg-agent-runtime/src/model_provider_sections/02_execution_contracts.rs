@@ -179,6 +179,8 @@ pub trait ExecutableModelProvider: Send + Sync {
 
     fn model_id(&self) -> &str;
 
+    fn model_artifact_sha256(&self) -> &str;
+
     fn startup_route_snapshot(&self) -> ExecutedModelRouteSnapshot;
 
     async fn probe_capabilities(

@@ -60,25 +60,67 @@ impl AgentDecisionCommitter {
             })?;
         validate_requester_identity(&decision.tool_request, &decision.authentication)?;
 
-        if !decision.tool_request.is_formal_state_change() {
-            let resource = command.authenticated_context().resource();
-            let draft_version = store
-                .inner
-                .current_stream_version(resource.campaign_id(), resource.resource_id());
-            let draft_command = derived_command(command, "draft", draft_version)?;
-            return Ok(vec![store.append(
-                &draft_command,
-                "DraftDecisionCreated",
-                AgentEventPayload::DraftDecisionCreated {
-                    downgraded_to: decision.tool_request.tool().as_str(),
-                },
-            )?]);
-        }
-
         if contract.mode() == &AuthorityMode::AiKp
             && decision.authentication.subject_id() != contract.authority_owner()
         {
             return Err(AgentError::Core(TrpgError::AuthorityOwnerMismatch));
+        }
+
+        if !decision.tool_request.is_formal_state_change() {
+            if contract.mode() == &AuthorityMode::HumanKp
+                || decision.tool_request.tool() != AgentTool::NarrationOnly
+            {
+                let resource = command.authenticated_context().resource();
+                let draft_version = store
+                    .inner
+                    .current_stream_version(resource.campaign_id(), resource.resource_id());
+                let draft_command = derived_command(command, "draft", draft_version)?;
+                return Ok(vec![store.append(
+                    &draft_command,
+                    "DraftDecisionCreated",
+                    AgentEventPayload::DraftDecisionCreated {
+                        downgraded_to: decision.tool_request.tool().as_str(),
+                    },
+                )?]);
+            }
+
+            // AI_KP narration is an official, non-rules-mutating turn event.
+            // It still crosses the same policy/audit/canonical custody path;
+            // only the tool side-effect stage is intentionally absent.
+            let (authorization, canonical) = {
+                let custody = store.formal_custody()?;
+                (
+                    custody.authorizer.authorize(
+                        workflow_authentication,
+                        Some(&decision.authentication),
+                        command,
+                        "ai_keeper_orchestrator",
+                        now_unix_ms,
+                    )?,
+                    Arc::clone(&custody.canonical),
+                )
+            };
+            let decision_command =
+                derived_command(command, "decision", command.expected_version)?;
+            return persist_agent_formal_batch(
+                store,
+                command,
+                &authorization,
+                &canonical,
+                vec![(
+                    decision_command,
+                    "DecisionCommitted",
+                    AgentEventPayload::DecisionCommitted {
+                        decision_id: decision.decision_id,
+                        player_visible_text: redact_player_visible_text(
+                            &decision.player_visible_text,
+                        ),
+                        linked_records: decision.linked_records,
+                        audit_fields: decision.audit_fields,
+                        seal: AgentFormalEventSeal::new(),
+                    },
+                )],
+            );
         }
 
         let tool_decision =

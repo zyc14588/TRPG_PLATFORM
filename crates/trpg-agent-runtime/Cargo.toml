@@ -16,6 +16,7 @@ sha2 = "0.10"
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "sync", "time"] }
 trpg-contracts = { path = "../trpg-contracts" }
 trpg-identity = { path = "../trpg-identity" }
+trpg-runtime = { path = "../trpg-runtime" }
 trpg-security-governance = { path = "../trpg-security-governance" }
 trpg-shared-kernel = { path = "../trpg-shared-kernel" }
 url = "2.5"
