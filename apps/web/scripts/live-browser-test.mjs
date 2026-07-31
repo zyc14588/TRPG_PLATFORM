@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -46,6 +46,7 @@ const result = {
   url: origin,
   viewports: ["1600x1000", "390x844"],
   screenshots: [],
+  exports: [],
   checks: [],
 };
 
@@ -53,6 +54,11 @@ let chrome;
 try {
   chrome = await launchChrome(evidenceRoot);
   await runTutorials();
+  await writeFile(
+    path.join(evidenceRoot, "live-browser-result.json"),
+    `${JSON.stringify(result, null, 2)}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
   console.log(`AR11_LIVE_BROWSER_RESULT=${JSON.stringify(result)}`);
   console.log(`AR11_LIVE_BROWSER_EVIDENCE=${evidenceRoot}`);
 } finally {
@@ -65,6 +71,7 @@ async function runTutorials() {
   await owner.setViewport(1600, 1000);
   await assertPageIdentity(owner);
   await login(owner, accounts.owner);
+  const ownerAccessToken = await productAccessToken(owner, accounts.owner.userId);
   await owner.click('[data-action="admin"]');
   await owner.waitForText("管理与运维证据");
   await submitAndWait(owner, 'form[data-form="admin-login"]', {
@@ -236,6 +243,7 @@ async function runTutorials() {
   await keeper.waitForText("进入调查台");
   resetCapturedEvidence(keeper);
   await login(keeper, accounts.keeper);
+  const keeperAccessToken = await productAccessToken(keeper, accounts.keeper.userId);
   await submitAndWait(keeper, 'form[data-form="create-campaign"]', {
     campaignId: aiCampaignId,
     title: "AR11 AI Keeper Tutorial",
@@ -250,6 +258,7 @@ async function runTutorials() {
   await keeper.click('[data-action="setup"]');
   const aiInvite = await issueInvite(keeper, accounts.playerA.userId, "PLAYER");
   const aiPlayer = await joinCampaign(accounts.playerA, aiCampaignId, aiInvite);
+  const aiPlayerAccessToken = await productAccessToken(aiPlayer, accounts.playerA.userId);
   await aiPlayer.setViewport(1600, 1000);
   await openCampaign(aiPlayer, aiCampaignId, "AI_KP · 用户可见");
   await aiPlayer.waitForText("调查员工具");
@@ -288,6 +297,51 @@ async function runTutorials() {
   }, "重考虑请求已提交", 20_000);
   result.checks.push("ordinary PLAYER completed AI_KP action -> Agent runtime -> canonical event -> WS -> UI -> reconsideration");
 
+  const playerExportId = `export_player_${runId}`;
+  const keeperExportId = `export_keeper_${runId}`;
+  const auditExportId = `export_audit_${runId}`;
+  await aiPlayer.click('[data-action="evidence"]');
+  const playerExport = await exportArtifact(aiPlayer, "PLAYER", playerExportId);
+  await keeper.click('[data-action="evidence"]');
+  const keeperExport = await exportArtifact(keeper, "KEEPER_PRIVATE", keeperExportId);
+  const auditExport = await exportArtifact(keeper, "AUDIT", auditExportId);
+  validateExportViews(playerExport, keeperExport, auditExport, {
+    campaignId: aiCampaignId,
+    parentCampaignId: humanCampaignId,
+    playerId: accounts.playerA.userId,
+    sourceSessionId: humanSessionId,
+  });
+  result.exports = [playerExport, keeperExport, auditExport].map(({ status }) => ({
+    export_id: status.export_id,
+    audience: status.audience,
+    artifact_schema: status.artifact_schema,
+    visibility_policy_version: status.visibility_policy_version,
+    artifact_hash: status.artifact_hash,
+    manifest_hash: status.manifest_hash,
+    artifact_size: status.artifact_size,
+    first_event_sequence: status.first_event_sequence,
+    last_exported_event_sequence: status.last_exported_event_sequence,
+    event_count: status.event_count,
+    fork_id: status.fork_id,
+    parent_campaign_id: status.parent_campaign_id,
+  }));
+
+  const expiringAuthorization = await browserFetch(
+    aiPlayer,
+    `/api/api/v1/campaigns/${aiCampaignId}/exports/${playerExportId}/download-authorizations`,
+    { method: "POST", token: aiPlayerAccessToken },
+  );
+  assert.equal(expiringAuthorization.status, 201);
+  assert.match(expiringAuthorization.body.token, /^[a-f0-9]{64}$/);
+  assert.ok(expiringAuthorization.body.expires_at_unix_ms > Date.now());
+  assert.ok(expiringAuthorization.body.expires_at_unix_ms <= Date.now() + 60_500);
+  assert.equal(
+    aiPlayer.requests.some((request) => request.includes("token=")),
+    false,
+    "one-time export credentials must never enter request URLs or proxy logs",
+  );
+  result.checks.push("PLAYER, KEEPER_PRIVATE, and AUDIT exports passed hash, provenance, visibility, authorization, and one-use checks");
+
   const aiScreenshot = path.join(evidenceRoot, "ai-kp-tutorial.png");
   await aiPlayer.evaluate("scrollTo(0, 0)");
   await aiPlayer.screenshot(aiScreenshot);
@@ -310,6 +364,22 @@ async function runTutorials() {
     );
   }
 
+  const hiddenKeeperStatus = await browserFetch(
+    aiPlayer,
+    `/api/api/v1/campaigns/${aiCampaignId}/exports/${keeperExportId}`,
+    { token: aiPlayerAccessToken },
+  );
+  assert.equal(hiddenKeeperStatus.status, 404);
+  const reusedDownload = await browserFetch(
+    aiPlayer,
+    `/api/api/v1/campaigns/${aiCampaignId}/exports/${playerExportId}/download`,
+    {
+      token: aiPlayerAccessToken,
+      headers: { "X-TRPG-Export-Authorization": playerExport.authorization.token },
+    },
+  );
+  assert.equal(reusedDownload.status, 404);
+
   const invalid = await BrowserPage.open(chrome.debugOrigin, origin);
   await invalid.setViewport(390, 844);
   await invalid.submit('form[data-form="login"]', {
@@ -331,6 +401,30 @@ async function runTutorials() {
   await invalid.screenshot(mobileScreenshot);
   result.screenshots.push(mobileScreenshot);
   result.checks.push("keyboard focus, labels, responsive layout, and invalid-credential state passed");
+
+  await delayUntil(expiringAuthorization.body.expires_at_unix_ms + 250);
+  const expiredDownload = await browserFetch(
+    aiPlayer,
+    `/api/api/v1/campaigns/${aiCampaignId}/exports/${playerExportId}/download`,
+    {
+      token: aiPlayerAccessToken,
+      headers: { "X-TRPG-Export-Authorization": expiringAuthorization.body.token },
+    },
+  );
+  assert.equal(expiredDownload.status, 404);
+
+  await deleteExportSubject({
+    requester: aiPlayer,
+    requesterAccessToken: aiPlayerAccessToken,
+    owner,
+    ownerAccessToken,
+    keeper,
+    keeperAccessToken,
+    campaignId: aiCampaignId,
+    subjectId: accounts.playerA.userId,
+    exportIds: [playerExportId, keeperExportId, auditExportId],
+  });
+  result.checks.push("expired download authorization failed and privacy erasure destroyed every subject-bound export artifact");
 }
 
 async function assertPageIdentity(page) {
@@ -418,6 +512,259 @@ async function clickAndWait(page, selector, expectedNotice, timeoutMs = 12_000) 
     return page.responseBodies.length > responsesBefore && notice.includes(expectedNotice);
   }, timeoutMs, `operation did not complete: ${expectedNotice}`);
   await assertNoAlert(page);
+}
+
+async function exportArtifact(page, audience, exportId) {
+  const responseStart = page.responseBodies.length;
+  const requestedAt = Date.now();
+  await page.submit('form[data-form="export"]', { exportId, audience });
+  await waitUntil(async () => {
+    const alert = await page.evaluate("document.querySelector('.feedback.error')?.innerText || ''");
+    if (alert) throw new Error(alert);
+    const rendered = await page.evaluate(
+      "document.querySelector('[data-testid=\"campaign-export\"]')?.innerText || ''",
+    );
+    return rendered.includes(exportId)
+      && parsedResponses(page.responseBodies.slice(responseStart))
+        .some(({ value }) => value?.manifest?.export_id === exportId);
+  }, 60_000, `export did not complete: ${exportId}`);
+  await assertNoAlert(page);
+  const responses = parsedResponses(page.responseBodies.slice(responseStart));
+  const artifactEntry = responses.find(({ value }) => value?.manifest?.export_id === exportId);
+  const status = responses
+    .filter(({ value }) => value?.export_id === exportId && typeof value?.state === "string")
+    .at(-1)?.value;
+  const authorization = responses.find(({ value }) =>
+    typeof value?.token === "string" && typeof value?.expires_at_unix_ms === "number"
+  )?.value;
+  assert.ok(artifactEntry, `downloaded artifact missing for ${exportId}`);
+  assert.ok(status, `READY status missing for ${exportId}`);
+  assert.ok(authorization, `download authorization missing for ${exportId}`);
+  assert.equal(status.state, "READY");
+  assert.equal(status.audience, audience);
+  assert.equal(status.attempt_count, 1);
+  assert.equal(status.max_attempts, 5);
+  assert.equal(status.failure_code, null);
+  assert.match(authorization.token, /^[a-f0-9]{64}$/);
+  assert.ok(authorization.expires_at_unix_ms > requestedAt);
+  assert.ok(authorization.expires_at_unix_ms <= Date.now() + 60_500);
+  validateArtifactIntegrity(artifactEntry.raw, artifactEntry.value, status);
+  return { artifact: artifactEntry.value, authorization, raw: artifactEntry.raw, status };
+}
+
+function validateArtifactIntegrity(raw, artifact, status) {
+  const artifactHash = `sha256:${createHash("sha256").update(raw).digest("hex")}`;
+  const manifestHash = `sha256:${createHash("sha256")
+    .update(JSON.stringify(artifact.content))
+    .digest("hex")}`;
+  assert.equal(status.artifact_schema, "trpg.campaign-export.v1");
+  assert.equal(status.visibility_policy_version, "visibility-policy-v1");
+  assert.equal(status.artifact_hash, artifactHash);
+  assert.equal(status.manifest_hash, manifestHash);
+  assert.equal(status.artifact_size, Buffer.byteLength(raw));
+  assert.equal(artifact.manifest.artifact_schema, status.artifact_schema);
+  assert.equal(artifact.manifest.visibility_policy_version, status.visibility_policy_version);
+  assert.equal(artifact.manifest.manifest_hash, status.manifest_hash);
+  assert.equal(artifact.manifest.hash_algorithm, "sha256");
+  assert.equal(artifact.manifest.manifest_hash_scope, "canonical-json:content");
+  assert.equal(artifact.manifest.event_range.first_sequence, status.first_event_sequence);
+  assert.equal(artifact.manifest.event_range.last_sequence, status.last_exported_event_sequence);
+  assert.equal(artifact.manifest.event_range.count, status.event_count);
+  assert.ok(status.retention_expires_at_unix_ms > Date.now());
+}
+
+function validateExportViews(player, keeper, audit, context) {
+  for (const exported of [player, keeper, audit]) {
+    const { manifest } = exported.artifact;
+    assert.equal(manifest.campaign_id, context.campaignId);
+    assert.equal(manifest.authority.mode, "AI_KP");
+    assert.ok(manifest.authority.contract_id);
+    assert.ok(manifest.authority.contract_version > 0);
+    assert.ok(manifest.authority.ruleset_version);
+    assert.equal(manifest.fork_provenance.fork_id, exported.status.fork_id);
+    assert.equal(manifest.fork_provenance.parent_campaign_id, context.parentCampaignId);
+    assert.equal(manifest.fork_provenance.source_session_id, context.sourceSessionId);
+    assert.match(manifest.fork_provenance.source_snapshot_hash, /^sha256:[a-f0-9]{64}$/);
+    assert.match(manifest.fork_provenance.child_snapshot_hash, /^sha256:[a-f0-9]{64}$/);
+    assert.equal(exported.status.parent_campaign_id, context.parentCampaignId);
+  }
+
+  assert.equal(player.artifact.manifest.view, "PLAYER");
+  assert.deepEqual(
+    Object.keys(player.artifact.content.sections).sort(),
+    ["discovered_clues", "public_scene_summary", "visible_dice_rolls"],
+  );
+  for (const record of player.artifact.content.records) {
+    assert.ok([
+      "public",
+      "party_visible",
+      "spectator_visible",
+      "spectator_hidden",
+      "private_to_player",
+      "investigator_private",
+      "private_to_group",
+    ].includes(record.visibility.label));
+    if (["private_to_player", "investigator_private"].includes(record.visibility.label)) {
+      assert.equal(record.visibility.subject, context.playerId);
+    }
+  }
+  assert.equal(player.raw.includes(privateCanary), false);
+  assert.equal(player.raw.includes("keeper_only"), false);
+  assert.equal(player.raw.includes("ai_internal"), false);
+  assert.equal(player.raw.includes("system_private"), false);
+
+  assert.equal(keeper.artifact.manifest.view, "KEEPER_PRIVATE");
+  assert.deepEqual(
+    Object.keys(keeper.artifact.content.sections).sort(),
+    ["all_public_events", "hidden_clues", "keeper_truth", "npc_secrets"],
+  );
+  assert.equal(
+    keeper.artifact.content.records.some((record) =>
+      ["ai_internal", "system_only", "system_private"].includes(record.visibility.label)
+    ),
+    false,
+  );
+
+  assert.equal(audit.artifact.manifest.view, "AUDIT");
+  assert.deepEqual(
+    Object.keys(audit.artifact.content.sections).sort(),
+    ["decision_records", "dice_rolls", "model_route_snapshot", "tool_calls", "visibility_labels"],
+  );
+  assert.equal(audit.artifact.content.records.length, audit.artifact.manifest.event_range.count);
+  const restricted = audit.artifact.content.records.filter((record) =>
+    [
+      "private_to_player",
+      "investigator_private",
+      "private_to_group",
+      "keeper_only",
+      "ai_internal",
+      "system_only",
+      "system_private",
+    ].includes(record.visibility.label)
+  );
+  assert.ok(restricted.length > 0);
+  for (const record of restricted) {
+    assert.deepEqual(Object.keys(record.payload).sort(), ["payload_hash", "redacted"]);
+    assert.equal(record.payload.redacted, true);
+    assert.match(record.payload.payload_hash, /^sha256:[a-f0-9]{64}$/);
+  }
+}
+
+async function deleteExportSubject({
+  requester,
+  requesterAccessToken,
+  owner,
+  ownerAccessToken,
+  keeper,
+  keeperAccessToken,
+  campaignId,
+  subjectId,
+  exportIds,
+}) {
+  const nonce = Date.now().toString(36);
+  const jobId = `privacy_export_${nonce}`;
+  const request = await browserFetch(
+    requester,
+    `/api/campaigns/${campaignId}/privacy/deletions`,
+    {
+      method: "POST",
+      token: requesterAccessToken,
+      headers: { "Idempotency-Key": `privacy_export_${nonce}_idempotency` },
+      body: {
+        job_id: jobId,
+        subject_id: subjectId,
+        retention_policy: "user_erasure_v1",
+        reason: "AR12 verifies subject-bound export artifact erasure",
+        command_id: `privacy_export_${nonce}_command`,
+        correlation_id: `privacy_export_${nonce}_correlation`,
+        causation_id: `privacy_export_${nonce}_causation`,
+        expected_version: 0,
+      },
+    },
+  );
+  assert.equal(request.status, 202, JSON.stringify(request.body));
+  let completed;
+  await waitUntil(async () => {
+    const response = await browserFetch(
+      owner,
+      `/api/campaigns/${campaignId}/privacy/deletions/${jobId}`,
+      { token: ownerAccessToken },
+    );
+    if (response.status !== 200) throw new Error(`deletion status ${response.status}`);
+    if (response.body.status === "failed") {
+      throw new Error(`privacy deletion failed: ${JSON.stringify(response.body)}`);
+    }
+    if (response.body.status === "completed") {
+      completed = response.body;
+      return true;
+    }
+    return false;
+  }, 60_000, "privacy deletion did not complete");
+  assert.equal(completed.evidence_status, "confirmed");
+  assert.equal(completed.targets.length, 7);
+  assert.ok(completed.targets.every((target) => target.status === "verified"));
+  assert.ok(completed.targets.some((target) => target.target === "export"));
+
+  for (const exportId of exportIds) {
+    const status = await browserFetch(
+      keeper,
+      `/api/api/v1/campaigns/${campaignId}/exports/${exportId}`,
+      { token: keeperAccessToken },
+    );
+    assert.equal(status.status, 200);
+    assert.equal(status.body.state, "DELETED");
+    const authorization = await browserFetch(
+      keeper,
+      `/api/api/v1/campaigns/${campaignId}/exports/${exportId}/download-authorizations`,
+      { method: "POST", token: keeperAccessToken },
+    );
+    assert.equal(authorization.status, 404);
+  }
+}
+
+async function browserFetch(page, requestPath, { method = "GET", token, headers = {}, body } = {}) {
+  return page.evaluate(`(async () => {
+    const headers = ${JSON.stringify(headers)};
+    if (${JSON.stringify(Boolean(token))}) headers.Authorization = ${JSON.stringify(token ? `Bearer ${token}` : "")};
+    const hasBody = ${JSON.stringify(body !== undefined)};
+    if (hasBody) headers["Content-Type"] = "application/json";
+    const response = await fetch(${JSON.stringify(requestPath)}, {
+      method: ${JSON.stringify(method)},
+      headers,
+      body: hasBody ? JSON.stringify(${JSON.stringify(body ?? null)}) : undefined,
+    });
+    const text = await response.text();
+    let parsed = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { parsed = text; }
+    return { status: response.status, body: parsed, raw: text };
+  })()`);
+}
+
+function parsedResponses(bodies) {
+  const parsed = [];
+  for (const raw of bodies) {
+    try {
+      parsed.push({ raw, value: JSON.parse(raw) });
+    } catch {}
+  }
+  return parsed;
+}
+
+async function productAccessToken(page, userId) {
+  let response;
+  await waitUntil(() => {
+    response = parsedResponses(page.responseBodies)
+    .map(({ value }) => value)
+    .find((value) => value?.user_id === userId && typeof value?.access_token === "string");
+    return Boolean(response);
+  }, 5_000, `product access token response missing for ${userId}`);
+  assert.ok(response, `product access token response missing for ${userId}`);
+  return response.access_token;
+}
+
+async function delayUntil(unixMs) {
+  const remaining = unixMs - Date.now();
+  if (remaining > 0) await delay(remaining);
 }
 
 async function assertNoAlert(page) {

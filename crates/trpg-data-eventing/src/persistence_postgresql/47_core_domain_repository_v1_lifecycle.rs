@@ -45,6 +45,23 @@ pub struct CampaignExportProjection {
     pub requested_by: String,
     pub audience: String,
     pub state: String,
+    pub attempt_count: i16,
+    pub max_attempts: i16,
+    pub failure_code: Option<String>,
+    pub artifact_schema: String,
+    pub visibility_policy_version: String,
+    pub artifact_hash: Option<String>,
+    pub manifest_hash: Option<String>,
+    pub artifact_size: Option<i64>,
+    pub first_event_sequence: Option<i64>,
+    pub last_exported_event_sequence: Option<i64>,
+    pub event_count: Option<i64>,
+    pub retention_expires_at_unix_ms: Option<i64>,
+    pub fork_id: Option<String>,
+    pub parent_campaign_id: Option<String>,
+    pub source_session_id: Option<String>,
+    pub source_snapshot_hash: Option<String>,
+    pub child_snapshot_hash: Option<String>,
     pub aggregate_version: i64,
     pub last_event_sequence: i64,
 }
@@ -440,16 +457,27 @@ impl CoreDomainRepository {
     ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
         if metadata.expected_version != 0
             || metadata.requesting_actor_id != request.requested_by
-            || request.audience != "CAMPAIGN_ARCHIVE"
+            || !matches!(
+                request.audience.as_str(),
+                "PLAYER" | "KEEPER_PRIVATE" | "AUDIT" | "CAMPAIGN_ARCHIVE"
+            )
             || request.requested_at_unix_ms == 0
-            || metadata.visibility_label != "keeper_only"
+            || (request.audience == "PLAYER"
+                && (metadata.visibility_label != "private_to_player"
+                    || metadata.visibility_subject != request.requested_by))
+            || (request.audience != "PLAYER" && metadata.visibility_label != "keeper_only")
         {
             return Err(CoreDomainRepositoryError::InvalidInput(
                 "campaign_export_request",
             ));
         }
-        self.ensure_campaign_admin(&request.campaign_id, &request.requested_by)
-            .await?;
+        if request.audience == "PLAYER" {
+            self.ensure_campaign_member(&request.campaign_id, &request.requested_by)
+                .await?;
+        } else {
+            self.ensure_campaign_admin(&request.campaign_id, &request.requested_by)
+                .await?;
+        }
         let requested_at =
             timestamp_from_unix_ms(request.requested_at_unix_ms, "campaign_export.requested_at")?;
         let event = CoreDomainEvent::CampaignExportRequested {
@@ -551,6 +579,19 @@ impl CoreDomainRepository {
         .execute(&mut *transaction)
         .await
         .map_err(database_error("insert_campaign_export"))?;
+        sqlx::query(
+            r#"
+            INSERT INTO public.campaign_export_jobs (
+                export_id, campaign_id, state, requested_event_sequence
+            ) VALUES ($1, $2, 'REQUESTED', $3)
+            "#,
+        )
+        .bind(&request.export_id)
+        .bind(&request.campaign_id)
+        .bind(persisted.last_event_sequence)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error("insert_campaign_export_job"))?;
         transaction
             .commit()
             .await
@@ -643,13 +684,34 @@ impl CoreDomainRepository {
         let row = sqlx::query(
             r#"
             SELECT export.export_id, export.campaign_id, export.requested_by,
-                   export.audience, export.state, export.version,
-                   export.last_event_sequence
+                   export.audience, COALESCE(job.state, export.state) AS state,
+                   COALESCE(job.attempt_count, 0)::SMALLINT AS attempt_count,
+                   5::SMALLINT AS max_attempts, job.failure_code,
+                   COALESCE(job.artifact_schema, 'trpg.campaign-export.v1') AS artifact_schema,
+                   COALESCE(job.visibility_policy_version, 'visibility-policy-v1')
+                       AS visibility_policy_version,
+                   job.artifact_hash, job.manifest_hash, job.artifact_size,
+                   job.first_event_sequence,
+                   job.last_event_sequence AS last_exported_event_sequence,
+                   job.event_count,
+                   (extract(epoch FROM job.retention_expires_at) * 1000)::BIGINT
+                       AS retention_expires_at_unix_ms,
+                   fork.fork_id, fork.parent_campaign_id, fork.source_session_id,
+                   fork.source_snapshot_hash, fork.child_snapshot_hash,
+                   export.version, export.last_event_sequence
               FROM public.campaign_exports AS export
+              LEFT JOIN public.campaign_export_jobs AS job
+                ON job.export_id = export.export_id
+              LEFT JOIN public.campaign_forks AS fork
+                ON fork.child_campaign_id = export.campaign_id
              WHERE export.export_id = $4
                AND export.campaign_id = $3
                AND (
                     $2
+                    OR (
+                        export.audience = 'PLAYER'
+                        AND export.requested_by = $1
+                    )
                     OR EXISTS(
                         SELECT 1
                           FROM public.campaign_memberships AS membership
@@ -675,6 +737,23 @@ impl CoreDomainRepository {
             requested_by: row.get("requested_by"),
             audience: row.get("audience"),
             state: row.get("state"),
+            attempt_count: row.get("attempt_count"),
+            max_attempts: row.get("max_attempts"),
+            failure_code: row.get("failure_code"),
+            artifact_schema: row.get("artifact_schema"),
+            visibility_policy_version: row.get("visibility_policy_version"),
+            artifact_hash: row.get("artifact_hash"),
+            manifest_hash: row.get("manifest_hash"),
+            artifact_size: row.get("artifact_size"),
+            first_event_sequence: row.get("first_event_sequence"),
+            last_exported_event_sequence: row.get("last_exported_event_sequence"),
+            event_count: row.get("event_count"),
+            retention_expires_at_unix_ms: row.get("retention_expires_at_unix_ms"),
+            fork_id: row.get("fork_id"),
+            parent_campaign_id: row.get("parent_campaign_id"),
+            source_session_id: row.get("source_session_id"),
+            source_snapshot_hash: row.get("source_snapshot_hash"),
+            child_snapshot_hash: row.get("child_snapshot_hash"),
             aggregate_version: row.get("version"),
             last_event_sequence: row.get("last_event_sequence"),
         })

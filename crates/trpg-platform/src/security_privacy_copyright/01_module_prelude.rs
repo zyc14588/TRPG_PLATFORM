@@ -263,6 +263,55 @@ pub async fn request_data_deletion_canonical(
     command: &CommandEnvelope<RequestDataDeletion>,
     now_unix_ms: u64,
 ) -> KernelResult<CanonicalCommittedEvent> {
+    // Identity verification uses the synchronous PostgreSQL trust anchor,
+    // while this function is normally polled by the privacy Tokio runtime.
+    // Running that verifier directly on a Tokio worker attempts to enter the
+    // synchronous driver's private runtime and panics. Keep authorization,
+    // canonical commit, and receipt verification together on an isolated OS
+    // thread; only the async deletion-job projection returns to this runtime.
+    let (event, requested_by, evidence) = std::thread::scope(|scope| {
+        scope
+            .spawn(|| {
+                prepare_and_commit_data_deletion_canonical(
+                    authorizer,
+                    canonical,
+                    workflow_authentication,
+                    authorizing_authentication,
+                    command,
+                    now_unix_ms,
+                )
+            })
+            .join()
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?
+    })?;
+    deletion_requests
+        .record_confirmed_deletion(ConfirmedDeletionRecord {
+            job_id: &command.payload.job_id,
+            subject_id: &command.payload.subject_id,
+            requested_by: &requested_by,
+            retention_policy: &command.payload.retention_policy,
+            evidence: &evidence,
+            canonical_event_sequence: event.sequence,
+            canonical_event_integrity_hash: &event.event_integrity_hash,
+        })
+        .await
+        .map_err(|_| TrpgError::InvalidConfiguration("deletion_evidence_persistence_failed"))?;
+    Ok(event)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_and_commit_data_deletion_canonical(
+    authorizer: &FormalCommitAuthorizer,
+    canonical: &dyn CanonicalCommitPort,
+    workflow_authentication: &AuthenticationContext,
+    authorizing_authentication: Option<&AuthenticationContext>,
+    command: &CommandEnvelope<RequestDataDeletion>,
+    now_unix_ms: u64,
+) -> KernelResult<(
+    CanonicalCommittedEvent,
+    String,
+    DeletionRequestEvidence,
+)> {
     let (authorization, event_payload, evidence) = prepare_deletion_request(
         authorizer,
         workflow_authentication,
@@ -339,17 +388,5 @@ pub async fn request_data_deletion_canonical(
         .filter(|event| event.command_id == request.command_id)
         .filter(|event| event.idempotency_key == format!("{}:0000", request.idempotency_key))
         .ok_or(TrpgError::AuditIntegrityViolation)?;
-    deletion_requests
-        .record_confirmed_deletion(ConfirmedDeletionRecord {
-            job_id: &command.payload.job_id,
-            subject_id: &command.payload.subject_id,
-            requested_by: &requested_by,
-            retention_policy: &command.payload.retention_policy,
-            evidence: &evidence,
-            canonical_event_sequence: event.sequence,
-            canonical_event_integrity_hash: &event.event_integrity_hash,
-        })
-        .await
-        .map_err(|_| TrpgError::InvalidConfiguration("deletion_evidence_persistence_failed"))?;
-    Ok(event)
+    Ok((event, requested_by, evidence))
 }

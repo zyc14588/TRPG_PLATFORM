@@ -10,6 +10,7 @@ pub mod adr_0010_rag_snapshot_rag_snapshot;
 pub mod api_websocket_nats_contracts;
 pub mod cache_redis;
 pub mod cache_redis_impl;
+pub mod campaign_export_worker;
 pub mod database_schema_index;
 pub mod domain_event_sourcing_projection;
 pub mod event_bus_nats;

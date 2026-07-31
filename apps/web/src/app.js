@@ -233,7 +233,7 @@ function workspaceView() {
       </nav>
       ${feedbackView()}
       ${state.workspaceTab === "setup" ? setupView(canKeep) : ""}
-      ${state.workspaceTab === "evidence" ? evidenceView() : ""}
+      ${state.workspaceTab === "evidence" ? evidenceView(canKeep) : ""}
       ${state.workspaceTab === "play" ? playView({ canKeep, isSpectator, decision }) : ""}
     </main>`;
 }
@@ -343,7 +343,7 @@ function playerRailView() {
       <label>重考虑原因<textarea name="reason" required maxlength="500"></textarea></label>
       <button class="button" type="submit">请求重考虑</button>
     </form>
-    <p class="form-note">导出由 Campaign Owner 或 KP 请求；调查员可在时间线中看到许可范围内的结果。</p>
+    <p class="form-note">调查员可生成仅含自身许可范围事件的玩家版战报。</p>
   </aside>`;
 }
 
@@ -396,10 +396,13 @@ function setupView(canKeep) {
   </div>`;
 }
 
-function evidenceView() {
+function evidenceView(canKeep) {
+  const audienceOptions = canKeep
+    ? '<option value="KEEPER_PRIVATE">KP 私密版</option><option value="AUDIT">审计版</option>'
+    : '<option value="PLAYER">玩家版</option>';
   return `<div class="evidence-layout">
     <section><div class="section-heading"><div><p class="eyeline">正式事件</p><h1>时间线与证据</h1></div><button class="button" type="button" data-action="refresh-events">从公开 API 重放</button></div>${timelineItems(100)}</section>
-    <aside><p class="eyeline">导出战报</p><h2>Campaign Archive</h2><form data-form="export" class="form-stack compact"><label>导出 ID<input name="exportId" value="export_${Date.now().toString(36)}" required /></label><button class="button primary" type="submit">请求导出</button></form>${state.export ? `<pre>${escapeHtml(safeJson(state.export))}</pre>` : ""}</aside>
+    <aside><p class="eyeline">导出战报</p><h2>可验证制品</h2><form data-form="export" class="form-stack compact"><label>导出 ID<input name="exportId" value="export_${Date.now().toString(36)}" required /></label><label>视图<select name="audience">${audienceOptions}</select></label><button class="button primary" type="submit">生成并下载</button></form>${state.export ? `<pre data-testid="campaign-export">${escapeHtml(safeJson(state.export))}</pre>` : ""}</aside>
   </div>`;
 }
 
@@ -857,10 +860,34 @@ async function requestExport(data) {
     export_id: data.exportId,
     campaign_id: state.campaign.campaign_id,
     requested_by: state.session.userId,
-    audience: "CAMPAIGN_ARCHIVE",
+    audience: data.audience,
     requested_at_unix_ms: Date.now(),
   });
-  state.export = await api.getExport(state.campaign.campaign_id, data.exportId);
+  let status;
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    status = await api.getExport(state.campaign.campaign_id, data.exportId);
+    if (status.state === "READY") break;
+    if (status.state === "FAILED" && Number(status.attempt_count) >= Number(status.max_attempts)) {
+      throw new ProductApiError(409, `CAMPAIGN_EXPORT_FAILED_${status.failure_code || "UNKNOWN"}`);
+    }
+    if (["EXPIRED", "DELETED"].includes(status.state)) {
+      throw new ProductApiError(409, `CAMPAIGN_EXPORT_${status.state}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  if (status?.state !== "READY") {
+    throw new ProductApiError(503, "CAMPAIGN_EXPORT_TIMEOUT");
+  }
+  const authorization = await api.issueExportDownload(
+    state.campaign.campaign_id,
+    data.exportId,
+  );
+  const artifact = await api.downloadExport(
+    state.campaign.campaign_id,
+    data.exportId,
+    authorization.token,
+  );
+  state.export = { artifact, status };
   await refreshEvents();
 }
 
@@ -1042,7 +1069,7 @@ function successFor(formName) {
     "confirm-player-action": "行动结果已确认",
     group: "分队成员已更新",
     reconsider: "重考虑请求已提交",
-    export: "战报导出已请求",
+    export: "战报导出已就绪",
     "admin-login": "Admin session 已建立",
     "admin-create-user": "普通用户已创建",
     "admin-fork-authority": "Authority 子分支已派生",

@@ -18,7 +18,7 @@ jobs:
   golden:
     name: golden-scenarios / golden
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -32,7 +32,17 @@ jobs:
       - name: Golden gates with evidence
         run: |
           mkdir -p "$RUNNER_TEMP/golden-scenarios"
-          python3 scripts/ci/generate_evidence.py --report "$RUNNER_TEMP/golden-scenarios/evidence-manifest.json" --artifact MANIFEST.md -- bash -c 'cargo test -p trpg-testing --test golden_scenarios_ci --all-features --locked && cargo test -p trpg-testing --test model_certification_tests --all-features --locked && cargo test -p trpg-testing --test visibility_leakage --all-features --locked'
+          python3 scripts/ci/generate_evidence.py \
+            --report "$RUNNER_TEMP/golden-scenarios/evidence-manifest.json" \
+            --artifact MANIFEST.md \
+            --generated-artifact "$RUNNER_TEMP/golden-scenarios/human-kp-tutorial.png" \
+            --generated-artifact "$RUNNER_TEMP/golden-scenarios/ai-kp-tutorial.png" \
+            --generated-artifact "$RUNNER_TEMP/golden-scenarios/login-error-mobile.png" \
+            --generated-artifact "$RUNNER_TEMP/golden-scenarios/bootstrap.log" \
+            --generated-artifact "$RUNNER_TEMP/golden-scenarios/compose-ps.json" \
+            --generated-artifact "$RUNNER_TEMP/golden-scenarios/component-failure-gates.log" \
+            --generated-artifact "$RUNNER_TEMP/golden-scenarios/live-browser-result.json" \
+            -- bash scripts/ci/golden-product-flow.sh "$RUNNER_TEMP/golden-scenarios"
           python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/golden-scenarios/evidence-manifest.json"
       - name: Upload golden evidence
         if: always()

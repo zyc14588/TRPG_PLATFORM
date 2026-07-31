@@ -152,6 +152,14 @@ impl ApiApplication {
         ));
         let authorizer =
             FormalCommitAuthorizer::new(identity_verifier.clone(), policy.clone(), audit.clone());
+        let export_storage_root = std::env::var_os("TRPG_EXPORT_STORAGE_ROOT")
+            .map(PathBuf::from)
+            .filter(|root| {
+                root.is_absolute()
+                    && root.parent().is_some()
+                    && !std::fs::symlink_metadata(root)
+                        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+            });
         Self {
             authentication: AuthenticationMiddleware::new(Arc::new(Mutex::new(identity))),
             identity_verifier,
@@ -178,6 +186,7 @@ impl ApiApplication {
                     .map(RepositoryCampaignCharacterPort::new),
                 player_action_port: player_action_repository.map(RepositoryPlayerActionPort::new),
                 agent_jobs,
+                export_storage_root,
             })),
         }
     }

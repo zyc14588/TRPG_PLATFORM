@@ -201,6 +201,22 @@ impl AgentWorkerProcess {
             .map_err(|_| "OBJECT_STORAGE_SECRET_KEY_INVALID".to_owned())?
             .map_err(|_| "DELETION_OBJECT_SURFACE_CONNECTION_FAILED".to_owned())?;
         let export_root = PathBuf::from(required_environment("TRPG_EXPORT_STORAGE_ROOT")?);
+        let export_retention_seconds = std::env::var("TRPG_EXPORT_RETENTION_SECONDS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .filter(|value| (60..=366 * 24 * 60 * 60).contains(value))
+            .unwrap_or(7 * 24 * 60 * 60);
+        let campaign_exports = CampaignExportWorker::new(
+            deletion_repository.pool().clone(),
+            canonical.clone(),
+            export_root.clone(),
+            format!("{worker_id}-export"),
+            Duration::from_secs(export_retention_seconds),
+        )
+        .map_err(|error| format!("CAMPAIGN_EXPORT_WORKER_INVALID:{}", error.code()))?;
+        runtime
+            .block_on(campaign_exports.check_readiness())
+            .map_err(|error| format!("CAMPAIGN_EXPORT_WORKER_NOT_READY:{}", error.code()))?;
         let legal_holds = Arc::new(PostgresLegalHoldResolver::new(
             deletion_repository.pool().clone(),
         ));
@@ -225,8 +241,11 @@ impl AgentWorkerProcess {
                 Box::new(object_surface),
                 Box::new(cache_surface),
                 Box::new(
-                    FilesystemDeletionSurface::new(export_root, DeletionTarget::Export)
-                        .map_err(|_| "DELETION_EXPORT_SURFACE_INVALID".to_owned())?,
+                    CampaignExportDeletionSurface::new(
+                        deletion_repository.pool().clone(),
+                        export_root,
+                    )
+                    .map_err(|_| "DELETION_EXPORT_SURFACE_INVALID".to_owned())?,
                 ),
                 Box::new(BackupKeyDeletionSurface::new(
                     deletion_repository.pool().clone(),
@@ -259,6 +278,7 @@ impl AgentWorkerProcess {
             workflow,
             outbox,
             deletion,
+            campaign_exports,
             plugins,
             model_route,
             agent_jobs,
@@ -271,6 +291,7 @@ impl AgentWorkerProcess {
         let background_outbox = self.outbox.clone();
         let background_workflow = self.workflow.clone();
         let background_deletion = self.deletion;
+        let background_campaign_exports = self.campaign_exports;
         let background_agent_jobs = self.agent_jobs;
         let background_runtime = self.runtime;
         let background_health_writer = Arc::clone(&background_health);
@@ -278,7 +299,7 @@ impl AgentWorkerProcess {
             .name("agent-outbox-publisher".to_owned())
             .spawn(move || {
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| loop {
-                    let (delivery, projection, deletion, agent) =
+                    let (delivery, projection, deletion, export, agent) =
                         background_runtime.block_on(async {
                         let agent = match &background_agent_jobs {
                             Some(agent_jobs) => {
@@ -305,8 +326,22 @@ impl AgentWorkerProcess {
                         // are independent of delivery/projection failures and therefore
                         // receive a distinct fail-closed health classification.
                         let deletion = background_deletion.execute_next(25).await;
-                        (delivery, projection, deletion, agent)
+                        let export = background_campaign_exports.run_once(current_unix_ms()).await;
+                        (delivery, projection, deletion, export, agent)
                     });
+                    if let Ok(outcome) = &export {
+                        match outcome {
+                            CampaignExportOutcome::RetryScheduled { export_id, error_code }
+                            | CampaignExportOutcome::TerminalFailure { export_id, error_code } => {
+                                eprintln!(
+                                    "service=agent-worker campaign_export_id={export_id} error={error_code}"
+                                );
+                            }
+                            CampaignExportOutcome::Idle
+                            | CampaignExportOutcome::Completed { .. }
+                            | CampaignExportOutcome::Expired { .. } => {}
+                        }
+                    }
                     if let Ok(outcome) = &agent {
                         match outcome {
                             AgentJobOutcome::RetryScheduled {
@@ -338,7 +373,7 @@ impl AgentWorkerProcess {
                     }
                     if let Ok(mut health) = background_health_writer.lock() {
                         let mut error =
-                            background_cycle_error(&delivery, &projection, &deletion);
+                            background_cycle_error(&delivery, &projection, &deletion, &export);
                         if let Err(agent_error) = &agent {
                             let agent_error =
                                 format!("AGENT_JOB_CYCLE_FAILED:{}", agent_error.code());

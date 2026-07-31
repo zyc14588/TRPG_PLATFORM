@@ -1,4 +1,5 @@
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,6 +18,7 @@ use trpg_contracts::{HttpRequest, HttpResponse};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     CanonicalReplayEvent, CanonicalStoreError, PostgresCanonicalCommitPort, PostgresCanonicalStore,
 };
+use trpg_data_eventing::campaign_export_worker::{artifact_sha256, checked_artifact_path};
 use trpg_data_eventing::persistence_postgresql::CoreDomainRepository;
 use trpg_identity::{
     CampaignRole, GlobalRole, IdentityError, IdentityService, PrincipalKind, ReplayAuthorization,
@@ -78,6 +80,7 @@ struct CanonicalCustody {
     lifecycle_port: Option<RepositoryCampaignCharacterPort>,
     player_action_port: Option<RepositoryPlayerActionPort>,
     agent_jobs: Option<AgentJobGateway>,
+    export_storage_root: Option<PathBuf>,
 }
 
 struct VisibleReplayPage {

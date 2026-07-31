@@ -1,5 +1,7 @@
 use trpg_api::api_contracts::{
-    CampaignApiResponse, CampaignExportApiResponse, ChangeSessionStateApiRequest,
+    CampaignApiResponse, CampaignExportApiResponse,
+    CampaignExportDownloadAuthorizationApiResponse, CampaignExportDownloadDescriptor,
+    ChangeSessionStateApiRequest,
     ForkCampaignApiRequest, ImportScenarioApiRequest, JoinCharacterSessionApiRequest,
     ReconsiderationOutcomeApiRequest, RequestCampaignExportApiRequest,
     RequestReconsiderationApiRequest, ResolveReconsiderationApiRequest,
@@ -8,6 +10,7 @@ use trpg_api::api_contracts::{
 };
 use trpg_data_eventing::persistence_postgresql::{
     ImportScenarioRequest, JoinCharacterSessionRequest, RecordCampaignForkRequest,
+    CampaignExportDownloadArtifact,
     LifecycleReconsiderationOutcome as ReconsiderationOutcome,
     LifecycleSessionState as SessionState,
     RequestCampaignExportRequest, RequestReconsiderationRequest, ResolveReconsiderationRequest,
@@ -344,14 +347,19 @@ impl V1LifecyclePort for RepositoryCampaignCharacterPort {
         request: &'a RequestCampaignExportApiRequest,
     ) -> CoreApiFuture<'a, CoreApiCommitReceipt> {
         Box::pin(async move {
+            let (visibility_label, visibility_subject) = if request.audience == "PLAYER" {
+                ("private_to_player", request.requested_by.as_str())
+            } else {
+                ("keeper_only", "not_applicable")
+            };
             let persisted = self
                 .repository
                 .request_campaign_export(
                     &Self::metadata(
                         context,
                         &request.command,
-                        "keeper_only",
-                        "not_applicable",
+                        visibility_label,
+                        visibility_subject,
                     ),
                     &RequestCampaignExportRequest {
                         export_id: request.export_id.clone(),
@@ -434,8 +442,84 @@ impl V1LifecyclePort for RepositoryCampaignCharacterPort {
                     requested_by: export.requested_by,
                     audience: export.audience,
                     state: export.state,
+                    attempt_count: export.attempt_count,
+                    max_attempts: export.max_attempts,
+                    failure_code: export.failure_code,
+                    artifact_schema: export.artifact_schema,
+                    visibility_policy_version: export.visibility_policy_version,
+                    artifact_hash: export.artifact_hash,
+                    manifest_hash: export.manifest_hash,
+                    artifact_size: export.artifact_size,
+                    first_event_sequence: export.first_event_sequence,
+                    last_exported_event_sequence: export.last_exported_event_sequence,
+                    event_count: export.event_count,
+                    retention_expires_at_unix_ms: export.retention_expires_at_unix_ms,
+                    fork_id: export.fork_id,
+                    parent_campaign_id: export.parent_campaign_id,
+                    source_session_id: export.source_session_id,
+                    source_snapshot_hash: export.source_snapshot_hash,
+                    child_snapshot_hash: export.child_snapshot_hash,
                     aggregate_version: export.aggregate_version,
                     last_event_sequence: export.last_event_sequence,
+                })
+                .map_err(Self::map_error)
+        })
+    }
+
+    fn issue_campaign_export_download<'a>(
+        &'a self,
+        actor_id: &'a str,
+        include_all: bool,
+        campaign_id: &'a str,
+        export_id: &'a str,
+        now_unix_ms: u64,
+    ) -> CoreApiFuture<'a, CampaignExportDownloadAuthorizationApiResponse> {
+        Box::pin(async move {
+            self.repository
+                .issue_campaign_export_download_for_actor(
+                    actor_id,
+                    include_all,
+                    campaign_id,
+                    export_id,
+                    now_unix_ms,
+                    60_000,
+                )
+                .await
+                .map(|authorization| CampaignExportDownloadAuthorizationApiResponse {
+                    token: authorization.token,
+                    expires_at_unix_ms: authorization.expires_at_unix_ms,
+                    download_path: format!(
+                        "/api/v1/campaigns/{campaign_id}/exports/{export_id}/download"
+                    ),
+                })
+                .map_err(Self::map_error)
+        })
+    }
+
+    fn consume_campaign_export_download<'a>(
+        &'a self,
+        actor_id: &'a str,
+        campaign_id: &'a str,
+        export_id: &'a str,
+        token: &'a str,
+        now_unix_ms: u64,
+    ) -> CoreApiFuture<'a, CampaignExportDownloadDescriptor> {
+        Box::pin(async move {
+            self.repository
+                .consume_campaign_export_download_for_actor(
+                    actor_id,
+                    campaign_id,
+                    export_id,
+                    token,
+                    now_unix_ms,
+                )
+                .await
+                .map(|CampaignExportDownloadArtifact {
+                    artifact_key,
+                    artifact_hash,
+                }| CampaignExportDownloadDescriptor {
+                    artifact_key,
+                    artifact_hash,
                 })
                 .map_err(Self::map_error)
         })

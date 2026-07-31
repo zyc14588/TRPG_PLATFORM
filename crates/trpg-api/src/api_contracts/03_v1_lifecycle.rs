@@ -148,8 +148,38 @@ pub struct CampaignExportApiResponse {
     pub requested_by: String,
     pub audience: String,
     pub state: String,
+    pub attempt_count: i16,
+    pub max_attempts: i16,
+    pub failure_code: Option<String>,
+    pub artifact_schema: String,
+    pub visibility_policy_version: String,
+    pub artifact_hash: Option<String>,
+    pub manifest_hash: Option<String>,
+    pub artifact_size: Option<i64>,
+    pub first_event_sequence: Option<i64>,
+    pub last_exported_event_sequence: Option<i64>,
+    pub event_count: Option<i64>,
+    pub retention_expires_at_unix_ms: Option<i64>,
+    pub fork_id: Option<String>,
+    pub parent_campaign_id: Option<String>,
+    pub source_session_id: Option<String>,
+    pub source_snapshot_hash: Option<String>,
+    pub child_snapshot_hash: Option<String>,
     pub aggregate_version: i64,
     pub last_event_sequence: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub struct CampaignExportDownloadAuthorizationApiResponse {
+    pub token: String,
+    pub expires_at_unix_ms: i64,
+    pub download_path: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CampaignExportDownloadDescriptor {
+    pub artifact_key: String,
+    pub artifact_hash: String,
 }
 
 pub trait V1LifecyclePort: CampaignCharacterCommandPort {
@@ -239,6 +269,24 @@ pub trait V1LifecyclePort: CampaignCharacterCommandPort {
         campaign_id: &'a str,
         export_id: &'a str,
     ) -> CoreApiFuture<'a, CampaignExportApiResponse>;
+
+    fn issue_campaign_export_download<'a>(
+        &'a self,
+        actor_id: &'a str,
+        include_all: bool,
+        campaign_id: &'a str,
+        export_id: &'a str,
+        now_unix_ms: u64,
+    ) -> CoreApiFuture<'a, CampaignExportDownloadAuthorizationApiResponse>;
+
+    fn consume_campaign_export_download<'a>(
+        &'a self,
+        actor_id: &'a str,
+        campaign_id: &'a str,
+        export_id: &'a str,
+        token: &'a str,
+        now_unix_ms: u64,
+    ) -> CoreApiFuture<'a, CampaignExportDownloadDescriptor>;
 }
 
 #[derive(Clone)]
@@ -562,10 +610,15 @@ where
             "campaign_export",
             &request.export_id,
         )?;
-        context.require_keeper()?;
+        if request.audience != "PLAYER" {
+            context.require_keeper()?;
+        }
         if request.command.expected_version != 0
             || request.requested_by != context.actor_id()
-            || request.audience != "CAMPAIGN_ARCHIVE"
+            || !matches!(
+                request.audience.as_str(),
+                "PLAYER" | "KEEPER_PRIVATE" | "AUDIT" | "CAMPAIGN_ARCHIVE"
+            )
             || request.requested_at_unix_ms == 0
         {
             return Err(CoreApiError::InvalidInput("campaign_export"));
@@ -609,6 +662,49 @@ where
         validate_ids(&[actor_id, campaign_id, export_id])?;
         self.port
             .get_campaign_export(actor_id, include_all, campaign_id, export_id)
+            .await
+    }
+
+    pub async fn issue_campaign_export_download(
+        &self,
+        actor_id: &str,
+        include_all: bool,
+        campaign_id: &str,
+        export_id: &str,
+        now_unix_ms: u64,
+    ) -> Result<CampaignExportDownloadAuthorizationApiResponse, CoreApiError> {
+        validate_ids(&[actor_id, campaign_id, export_id])?;
+        self.port
+            .issue_campaign_export_download(
+                actor_id,
+                include_all,
+                campaign_id,
+                export_id,
+                now_unix_ms,
+            )
+            .await
+    }
+
+    pub async fn consume_campaign_export_download(
+        &self,
+        actor_id: &str,
+        campaign_id: &str,
+        export_id: &str,
+        token: &str,
+        now_unix_ms: u64,
+    ) -> Result<CampaignExportDownloadDescriptor, CoreApiError> {
+        validate_ids(&[actor_id, campaign_id, export_id])?;
+        if token.len() != 64 || !token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(CoreApiError::NotFound);
+        }
+        self.port
+            .consume_campaign_export_download(
+                actor_id,
+                campaign_id,
+                export_id,
+                token,
+                now_unix_ms,
+            )
             .await
     }
 }
@@ -767,6 +863,24 @@ pub fn v1_openapi_document() -> serde_json::Value {
             "/api/v1/campaigns/{campaign_id}/exports/{export_id}": {
                 "parameters": path_parameters(&["campaign_id", "export_id"]),
                 "get": query("Get Campaign export status")
+            },
+            "/api/v1/campaigns/{campaign_id}/exports/{export_id}/download-authorizations": {
+                "parameters": path_parameters(&["campaign_id", "export_id"]),
+                "post": query("Issue one-time Campaign export download authorization")
+            },
+            "/api/v1/campaigns/{campaign_id}/exports/{export_id}/download": {
+                "parameters": path_parameters(&["campaign_id", "export_id"]),
+                "get": {
+                    "description": "Consume one-time Campaign export download authorization",
+                    "parameters": [{
+                        "in": "header",
+                        "name": "X-TRPG-Export-Authorization",
+                        "required": true,
+                        "schema": {"type": "string", "minLength": 64, "maxLength": 64}
+                    }],
+                    "responses": {"200": {"description": "OK"}},
+                    "security": [{"bearerAuth": []}]
+                }
             }
         },
         "components": {

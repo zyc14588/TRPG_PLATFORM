@@ -86,6 +86,7 @@ services:
       TRPG_MODEL_ID: ${TRPG_MODEL_ID:?set model id}
       TRPG_MODEL_ARTIFACT_SHA256: ${TRPG_MODEL_ARTIFACT_SHA256:?set model artifact sha256}
       TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID: ${TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID:?set model route authorization event id}
+      TRPG_EXPORT_STORAGE_ROOT: /var/lib/trpg/exports
     secrets:
       - source: api_database_url
         target: api_database_url.v1
@@ -109,6 +110,7 @@ services:
       - redis_client_tls_private_key
     volumes:
       - api_state:/var/lib/trpg
+      - export_artifacts:/var/lib/trpg/exports:ro
       - policy_bootstrap:/run/trpg-policy:ro
     depends_on:
       migration-runner:
@@ -365,6 +367,7 @@ services:
       TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_ID: object_storage_secret_key
       TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_VERSION: "1"
       TRPG_EXPORT_STORAGE_ROOT: /var/lib/trpg/exports
+      TRPG_EXPORT_RETENTION_SECONDS: ${TRPG_EXPORT_RETENTION_SECONDS:-604800}
       TRPG_PLUGIN_REGISTRY_PATH: /etc/trpg/plugins/registry.json
       TRPG_NATS_CA_CERT_PATH: /run/secrets/nats_tls_ca_certificate
       TRPG_NATS_CLIENT_CERT_PATH: /run/secrets/nats_client_tls_certificate
@@ -410,6 +413,7 @@ services:
       - postgres_ca_certificate
     volumes:
       - agent_state:/var/lib/trpg
+      - export_artifacts:/var/lib/trpg/exports
       - policy_bootstrap:/run/trpg-policy:ro
     depends_on:
       migration-runner:
@@ -1077,6 +1081,7 @@ volumes:
   api_state:
   realtime_state:
   agent_state:
+  export_artifacts:
   admin_state:
   migration_state:
   openfga_data:

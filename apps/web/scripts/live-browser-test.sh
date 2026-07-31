@@ -99,6 +99,44 @@ chmod 0600 "$provider"/*.key "$provider/token"
   --extra-compose-file "$repository_root/apps/web/scripts/ar11-provider.compose.yml" \
   >"$bootstrap_log" 2>&1
 
+runtime_compose=("${compose[@]}" -f "$state/runtime/compose.bootstrap.yml")
+golden_capabilities=(Web API Realtime Agent Provider Export)
+golden_services=(web api realtime agent-worker ar11-provider agent-worker)
+
+require_golden_capabilities() {
+  local running_services index capability service
+  running_services="$("${runtime_compose[@]}" ps --status running --services)"
+  for index in "${!golden_capabilities[@]}"; do
+    capability="${golden_capabilities[$index]}"
+    service="${golden_services[$index]}"
+    if ! grep -Fxq "$service" <<<"$running_services"; then
+      printf 'required Golden capability is absent: %s (service=%s)\n' \
+        "$capability" "$service" >&2
+      return 1
+    fi
+  done
+}
+
+wait_for_service() {
+  local service="$1" container state attempt
+  for attempt in {1..90}; do
+    container="$("${runtime_compose[@]}" ps -q "$service")"
+    if [[ -n "$container" ]]; then
+      state="$(docker inspect --format \
+        '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+        "$container")"
+      if [[ "$state" == "running|healthy" || "$state" == "running|none" ]]; then
+        return 0
+      fi
+    fi
+    sleep 1
+  done
+  printf 'Golden service did not recover: %s\n' "$service" >&2
+  return 1
+}
+
+require_golden_capabilities
+
 certificate_spki="$(
   openssl x509 -in "$state/runtime/reverse_proxy.crt" -pubkey -noout \
     | openssl pkey -pubin -outform DER 2>/dev/null \
@@ -113,8 +151,29 @@ AR11_TUTORIAL_FILE="$state/credentials/tutorial.env" \
 AR11_EVIDENCE_DIRECTORY="$evidence" \
 node "$repository_root/apps/web/scripts/live-browser-test.mjs"
 
+component_gate_log="$evidence/component-failure-gates.log"
+: >"$component_gate_log"
+for index in "${!golden_capabilities[@]}"; do
+  capability="${golden_capabilities[$index]}"
+  service="${golden_services[$index]}"
+  printf 'INJECT capability=%s service=%s\n' "$capability" "$service" \
+    >>"$component_gate_log"
+  "${runtime_compose[@]}" stop "$service" >>"$component_gate_log" 2>&1
+  if require_golden_capabilities >>"$component_gate_log" 2>&1; then
+    printf 'Golden incorrectly passed without %s (%s)\n' "$capability" "$service" >&2
+    exit 1
+  fi
+  printf 'EXPECTED_FAIL capability=%s service=%s\n' "$capability" "$service" \
+    >>"$component_gate_log"
+  "${runtime_compose[@]}" start "$service" >>"$component_gate_log" 2>&1
+  wait_for_service "$service"
+  require_golden_capabilities
+  printf 'RECOVERED capability=%s service=%s\n' "$capability" "$service" \
+    >>"$component_gate_log"
+done
+
 install -m 0600 "$bootstrap_log" "$evidence/bootstrap.log"
-"${compose[@]}" -f "$state/runtime/compose.bootstrap.yml" ps --format json \
+"${runtime_compose[@]}" ps --format json \
   >"$evidence/compose-ps.json"
 chmod 0600 "$evidence"/*
 printf 'AR11 live browser test passed project=%s evidence=%s\n' "$project" "$evidence"

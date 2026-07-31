@@ -426,6 +426,7 @@ fn workflow_policy_tuples(campaign_id: &str) -> Vec<String> {
     [
         "api_core_workflow",
         "api_player_action_workflow",
+        "api_privacy_workflow",
         "agent-worker-primary",
     ]
         .into_iter()
@@ -462,13 +463,17 @@ mod tests {
     fn campaign_policy_provisions_all_formal_workflow_principals() {
         let tuples = workflow_policy_tuples("campaign_tutorial");
 
-        assert_eq!(tuples.len(), 3);
+        assert_eq!(tuples.len(), 4);
         assert!(tuples.iter().any(|tuple| {
             tuple.contains("\"user\":\"principal:api_core_workflow\"")
                 && tuple.contains("\"object\":\"campaign:campaign_tutorial\"")
         }));
         assert!(tuples.iter().any(|tuple| {
             tuple.contains("\"user\":\"principal:api_player_action_workflow\"")
+                && tuple.contains("\"object\":\"campaign:campaign_tutorial\"")
+        }));
+        assert!(tuples.iter().any(|tuple| {
+            tuple.contains("\"user\":\"principal:api_privacy_workflow\"")
                 && tuple.contains("\"object\":\"campaign:campaign_tutorial\"")
         }));
         assert!(tuples.iter().any(|tuple| {

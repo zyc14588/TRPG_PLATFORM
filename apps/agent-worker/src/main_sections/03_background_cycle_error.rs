@@ -9,6 +9,10 @@ fn background_cycle_error<T>(
         Vec<trpg_security_governance::security_privacy::DeletionJob>,
         trpg_security_governance::security_privacy::PrivacyError,
     >,
+    export: &Result<
+        CampaignExportOutcome,
+        trpg_data_eventing::campaign_export_worker::CampaignExportWorkerError,
+    >,
 ) -> Option<String> {
     let delivery_error = match delivery {
         Ok(result) if result.requires_operator_attention() => {
@@ -29,7 +33,22 @@ fn background_cycle_error<T>(
         .as_ref()
         .err()
         .map(|error| format!("PRIVACY_DELETION_CYCLE_FAILED:{}", error.code()));
-    let errors = [delivery_error, projection_error, deletion_error]
+    let export_error = match export {
+        Err(error) => Some(format!("CAMPAIGN_EXPORT_CYCLE_FAILED:{}", error.code())),
+        Ok(CampaignExportOutcome::TerminalFailure {
+            export_id,
+            error_code,
+        }) => Some(format!(
+            "CAMPAIGN_EXPORT_TERMINAL_FAILURE:{export_id}:{error_code}"
+        )),
+        Ok(_) => None,
+    };
+    let errors = [
+        delivery_error,
+        projection_error,
+        deletion_error,
+        export_error,
+    ]
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();

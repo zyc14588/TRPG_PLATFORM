@@ -310,6 +310,20 @@ impl ApiApplication {
             ("GET", ["campaigns", campaign_id, "exports", export_id]) => {
                 Some(self.v1_get_export(request, campaign_id, export_id))
             }
+            (
+                "POST",
+                [
+                    "campaigns",
+                    campaign_id,
+                    "exports",
+                    export_id,
+                    "download-authorizations",
+                ],
+            ) => Some(self.v1_issue_export_download(request, campaign_id, export_id)),
+            (
+                "GET",
+                ["campaigns", campaign_id, "exports", export_id, "download"],
+            ) => Some(self.v1_download_export(request, campaign_id, export_id)),
             _ => None,
         }
     }
@@ -887,13 +901,21 @@ impl ApiApplication {
         if body.campaign_id != campaign_id {
             return v1_path_body_mismatch();
         }
+        let visibility = if body.audience == "PLAYER" {
+            match EntityId::new(&body.requested_by) {
+                Ok(player_id) => Visibility::private_to_player(player_id),
+                Err(_) => return core_request_error("CORE_API", "ENTITY_ID_INVALID"),
+            }
+        } else {
+            Visibility::new(VisibilityLabel::KeeperOnly)
+        };
         self.v1_run_command(
             request,
             campaign_id,
             "campaign_export",
             &body.export_id,
             &body.command,
-            Visibility::new(VisibilityLabel::KeeperOnly),
+            visibility,
             false,
             202,
             &body,
@@ -927,6 +949,115 @@ impl ApiApplication {
         match result {
             Ok(export) => HttpResponse::json(200, json!(export)),
             Err(error) => player_action_api_error(error),
+        }
+    }
+
+    fn v1_issue_export_download(
+        &self,
+        request: &HttpRequest,
+        campaign_id: &str,
+        export_id: &str,
+    ) -> HttpResponse {
+        let (actor_id, include_all) = match self.v1_query_actor(request) {
+            Ok(actor) => actor,
+            Err(response) => return response,
+        };
+        let now = match now_unix_ms() {
+            Ok(now) => now,
+            Err(response) => return response,
+        };
+        let (custody, api) = match self.v1_binding() {
+            Ok(binding) => binding,
+            Err(response) => return response,
+        };
+        let result = match custody.runtime.lock() {
+            Ok(runtime) => runtime.block_on(api.issue_campaign_export_download(
+                &actor_id,
+                include_all,
+                campaign_id,
+                export_id,
+                now,
+            )),
+            Err(_) => return internal_error(),
+        };
+        match result {
+            Ok(authorization) => HttpResponse::json(201, json!(authorization)),
+            Err(error) => player_action_api_error(error),
+        }
+    }
+
+    fn v1_download_export(
+        &self,
+        request: &HttpRequest,
+        campaign_id: &str,
+        export_id: &str,
+    ) -> HttpResponse {
+        let (actor_id, _) = match self.v1_query_actor(request) {
+            Ok(actor) => actor,
+            Err(response) => return response,
+        };
+        let token = match campaign_export_download_token(request) {
+            Some(token) => token,
+            None => {
+                return HttpResponse::json(
+                    404,
+                    json!({"error": "CAMPAIGN_EXPORT_DOWNLOAD_NOT_FOUND"}),
+                )
+            }
+        };
+        let now = match now_unix_ms() {
+            Ok(now) => now,
+            Err(response) => return response,
+        };
+        let (custody, api) = match self.v1_binding() {
+            Ok(binding) => binding,
+            Err(response) => return response,
+        };
+        let descriptor = match custody.runtime.lock() {
+            Ok(runtime) => runtime.block_on(api.consume_campaign_export_download(
+                &actor_id,
+                campaign_id,
+                export_id,
+                token,
+                now,
+            )),
+            Err(_) => return internal_error(),
+        };
+        let descriptor = match descriptor {
+            Ok(descriptor) => descriptor,
+            Err(error) => return player_action_api_error(error),
+        };
+        let Some(root) = custody.export_storage_root.as_deref() else {
+            return HttpResponse::json(
+                503,
+                json!({"error": "CAMPAIGN_EXPORT_STORAGE_UNAVAILABLE"}),
+            );
+        };
+        let path = match checked_artifact_path(root, &descriptor.artifact_key) {
+            Ok(path) => path,
+            Err(_) => return internal_error(),
+        };
+        let bytes = match std::fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(_) => {
+                return HttpResponse::json(
+                    503,
+                    json!({"error": "CAMPAIGN_EXPORT_ARTIFACT_UNAVAILABLE"}),
+                )
+            }
+        };
+        if artifact_sha256(&bytes) != descriptor.artifact_hash {
+            return HttpResponse::json(
+                409,
+                json!({"error": "CAMPAIGN_EXPORT_ARTIFACT_INTEGRITY_FAILED"}),
+            );
+        }
+        match serde_json::from_slice(&bytes) {
+            Ok(artifact) => HttpResponse::json(200, artifact),
+            Err(_) => HttpResponse::json(
+                409,
+                json!({"error": "CAMPAIGN_EXPORT_ARTIFACT_INVALID"}),
+            ),
         }
     }
 
@@ -999,6 +1130,12 @@ impl ApiApplication {
 
 fn v1_path_body_mismatch() -> HttpResponse {
     HttpResponse::json(400, json!({"error": "CORE_API_PATH_BODY_MISMATCH"}))
+}
+
+fn campaign_export_download_token(request: &HttpRequest) -> Option<&str> {
+    request
+        .header("x-trpg-export-authorization")
+        .filter(|token| token.len() == 64 && token.bytes().all(|byte| byte.is_ascii_hexdigit()))
 }
 
 fn core_request_error(namespace: &str, suffix: &str) -> HttpResponse {

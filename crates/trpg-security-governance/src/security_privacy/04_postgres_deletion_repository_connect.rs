@@ -154,11 +154,15 @@ impl PostgresDeletionRepository {
         .execute(&mut *transaction)
         .await
         .map_err(deletion_evidence_write_error)?;
+        // `INSERT .. ON CONFLICT` already waits for a concurrent writer of the
+        // same job identity. The canonical evidence columns are trigger-guarded
+        // and the API role is intentionally read/insert-only, so a FOR UPDATE
+        // lock would both be redundant and require prohibited UPDATE authority.
         let persisted = sqlx::query(
             "SELECT campaign_id, subject_id, requested_by, retention_policy, command_id, correlation_id, \
                     causation_id, canonical_event_type, evidence_status, \
                     canonical_event_sequence, canonical_event_integrity_hash \
-               FROM privacy_deletion_jobs WHERE job_id = $1 FOR UPDATE",
+               FROM privacy_deletion_jobs WHERE job_id = $1",
         )
         .bind(job_id)
         .fetch_one(&mut *transaction)

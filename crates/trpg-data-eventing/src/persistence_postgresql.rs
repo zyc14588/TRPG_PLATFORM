@@ -74,3 +74,4 @@ include!("persistence_postgresql/44_core_domain_repository_prepare_combat_health
 include!("persistence_postgresql/45_core_domain_repository_lock_unconsumed_gameplay_rolls.rs");
 include!("persistence_postgresql/46_core_domain_repository_validate_initial_chase_participants.rs");
 include!("persistence_postgresql/47_core_domain_repository_v1_lifecycle.rs");
+include!("persistence_postgresql/48_campaign_export_download.rs");

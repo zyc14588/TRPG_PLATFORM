@@ -183,6 +183,29 @@ export class ProductApi {
     return this.#v1("GET", `/campaigns/${id(campaignId)}/exports/${id(exportId)}`);
   }
 
+  issueExportDownload(campaignId, exportId) {
+    return this.#v1(
+      "POST",
+      `/campaigns/${id(campaignId)}/exports/${id(exportId)}/download-authorizations`,
+    );
+  }
+
+  downloadExport(campaignId, exportId, token) {
+    if (!/^[a-f0-9]{64}$/.test(String(token))) {
+      throw new ProductApiError(400, "CAMPAIGN_EXPORT_DOWNLOAD_TOKEN_INVALID");
+    }
+    return this.#request(
+      this.#url(
+        "v1Base",
+        `/campaigns/${id(campaignId)}/exports/${id(exportId)}/download`,
+      ),
+      {
+        method: "GET",
+        headers: { "X-TRPG-Export-Authorization": token },
+      },
+    );
+  }
+
   replayEvents(campaignId, afterSequence = 0) {
     const cursor = Math.max(0, Number(afterSequence) || 0);
     return this.#product(

@@ -56,6 +56,7 @@ bash -n scripts/ci/postgres-container-client.sh
 bash -n scripts/ci/p07-integration-services.sh
 bash -n scripts/ci/p07-stop-integration-services.sh
 bash -n scripts/ci/generate-integration-evidence.sh
+bash -n scripts/ci/golden-product-flow.sh
 bash -n scripts/ci/production-security-smoke.sh
 bash -n scripts/ci/production-security-smoke/*.sh
 bash -n scripts/backup_restore/smoke.sh

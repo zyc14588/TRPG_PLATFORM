@@ -22,6 +22,9 @@ use trpg_agent_runtime::model_provider::{
 use trpg_agent_runtime::model_provider_local_cloud_impl::HttpModelProvider;
 use trpg_contracts::{run_service, RoleRuntimeProbe, ServiceKind, ServiceSpec};
 use trpg_data_eventing::event_bus_nats_impl::{JetStreamOutboxPublisher, PublishBatchResult};
+use trpg_data_eventing::campaign_export_worker::{
+    CampaignExportOutcome, CampaignExportWorker,
+};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     CanonicalStoreError, PostgresCanonicalCommitPort, PostgresCanonicalStore,
 };
@@ -44,7 +47,7 @@ use trpg_security_governance::policy_adapter::{
 };
 use trpg_security_governance::tamper_evident_audit::FileAuditLog;
 use trpg_security_governance::security_privacy::{
-    BackupKeyDeletionSurface, DeletionTarget, DeletionWorker, FilesystemDeletionSurface,
+    BackupKeyDeletionSurface, CampaignExportDeletionSurface, DeletionTarget, DeletionWorker,
     NatsQueueDeletionSurface, PostgresDeletionRepository, PostgresLegalHoldResolver,
     PostgresRecordDeletionSurface, RedisCacheDeletionSurface, S3ObjectDeletionSurface,
 };
@@ -104,6 +107,7 @@ struct AgentWorkerProcess {
     workflow: DurableWorkflowStore,
     outbox: JetStreamOutboxPublisher,
     deletion: DeletionWorker,
+    campaign_exports: CampaignExportWorker,
     plugins: PluginRuntime,
     model_route: Option<ExecutedModelRouteSnapshot>,
     agent_jobs: Option<AgentJobWorker>,
