@@ -30,6 +30,9 @@ impl AdminControlPlane {
         match (request.method.as_str(), request.path.as_str()) {
             ("GET", "/admin/v1/bootstrap/status") => self.bootstrap_status(request),
             ("POST", "/admin/v1/bootstrap/complete") => self.complete_bootstrap(request),
+            ("POST", "/admin/v1/bootstrap/tutorial-authority") => {
+                self.configure_tutorial_authority(request)
+            }
             ("POST", "/admin/v1/sessions") => self.create_session(request),
             ("PUT", "/admin/v1/providers/configuration") => {
                 self.configure_provider(request)
@@ -46,6 +49,7 @@ impl AdminControlPlane {
                 _,
                 "/admin/v1/bootstrap/status"
                 | "/admin/v1/bootstrap/complete"
+                | "/admin/v1/bootstrap/tutorial-authority"
                 | "/admin/v1/sessions"
                 | "/admin/v1/providers/configuration"
                 | "/admin/v1/providers/probe"

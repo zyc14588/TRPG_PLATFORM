@@ -125,6 +125,14 @@ impl AdminControlPlane {
         &mut self,
         request: &AdminHttpRequest,
     ) -> Result<AdminActor, AdminControlPlaneError> {
+        self.authenticate_owner_context(request)
+            .map(|(actor, _)| actor)
+    }
+
+    fn authenticate_owner_context(
+        &mut self,
+        request: &AdminHttpRequest,
+    ) -> Result<(AdminActor, AuthenticationContext), AdminControlPlaneError> {
         let bearer = bearer_token(request)?;
         let authentication = self
             .identity
@@ -146,9 +154,134 @@ impl AdminControlPlane {
                 ))
             }
         };
-        Ok(AdminActor {
-            actor_id: authentication.subject_id().as_str().to_owned(),
-            authentication_reference,
+        Ok((
+            AdminActor {
+                actor_id: authentication.subject_id().as_str().to_owned(),
+                authentication_reference,
+            },
+            authentication,
+        ))
+    }
+
+    fn configure_tutorial_authority(
+        &mut self,
+        request: &AdminHttpRequest,
+    ) -> Result<AdminHttpResponse, AdminControlPlaneError> {
+        let (actor, authentication) = self.authenticate_owner_context(request)?;
+        let metadata = mutation_metadata(request)?;
+        let parsed: BootstrapTutorialAuthorityRequest = parse_body(request)?;
+        let descriptor = format!(
+            "{}|{}|{}|{}|{}",
+            parsed.campaign_id,
+            parsed.contract_id,
+            parsed.created_at_unix_ms,
+            parsed.ai_provider_snapshot,
+            parsed.model_route_snapshot
+        );
+        let _lock = StateFileLock::acquire(&self.state_path)?;
+        let mut state = read_state_unlocked(&self.state_path)?;
+        if let Some(response) = replay_response(
+            &state,
+            &metadata,
+            "bootstrap.tutorial_authority",
+            &descriptor,
+        )? {
+            drop(_lock);
+            self.append_audit(
+                &actor,
+                "bootstrap.tutorial_authority.replay",
+                &parsed.campaign_id,
+                AuditDecision::Permit,
+                &metadata,
+            )?;
+            return Ok(response);
+        }
+        ensure_expected_version(&state, &metadata)?;
+        if !state.bootstrap_token_consumed {
+            return Err(AdminControlPlaneError::Conflict(
+                "ADMIN_BOOTSTRAP_NOT_COMPLETED",
+            ));
+        }
+        let business_user_id = state.business_user_id.clone().ok_or(
+            AdminControlPlaneError::Persistence("ADMIN_BUSINESS_ACCOUNT_MISSING"),
+        )?;
+        let contract = tutorial_authority_contract(&parsed, &business_user_id)?;
+        let campaign_id = contract.campaign_id().clone();
+        let now = now_unix_ms()?;
+        match self
+            .identity
+            .authority_contract(&campaign_id)
+            .map_err(map_tutorial_identity_error)?
+        {
+            Some(existing) if existing != contract => {
+                return Err(AdminControlPlaneError::Conflict(
+                    "TUTORIAL_AUTHORITY_CONTRACT_CONFLICT",
+                ));
+            }
+            Some(_) => {}
+            None => {
+                self.identity
+                    .grant_membership(
+                        &authentication,
+                        parsed.campaign_id.clone(),
+                        business_user_id.clone(),
+                        CampaignRole::HumanKeeper,
+                        now,
+                    )
+                    .map_err(map_tutorial_identity_error)?;
+                self.identity
+                    .register_authority_contract(
+                        &authentication,
+                        contract,
+                        now,
+                    )
+                    .map_err(map_tutorial_identity_error)?;
+            }
+        }
+        self.operations
+            .provision_workflow_policy(campaign_id.as_str())
+            .map_err(AdminControlPlaneError::OperationUnavailable)?;
+        let response_fields = BTreeMap::from([
+            ("campaign_id".to_owned(), json!(parsed.campaign_id)),
+            ("contract_id".to_owned(), json!(parsed.contract_id)),
+            ("authority_owner".to_owned(), json!(business_user_id)),
+            ("authority_mode".to_owned(), json!("HUMAN_KP")),
+            ("ruleset_version".to_owned(), json!(TUTORIAL_RULESET_VERSION)),
+            (
+                "scenario_version".to_owned(),
+                json!(TUTORIAL_SCENARIO_VERSION),
+            ),
+        ]);
+        commit_receipt(
+            &mut state,
+            &metadata,
+            "bootstrap.tutorial_authority",
+            descriptor,
+            "TUTORIAL_AUTHORITY_CONFIGURED",
+            campaign_id.as_str(),
+            response_fields,
+        )?;
+        write_state_unlocked(&self.state_path, &state)?;
+        drop(_lock);
+        self.append_audit(
+            &actor,
+            "bootstrap.tutorial_authority",
+            campaign_id.as_str(),
+            AuditDecision::Permit,
+            &metadata,
+        )?;
+        Ok(AdminHttpResponse {
+            status: 201,
+            body: json!({
+                "result": "TUTORIAL_AUTHORITY_CONFIGURED",
+                "campaign_id": campaign_id.as_str(),
+                "contract_id": parsed.contract_id,
+                "authority_owner": state.business_user_id,
+                "authority_mode": "HUMAN_KP",
+                "ruleset_version": TUTORIAL_RULESET_VERSION,
+                "scenario_version": TUTORIAL_SCENARIO_VERSION,
+                "state_version": state.version,
+            }),
         })
     }
 
@@ -178,6 +311,44 @@ impl AdminControlPlane {
                 "provider_configured": state.provider.is_some()
             }),
         })
+    }
+}
+
+fn tutorial_authority_contract(
+    request: &BootstrapTutorialAuthorityRequest,
+    business_user_id: &str,
+) -> Result<AuthorityContract, AdminControlPlaneError> {
+    AuthorityContract::new_locked(AuthorityContractDraft {
+        contract_id: request.contract_id.clone(),
+        campaign_id: request.campaign_id.clone(),
+        mode: AuthorityMode::HumanKp,
+        authority_owner: business_user_id.to_owned(),
+        version: 1,
+        snapshot: AuthorityVersionSnapshotDraft {
+            ruleset_version: TUTORIAL_RULESET_VERSION.to_owned(),
+            house_rules_version: TUTORIAL_HOUSE_RULES_VERSION.to_owned(),
+            scenario_version: TUTORIAL_SCENARIO_VERSION.to_owned(),
+            prompt_version: TUTORIAL_PROMPT_VERSION.to_owned(),
+            agent_pack_version: TUTORIAL_AGENT_PACK_VERSION.to_owned(),
+            tool_schema_version: TUTORIAL_TOOL_SCHEMA_VERSION.to_owned(),
+            safety_profile_version: TUTORIAL_SAFETY_PROFILE_VERSION.to_owned(),
+            ai_provider_snapshot: request.ai_provider_snapshot.clone(),
+            model_route_snapshot: request.model_route_snapshot.clone(),
+            character_sheet_template_version: TUTORIAL_CHARACTER_TEMPLATE_VERSION.to_owned(),
+        },
+        created_at_unix_ms: request.created_at_unix_ms,
+    })
+    .map_err(|_| {
+        AdminControlPlaneError::InvalidRequest("TUTORIAL_AUTHORITY_CONTRACT_INVALID")
+    })
+}
+
+fn map_tutorial_identity_error(error: IdentityError) -> AdminControlPlaneError {
+    match error {
+        IdentityError::MembershipDenied | IdentityError::AuthorityContractConflict => {
+            AdminControlPlaneError::Conflict("TUTORIAL_AUTHORITY_CONTRACT_CONFLICT")
+        }
+        _ => AdminControlPlaneError::Persistence("TUTORIAL_AUTHORITY_PERSISTENCE_FAILED"),
     }
 }
 

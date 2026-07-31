@@ -327,3 +327,12 @@ pub fn provider_probe_confirms_model(body: &[u8], expected_model_id: &str) -> bo
         });
     openai_match || local_match
 }
+
+pub fn openfga_check_allows(body: &[u8]) -> bool {
+    !body.is_empty()
+        && body.len() <= 1024 * 1024
+        && serde_json::from_slice::<Value>(body)
+            .ok()
+            .and_then(|document| document.get("allowed").and_then(Value::as_bool))
+            == Some(true)
+}

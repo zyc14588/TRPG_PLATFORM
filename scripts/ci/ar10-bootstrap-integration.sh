@@ -111,7 +111,7 @@ if "${bad_bootstrap[@]}" >"$test_root/bad-prerequisite.log" 2>&1; then
   exit 1
 fi
 grep -F 'bootstrap error=PROVIDER_URL_INVALID' "$test_root/bad-prerequisite.log" >/dev/null
-steps=(preflight secrets compose_config compose_up recovery_roles admin_bootstrap provider_configure provider_probe model_certification self_check)
+steps=(preflight secrets compose_config compose_up recovery_roles admin_bootstrap provider_configure provider_probe model_certification tutorial_authority coc7_ruleset tutorial_scenario self_check)
 for step in "${steps[@]}"; do
   TRPG_BOOTSTRAP_TEST_STOP_AFTER_STEP="$step" "${bootstrap[@]}" >>"$log" 2>&1 &
   pid="$!"
@@ -145,6 +145,9 @@ compose+=(-f "$provider/compose.yml" -f "$state/runtime/compose.bootstrap.yml")
 credentials="$state/credentials/initial-accounts.env"
 # shellcheck disable=SC1090
 source "$credentials"
+tutorial="$state/credentials/tutorial.env"
+# shellcheck disable=SC1090
+source "$tutorial"
 scratch="$test_root/api"
 install -d -m 0700 "$scratch"
 api='https://127.0.0.1:8443/admin/v1'
@@ -179,6 +182,53 @@ printf 'Authorization: Bearer %s\nAccept: application/json\n' \
 [[ "$(api_call POST sessions "$scratch/public.headers" "$scratch/business-login.json")" == 403 ]]
 [[ "$(api_call GET bootstrap/status "$scratch/owner.headers" '')" == 200 ]]
 [[ "$(json_value administrator_count)" == 1 && "$(json_value business_account_count)" == 1 ]]
+
+tutorial_database_state() {
+  "${compose[@]}" exec -T \
+    -e TUTORIAL_CAMPAIGN_ID="$TUTORIAL_CAMPAIGN_ID" \
+    -e TUTORIAL_AUTHORITY_CONTRACT_ID="$TUTORIAL_AUTHORITY_CONTRACT_ID" \
+    -e TUTORIAL_ROOM_ID="$TUTORIAL_ROOM_ID" \
+    -e BUSINESS_USER_ID="$BUSINESS_USER_ID" postgres sh -ec \
+    'export PGPASSWORD="$(cat /run/secrets/postgres_backup_password)";
+     exec psql -X -A -t -v ON_ERROR_STOP=1 -U trpg_backup_login -d coc_ai_trpg \
+       -v campaign_id="$TUTORIAL_CAMPAIGN_ID" \
+       -v contract_id="$TUTORIAL_AUTHORITY_CONTRACT_ID" \
+       -v room_id="$TUTORIAL_ROOM_ID" -v owner_id="$BUSINESS_USER_ID"' <<'SQL'
+SELECT concat_ws('|',
+    (SELECT count(*) FROM campaigns
+      WHERE campaign_id = :'campaign_id'
+        AND owner_user_id = :'owner_id'
+        AND authority_contract_id = :'contract_id'),
+    (SELECT count(*) FROM rooms
+      WHERE campaign_id = :'campaign_id' AND room_id = :'room_id'),
+    (SELECT count(*) FROM scenarios
+      WHERE campaign_id = :'campaign_id'
+        AND scenario_id = 'tutorial_mist_archive'
+        AND ruleset_id = 'coc7'
+        AND format_version = '0.1.0'
+        AND content_hash = 'sha256:7547627b443af88f925e341481f7542df238f30cc6918ece00a445033e10d4cc'
+        AND validated),
+    (SELECT count(*) FROM authority_contracts
+      WHERE campaign_id = :'campaign_id'
+        AND contract_id = :'contract_id'
+        AND authority_mode = 'HUMAN_KP'
+        AND authority_owner = :'owner_id'
+        AND contract_version = 1
+        AND ruleset_version = 'coc7_rules_1'
+        AND scenario_version = 'tutorial_mist_archive_0_1_0'
+        AND locked AND change_policy = 'FORK_ONLY'),
+    (SELECT count(*) FROM campaign_memberships
+      WHERE campaign_id = :'campaign_id'
+        AND user_id = :'owner_id'
+        AND role = 'HUMAN_KEEPER' AND revoked_at IS NULL),
+    (SELECT count(*) FROM event_store
+      WHERE campaign_id = :'campaign_id' AND event_type = 'CampaignCreated'),
+    (SELECT count(*) FROM event_store
+      WHERE campaign_id = :'campaign_id' AND event_type = 'ScenarioImported'));
+SQL
+}
+tutorial_state_before_rerun="$(tutorial_database_state)"
+[[ "$tutorial_state_before_rerun" == '1|1|1|1|1|1|1' ]]
 
 mutation_headers() {
   local version="$1" key="$2"
@@ -254,6 +304,7 @@ mutation_headers "$version" ar10-bad-hash
 journal_hash="$(sha256sum "$state/state.tsv" | awk '{print $1}')"
 "${bootstrap[@]}" >>"$log" 2>&1
 [[ "$journal_hash" == "$(sha256sum "$state/state.tsv" | awk '{print $1}')" ]]
+[[ "$tutorial_state_before_rerun" == "$(tutorial_database_state)" ]]
 [[ ! -e "$state/runtime/bootstrap-scratch" ]]
 "${compose[@]}" logs --no-color >"$test_root/compose.log" 2>&1
 ! grep -F "$provider_canary" "$log" "$test_root/compose.log"
@@ -271,6 +322,7 @@ if [[ -n "${AR10_EVIDENCE_DIR:-}" ]]; then
   install -m 0600 "$test_root/compose.log" "$AR10_EVIDENCE_DIR/compose.log"
   install -m 0600 "$test_root/bad-prerequisite.log" "$AR10_EVIDENCE_DIR/bad-prerequisite.log"
   install -m 0600 "$state/state.tsv" "$AR10_EVIDENCE_DIR/state.tsv"
+  printf '%s\n' "$tutorial_state_before_rerun" >"$AR10_EVIDENCE_DIR/tutorial-state.txt"
   "${compose[@]}" exec -T admin cat "$manifest" >"$AR10_EVIDENCE_DIR/backup-manifest.json"
   "${compose[@]}" exec -T admin cat /var/lib/trpg/audit/admin.jsonl >"$AR10_EVIDENCE_DIR/admin-audit.jsonl"
   "${compose[@]}" ps --format json >"$AR10_EVIDENCE_DIR/compose-ps.json"

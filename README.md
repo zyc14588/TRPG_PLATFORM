@@ -27,7 +27,10 @@ bash scripts/bootstrap/bootstrap.sh --help
 
 正式运行时必须使用绝对路径的私有状态目录和权限受限的 Provider 凭据文件；
 不得把凭据写入命令行、仓库或日志。该入口负责生成其余随机秘密、启动生产
-Compose、执行初始化与自检，并可用完全相同的参数安全重跑以恢复中断步骤。
+Compose、创建锁定为 HUMAN_KP 的 COC7 Tutorial Campaign、通过正式 API 导入原创
+`tutorial_mist_archive` 场景、执行自检，并可用完全相同的参数安全重跑以恢复中断
+步骤。初始账户仅写入私有 `credentials/initial-accounts.env`，非敏感的 Tutorial
+资源标识写入同目录的 `tutorial.env`。
 
 ## 2. 项目施工主线
 

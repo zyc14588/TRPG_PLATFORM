@@ -162,6 +162,7 @@ services:
       backend:
         aliases:
           - api
+          - admin
     depends_on:
       openfga-migrate:
         condition: service_completed_successfully
@@ -459,6 +460,9 @@ services:
       TRPG_ADMIN_CURL_PATH: /usr/bin/curl
       TRPG_ADMIN_PSQL_PATH: /usr/local/libexec/trpg/psql
       TRPG_ADMIN_PROVIDER_CA_PATH: /run/secrets/provider_ca_certificate
+      TRPG_ADMIN_OPENFGA_ADDRESS: 127.0.0.1:8085
+      TRPG_ADMIN_OPENFGA_STORE_ID_FILE: /run/trpg-policy/openfga_store_id
+      TRPG_ADMIN_OPENFGA_MODEL_ID_FILE: /run/trpg-policy/openfga_model_id
       TRPG_ADMIN_PG_DUMP_PATH: /usr/local/libexec/trpg/pg_dump
       TRPG_ADMIN_PG_RESTORE_PATH: /usr/local/libexec/trpg/pg_restore
       TRPG_ADMIN_PG_SERVICE_FILE_PATH: /tmp/trpg-mounted-secrets/admin_pg_service_file.v1
@@ -496,13 +500,15 @@ services:
       - provider_ca_certificate
     volumes:
       - admin_state:/var/lib/trpg
-    networks:
-      - backend
+      - policy_bootstrap:/run/trpg-policy:ro
+    network_mode: "service:openfga"
     depends_on:
       migration-runner:
         condition: service_healthy
       redis:
         condition: service_healthy
+      policy-bootstrap:
+        condition: service_completed_successfully
     healthcheck:
       <<: *rust-healthcheck
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8083/health/ready"]

@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::Write as _;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
@@ -9,14 +10,18 @@ use crate::{
 };
 use trpg_ops::backup_restore_runbook::{PostgresBackupExecutor, PostgresBackupRestoreError};
 use trpg_platform::admin_control_plane::{
-    provider_probe_confirms_model, AdminBackupRequest, AdminModelCertificationRequest,
-    AdminOperationEvidence, AdminOperations, AdminProviderConfiguration, AdminRestoreRequest,
+    openfga_check_allows, provider_probe_confirms_model, AdminBackupRequest,
+    AdminModelCertificationRequest, AdminOperationEvidence, AdminOperations,
+    AdminProviderConfiguration, AdminRestoreRequest,
 };
 
 pub struct ProductionAdminOperations {
     curl_path: PathBuf,
     psql_path: PathBuf,
     provider_ca_path: PathBuf,
+    openfga_address: SocketAddr,
+    openfga_store_id_path: PathBuf,
+    openfga_model_id_path: PathBuf,
     backup_executor: PostgresBackupExecutor,
     backup_source_service: String,
     restore_target_service: String,
@@ -30,6 +35,14 @@ impl ProductionAdminOperations {
         let curl_path = required_regular_file("TRPG_ADMIN_CURL_PATH")?;
         let psql_path = required_regular_file("TRPG_ADMIN_PSQL_PATH")?;
         let provider_ca_path = required_regular_file("TRPG_ADMIN_PROVIDER_CA_PATH")?;
+        let openfga_address = required_environment("TRPG_ADMIN_OPENFGA_ADDRESS")?
+            .parse::<SocketAddr>()
+            .map_err(|_| "ADMIN_OPENFGA_ADDRESS_INVALID")?;
+        if !openfga_address.ip().is_loopback() {
+            return Err("ADMIN_OPENFGA_LOOPBACK_REQUIRED");
+        }
+        let openfga_store_id_path = required_regular_file("TRPG_ADMIN_OPENFGA_STORE_ID_FILE")?;
+        let openfga_model_id_path = required_regular_file("TRPG_ADMIN_OPENFGA_MODEL_ID_FILE")?;
         let pg_dump = required_regular_file("TRPG_ADMIN_PG_DUMP_PATH")?;
         let pg_restore = required_regular_file("TRPG_ADMIN_PG_RESTORE_PATH")?;
         let service_file = required_regular_file("TRPG_ADMIN_PG_SERVICE_FILE_PATH")?;
@@ -50,6 +63,9 @@ impl ProductionAdminOperations {
             curl_path,
             psql_path,
             provider_ca_path,
+            openfga_address,
+            openfga_store_id_path,
+            openfga_model_id_path,
             backup_executor,
             backup_source_service,
             restore_target_service,
@@ -57,6 +73,67 @@ impl ProductionAdminOperations {
             safety_directory,
             certification_directory,
         })
+    }
+
+    fn openfga_post(&self, path: &str, body: &[u8]) -> Result<Vec<u8>, String> {
+        let url = format!("http://{}{}", self.openfga_address, path);
+        let mut child = Command::new(&self.curl_path)
+            .arg("--fail")
+            .arg("--silent")
+            .arg("--show-error")
+            .arg("--max-time")
+            .arg("10")
+            .arg("--max-filesize")
+            .arg("1048576")
+            .arg("--proto")
+            .arg("=http")
+            .arg("--request")
+            .arg("POST")
+            .arg("--header")
+            .arg("Content-Type: application/json")
+            .arg("--data-binary")
+            .arg("@-")
+            .arg("--url")
+            .arg(url)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|_| "ADMIN_OPENFGA_REQUEST_START_FAILED".to_owned())?;
+        let mut input = child
+            .stdin
+            .take()
+            .ok_or_else(|| "ADMIN_OPENFGA_REQUEST_INPUT_FAILED".to_owned())?;
+        input
+            .write_all(body)
+            .map_err(|_| "ADMIN_OPENFGA_REQUEST_INPUT_FAILED".to_owned())?;
+        drop(input);
+        let output = child
+            .wait_with_output()
+            .map_err(|_| "ADMIN_OPENFGA_REQUEST_WAIT_FAILED".to_owned())?;
+        if !output.status.success() || output.stdout.len() > 1024 * 1024 {
+            return Err("ADMIN_OPENFGA_REQUEST_FAILED".to_owned());
+        }
+        Ok(output.stdout)
+    }
+
+    fn workflow_policy_fields(
+        &self,
+        campaign_id: &str,
+    ) -> Result<(String, String, String), String> {
+        validate_file_identifier(campaign_id)?;
+        let store_id = fs::read_to_string(&self.openfga_store_id_path)
+            .map_err(|_| "ADMIN_OPENFGA_STORE_ID_UNAVAILABLE".to_owned())?;
+        let model_id = fs::read_to_string(&self.openfga_model_id_path)
+            .map_err(|_| "ADMIN_OPENFGA_MODEL_ID_UNAVAILABLE".to_owned())?;
+        let store_id = store_id.trim().to_owned();
+        let model_id = model_id.trim().to_owned();
+        validate_file_identifier(&store_id)?;
+        validate_file_identifier(&model_id)?;
+        let tuple = format!(
+            "{{\"user\":\"principal:api_core_workflow\",\"relation\":\"workflow\",\"object\":\"campaign:{campaign_id}\"}}"
+        );
+        Ok((store_id, model_id, tuple))
     }
 
     fn existing_backup(
@@ -150,6 +227,31 @@ impl ProductionAdminOperations {
 }
 
 impl AdminOperations for ProductionAdminOperations {
+    fn provision_workflow_policy(
+        &self,
+        campaign_id: &str,
+    ) -> Result<AdminOperationEvidence, String> {
+        let (store_id, model_id, tuple) = self.workflow_policy_fields(campaign_id)?;
+        let check_path = format!("/stores/{store_id}/check");
+        let check_body =
+            format!("{{\"authorization_model_id\":\"{model_id}\",\"tuple_key\":{tuple}}}");
+        if openfga_check_allows(&self.openfga_post(&check_path, check_body.as_bytes())?) {
+            return Ok(AdminOperationEvidence::completed(
+                "WORKFLOW_POLICY_CONFIGURED",
+            ));
+        }
+        let write_body = format!(
+            "{{\"authorization_model_id\":\"{model_id}\",\"writes\":{{\"tuple_keys\":[{tuple}]}}}}"
+        );
+        self.openfga_post(&format!("/stores/{store_id}/write"), write_body.as_bytes())?;
+        if !openfga_check_allows(&self.openfga_post(&check_path, check_body.as_bytes())?) {
+            return Err("ADMIN_OPENFGA_POLICY_VERIFY_FAILED".to_owned());
+        }
+        Ok(AdminOperationEvidence::completed(
+            "WORKFLOW_POLICY_CONFIGURED",
+        ))
+    }
+
     fn probe_provider(
         &self,
         configuration: &AdminProviderConfiguration,
@@ -281,6 +383,8 @@ impl AdminOperations for ProductionAdminOperations {
             &self.curl_path,
             &self.psql_path,
             &self.provider_ca_path,
+            &self.openfga_store_id_path,
+            &self.openfga_model_id_path,
             &self.backup_directory,
             &self.safety_directory,
             &self.certification_directory,

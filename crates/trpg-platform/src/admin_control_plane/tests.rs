@@ -11,6 +11,15 @@ const PROVIDER_CANARY: &str = "provider-secret-canary-never-persist";
 struct TestOperations;
 
 impl AdminOperations for TestOperations {
+    fn provision_workflow_policy(
+        &self,
+        _campaign_id: &str,
+    ) -> Result<AdminOperationEvidence, String> {
+        Ok(AdminOperationEvidence::completed(
+            "WORKFLOW_POLICY_CONFIGURED",
+        ))
+    }
+
     fn probe_provider(
         &self,
         _configuration: &AdminProviderConfiguration,
@@ -214,6 +223,59 @@ fn bootstrap_token_is_one_time_and_creates_exactly_two_distinct_roles() {
 }
 
 #[test]
+fn tutorial_authority_is_locked_to_the_business_keeper_and_replays() {
+    let mut fixture = TestControl::new();
+    let owner_token = fixture.bootstrap();
+    let body = json!({
+        "campaign_id": "tutorial_campaign",
+        "contract_id": "tutorial_authority",
+        "created_at_unix_ms": 1_700_000_000_000_u64,
+        "ai_provider_snapshot": "tutorial_provider",
+        "model_route_snapshot": "tutorial_route"
+    });
+    let created = fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/bootstrap/tutorial-authority",
+            &owner_token,
+            Some(1),
+            body.clone(),
+        ))
+        .expect("tutorial authority response");
+    assert_eq!(created.status, 201);
+    assert_eq!(created.body["authority_mode"], "HUMAN_KP");
+    assert_eq!(created.body["authority_owner"], "business-user-1");
+
+    let campaign_id =
+        trpg_shared_kernel::EntityId::new("tutorial_campaign").expect("campaign id");
+    let contract = fixture
+        .control
+        .identity
+        .authority_contract(&campaign_id)
+        .expect("authority lookup")
+        .expect("tutorial authority");
+    assert!(contract.is_locked());
+    assert_eq!(contract.change_policy(), trpg_shared_kernel::ChangePolicy::ForkOnly);
+    assert_eq!(contract.authority_owner().as_str(), "business-user-1");
+    assert_eq!(contract.snapshot().ruleset_version().as_str(), "coc7_rules_1");
+
+    let replayed = fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/bootstrap/tutorial-authority",
+            &owner_token,
+            Some(2),
+            body,
+        ))
+        .expect("tutorial authority replay");
+    assert_eq!(replayed.status, 200);
+    assert_eq!(replayed.body["replayed"], true);
+    assert_eq!(replayed.body["state_version"], 2);
+}
+
+#[test]
 fn business_user_cannot_use_admin_operations() {
     let mut fixture = TestControl::new();
     fixture.bootstrap();
@@ -314,6 +376,13 @@ fn provider_secret_is_reference_only_and_probe_is_idempotent() {
     assert_eq!(replayed.body["digest"], probed.body["digest"]);
     let persisted = read_tree_text(&fixture.root);
     assert!(!persisted.contains(PROVIDER_CANARY));
+}
+
+#[test]
+fn openfga_policy_check_requires_an_explicit_allow_boolean() {
+    assert!(openfga_check_allows(br#"{"allowed":true}"#));
+    assert!(!openfga_check_allows(br#"{"allowed":false}"#));
+    assert!(!openfga_check_allows(br#"{"result":true}"#));
 }
 
 fn request(

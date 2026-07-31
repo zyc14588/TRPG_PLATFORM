@@ -8,7 +8,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use trpg_identity::{GlobalRole, IdentityError, IdentityService, PrincipalKind};
+use trpg_identity::{
+    AuthenticationContext, CampaignRole, GlobalRole, IdentityError, IdentityService,
+    PrincipalKind,
+};
 use trpg_security_governance::secret::{
     MountedFileSecretResolver, SecretManager, SecretReference, SecretValue,
 };
@@ -18,12 +21,23 @@ use trpg_security_governance::tamper_evident_audit::{
 use trpg_security_governance::{
     validate_provider_boundary, DeploymentEnvironment, ProviderEndpoint,
 };
+use trpg_shared_kernel::{
+    AuthorityContract, AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft,
+};
 
 const ADMIN_STATE_SCHEMA: &str = "trpg-admin-control-v1";
 const ADMIN_AUDIT_POLICY: &str = "admin-bootstrap-ops-v1";
 const MAX_REQUEST_BODY_BYTES: usize = 32 * 1024;
 const MAX_RECEIPTS: usize = 1024;
 const LOCK_RETRIES: usize = 500;
+const TUTORIAL_RULESET_VERSION: &str = "coc7_rules_1";
+const TUTORIAL_HOUSE_RULES_VERSION: &str = "coc7_house_rules_none_1";
+const TUTORIAL_SCENARIO_VERSION: &str = "tutorial_mist_archive_0_1_0";
+const TUTORIAL_PROMPT_VERSION: &str = "tutorial_prompt_1";
+const TUTORIAL_AGENT_PACK_VERSION: &str = "tutorial_agent_pack_1";
+const TUTORIAL_TOOL_SCHEMA_VERSION: &str = "tutorial_tool_schema_1";
+const TUTORIAL_SAFETY_PROFILE_VERSION: &str = "tutorial_safety_profile_1";
+const TUTORIAL_CHARACTER_TEMPLATE_VERSION: &str = "coc7_investigator_1";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AdminHttpRequest {
@@ -74,6 +88,11 @@ impl AdminOperationEvidence {
 }
 
 pub trait AdminOperations: Send + Sync {
+    fn provision_workflow_policy(
+        &self,
+        campaign_id: &str,
+    ) -> Result<AdminOperationEvidence, String>;
+
     fn probe_provider(
         &self,
         configuration: &AdminProviderConfiguration,
@@ -123,6 +142,16 @@ struct BootstrapAccountRequest {
 struct BootstrapCompleteRequest {
     administrator: BootstrapAccountRequest,
     business_account: BootstrapAccountRequest,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BootstrapTutorialAuthorityRequest {
+    campaign_id: String,
+    contract_id: String,
+    created_at_unix_ms: u64,
+    ai_provider_snapshot: String,
+    model_route_snapshot: String,
 }
 
 #[derive(Deserialize)]
