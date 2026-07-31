@@ -31,6 +31,9 @@ require_configuration() {
 }
 
 api_database_url="${TRPG_DATABASE_URL:-${P02_DATABASE_URL:-}}"
+worker_database_url="${TRPG_WORKER_DATABASE_URL:-${P02_WORKER_SERVICE_DATABASE_URL:-}}"
+canonical_database_url="${TRPG_CANONICAL_DATABASE_URL:-${P02_CANONICAL_SERVICE_DATABASE_URL:-}}"
+worker_witness_database_url="${TRPG_WORKER_WITNESS_DATABASE_URL:-${P02_WITNESS_APPEND_DATABASE_URL:-}}"
 api_openfga_address="${TRPG_OPENFGA_ADDRESS:-${P02_OPENFGA_ADDRESS:-}}"
 api_openfga_store_id="${TRPG_OPENFGA_STORE_ID:-${P02_OPENFGA_STORE_ID:-}}"
 api_openfga_model_id="${TRPG_OPENFGA_MODEL_ID:-${P02_OPENFGA_MODEL_ID:-}}"
@@ -47,6 +50,15 @@ object_storage_access_key="${TRPG_OBJECT_STORAGE_ACCESS_KEY:-${P05_MINIO_ACCESS_
 object_storage_secret_key="${TRPG_OBJECT_STORAGE_SECRET_KEY:-${P05_MINIO_SECRET_KEY:-}}"
 
 require_configuration "TRPG_DATABASE_URL or P02_DATABASE_URL" "$api_database_url"
+require_configuration \
+  "TRPG_WORKER_DATABASE_URL or P02_WORKER_SERVICE_DATABASE_URL" \
+  "$worker_database_url"
+require_configuration \
+  "TRPG_CANONICAL_DATABASE_URL or P02_CANONICAL_SERVICE_DATABASE_URL" \
+  "$canonical_database_url"
+require_configuration \
+  "TRPG_WORKER_WITNESS_DATABASE_URL or P02_WITNESS_APPEND_DATABASE_URL" \
+  "$worker_witness_database_url"
 require_configuration "TRPG_OPENFGA_ADDRESS or P02_OPENFGA_ADDRESS" "$api_openfga_address"
 require_configuration "TRPG_OPENFGA_STORE_ID or P02_OPENFGA_STORE_ID" "$api_openfga_store_id"
 require_configuration "TRPG_OPENFGA_MODEL_ID or P02_OPENFGA_MODEL_ID" "$api_openfga_model_id"
@@ -89,6 +101,9 @@ write_secret() {
 }
 
 write_secret database_url "$api_database_url"
+write_secret worker_database_url "$worker_database_url"
+write_secret canonical_database_url "$canonical_database_url"
+write_secret worker_witness_database_url "$worker_witness_database_url"
 write_secret witness_database_url "$canonical_witness_url"
 write_secret nats_url "$nats_url"
 write_secret redis_url "$redis_url"
@@ -122,24 +137,30 @@ start_service() {
   local index="$1"
   local service="${services[$index]}"
   local binary
+  local database_secret_id="database_url"
   local secret_catalog_path
+  local witness_database_secret_id="witness_database_url"
   local -a command_environment
   binary="$release_dir/$service"
   # Compose gives every process an independent state volume; preserve that catalog/witness pairing.
   secret_catalog_path="$secret_catalog_directory/$service/catalog.jsonl"
   install -d -m 0700 "$secret_catalog_directory/$service"
   test -x "$binary"
+  if [[ "$service" == agent-worker ]]; then
+    database_secret_id="worker_database_url"
+    witness_database_secret_id="worker_witness_database_url"
+  fi
   command_environment=("${environment_keys[$index]}=127.0.0.1:${ports[$index]}")
   if [[ "$service" == api-server || "$service" == realtime-server || "$service" == agent-worker || "$service" == migration-runner ]]; then
     command_environment+=(
       "TRPG_SECRET_MOUNT=$secret_mount"
       "TRPG_SECRET_CATALOG_PATH=$secret_catalog_path"
-      "TRPG_DATABASE_URL_SECRET_ID=database_url"
+      "TRPG_DATABASE_URL_SECRET_ID=$database_secret_id"
       "TRPG_DATABASE_URL_SECRET_VERSION=1"
       "TRPG_PAYLOAD_ENCRYPTION_KEY_ID=service-process-smoke-payload-v1"
       "TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_ID=payload_encryption_key"
       "TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_VERSION=1"
-      "TRPG_WITNESS_DATABASE_URL_SECRET_ID=witness_database_url"
+      "TRPG_WITNESS_DATABASE_URL_SECRET_ID=$witness_database_secret_id"
       "TRPG_WITNESS_DATABASE_URL_SECRET_VERSION=1"
       "TRPG_CANONICAL_HMAC_KEY_ID=service-process-smoke-v1"
       "TRPG_CANONICAL_HMAC_KEY_SECRET_ID=canonical_hmac_key"
@@ -162,7 +183,7 @@ start_service() {
   fi
   if [[ "$service" == agent-worker ]]; then
     command_environment+=(
-      "TRPG_CANONICAL_DATABASE_URL_SECRET_ID=database_url"
+      "TRPG_CANONICAL_DATABASE_URL_SECRET_ID=canonical_database_url"
       "TRPG_CANONICAL_DATABASE_URL_SECRET_VERSION=1"
       "TRPG_IDENTITY_SIGNING_KEY_SECRET_ID=identity_signing_key"
       "TRPG_IDENTITY_SIGNING_KEY_SECRET_VERSION=1"

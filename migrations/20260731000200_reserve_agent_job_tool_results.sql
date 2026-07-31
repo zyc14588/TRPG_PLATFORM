@@ -129,6 +129,16 @@ BEGIN
         REVOKE ALL ON public.agent_job_tool_receipts FROM trpg_worker_service;
         GRANT SELECT, INSERT ON public.agent_job_tool_receipts
             TO trpg_worker_service;
+        -- The production worker also owns the rebuildable canonical
+        -- projection loop. Keep Event Store append custody separate while
+        -- granting only the materialization operations that loop executes.
+        GRANT INSERT, DELETE ON public.canonical_event_projection
+            TO trpg_worker_service;
+        GRANT INSERT, DELETE ON public.projection_checkpoint
+            TO trpg_worker_service;
+        GRANT UPDATE (
+            version, last_event_sequence, projection_hash, rebuilt_at
+        ) ON public.projection_checkpoint TO trpg_worker_service;
     END IF;
 END;
 $least_privilege$;

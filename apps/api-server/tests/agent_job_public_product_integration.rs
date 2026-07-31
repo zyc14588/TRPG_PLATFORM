@@ -13,9 +13,10 @@ use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
 use trpg_agent_runtime::agent_job::{
     AgentJobCommitReceipt, AgentJobDecisionPort, AgentJobError, AgentJobExecutionConfig,
-    AgentJobOutcome, AgentJobResult, AgentJobToolPort, AgentJobWorker, AgentSkillCheckRoll,
-    AgentSkillCheckRulePort, AgentStructuredDecision, GovernedAgentDecisionPort,
-    GovernedAgentJobToolPort, ProductionAgentIdentityConfiguration,
+    AgentJobOutcome, AgentJobRepository, AgentJobResult, AgentJobToolCall, AgentJobToolPort,
+    AgentJobToolResult, AgentJobWorker, AgentSkillCheckRoll, AgentSkillCheckRulePort,
+    AgentStructuredDecision, GovernedAgentDecisionPort, GovernedAgentJobToolPort,
+    ProductionAgentIdentityConfiguration,
 };
 use trpg_agent_runtime::model_provider::{
     ExecutableModelProvider, ExecutedModelRouteSnapshot, ModelChatRequest, ModelChatResponse,
@@ -27,11 +28,15 @@ use trpg_contracts::{HttpRequest, HttpResponse};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     PostgresCanonicalCommitPort, PostgresCanonicalStore,
 };
-use trpg_identity::{GlobalRole, IdentityService};
+use trpg_identity::{CampaignRole, GlobalRole, IdentityService};
 use trpg_ruleset_coc7::dice_roll_contract::{
     server_roll_skill_check, DiceAdjustment, SuccessLevel,
 };
-use trpg_runtime::durable_workflow::{DurableAgentJob, DurableWorkflowStore};
+use trpg_runtime::durable_workflow::{
+    AgentJobEvidenceDraft, AgentJobTransitionDraft, DurableAgentApproval,
+    DurableAgentAuthoritySnapshot, DurableAgentContextSnapshot, DurableAgentJob,
+    DurableWorkflowStore,
+};
 use trpg_security_governance::policy_adapter::{
     HttpPolicyEndpoint, OpenFgaOpaPolicyAdapter, PolicyBackend,
 };
@@ -50,6 +55,7 @@ const ARTIFACT: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 const PROVIDER_ID: &str = "provider_ar09_public";
 const MODEL_ID: &str = "model_ar09_public";
 const ROUTE_ID: &str = "route_ar09_public";
+static PUBLIC_AGENT_JOB_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug)]
 struct Coc7AgentSkillCheckRules;
@@ -369,5 +375,10 @@ impl AgentJobDecisionPort for LoseFirstCanonicalReceipt {
 
 #[path = "agent_job_public_product_integration_sections/fixture.rs"]
 mod fixture;
+#[path = "agent_job_public_product_integration_sections/human_approval_test.rs"]
+mod human_approval_test;
+#[cfg(unix)]
+#[path = "agent_job_public_product_integration_sections/production_kill9_test.rs"]
+mod production_kill9_test;
 #[path = "agent_job_public_product_integration_sections/test.rs"]
 mod test;

@@ -1,3 +1,36 @@
+pub(super) fn retire_stale_agent_jobs(
+    runtime: &tokio::runtime::Runtime,
+    fixture_pool: &sqlx::PgPool,
+    current_job_id: &str,
+) {
+    runtime.block_on(async {
+        let mut transaction = fixture_pool.begin().await.expect("begin fixture cleanup");
+        sqlx::query("SET LOCAL session_replication_role = 'replica'")
+            .execute(&mut *transaction)
+            .await
+            .expect("bound fixture cleanup trigger bypass");
+        sqlx::query(
+            r#"
+            UPDATE workflow_instances
+               SET state = 'TERMINAL_FAILED',
+                   lease_owner = NULL,
+                   claim_token = NULL,
+                   lease_expires_at = NULL,
+                   heartbeat_at = NULL,
+                   next_attempt_at = NULL
+             WHERE workflow_type = 'agent_job'
+               AND workflow_id <> $1
+               AND state NOT IN ('COMPLETED', 'TERMINAL_FAILED')
+            "#,
+        )
+        .bind(current_job_id)
+        .execute(&mut *transaction)
+        .await
+        .expect("retire stale jobs in the dedicated fixture database");
+        transaction.commit().await.expect("commit fixture cleanup");
+    });
+}
+
 pub(super) fn seed_public_character_fixture(
     runtime: &tokio::runtime::Runtime,
     fixture_pool: &sqlx::PgPool,
@@ -7,30 +40,13 @@ pub(super) fn seed_public_character_fixture(
     character_id: String,
     input_event_sequence: i64,
 ) {
+    retire_stale_agent_jobs(runtime, fixture_pool, &job_id);
     runtime.block_on(async {
         let mut transaction = fixture_pool.begin().await.expect("begin fixture");
         sqlx::query("SET LOCAL session_replication_role = 'replica'")
             .execute(&mut *transaction)
             .await
             .expect("bound fixture trigger bypass");
-        sqlx::query(
-            r#"
-                UPDATE workflow_instances
-                   SET state = 'TERMINAL_FAILED',
-                       lease_owner = NULL,
-                       claim_token = NULL,
-                       lease_expires_at = NULL,
-                       heartbeat_at = NULL,
-                       next_attempt_at = NULL
-                 WHERE workflow_type = 'agent_job'
-                   AND workflow_id <> $1
-                   AND state NOT IN ('COMPLETED', 'TERMINAL_FAILED')
-                "#,
-        )
-        .bind(&job_id)
-        .execute(&mut *transaction)
-        .await
-        .expect("retire stale jobs in the dedicated fixture database");
         sqlx::query(
             r#"
                 INSERT INTO campaigns (

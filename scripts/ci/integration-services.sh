@@ -403,6 +403,8 @@ chmod 0600 "$libpq_service_file"
 
 cat >>"$github_env" <<ENVIRONMENT
 P02_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/p02_identity
+P02_WORKER_SERVICE_DATABASE_URL=postgresql://trpg_worker_login:${postgres_password}@127.0.0.1:15432/p02_identity
+P02_CANONICAL_SERVICE_DATABASE_URL=postgresql://trpg_canonical_login:${postgres_password}@127.0.0.1:15432/p02_identity
 P02_REDIS_URL=redis://127.0.0.1:16379
 P02_CANONICAL_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/p02_canonical
 P02_CANONICAL_WITNESS_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15433/p02_canonical_witness
@@ -420,6 +422,7 @@ P02_API_CANONICAL_WITNESS_DATABASE_URL=postgresql://postgres:${postgres_password
 P02_FORMAL_COMMIT_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/p02_formal_commit
 P02_FORMAL_COMMIT_WITNESS_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15433/p02_formal_commit_witness
 P02_WITNESS_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15433/p02_service_witness
+P02_WITNESS_APPEND_DATABASE_URL=postgresql://trpg_witness_append_login:${postgres_password}@127.0.0.1:15433/p02_service_witness
 P02_NATS_URL=nats://127.0.0.1:14222
 P03_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/p03_migration_upgrade
 P03_ALLOW_DATABASE_RESET=1

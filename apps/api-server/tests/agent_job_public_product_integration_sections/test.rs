@@ -3,6 +3,9 @@ use super::*;
 
 #[test]
 fn public_agent_job_recovers_with_production_tool_and_canonical_ports() {
+    let _test_guard = PUBLIC_AGENT_JOB_TEST_LOCK
+        .lock()
+        .expect("lock public Agent Job test");
     let fixture_database_url = required("AR09_PUBLIC_FIXTURE_DATABASE_URL");
     let api_database_url = required("AR09_PUBLIC_API_DATABASE_URL");
     let worker_database_url = required("AR09_PUBLIC_WORKER_DATABASE_URL");
@@ -216,8 +219,9 @@ fn public_agent_job_recovers_with_production_tool_and_canonical_ports() {
     )
     .expect("compose production Agent Job worker");
 
+    let first_worker_now = i64::try_from(now_unix_ms() + 1_000).expect("current worker time fits");
     let first = runtime
-        .block_on(worker.run_once(i64::try_from(now + 2_000).expect("time fits")))
+        .block_on(worker.run_once(first_worker_now))
         .expect("first worker execution");
     assert!(
         matches!(
@@ -252,7 +256,7 @@ fn public_agent_job_recovers_with_production_tool_and_canonical_ports() {
     assert_eq!(receipt_count_after_loss, 1);
 
     let recovered = runtime
-        .block_on(worker.run_once(i64::try_from(now + 120_000).expect("time fits")))
+        .block_on(worker.run_once(first_worker_now + 120_000))
         .expect("recover worker after canonical receipt loss");
     assert!(matches!(recovered, AgentJobOutcome::Completed { .. }));
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
@@ -327,7 +331,7 @@ fn public_agent_job_recovers_with_production_tool_and_canonical_ports() {
     assert_eq!(event_result["random_source"], "SERVER_OS_CSPRNG");
     assert_eq!(
         runtime
-            .block_on(worker.run_once(i64::try_from(now + 121_000).expect("time fits")))
+            .block_on(worker.run_once(first_worker_now + 121_000))
             .expect("completed job is not reclaimed"),
         AgentJobOutcome::Idle
     );

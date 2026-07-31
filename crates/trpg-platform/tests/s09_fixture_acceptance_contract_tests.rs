@@ -10,6 +10,7 @@ const COMPOSE: &str = include_str!("../../../compose.yml");
 const CI_COMPOSE: &str = include_str!("../../../docker-compose.ci.yml");
 const DOCKERFILE: &str = include_str!("../../../Dockerfile");
 const DEV_SMOKE: &str = include_str!("../../../scripts/dev/smoke.ps1");
+const INTEGRATION_SERVICES: &str = include_str!("../../../scripts/ci/integration-services.sh");
 const PROCESS_SMOKE: &str = include_str!("../../../scripts/ci/service-process-smoke.sh");
 const PRODUCTION_SECURITY_SMOKE: &str =
     include_str!("../../../scripts/ci/production-security-smoke.sh");
@@ -278,6 +279,35 @@ fn s09_release_process_smoke_uses_the_production_secret_boundary() {
     assert!(
         PROCESS_SMOKE.contains("install -d -m 0700 \"$secret_catalog_directory/$service\""),
         "each service catalog parent must retain private directory permissions"
+    );
+    for worker_secret in [
+        "database_secret_id=\"worker_database_url\"",
+        "witness_database_secret_id=\"worker_witness_database_url\"",
+        "TRPG_CANONICAL_DATABASE_URL_SECRET_ID=canonical_database_url",
+    ] {
+        assert!(
+            PROCESS_SMOKE.contains(worker_secret),
+            "agent-worker must use its least-privilege {worker_secret} binding"
+        );
+    }
+    for role_url in [
+        "P02_WORKER_SERVICE_DATABASE_URL=postgresql://trpg_worker_login:",
+        "P02_CANONICAL_SERVICE_DATABASE_URL=postgresql://trpg_canonical_login:",
+        "P02_WITNESS_APPEND_DATABASE_URL=postgresql://trpg_witness_append_login:",
+    ] {
+        assert!(
+            INTEGRATION_SERVICES.contains(role_url),
+            "integration services must provision the least-privilege {role_url} binding"
+        );
+    }
+    let agent_worker_environment = PROCESS_SMOKE
+        .rsplit_once("if [[ \"$service\" == agent-worker ]]; then")
+        .map(|(_, block)| block)
+        .and_then(|block| block.split_once("\n  fi").map(|(body, _)| body))
+        .expect("agent-worker environment block exists");
+    assert!(
+        !agent_worker_environment.contains("TRPG_CANONICAL_DATABASE_URL_SECRET_ID=database_url"),
+        "agent-worker must not reuse the owner/API database secret for canonical custody"
     );
 }
 
