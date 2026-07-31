@@ -247,6 +247,7 @@ fn s09_release_process_smoke_uses_the_production_secret_boundary() {
         "TRPG_IDENTITY_SIGNING_KEY_SECRET_ID",
         "TRPG_AUDIT_HMAC_KEY_SECRET_ID",
         "TRPG_REDIS_CACHE_KEY_ID",
+        "TRPG_MODEL_PROVIDER_TIMEOUT_MS",
         "TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_ID",
         "TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_ID",
     ] {
@@ -268,6 +269,16 @@ fn s09_release_process_smoke_uses_the_production_secret_boundary() {
     }
     assert!(PROCESS_SMOKE.contains("install -d -m 0700"));
     assert!(PROCESS_SMOKE.contains("umask 077"));
+    assert!(
+        PROCESS_SMOKE.contains(
+            "secret_catalog_path=\"$secret_catalog_directory/$service/catalog.jsonl\""
+        ),
+        "each release process must use the service-isolated catalog provided by its production state volume"
+    );
+    assert!(
+        PROCESS_SMOKE.contains("install -d -m 0700 \"$secret_catalog_directory/$service\""),
+        "each service catalog parent must retain private directory permissions"
+    );
 }
 
 #[test]

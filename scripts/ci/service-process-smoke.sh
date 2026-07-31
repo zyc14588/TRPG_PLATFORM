@@ -6,7 +6,6 @@ release_dir="${CARGO_TARGET_DIR:-$root/target}/release"
 temporary_directory="$(mktemp -d)"
 secret_mount="$temporary_directory/secrets"
 secret_catalog_directory="$temporary_directory/secret-catalog"
-secret_catalog_path="$secret_catalog_directory/catalog.jsonl"
 export_root="$temporary_directory/exports"
 pids=()
 
@@ -123,8 +122,12 @@ start_service() {
   local index="$1"
   local service="${services[$index]}"
   local binary
+  local secret_catalog_path
   local -a command_environment
   binary="$release_dir/$service"
+  # Compose gives every process an independent state volume; preserve that catalog/witness pairing.
+  secret_catalog_path="$secret_catalog_directory/$service/catalog.jsonl"
+  install -d -m 0700 "$secret_catalog_directory/$service"
   test -x "$binary"
   command_environment=("${environment_keys[$index]}=127.0.0.1:${ports[$index]}")
   if [[ "$service" == api-server || "$service" == realtime-server || "$service" == agent-worker || "$service" == migration-runner ]]; then
@@ -181,6 +184,7 @@ start_service() {
       "TRPG_MODEL_PROVIDER_CREDENTIAL_SECRET_VERSION=1"
       "TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID=service-process-smoke-route"
       "TRPG_MODEL_PROVIDER_CAPABILITIES=chat,streaming,structured_output,tool_requests,embeddings"
+      "TRPG_MODEL_PROVIDER_TIMEOUT_MS=30000"
       "TRPG_PLUGIN_REGISTRY_PATH=$plugin_registry"
       "TRPG_OBJECT_STORAGE_ENDPOINT=$object_storage_endpoint"
       "TRPG_OBJECT_STORAGE_REGION=$object_storage_region"
