@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+IFS=$'\n\t'
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 github_env="${1:-${GITHUB_ENV:-}}"

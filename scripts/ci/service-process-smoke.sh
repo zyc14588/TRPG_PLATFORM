@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+IFS=$'\n\t'
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 release_dir="${CARGO_TARGET_DIR:-$root/target}/release"

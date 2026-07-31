@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+IFS=$'\n\t'
 umask 077
 
 usage() {
@@ -76,8 +77,19 @@ flock -n 9 || { printf 'bootstrap error=BOOTSTRAP_ALREADY_RUNNING\n' >&2; exit 7
 runtime="$state_dir/runtime" secrets="$runtime/secrets" credentials="$state_dir/credentials"
 requests="$runtime/requests" journal="$state_dir/state.tsv"
 install -d -m 0700 "$runtime" "$secrets" "$credentials" "$requests"
-scratch="$(mktemp -d)"
-cleanup() { local code="$?"; rm -rf "$scratch"; return "$code"; }
+scratch="$runtime/bootstrap-scratch"
+[[ ! -L "$scratch" && ( ! -e "$scratch" || -d "$scratch" ) ]] || {
+  printf 'bootstrap error=SCRATCH_PATH_INVALID\n' >&2
+  exit 4
+}
+install -d -m 0700 "$scratch"
+find "$scratch" -mindepth 1 -depth -delete
+cleanup() {
+  local code="$?"
+  find "$scratch" -mindepth 1 -depth -delete 2>/dev/null || true
+  rmdir "$scratch" 2>/dev/null || true
+  return "$code"
+}
 trap cleanup EXIT
 
 atomic_text() {

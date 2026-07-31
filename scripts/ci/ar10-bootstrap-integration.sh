@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+IFS=$'\n\t'
 umask 077
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -253,6 +254,7 @@ mutation_headers "$version" ar10-bad-hash
 journal_hash="$(sha256sum "$state/state.tsv" | awk '{print $1}')"
 "${bootstrap[@]}" >>"$log" 2>&1
 [[ "$journal_hash" == "$(sha256sum "$state/state.tsv" | awk '{print $1}')" ]]
+[[ ! -e "$state/runtime/bootstrap-scratch" ]]
 "${compose[@]}" logs --no-color >"$test_root/compose.log" 2>&1
 ! grep -F "$provider_canary" "$log" "$test_root/compose.log"
 ! grep -F "$ADMIN_PASSWORD" "$log" "$test_root/compose.log"
