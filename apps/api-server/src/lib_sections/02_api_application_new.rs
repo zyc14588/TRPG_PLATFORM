@@ -234,14 +234,39 @@ impl ApiApplication {
         };
         match self.authentication.identity().lock() {
             Ok(mut identity) => match identity.login(&body.login, &body.password, now) {
-                Ok(session) => HttpResponse::json(
-                    200,
-                    json!({
-                        "access_token": session.token.expose(),
-                        "token_type": "Bearer",
-                        "expires_at_unix_ms": session.expires_at_unix_ms,
-                    }),
-                ),
+                Ok(session) => {
+                    let authentication = match identity
+                        .authenticate_session(Some(session.token.expose()), now)
+                    {
+                        Ok(authentication) => authentication,
+                        Err(error) => return identity_error(error),
+                    };
+                    let global_role = match authentication.kind() {
+                        PrincipalKind::UserSession {
+                            global_role: GlobalRole::ServerOwner,
+                            ..
+                        } => "SERVER_OWNER",
+                        PrincipalKind::UserSession {
+                            global_role: GlobalRole::Moderator,
+                            ..
+                        } => "MODERATOR",
+                        PrincipalKind::UserSession {
+                            global_role: GlobalRole::User,
+                            ..
+                        } => "USER",
+                        _ => return internal_error(),
+                    };
+                    HttpResponse::json(
+                        200,
+                        json!({
+                            "access_token": session.token.expose(),
+                            "token_type": "Bearer",
+                            "expires_at_unix_ms": session.expires_at_unix_ms,
+                            "user_id": authentication.subject_id().as_str(),
+                            "global_role": global_role,
+                        }),
+                    )
+                }
                 Err(error) => identity_error(error),
             },
             Err(_) => internal_error(),
@@ -300,9 +325,19 @@ impl ApiApplication {
             ("GET", ["campaigns", campaign_id, "authority"]) => {
                 Some(self.get_authority(request, campaign_id))
             }
+            ("GET", ["campaigns", campaign_id, "membership"]) => {
+                Some(self.get_current_membership(request, campaign_id))
+            }
             ("PUT", ["campaigns", campaign_id, "memberships", user_id]) => {
                 Some(self.put_membership(request, campaign_id, user_id))
             }
+            ("POST", ["campaigns", campaign_id, "groups", group_id]) => {
+                Some(self.create_group(request, campaign_id, group_id))
+            }
+            (
+                "PUT",
+                ["campaigns", campaign_id, "groups", group_id, "memberships", user_id],
+            ) => Some(self.put_group_membership(request, campaign_id, group_id, user_id)),
             ("GET", ["campaigns", campaign_id, "events"]) => {
                 Some(self.get_canonical_events(request, campaign_id, query))
             }

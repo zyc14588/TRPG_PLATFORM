@@ -32,6 +32,7 @@ impl ApiApplication {
         let Some(contract) = contract else {
             return HttpResponse::json(404, json!({"error": "AUTHORITY_CONTRACT_NOT_FOUND"}));
         };
+        let snapshot = contract.snapshot();
         HttpResponse::json(
             200,
             json!({
@@ -45,8 +46,132 @@ impl ApiApplication {
                 "version": contract.version(),
                 "locked": contract.is_locked(),
                 "change_policy": "FORK_ONLY",
+                "snapshot": {
+                    "ruleset_version": snapshot.ruleset_version().as_str(),
+                    "house_rules_version": snapshot.house_rules_version().as_str(),
+                    "scenario_version": snapshot.scenario_version().as_str(),
+                    "prompt_version": snapshot.prompt_version().as_str(),
+                    "agent_pack_version": snapshot.agent_pack_version().as_str(),
+                    "tool_schema_version": snapshot.tool_schema_version().as_str(),
+                    "safety_profile_version": snapshot.safety_profile_version().as_str(),
+                    "ai_provider_snapshot": snapshot.ai_provider_snapshot().as_str(),
+                    "model_route_snapshot": snapshot.model_route_snapshot().as_str(),
+                    "character_sheet_template_version": snapshot
+                        .character_sheet_template_version()
+                        .as_str(),
+                },
             }),
         )
+    }
+
+    fn get_current_membership(&self, request: &HttpRequest, campaign_id: &str) -> HttpResponse {
+        let now = match now_unix_ms() {
+            Ok(now) => now,
+            Err(response) => return response,
+        };
+        let authentication = match self
+            .authentication
+            .authenticate_bearer(request.header("authorization"), now)
+        {
+            Ok(authentication) => authentication,
+            Err(error) => return auth_error(error),
+        };
+        let campaign = match EntityId::new(campaign_id) {
+            Ok(campaign) => campaign,
+            Err(_) => return HttpResponse::json(400, json!({"error": "INVALID_ENTITY_ID"})),
+        };
+        match self.authentication.identity().lock() {
+            Ok(mut identity) => match identity.membership_for(&authentication, &campaign, now) {
+                Ok(Some(membership)) => HttpResponse::json(
+                    200,
+                    json!({
+                        "campaign_id": campaign_id,
+                        "user_id": membership.user_id().as_str(),
+                        "role": campaign_role_name(membership.role()),
+                    }),
+                ),
+                Ok(None) => HttpResponse::json(404, json!({"error": "MEMBERSHIP_REQUIRED"})),
+                Err(error) => identity_error(error),
+            },
+            Err(_) => internal_error(),
+        }
+    }
+
+    fn create_group(
+        &self,
+        request: &HttpRequest,
+        campaign_id: &str,
+        group_id: &str,
+    ) -> HttpResponse {
+        let now = match now_unix_ms() {
+            Ok(now) => now,
+            Err(response) => return response,
+        };
+        let authentication = match self
+            .authentication
+            .authenticate_bearer(request.header("authorization"), now)
+        {
+            Ok(authentication) => authentication,
+            Err(error) => return auth_error(error),
+        };
+        match self.authentication.identity().lock() {
+            Ok(mut identity) => match identity.create_campaign_group(
+                &authentication,
+                campaign_id,
+                group_id,
+                now,
+            ) {
+                Ok(group) => HttpResponse::json(
+                    201,
+                    json!({
+                        "campaign_id": group.campaign_id().as_str(),
+                        "group_id": group.group_id().as_str(),
+                    }),
+                ),
+                Err(error) => identity_error(error),
+            },
+            Err(_) => internal_error(),
+        }
+    }
+
+    fn put_group_membership(
+        &self,
+        request: &HttpRequest,
+        campaign_id: &str,
+        group_id: &str,
+        user_id: &str,
+    ) -> HttpResponse {
+        let now = match now_unix_ms() {
+            Ok(now) => now,
+            Err(response) => return response,
+        };
+        let authentication = match self
+            .authentication
+            .authenticate_bearer(request.header("authorization"), now)
+        {
+            Ok(authentication) => authentication,
+            Err(error) => return auth_error(error),
+        };
+        match self.authentication.identity().lock() {
+            Ok(mut identity) => match identity.grant_group_membership(
+                &authentication,
+                campaign_id,
+                group_id,
+                user_id,
+                now,
+            ) {
+                Ok(membership) => HttpResponse::json(
+                    200,
+                    json!({
+                        "campaign_id": membership.campaign_id().as_str(),
+                        "group_id": membership.group_id().as_str(),
+                        "user_id": membership.user_id().as_str(),
+                    }),
+                ),
+                Err(error) => identity_error(error),
+            },
+            Err(_) => internal_error(),
+        }
     }
 
     fn put_membership(

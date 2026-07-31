@@ -36,6 +36,8 @@ use trpg_data_eventing::realtime_resume::{RealtimeResumeBinding, RealtimeResumeT
 
 pub type RealtimeFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+const REALTIME_AUTH_SUBPROTOCOL_PREFIX: &str = "trpg.auth.";
+
 pub trait RealtimeBackend: Send + Sync + 'static {
     type Session: Send + Sync + 'static;
 
@@ -1111,12 +1113,32 @@ fn validate_subscription(
 }
 
 fn bearer_token(headers: &HeaderMap) -> Option<&str> {
+    let authorization = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .filter(|token| !token.is_empty() && token.len() <= 2_048);
+    if authorization.is_some() {
+        return authorization;
+    }
+    browser_protocol_bearer(headers)
+}
+
+fn browser_protocol_bearer(headers: &HeaderMap) -> Option<&str> {
     headers
-        .get(header::AUTHORIZATION)?
+        .get(header::SEC_WEBSOCKET_PROTOCOL)?
         .to_str()
         .ok()?
-        .strip_prefix("Bearer ")
-        .filter(|token| !token.is_empty() && token.len() <= 2_048)
+        .split(',')
+        .map(str::trim)
+        .find_map(|protocol| protocol.strip_prefix(REALTIME_AUTH_SUBPROTOCOL_PREFIX))
+        .filter(|token| {
+            !token.is_empty()
+                && token.len() <= 2_048
+                && token.bytes().all(|byte| {
+                    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~')
+                })
+        })
 }
 
 fn offers_realtime_subprotocol(headers: &HeaderMap) -> bool {

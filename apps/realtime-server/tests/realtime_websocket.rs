@@ -460,6 +460,22 @@ async fn health_contract_and_authenticated_upgrade_fail_closed() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn browser_subprotocol_authentication_is_accepted_without_echoing_the_token() {
+    let state = Arc::new(Mutex::new(TestState::fixture()));
+    let (_application, address, server) = spawn(state, limits(20)).await;
+    let mut browser = RawWebSocket::connect_as_browser(address, "player_a").await;
+    browser.expect_connected().await;
+    browser
+        .subscribe("browser_auth", campaign_subscription(), 0, None)
+        .await;
+    let delivery = browser.collect_checkpoint(4).await;
+    assert!(delivery.0.contains("PublicSceneChanged"));
+    assert!(delivery.0.contains("SecretRollResolved"));
+    assert!(!delivery.0.contains("CANARY_KEEPER_NOTE"));
+    server.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn application_cancellation_closes_existing_connections() {
     let state = Arc::new(Mutex::new(TestState::fixture()));
     let (application, address, server) = spawn(state, limits(20)).await;
@@ -707,9 +723,26 @@ struct RawWebSocket {
 
 impl RawWebSocket {
     async fn connect(address: SocketAddr, token: &str) -> Self {
+        Self::connect_with_authentication(address, token, false).await
+    }
+
+    async fn connect_as_browser(address: SocketAddr, token: &str) -> Self {
+        Self::connect_with_authentication(address, token, true).await
+    }
+
+    async fn connect_with_authentication(
+        address: SocketAddr,
+        token: &str,
+        browser_protocol: bool,
+    ) -> Self {
         let mut stream = tokio::net::TcpStream::connect(address)
             .await
             .expect("connect raw websocket");
+        let authentication = if browser_protocol {
+            format!("Sec-WebSocket-Protocol: trpg.realtime.v1, trpg.auth.{token}\r\n")
+        } else {
+            format!("Sec-WebSocket-Protocol: trpg.realtime.v1\r\nAuthorization: Bearer {token}\r\n")
+        };
         let request = format!(
             "GET /ws/v1/campaigns/{CAMPAIGN}/rooms/{CAMPAIGN} HTTP/1.1\r\n\
              Host: {address}\r\n\
@@ -717,8 +750,7 @@ impl RawWebSocket {
              Connection: Upgrade\r\n\
              Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
              Sec-WebSocket-Version: 13\r\n\
-             Sec-WebSocket-Protocol: trpg.realtime.v1\r\n\
-             Authorization: Bearer {token}\r\n\r\n"
+             {authentication}\r\n"
         );
         stream
             .write_all(request.as_bytes())
@@ -742,6 +774,10 @@ impl RawWebSocket {
                         .to_ascii_lowercase()
                         .contains("sec-websocket-protocol: trpg.realtime.v1"),
                     "subprotocol not negotiated: {headers}"
+                );
+                assert!(
+                    !headers.contains(token),
+                    "authentication subprotocol must not be echoed"
                 );
                 return Self {
                     stream,
