@@ -44,6 +44,7 @@ impl ApiApplication {
                 },
                 "authority_owner": contract.authority_owner().as_str(),
                 "version": contract.version(),
+                "created_at_unix_ms": contract.created_at_unix_ms(),
                 "locked": contract.is_locked(),
                 "change_policy": "FORK_ONLY",
                 "snapshot": {

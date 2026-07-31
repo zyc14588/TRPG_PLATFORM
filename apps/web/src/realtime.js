@@ -12,12 +12,13 @@ export class RealtimeClient {
     this.reconnectAttempt = 0;
     this.cursor = 0;
     this.resumeToken = null;
+    this.resumeCursor = 0;
     this.manualClose = false;
     this.binding = null;
   }
 
   connect({ token, campaignId, roomId = campaignId, kind = "campaign" }) {
-    this.disconnect(false);
+    this.disconnect(true);
     if (!/^[A-Za-z0-9._~-]{1,2048}$/.test(token)) {
       throw new Error("REALTIME_AUTH_TOKEN_INVALID");
     }
@@ -28,6 +29,11 @@ export class RealtimeClient {
 
   reconnect() {
     if (!this.connection) return;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    const previous = this.socket;
+    this.socket = null;
+    if (previous && previous.readyState < 2) previous.close(1000, "client_reconnect");
     this.manualClose = false;
     this.#open();
   }
@@ -41,6 +47,7 @@ export class RealtimeClient {
     if (clearResume) {
       this.cursor = 0;
       this.resumeToken = null;
+      this.resumeCursor = 0;
       this.connection = null;
     }
   }
@@ -64,14 +71,14 @@ export class RealtimeClient {
           request_id: requestId("subscribe"),
           type: "subscribe",
           subscription: { kind, room_id: roomId },
-          cursor: this.cursor,
+          cursor: this.resumeToken ? this.resumeCursor : 0,
           resume_token: this.resumeToken,
         }),
       );
     });
     socket.addEventListener("message", (message) => this.#receive(message.data));
     socket.addEventListener("error", () => this.onStatus?.({ state: "unavailable" }));
-    socket.addEventListener("close", (event) => this.#closed(event));
+    socket.addEventListener("close", (event) => this.#closed(socket, event));
   }
 
   #receive(raw) {
@@ -93,6 +100,7 @@ export class RealtimeClient {
     } else if (envelope.type === "subscribed") {
       this.cursor = Number(envelope.cursor) || 0;
       this.resumeToken = envelope.resume_token || null;
+      this.resumeCursor = this.resumeToken ? this.cursor : 0;
       this.onStatus?.({ state: "synced", cursor: this.cursor });
     } else if (envelope.type === "event") {
       this.cursor = Math.max(this.cursor, Number(envelope.cursor) || 0);
@@ -106,8 +114,12 @@ export class RealtimeClient {
         }),
       );
     } else if (envelope.type === "checkpoint" || envelope.type === "acked") {
-      this.cursor = Math.max(this.cursor, Number(envelope.cursor) || 0);
-      this.resumeToken = envelope.resume_token || this.resumeToken;
+      const checkpointCursor = Number(envelope.cursor) || 0;
+      this.cursor = Math.max(this.cursor, checkpointCursor);
+      if (envelope.resume_token && checkpointCursor >= this.resumeCursor) {
+        this.resumeToken = envelope.resume_token;
+        this.resumeCursor = checkpointCursor;
+      }
       this.onStatus?.({ state: "synced", cursor: this.cursor });
     } else if (envelope.type === "heartbeat") {
       this.socket?.send(
@@ -121,6 +133,7 @@ export class RealtimeClient {
     } else if (envelope.type === "resync_required") {
       this.cursor = Math.max(0, Number(envelope.earliest_cursor) - 1);
       this.resumeToken = null;
+      this.resumeCursor = 0;
       this.onStatus?.({ state: "resync", code: envelope.reason });
       this.socket?.close(4009, "resync_required");
     } else if (envelope.type === "error") {
@@ -128,7 +141,8 @@ export class RealtimeClient {
     }
   }
 
-  #closed(event) {
+  #closed(socket, event) {
+    if (this.socket !== socket) return;
     this.socket = null;
     if (this.manualClose) {
       this.onStatus?.({ state: "disconnected" });

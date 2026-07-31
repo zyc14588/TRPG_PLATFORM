@@ -120,7 +120,7 @@ impl ProductionAdminOperations {
     fn workflow_policy_fields(
         &self,
         campaign_id: &str,
-    ) -> Result<(String, String, String), String> {
+    ) -> Result<(String, String, Vec<String>), String> {
         validate_file_identifier(campaign_id)?;
         let store_id = fs::read_to_string(&self.openfga_store_id_path)
             .map_err(|_| "ADMIN_OPENFGA_STORE_ID_UNAVAILABLE".to_owned())?;
@@ -130,10 +130,7 @@ impl ProductionAdminOperations {
         let model_id = model_id.trim().to_owned();
         validate_file_identifier(&store_id)?;
         validate_file_identifier(&model_id)?;
-        let tuple = format!(
-            "{{\"user\":\"principal:api_core_workflow\",\"relation\":\"workflow\",\"object\":\"campaign:{campaign_id}\"}}"
-        );
-        Ok((store_id, model_id, tuple))
+        Ok((store_id, model_id, workflow_policy_tuples(campaign_id)))
     }
 
     fn existing_backup(
@@ -231,21 +228,32 @@ impl AdminOperations for ProductionAdminOperations {
         &self,
         campaign_id: &str,
     ) -> Result<AdminOperationEvidence, String> {
-        let (store_id, model_id, tuple) = self.workflow_policy_fields(campaign_id)?;
+        let (store_id, model_id, tuples) = self.workflow_policy_fields(campaign_id)?;
         let check_path = format!("/stores/{store_id}/check");
-        let check_body =
-            format!("{{\"authorization_model_id\":\"{model_id}\",\"tuple_key\":{tuple}}}");
-        if openfga_check_allows(&self.openfga_post(&check_path, check_body.as_bytes())?) {
+        let mut missing = Vec::new();
+        for tuple in &tuples {
+            let check_body =
+                format!("{{\"authorization_model_id\":\"{model_id}\",\"tuple_key\":{tuple}}}");
+            if !openfga_check_allows(&self.openfga_post(&check_path, check_body.as_bytes())?) {
+                missing.push(tuple.as_str());
+            }
+        }
+        if missing.is_empty() {
             return Ok(AdminOperationEvidence::completed(
                 "WORKFLOW_POLICY_CONFIGURED",
             ));
         }
         let write_body = format!(
-            "{{\"authorization_model_id\":\"{model_id}\",\"writes\":{{\"tuple_keys\":[{tuple}]}}}}"
+            "{{\"authorization_model_id\":\"{model_id}\",\"writes\":{{\"tuple_keys\":[{}]}}}}",
+            missing.join(",")
         );
         self.openfga_post(&format!("/stores/{store_id}/write"), write_body.as_bytes())?;
-        if !openfga_check_allows(&self.openfga_post(&check_path, check_body.as_bytes())?) {
-            return Err("ADMIN_OPENFGA_POLICY_VERIFY_FAILED".to_owned());
+        for tuple in &tuples {
+            let check_body =
+                format!("{{\"authorization_model_id\":\"{model_id}\",\"tuple_key\":{tuple}}}");
+            if !openfga_check_allows(&self.openfga_post(&check_path, check_body.as_bytes())?) {
+                return Err("ADMIN_OPENFGA_POLICY_VERIFY_FAILED".to_owned());
+            }
         }
         Ok(AdminOperationEvidence::completed(
             "WORKFLOW_POLICY_CONFIGURED",
@@ -414,6 +422,21 @@ fn validate_file_identifier(value: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn workflow_policy_tuples(campaign_id: &str) -> Vec<String> {
+    [
+        "api_core_workflow",
+        "api_player_action_workflow",
+        "agent-worker-primary",
+    ]
+        .into_iter()
+        .map(|principal| {
+            format!(
+                "{{\"user\":\"principal:{principal}\",\"relation\":\"workflow\",\"object\":\"campaign:{campaign_id}\"}}"
+            )
+        })
+        .collect()
+}
+
 fn encode_certification_request(request: &AdminModelCertificationRequest) -> Vec<u8> {
     encode_fields(&[
         request.request_id.as_bytes(),
@@ -429,4 +452,28 @@ fn encode_fields(fields: &[&[u8]]) -> Vec<u8> {
         encoded.extend_from_slice(field);
     }
     encoded
+}
+
+#[cfg(test)]
+mod tests {
+    use super::workflow_policy_tuples;
+
+    #[test]
+    fn campaign_policy_provisions_all_formal_workflow_principals() {
+        let tuples = workflow_policy_tuples("campaign_tutorial");
+
+        assert_eq!(tuples.len(), 3);
+        assert!(tuples.iter().any(|tuple| {
+            tuple.contains("\"user\":\"principal:api_core_workflow\"")
+                && tuple.contains("\"object\":\"campaign:campaign_tutorial\"")
+        }));
+        assert!(tuples.iter().any(|tuple| {
+            tuple.contains("\"user\":\"principal:api_player_action_workflow\"")
+                && tuple.contains("\"object\":\"campaign:campaign_tutorial\"")
+        }));
+        assert!(tuples.iter().any(|tuple| {
+            tuple.contains("\"user\":\"principal:agent-worker-primary\"")
+                && tuple.contains("\"object\":\"campaign:campaign_tutorial\"")
+        }));
+    }
 }

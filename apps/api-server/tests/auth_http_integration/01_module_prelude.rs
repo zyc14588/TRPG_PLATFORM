@@ -406,5 +406,6 @@ fn http_authentication_and_campaign_authorization_fail_closed() {
     assert_eq!(status, 200);
     assert_eq!(body["authority_owner"], "owner_a");
     assert_eq!(body["change_policy"], "FORK_ONLY");
+    assert_eq!(body["created_at_unix_ms"], 1);
     assert_eq!(body["snapshot"]["ruleset_version"], "coc7_rules_1");
 }

@@ -191,7 +191,14 @@ impl IdentityService {
         ) || self
             .memberships
             .get(&(campaign_id.clone(), actor.subject_id.clone()))
-            .is_some_and(|membership| membership.role == CampaignRole::CampaignOwner)
+            .is_some_and(|membership| {
+                membership.role == CampaignRole::CampaignOwner
+                    || (membership.role == CampaignRole::HumanKeeper
+                        && self.authorities.get(campaign_id).is_some_and(|authority| {
+                            authority.mode() == &AuthorityMode::HumanKp
+                                && authority.authority_owner() == &actor.subject_id
+                        }))
+            })
     }
 
     pub fn create_user(

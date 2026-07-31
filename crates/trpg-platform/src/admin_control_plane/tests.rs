@@ -276,6 +276,185 @@ fn tutorial_authority_is_locked_to_the_business_keeper_and_replays() {
 }
 
 #[test]
+fn server_owner_creates_users_and_forks_ai_authority_without_mutating_parent() {
+    let mut fixture = TestControl::new();
+    let owner_token = fixture.bootstrap();
+    let tutorial = fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/bootstrap/tutorial-authority",
+            &owner_token,
+            Some(1),
+            json!({
+                "campaign_id": "tutorial_campaign",
+                "contract_id": "tutorial_authority",
+                "created_at_unix_ms": 1_700_000_000_000_u64,
+                "ai_provider_snapshot": "tutorial_provider",
+                "model_route_snapshot": "tutorial_route"
+            }),
+        ))
+        .expect("tutorial authority response");
+    assert_eq!(tutorial.status, 201);
+
+    let user_body = json!({
+        "user_id": "player-user-1",
+        "login": "player@example.test",
+        "password": "player-password-012345"
+    });
+    let created_user = fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/users",
+            &owner_token,
+            Some(2),
+            user_body.clone(),
+        ))
+        .expect("managed user response");
+    assert_eq!(created_user.status, 201);
+    assert_eq!(created_user.body["global_role"], "USER");
+    let replayed_user = fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/users",
+            &owner_token,
+            Some(3),
+            user_body,
+        ))
+        .expect("managed user replay");
+    assert_eq!(replayed_user.status, 200);
+    assert_eq!(replayed_user.body["replayed"], true);
+
+    let fork_body = json!({
+        "parent_campaign_id": "tutorial_campaign",
+        "child_campaign_id": "tutorial_campaign_ai",
+        "authority_mode": "AI_KP",
+        "authority_owner": "ai_keeper_tutorial",
+        "campaign_manager_user_id": "player-user-1"
+    });
+    let forked = fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/authority-forks",
+            &owner_token,
+            Some(3),
+            fork_body.clone(),
+        ))
+        .expect("authority fork response");
+    assert_eq!(forked.status, 201);
+    assert_eq!(forked.body["authority_mode"], "AI_KP");
+    assert_eq!(forked.body["contract_id"], "authority_contract_tutorial_campaign_ai_1");
+
+    let parent_id = EntityId::new("tutorial_campaign").expect("parent campaign id");
+    let child_id = EntityId::new("tutorial_campaign_ai").expect("child campaign id");
+    let parent = fixture
+        .control
+        .identity
+        .authority_contract(&parent_id)
+        .expect("parent lookup")
+        .expect("parent authority");
+    let child = fixture
+        .control
+        .identity
+        .authority_contract(&child_id)
+        .expect("child lookup")
+        .expect("child authority");
+    assert_eq!(parent.mode(), &AuthorityMode::HumanKp);
+    assert_eq!(parent.authority_owner().as_str(), "business-user-1");
+    assert_eq!(child.mode(), &AuthorityMode::AiKp);
+    assert_eq!(child.authority_owner().as_str(), "ai_keeper_tutorial");
+    assert_eq!(child.created_at_unix_ms(), parent.created_at_unix_ms() + 1);
+    assert_eq!(child.snapshot(), parent.snapshot());
+
+    let replayed_fork = fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/authority-forks",
+            &owner_token,
+            Some(4),
+            fork_body,
+        ))
+        .expect("authority fork replay");
+    assert_eq!(replayed_fork.status, 200);
+    assert_eq!(replayed_fork.body["replayed"], true);
+
+    let state = fs::read_to_string(fixture.root.join("state/admin.json"))
+        .expect("read admin state");
+    let audit = fs::read_to_string(fixture.root.join("audit/admin.jsonl"))
+        .expect("read admin audit");
+    assert!(!state.contains("player-password-012345"));
+    assert!(!audit.contains("player-password-012345"));
+}
+
+#[test]
+fn authority_fork_rejects_in_place_or_unprivileged_requests() {
+    let mut fixture = TestControl::new();
+    let owner_token = fixture.bootstrap();
+    fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/bootstrap/tutorial-authority",
+            &owner_token,
+            Some(1),
+            json!({
+                "campaign_id": "tutorial_campaign",
+                "contract_id": "tutorial_authority",
+                "created_at_unix_ms": 1_700_000_000_000_u64,
+                "ai_provider_snapshot": "tutorial_provider",
+                "model_route_snapshot": "tutorial_route"
+            }),
+        ))
+        .expect("tutorial authority response");
+    let business_token = fixture
+        .control
+        .identity
+        .login(
+            "business@example.test",
+            BUSINESS_PASSWORD,
+            now_unix_ms().expect("test time"),
+        )
+        .expect("business login")
+        .token
+        .expose()
+        .to_owned();
+    let request_body = json!({
+        "parent_campaign_id": "tutorial_campaign",
+        "child_campaign_id": "tutorial_campaign",
+        "authority_mode": "AI_KP",
+        "authority_owner": "ai_keeper_tutorial",
+        "campaign_manager_user_id": "business-user-1"
+    });
+    let denied = fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/authority-forks",
+            &business_token,
+            Some(2),
+            request_body.clone(),
+        ))
+        .expect("unprivileged authority fork response");
+    assert_eq!(denied.status, 403);
+    let in_place = fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/authority-forks",
+            &owner_token,
+            Some(2),
+            request_body,
+        ))
+        .expect("in-place authority fork response");
+    assert_eq!(in_place.status, 400);
+    assert_eq!(in_place.body["error"], "AUTHORITY_FORK_REQUEST_INVALID");
+}
+
+#[test]
 fn business_user_cannot_use_admin_operations() {
     let mut fixture = TestControl::new();
     fixture.bootstrap();

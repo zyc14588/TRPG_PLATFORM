@@ -8,6 +8,7 @@
     "dev": "node scripts/serve.mjs --root . --port 5173",
     "preview": "node scripts/serve.mjs --root dist --port 4173",
     "test": "node scripts/build.mjs && node scripts/test.mjs",
-    "test:browser": "node scripts/browser-test.mjs"
+    "test:browser": "bash scripts/live-browser-test.sh",
+    "test:browser:mock": "node scripts/browser-test.mjs"
   }
 }

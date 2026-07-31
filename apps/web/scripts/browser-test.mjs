@@ -51,7 +51,10 @@ async function main() {
   await keeper.waitForText("角色草稿已保存");
   await keeper.click('[data-action="submit-character"]');
   await keeper.waitForText("角色已提交审核");
-  await keeper.click('[data-action="review-character"]');
+  await keeper.submit('form[data-form="review-character"]', {
+    characterId: "character_browser",
+    expectedVersion: "2",
+  });
   await keeper.waitForText("角色已批准");
   await keeper.submit('form[data-form="start-session"]');
   await keeper.waitForText("档案室 · 雾夜");
@@ -102,8 +105,23 @@ async function main() {
     eventSequence: "21",
     reason: "请按已公开的现场时间重新核对。",
   });
-  await aiPlayer.waitForText("重考虑请求已提交");
+  await waitUntil(async () => {
+    const notice = await aiPlayer.evaluate("document.querySelector('.feedback.notice')?.innerText || ''");
+    const alert = await aiPlayer.evaluate("document.querySelector('.feedback.error')?.innerText || ''");
+    if (alert) throw new Error(alert);
+    return notice.includes("重考虑请求已提交");
+  }, 8_000, "reconsideration did not complete");
   result.checks.push("AI decision -> canonical event -> WS -> user-visible explanation completed");
+
+  const aiManager = await BrowserPage.open(chrome.debugOrigin, mock.origin);
+  await login(aiManager, "keeper@example.test");
+  await openCampaign(aiManager, "campaign_ai");
+  await aiManager.waitForText("KP 工具");
+  assert.equal(
+    await aiManager.evaluate("document.querySelectorAll('form[data-form=\"reconsider\"]').length"),
+    1,
+  );
+  result.checks.push("AI_KP campaign manager can submit reconsideration from the keeper rail");
 
   await keeper.click('[data-action="admin"]');
   await keeper.waitForText("管理与运维证据");
@@ -121,7 +139,7 @@ async function main() {
   assert.equal(await aiPlayer.hasText("CANARY_REASONING"), false);
   result.checks.push("Developer evidence rendered with reasoning/prompt redaction");
 
-  for (const page of [keeper, playerB, spectator, aiPlayer]) {
+  for (const page of [keeper, playerB, spectator, aiPlayer, aiManager]) {
     assert.deepEqual(await page.evaluate("Object.keys(localStorage)"), []);
     assert.equal(await page.evaluate("document.querySelectorAll('input,select,textarea').length === document.querySelectorAll('label input,label select,label textarea').length"), true);
     assert.equal(page.errors.length, 0, `browser console errors: ${page.errors.join(" | ")}`);
@@ -270,6 +288,9 @@ class ProductMock {
       if (request.method === "POST" && url.pathname === "/admin/admin/v1/sessions") {
         if (body.login !== "admin@example.test") return reply(403, { error: "ADMIN_SERVER_OWNER_REQUIRED" });
         return reply(200, { access_token: "admin_browser_token", expires_at_unix_ms: Date.now() + 60_000 });
+      }
+      if (url.pathname === "/admin/admin/v1/bootstrap/status") {
+        return reply(200, { state: "deployment_ready", state_version: 7 });
       }
       if (url.pathname === "/admin/admin/v1/diagnostics") return reply(200, { status: "deployment_ready", services: ["api", "realtime", "agent"] });
       if (url.pathname === "/admin/admin/v1/audit") return reply(200, { records: [{ action: "diagnostics.read", decision: "PERMIT" }] });
@@ -445,7 +466,7 @@ class ProductMock {
   }
 }
 
-class BrowserPage {
+export class BrowserPage {
   static async open(debugOrigin, url) {
     const target = await fetch(`${debugOrigin}/json/new?${encodeURIComponent(url)}`, { method: "PUT" }).then((response) => response.json());
     const page = new BrowserPage(target.webSocketDebuggerUrl);
@@ -517,7 +538,11 @@ class BrowserPage {
 
   async evaluate(expression) {
     const result = await this.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
-    if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+    if (result.exceptionDetails) {
+      throw new Error(
+        result.exceptionDetails.exception?.description || result.exceptionDetails.text,
+      );
+    }
     return result.result?.value;
   }
 
@@ -577,15 +602,17 @@ class BrowserPage {
   }
 }
 
-async function launchChrome(outputRoot) {
+export async function launchChrome(outputRoot) {
   const profile = path.join(outputRoot, "chrome-profile");
   const executable = process.env.CHROME_BIN || "/usr/bin/google-chrome";
+  const certificatePin = process.env.AR11_CERTIFICATE_SPKI;
   const child = spawn(executable, [
     "--headless=new",
     "--disable-gpu",
     "--disable-dev-shm-usage",
     "--no-first-run",
     "--no-default-browser-check",
+    ...(certificatePin ? [`--ignore-certificate-errors-spki-list=${certificatePin}`] : []),
     `--user-data-dir=${profile}`,
     "--remote-debugging-port=0",
     "about:blank",
@@ -615,7 +642,7 @@ async function launchChrome(outputRoot) {
   };
 }
 
-async function waitUntil(check, waitMs = 8_000, message = "condition timeout") {
+export async function waitUntil(check, waitMs = 8_000, message = "condition timeout") {
   const deadline = Date.now() + waitMs;
   let lastError;
   while (Date.now() < deadline) {
@@ -673,6 +700,7 @@ function authority(campaignId) {
     mode: ai ? "AI_KP" : "HUMAN_KP",
     authority_owner: ai ? "ai_keeper_orchestrator" : "keeper_01",
     version: 1,
+    created_at_unix_ms: ai ? 1_700_000_000_001 : 1_700_000_000_000,
     locked: true,
     change_policy: "FORK_ONLY",
     snapshot: {
@@ -774,10 +802,12 @@ const CAMPAIGNS = [
 ];
 
 const USERS = {
-  "keeper@example.test": { token: "token_keeper", userId: "keeper_01", globalRole: "USER", roles: { campaign_human: "HUMAN_KEEPER" } },
+  "keeper@example.test": { token: "token_keeper", userId: "keeper_01", globalRole: "USER", roles: { campaign_human: "HUMAN_KEEPER", campaign_ai: "HUMAN_KEEPER" } },
   "player-b@example.test": { token: "token_player_b", userId: "player_b", globalRole: "USER", roles: { campaign_human: "PLAYER" } },
   "spectator@example.test": { token: "token_spectator", userId: "spectator_01", globalRole: "USER", roles: { campaign_human: "SPECTATOR" } },
   "ai-player@example.test": { token: "token_ai_player", userId: "ai_player", globalRole: "USER", roles: { campaign_ai: "PLAYER" } },
 };
 
-await main();
+if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {
+  await main();
+}

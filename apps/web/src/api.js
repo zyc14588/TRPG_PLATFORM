@@ -83,6 +83,10 @@ export class ProductApi {
     return this.#v1("POST", "/campaigns", body);
   }
 
+  forkCampaign(parentCampaignId, body) {
+    return this.#v1("POST", `/campaigns/${id(parentCampaignId)}/forks`, body);
+  }
+
   getAuthority(campaignId) {
     return this.#product("GET", `/campaigns/${id(campaignId)}/authority`);
   }
@@ -216,12 +220,49 @@ export class ProductApi {
     });
   }
 
+  adminStatus() {
+    return this.#request(this.#url("adminBase", "/bootstrap/status"), {
+      method: "GET",
+      authorization: "admin",
+      headers: { "X-Correlation-Id": `web-admin-status-${Date.now().toString(36)}` },
+    });
+  }
+
+  adminCreateUser(body, expectedVersion) {
+    return this.#adminMutation("POST", "/users", body, expectedVersion, "user-create");
+  }
+
+  adminForkAuthority(body, expectedVersion) {
+    return this.#adminMutation(
+      "POST",
+      "/authority-forks",
+      body,
+      expectedVersion,
+      "authority-fork",
+    );
+  }
+
   #v1(method, path, body) {
     return this.#request(this.#url("v1Base", path), { method, body });
   }
 
   #product(method, path, body) {
     return this.#request(this.#url("apiBase", path), { method, body });
+  }
+
+  #adminMutation(method, path, body, expectedVersion, purpose) {
+    const nonce = `${Date.now().toString(36)}-${++commandCounter}`;
+    return this.#request(this.#url("adminBase", path), {
+      method,
+      body,
+      authorization: "admin",
+      headers: {
+        "Idempotency-Key": `web-${purpose}-${nonce}`,
+        "X-Expected-Version": String(Number(expectedVersion)),
+        "X-Correlation-Id": `web-${purpose}-correlation-${nonce}`,
+        "X-Causation-Id": `web-${purpose}-causation-${nonce}`,
+      },
+    });
   }
 
   #url(baseName, path) {

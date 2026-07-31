@@ -10,6 +10,14 @@ impl<R: SecretResolver + 'static> HttpModelProvider<R> {
         runtime: ModelProviderRuntimeConfig,
         credential_manager: Arc<SecretManager<R>>,
     ) -> ModelProviderResult<Self> {
+        Self::new_with_root_certificate(runtime, credential_manager, None)
+    }
+
+    pub fn new_with_root_certificate(
+        runtime: ModelProviderRuntimeConfig,
+        credential_manager: Arc<SecretManager<R>>,
+        root_certificate_pem: Option<&[u8]>,
+    ) -> ModelProviderResult<Self> {
         validate_provider_config(&runtime.provider).map_err(|_| configuration_error())?;
         if runtime.request_timeout < MIN_REQUEST_TIMEOUT
             || runtime.request_timeout > MAX_REQUEST_TIMEOUT
@@ -33,6 +41,12 @@ impl<R: SecretResolver + 'static> HttpModelProvider<R> {
             .connect_timeout(runtime.request_timeout.min(Duration::from_secs(10)))
             .redirect(reqwest::redirect::Policy::none())
             .user_agent("trpg-agent-worker/model-provider");
+
+        if let Some(pem) = root_certificate_pem {
+            let certificate = reqwest::Certificate::from_pem(pem)
+                .map_err(|_| configuration_error())?;
+            client = client.add_root_certificate(certificate);
+        }
 
         if runtime.provider.provider_type.is_local() {
             client = client.no_proxy();

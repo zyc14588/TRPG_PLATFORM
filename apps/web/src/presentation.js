@@ -37,15 +37,19 @@ export function eventPresentation(event) {
   const type = String(event?.event_type || "EventRecorded");
   const payload = redactEvidence(event?.payload || {});
   const detail = eventPayload(event);
+  const visibleDetail = detail.decision && typeof detail.decision === "object"
+    && !Array.isArray(detail.decision)
+    ? detail.decision
+    : detail;
   const summary = firstText(
-    detail.user_visible_summary,
-    detail.player_visible_text,
-    detail.player_visible_explanation,
-    detail.summary,
-    detail.scene_name,
-    detail.review_summary,
-    detail.resolution,
-    detail.state,
+    visibleDetail.user_visible_summary,
+    visibleDetail.player_visible_text,
+    visibleDetail.player_visible_explanation,
+    visibleDetail.summary,
+    visibleDetail.scene_name,
+    visibleDetail.review_summary,
+    visibleDetail.resolution,
+    visibleDetail.state,
     event?.resource_id,
   );
   return {
@@ -136,12 +140,16 @@ const EVENT_TITLES = {
   CharacterSubmitted: "角色已提交审核",
   CharacterReviewed: "角色审核已完成",
   SessionStarted: "Session 已开始",
+  SessionStateChanged: "Session 状态已更新",
   SceneSwitched: "场景已切换",
   PlayerActionSubmitted: "调查行动已提交",
   PlayerActionResolved: "检定结果已记录",
   AgentJobRequested: "Agent 工作已请求",
   AgentDraftApproved: "AI 草案已批准",
+  AgentDecisionProduced: "AI 决策已生成",
+  DecisionCommitted: "AI 决策已正式记录",
   ToolExecutionSucceeded: "工具执行已形成正式事件",
+  CampaignForkRecorded: "Campaign 分支已记录",
   ReconsiderationRequested: "重考虑请求已记录",
   CampaignExportRequested: "战报导出已请求",
 };

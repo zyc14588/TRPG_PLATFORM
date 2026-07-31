@@ -347,6 +347,7 @@ services:
       TRPG_MODEL_PROVIDER_BASE_URL: ${TRPG_MODEL_PROVIDER_BASE_URL:?set model provider base url}
       TRPG_MODEL_PROVIDER_CREDENTIAL_SECRET_ID: provider_credential
       TRPG_MODEL_PROVIDER_CREDENTIAL_SECRET_VERSION: "1"
+      TRPG_MODEL_PROVIDER_CA_CERT_PATH: /run/secrets/provider_ca_certificate
       TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID: ${TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID:?set model route authorization event id}
       TRPG_MODEL_PROVIDER_CAPABILITIES: chat,streaming,structured_output,tool_requests,embeddings
       TRPG_MODEL_PROVIDER_TIMEOUT_MS: "30000"
@@ -392,6 +393,7 @@ services:
         target: audit_hmac_key.v1
       - source: provider_credential
         target: provider_credential.v1
+      - provider_ca_certificate
       - source: local_model_certification_hmac_key
         target: local_model_certification_hmac_key.v1
       - source: object_storage_access_key

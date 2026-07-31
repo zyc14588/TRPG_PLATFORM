@@ -22,6 +22,7 @@ const state = {
   export: null,
   adminEvidence: null,
   adminReady: false,
+  adminVersion: null,
   error: "",
   notice: "",
   busy: false,
@@ -190,8 +191,11 @@ function campaignHubView() {
             <label>标题<input name="title" required placeholder="灰港档案室" /></label>
             <label>房间 ID<input name="roomId" required placeholder="room_archive" /></label>
             <label>房间名<input name="roomName" required placeholder="Tutorial Room" /></label>
+            <label>父战役 ID（可选）<input name="parentCampaignId" placeholder="campaign_mist_archive" /></label>
+            <label>源 Session ID（可选）<input name="sourceSessionId" placeholder="session_tutorial" /></label>
+            <label class="span-two">Fork 原因（分支时必填）<input name="forkReason" maxlength="512" placeholder="切换为 AI_KP 教学分支" /></label>
             <p class="span-three form-note">提交时会从服务器读取已锁定 Authority 快照；客户端不能创建或修改权威合同。</p>
-            <button class="button primary" type="submit">创建并锁定</button>
+            <button class="button primary" type="submit">创建 / 物化分支</button>
           </form>
         </details>
         <details class="open-panel">
@@ -257,15 +261,19 @@ function playView({ canKeep, isSpectator, decision }) {
 function actionView() {
   const pending = state.recent.pendingAction;
   return `<section class="action-surface" aria-labelledby="action-title">
-    <div class="section-tabs"><h2 id="action-title">调查检定</h2><span>服务端正式骰</span></div>
+    <div class="section-tabs"><h2 id="action-title">Tutorial 检定</h2><span>服务端正式骰</span></div>
     <form data-form="submit-action" class="form-grid three">
       <label>角色 ID<input name="characterId" value="${escapeHtml(state.recent.characterId || "")}" required /></label>
       <label>Session ID<input name="sessionId" value="${escapeHtml(state.recent.sessionId || "")}" required /></label>
       <label>Scene ID<input name="sceneId" value="${escapeHtml(state.recent.sceneId || "")}" required /></label>
+      <label>检定类型<select name="intentKind"><option value="INVESTIGATION">调查 / 线索</option><option value="SANITY_CHECK">理智检定</option></select></label>
       <label>技能名<input name="skillName" value="Library Use" required /></label>
       <label>线索 ID<input name="clueId" value="tutorial_archive_clue" required /></label>
       <label>重要性<select name="clueImportance"><option value="CORE">核心线索</option><option value="OPTIONAL">可选线索</option></select></label>
       <label>调整<select name="adjustment"><option value="NONE">无</option><option value="BONUS">奖励骰</option><option value="PENALTY">惩罚骰</option></select></label>
+      <label>成功 SAN 损失<input name="successLoss" type="number" min="0" max="99" value="0" required /></label>
+      <label>失败 SAN 损失<input name="failureLoss" type="number" min="0" max="99" value="1" required /></label>
+      <label>游戏日键<input name="dayKey" value="tutorial_day_1" maxlength="128" required /></label>
       <label class="span-two">行动说明<textarea name="description" maxlength="300" placeholder="描述你如何调查、检查或与环境互动。"></textarea></label>
       <button class="button primary span-three" type="submit">提交行动</button>
     </form>
@@ -279,6 +287,7 @@ function spectatorView() {
 
 function keeperRailView() {
   const mode = state.authority?.mode || "—";
+  const isAi = mode === "AI_KP";
   return `<aside class="keeper-rail" aria-labelledby="keeper-tools-title">
     <header><p class="eyeline">当前 · ${escapeHtml(mode)}</p><h2 id="keeper-tools-title">KP 工具</h2></header>
     <details open><summary>场景与安全</summary>
@@ -289,18 +298,32 @@ function keeperRailView() {
         <button class="button" type="submit">推进场景</button>
       </form>
       <button class="tool-button danger" type="button" data-action="safety-pause"><b>安全暂停</b><small>暂停 Session，不直接改变游戏结果</small></button>
+      <form data-form="end-session" class="form-stack compact">
+        <label>结束的 Session ID<input name="sessionId" value="${escapeHtml(state.recent.sessionId || "")}" required /></label>
+        <button class="button" type="submit">记录 Tutorial 结局并结束</button>
+      </form>
     </details>
     <details open><summary>私密协作</summary>
       <form data-form="agent-job" class="form-stack compact">
         <label>Job ID<input name="jobId" required value="job_${Date.now().toString(36)}" /></label>
         <label>RAG 快照 ID<input name="ragSnapshotId" required value="tutorial_rag_1" /></label>
-        <button class="tool-button secret" type="submit"><b>请求私密检定</b><small>HUMAN_KP 结果仅对 KP 可见</small></button>
+        <label>私密上下文<textarea name="privateNote" maxlength="512" placeholder="仅进入服务器许可的 Agent 上下文"></textarea></label>
+        <button class="tool-button secret" type="submit"><b>${isAi ? "请求 AI Keeper 决策" : "请求私密检定"}</b><small>${isAi ? "正式决策经 Agent Gateway、事件日志与 WS 返回" : "HUMAN_KP 结果仅对 KP 可见"}</small></button>
       </form>
-      <form data-form="approve-agent" class="form-stack compact">
+      ${isAi ? `<p class="form-note">AI_KP 正式决策不经过浏览器批准；重考虑仍走服务器工作流。</p>
+      <form data-form="reconsider" class="form-stack compact">
+        <label>原事件序号<input name="eventSequence" type="number" min="1" value="${escapeHtml(lastEventSequence())}" required /></label>
+        <label>重考虑原因<textarea name="reason" required maxlength="500"></textarea></label>
+        <button class="button" type="submit">请求重考虑</button>
+      </form>` : `<form data-form="approve-agent" class="form-stack compact">
         <label>待批准 Job ID<input name="jobId" value="${escapeHtml(state.recent.agentJobId || "")}" required /></label>
         <label>Job 版本<input name="expectedVersion" type="number" min="1" value="${escapeHtml(state.recent.agentJobVersion || 1)}" required /></label>
         <button class="button" type="submit">批准 AI 草案</button>
-      </form>
+      </form><form data-form="confirm-player-action" class="form-stack compact">
+        <label>待裁定 Action ID<input name="actionId" value="${escapeHtml(state.recent.pendingAction?.actionId || "")}" required /></label>
+        <label>Action 版本<input name="expectedVersion" type="number" min="1" value="1" required /></label>
+        <button class="button approval" type="submit">确认服务端行动结果</button>
+      </form>`}
     </details>
     <details><summary>分队管理</summary>
       <form data-form="group" class="form-stack compact">
@@ -345,7 +368,7 @@ function setupView(canKeep) {
           <button class="button" type="submit">保存角色</button>
           <button class="button primary" type="button" data-action="submit-character">提交审核</button>
         </form>
-        ${canKeep ? `<button class="button approval" type="button" data-action="review-character">批准角色</button>` : ""}
+        ${canKeep ? `<form data-form="review-character" class="form-grid three review-form"><label>待审核角色 ID<input name="characterId" required /></label><label>角色版本<input name="expectedVersion" type="number" min="1" value="2" required /></label><button class="button approval align-end" type="submit">批准角色</button></form>` : ""}
       </section>
       <section class="setup-section"><div class="section-heading"><div><p class="eyeline">Session / Scene</p><h2>开始教学场景</h2></div></div>
         <form data-form="start-session" class="form-grid three">
@@ -399,6 +422,8 @@ function adminView() {
     <div class="admin-grid">
       <section><h2>Admin 登录</h2><form data-form="admin-login" class="form-stack"><label>管理员登录名<input name="login" autocomplete="username" required /></label><label>密码<input name="password" type="password" autocomplete="current-password" required /></label><button class="button primary" type="submit">建立 Admin session</button></form></section>
       <section><h2>AR10 诊断入口</h2><div class="button-row"><button class="button" data-action="admin-diagnostics" type="button" ${state.adminReady ? "" : "disabled"}>诊断</button><button class="button" data-action="admin-audit" type="button" ${state.adminReady ? "" : "disabled"}>审计</button></div><p class="form-note">备份与恢复保留在经审计的 Admin API；此最小界面不预填破坏性参数。</p></section>
+      <section><h2>创建普通用户</h2><form data-form="admin-create-user" class="form-stack"><label>用户 ID<input name="userId" required /></label><label>登录名<input name="login" type="email" autocomplete="off" required /></label><label>初始密码<input name="password" type="password" minlength="16" autocomplete="new-password" required /></label><button class="button primary" type="submit" ${state.adminReady ? "" : "disabled"}>创建 USER</button></form></section>
+      <section><h2>派生 Authority 分支</h2><form data-form="admin-fork-authority" class="form-stack"><label>父战役 ID<input name="parentCampaignId" required /></label><label>子战役 ID<input name="childCampaignId" required /></label><label>子模式<select name="authorityMode"><option value="AI_KP">AI_KP</option><option value="HUMAN_KP">HUMAN_KP</option></select></label><label>Authority Owner ID<input name="authorityOwner" required value="ai_keeper_tutorial" /></label><label>Campaign Manager 用户 ID<input name="campaignManagerUserId" required /></label><button class="button primary" type="submit" ${state.adminReady ? "" : "disabled"}>从锁定合同派生</button></form><p class="form-note">当前 Admin state #${escapeHtml(state.adminVersion ?? "—")}；原合同保持不变。</p></section>
       <section class="admin-output"><h2>脱敏证据</h2>${state.adminEvidence ? `<pre>${escapeHtml(safeJson(state.adminEvidence))}</pre>` : `<p class="muted">登录后选择诊断或审计。</p>`}</section>
     </div>
   </main>`;
@@ -466,15 +491,20 @@ async function handleForm(form) {
     "accept-invite": () => acceptInvite(data),
     "issue-invite": () => issueInvite(data),
     "create-character": () => createCharacter(data),
+    "review-character": () => reviewCharacter(data),
     "start-session": () => startSession(data),
     "switch-scene": () => switchScene(data),
+    "end-session": () => endSession(data),
     "submit-action": () => submitAction(data),
     "agent-job": () => requestAgentJob(data),
     "approve-agent": () => approveAgentJob(data),
+    "confirm-player-action": () => confirmAction(data),
     group: () => manageGroup(data),
     reconsider: () => reconsider(data),
     export: () => requestExport(data),
     "admin-login": () => adminLogin(data),
+    "admin-create-user": () => adminCreateUser(data),
+    "admin-fork-authority": () => adminForkAuthority(data),
   };
   const handler = handlers[form.dataset.form];
   if (handler) await run(successFor(form.dataset.form), handler);
@@ -517,6 +547,7 @@ async function logout() {
     export: null,
     adminEvidence: null,
     adminReady: false,
+    adminVersion: null,
   });
 }
 
@@ -539,11 +570,14 @@ async function openCampaign(campaignId) {
   state.realtime = { state: "connecting", cursor: Number(replay.scanned_through_sequence) || 0 };
   state.screen = "workspace";
   state.workspaceTab = "play";
-  realtime.cursor = state.realtime.cursor;
   realtime.connect({ token: api.accessToken, campaignId, roomId: campaignId });
 }
 
 async function createCampaign(data) {
+  const forkFields = [data.parentCampaignId, data.sourceSessionId, data.forkReason];
+  if (forkFields.some(Boolean) && !forkFields.every(Boolean)) {
+    throw new Error("分支创建需要父战役、源 Session 与 Fork 原因");
+  }
   const authority = await api.getAuthority(data.campaignId);
   const snapshot = authority.snapshot || {};
   await api.createCampaign({
@@ -553,7 +587,7 @@ async function createCampaign(data) {
     title: data.title,
     room_id: data.roomId,
     room_name: data.roomName,
-    created_at_unix_ms: Date.now(),
+    created_at_unix_ms: Number(authority.created_at_unix_ms),
     authority: {
       contract_id: authority.contract_id,
       authority_mode: authority.mode,
@@ -561,6 +595,16 @@ async function createCampaign(data) {
       ...snapshot,
     },
   });
+  if (data.parentCampaignId) {
+    await api.forkCampaign(data.parentCampaignId, {
+      command: createCommand("campaign_fork", 0),
+      fork_id: `fork_${data.campaignId}`,
+      parent_campaign_id: data.parentCampaignId,
+      child_campaign_id: data.campaignId,
+      source_session_id: data.sourceSessionId,
+      reason: data.forkReason,
+    });
+  }
   await loadCampaigns();
 }
 
@@ -618,10 +662,11 @@ async function submitCharacter() {
   await refreshEvents();
 }
 
-async function reviewCharacter() {
-  const characterId = requiredRecent("characterId", "请先保存并提交角色");
+async function reviewCharacter(data = {}) {
+  const characterId = data.characterId || requiredRecent("characterId", "请先保存并提交角色");
+  const expectedVersion = Number(data.expectedVersion || version(`character:${characterId}`, 2));
   const response = await api.reviewCharacter(state.campaign.campaign_id, characterId, {
-    command: createCommand("character_review", version(`character:${characterId}`, 2)),
+    command: createCommand("character_review", expectedVersion),
     campaign_id: state.campaign.campaign_id,
     character_id: characterId,
   });
@@ -681,8 +726,36 @@ async function safetyPause() {
   await refreshEvents();
 }
 
+async function endSession(data) {
+  const sessionId = data.sessionId;
+  const response = await api.changeSession(state.campaign.campaign_id, sessionId, {
+    command: createCommand("tutorial_end", version(`session:${sessionId}`, 1)),
+    campaign_id: state.campaign.campaign_id,
+    session_id: sessionId,
+    state: "ENDED",
+    changed_at_unix_ms: Date.now(),
+  });
+  setVersion(`session:${sessionId}`, response.aggregate_version);
+  state.recent.sessionState = "ENDED";
+  await refreshEvents();
+}
+
 async function submitAction(data) {
   const actionId = `action_${Date.now().toString(36)}`;
+  const intent = data.intentKind === "SANITY_CHECK"
+    ? {
+        kind: "SANITY_CHECK",
+        success_loss: Number(data.successLoss),
+        failure_loss: Number(data.failureLoss),
+        day_key: data.dayKey,
+      }
+    : {
+        kind: "INVESTIGATION",
+        skill_name: data.skillName,
+        clue_id: data.clueId,
+        clue_importance: data.clueImportance,
+        adjustment: data.adjustment,
+      };
   const response = await api.submitAction(state.campaign.campaign_id, {
     command: createCommand("player_action", 0),
     campaign_id: state.campaign.campaign_id,
@@ -690,29 +763,24 @@ async function submitAction(data) {
     character_id: data.characterId,
     scene_id: data.sceneId,
     submitted_at_unix_ms: Date.now(),
-    intent: {
-      kind: "INVESTIGATION",
-      skill_name: data.skillName,
-      clue_id: data.clueId,
-      clue_importance: data.clueImportance,
-      adjustment: data.adjustment,
-    },
+    intent,
   });
   Object.assign(state.recent, { characterId: data.characterId, sessionId: data.sessionId, sceneId: data.sceneId, pendingAction: { actionId } });
   setVersion(`action:${actionId}`, response.aggregate_version || 1);
   await refreshEvents();
 }
 
-async function confirmAction() {
-  const pending = state.recent.pendingAction;
+async function confirmAction(data = {}) {
+  const pending = data.actionId ? { actionId: data.actionId } : state.recent.pendingAction;
   if (!pending) throw new Error("没有等待确认的行动");
+  const expectedVersion = Number(data.expectedVersion || version(`action:${pending.actionId}`, 1));
   await api.confirmAction(state.campaign.campaign_id, pending.actionId, {
-    command: createCommand("player_action_confirm", version(`action:${pending.actionId}`, 1)),
+    command: createCommand("player_action_confirm", expectedVersion),
     campaign_id: state.campaign.campaign_id,
     action_id: pending.actionId,
     resolved_at_unix_ms: Date.now(),
   });
-  state.recent.pendingAction = null;
+  if (state.recent.pendingAction?.actionId === pending.actionId) state.recent.pendingAction = null;
   await refreshEvents();
 }
 
@@ -722,7 +790,10 @@ async function requestAgentJob(data) {
     campaign_id: state.campaign.campaign_id,
     job_id: data.jobId,
     rag_snapshot_id: data.ragSnapshotId,
-    input: { kind: "npc_skill_check" },
+    input: {
+      kind: "npc_skill_check",
+      private_note: data.privateNote || undefined,
+    },
     deadline_unix_ms: Date.now() + 240_000,
   });
   state.recent.agentJobId = data.jobId;
@@ -774,7 +845,38 @@ async function requestExport(data) {
 async function adminLogin(data) {
   await api.adminLogin(data.login, data.password);
   state.adminReady = true;
+  const status = await api.adminStatus();
+  state.adminVersion = Number(status.state_version);
   state.adminEvidence = await api.adminEvidence("diagnostics");
+}
+
+async function adminCreateUser(data) {
+  const response = await api.adminCreateUser({
+    user_id: data.userId,
+    login: data.login,
+    password: data.password,
+  }, requiredAdminVersion());
+  state.adminVersion = Number(response.state_version);
+  state.adminEvidence = response;
+}
+
+async function adminForkAuthority(data) {
+  const response = await api.adminForkAuthority({
+    parent_campaign_id: data.parentCampaignId,
+    child_campaign_id: data.childCampaignId,
+    authority_mode: data.authorityMode,
+    authority_owner: data.authorityOwner,
+    campaign_manager_user_id: data.campaignManagerUserId,
+  }, requiredAdminVersion());
+  state.adminVersion = Number(response.state_version);
+  state.adminEvidence = response;
+}
+
+function requiredAdminVersion() {
+  if (!Number.isInteger(state.adminVersion) || state.adminVersion < 0) {
+    throw new Error("请先建立 Admin session");
+  }
+  return state.adminVersion;
 }
 
 async function refreshEvents() {
@@ -908,15 +1010,20 @@ function successFor(formName) {
     "accept-invite": "已加入战役",
     "issue-invite": "邀请已签发",
     "create-character": "角色草稿已保存",
+    "review-character": "角色已批准",
     "start-session": "Session 已开始",
     "switch-scene": "场景推进已提交",
+    "end-session": "Tutorial 结局已记录，Session 已结束",
     "submit-action": "行动已提交",
     "agent-job": "Agent 工作已请求",
     "approve-agent": "AI 草案批准已提交",
+    "confirm-player-action": "行动结果已确认",
     group: "分队成员已更新",
     reconsider: "重考虑请求已提交",
     export: "战报导出已请求",
     "admin-login": "Admin session 已建立",
+    "admin-create-user": "普通用户已创建",
+    "admin-fork-authority": "Authority 子分支已派生",
   }[formName] || "操作已完成";
 }
 

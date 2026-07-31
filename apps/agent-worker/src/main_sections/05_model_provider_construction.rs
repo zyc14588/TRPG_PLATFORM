@@ -84,10 +84,15 @@ fn model_provider_from_environment(
     secret_manager: Arc<SecretManager<MountedFileSecretResolver>>,
 ) -> Result<HttpModelProvider<MountedFileSecretResolver>, String> {
     let environment = ModelProviderEnvironment::from_environment()?;
+    let provider_ca = optional_file_bytes("TRPG_MODEL_PROVIDER_CA_CERT_PATH")?;
     secret_manager
         .register(&environment.credential)
         .map_err(|_| "MODEL_PROVIDER_CREDENTIAL_REGISTRATION_FAILED".to_owned())?;
-    HttpModelProvider::new(environment.into_runtime(), secret_manager)
+    HttpModelProvider::new_with_root_certificate(
+        environment.into_runtime(),
+        secret_manager,
+        provider_ca.as_deref(),
+    )
         .map_err(|error| error.code().to_owned())
 }
 

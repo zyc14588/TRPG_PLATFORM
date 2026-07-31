@@ -109,6 +109,18 @@ async function fakeFetch(url, init) {
       global_role: "USER",
     });
   }
+  if (url.endsWith("/admin/v1/sessions")) {
+    return jsonResponse(200, { access_token: "c".repeat(64) });
+  }
+  if (url.endsWith("/admin/v1/bootstrap/status")) {
+    return jsonResponse(200, { status: "completed", state_version: 7 });
+  }
+  if (url.endsWith("/admin/v1/users")) {
+    return jsonResponse(201, { result: "USER_CREATED", state_version: 8 });
+  }
+  if (url.endsWith("/admin/v1/authority-forks")) {
+    return jsonResponse(201, { result: "AUTHORITY_FORKED", state_version: 9 });
+  }
   if (url.endsWith("/campaigns")) return jsonResponse(200, { campaigns: [] });
   return jsonResponse(403, { error: "CAMPAIGN_MEMBERSHIP_DENIED" });
 }
@@ -123,6 +135,30 @@ await assert.rejects(
   () => productApi.getAuthority("campaign_a"),
   (error) => error instanceof ProductApiError && error.status === 403,
 );
+await productApi.adminLogin("owner@example.test", "password long enough");
+assert.equal((await productApi.adminStatus()).state_version, 7);
+await productApi.adminCreateUser(
+  { user_id: "player_02", login: "player-02@example.test", password: "password long enough" },
+  7,
+);
+const userRequest = requests.at(-1);
+assert.equal(userRequest.url, "/admin/admin/v1/users");
+assert.equal(userRequest.init.headers.get("Authorization"), `Bearer ${"c".repeat(64)}`);
+assert.equal(userRequest.init.headers.get("X-Expected-Version"), "7");
+assert.match(userRequest.init.headers.get("Idempotency-Key"), /^web-user-create-/);
+await productApi.adminForkAuthority(
+  {
+    parent_campaign_id: "campaign_human",
+    child_campaign_id: "campaign_ai",
+    authority_mode: "AI_KP",
+    authority_owner: "ai_keeper_tutorial",
+    campaign_manager_user_id: "keeper_01",
+  },
+  8,
+);
+const authorityRequest = requests.at(-1);
+assert.equal(authorityRequest.url, "/admin/admin/v1/authority-forks");
+assert.equal(authorityRequest.init.headers.get("X-Expected-Version"), "8");
 await assert.rejects(
   () => new ProductApi({ ...config, apiBase: "//outside.example" }, fakeFetch).login("user", "password"),
   (error) => error instanceof ProductApiError && error.code === "CONFIG_APIBASE_NOT_SAME_ORIGIN",
@@ -150,12 +186,28 @@ assert.deepEqual(
   {
     sequence: 7,
     type: "AgentDecisionProduced",
-    title: "Agent Decision Produced",
+    title: "AI 决策已生成",
     summary: "检查档案索引",
     visibility: "party_visible",
     provenance: "agent_output",
     payload: { user_visible_summary: "检查档案索引" },
   },
+);
+assert.equal(
+  eventPresentation({
+    cursor: 8,
+    event_type: "AgentDraftApproved",
+    visibility_label: "keeper_only",
+    provenance_kind: "human_keeper_statement",
+    payload: {
+      approved_by: "keeper_01",
+      decision: {
+        player_visible_text: "仅当前 Keeper 可见的草案结果",
+        private_prompt: "CANARY_PROMPT",
+      },
+    },
+  }).summary,
+  "仅当前 Keeper 可见的草案结果",
 );
 
 const realtimeStatuses = [];
@@ -197,6 +249,40 @@ socket.emit("message", {
 assert.equal(realtimeEvents.length, 1);
 assert.equal(JSON.parse(socket.sent.at(-1)).type, "ack");
 assert.equal(realtimeStatuses.some(({ state }) => state === "connected"), true);
+socket.emit("message", {
+  data: JSON.stringify({
+    version: REALTIME_PROTOCOL,
+    sequence: 3,
+    type: "checkpoint",
+    cursor: 12,
+    resume_token: "resume_cursor_12",
+  }),
+});
+socket.emit("message", {
+  data: JSON.stringify({
+    version: REALTIME_PROTOCOL,
+    sequence: 4,
+    type: "acked",
+    request_id: "ack_cursor_9",
+    cursor: 9,
+    resume_token: "resume_cursor_9",
+  }),
+});
+const connectionCountBeforeReconnect = TestWebSocket.instances.length;
+realtime.reconnect();
+assert.equal(socket.readyState, 3);
+assert.equal(TestWebSocket.instances.length, connectionCountBeforeReconnect + 1);
+socket.emit("close", { code: 1000 });
+assert.equal(TestWebSocket.instances.length, connectionCountBeforeReconnect + 1);
+const resumedSocket = TestWebSocket.instances.at(-1);
+resumedSocket.emit("open", {});
+assert.equal(JSON.parse(resumedSocket.sent[0]).cursor, 12);
+assert.equal(JSON.parse(resumedSocket.sent[0]).resume_token, "resume_cursor_12");
+realtime.connect({ token: "b".repeat(64), campaignId: "campaign_b" });
+const nextCampaignSocket = TestWebSocket.instances.at(-1);
+nextCampaignSocket.emit("open", {});
+assert.equal(JSON.parse(nextCampaignSocket.sent[0]).cursor, 0);
+assert.equal(JSON.parse(nextCampaignSocket.sent[0]).resume_token, null);
 realtime.disconnect();
 
 const builtIndex = await readFile(path.join(root, "dist/index.html"), "utf8");

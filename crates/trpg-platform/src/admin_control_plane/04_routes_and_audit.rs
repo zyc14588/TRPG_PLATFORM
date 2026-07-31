@@ -33,6 +33,8 @@ impl AdminControlPlane {
             ("POST", "/admin/v1/bootstrap/tutorial-authority") => {
                 self.configure_tutorial_authority(request)
             }
+            ("POST", "/admin/v1/users") => self.create_managed_user(request),
+            ("POST", "/admin/v1/authority-forks") => self.fork_authority(request),
             ("POST", "/admin/v1/sessions") => self.create_session(request),
             ("PUT", "/admin/v1/providers/configuration") => {
                 self.configure_provider(request)
@@ -50,6 +52,8 @@ impl AdminControlPlane {
                 "/admin/v1/bootstrap/status"
                 | "/admin/v1/bootstrap/complete"
                 | "/admin/v1/bootstrap/tutorial-authority"
+                | "/admin/v1/users"
+                | "/admin/v1/authority-forks"
                 | "/admin/v1/sessions"
                 | "/admin/v1/providers/configuration"
                 | "/admin/v1/providers/probe"

@@ -23,6 +23,7 @@ use trpg_security_governance::{
 };
 use trpg_shared_kernel::{
     AuthorityContract, AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft,
+    EntityId,
 };
 
 const ADMIN_STATE_SCHEMA: &str = "trpg-admin-control-v1";
@@ -152,6 +153,24 @@ struct BootstrapTutorialAuthorityRequest {
     created_at_unix_ms: u64,
     ai_provider_snapshot: String,
     model_route_snapshot: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateUserRequest {
+    user_id: String,
+    login: String,
+    password: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ForkAuthorityRequest {
+    parent_campaign_id: String,
+    child_campaign_id: String,
+    authority_mode: String,
+    authority_owner: String,
+    campaign_manager_user_id: String,
 }
 
 #[derive(Deserialize)]
