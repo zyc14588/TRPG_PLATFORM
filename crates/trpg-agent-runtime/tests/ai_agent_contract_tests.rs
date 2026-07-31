@@ -18,7 +18,8 @@ impl AgentToolExecutor for SuccessfulToolExecutor {
     ) -> trpg_agent_runtime::agent_runtime::AgentResult<AgentToolExecutionOutput> {
         Ok(AgentToolExecutionOutput {
             execution_id: format!("execution_{}", decision.decision_id.as_str()),
-            result_hash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            result: serde_json::json!({}),
+            result_hash: "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
                 .to_owned(),
         })
     }
@@ -126,6 +127,20 @@ fn ai_agent_commits_only_through_event_store_with_provenance() {
     assert_eq!(events[1].event_type, "ToolExecutionSucceeded");
     assert_eq!(events[2].event_type, "DecisionCommitted");
     assert_eq!(events[2].fact_provenance, command.fact_provenance);
+    match &events[1].payload {
+        AgentEventPayload::ToolExecutionSucceeded {
+            result,
+            result_hash,
+            ..
+        } => {
+            assert_eq!(result, &serde_json::json!({}));
+            assert_eq!(
+                result_hash,
+                "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+            );
+        }
+        other => panic!("unexpected event payload: {other:?}"),
+    }
     match &events[2].payload {
         AgentEventPayload::DecisionCommitted {
             linked_records,

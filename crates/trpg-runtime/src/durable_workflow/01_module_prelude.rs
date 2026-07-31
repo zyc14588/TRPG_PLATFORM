@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 

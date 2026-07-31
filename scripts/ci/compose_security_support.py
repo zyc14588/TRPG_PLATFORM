@@ -39,7 +39,9 @@ DATABASE_CLIENT_SERVICES = {
 WITNESS_DATABASE_SECRET_BY_SERVICE = {
     "api": "witness_append_database_url",
     "realtime": "witness_read_database_url",
-    "agent-worker": "witness_read_database_url",
+    # The Agent Job worker is a formal canonical writer. It receives only the
+    # immutable append role, never witness owner or mutable table privileges.
+    "agent-worker": "witness_append_database_url",
     "migration-runner": "witness_owner_database_url",
 }
 

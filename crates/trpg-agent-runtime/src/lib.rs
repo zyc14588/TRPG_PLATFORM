@@ -34,8 +34,9 @@ pub mod working_memory_rag_rag_snapshot;
 pub use agent_job::{
     AgentJobCommitReceipt, AgentJobDecisionPort, AgentJobError, AgentJobExecutionConfig,
     AgentJobOutcome, AgentJobRepository, AgentJobToolCall, AgentJobToolPort, AgentJobToolResult,
-    AgentJobWorker, AgentStructuredDecision, CertifiedLocalModel, GovernedAgentDecisionPort,
-    GovernedAgentJobToolPort, ProductionAgentIdentityConfiguration, RejectingAgentJobToolPort,
+    AgentJobWorker, AgentSkillCheckRoll, AgentSkillCheckRulePort, AgentStructuredDecision,
+    CertifiedLocalModel, GovernedAgentDecisionPort, GovernedAgentJobToolPort,
+    ProductionAgentIdentityConfiguration, RejectingAgentJobToolPort,
 };
 pub use agent_runtime::EventStore as AgentEventStore;
 pub use agent_runtime::{

@@ -20,9 +20,12 @@ ALLOWED_NORMAL_DEPENDENCIES: dict[str, set[str]] = {
         "trpg-security-governance",
         "trpg-shared-kernel",
     },
+    # Durable Agent Jobs reuse the runtime workflow store. Concrete rulesets
+    # remain absent here and are selected only by the product composition root.
     "trpg-agent-runtime": {
         "trpg-contracts",
         "trpg-identity",
+        "trpg-runtime",
         "trpg-security-governance",
         "trpg-shared-kernel",
     },
@@ -88,11 +91,14 @@ ALLOWED_NORMAL_DEPENDENCIES: dict[str, set[str]] = {
         "trpg-data-eventing",
         "trpg-security-governance",
     },
+    # The worker is the composition root that binds the generic Agent skill
+    # check port to the official COC7 rules engine.
     "agent-worker": {
         "trpg-agent-runtime",
         "trpg-contracts",
         "trpg-data-eventing",
         "trpg-extension-sdk",
+        "trpg-ruleset-coc7",
         "trpg-runtime",
         "trpg-security-governance",
     },

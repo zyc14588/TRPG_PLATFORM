@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use sha2::{Digest, Sha256};
 use trpg_contracts::WireErrorCode;
 use trpg_identity::{
     AgentClass as IdentityAgentClass, AuthenticationContext, IdentityVerifier, PrincipalKind,

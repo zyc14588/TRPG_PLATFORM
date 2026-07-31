@@ -22,6 +22,7 @@ dependencies = [
  "trpg-contracts",
  "trpg-data-eventing",
  "trpg-extension-sdk",
+ "trpg-ruleset-coc7",
  "trpg-runtime",
  "trpg-security-governance",
 ]

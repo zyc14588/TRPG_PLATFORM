@@ -120,7 +120,8 @@ secret_names=(
   owner_database_url api_database_url canonical_database_url worker_database_url
   realtime_database_url witness_owner_database_url witness_append_database_url
   witness_read_database_url identity_signing_key canonical_hmac_key
-  payload_encryption_key audit_hmac_key admin_bootstrap_token redis_url nats_url
+  payload_encryption_key audit_hmac_key local_model_certification_hmac_key
+  admin_bootstrap_token redis_url nats_url
   realtime_cache_key object_storage_access_key object_storage_secret_key
   redis_acl redis_healthcheck_password nats_authorization minio_root_user
   minio_root_password postgres_tls_certificate postgres_tls_private_key
@@ -189,7 +190,9 @@ if ! step_done secrets; then
     random_secret "$name"
   done
   for name in identity_signing_key canonical_hmac_key payload_encryption_key audit_hmac_key \
-    admin_bootstrap_token realtime_cache_key; do random_secret "$name" 32; done
+    local_model_certification_hmac_key admin_bootstrap_token realtime_cache_key; do
+    random_secret "$name" 32
+  done
   pgo="$(<"$secrets/postgres_bootstrap_password")" pgw="$(<"$secrets/postgres_witness_owner_password")"
   pga="$(<"$secrets/postgres_api_password")" pgc="$(<"$secrets/postgres_canonical_password")"
   pgwk="$(<"$secrets/postgres_worker_password")" pgr="$(<"$secrets/postgres_realtime_password")"
@@ -274,6 +277,7 @@ fi
 export TRPG_CANONICAL_HMAC_KEY_ID="$project-canonical-v1"
 export TRPG_PAYLOAD_ENCRYPTION_KEY_ID="$project-payload-v1"
 export TRPG_AUDIT_HMAC_KEY_ID="$project-audit-v1"
+export TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_ID="$project-local-model-certification-v1"
 export TRPG_OBJECT_STORAGE_BUCKET="trpg-$project"
 export TRPG_MODEL_PROVIDER_TYPE="$runtime_provider_type"
 export TRPG_MODEL_PROVIDER_ID="$project-provider"

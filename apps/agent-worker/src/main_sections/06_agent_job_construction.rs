@@ -417,7 +417,10 @@ fn optional_agent_job_worker_from_environment(
     let decisions: Arc<dyn trpg_agent_runtime::agent_job::AgentJobDecisionPort> =
         Arc::new(decision_port);
     let tools: Arc<dyn trpg_agent_runtime::agent_job::AgentJobToolPort> =
-        Arc::new(GovernedAgentJobToolPort::new(workflow.clone()));
+        Arc::new(GovernedAgentJobToolPort::new(
+            workflow.clone(),
+            Arc::new(Coc7AgentSkillCheckRules),
+        ));
     AgentJobWorker::new(
         repository,
         provider,

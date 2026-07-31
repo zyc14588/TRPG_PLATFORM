@@ -4,9 +4,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sha2::{Digest, Sha256};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Postgres, Transaction};
+use trpg_ruleset_coc7::dice_roll_contract::{
+    server_roll_skill_check, DiceAdjustment, SuccessLevel,
+};
 use trpg_runtime::durable_workflow::{
-    AgentJobEnqueueDraft, AgentJobEvidenceDraft, AgentJobTransitionDraft, DurableAgentJob,
-    DurableWorkflowStore, WorkflowState, WorkflowStoreError,
+    AgentJobEnqueueDraft, AgentJobEvidenceDraft, AgentJobSkillCheckDraft,
+    AgentJobSkillCheckRollDraft, AgentJobTransitionDraft, DurableAgentJob, DurableWorkflowStore,
+    WorkflowState, WorkflowStoreError,
 };
 
 fn now_unix_ms() -> i64 {
@@ -18,6 +22,27 @@ fn now_unix_ms() -> i64 {
 
 fn digest(prefix: &str, value: &str) -> String {
     format!("{prefix}{:x}", Sha256::digest(value.as_bytes()))
+}
+
+fn coc7_skill_check_roll(target: u8) -> Result<AgentJobSkillCheckRollDraft, WorkflowStoreError> {
+    let roll = server_roll_skill_check(target, DiceAdjustment::None)
+        .map_err(|_| WorkflowStoreError::IntegrityViolation("coc7_skill_check_failed"))?;
+    let outcome = roll.outcome();
+    let success_level = match outcome.success_level {
+        SuccessLevel::Critical => "CRITICAL",
+        SuccessLevel::Extreme => "EXTREME",
+        SuccessLevel::Hard => "HARD",
+        SuccessLevel::Regular => "REGULAR",
+        SuccessLevel::Failure => "FAILURE",
+        SuccessLevel::Fumble => "FUMBLE",
+    };
+    Ok(AgentJobSkillCheckRollDraft {
+        execution_id: roll.roll_id().to_owned(),
+        roll: outcome.roll,
+        selected_tens_digit: outcome.selected_tens_digit,
+        ones_digit: outcome.ones_digit,
+        success_level: success_level.to_owned(),
+    })
 }
 
 async fn assert_service_connection(pool: &PgPool, service_role: &str) {
@@ -306,6 +331,8 @@ async fn agent_job_cas_lease_recovery_and_evidence_are_durable() {
     let campaign_id = format!("ar09-campaign-{suffix}");
     let contract_id = format!("ar09-contract-{suffix}");
     let actor_id = format!("ar09-keeper-{suffix}");
+    let player_id = format!("ar09-player-{suffix}");
+    let character_id = format!("ar09-character-{suffix}");
     let job_id = format!("ar09-job-{suffix}");
     let stream_id = format!("ar09-stream-{suffix}");
     let payload = r#"{"protected_payload":{"kind":"agent_job_test_input"}}"#;
@@ -353,6 +380,88 @@ async fn agent_job_cas_lease_recovery_and_evidence_are_durable() {
     )
     .await;
     fixture_transaction.commit().await.unwrap();
+    let mut projection_transaction = fixture_pool.begin().await.unwrap();
+    sqlx::query("SET LOCAL session_replication_role = 'replica'")
+        .execute(&mut *projection_transaction)
+        .await
+        .unwrap();
+    sqlx::query(
+        r#"
+        INSERT INTO users (
+            user_id, login_normalized, password_hash, global_role
+        ) VALUES ($1, $2, 'ar09-fixture-hash', 'USER')
+        "#,
+    )
+    .bind(&player_id)
+    .bind(format!("ar09-player-{suffix}"))
+    .execute(&mut *projection_transaction)
+    .await
+    .unwrap();
+    sqlx::query(
+        r#"
+        INSERT INTO campaigns (
+            campaign_id, owner_user_id, authority_contract_id, title, state,
+            version, created_at, visibility_label, visibility_subject,
+            provenance_kind, provenance_reference, provenance_recorded_by,
+            last_event_sequence
+        ) VALUES (
+            $1, $2, $3, 'AR09 durable tool receipt', 'ACTIVE', 1, now(),
+            'party_visible', 'not_applicable', 'system_fixture', $4, $2, $5
+        )
+        "#,
+    )
+    .bind(&campaign_id)
+    .bind(&player_id)
+    .bind(&contract_id)
+    .bind(format!("ar09-projection-{suffix}"))
+    .bind(input_event_sequence)
+    .execute(&mut *projection_transaction)
+    .await
+    .unwrap();
+    sqlx::query(
+        r#"
+        INSERT INTO characters (
+            character_id, campaign_id, owner_user_id, display_name, state,
+            current_sheet_version, initial_version_locked, version,
+            visibility_label, visibility_subject, provenance_kind,
+            provenance_reference, provenance_recorded_by, last_event_sequence
+        ) VALUES (
+            $1, $2, $3, 'AR09 Investigator', 'APPROVED', 1, TRUE, 1,
+            'party_visible', 'not_applicable', 'system_fixture', $4, $3, $5
+        )
+        "#,
+    )
+    .bind(&character_id)
+    .bind(&campaign_id)
+    .bind(&player_id)
+    .bind(format!("ar09-character-{suffix}"))
+    .bind(input_event_sequence)
+    .execute(&mut *projection_transaction)
+    .await
+    .unwrap();
+    sqlx::query(
+        r#"
+        INSERT INTO character_sheet_versions (
+            sheet_version_id, character_id, version, sheet_json, locked,
+            visibility_label, visibility_subject, provenance_kind,
+            provenance_reference, provenance_recorded_by, campaign_id,
+            last_event_sequence
+        ) VALUES (
+            $1, $2, 1, '{"skills":{"Library Use":67}}'::jsonb, TRUE,
+            'party_visible', 'not_applicable', 'system_fixture', $3, $4, $5, $6
+        )
+        "#,
+    )
+    .bind(format!("ar09-sheet-{suffix}"))
+    .bind(&character_id)
+    .bind(format!("ar09-sheet-{suffix}"))
+    .bind(&player_id)
+    .bind(&campaign_id)
+    .bind(input_event_sequence)
+    .execute(&mut *projection_transaction)
+    .await
+    .unwrap();
+    projection_transaction.commit().await.unwrap();
 
     let api_pool = PgPoolOptions::new()
         .max_connections(1)
@@ -496,13 +605,105 @@ async fn agent_job_cas_lease_recovery_and_evidence_are_durable() {
     );
     awaiting.decision_json = Some(r#"{"kind":"narration_only","text":"test"}"#.to_owned());
     let awaiting = store.transition_agent_job(&awaiting).await.unwrap();
+    let skill_check = AgentJobSkillCheckDraft {
+        job_id: job_id.clone(),
+        claim_owner: awaiting.claim_owner.clone().unwrap(),
+        claim_token: awaiting.claim_token.clone().unwrap(),
+        expected_attempt: awaiting.attempt,
+        idempotency_key: format!("{}:tool", draft.idempotency_key),
+        character_id: character_id.clone(),
+        skill_name: "Library Use".to_owned(),
+        adjustment: "NONE".to_owned(),
+        now_unix_ms: claim_time + 104,
+    };
+    let first_tool_result = store
+        .execute_agent_job_skill_check(&skill_check, coc7_skill_check_roll)
+        .await
+        .unwrap();
+    let replayed_tool_result = store
+        .execute_agent_job_skill_check(&skill_check, |_| {
+            panic!("an exact durable tool replay must not generate a second roll")
+        })
+        .await
+        .unwrap();
+    assert_eq!(replayed_tool_result, first_tool_result);
+    let result: serde_json::Value = serde_json::from_str(&first_tool_result.result_json).unwrap();
+    assert_eq!(result["schema_version"], 1);
+    assert_eq!(result["random_source"], "SERVER_OS_CSPRNG");
+    assert_eq!(result["character_id"], character_id);
+    assert_eq!(result["skill_name"], "Library Use");
+    assert_eq!(result["target"], 67);
+    assert_eq!(result["adjustment"], "NONE");
+    assert_eq!(
+        result["roll_id"].as_str(),
+        Some(first_tool_result.execution_id.as_str())
+    );
+    assert!(result["roll"]
+        .as_u64()
+        .is_some_and(|roll| (1..=100).contains(&roll)));
+    assert!(result["selected_tens_digit"]
+        .as_u64()
+        .is_some_and(|digit| digit <= 9));
+    assert!(result["ones_digit"]
+        .as_u64()
+        .is_some_and(|digit| digit <= 9));
+    assert!(matches!(
+        result["success_level"].as_str(),
+        Some("CRITICAL" | "EXTREME" | "HARD" | "REGULAR" | "FAILURE" | "FUMBLE")
+    ));
+    let receipt_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM agent_job_tool_receipts WHERE job_id = $1")
+            .bind(&job_id)
+            .fetch_one(&worker_pool)
+            .await
+            .unwrap();
+    assert_eq!(receipt_count, 1);
+    let mut conflicting_skill_check = skill_check.clone();
+    conflicting_skill_check.skill_name = "Spot Hidden".to_owned();
+    assert_eq!(
+        store
+            .execute_agent_job_skill_check(&conflicting_skill_check, |_| {
+                panic!("an idempotency conflict must fail before generating a roll")
+            })
+            .await,
+        Err(WorkflowStoreError::IdempotencyConflict)
+    );
+    assert_permission_denied(
+        sqlx::query(
+            "UPDATE agent_job_tool_receipts SET result_hash = result_hash WHERE job_id = $1",
+        )
+        .bind(&job_id)
+        .execute(&worker_pool)
+        .await,
+    );
+    assert_permission_denied(
+        sqlx::query("DELETE FROM agent_job_tool_receipts WHERE job_id = $1")
+            .bind(&job_id)
+            .execute(&worker_pool)
+            .await,
+    );
+    assert_permission_denied(
+        sqlx::query(
+            "INSERT INTO agent_job_tool_receipts (
+                job_id, idempotency_key, tool_name, request_json,
+                execution_id, result_json, result_hash
+             ) VALUES (
+                $1, 'forged', 'request_skill_check', '{}'::jsonb,
+                'forged', '{}'::jsonb, $2
+             )",
+        )
+        .bind(&job_id)
+        .bind(format!("sha256:{}", "0".repeat(64)))
+        .execute(&canonical_pool)
+        .await,
+    );
     let committing = store
         .transition_agent_job(&transition(
             &awaiting,
             WorkflowState::AwaitingTool,
             WorkflowState::Committing,
             "committing",
-            claim_time + 104,
+            claim_time + 105,
         ))
         .await
         .unwrap();
@@ -511,7 +712,7 @@ async fn agent_job_cas_lease_recovery_and_evidence_are_durable() {
         WorkflowState::Committing,
         WorkflowState::RetryableFailed,
         "retryable-failure",
-        claim_time + 105,
+        claim_time + 106,
     );
     retryable.error_code = Some("TEST_COMMIT_INTERRUPTED".to_owned());
     retryable.next_attempt_at_unix_ms = Some(claim_time + 200);

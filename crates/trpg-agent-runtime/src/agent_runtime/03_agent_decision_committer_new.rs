@@ -204,18 +204,7 @@ impl AgentDecisionCommitter {
             None => self.tool_executor.execute(&decision)?,
         };
         let execution_id = EntityId::new(&execution.execution_id)?;
-        if !execution.result_hash.starts_with("sha256:")
-            || execution.result_hash.len() != 71
-            || !execution
-                .result_hash
-                .bytes()
-                .skip(7)
-                .all(|byte| byte.is_ascii_hexdigit())
-        {
-            return Err(AgentError::Core(TrpgError::InvalidConfiguration(
-                "agent_tool_execution_result",
-            )));
-        }
+        validate_agent_tool_execution(&execution)?;
         persist_agent_formal_batch(
             store,
             command,
@@ -237,6 +226,7 @@ impl AgentDecisionCommitter {
                     AgentEventPayload::ToolExecutionSucceeded {
                         tool: decision.tool_request.tool().as_str(),
                         execution_id,
+                        result: execution.result,
                         result_hash: execution.result_hash,
                         seal: AgentFormalEventSeal::new(),
                     },
@@ -291,11 +281,35 @@ fn agent_execution_from_receipt(
         .get("result_hash")
         .and_then(serde_json::Value::as_str)
         .ok_or(TrpgError::AuditIntegrityViolation)?;
+    let result = execution
+        .get("result")
+        .cloned()
+        .ok_or(TrpgError::AuditIntegrityViolation)?;
     if tool != expected_tool {
         return Err(AgentError::Core(TrpgError::AuditIntegrityViolation));
     }
-    Ok(AgentToolExecutionOutput {
+    let output = AgentToolExecutionOutput {
         execution_id: execution_id.to_owned(),
+        result,
         result_hash: result_hash.to_owned(),
-    })
+    };
+    validate_agent_tool_execution(&output)?;
+    Ok(output)
+}
+
+fn validate_agent_tool_execution(execution: &AgentToolExecutionOutput) -> AgentResult<()> {
+    let encoded = serde_json::to_vec(&execution.result).map_err(|_| {
+        AgentError::Core(TrpgError::InvalidConfiguration(
+            "agent_tool_execution_result",
+        ))
+    })?;
+    let expected_hash = format!("sha256:{:x}", Sha256::digest(&encoded));
+    if execution.execution_id.trim().is_empty()
+        || execution.result_hash != expected_hash
+    {
+        return Err(AgentError::Core(TrpgError::InvalidConfiguration(
+            "agent_tool_execution_result",
+        )));
+    }
+    Ok(())
 }

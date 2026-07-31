@@ -9,8 +9,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::Deserialize;
 use trpg_agent_runtime::agent_job::{
     AgentJobError, AgentJobExecutionConfig, AgentJobOutcome, AgentJobRepository, AgentJobResult,
-    AgentJobWorker, CertifiedLocalModel, GovernedAgentDecisionPort, GovernedAgentJobToolPort,
-    ProductionAgentIdentityConfiguration,
+    AgentJobWorker, AgentSkillCheckRoll, AgentSkillCheckRulePort, CertifiedLocalModel,
+    GovernedAgentDecisionPort, GovernedAgentJobToolPort, ProductionAgentIdentityConfiguration,
 };
 use trpg_agent_runtime::local_model_certification::{
     LocalModelCertificate, LocalModelCertificationAuthority,
@@ -27,6 +27,9 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
 };
 use trpg_extension_sdk::plugin_host::{HostedPlugin, HostedPluginManifest, PluginHost};
 use trpg_extension_sdk::{ExtensionCapability, ExtensionCapabilityGrantSet};
+use trpg_ruleset_coc7::dice_roll_contract::{
+    server_roll_skill_check, DiceAdjustment, SuccessLevel,
+};
 use trpg_runtime::durable_workflow::{
     AgentJobEvidenceDraft, AgentJobTransitionDraft, DurableAgentApproval,
     DurableAgentAuthoritySnapshot, DurableAgentContextSnapshot, DurableAgentJob,
@@ -47,6 +50,32 @@ use trpg_security_governance::security_privacy::{
 };
 
 const BACKGROUND_HEARTBEAT_STALE_AFTER: Duration = Duration::from_secs(30);
+
+#[derive(Debug)]
+struct Coc7AgentSkillCheckRules;
+
+impl AgentSkillCheckRulePort for Coc7AgentSkillCheckRules {
+    fn roll_skill_check(&self, target: u8) -> AgentJobResult<AgentSkillCheckRoll> {
+        let roll = server_roll_skill_check(target, DiceAdjustment::None)
+            .map_err(|_| AgentJobError::terminal("AGENT_SKILL_CHECK_RULE_FAILURE"))?;
+        let outcome = roll.outcome();
+        let success_level = match outcome.success_level {
+            SuccessLevel::Critical => "CRITICAL",
+            SuccessLevel::Extreme => "EXTREME",
+            SuccessLevel::Hard => "HARD",
+            SuccessLevel::Regular => "REGULAR",
+            SuccessLevel::Failure => "FAILURE",
+            SuccessLevel::Fumble => "FUMBLE",
+        };
+        Ok(AgentSkillCheckRoll {
+            execution_id: roll.roll_id().to_owned(),
+            roll: outcome.roll,
+            selected_tens_digit: outcome.selected_tens_digit,
+            ones_digit: outcome.ones_digit,
+            success_level: success_level.to_owned(),
+        })
+    }
+}
 
 fn main() -> ExitCode {
     let worker = match AgentWorkerProcess::from_environment() {

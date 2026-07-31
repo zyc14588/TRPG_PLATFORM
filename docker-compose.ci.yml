@@ -99,6 +99,9 @@ secrets:
   provider_credential:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/provider_credential
+  local_model_certification_hmac_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/local_model_certification_hmac_key
   provider_ca_certificate:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/provider_ca_certificate

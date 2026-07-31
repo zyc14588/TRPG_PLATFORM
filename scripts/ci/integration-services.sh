@@ -151,6 +151,7 @@ for database in \
   p07_player_action \
   p08_tutorial \
   ar09_agent_jobs \
+  ar09_agent_jobs_public \
   trpg_backup_source \
   trpg_backup_target; do
   docker exec trpg-primary-postgres createdb -U postgres "$database"
@@ -168,6 +169,7 @@ for database in \
   p08_tutorial_witness; do
   docker exec trpg-witness-postgres createdb -U postgres "$database"
 done
+docker exec trpg-witness-postgres createdb -U postgres ar09_agent_jobs_public_witness
 
 docker exec -i trpg-primary-postgres \
   psql -X -v ON_ERROR_STOP=1 -U postgres -d p03_migration_upgrade \
@@ -179,14 +181,33 @@ ALTER ROLE trpg_api_login PASSWORD :'role_password';
 ALTER ROLE trpg_worker_login PASSWORD :'role_password';
 ALTER ROLE trpg_canonical_login PASSWORD :'role_password';
 SQL
-for migration in "$root"/migrations/*.sql; do
+for database in ar09_agent_jobs ar09_agent_jobs_public; do
+  for migration in "$root"/migrations/*.sql; do
+    if [[ "$migration" == *.down.sql ]]; then
+      continue
+    fi
+    docker exec -i trpg-primary-postgres \
+      psql -X -v ON_ERROR_STOP=1 -1 -U postgres -d "$database" \
+      <"$migration" >/dev/null
+  done
+done
+for migration in "$root"/migrations/witness/*.sql; do
   if [[ "$migration" == *.down.sql ]]; then
     continue
   fi
-  docker exec -i trpg-primary-postgres \
-    psql -X -v ON_ERROR_STOP=1 -1 -U postgres -d ar09_agent_jobs \
-    <"$migration" >/dev/null
+  docker exec -i trpg-witness-postgres \
+    psql -X -v ON_ERROR_STOP=1 -1 -U postgres \
+    -d ar09_agent_jobs_public_witness <"$migration" >/dev/null
 done
+docker exec -i trpg-witness-postgres \
+  psql -X -v ON_ERROR_STOP=1 -U postgres \
+  -d ar09_agent_jobs_public_witness \
+  --set=role_password="$postgres_password" <<'SQL'
+ALTER ROLE trpg_witness_append_login
+    LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
+    NOREPLICATION NOBYPASSRLS PASSWORD :'role_password';
+GRANT trpg_witness_append_service TO trpg_witness_append_login;
+SQL
 
 docker exec trpg-tls-postgres install -d -m 0700 -o postgres -g postgres /var/lib/postgresql/tls
 docker cp "$tls_directory/server.crt" trpg-tls-postgres:/var/lib/postgresql/tls/server.crt
@@ -429,6 +450,12 @@ AR09_AGENT_JOB_FIXTURE_DATABASE_URL=postgresql://postgres:${postgres_password}@1
 AR09_AGENT_JOB_API_DATABASE_URL=postgresql://trpg_api_login:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs
 AR09_AGENT_JOB_WORKER_DATABASE_URL=postgresql://trpg_worker_login:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs
 AR09_AGENT_JOB_CANONICAL_DATABASE_URL=postgresql://trpg_canonical_login:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs
+AR09_PUBLIC_FIXTURE_DATABASE_URL=postgresql://postgres:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs_public
+AR09_PUBLIC_API_DATABASE_URL=postgresql://trpg_api_login:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs_public
+AR09_PUBLIC_WORKER_DATABASE_URL=postgresql://trpg_worker_login:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs_public
+AR09_PUBLIC_CANONICAL_DATABASE_URL=postgresql://trpg_canonical_login:${postgres_password}@127.0.0.1:15432/ar09_agent_jobs_public
+AR09_PUBLIC_WITNESS_DATABASE_URL=postgresql://trpg_witness_append_login:${postgres_password}@127.0.0.1:15433/ar09_agent_jobs_public_witness
+AR09_PUBLIC_REDIS_URL=redis://127.0.0.1:16379
 TRPG_POSTGRES_CLIENT_IMAGE=${postgres_client_image}
 TRPG_POSTGRES_CLIENT_MOUNT_ROOT=${runtime_root}
 TMPDIR=${runtime_root}

@@ -315,7 +315,7 @@ services:
       TRPG_DATABASE_URL_SECRET_VERSION: "1"
       TRPG_CANONICAL_DATABASE_URL_SECRET_ID: canonical_database_url
       TRPG_CANONICAL_DATABASE_URL_SECRET_VERSION: "1"
-      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_read_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_append_database_url
       TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
       TRPG_IDENTITY_SIGNING_KEY_SECRET_ID: identity_signing_key
       TRPG_IDENTITY_SIGNING_KEY_SECRET_VERSION: "1"
@@ -348,6 +348,11 @@ services:
       TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID: ${TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID:?set model route authorization event id}
       TRPG_MODEL_PROVIDER_CAPABILITIES: chat,streaming,structured_output,tool_requests,embeddings
       TRPG_MODEL_PROVIDER_TIMEOUT_MS: "30000"
+      TRPG_LOCAL_MODEL_CERTIFICATE_PATH: /var/lib/trpg/local-model-certification/certificate.json
+      TRPG_LOCAL_MODEL_CERTIFICATION_REGISTRY_PATH: /var/lib/trpg/local-model-certification/registry.jsonl
+      TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_ID: ${TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_ID:-local-model-certification-v1}
+      TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_SECRET_ID: local_model_certification_hmac_key
+      TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_SECRET_VERSION: "1"
       TRPG_OBJECT_STORAGE_ENDPOINT: https://minio:9000
       TRPG_OBJECT_STORAGE_REGION: ${TRPG_OBJECT_STORAGE_REGION:-us-east-1}
       TRPG_OBJECT_STORAGE_BUCKET: ${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}
@@ -369,8 +374,8 @@ services:
         target: worker_database_url.v1
       - source: canonical_database_url
         target: canonical_database_url.v1
-      - source: witness_read_database_url
-        target: witness_read_database_url.v1
+      - source: witness_append_database_url
+        target: witness_append_database_url.v1
       - source: identity_signing_key
         target: identity_signing_key.v1
       - source: nats_url
@@ -385,6 +390,8 @@ services:
         target: audit_hmac_key.v1
       - source: provider_credential
         target: provider_credential.v1
+      - source: local_model_certification_hmac_key
+        target: local_model_certification_hmac_key.v1
       - source: object_storage_access_key
         target: object_storage_access_key.v1
       - source: object_storage_secret_key
@@ -925,6 +932,9 @@ secrets:
   provider_credential:
     external: true
     name: ${TRPG_PROVIDER_CREDENTIAL_SECRET:-trpg_provider_credential}
+  local_model_certification_hmac_key:
+    external: true
+    name: ${TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_SECRET:-trpg_local_model_certification_hmac_key}
   provider_ca_certificate:
     external: true
     name: ${TRPG_PROVIDER_CA_CERTIFICATE_SECRET:-trpg_provider_ca_certificate}

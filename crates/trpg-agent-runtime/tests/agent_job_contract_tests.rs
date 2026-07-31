@@ -464,6 +464,7 @@ impl AgentJobToolPort for CountingToolPort {
         _job: &DurableAgentJob,
         _call: &AgentJobToolCall,
         idempotency_key: &str,
+        _now_unix_ms: i64,
     ) -> Result<AgentJobToolResult, AgentJobError> {
         let mut receipts = self.receipts.lock().unwrap();
         if let Some(receipt) = receipts.get(idempotency_key) {
@@ -472,7 +473,8 @@ impl AgentJobToolPort for CountingToolPort {
         self.executions.fetch_add(1, Ordering::SeqCst);
         let receipt = AgentJobToolResult {
             execution_id: "tool_execution_ar09".to_owned(),
-            result_hash: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            result: serde_json::json!({}),
+            result_hash: "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
                 .to_owned(),
         };
         receipts.insert(idempotency_key.to_owned(), receipt.clone());

@@ -511,13 +511,15 @@ impl AgentJobToolPort for DurableToolPort {
         _job: &DurableAgentJob,
         _call: &AgentJobToolCall,
         idempotency_key: &str,
+        _now_unix_ms: i64,
     ) -> Result<AgentJobToolResult, AgentJobError> {
         crash_boundary("tool_before");
         let path = self.root.join("tool-receipt");
         write_once(&path, idempotency_key.as_bytes());
         Ok(AgentJobToolResult {
             execution_id: "tool_execution_ar09_kill9".to_owned(),
-            result_hash: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            result: serde_json::json!({}),
+            result_hash: "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
                 .to_owned(),
         })
     }
@@ -626,14 +628,24 @@ fn worker(root: &Path) -> AgentJobWorker {
 
 #[tokio::test]
 async fn agent_job_kill9_child() {
-    let Ok(root) = env::var("AR09_KILL9_ROOT") else {
-        return;
+    let (root, now_unix_ms, _temporary_root) = match env::var("AR09_KILL9_ROOT") {
+        Ok(root) => {
+            let now_unix_ms = env::var("AR09_KILL9_NOW")
+                .expect("kill9 child now is required")
+                .parse()
+                .expect("kill9 child now must be numeric");
+            (PathBuf::from(root), now_unix_ms, None)
+        }
+        Err(env::VarError::NotPresent) => {
+            let temporary = temporary_root();
+            FileAgentJobRepository::new(&temporary.0).initialize("job_ar09_kill9_standalone_child");
+            (temporary.0.clone(), FIRST_RUN_NOW, Some(temporary))
+        }
+        Err(env::VarError::NotUnicode(_)) => {
+            panic!("kill9 child root must be valid Unicode")
+        }
     };
-    let now_unix_ms = env::var("AR09_KILL9_NOW")
-        .expect("kill9 child now is required")
-        .parse()
-        .expect("kill9 child now must be numeric");
-    let outcome = worker(Path::new(&root))
+    let outcome = worker(&root)
         .run_once(now_unix_ms)
         .await
         .expect("kill9 recovery worker must execute");

@@ -162,6 +162,12 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 : "${AR09_AGENT_JOB_API_DATABASE_URL:?AR09_AGENT_JOB_API_DATABASE_URL is required for the API-role Agent Job gate}"
 : "${AR09_AGENT_JOB_WORKER_DATABASE_URL:?AR09_AGENT_JOB_WORKER_DATABASE_URL is required for the worker-role Agent Job gate}"
 : "${AR09_AGENT_JOB_CANONICAL_DATABASE_URL:?AR09_AGENT_JOB_CANONICAL_DATABASE_URL is required for the canonical-role Agent Job gate}"
+: "${AR09_PUBLIC_FIXTURE_DATABASE_URL:?AR09_PUBLIC_FIXTURE_DATABASE_URL is required for the public Agent Job fixture}"
+: "${AR09_PUBLIC_API_DATABASE_URL:?AR09_PUBLIC_API_DATABASE_URL is required for the public Agent Job API path}"
+: "${AR09_PUBLIC_WORKER_DATABASE_URL:?AR09_PUBLIC_WORKER_DATABASE_URL is required for the production Agent Job worker path}"
+: "${AR09_PUBLIC_CANONICAL_DATABASE_URL:?AR09_PUBLIC_CANONICAL_DATABASE_URL is required for canonical Agent Job commit}"
+: "${AR09_PUBLIC_WITNESS_DATABASE_URL:?AR09_PUBLIC_WITNESS_DATABASE_URL is required for canonical Agent Job witness}"
+: "${AR09_PUBLIC_REDIS_URL:?AR09_PUBLIC_REDIS_URL is required for Agent Job identities}"
 cargo test --workspace --all-features --locked --no-fail-fast -- --test-threads=1
 psql "$P03_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
   -f scripts/ci/assert-schema.sql

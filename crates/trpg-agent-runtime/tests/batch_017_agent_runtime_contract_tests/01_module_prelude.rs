@@ -85,7 +85,8 @@ impl AgentToolExecutor for SuccessfulToolExecutor {
     ) -> agent_runtime::AgentResult<AgentToolExecutionOutput> {
         Ok(AgentToolExecutionOutput {
             execution_id: format!("execution_{}", decision.decision_id.as_str()),
-            result_hash: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            result: serde_json::json!({}),
+            result_hash: "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
                 .to_owned(),
         })
     }
