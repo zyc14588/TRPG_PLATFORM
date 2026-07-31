@@ -97,9 +97,9 @@ async function runTutorials() {
   ]) {
     invites.set(account.userId, await issueInvite(keeper, account.userId, role));
   }
-  const playerA = await joinCampaign(accounts.playerA, invites.get(accounts.playerA.userId));
-  const playerB = await joinCampaign(accounts.playerB, invites.get(accounts.playerB.userId));
-  const spectator = await joinCampaign(accounts.spectator, invites.get(accounts.spectator.userId));
+  const playerA = await joinCampaign(accounts.playerA, humanCampaignId, invites.get(accounts.playerA.userId));
+  const playerB = await joinCampaign(accounts.playerB, humanCampaignId, invites.get(accounts.playerB.userId));
+  const spectator = await joinCampaign(accounts.spectator, humanCampaignId, invites.get(accounts.spectator.userId));
   await openCampaign(playerA, humanCampaignId, "调查员工具");
   await openCampaign(playerB, humanCampaignId, "调查员工具");
   await openCampaign(spectator, humanCampaignId, "旁观模式");
@@ -247,35 +247,57 @@ async function runTutorials() {
   }, "战役已创建", 30_000);
   await openCampaign(keeper, aiCampaignId, "AI_KP");
 
-  const aiJobId = `job_ai_${Date.now().toString(36)}`;
-  const aiSummary = "AI Keeper 建议先核对档案索引，再检查封存书库的门锁。";
-  await submitAndWait(keeper, 'form[data-form="agent-job"]', {
-    jobId: aiJobId,
-    ragSnapshotId: "tutorial_rag_ai",
-    privateNote: "",
-  }, "Agent 工作已请求", 20_000);
-  await keeper.waitForText(aiSummary, 60_000);
-  assert.ok(keeper.websocketFrames.some((frame) => frame.includes("DecisionCommitted")));
-  assert.ok(keeper.websocketFrames.some((frame) => frame.includes(aiSummary)));
-  assert.equal((await allClientEvidence(keeper)).includes(privateCanary), false);
-  assert.equal((await allClientEvidence(keeper)).includes(privateDice.payload.roll_id), false);
+  await keeper.click('[data-action="setup"]');
+  const aiInvite = await issueInvite(keeper, accounts.playerA.userId, "PLAYER");
+  const aiPlayer = await joinCampaign(accounts.playerA, aiCampaignId, aiInvite);
+  await aiPlayer.setViewport(1600, 1000);
+  await openCampaign(aiPlayer, aiCampaignId, "AI_KP · 用户可见");
+  await aiPlayer.waitForText("调查员工具");
+  assert.equal(
+    await aiPlayer.evaluate("document.querySelectorAll('form[data-form=\"agent-job\"]').length"),
+    0,
+  );
 
-  const decisionSequence = findWebsocketEventSequence(keeper.websocketFrames, "DecisionCommitted");
-  await submitAndWait(keeper, 'form[data-form="reconsider"]', {
+  const aiSummary = "AI Keeper 建议先核对档案索引，再检查封存书库的门锁。";
+  const aiActionRequestStart = aiPlayer.requests.length;
+  await submitAndWait(aiPlayer, 'form[data-form="submit-action"]', {
+    characterId,
+    sessionId: humanSessionId,
+    sceneId: "scene_archive_front",
+    intentKind: "INVESTIGATION",
+    skillName: "Library Use",
+    clueId: "clue_wrong_signature",
+    clueImportance: "CORE",
+    adjustment: "NONE",
+    description: "核对档案索引并检查封存书库的门锁。",
+  }, "行动已提交", 20_000);
+  await aiPlayer.waitForText(aiSummary, 60_000);
+  const aiActionRequests = aiPlayer.requests.slice(aiActionRequestStart);
+  assert.ok(aiActionRequests.some((request) => request === `POST /api/api/v1/campaigns/${aiCampaignId}/agent-jobs`));
+  assert.equal(aiActionRequests.some((request) => request.includes("/player-actions")), false);
+  assert.ok(aiPlayer.websocketFrames.some((frame) => frame.includes("AgentJobRequested")));
+  assert.ok(aiPlayer.websocketFrames.some((frame) => frame.includes("DecisionCommitted")));
+  assert.ok(aiPlayer.websocketFrames.some((frame) => frame.includes(aiSummary)));
+  assert.equal((await allClientEvidence(aiPlayer)).includes(privateCanary), false);
+  assert.equal((await allClientEvidence(aiPlayer)).includes(privateDice.payload.roll_id), false);
+
+  const decisionSequence = findWebsocketEventSequence(aiPlayer.websocketFrames, "DecisionCommitted");
+  await submitAndWait(aiPlayer, 'form[data-form="reconsider"]', {
     eventSequence: String(decisionSequence),
     reason: "请按已公开的档案时间重新核对。",
   }, "重考虑请求已提交", 20_000);
-  result.checks.push("AI_KP decision traversed Agent runtime -> canonical event -> WS -> UI, then reconsideration");
+  result.checks.push("ordinary PLAYER completed AI_KP action -> Agent runtime -> canonical event -> WS -> UI -> reconsideration");
+
+  const aiScreenshot = path.join(evidenceRoot, "ai-kp-tutorial.png");
+  await aiPlayer.evaluate("scrollTo(0, 0)");
+  await aiPlayer.screenshot(aiScreenshot);
+  result.screenshots.push(aiScreenshot);
 
   await keeper.click('[data-action="developer"]');
   await keeper.waitForText("Agent / Tool / Event 证据");
   assert.equal(await keeper.hasText(privateCanary), false);
-  const aiScreenshot = path.join(evidenceRoot, "ai-kp-tutorial.png");
-  await keeper.evaluate("scrollTo(0, 0)");
-  await keeper.screenshot(aiScreenshot);
-  result.screenshots.push(aiScreenshot);
 
-  for (const page of [owner, keeper, playerA, playerB, spectator]) {
+  for (const page of [owner, keeper, playerA, playerB, spectator, aiPlayer]) {
     assert.equal(
       await page.evaluate("document.querySelectorAll('input,select,textarea').length === document.querySelectorAll('label input,label select,label textarea').length"),
       true,
@@ -358,10 +380,10 @@ async function issueInvite(page, userId, role) {
   return { inviteId, rawToken };
 }
 
-async function joinCampaign(account, invite) {
+async function joinCampaign(account, campaignId, invite) {
   const page = await loginPage(account);
   await submitAndWait(page, 'form[data-form="accept-invite"]', {
-    campaignId: humanCampaignId,
+    campaignId,
     inviteId: invite.inviteId,
     rawToken: invite.rawToken,
   }, "已加入战役", 20_000);
@@ -451,6 +473,7 @@ function resetCapturedEvidence(page) {
   page.websocketFrames.length = 0;
   page.networkFailures.length = 0;
   page.errors.length = 0;
+  page.requests.length = 0;
 }
 
 async function allClientEvidence(page) {

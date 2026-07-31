@@ -756,6 +756,28 @@ async function submitAction(data) {
         clue_importance: data.clueImportance,
         adjustment: data.adjustment,
       };
+  if (state.authority?.mode === "AI_KP") {
+    await requestAgentJob({
+      jobId: `job_${actionId}`,
+      ragSnapshotId: "tutorial_rag_ai",
+      input: {
+        kind: "player_action",
+        action_id: actionId,
+        character_id: data.characterId,
+        session_id: data.sessionId,
+        scene_id: data.sceneId,
+        intent,
+        description: data.description || "",
+      },
+    });
+    Object.assign(state.recent, {
+      characterId: data.characterId,
+      sessionId: data.sessionId,
+      sceneId: data.sceneId,
+      pendingAction: null,
+    });
+    return;
+  }
   const response = await api.submitAction(state.campaign.campaign_id, {
     command: createCommand("player_action", 0),
     campaign_id: state.campaign.campaign_id,
@@ -790,7 +812,7 @@ async function requestAgentJob(data) {
     campaign_id: state.campaign.campaign_id,
     job_id: data.jobId,
     rag_snapshot_id: data.ragSnapshotId,
-    input: {
+    input: data.input || {
       kind: "npc_skill_check",
       private_note: data.privateNote || undefined,
     },

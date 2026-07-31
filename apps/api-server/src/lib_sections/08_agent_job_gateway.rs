@@ -137,7 +137,7 @@ impl ApiApplication {
         }
         let (actor_id, agent_kind, visibility_scope, visibility_label) =
             match context.authority_mode() {
-                "ai_kp" => (
+                "ai_kp" if ai_kp_agent_job_request_role_allowed(context.actor_role()) => (
                     authority.authority_owner.clone(),
                     "ai_keeper_orchestrator",
                     json!({
@@ -480,6 +480,13 @@ fn agent_job_error(status: u16, code: &str) -> HttpResponse {
     HttpResponse::json(status, json!({"error": code}))
 }
 
+fn ai_kp_agent_job_request_role_allowed(actor_role: &str) -> bool {
+    matches!(
+        actor_role,
+        "investigator" | "campaign_owner" | "server_owner"
+    )
+}
+
 #[cfg(test)]
 mod agent_job_gateway_configuration_tests {
     use super::*;
@@ -518,5 +525,21 @@ mod agent_job_gateway_configuration_tests {
             uppercase_digest.validate(),
             Err("TRPG_MODEL_ARTIFACT_SHA256_INVALID".to_owned())
         );
+    }
+
+    #[test]
+    fn ai_kp_agent_job_role_gate_allows_players_and_denies_spectators() {
+        for role in ["investigator", "campaign_owner", "server_owner"] {
+            assert!(ai_kp_agent_job_request_role_allowed(role));
+        }
+        for role in [
+            "spectator",
+            "human_keeper",
+            "moderator",
+            "ai_keeper",
+            "workflow",
+        ] {
+            assert!(!ai_kp_agent_job_request_role_allowed(role));
+        }
     }
 }

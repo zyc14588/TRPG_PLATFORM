@@ -94,6 +94,7 @@ async function main() {
   await login(aiPlayer, "ai-player@example.test");
   await openCampaign(aiPlayer, "campaign_ai");
   await aiPlayer.waitForText("AI_KP · 用户可见");
+  const aiActionRequestStart = mock.requests.length;
   await aiPlayer.submit('form[data-form="submit-action"]', {
     characterId: "character_ai_player",
     sessionId: "session_ai",
@@ -101,6 +102,17 @@ async function main() {
   });
   await aiPlayer.waitForText("建议先核对潮汐日志");
   await aiPlayer.waitForText("服务器路由已授权");
+  const aiActionRequests = mock.requests.slice(aiActionRequestStart);
+  assert.equal(
+    aiActionRequests.includes("POST /api/api/v1/campaigns/campaign_ai/agent-jobs"),
+    true,
+    `AI_KP player action must enter Agent Gateway: ${aiActionRequests.join(" | ")}`,
+  );
+  assert.equal(
+    aiActionRequests.includes("POST /api/api/v1/campaigns/campaign_ai/player-actions"),
+    false,
+    `AI_KP player action must not enter HUMAN_KP workflow: ${aiActionRequests.join(" | ")}`,
+  );
   await aiPlayer.submit('form[data-form="reconsider"]', {
     eventSequence: "21",
     reason: "请按已公开的现场时间重新核对。",
@@ -111,7 +123,7 @@ async function main() {
     if (alert) throw new Error(alert);
     return notice.includes("重考虑请求已提交");
   }, 8_000, "reconsideration did not complete");
-  result.checks.push("AI decision -> canonical event -> WS -> user-visible explanation completed");
+  result.checks.push("ordinary PLAYER AI action -> Agent Gateway -> canonical event -> WS -> user-visible explanation completed");
 
   const aiManager = await BrowserPage.open(chrome.debugOrigin, mock.origin);
   await login(aiManager, "keeper@example.test");
@@ -330,7 +342,15 @@ class ProductMock {
         if (resource === "player-actions" && request.method === "POST" && !url.pathname.endsWith("/confirm")) {
           const submitted = this.record(campaignId, "PlayerActionSubmitted", "party_visible", { summary: "调查行动已提交" });
           this.broadcast(campaignId, submitted);
-          if (campaignId === "campaign_ai") {
+          return reply(202, { state: "PENDING_CONFIRMATION", aggregate_version: 1, first_event_sequence: submitted.sequence, last_event_sequence: submitted.sequence });
+        }
+        if (resource === "player-actions" && url.pathname.endsWith("/confirm")) {
+          const recorded = this.record(campaignId, "PlayerActionResolved", "party_visible", { summary: "服务端检定结果已确认" });
+          this.broadcast(campaignId, recorded);
+          return reply(200, { state: "RESOLVED", aggregate_version: 2 });
+        }
+        if (resource === "agent-jobs" && !url.pathname.endsWith("/approve")) {
+          if (campaignId === "campaign_ai" && body.input?.kind === "player_action") {
             const requested = this.record(campaignId, "AgentJobRequested", "party_visible", {
               model_id: "local-mistral-coc7",
               route_authorization_event_id: "route_authorization_browser_1",
@@ -343,15 +363,8 @@ class ProductMock {
               },
             });
             this.broadcast(campaignId, decision);
+            return reply(202, { state: "REQUESTED", job_id: body.job_id, input_event_sequence: requested.sequence });
           }
-          return reply(202, { state: "PENDING_CONFIRMATION", aggregate_version: 1, first_event_sequence: submitted.sequence, last_event_sequence: submitted.sequence });
-        }
-        if (resource === "player-actions" && url.pathname.endsWith("/confirm")) {
-          const recorded = this.record(campaignId, "PlayerActionResolved", "party_visible", { summary: "服务端检定结果已确认" });
-          this.broadcast(campaignId, recorded);
-          return reply(200, { state: "RESOLVED", aggregate_version: 2 });
-        }
-        if (resource === "agent-jobs" && !url.pathname.endsWith("/approve")) {
           const recorded = this.record(campaignId, "SecretRollResolved", "keeper_only", { summary: "私密检定已记录", canary: "CANARY_PRIVATE" });
           this.broadcast(campaignId, recorded);
           return reply(202, { state: "REQUESTED", job_id: body.job_id, input_event_sequence: recorded.sequence });
@@ -482,6 +495,9 @@ export class BrowserPage {
       if (["error", "warning"].includes(event.entry.level)) page.errors.push(event.entry.text);
     });
     page.on("Network.responseReceived", (event) => page.responses.set(event.requestId, event.response.url));
+    page.on("Network.requestWillBeSent", (event) => {
+      page.requests.push(`${event.request.method} ${new URL(event.request.url).pathname}`);
+    });
     page.on("Network.loadingFailed", (event) => page.networkFailures.push(`${event.errorText}:${event.blockedReason || ""}`));
     page.on("Network.loadingFinished", async (event) => {
       if (!page.responses.has(event.requestId)) return;
@@ -501,6 +517,7 @@ export class BrowserPage {
     this.listeners = new Map();
     this.nextId = 0;
     this.errors = [];
+    this.requests = [];
     this.responses = new Map();
     this.responseBodies = [];
     this.networkFailures = [];
