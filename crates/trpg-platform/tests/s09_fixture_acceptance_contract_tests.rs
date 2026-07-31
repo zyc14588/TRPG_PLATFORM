@@ -169,6 +169,13 @@ fn s09_compose_builds_real_services_and_local_policy_sidecars() {
             "database client {service} must mount the trust anchor referenced by its verify-full URL"
         );
     }
+    let agent_worker = top_level_mapping_entry(COMPOSE, "services", "agent-worker");
+    assert!(
+        agent_worker.lines().any(|line| {
+            line.trim() == "TRPG_POSTGRES_CA_CERT_PATH: /run/secrets/postgres_ca_certificate"
+        }),
+        "agent-worker identity must receive the mounted PostgreSQL trust anchor"
+    );
     let backend_network = top_level_mapping_entry(COMPOSE, "networks", "backend");
     assert!(
         backend_network
@@ -247,6 +254,12 @@ fn s09_release_process_smoke_uses_the_production_secret_boundary() {
         "TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_ID",
         "TRPG_IDENTITY_SIGNING_KEY_SECRET_ID",
         "TRPG_AUDIT_HMAC_KEY_SECRET_ID",
+        "TRPG_ADMIN_BOOTSTRAP_TOKEN_SECRET_ID",
+        "TRPG_ADMIN_STATE_PATH",
+        "TRPG_ADMIN_AUDIT_LOG_PATH",
+        "TRPG_ADMIN_PSQL_PATH",
+        "TRPG_ADMIN_PG_DUMP_PATH",
+        "TRPG_ADMIN_PG_RESTORE_PATH",
         "TRPG_REDIS_CACHE_KEY_ID",
         "TRPG_MODEL_PROVIDER_TIMEOUT_MS",
         "TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_ID",
@@ -280,6 +293,35 @@ fn s09_release_process_smoke_uses_the_production_secret_boundary() {
         PROCESS_SMOKE.contains("install -d -m 0700 \"$secret_catalog_directory/$service\""),
         "each service catalog parent must retain private directory permissions"
     );
+    assert_eq!(
+        shell_array_entries(PROCESS_SMOKE, "component_checks"),
+        [
+            "api_runtime",
+            "realtime_runtime",
+            "agent_worker_runtime",
+            "admin_runtime",
+            "migration_runtime",
+        ],
+        "release readiness checks must remain aligned with the five service processes"
+    );
+    let admin_environment = PROCESS_SMOKE
+        .rsplit_once("if [[ \"$service\" == admin-server ]]; then")
+        .map(|(_, block)| block)
+        .and_then(|block| block.split_once("\n  fi").map(|(body, _)| body))
+        .expect("admin-server environment block exists");
+    for required in [
+        "TRPG_REDIS_URL_SECRET_ID=redis_url",
+        "TRPG_IDENTITY_SIGNING_KEY_SECRET_ID=identity_signing_key",
+        "TRPG_ADMIN_BOOTSTRAP_TOKEN_SECRET_ID=admin_bootstrap_token",
+        "TRPG_AUDIT_HMAC_KEY_SECRET_ID=audit_hmac_key",
+        "TRPG_ADMIN_BACKUP_SOURCE_SERVICE=trpg_backup_source",
+        "TRPG_ADMIN_RESTORE_TARGET_SERVICE=trpg_backup_target",
+    ] {
+        assert!(
+            admin_environment.contains(required),
+            "admin-server production smoke omits {required}"
+        );
+    }
     for worker_secret in [
         "database_secret_id=\"worker_database_url\"",
         "witness_database_secret_id=\"worker_witness_database_url\"",

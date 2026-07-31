@@ -7,7 +7,14 @@ temporary_directory="$(mktemp -d)"
 secret_mount="$temporary_directory/secrets"
 secret_catalog_directory="$temporary_directory/secret-catalog"
 export_root="$temporary_directory/exports"
+admin_root="$temporary_directory/admin"
+admin_backup_directory="$admin_root/backups"
+admin_safety_directory="$admin_root/restore-safety-points"
+admin_certification_directory="$admin_root/model-certification-requests"
+admin_state_path="$admin_root/control-state.json"
+admin_audit_path="$admin_root/audit.jsonl"
 pids=()
+pid_labels=()
 
 cleanup() {
   local pid
@@ -48,6 +55,11 @@ object_storage_bucket="${TRPG_OBJECT_STORAGE_BUCKET:-${P05_MINIO_BUCKET:-}}"
 object_storage_ca_cert_path="${TRPG_OBJECT_STORAGE_CA_CERT_PATH:-${P05_MINIO_CA_CERT_PATH:-}}"
 object_storage_access_key="${TRPG_OBJECT_STORAGE_ACCESS_KEY:-${P05_MINIO_ACCESS_KEY:-}}"
 object_storage_secret_key="${TRPG_OBJECT_STORAGE_SECRET_KEY:-${P05_MINIO_SECRET_KEY:-}}"
+admin_psql_path="${TRPG_ADMIN_PSQL_PATH:-${P02_PSQL:-}}"
+admin_pg_dump_path="${TRPG_ADMIN_PG_DUMP_PATH:-${P02_PG_DUMP:-}}"
+admin_pg_restore_path="${TRPG_ADMIN_PG_RESTORE_PATH:-${P02_PG_RESTORE:-}}"
+admin_pg_service_file="${TRPG_ADMIN_PG_SERVICE_FILE_PATH:-${P02_LIBPQ_SERVICE_FILE:-}}"
+admin_provider_ca_path="${TRPG_ADMIN_PROVIDER_CA_PATH:-/etc/ssl/certs/ca-certificates.crt}"
 
 require_configuration "TRPG_DATABASE_URL or P02_DATABASE_URL" "$api_database_url"
 require_configuration \
@@ -79,9 +91,17 @@ require_configuration \
 require_configuration \
   "TRPG_OBJECT_STORAGE_SECRET_KEY or P05_MINIO_SECRET_KEY" \
   "$object_storage_secret_key"
+require_configuration "TRPG_ADMIN_PSQL_PATH or P02_PSQL" "$admin_psql_path"
+require_configuration "TRPG_ADMIN_PG_DUMP_PATH or P02_PG_DUMP" "$admin_pg_dump_path"
+require_configuration "TRPG_ADMIN_PG_RESTORE_PATH or P02_PG_RESTORE" "$admin_pg_restore_path"
+require_configuration \
+  "TRPG_ADMIN_PG_SERVICE_FILE_PATH or P02_LIBPQ_SERVICE_FILE" \
+  "$admin_pg_service_file"
+require_configuration "TRPG_ADMIN_PROVIDER_CA_PATH" "$admin_provider_ca_path"
 
 identity_signing_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 audit_hmac_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+admin_bootstrap_token="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 canonical_hmac_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 payload_encryption_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 redis_cache_key="$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
@@ -89,7 +109,10 @@ provider_credential="$(python3 -c 'import secrets; print(secrets.token_hex(32))'
 plugin_registry="$temporary_directory/plugin-registry.json"
 printf '%s\n' '{"fuel_limit":100000,"memory_limit_bytes":1048576,"plugins":[]}' >"$plugin_registry"
 
-install -d -m 0700 "$secret_mount" "$secret_catalog_directory" "$export_root"
+install -d -m 0700 \
+  "$secret_mount" "$secret_catalog_directory" "$export_root" \
+  "$admin_root" "$admin_backup_directory" "$admin_safety_directory" \
+  "$admin_certification_directory"
 
 write_secret() {
   local secret_id="$1"
@@ -109,6 +132,7 @@ write_secret nats_url "$nats_url"
 write_secret redis_url "$redis_url"
 write_secret identity_signing_key "$identity_signing_key"
 write_secret audit_hmac_key "$audit_hmac_key"
+write_secret admin_bootstrap_token "$admin_bootstrap_token"
 write_secret canonical_hmac_key "$canonical_hmac_key"
 write_secret payload_encryption_key "$payload_encryption_key"
 write_secret redis_cache_key "$redis_cache_key"
@@ -151,7 +175,9 @@ start_service() {
     witness_database_secret_id="worker_witness_database_url"
   fi
   command_environment=("${environment_keys[$index]}=127.0.0.1:${ports[$index]}")
-  if [[ "$service" == api-server || "$service" == realtime-server || "$service" == agent-worker || "$service" == migration-runner ]]; then
+  if [[ "$service" == api-server || "$service" == realtime-server ||
+        "$service" == agent-worker || "$service" == admin-server ||
+        "$service" == migration-runner ]]; then
     command_environment+=(
       "TRPG_SECRET_MOUNT=$secret_mount"
       "TRPG_SECRET_CATALOG_PATH=$secret_catalog_path"
@@ -238,9 +264,36 @@ start_service() {
       "TRPG_AUDIT_HMAC_KEY_SECRET_VERSION=1"
     )
   fi
+  if [[ "$service" == admin-server ]]; then
+    command_environment+=(
+      "TRPG_REDIS_URL_SECRET_ID=redis_url"
+      "TRPG_REDIS_URL_SECRET_VERSION=1"
+      "TRPG_IDENTITY_SIGNING_KEY_SECRET_ID=identity_signing_key"
+      "TRPG_IDENTITY_SIGNING_KEY_SECRET_VERSION=1"
+      "TRPG_ADMIN_BOOTSTRAP_TOKEN_SECRET_ID=admin_bootstrap_token"
+      "TRPG_ADMIN_BOOTSTRAP_TOKEN_SECRET_VERSION=1"
+      "TRPG_AUDIT_HMAC_KEY_ID=service-process-smoke-admin-v1"
+      "TRPG_AUDIT_HMAC_KEY_SECRET_ID=audit_hmac_key"
+      "TRPG_AUDIT_HMAC_KEY_SECRET_VERSION=1"
+      "TRPG_ADMIN_STATE_PATH=$admin_state_path"
+      "TRPG_ADMIN_AUDIT_LOG_PATH=$admin_audit_path"
+      "TRPG_ADMIN_CURL_PATH=/usr/bin/curl"
+      "TRPG_ADMIN_PSQL_PATH=$admin_psql_path"
+      "TRPG_ADMIN_PROVIDER_CA_PATH=$admin_provider_ca_path"
+      "TRPG_ADMIN_PG_DUMP_PATH=$admin_pg_dump_path"
+      "TRPG_ADMIN_PG_RESTORE_PATH=$admin_pg_restore_path"
+      "TRPG_ADMIN_PG_SERVICE_FILE_PATH=$admin_pg_service_file"
+      "TRPG_ADMIN_BACKUP_SOURCE_SERVICE=trpg_backup_source"
+      "TRPG_ADMIN_RESTORE_TARGET_SERVICE=trpg_backup_target"
+      "TRPG_ADMIN_BACKUP_DIRECTORY=$admin_backup_directory"
+      "TRPG_ADMIN_SAFETY_DIRECTORY=$admin_safety_directory"
+      "TRPG_ADMIN_CERTIFICATION_DIRECTORY=$admin_certification_directory"
+    )
+  fi
   env "${command_environment[@]}" \
     "$binary" >"$temporary_directory/$service.log" 2>&1 &
   pids+=("$!")
+  pid_labels+=("$service")
 }
 
 # Schema ownership is explicit: the migration runner must finish its startup
@@ -342,6 +395,7 @@ node "$root/apps/web/scripts/serve.mjs" --root dist --port 18105 \
   >"$temporary_directory/web.log" 2>&1 &
 web_pid="$!"
 pids+=("$web_pid")
+pid_labels+=("web")
 web_ready=false
 for _ in $(seq 1 100); do
   if curl -fsS "http://127.0.0.1:18105/" -o "$temporary_directory/web.html"; then
@@ -373,9 +427,21 @@ PY
 for pid in "${pids[@]}"; do
   kill -TERM "$pid"
 done
-for pid in "${pids[@]}"; do
-  wait "$pid"
+shutdown_failed=false
+for index in "${!pids[@]}"; do
+  if wait "${pids[$index]}"; then
+    continue
+  else
+    status="$?"
+  fi
+  label="${pid_labels[$index]}"
+  printf 'service process smoke shutdown failed service=%s status=%s\n' \
+    "$label" "$status" >&2
+  cat "$temporary_directory/$label.log" >&2
+  shutdown_failed=true
 done
+[[ "$shutdown_failed" == false ]]
 pids=()
+pid_labels=()
 
 printf 'service process smoke: 5 services and web passed\n'

@@ -329,8 +329,10 @@ use_container_client=true
 if [[ -n "$postgres_bindir" ]]; then
   host_pg_dump="$postgres_bindir/pg_dump"
   host_pg_restore="$postgres_bindir/pg_restore"
+  host_psql="$postgres_bindir/psql"
   if [[ -f "$host_pg_dump" && ! -L "$host_pg_dump" &&
-        -f "$host_pg_restore" && ! -L "$host_pg_restore" ]]; then
+        -f "$host_pg_restore" && ! -L "$host_pg_restore" &&
+        -f "$host_psql" && ! -L "$host_psql" ]]; then
     host_dump_major="$(
       "$host_pg_dump" --version |
         sed -E 's/.* ([0-9]+)([.].*)?$/\1/'
@@ -339,14 +341,20 @@ if [[ -n "$postgres_bindir" ]]; then
       "$host_pg_restore" --version |
         sed -E 's/.* ([0-9]+)([.].*)?$/\1/'
     )"
+    host_psql_major="$(
+      "$host_psql" --version |
+        sed -E 's/.* ([0-9]+)([.].*)?$/\1/'
+    )"
     if [[ "$host_dump_major" == "$server_major" &&
-          "$host_restore_major" == "$server_major" ]]; then
+          "$host_restore_major" == "$server_major" &&
+          "$host_psql_major" == "$server_major" ]]; then
       pg_dump_path="$host_pg_dump"
       pg_restore_path="$host_pg_restore"
+      psql_path="$host_psql"
       use_container_client=false
     elif [[ -n "${TRPG_POSTGRES_BINDIR:-}" ]]; then
-      printf 'explicit PostgreSQL client majors %s/%s do not match server major %s\n' \
-        "$host_dump_major" "$host_restore_major" "$server_major" >&2
+      printf 'explicit PostgreSQL client majors %s/%s/%s do not match server major %s\n' \
+        "$host_dump_major" "$host_restore_major" "$host_psql_major" "$server_major" >&2
       exit 1
     fi
   elif [[ -n "${TRPG_POSTGRES_BINDIR:-}" ]]; then
@@ -364,11 +372,14 @@ if [[ "$use_container_client" == true ]]; then
     "$postgres_wrapper_directory/pg_dump"
   install -m 0755 "$root/scripts/ci/postgres-container-client.sh" \
     "$postgres_wrapper_directory/pg_restore"
+  install -m 0755 "$root/scripts/ci/postgres-container-client.sh" \
+    "$postgres_wrapper_directory/psql"
   pg_dump_path="$postgres_wrapper_directory/pg_dump"
   pg_restore_path="$postgres_wrapper_directory/pg_restore"
+  psql_path="$postgres_wrapper_directory/psql"
 fi
 
-for postgres_program in "$pg_dump_path" "$pg_restore_path"; do
+for postgres_program in "$pg_dump_path" "$pg_restore_path" "$psql_path"; do
   if [[ ! -f "$postgres_program" || -L "$postgres_program" ]]; then
     printf 'PostgreSQL tool must be a regular non-symlink file: %s\n' "$postgres_program" >&2
     exit 1
@@ -376,9 +387,11 @@ for postgres_program in "$pg_dump_path" "$pg_restore_path"; do
 done
 dump_major="$("$pg_dump_path" --version | sed -E 's/.* ([0-9]+)([.].*)?$/\1/')"
 restore_major="$("$pg_restore_path" --version | sed -E 's/.* ([0-9]+)([.].*)?$/\1/')"
-if [[ "$dump_major" != "$server_major" || "$restore_major" != "$server_major" ]]; then
-  printf 'PostgreSQL client majors %s/%s do not match server major %s\n' \
-    "$dump_major" "$restore_major" "$server_major" >&2
+psql_major="$("$psql_path" --version | sed -E 's/.* ([0-9]+)([.].*)?$/\1/')"
+if [[ "$dump_major" != "$server_major" || "$restore_major" != "$server_major" ||
+      "$psql_major" != "$server_major" ]]; then
+  printf 'PostgreSQL client majors %s/%s/%s do not match server major %s\n' \
+    "$dump_major" "$restore_major" "$psql_major" "$server_major" >&2
   exit 1
 fi
 
@@ -477,6 +490,7 @@ ENVIRONMENT
   printf 'P02_TLS_CA_CERT_PATH=%s\n' "$tls_directory/ca.crt"
   printf 'P02_PG_DUMP=%s\n' "$pg_dump_path"
   printf 'P02_PG_RESTORE=%s\n' "$pg_restore_path"
+  printf 'P02_PSQL=%s\n' "$psql_path"
   printf 'P02_LIBPQ_SERVICE_FILE=%s\n' "$libpq_service_file"
   printf 'P02_BACKUP_SOURCE_SERVICE=trpg_backup_source\n'
   printf 'P02_BACKUP_TARGET_SERVICE=trpg_backup_target\n'

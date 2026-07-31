@@ -15,6 +15,10 @@ fn main() -> ExitCode {
         Err(error) => return startup_failure(error.code()),
     };
     let application = AdminApplication::new(control);
+    // Keep the final IdentityService owner outside the async service runtime.
+    // The synchronous postgres client starts its own runtime while dropping,
+    // which must happen only after run_service_with_handler has returned.
+    let shutdown_guard = application.clone();
     let readiness_application = application.clone();
     let runtime =
         match RoleRuntimeProbe::spawn("admin_runtime", move || readiness_application.readiness()) {
@@ -26,11 +30,13 @@ fn main() -> ExitCode {
             Ok(spec) => spec,
             Err(error) => return startup_failure(error.code.as_str()),
         };
-    match run_service_with_handler(
+    let service_result = run_service_with_handler(
         spec,
         vec![runtime],
         Box::new(move |request| application.handle(request)),
-    ) {
+    );
+    drop(shutdown_guard);
+    match service_result {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => startup_failure(error.code.as_str()),
     }

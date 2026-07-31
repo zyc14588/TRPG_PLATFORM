@@ -319,6 +319,7 @@ services:
       TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
       TRPG_IDENTITY_SIGNING_KEY_SECRET_ID: identity_signing_key
       TRPG_IDENTITY_SIGNING_KEY_SECRET_VERSION: "1"
+      TRPG_POSTGRES_CA_CERT_PATH: /run/secrets/postgres_ca_certificate
       TRPG_NATS_URL_SECRET_ID: nats_url
       TRPG_NATS_URL_SECRET_VERSION: "1"
       TRPG_REDIS_URL_SECRET_ID: redis_url
