@@ -1,6 +1,7 @@
 use crate::agent_runtime::{AgentError, AgentResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -150,8 +151,61 @@ pub fn validate_provider_config(config: &ProviderConfig) -> AgentResult<()> {
             ),
         ));
     }
+    if config.provider_type.is_local() && config.environment == Environment::Prod {
+        resolve_provider_runtime_sha256(config)?;
+    }
 
     Ok(())
+}
+
+/// Resolves the identity bound to local-provider certification. Production
+/// local providers must be pinned to the deployed runtime/container digest by
+/// the process owner; development providers use a deterministic adapter/route
+/// fingerprint so tests cannot substitute an applicant-supplied value.
+pub fn resolve_provider_runtime_sha256(config: &ProviderConfig) -> AgentResult<String> {
+    const RUNTIME_SHA256_ENV: &str = "TRPG_MODEL_PROVIDER_RUNTIME_SHA256";
+    let runtime_pin = if config.provider_type.is_local() && config.environment == Environment::Prod
+    {
+        let value = std::env::var(RUNTIME_SHA256_ENV).map_err(|_| {
+            AgentError::Core(trpg_shared_kernel::TrpgError::InvalidConfiguration(
+                "local_provider_runtime_identity_required",
+            ))
+        })?;
+        if !valid_sha256(&value) {
+            return Err(AgentError::Core(
+                trpg_shared_kernel::TrpgError::InvalidConfiguration(
+                    "local_provider_runtime_identity_invalid",
+                ),
+            ));
+        }
+        value
+    } else {
+        "development-runtime-unpinned".to_owned()
+    };
+
+    let environment = match config.environment {
+        Environment::Dev => "dev",
+        Environment::Prod => "prod",
+    };
+    let mut digest = Sha256::new();
+    for field in [
+        "trpg-http-model-provider-runtime-v1",
+        env!("CARGO_PKG_VERSION"),
+        config.provider_type.route_name(),
+        config.base_url.as_str(),
+        environment,
+        runtime_pin.as_str(),
+    ] {
+        digest.update((field.len() as u64).to_be_bytes());
+        digest.update(field.as_bytes());
+    }
+    Ok(format!("sha256:{:x}", digest.finalize()))
+}
+
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 71
+        && value.starts_with("sha256:")
+        && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 pub fn evaluate_cloud_fallback(

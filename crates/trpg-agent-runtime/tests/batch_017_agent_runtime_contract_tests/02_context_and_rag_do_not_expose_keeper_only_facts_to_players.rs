@@ -153,6 +153,7 @@ fn primary_wrapper_modules_call_entrypoints_and_cover_prompt_ids() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn local_model_certification_requires_level4_for_ai_keeper() {
     let level3_input = CertificationInput {
         model_id: "qwen-coc-local".to_owned(),
@@ -192,11 +193,10 @@ fn local_model_certification_requires_level4_for_ai_keeper() {
         latency_ms: 1800,
     });
     assert_eq!(level4, LocalModelLevel::Level4);
-    assert!(ensure_ai_keeper_model(
+    assert!(ensure_ai_keeper_provider_config(
         &fixture.authority,
         &fixture.certificate,
-        "json-tool-stable",
-        &format!("sha256:{}", "1".repeat(64)),
+        &fixture.provider,
     )
     .is_ok());
 }

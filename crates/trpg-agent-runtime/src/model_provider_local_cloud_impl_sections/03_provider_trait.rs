@@ -16,6 +16,10 @@ impl<R: SecretResolver + 'static> ExecutableModelProvider for HttpModelProvider<
         &self.runtime.provider.model_artifact_sha256
     }
 
+    fn provider_runtime_sha256(&self) -> String {
+        resolve_provider_runtime_sha256(&self.runtime.provider).unwrap_or_default()
+    }
+
     fn startup_route_snapshot(&self) -> ExecutedModelRouteSnapshot {
         self.route_snapshot(ModelOperation::CapabilityProbe)
     }

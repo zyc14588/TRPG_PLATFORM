@@ -67,19 +67,25 @@ impl LocalModelCertificationAuthority {
         Ok(authority)
     }
 
+    /// Caller-supplied assessment booleans are not evidence and can never
+    /// authorize a certificate.
+    #[deprecated(note = "use issue_level4_from_run with runner-produced evidence")]
     pub fn issue_level4(
         &self,
-        input: &CertificationInput,
-        model_artifact_sha256: &str,
-        suite_id: &str,
+        _input: &CertificationInput,
+        _model_artifact_sha256: &str,
+        _suite_id: &str,
+        _ttl: Duration,
+    ) -> AgentResult<LocalModelCertificate> {
+        Err(AgentError::LocalModelNotCertifiedForAiKp)
+    }
+
+    pub fn issue_level4_from_run(
+        &self,
+        run: &CompletedCertificationRun,
         ttl: Duration,
     ) -> AgentResult<LocalModelCertificate> {
-        if certify_local_model(input) != LocalModelLevel::Level4
-            || !valid_sha256(model_artifact_sha256)
-            || !valid_identifier(suite_id)
-            || ttl.is_zero()
-            || ttl > MAX_CERTIFICATE_TTL
-        {
+        if !run.valid_for_issuance() || ttl.is_zero() || ttl > MAX_CERTIFICATE_TTL {
             return Err(AgentError::LocalModelNotCertifiedForAiKp);
         }
         let issued_at_unix_ms = trusted_now_unix_ms()?;
@@ -91,14 +97,16 @@ impl LocalModelCertificationAuthority {
             .ok_or_else(invalid_certification_configuration)?;
         let mut certificate = LocalModelCertificate {
             certificate_id: certificate_id(
-                &input.model_id,
-                model_artifact_sha256,
-                suite_id,
+                &run.manifest.model_id,
+                &run.manifest.model_artifact_sha256,
+                &run.manifest.suite_id,
+                run.evidence_sha256(),
                 issued_at_unix_ms,
             ),
-            model_id: input.model_id.clone(),
-            model_artifact_sha256: model_artifact_sha256.to_owned(),
-            suite_id: suite_id.to_owned(),
+            model_id: run.manifest.model_id.clone(),
+            model_artifact_sha256: run.manifest.model_artifact_sha256.clone(),
+            suite_id: run.manifest.suite_id.clone(),
+            certification_binding: run.binding.clone(),
             level: LocalModelLevel::Level4,
             issued_at_unix_ms,
             expires_at_unix_ms,
@@ -115,16 +123,69 @@ impl LocalModelCertificationAuthority {
         self.append_registry_entry(certificate, RegistryState::Revoked)
     }
 
+    #[deprecated(note = "use ensure_ai_keeper_provider or ensure_ai_keeper_provider_config")]
     pub fn ensure_ai_keeper_model(
         &self,
+        _certificate: &LocalModelCertificate,
+        _expected_model_id: &str,
+        _expected_artifact_sha256: &str,
+    ) -> AgentResult<()> {
+        Err(AgentError::LocalModelNotCertifiedForAiKp)
+    }
+
+    pub fn ensure_ai_keeper_provider(
+        &self,
         certificate: &LocalModelCertificate,
+        provider: &dyn ExecutableModelProvider,
+    ) -> AgentResult<()> {
+        let provider_runtime_sha256 = provider.provider_runtime_sha256();
+        self.ensure_ai_keeper_binding(
+            certificate,
+            provider.provider_id().as_str(),
+            provider.provider_type(),
+            provider.model_id(),
+            provider.model_artifact_sha256(),
+            &provider_runtime_sha256,
+        )
+    }
+
+    pub fn ensure_ai_keeper_provider_config(
+        &self,
+        certificate: &LocalModelCertificate,
+        provider: &ProviderConfig,
+    ) -> AgentResult<()> {
+        validate_provider_config(provider)?;
+        let provider_runtime_sha256 = resolve_provider_runtime_sha256(provider)?;
+        self.ensure_ai_keeper_binding(
+            certificate,
+            provider.provider_id.as_str(),
+            provider.provider_type,
+            &provider.model_id,
+            &provider.model_artifact_sha256,
+            &provider_runtime_sha256,
+        )
+    }
+
+    fn ensure_ai_keeper_binding(
+        &self,
+        certificate: &LocalModelCertificate,
+        provider_id: &str,
+        provider_type: ProviderType,
         expected_model_id: &str,
         expected_artifact_sha256: &str,
+        provider_runtime_sha256: &str,
     ) -> AgentResult<()> {
         self.verify_certificate_signature(certificate)?;
+        let suite = LocalModelCertificationSuite::keeper_v1();
         if certificate.level != LocalModelLevel::Level4
             || certificate.model_id != expected_model_id
             || certificate.model_artifact_sha256 != expected_artifact_sha256
+            || !certificate.certification_binding.matches_provider_and_suite(
+                provider_id,
+                provider_type,
+                provider_runtime_sha256,
+                &suite,
+            )
             || trusted_now_unix_ms()? >= certificate.expires_at_unix_ms
             || self.latest_registry_state(certificate)? != Some(RegistryState::Active)
         {
@@ -212,12 +273,20 @@ impl LocalModelCertificationAuthority {
             mac.update(&(field.len() as u64).to_be_bytes());
             mac.update(field.as_bytes());
         }
+        let binding = serde_json::to_vec(&certificate.certification_binding)
+            .map_err(|_| invalid_certification_configuration())?;
+        mac.update(&(binding.len() as u64).to_be_bytes());
+        mac.update(&binding);
         Ok(format!("hmac-sha256:{:x}", mac.finalize().into_bytes()))
     }
 
     fn verify_certificate_signature(&self, certificate: &LocalModelCertificate) -> AgentResult<()> {
         if certificate.signing_key_id != self.signing_key_id
+            || certificate.level != LocalModelLevel::Level4
+            || !valid_model_reference(&certificate.model_id)
             || !valid_sha256(&certificate.model_artifact_sha256)
+            || !certificate.certification_binding.is_valid()
+            || certificate.suite_id != certificate.certification_binding.suite_id
             || certificate.signature != self.certificate_signature(certificate)?
         {
             return Err(AgentError::LocalModelNotCertifiedForAiKp);
@@ -291,18 +360,48 @@ impl LocalModelCertificationAuthority {
     }
 }
 
+#[deprecated(note = "use ensure_ai_keeper_provider or ensure_ai_keeper_provider_config")]
 pub fn ensure_ai_keeper_model(
     authority: &LocalModelCertificationAuthority,
     certificate: &LocalModelCertificate,
     expected_model_id: &str,
     expected_artifact_sha256: &str,
 ) -> AgentResult<()> {
+    #[allow(deprecated)]
     authority.ensure_ai_keeper_model(certificate, expected_model_id, expected_artifact_sha256)
 }
 
-fn certificate_id(model_id: &str, artifact: &str, suite: &str, issued_at: u64) -> String {
+pub fn ensure_ai_keeper_provider(
+    authority: &LocalModelCertificationAuthority,
+    certificate: &LocalModelCertificate,
+    provider: &dyn ExecutableModelProvider,
+) -> AgentResult<()> {
+    authority.ensure_ai_keeper_provider(certificate, provider)
+}
+
+pub fn ensure_ai_keeper_provider_config(
+    authority: &LocalModelCertificationAuthority,
+    certificate: &LocalModelCertificate,
+    provider: &ProviderConfig,
+) -> AgentResult<()> {
+    authority.ensure_ai_keeper_provider_config(certificate, provider)
+}
+
+fn certificate_id(
+    model_id: &str,
+    artifact: &str,
+    suite: &str,
+    evidence_sha256: &str,
+    issued_at: u64,
+) -> String {
     let mut digest = Sha256::new();
-    for field in [model_id, artifact, suite, &issued_at.to_string()] {
+    for field in [
+        model_id,
+        artifact,
+        suite,
+        evidence_sha256,
+        &issued_at.to_string(),
+    ] {
         digest.update((field.len() as u64).to_be_bytes());
         digest.update(field.as_bytes());
     }

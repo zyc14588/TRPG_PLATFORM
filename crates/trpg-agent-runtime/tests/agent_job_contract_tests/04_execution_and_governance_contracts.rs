@@ -8,8 +8,8 @@ async fn real_agent_job_worker_completes_an_npc_turn_through_all_three_providers
         let repository = Arc::new(MemoryRepository::new(job(provider_type, "AI_KP")));
         let provider = Arc::new(MockProvider::new(provider_type, valid_decision()));
         let decisions = Arc::new(CountingDecisionPort::default());
-        let certification_fixture =
-            (provider_type != ProviderType::Cloud).then(|| level4_certification("model_ar09"));
+        let certification_fixture = (provider_type != ProviderType::Cloud)
+            .then(|| level4_certification(provider_type, "model_ar09"));
         let certification = certification_fixture
             .as_ref()
             .map(|fixture| fixture.certification.clone());

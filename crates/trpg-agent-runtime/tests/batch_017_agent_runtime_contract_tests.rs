@@ -152,11 +152,10 @@ fn s07_fixtures_drive_provider_model_rag_assertions() {
     assert_eq!(json_tool_stable, LocalModelLevel::Level4);
     let certification =
         common::level4_certification("json-tool-stable", &format!("sha256:{}", "1".repeat(64)));
-    assert!(ensure_ai_keeper_model(
+    assert!(ensure_ai_keeper_provider_config(
         &certification.authority,
         &certification.certificate,
-        "json-tool-stable",
-        &format!("sha256:{}", "1".repeat(64)),
+        &certification.provider,
     )
     .is_ok());
 

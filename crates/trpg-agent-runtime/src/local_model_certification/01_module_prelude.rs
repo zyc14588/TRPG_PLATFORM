@@ -16,7 +16,7 @@ use trpg_security_governance::secret::{
 
 type HmacSha256 = Hmac<Sha256>;
 const MAX_CERTIFICATE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
-const REGISTRY_SCHEMA_VERSION: u32 = 1;
+const REGISTRY_SCHEMA_VERSION: u32 = 2;
 const REGISTRY_GENESIS_HASH: &str =
     "hmac-sha256:0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -53,11 +53,13 @@ pub struct CertificationInput {
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct LocalModelCertificate {
     certificate_id: String,
     model_id: String,
     model_artifact_sha256: String,
     suite_id: String,
+    certification_binding: CertificationBinding,
     level: LocalModelLevel,
     issued_at_unix_ms: u64,
     expires_at_unix_ms: u64,
@@ -73,6 +75,7 @@ impl std::fmt::Debug for LocalModelCertificate {
             .field("model_id", &self.model_id)
             .field("model_artifact_sha256", &self.model_artifact_sha256)
             .field("suite_id", &self.suite_id)
+            .field("certification_binding", &self.certification_binding)
             .field("level", &self.level)
             .field("issued_at_unix_ms", &self.issued_at_unix_ms)
             .field("expires_at_unix_ms", &self.expires_at_unix_ms)
@@ -93,6 +96,10 @@ impl LocalModelCertificate {
 
     pub fn model_artifact_sha256(&self) -> &str {
         &self.model_artifact_sha256
+    }
+
+    pub fn certification_binding(&self) -> &CertificationBinding {
+        &self.certification_binding
     }
 
     pub const fn level(&self) -> LocalModelLevel {

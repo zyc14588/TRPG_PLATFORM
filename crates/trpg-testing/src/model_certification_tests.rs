@@ -7,9 +7,9 @@ use crate::{
     TestingQualityEventEnvelope, TestingQualityModuleContract, TestingQualityRepository,
 };
 use trpg_agent_runtime::{
-    certify_local_model, ensure_ai_keeper_model, evaluate_cloud_fallback, CertificationInput,
-    Environment, LocalModelCertificationAuthority, LocalModelLevel, ModelRouteSnapshot,
-    ProviderConfig, ProviderType,
+    certify_local_model, evaluate_cloud_fallback, CertificationInput, Environment,
+    LocalModelCertificationAuthority, LocalModelLevel, ModelRouteSnapshot, ProviderConfig,
+    ProviderType,
 };
 use trpg_domain_core::command_cqrs::{CommandAcceptedPayload, DomainCommandKind};
 use trpg_domain_core::ddd::{
@@ -116,6 +116,7 @@ pub fn uncertified_local_model() -> CertificationInput {
     }
 }
 
+#[allow(deprecated)]
 pub fn level4_is_required_for_ai_keeper() -> bool {
     let level = certify_local_model(&certified_local_model());
     let weak_level = certify_local_model(&uncertified_local_model());
@@ -140,19 +141,17 @@ pub fn level4_is_required_for_ai_keeper() -> bool {
         )
         .ok()?;
         let artifact = format!("sha256:{}", "1".repeat(64));
-        let certificate = authority
-            .issue_level4(
-                &certified_local_model(),
-                &artifact,
-                "p05-level4-suite-v1",
-                std::time::Duration::from_secs(60),
-            )
-            .ok()?;
         Some(
             level == LocalModelLevel::Level4
                 && weak_level != LocalModelLevel::Level4
-                && ensure_ai_keeper_model(&authority, &certificate, "json-tool-stable", &artifact)
-                    .is_ok()
+                && authority
+                    .issue_level4(
+                        &certified_local_model(),
+                        &artifact,
+                        "p05-level4-suite-v1",
+                        std::time::Duration::from_secs(60),
+                    )
+                    .is_err()
                 && authority
                     .issue_level4(
                         &uncertified_local_model(),

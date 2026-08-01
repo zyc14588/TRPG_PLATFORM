@@ -181,6 +181,13 @@ pub trait ExecutableModelProvider: Send + Sync {
 
     fn model_artifact_sha256(&self) -> &str;
 
+    /// Runtime identity is mandatory for local-model certification. The empty
+    /// default preserves source compatibility while making unadapted providers
+    /// fail the certification/gate comparison closed.
+    fn provider_runtime_sha256(&self) -> String {
+        String::new()
+    }
+
     fn startup_route_snapshot(&self) -> ExecutedModelRouteSnapshot;
 
     async fn probe_capabilities(

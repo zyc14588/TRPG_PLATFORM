@@ -14,9 +14,7 @@ use trpg_agent_runtime::agent_job::{
     AgentJobOutcome, AgentJobRepository, AgentJobToolCall, AgentJobToolPort, AgentJobToolResult,
     AgentJobWorker, AgentStructuredDecision, CertifiedLocalModel,
 };
-use trpg_agent_runtime::local_model_certification::{
-    CertificationInput, LocalModelCertificationAuthority,
-};
+use trpg_agent_runtime::local_model_certification::LocalModelCertificationAuthority;
 use trpg_agent_runtime::model_provider::{
     ExecutableModelProvider, ExecutedModelRouteSnapshot, ModelChatRequest, ModelChatResponse,
     ModelEmbeddingRequest, ModelEmbeddingResponse, ModelOperation, ModelProviderResult,
@@ -68,7 +66,10 @@ impl Drop for LocalCertificationFixture {
     }
 }
 
-fn level4_certification(model_id: &str) -> LocalCertificationFixture {
+fn level4_certification(
+    provider_type: ProviderType,
+    model_id: &str,
+) -> LocalCertificationFixture {
     static NEXT: AtomicU64 = AtomicU64::new(1);
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -92,21 +93,15 @@ fn level4_certification(model_id: &str) -> LocalCertificationFixture {
         )
         .unwrap(),
     );
+    let run = certification_support::passing_run_for_provider_blocking(
+        "provider_ar09",
+        provider_type,
+        model_id,
+        ARTIFACT,
+        certification_support::RUNTIME_SHA256,
+    );
     let certificate = authority
-        .issue_level4(
-            &CertificationInput {
-                model_id: model_id.to_owned(),
-                json_schema_support: true,
-                tool_call_support: true,
-                visibility_tests_pass: true,
-                prompt_injection_tests_pass: true,
-                rules_eval_pass: true,
-                latency_ms: 100,
-            },
-            ARTIFACT,
-            "ar09-suite",
-            Duration::from_secs(60),
-        )
+        .issue_level4_from_run(&run, Duration::from_secs(60))
         .unwrap();
     LocalCertificationFixture {
         certification: CertifiedLocalModel::new(authority, certificate),
@@ -169,6 +164,10 @@ impl ExecutableModelProvider for MockProvider {
 
     fn model_artifact_sha256(&self) -> &str {
         ARTIFACT
+    }
+
+    fn provider_runtime_sha256(&self) -> String {
+        certification_support::RUNTIME_SHA256.to_owned()
     }
 
     fn startup_route_snapshot(&self) -> ExecutedModelRouteSnapshot {

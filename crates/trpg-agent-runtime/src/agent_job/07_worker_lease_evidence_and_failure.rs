@@ -91,7 +91,7 @@ impl AgentJobWorker {
             self.local_certification
                 .as_ref()
                 .ok_or_else(|| AgentJobError::terminal("LOCAL_MODEL_LEVEL_4_REQUIRED"))?
-                .ensure_ai_keeper(&job.model_id, &job.model_artifact_sha256)?;
+                .ensure_ai_keeper(self.provider.as_ref())?;
         }
         Ok(())
     }

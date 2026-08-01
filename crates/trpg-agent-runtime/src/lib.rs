@@ -46,9 +46,15 @@ pub use agent_runtime::{
     AgentToolExecutionOutput, AgentToolExecutor, AssembledAgentContext, ContextFact,
     PromptInjectionReport, ToolDecision, ToolRequest,
 };
+#[allow(deprecated)]
+pub use local_model_certification::ensure_ai_keeper_model;
 pub use local_model_certification::{
-    certify_local_model, ensure_ai_keeper_model, CertificationInput, LocalModelCertificate,
-    LocalModelCertificationAuthority, LocalModelLevel,
+    certify_local_model, ensure_ai_keeper_provider, ensure_ai_keeper_provider_config,
+    CertificationBinding, CertificationCaseEvidence, CertificationCaseKind,
+    CertificationCaseStatus, CertificationEvidenceManifest, CertificationInput,
+    CertificationRequest, CertificationRunStatus, CompletedCertificationRun, LocalModelCertificate,
+    LocalModelCertificationAuthority, LocalModelCertificationRunner, LocalModelCertificationSuite,
+    LocalModelLevel,
 };
 pub use model_provider::{
     evaluate_cloud_fallback, provider_boundary_snapshot, validate_provider_config,

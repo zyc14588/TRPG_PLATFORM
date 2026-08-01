@@ -42,6 +42,10 @@ impl ExecutableModelProvider for Kill9Provider {
         ARTIFACT
     }
 
+    fn provider_runtime_sha256(&self) -> String {
+        "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc".to_owned()
+    }
+
     fn startup_route_snapshot(&self) -> ExecutedModelRouteSnapshot {
         self.route(ModelOperation::CapabilityProbe)
     }

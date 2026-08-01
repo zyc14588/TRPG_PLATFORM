@@ -13,9 +13,11 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use trpg_agent_runtime::agent_runtime::AgentResult;
 use trpg_agent_runtime::local_model_certification::{
-    CertificationInput, LocalModelCertificate, LocalModelCertificationAuthority,
+    LocalModelCertificate, LocalModelCertificationAuthority,
 };
 
+#[path = "certification_support.rs"]
+mod certification_support;
 #[path = "certification_ledger_integrity/checkpoint_store.rs"]
 mod checkpoint_store;
 use checkpoint_store::TestFileCheckpointStore;
@@ -56,27 +58,22 @@ fn open_authority_result(path: &Path) -> AgentResult<LocalModelCertificationAuth
     )
 }
 
-fn input(model_id: &str) -> CertificationInput {
-    CertificationInput {
-        model_id: model_id.to_owned(),
-        json_schema_support: true,
-        tool_call_support: true,
-        visibility_tests_pass: true,
-        prompt_injection_tests_pass: true,
-        rules_eval_pass: true,
-        latency_ms: 250,
-    }
+fn issue(authority: &LocalModelCertificationAuthority, model_id: &str) -> LocalModelCertificate {
+    let artifact_sha256 = format!("sha256:{}", "1".repeat(64));
+    let run = certification_support::passing_run_blocking(model_id, &artifact_sha256);
+    authority
+        .issue_level4_from_run(&run, Duration::from_secs(60))
+        .unwrap()
 }
 
-fn issue(authority: &LocalModelCertificationAuthority, model_id: &str) -> LocalModelCertificate {
-    authority
-        .issue_level4(
-            &input(model_id),
-            &format!("sha256:{}", "1".repeat(64)),
-            "level4-suite",
-            Duration::from_secs(60),
-        )
-        .unwrap()
+fn certified_provider(
+    certificate: &LocalModelCertificate,
+) -> certification_support::DeterministicCertificationProvider {
+    certification_support::DeterministicCertificationProvider::new(
+        certificate.model_id(),
+        certificate.model_artifact_sha256(),
+        certification_support::CertificationFault::None,
+    )
 }
 
 fn populated_registry() -> (PathBuf, PathBuf, LocalModelCertificate) {
@@ -158,25 +155,16 @@ fn certification_registry_rejects_combined_log_and_anchor_snapshot_rollback() {
     let old_anchor = fs::read(&anchor_path).unwrap();
 
     authority.revoke(&certificate).unwrap();
+    let provider = certified_provider(&certificate);
     assert!(authority
-        .ensure_ai_keeper_model(
-            &certificate,
-            certificate.model_id(),
-            certificate.model_artifact_sha256()
-        )
+        .ensure_ai_keeper_provider(&certificate, &provider)
         .is_err());
     drop(authority);
 
     fs::write(&path, old_log).unwrap();
     fs::write(&anchor_path, old_anchor).unwrap();
     let reactivated = open_authority_result(&path)
-        .and_then(|authority| {
-            authority.ensure_ai_keeper_model(
-                &certificate,
-                certificate.model_id(),
-                certificate.model_artifact_sha256(),
-            )
-        })
+        .and_then(|authority| authority.ensure_ai_keeper_provider(&certificate, &provider))
         .is_ok();
     fs::remove_dir_all(root).unwrap();
 
@@ -293,12 +281,9 @@ fn certification_previous_format_migration_is_explicit_auditable_and_one_time() 
         .iter()
         .all(|record| record["source"] == "previous_format_migration"));
     let authority = open_authority(&path);
+    let provider = certified_provider(&revoked);
     assert!(authority
-        .ensure_ai_keeper_model(
-            &revoked,
-            revoked.model_id(),
-            revoked.model_artifact_sha256()
-        )
+        .ensure_ai_keeper_provider(&revoked, &provider)
         .is_err());
     drop(authority);
     fs::remove_dir_all(root).unwrap();
@@ -321,12 +306,9 @@ fn certification_anchored_format_requires_controlled_checkpoint_migration() {
     )
     .unwrap();
     let authority = open_authority(&path);
+    let provider = certified_provider(&revoked);
     assert!(authority
-        .ensure_ai_keeper_model(
-            &revoked,
-            revoked.model_id(),
-            revoked.model_artifact_sha256()
-        )
+        .ensure_ai_keeper_provider(&revoked, &provider)
         .is_err());
     drop(authority);
     fs::remove_dir_all(root).unwrap();

@@ -115,7 +115,7 @@ fn model_provider_local_cloud_impl_requires_level4_for_ai_keeper() {
         "CODEX-0484-04-AI-AGENT-SYSTEM-e96dc3868d"
     );
     let local = local_dev_config();
-    let fixture = common::level4_certification(&local.model_id, &local.model_artifact_sha256);
+    let fixture = common::level4_certification_for_provider(&local);
     fixture.authority.revoke(&fixture.certificate).unwrap();
     let error = model_provider_local_cloud_impl::evaluate_provider_route_for_ai_keeper(
         &local,
@@ -132,9 +132,26 @@ fn model_provider_local_cloud_impl_requires_level4_for_ai_keeper() {
 }
 
 #[test]
+fn ai_keeper_certificate_is_bound_to_the_resolved_provider_runtime() {
+    let local = local_dev_config();
+    let fixture = common::level4_certification_for_provider(&local);
+    fixture
+        .authority
+        .ensure_ai_keeper_provider_config(&fixture.certificate, &local)
+        .unwrap();
+
+    let mut drifted_runtime = local;
+    drifted_runtime.base_url = "http://127.0.0.1:11435/v1".to_owned();
+    assert!(fixture
+        .authority
+        .ensure_ai_keeper_provider_config(&fixture.certificate, &drifted_runtime)
+        .is_err());
+}
+
+#[test]
 fn model_provider_local_cloud_impl_blocks_silent_local_to_cloud_fallback() {
     let local = local_dev_config();
-    let fixture = common::level4_certification(&local.model_id, &local.model_artifact_sha256);
+    let fixture = common::level4_certification_for_provider(&local);
     let error = model_provider_local_cloud_impl::evaluate_provider_route_for_ai_keeper(
         &local,
         &cloud_dev_config(),
@@ -154,7 +171,7 @@ async fn model_provider_local_cloud_impl_accepts_explicit_audited_route() {
     let authorization = common::cloud_egress_authorization().await;
     let context = common::cloud_egress_context();
     let local = local_dev_config();
-    let fixture = common::level4_certification(&local.model_id, &local.model_artifact_sha256);
+    let fixture = common::level4_certification_for_provider(&local);
     let evaluation = model_provider_local_cloud_impl::evaluate_provider_route_for_ai_keeper(
         &local,
         &cloud_dev_config(),
@@ -179,7 +196,7 @@ async fn model_provider_local_cloud_impl_accepts_explicit_audited_route() {
 async fn audited_route_cannot_be_reused_for_a_different_context() {
     let authorization = common::cloud_egress_authorization().await;
     let local = local_dev_config();
-    let fixture = common::level4_certification(&local.model_id, &local.model_artifact_sha256);
+    let fixture = common::level4_certification_for_provider(&local);
     let different_context = vec![common::verified_cloud_fact(
         "different-public-fact",
         Visibility::new(VisibilityLabel::Public),

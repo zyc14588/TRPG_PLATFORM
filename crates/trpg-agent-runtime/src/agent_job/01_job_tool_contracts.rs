@@ -157,9 +157,9 @@ impl CertifiedLocalModel {
         }
     }
 
-    fn ensure_ai_keeper(&self, model_id: &str, model_artifact_sha256: &str) -> AgentJobResult<()> {
+    fn ensure_ai_keeper(&self, provider: &dyn ExecutableModelProvider) -> AgentJobResult<()> {
         self.authority
-            .ensure_ai_keeper_model(&self.certificate, model_id, model_artifact_sha256)
+            .ensure_ai_keeper_provider(&self.certificate, provider)
             .map_err(|_| AgentJobError::terminal("LOCAL_MODEL_LEVEL_4_REQUIRED"))
     }
 }

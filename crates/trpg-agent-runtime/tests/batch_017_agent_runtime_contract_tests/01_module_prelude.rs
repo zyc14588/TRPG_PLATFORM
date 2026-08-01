@@ -12,7 +12,7 @@ use trpg_agent_runtime::agent_runtime_tool_protocol;
 use trpg_agent_runtime::ai_evaluation_golden_scenario;
 use trpg_agent_runtime::ai_evaluation_runtime;
 use trpg_agent_runtime::local_model_certification::{
-    certify_local_model, ensure_ai_keeper_model, CertificationInput, LocalModelLevel,
+    certify_local_model, ensure_ai_keeper_provider_config, CertificationInput, LocalModelLevel,
 };
 use trpg_agent_runtime::memory_rag;
 use trpg_agent_runtime::memory_rag_rag_snapshot;
