@@ -111,7 +111,7 @@ if "${bad_bootstrap[@]}" >"$test_root/bad-prerequisite.log" 2>&1; then
   exit 1
 fi
 grep -F 'bootstrap error=PROVIDER_URL_INVALID' "$test_root/bad-prerequisite.log" >/dev/null
-steps=(preflight secrets compose_config compose_up recovery_roles admin_bootstrap provider_configure provider_probe model_certification tutorial_authority coc7_ruleset tutorial_scenario self_check)
+steps=(preflight secrets compose_config compose_up recovery_roles admin_bootstrap provider_configure provider_probe model_certification_request model_certification agent_worker_ready tutorial_authority coc7_ruleset tutorial_scenario self_check)
 for step in "${steps[@]}"; do
   TRPG_BOOTSTRAP_TEST_STOP_AFTER_STEP="$step" "${bootstrap[@]}" >>"$log" 2>&1 &
   pid="$!"
@@ -138,6 +138,14 @@ for step in "${steps[@]}"; do
   wait "$pid" 2>/dev/null || true
   awk -F $'\t' -v expected="$step" '$2 == expected && $3 == "OK" {found=1} END {exit !found}' \
     "$state/state.tsv"
+  if [[ "$step" == model_certification_request || "$step" == model_certification ]]; then
+    if docker compose --project-name "$project" -f "$root/compose.yml" \
+      -f "$provider/compose.yml" -f "$state/runtime/compose.bootstrap.yml" \
+      --profile staged-worker ps --status running --services | grep -Fx agent-worker >/dev/null; then
+      printf 'agent worker started before staged certification completed step=%s\n' "$step" >&2
+      exit 1
+    fi
+  fi
 done
 "${bootstrap[@]}" >>"$log" 2>&1
 

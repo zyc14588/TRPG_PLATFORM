@@ -20,11 +20,37 @@ source "$tutorial_file"
 overlay="$runtime/compose.bootstrap.yml"
 if ! step_done compose_config; then
   {
+    printf 'services:\n'
+    printf '  agent-worker:\n'
+    printf '    profiles: [staged-worker]\n'
+    printf '    environment:\n'
+    printf '      TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_DIRECTORY: /var/lib/trpg/model-certification-requests\n'
+    printf '      TRPG_MODEL_PROVIDER_RUNTIME_SHA256: ${TRPG_MODEL_PROVIDER_RUNTIME_SHA256:-}\n'
+    printf '    volumes: ["model_certification_requests:/var/lib/trpg/model-certification-requests:ro"]\n'
+    printf '  admin:\n'
+    printf '    volumes: ["model_certification_requests:/var/lib/trpg/model-certification-requests"]\n'
+    printf '  minio-init:\n'
+    printf '    profiles: [staged-worker]\n'
+    printf '  export-volume-init:\n'
+    printf '    image: coc-ai-trpg/runtime:${TRPG_IMAGE_TAG:-local}\n'
+    printf '    entrypoint: ["/bin/sh", "-ec"]\n'
+    printf '    command: ["install -d -o trpg -g trpg -m 0700 /var/lib/trpg/exports && install -d -o trpg -g trpg -m 0700 /var/lib/trpg/local-model-certification"]\n'
+    printf '    restart: "no"\n'
+    printf '    read_only: true\n'
+    printf '    network_mode: none\n'
+    printf '    security_opt: ["no-new-privileges:true"]\n'
+    printf '    volumes: ["export_artifacts:/var/lib/trpg/exports", "agent_state:/var/lib/trpg"]\n'
+    printf '  api:\n'
+    printf '    depends_on:\n'
+    printf '      export-volume-init:\n'
+    printf '        condition: service_completed_successfully\n'
     printf 'secrets:\n'
     for name in "${secret_names[@]}"; do
       [[ -s "$secrets/$name" && ! -L "$secrets/$name" ]] || { printf 'bootstrap error=SECRET_MISSING name=%s\n' "$name" >&2; exit 4; }
       printf '  %s:\n    external: false\n    file: %s/%s\n' "$name" "$secrets" "$name"
     done
+    printf 'volumes:\n'
+    printf '  model_certification_requests:\n'
   } | atomic_text "$overlay" 0600
   commit_step compose_config
 fi
@@ -42,6 +68,7 @@ export TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID="$project-provider-route-v1"
 compose=(docker compose --project-name "$project" -f "$root/compose.yml")
 [[ -z "$extra_compose_file" ]] || compose+=(-f "$extra_compose_file")
 compose+=(-f "$overlay")
+worker_compose=("${compose[@]}" --profile staged-worker)
 "${compose[@]}" config --quiet
 step_done compose_up || { "${compose[@]}" up --detach --build --wait --wait-timeout 300; commit_step compose_up; }
 
@@ -173,16 +200,88 @@ if ! step_done provider_probe; then
   [[ "$(api_call POST providers/probe "$scratch/mutation.headers" '' "$response")" == 200 ]] || { printf 'bootstrap error=PROVIDER_PROBE_FAILED\n' >&2; exit 6; }
   commit_step provider_probe
 fi
-if ! step_done model_certification; then
-  [[ "$(api_call GET bootstrap/status "$owner_headers" '' "$response")" == 200 ]]
-  mutation_headers "$(json_value "$response" state_version)" "$project-model-certification"
-  python3 - "$project" "$provider_model" "${provider_sha256,,}" "$scratch/certification.json" <<'PY'
+certification_request_id="$project-model-certification"
+certification_state_container='/var/lib/trpg/local-model-certification'
+certification_result_container="$certification_state_container/$certification_request_id.result.json"
+certification_certificate_container="$certification_state_container/certificate.json"
+certification_registry_container="$certification_state_container/registry.jsonl"
+if ! step_done model_certification_request; then
+  if [[ "$runtime_provider_type" == cloud ]]; then
+    printf 'bootstrap step=model_certification_request result=NOT_REQUIRED provider_type=cloud\n'
+  else
+    [[ "$(api_call GET bootstrap/status "$owner_headers" '' "$response")" == 200 ]]
+    mutation_headers "$(json_value "$response" state_version)" "$certification_request_id"
+    python3 - "$certification_request_id" "$provider_model" "${provider_sha256,,}" "$scratch/certification.json" <<'PY'
 import json, sys
-json.dump({"request_id": sys.argv[1] + "-model-certification", "model_id": sys.argv[2],
+json.dump({"request_id": sys.argv[1], "model_id": sys.argv[2],
            "model_artifact_sha256": sys.argv[3]}, open(sys.argv[4], "w"))
 PY
-  [[ "$(api_call POST models/certification-requests "$scratch/mutation.headers" "$scratch/certification.json" "$response")" == 200 ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_REQUEST_FAILED\n' >&2; exit 6; }
+    [[ "$(api_call POST models/certification-requests "$scratch/mutation.headers" "$scratch/certification.json" "$response")" == 200 ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_REQUEST_FAILED\n' >&2; exit 6; }
+    [[ "$(json_value "$response" result)" == CERTIFICATION_REQUESTED ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_REQUEST_NOT_PERSISTED\n' >&2; exit 6; }
+  fi
+  commit_step model_certification_request
+fi
+if ! step_done model_certification; then
+  if [[ "$runtime_provider_type" == cloud ]]; then
+    printf 'bootstrap step=model_certification result=NOT_REQUIRED provider_type=cloud\n'
+  else
+    certification_exit=0
+    "${compose[@]}" run --rm --no-deps \
+      -e TRPG_AGENT_WORKER_MODE=certification-only \
+      -e TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_ID="$certification_request_id" \
+      agent-worker || certification_exit="$?"
+    if ! "${compose[@]}" run --rm --no-deps --entrypoint /bin/cat agent-worker \
+      "$certification_result_container" >"$scratch/certification-result.json"; then
+      printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_UNAVAILABLE\n' >&2
+      exit 6
+    fi
+    if [[ "$certification_exit" -ne 0 ]]; then
+      certification_error="$(json_value "$scratch/certification-result.json" error_code)"
+      printf 'bootstrap error=MODEL_CERTIFICATION_TERMINAL_FAILURE detail=%s\n' "$certification_error" >&2
+      exit 6
+    fi
+    [[ "$(json_value "$scratch/certification-result.json" state)" == succeeded ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_NOT_SUCCESSFUL\n' >&2; exit 6; }
+    [[ "$(json_value "$scratch/certification-result.json" request_id)" == "$certification_request_id" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_REQUEST_MISMATCH\n' >&2; exit 6; }
+    [[ "$(json_value "$scratch/certification-result.json" model_id)" == "$provider_model" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_MODEL_MISMATCH\n' >&2; exit 6; }
+    [[ "$(json_value "$scratch/certification-result.json" model_artifact_sha256)" == "${provider_sha256,,}" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_ARTIFACT_MISMATCH\n' >&2; exit 6; }
+    [[ "$(json_value "$scratch/certification-result.json" certificate_path)" == "$certification_certificate_container" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_CERTIFICATE_PATH_INVALID\n' >&2; exit 6; }
+    certification_evidence_container="$(json_value "$scratch/certification-result.json" evidence_path)"
+    [[ "$certification_evidence_container" =~ ^/var/lib/trpg/local-model-certification/[0-9a-f]{64}\.evidence\.json$ ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_EVIDENCE_PATH_INVALID\n' >&2; exit 6; }
+    "${compose[@]}" run --rm --no-deps --entrypoint /bin/cat agent-worker \
+      "$certification_certificate_container" >"$scratch/certificate.json"
+    "${compose[@]}" run --rm --no-deps --entrypoint /bin/cat agent-worker \
+      "$certification_evidence_container" >"$scratch/certification-evidence.json"
+    "${compose[@]}" run --rm --no-deps --entrypoint /bin/cat agent-worker \
+      "$certification_registry_container" >"$scratch/certification-registry.jsonl"
+    [[ -s "$scratch/certification-registry.jsonl" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_REGISTRY_EMPTY\n' >&2; exit 6; }
+    certification_evidence_sha256="sha256:$(sha256sum "$scratch/certification-evidence.json" | awk '{print $1}')"
+    [[ "$certification_evidence_sha256" == "$(json_value "$scratch/certification-result.json" evidence_sha256)" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_EVIDENCE_HASH_MISMATCH\n' >&2; exit 6; }
+    python3 - "$scratch/certification-result.json" "$scratch/certificate.json" <<'PY'
+import json, sys
+result = json.load(open(sys.argv[1], encoding="utf-8"))
+certificate = json.load(open(sys.argv[2], encoding="utf-8"))
+if certificate.get("certificate_id") != result.get("certificate_id"):
+    raise SystemExit("certificate identity mismatch")
+if certificate.get("model_id") != result.get("model_id"):
+    raise SystemExit("certificate model mismatch")
+if certificate.get("model_artifact_sha256") != result.get("model_artifact_sha256"):
+    raise SystemExit("certificate artifact mismatch")
+if certificate.get("level") != "Level4":
+    raise SystemExit("certificate level mismatch")
+binding = certificate.get("certification_binding", {})
+if binding.get("provider_id") != result.get("provider_id"):
+    raise SystemExit("certificate provider mismatch")
+if binding.get("provider_runtime_sha256") != result.get("provider_runtime_sha256"):
+    raise SystemExit("certificate runtime mismatch")
+if binding.get("evidence_sha256") != result.get("evidence_sha256"):
+    raise SystemExit("certificate evidence mismatch")
+PY
+  fi
   commit_step model_certification
+fi
+if ! step_done agent_worker_ready; then
+  "${worker_compose[@]}" up --detach --wait --wait-timeout 300 agent-worker
+  commit_step agent_worker_ready
 fi
 if ! step_done tutorial_authority; then
   [[ "$(api_call GET bootstrap/status "$owner_headers" '' "$response")" == 200 ]]

@@ -6,18 +6,21 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use trpg_agent_runtime::agent_job::{
     AgentJobError, AgentJobExecutionConfig, AgentJobOutcome, AgentJobRepository, AgentJobResult,
     AgentJobWorker, AgentSkillCheckRoll, AgentSkillCheckRulePort, CertifiedLocalModel,
     GovernedAgentDecisionPort, GovernedAgentJobToolPort, ProductionAgentIdentityConfiguration,
 };
 use trpg_agent_runtime::local_model_certification::{
-    LocalModelCertificate, LocalModelCertificationAuthority,
+    CertificationRequest, CertificationRunStatus, LocalModelCertificate,
+    LocalModelCertificationAuthority, LocalModelCertificationRunner,
+    LocalModelCertificationSuite,
 };
 use trpg_agent_runtime::model_provider::{
     Environment as ModelEnvironment, ExecutableModelProvider, ModelProviderRuntimeConfig,
-    ExecutedModelRouteSnapshot, ProviderCapabilities, ProviderConfig, ProviderType,
+    ExecutedModelRouteSnapshot, ProviderCancellation, ProviderCapabilities, ProviderConfig,
+    ProviderType,
 };
 use trpg_agent_runtime::model_provider_local_cloud_impl::HttpModelProvider;
 use trpg_contracts::{run_service, RoleRuntimeProbe, ServiceKind, ServiceSpec};
@@ -52,6 +55,9 @@ use trpg_security_governance::security_privacy::{
     PostgresRecordDeletionSurface, RedisCacheDeletionSurface, S3ObjectDeletionSurface,
 };
 
+include!("07_local_model_certification_process/01_process.rs");
+include!("07_local_model_certification_process/02_artifact_io.rs");
+
 const BACKGROUND_HEARTBEAT_STALE_AFTER: Duration = Duration::from_secs(30);
 
 #[derive(Debug)]
@@ -81,6 +87,22 @@ impl AgentSkillCheckRulePort for Coc7AgentSkillCheckRules {
 }
 
 fn main() -> ExitCode {
+    match AgentWorkerStartupMode::from_environment() {
+        Ok(AgentWorkerStartupMode::CertificationOnly) => {
+            return match run_local_model_certification_from_environment() {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("service=agent-worker mode=certification-only error={error}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
+        Ok(AgentWorkerStartupMode::Ready) => {}
+        Err(error) => {
+            eprintln!("service=agent-worker error={error}");
+            return ExitCode::FAILURE;
+        }
+    }
     let worker = match AgentWorkerProcess::from_environment() {
         Ok(worker) => worker,
         Err(error) => {

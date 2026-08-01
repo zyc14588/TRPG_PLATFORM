@@ -94,7 +94,7 @@ async fn eight_case_fake_provider_transcript_is_required_for_level4() {
         assert!(evidence.error_code().is_none());
     }
     let encoded = std::str::from_utf8(outcome.run.canonical_manifest()).unwrap();
-    assert!(encoded.contains("\"suite_version\": \"1.0.0\""));
+    assert!(encoded.contains("\"suite_version\": \"1.0.1\""));
     assert!(encoded.contains("\"redacted_request\""));
     assert!(encoded.contains("\"redacted_response\""));
 
@@ -109,6 +109,27 @@ async fn eight_case_fake_provider_transcript_is_required_for_level4() {
     authority
         .ensure_ai_keeper_provider(&certificate, outcome.provider.as_ref())
         .unwrap();
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn repeated_issuance_reuses_the_active_certificate_without_registry_mutation() {
+    let run = certification_support::passing_run_blocking(MODEL, ARTIFACT);
+    let (root, authority) = authority();
+
+    let first = authority
+        .issue_level4_from_run(&run, Duration::from_secs(60))
+        .unwrap();
+    let registry_before = fs::read(root.join("registry.jsonl")).unwrap();
+    let repeated = authority
+        .issue_level4_from_run(&run, Duration::from_secs(60))
+        .unwrap();
+
+    assert_eq!(repeated, first);
+    assert_eq!(
+        fs::read(root.join("registry.jsonl")).unwrap(),
+        registry_before
+    );
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -215,7 +236,7 @@ async fn model_suite_runtime_and_evidence_tampering_invalidates_certificate() {
             }
             "suite_id" => encoded["suite_id"] = serde_json::json!("tampered-suite"),
             "suite_version" => {
-                encoded["certification_binding"]["suite_version"] = serde_json::json!("1.0.1")
+                encoded["certification_binding"]["suite_version"] = serde_json::json!("9.9.9")
             }
             "provider_id" => {
                 encoded["certification_binding"]["provider_id"] =

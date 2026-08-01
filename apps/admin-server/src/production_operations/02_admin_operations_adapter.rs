@@ -46,7 +46,15 @@ impl AdminOperations for ProductionAdminOperations {
         {
             return Err("ADMIN_PROVIDER_CREDENTIAL_INVALID".to_owned());
         }
-        let url = format!("{}/models", configuration.base_url.trim_end_matches('/'));
+        let probe_path = if configuration.provider_type == "ollama" {
+            "api/tags"
+        } else {
+            "models"
+        };
+        let url = format!(
+            "{}/{probe_path}",
+            configuration.base_url.trim_end_matches('/')
+        );
         let mut child = Command::new(&self.curl_path)
             .arg("--fail")
             .arg("--silent")

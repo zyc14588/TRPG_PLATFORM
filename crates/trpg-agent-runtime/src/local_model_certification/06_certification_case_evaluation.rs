@@ -116,7 +116,7 @@ impl LocalModelCertificationRunner {
         };
         let response_bytes = serde_json::to_vec(&execution.output).unwrap_or_default();
         if !self.route_matches(&execution, ModelOperation::CapabilityProbe)
-            || execution.output != ProviderCapabilities::v1_complete()
+            || !keeper_capabilities_available(execution.output)
         {
             return failed_case(
                 kind,
@@ -252,9 +252,31 @@ fn certification_chat_request(kind: CertificationCaseKind) -> ModelChatRequest {
         structured_output: (kind != CertificationCaseKind::ToolUseStability).then(|| {
             StructuredOutputRequest {
                 name: format!("{}_result", kind.as_str()),
-                schema: serde_json::json!({"type": "object"}),
+                schema: serde_json::from_str(certification_output_schema(kind))
+                    .expect("built-in certification output schema must be valid"),
             }
         }),
         tools,
+    }
+}
+
+fn keeper_capabilities_available(capabilities: ProviderCapabilities) -> bool {
+    capabilities.chat
+        && capabilities.streaming
+        && capabilities.structured_output
+        && capabilities.tool_requests
+}
+
+fn certification_output_schema(kind: CertificationCaseKind) -> &'static str {
+    match kind {
+        CertificationCaseKind::Golden => GOLDEN_OUTPUT_SCHEMA,
+        CertificationCaseKind::VisibilityLeakage => VISIBILITY_OUTPUT_SCHEMA,
+        CertificationCaseKind::PromptInjection => PROMPT_INJECTION_OUTPUT_SCHEMA,
+        CertificationCaseKind::CocRulesMiniEval => RULES_OUTPUT_SCHEMA,
+        CertificationCaseKind::Latency => LATENCY_OUTPUT_SCHEMA,
+        CertificationCaseKind::ContextStress => CONTEXT_OUTPUT_SCHEMA,
+        CertificationCaseKind::CapabilityProbe | CertificationCaseKind::ToolUseStability => {
+            unreachable!("case does not request structured output")
+        }
     }
 }
