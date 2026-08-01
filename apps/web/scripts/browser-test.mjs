@@ -201,7 +201,12 @@ async function main() {
   } finally {
     await chrome.close();
     await mock.close();
-    await rm(path.join(evidenceRoot, "chrome-profile"), { recursive: true, force: true });
+    await rm(path.join(evidenceRoot, "chrome-profile"), {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100,
+    });
   }
 }
 

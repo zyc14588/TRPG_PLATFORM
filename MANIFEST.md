@@ -150,12 +150,12 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `apps/web/package.json` | 446 | `c3e900db9cbd79f369e4fc23eb8a3e55a78bd8b52d3f1771e36d318ab37e611f` | `100644` |
 | `apps/web/scripts/ar11-provider.compose.yml` | 654 | `ccf7a33c4dd95cd84ba542c86e82905ad0ba77bd217b9c58c3fc7b8771591a2f` | `100644` |
 | `apps/web/scripts/ar11-provider.py` | 2772 | `26a2df74c9cfceeb1743878d9863425837b0f8a1780c71f00344535d0baf6277` | `100644` |
-| `apps/web/scripts/browser-test.mjs` | 10887 | `85549fcabceb2adbb419e4483bd056ffb89bf8139a077542734c9346dcaad218` | `100644` |
-| `apps/web/scripts/browser-test/browser-driver.mjs` | 7525 | `98b982fb2fc1b570b0ba7515b3e2415a1c4bf7fd63890afe02b9389a8c14c706` | `100644` |
+| `apps/web/scripts/browser-test.mjs` | 10949 | `b0dc41f72a81e0fc38023a58de67871f801e2d84fc6105552e056dbae324316f` | `100644` |
+| `apps/web/scripts/browser-test/browser-driver.mjs` | 7682 | `a02858f6660ad54d05144c2c58eb492d1b37a95d2c439c17459853095a5683e0` | `100644` |
 | `apps/web/scripts/browser-test/product-fixtures.mjs` | 5729 | `3ce996f49bf449c5baa18bbb92666bded2105a30be284a8ab94dcc5a22b1ef1e` | `100644` |
 | `apps/web/scripts/browser-test/product-mock.mjs` | 14491 | `e35e4d7a63afb09112d904a7986fcf46c941351645515a626100340860f17031` | `100644` |
 | `apps/web/scripts/build.mjs` | 1490 | `a9c37504d8b6619b7e1e129bbd8da3b73820a46b0959fd071479270af2cf5527` | `100644` |
-| `apps/web/scripts/live-browser-test.mjs` | 17888 | `bd0e7146dd5470e8601b5deac9bf8ad69e61ac690de100c2d1f1b4517f7008b8` | `100644` |
+| `apps/web/scripts/live-browser-test.mjs` | 17940 | `761ddbaec0369afce7fd362d6d1d8d49ad2aa33f058423d651fa3569293de3ed` | `100644` |
 | `apps/web/scripts/live-browser-test.sh` | 7019 | `18c4c0ec94d5622b0c63721bdd946a6db14a066d53ca83111ef788cfa4ff386f` | `100755` |
 | `apps/web/scripts/live-browser-test/context.mjs` | 2826 | `a94a7cf891c951fdc9bbc355ab5baac82c7a9600bfa4d9fb276888e210867b0f` | `100644` |
 | `apps/web/scripts/live-browser-test/export-and-privacy.mjs` | 10052 | `942fdd5d8d94e8d85bc05cb723cabeaeda3342af0190d81c45712f9b830a8d40` | `100644` |

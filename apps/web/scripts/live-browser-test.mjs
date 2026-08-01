@@ -19,7 +19,12 @@ try {
   console.log(`AR11_LIVE_BROWSER_EVIDENCE=${evidenceRoot}`);
 } finally {
   await chrome?.close();
-  await rm(path.join(evidenceRoot, "chrome-profile"), { recursive: true, force: true });
+  await rm(path.join(evidenceRoot, "chrome-profile"), {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 100,
+  });
 }
 async function runTutorials() {
   const owner = await BrowserPage.open(chrome.debugOrigin, origin);
