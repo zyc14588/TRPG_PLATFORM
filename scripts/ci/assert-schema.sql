@@ -167,7 +167,8 @@ BEGIN
        OR has_table_privilege('trpg_canonical_service', 'users', 'SELECT')
        OR has_table_privilege('trpg_canonical_service', 'campaign_memberships', 'SELECT')
        OR has_table_privilege('trpg_canonical_service', 'cloud_egress_consents', 'SELECT')
-       OR has_table_privilege('trpg_canonical_service', 'privacy_subject_keys', 'SELECT')
+       OR has_table_privilege('trpg_canonical_service', 'privacy_subject_keys', 'UPDATE')
+       OR has_table_privilege('trpg_canonical_service', 'privacy_subject_keys', 'DELETE')
        OR EXISTS (
            SELECT 1
              FROM pg_class AS relation

@@ -184,6 +184,8 @@ printf 'Authorization: Bearer %s\nAccept: application/json\n' \
 [[ "$(json_value administrator_count)" == 1 && "$(json_value business_account_count)" == 1 ]]
 
 tutorial_database_state() {
+  # The password substitution is intentionally evaluated inside the container.
+  # shellcheck disable=SC2016
   "${compose[@]}" exec -T \
     -e TUTORIAL_CAMPAIGN_ID="$TUTORIAL_CAMPAIGN_ID" \
     -e TUTORIAL_AUTHORITY_CONTRACT_ID="$TUTORIAL_AUTHORITY_CONTRACT_ID" \
@@ -241,6 +243,8 @@ mutation_headers "$version" ar10-backup
 manifest="$(json_value artifact_reference)"
 [[ "$(json_value digest)" =~ ^sha256:[0-9a-f]{64}$ ]]
 
+# The password substitution is intentionally evaluated inside the container.
+# shellcheck disable=SC2016
 "${compose[@]}" exec -T postgres sh -ec \
   'export PGPASSWORD="$(cat /run/secrets/postgres_restore_password)"; exec psql -X -q -v ON_ERROR_STOP=1 -U trpg_restore_login -d coc_ai_trpg_restore' \
   <<'SQL'
@@ -256,6 +260,8 @@ json.dump({"manifest_path": sys.argv[1], "expected_schema_version": "ar10_schema
 PY
 mutation_headers "$version" ar10-restore
 [[ "$(api_call POST restores "$scratch/mutation.headers" "$scratch/restore.json")" == 200 ]]
+# The password substitution is intentionally evaluated inside the container.
+# shellcheck disable=SC2016
 marker_absent="$("${compose[@]}" exec -T postgres sh -ec \
   'export PGPASSWORD="$(cat /run/secrets/postgres_restore_password)";
    exec psql -X -A -t -v ON_ERROR_STOP=1 -U trpg_restore_login -d coc_ai_trpg_restore' <<'SQL'
@@ -263,11 +269,16 @@ SELECT to_regclass('public.ar10_restore_marker') IS NULL;
 SQL
 )"
 [[ "$marker_absent" == t ]]
+# These password substitutions are intentionally evaluated inside the container.
+# shellcheck disable=SC2016
 primary_events="$("${compose[@]}" exec -T postgres sh -ec \
   'export PGPASSWORD="$(cat /run/secrets/postgres_bootstrap_password)"; psql -X -A -t -U trpg_database_owner -d coc_ai_trpg -c "SELECT count(*) FROM event_store"')"
+# shellcheck disable=SC2016
 restore_events="$("${compose[@]}" exec -T postgres sh -ec \
   'export PGPASSWORD="$(cat /run/secrets/postgres_restore_password)"; psql -X -A -t -U trpg_restore_login -d coc_ai_trpg_restore -c "SELECT count(*) FROM event_store"')"
 [[ "$primary_events" == "$restore_events" ]]
+# The password substitution is intentionally evaluated inside the container.
+# shellcheck disable=SC2016
 restore_role_minimal="$("${compose[@]}" exec -T postgres sh -ec \
   'export PGPASSWORD="$(cat /run/secrets/postgres_bootstrap_password)";
    exec psql -X -A -t -v ON_ERROR_STOP=1 -U trpg_database_owner -d postgres' <<'SQL'
@@ -307,11 +318,31 @@ journal_hash="$(sha256sum "$state/state.tsv" | awk '{print $1}')"
 [[ "$tutorial_state_before_rerun" == "$(tutorial_database_state)" ]]
 [[ ! -e "$state/runtime/bootstrap-scratch" ]]
 "${compose[@]}" logs --no-color >"$test_root/compose.log" 2>&1
-! grep -F "$provider_canary" "$log" "$test_root/compose.log"
-! grep -F "$ADMIN_PASSWORD" "$log" "$test_root/compose.log"
-! grep -F "$BUSINESS_PASSWORD" "$log" "$test_root/compose.log"
-! "${compose[@]}" exec -T admin sh -ec \
-  "grep -R -F '$provider_canary' /var/lib/trpg >/dev/null 2>&1"
+assert_sensitive_value_absent() {
+  local sensitive_value="$1"
+  shift
+  local search_status=0
+  grep -F -- "$sensitive_value" "$@" >/dev/null || search_status=$?
+  case "$search_status" in
+    1) return 0 ;;
+    0) printf 'sensitive value leaked into integration logs\n' >&2 ;;
+    *) printf 'failed to inspect integration logs for sensitive values\n' >&2 ;;
+  esac
+  return 1
+}
+assert_sensitive_value_absent "$provider_canary" "$log" "$test_root/compose.log"
+assert_sensitive_value_absent "$ADMIN_PASSWORD" "$log" "$test_root/compose.log"
+assert_sensitive_value_absent "$BUSINESS_PASSWORD" "$log" "$test_root/compose.log"
+container_search_status=0
+"${compose[@]}" exec -T admin sh -ec \
+  "grep -R -F '$provider_canary' /var/lib/trpg >/dev/null 2>&1" || container_search_status=$?
+if [[ "$container_search_status" -eq 0 ]]; then
+  printf 'provider canary leaked into the admin state directory\n' >&2
+  exit 1
+elif [[ "$container_search_status" -ne 1 ]]; then
+  printf 'failed to inspect the admin state directory for the provider canary\n' >&2
+  exit 1
+fi
 if [[ -n "${AR10_EVIDENCE_DIR:-}" ]]; then
   [[ "$AR10_EVIDENCE_DIR" = /* && ! -L "$AR10_EVIDENCE_DIR" ]] || {
     printf 'AR10_EVIDENCE_DIR must be an absolute non-symlink path\n' >&2

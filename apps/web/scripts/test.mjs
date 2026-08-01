@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -286,7 +286,16 @@ assert.equal(JSON.parse(nextCampaignSocket.sent[0]).resume_token, null);
 realtime.disconnect();
 
 const builtIndex = await readFile(path.join(root, "dist/index.html"), "utf8");
-const builtApplication = await readFile(path.join(root, "dist/src/app.js"), "utf8");
+const builtApplicationModules = (await readdir(path.join(root, "dist/src/app")))
+  .filter((name) => name.endsWith(".js"))
+  .sort()
+  .map((name) => path.join(root, "dist/src/app", name));
+const builtApplication = (
+  await Promise.all(
+    [path.join(root, "dist/src/app.js"), ...builtApplicationModules]
+      .map((modulePath) => readFile(modulePath, "utf8")),
+  )
+).join("\n");
 assert.match(builtIndex, /Content-Security-Policy/);
 assert.equal(/\son[a-z]+\s*=/.test(builtIndex), false);
 assert.match(builtApplication, /角色卡/);

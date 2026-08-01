@@ -348,4 +348,32 @@ mod tests {
             "listener accepted a connection after shutdown"
         );
     }
+
+    #[test]
+    fn final_handler_reference_is_released_outside_the_service_runtime() {
+        struct DropContextProbe(Arc<AtomicUsize>);
+
+        impl Drop for DropContextProbe {
+            fn drop(&mut self) {
+                let context = usize::from(tokio::runtime::Handle::try_current().is_ok()) + 1;
+                self.0.store(context, Ordering::Release);
+            }
+        }
+
+        let drop_context = Arc::new(AtomicUsize::new(0));
+        let probe = DropContextProbe(Arc::clone(&drop_context));
+        let handler: ServiceRequestHandler = Box::new(move |_| {
+            let _ = &probe;
+            None
+        });
+        let retained_handler: SharedRequestHandler = Arc::from(handler);
+        let runtime_handler = Arc::clone(&retained_handler);
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        runtime.block_on(async move { drop(runtime_handler) });
+        assert_eq!(drop_context.load(Ordering::Acquire), 0);
+        runtime.shutdown_timeout(Duration::from_millis(100));
+        drop(retained_handler);
+        assert_eq!(drop_context.load(Ordering::Acquire), 1);
+    }
 }

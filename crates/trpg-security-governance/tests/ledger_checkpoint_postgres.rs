@@ -11,10 +11,8 @@ fn label(byte: char) -> String {
 
 #[tokio::test]
 async fn witness_checkpoint_is_monotonic_append_only_and_role_scoped() {
-    let Ok(database_url) = std::env::var("AR03_WITNESS_DATABASE_URL") else {
-        eprintln!("AR03_WITNESS_DATABASE_URL unset; real PostgreSQL gate skipped");
-        return;
-    };
+    let database_url = std::env::var("AR03_WITNESS_DATABASE_URL")
+        .expect("AR03_WITNESS_DATABASE_URL is required for the ledger checkpoint gate");
     let pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&database_url)
