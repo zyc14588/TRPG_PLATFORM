@@ -8,6 +8,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from acceptance_evidence_matrix import incomplete_reasons, matrix_file_errors
 from repo_truth import (
     EVIDENCE_GENERATOR_VERSION,
     PRODUCT_SERVICES,
@@ -128,6 +129,8 @@ def assess(
     root: Path,
     evidence: Path | None = None,
     security_evidence: Path | None = None,
+    acceptance_manifest: Path | None = None,
+    acceptance_matrix: Path | None = None,
 ) -> dict:
     blockers: list[dict[str, str]] = []
     missing_binaries = REQUIRED_PRODUCT_BINARIES - cargo_targets(root, "bin")
@@ -221,6 +224,29 @@ def assess(
             for error in security_errors
         )
 
+    if acceptance_manifest is None or acceptance_matrix is None:
+        blockers.append(
+            {
+                "id": "MISSING_ACCEPTANCE_EVIDENCE_MATRIX",
+                "reason": (
+                    "both external acceptance manifest and generated matrix are required"
+                ),
+            }
+        )
+    else:
+        matrix_data, matrix_errors = matrix_file_errors(
+            acceptance_manifest.resolve(), acceptance_matrix.resolve(), root
+        )
+        blockers.extend(
+            {"id": "INVALID_ACCEPTANCE_EVIDENCE_MATRIX", "reason": error}
+            for error in matrix_errors
+        )
+        if matrix_data is not None and not matrix_errors:
+            blockers.extend(
+                {"id": "INCOMPLETE_ACCEPTANCE_EVIDENCE_MATRIX", "reason": reason}
+                for reason in incomplete_reasons(matrix_data)
+            )
+
     status = subprocess.run(
         ["git", "status", "--porcelain=v1"], cwd=root, check=True, text=True, capture_output=True
     ).stdout.strip()
@@ -268,6 +294,8 @@ def main() -> int:
     parser.add_argument("--report", type=Path)
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--security-evidence", type=Path)
+    parser.add_argument("--acceptance-manifest", type=Path)
+    parser.add_argument("--acceptance-matrix", type=Path)
     parser.add_argument("--require-ready", action="store_true")
     parser.add_argument("--require-blocked", action="store_true")
     parser.add_argument("--verify-report", type=Path)
@@ -280,6 +308,8 @@ def main() -> int:
                 args.report,
                 args.evidence,
                 args.security_evidence,
+                args.acceptance_manifest,
+                args.acceptance_matrix,
                 args.require_ready,
                 args.require_blocked,
             )
@@ -299,7 +329,13 @@ def main() -> int:
         args.report = args.report.resolve()
         if args.report.is_relative_to(ROOT.resolve()):
             parser.error("--report must be outside the repository")
-    report = assess(ROOT, args.evidence, args.security_evidence)
+    report = assess(
+        ROOT,
+        args.evidence,
+        args.security_evidence,
+        args.acceptance_manifest,
+        args.acceptance_matrix,
+    )
     payload = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)

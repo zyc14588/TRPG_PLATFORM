@@ -5,7 +5,7 @@
 | 1 | Docker Compose 一键部署成功 | S09,S13 | docker compose -f docker-compose.ci.yml up -d --build; scripts/ci/init-smoke.sh | fixtures/ops/backup_restore_projection_rebuild.v1.json.md | artifacts/test-reports/docker-compose-smoke/compose-health.md | 所有核心服务 healthy；初始化向导 smoke 通过 |
 | 2 | 可配置云端模型、本地 Ollama、本地 llama.cpp | S07,S09,S13 | cargo test -p trpg-testing --test model_certification_tests | fixtures/provider/model_certification_matrix.v1.json.md | artifacts/test-reports/model-certification/provider-matrix.md | 三类 provider route 可配置；prod boundary 阻断占位/暴露配置 |
 | 3 | 可创建 AI KP / 真人 KP Campaign | S02,S06,S08,S13 | cargo test -p trpg-domain-core authority_contract && cargo test -p trpg-api campaign_api | fixtures/authority/authority_contract_cases.v1.json.md | docs/reports/stages/S02_ACCEPTANCE_EVIDENCE.md | 两种模式创建成功且 authority_mode 互斥 |
-| 4 | Authority Contract 不可修改 | S02,S04,S13 | cargo test -p trpg-domain-core authority_immutability | fixtures/authority/authority_contract_cases.v1.json.md | artifacts/test-reports/authority/immutability.md | PATCH/override 返回 AuthorityContractImmutable 或 AuthorityViolation |
+| 4 | Authority Contract 不可修改 | S02,S04,S13 | cargo test -p trpg-domain-core --test authority_contract_contract_tests authority_contract_rejects_in_place_mode_or_owner_change | fixtures/authority/authority_contract_cases.v1.json.md | artifacts/test-reports/authority/immutability.md | PATCH/override 返回 AuthorityContractImmutable 或 AuthorityViolation |
 | 5 | 可完成 COC 车卡与角色审核 | S05,S06,S08,S13 | cargo test -p trpg-ruleset-coc7 character_creation | fixtures/rules/coc7_character_creation_review.v1.json.md | artifacts/test-reports/coc7/character-sheet.md | 角色派生属性、技能点、审核、初始版本锁定通过 |
 | 6 | 可运行一个完整原创教学模组 | S05,S06,S07,S11,S13 | cargo test -p trpg-testing --test tutorial_scenario_ci | fixtures/scenarios/tutorial_mist_archive.scenario.yaml.md | artifacts/test-reports/tutorial/tutorial-run.md | 开场到结局事件链完整，无版权依赖 |
 | 7 | 可完成调查、检定、线索、SAN、NPC、基础战斗、基础追逐 | S05,S06,S11,S13 | cargo test -p trpg-ruleset-coc7 --all-features | fixtures/rules/coc7_dice_matrix.v1.json.md; fixtures/rules/coc7_san_combat_chase_flow.v1.json.md | artifacts/test-reports/coc7/rules-flow.md | 所有核心 COC7 flow 通过，核心线索 fail-forward |
@@ -22,7 +22,14 @@
 
 ## 使用规则
 
-S13 前必须把上表复制为 `docs/reports/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md` 并填入实际 commit、测试输出、artifact hash 和 PASS/FAIL。任一 P0/P1 项缺证据即不得发布。
+本表只定义 17 项权威验收条目及其权威测试命令，不承载候选状态。候选矩阵必须由
+`scripts/ci/acceptance_evidence_matrix.py` 在仓库外从机器可验证 evidence manifest
+生成；tracked 的 `docs/reports/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md` 只能保留生成
+说明，不得手工填入 commit、artifact hash 或 PASS/FAIL。
+
+任何旧指南中的“填充 V1 矩阵”均解释为运行上述生成器产生仓库外候选矩阵；本规则
+明确取代人工复制或维护 tracked PASS 的旧流程。任一 P0/P1 项缺少绑定当前 clean
+HEAD/tree、实际权威命令、退出码、原始日志及 artifact hash 的证据即不得发布。
 
 
 ## v2.21 detailed fixture completion

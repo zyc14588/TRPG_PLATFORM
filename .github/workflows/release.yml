@@ -96,6 +96,16 @@ jobs:
             "$RUNNER_TEMP/release-readiness/production-security-input.json"
       - name: Verify the truthful READY state
         run: |
+          python3 scripts/ci/acceptance_evidence_matrix.py create-not-run \
+            --manifest "$RUNNER_TEMP/release-readiness/acceptance-evidence-manifest.json" \
+            --evidence "$RUNNER_TEMP/release-readiness/release-input.json" \
+            --evidence "$RUNNER_TEMP/release-readiness/production-security-input.json"
+          python3 scripts/ci/acceptance_evidence_matrix.py generate \
+            --manifest "$RUNNER_TEMP/release-readiness/acceptance-evidence-manifest.json" \
+            --output "$RUNNER_TEMP/release-readiness/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md"
+          python3 scripts/ci/acceptance_evidence_matrix.py validate \
+            --manifest "$RUNNER_TEMP/release-readiness/acceptance-evidence-manifest.json" \
+            --matrix "$RUNNER_TEMP/release-readiness/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md"
           python3 scripts/ci/generate_evidence.py \
             --report "$RUNNER_TEMP/release-readiness/evidence-manifest.json" \
             --artifact MANIFEST.md \
@@ -107,11 +117,15 @@ jobs:
             --generated-artifact "$RUNNER_TEMP/release-readiness/production-security-input.log" \
             --generated-artifact "$RUNNER_TEMP/release-readiness/production-security-input.junit.xml" \
             --generated-artifact "$RUNNER_TEMP/release-readiness/production-security-input.sarif" \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/acceptance-evidence-manifest.json" \
+            --generated-artifact "$RUNNER_TEMP/release-readiness/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md" \
             --generated-artifact "$RUNNER_TEMP/release-readiness/release-readiness.json" \
             -- python3 scripts/ci/release_readiness.py \
               --report "$RUNNER_TEMP/release-readiness/release-readiness.json" \
               --evidence "$RUNNER_TEMP/release-readiness/release-input.json" \
               --security-evidence "$RUNNER_TEMP/release-readiness/production-security-input.json" \
+              --acceptance-manifest "$RUNNER_TEMP/release-readiness/acceptance-evidence-manifest.json" \
+              --acceptance-matrix "$RUNNER_TEMP/release-readiness/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md" \
               --require-ready
           python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/release-readiness/evidence-manifest.json"
       - name: Upload release readiness evidence

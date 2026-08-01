@@ -36,6 +36,7 @@ test -z "$(git status --porcelain=v1)"
 python3 scripts/ci/repo_truth.py --check
 python3 scripts/ci/check_source_file_size.py --check
 python3 scripts/ci/test_source_file_size.py
+python3 scripts/ci/test_acceptance_evidence_matrix.py
 python3 scripts/ci/validate_workflows.py
 python3 scripts/ci/discover_tests.py --check
 python3 scripts/ci/verify_test_inventory.py --report "$tool_dir/test-inventory.json"
