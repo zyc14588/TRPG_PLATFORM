@@ -134,7 +134,7 @@ async function runTutorials() {
       dayKey: "ar11_tutorial_day",
       description: "面对封存记录进行私密理智检定。",
   }, "行动已提交", 20_000);
-  const sanityActionId = await pendingActionId(playerA);
+  const sanityActionId = await pendingActionId(playerA, investigationActionId);
   await submitAndWait(keeper, 'form[data-form="confirm-player-action"]', {
     actionId: sanityActionId,
     expectedVersion: "1",

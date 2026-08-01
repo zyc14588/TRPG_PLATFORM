@@ -4,6 +4,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+import { pendingActionId } from "./live-browser-test/support.mjs";
+
 class TestWebSocket {
   static instances = [];
 
@@ -37,6 +39,12 @@ class TestWebSocket {
 }
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+let pendingActionReads = 0;
+assert.equal(await pendingActionId({
+  evaluate: async () => ++pendingActionReads < 3
+    ? "行动 action_previous 等待确认"
+    : "行动 action_current 等待确认",
+}, "action_previous"), "action_current");
 const config = JSON.parse(await readFile(path.join(root, "dist/config.json"), "utf8"));
 const { inspectServiceHealth } = await import(
   new URL("../dist/src/health.js", import.meta.url)

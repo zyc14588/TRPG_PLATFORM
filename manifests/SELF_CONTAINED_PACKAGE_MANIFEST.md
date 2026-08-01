@@ -155,14 +155,14 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `apps/web/scripts/browser-test/product-fixtures.mjs` | 5729 | `3ce996f49bf449c5baa18bbb92666bded2105a30be284a8ab94dcc5a22b1ef1e` | `100644` |
 | `apps/web/scripts/browser-test/product-mock.mjs` | 14491 | `e35e4d7a63afb09112d904a7986fcf46c941351645515a626100340860f17031` | `100644` |
 | `apps/web/scripts/build.mjs` | 1490 | `a9c37504d8b6619b7e1e129bbd8da3b73820a46b0959fd071479270af2cf5527` | `100644` |
-| `apps/web/scripts/live-browser-test.mjs` | 17940 | `761ddbaec0369afce7fd362d6d1d8d49ad2aa33f058423d651fa3569293de3ed` | `100644` |
+| `apps/web/scripts/live-browser-test.mjs` | 17963 | `48b2e08a19fc8ab009b2bc7c001cf1d301cdec9efc8eb5457f3835352836b007` | `100644` |
 | `apps/web/scripts/live-browser-test.sh` | 7019 | `18c4c0ec94d5622b0c63721bdd946a6db14a066d53ca83111ef788cfa4ff386f` | `100755` |
 | `apps/web/scripts/live-browser-test/context.mjs` | 2826 | `a94a7cf891c951fdc9bbc355ab5baac82c7a9600bfa4d9fb276888e210867b0f` | `100644` |
 | `apps/web/scripts/live-browser-test/export-and-privacy.mjs` | 10052 | `942fdd5d8d94e8d85bc05cb723cabeaeda3342af0190d81c45712f9b830a8d40` | `100644` |
 | `apps/web/scripts/live-browser-test/page-actions.mjs` | 3822 | `0b112eaf04523a6f256b6ea77bb33a22be92a9d8d47b34ba570a1709dc35e8fb` | `100644` |
-| `apps/web/scripts/live-browser-test/support.mjs` | 3055 | `25018cdcafdb928c357b829e014a4a43601d4dcb888ec1319f6dfd4cf375662e` | `100644` |
+| `apps/web/scripts/live-browser-test/support.mjs` | 3224 | `6d01c9ace30900bf06f585f6c10038bc8a41c788e0b83cb970e72f63a69f42dd` | `100644` |
 | `apps/web/scripts/serve.mjs` | 2114 | `9b6be0a11a874d70edbbc8e4089feef089f67750748ce61e414228ec2c30e5b1` | `100644` |
-| `apps/web/scripts/test.mjs` | 12775 | `fe900cec91fb96344d6a8273ac2ac24c8cecef830e625304ff37b236ddff13fb` | `100644` |
+| `apps/web/scripts/test.mjs` | 13087 | `51c3334e3e7aa72ea14b79ab0ed62e00ade0952dd8c9a91d514801b5bac05be2` | `100644` |
 | `apps/web/src/api.js` | 9745 | `216aafad471f7cd8c675931865356d338a470c0ccae69edd40ac378ff29b92d2` | `100644` |
 | `apps/web/src/app.js` | 1682 | `1f2b50680c119b653c7358a31201b4f894966f838226f55aca17b986a31b9c46` | `100644` |
 | `apps/web/src/app/campaign-operations.js` | 9467 | `a0cb96c788add167f70a19b958fae8ceac8f7e4336f6e085006db88d304ca33c` | `100644` |

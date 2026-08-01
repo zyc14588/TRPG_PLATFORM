@@ -33,11 +33,15 @@ export async function assertNoAlert(page) {
   assert.equal(alert, "", alert);
 }
 
-export async function pendingActionId(page) {
-  const text = await page.evaluate("document.querySelector('.pending-action span')?.innerText || ''");
-  const match = text.match(/^行动 ([a-zA-Z0-9_-]+) 等待确认$/);
-  assert.ok(match, `pending action id not rendered: ${text}`);
-  return match[1];
+export async function pendingActionId(page, previousActionId = "") {
+  let actionId = "";
+  await waitUntil(async () => {
+    const text = await page.evaluate("document.querySelector('.pending-action span')?.innerText || ''");
+    const match = text.match(/^行动 ([a-zA-Z0-9_-]+) 等待确认$/);
+    actionId = match?.[1] || "";
+    return Boolean(actionId && actionId !== previousActionId);
+  }, 20_000, "new pending action id was not rendered");
+  return actionId;
 }
 
 export function findPrivateDiceEvent(bodies) {
