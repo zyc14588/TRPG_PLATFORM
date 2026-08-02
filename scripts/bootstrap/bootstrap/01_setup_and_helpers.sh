@@ -9,15 +9,19 @@ Secure, resumable COC AI TRPG bootstrap (Bash 5+):
   bootstrap.sh --state-dir /absolute/private/state --project-name unique-project
     --provider-type openai --provider-url https://provider.example/v1
     --provider-model exact-model-id --provider-sha256 sha256:<64-hex>
+    [--provider-runtime-sha256 sha256:<64-hex>]
     --provider-credential-file /absolute/private/token
     [--provider-ca-file /absolute/ca.pem] [--extra-compose-file /absolute/compose.yml]
+The provider runtime digest is required for Ollama and llama.cpp and is not
+accepted from an ambient environment variable.
 Re-running resumes completed steps. Secrets are written only to the reported
 private credentials file; they are never printed.
 USAGE
 }
 
 state_dir='' project='' provider_type='' provider_url='' provider_model=''
-provider_sha256='' provider_credential_file='' provider_ca_file='/etc/ssl/certs/ca-certificates.crt'
+provider_sha256='' provider_runtime_sha256='' provider_credential_file=''
+provider_ca_file='/etc/ssl/certs/ca-certificates.crt'
 extra_compose_file=''
 while (($#)); do
   case "$1" in
@@ -27,6 +31,7 @@ while (($#)); do
     --provider-url) provider_url="${2:-}"; shift 2 ;;
     --provider-model) provider_model="${2:-}"; shift 2 ;;
     --provider-sha256) provider_sha256="${2:-}"; shift 2 ;;
+    --provider-runtime-sha256) provider_runtime_sha256="${2:-}"; shift 2 ;;
     --provider-credential-file) provider_credential_file="${2:-}"; shift 2 ;;
     --provider-ca-file) provider_ca_file="${2:-}"; shift 2 ;;
     --extra-compose-file) extra_compose_file="${2:-}"; shift 2 ;;
@@ -52,6 +57,23 @@ case "$provider_type" in
   llama_cpp|llama.cpp) runtime_provider_type=llama_cpp ;;
   *) printf 'bootstrap error=PROVIDER_TYPE_INVALID\n' >&2; exit 2 ;;
 esac
+if [[ "$runtime_provider_type" == cloud ]]; then
+  [[ -z "$provider_runtime_sha256" ]] || {
+    printf 'bootstrap error=PROVIDER_RUNTIME_DIGEST_NOT_APPLICABLE\n' >&2
+    exit 2
+  }
+  provider_runtime_sha256=none
+else
+  [[ -n "$provider_runtime_sha256" ]] || {
+    printf 'bootstrap error=PROVIDER_RUNTIME_DIGEST_REQUIRED\n' >&2
+    exit 2
+  }
+  [[ "$provider_runtime_sha256" =~ ^sha256:[0-9a-fA-F]{64}$ ]] || {
+    printf 'bootstrap error=PROVIDER_RUNTIME_DIGEST_INVALID\n' >&2
+    exit 2
+  }
+  provider_runtime_sha256="${provider_runtime_sha256,,}"
+fi
 if ! python3 - "$provider_url" <<'PY'; then
 import sys
 from urllib.parse import urlsplit
@@ -114,8 +136,9 @@ commit_step() {
 }
 
 configuration="$state_dir/configuration.tsv"
-printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-  "$project" "$provider_type" "$provider_url" "$provider_model" "${provider_sha256,,}" "$extra_digest" \
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  "$project" "$provider_type" "$provider_url" "$provider_model" "${provider_sha256,,}" \
+  "$provider_runtime_sha256" "$extra_digest" \
   >"$scratch/configuration"
 if [[ -f "$configuration" ]]; then
   cmp -s "$configuration" "$scratch/configuration" || { printf 'bootstrap error=CONFIGURATION_CHANGED_FORK_REQUIRED\n' >&2; exit 3; }

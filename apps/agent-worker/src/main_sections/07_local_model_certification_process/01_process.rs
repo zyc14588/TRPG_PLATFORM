@@ -8,6 +8,7 @@ const CERTIFICATION_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 enum AgentWorkerStartupMode {
     Ready,
     CertificationOnly,
+    CertificationService,
 }
 
 impl AgentWorkerStartupMode {
@@ -25,6 +26,7 @@ impl AgentWorkerStartupMode {
         match value {
             None | Some("ready") => Ok(Self::Ready),
             Some("certification-only") => Ok(Self::CertificationOnly),
+            Some("certification-service") => Ok(Self::CertificationService),
             Some(_) => Err("TRPG_AGENT_WORKER_MODE_INVALID".to_owned()),
         }
     }
@@ -63,6 +65,16 @@ struct CertificationProcessRecord {
     evidence_path: Option<String>,
     evidence_sha256: Option<String>,
     error_code: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct CertificationLifecycleStatus<'a> {
+    schema_version: u32,
+    request_id: &'a str,
+    state: &'a str,
+    result_reference: String,
+    certificate_reference: Option<&'a str>,
+    error_code: Option<&'a str>,
 }
 
 impl CertificationProcessRecord {
@@ -107,15 +119,44 @@ impl CertificationProcessRecord {
 }
 
 fn run_local_model_certification_from_environment() -> Result<(), String> {
-    let result = run_local_model_certification_inner();
+    let request_id = required_environment("TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_ID")?;
+    run_local_model_certification(&request_id)
+}
+
+fn run_local_model_certification_service_from_environment() -> Result<(), String> {
+    let request_directory = PathBuf::from(required_environment(
+        "TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_DIRECTORY",
+    )?);
+    validate_absolute_directory(&request_directory)?;
+    let mut terminal_requests = BTreeSet::new();
+    loop {
+        for request_id in certification_request_ids(&request_directory)? {
+            if terminal_requests.contains(&request_id) {
+                continue;
+            }
+            if let Err(error) = run_local_model_certification(&request_id) {
+                eprintln!(
+                    "service=agent-worker mode=certification-service request_id={request_id} error={error}"
+                );
+            }
+            if certification_process_is_terminal(&request_id)? {
+                terminal_requests.insert(request_id);
+            }
+        }
+        thread::sleep(Duration::from_millis(250));
+    }
+}
+
+fn run_local_model_certification(request_id: &str) -> Result<(), String> {
+    validate_certification_identifier(request_id)?;
+    let result = run_local_model_certification_inner(request_id);
     if let Err(error) = &result {
-        let _ = persist_terminal_failure_if_possible(error);
+        persist_terminal_failure_if_possible(request_id, error)?;
     }
     result
 }
 
-fn run_local_model_certification_inner() -> Result<(), String> {
-    let request_id = required_environment("TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_ID")?;
+fn run_local_model_certification_inner(request_id: &str) -> Result<(), String> {
     validate_certification_identifier(&request_id)?;
     let request_directory = PathBuf::from(required_environment(
         "TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_DIRECTORY",
@@ -181,9 +222,11 @@ fn run_local_model_certification_inner() -> Result<(), String> {
                     state_directory,
                     record,
                 )?;
+                persist_certification_lifecycle_status(&result_path, record)?;
                 return Ok(());
             }
             CertificationProcessState::Failed => {
+                persist_certification_lifecycle_status(&result_path, record)?;
                 return Err(record
                     .error_code
                     .clone()
@@ -212,6 +255,7 @@ fn run_local_model_certification_inner() -> Result<(), String> {
             &mut recovered,
         )?;
         write_process_record(&result_path, &recovered)?;
+        persist_certification_lifecycle_status(&result_path, &recovered)?;
         return Ok(());
     }
 
@@ -222,6 +266,7 @@ fn run_local_model_certification_inner() -> Result<(), String> {
         attempt,
     );
     write_process_record(&result_path, &claimed)?;
+    persist_certification_lifecycle_status(&result_path, &claimed)?;
     match execute_certification(
         &request,
         Arc::clone(&provider),
@@ -246,6 +291,7 @@ fn run_local_model_certification_inner() -> Result<(), String> {
                     .to_owned(),
             );
             write_process_record(&result_path, &succeeded)?;
+            persist_certification_lifecycle_status(&result_path, &succeeded)?;
             println!(
                 "service=agent-worker mode=certification-only request_id={} result=succeeded attempt={attempt}",
                 request.request_id
@@ -261,6 +307,7 @@ fn run_local_model_certification_inner() -> Result<(), String> {
             );
             failed.error_code = Some(error.clone());
             write_process_record(&result_path, &failed)?;
+            persist_certification_lifecycle_status(&result_path, &failed)?;
             Err(error)
         }
     }

@@ -1,5 +1,4 @@
-fn persist_terminal_failure_if_possible(error: &str) -> Result<(), String> {
-    let request_id = required_environment("TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_ID")?;
+fn persist_terminal_failure_if_possible(request_id: &str, error: &str) -> Result<(), String> {
     validate_certification_identifier(&request_id)?;
     let certificate_path =
         PathBuf::from(required_environment("TRPG_LOCAL_MODEL_CERTIFICATE_PATH")?);
@@ -10,18 +9,18 @@ fn persist_terminal_failure_if_possible(error: &str) -> Result<(), String> {
     let _process_lock = acquire_certification_process_lock(state_directory)?;
     let result_path = state_directory.join(format!("{request_id}.result.json"));
     let existing = read_process_record(&result_path)?;
-    if existing.as_ref().is_some_and(|record| {
+    if let Some(record) = existing.as_ref().filter(|record| {
         matches!(
             record.state,
             CertificationProcessState::Succeeded | CertificationProcessState::Failed
         )
     }) {
-        return Ok(());
+        return persist_certification_lifecycle_status(&result_path, record);
     }
     let attempt = existing.as_ref().map_or(1, |record| record.attempt.max(1));
     let mut failed = existing.unwrap_or_else(|| CertificationProcessRecord {
         schema_version: CERTIFICATION_PROCESS_SCHEMA_VERSION,
-        request_id,
+        request_id: request_id.to_owned(),
         state: CertificationProcessState::Claimed,
         attempt,
         claim_owner: "local-model-certifier".to_owned(),
@@ -38,7 +37,8 @@ fn persist_terminal_failure_if_possible(error: &str) -> Result<(), String> {
     });
     failed.state = CertificationProcessState::Failed;
     failed.error_code = Some(error.to_owned());
-    write_process_record(&result_path, &failed)
+    write_process_record(&result_path, &failed)?;
+    persist_certification_lifecycle_status(&result_path, &failed)
 }
 
 fn certification_authority_from_environment(
@@ -220,6 +220,78 @@ fn write_process_record(
     write_private_atomic(path, &encoded, true)
 }
 
+fn persist_certification_lifecycle_status(
+    result_path: &Path,
+    record: &CertificationProcessRecord,
+) -> Result<(), String> {
+    let status_directory = PathBuf::from(required_environment(
+        "TRPG_LOCAL_MODEL_CERTIFICATION_STATUS_DIRECTORY",
+    )?);
+    validate_absolute_directory(&status_directory)?;
+    let state = match record.state {
+        CertificationProcessState::Claimed => "claimed",
+        CertificationProcessState::Succeeded => "succeeded",
+        CertificationProcessState::Failed => "failed",
+    };
+    let status = CertificationLifecycleStatus {
+        schema_version: CERTIFICATION_PROCESS_SCHEMA_VERSION,
+        request_id: &record.request_id,
+        state,
+        result_reference: result_path.display().to_string(),
+        certificate_reference: record.certificate_path.as_deref(),
+        error_code: record.error_code.as_deref(),
+    };
+    let mut encoded = serde_json::to_vec(&status)
+        .map_err(|_| "LOCAL_MODEL_CERTIFICATION_STATUS_SERIALIZATION_FAILED".to_owned())?;
+    encoded.push(b'\n');
+    let status_path = status_directory.join(format!("{}.status.json", record.request_id));
+    reject_symlink_if_present(&status_path)?;
+    write_private_atomic(&status_path, &encoded, true)
+}
+
+fn certification_request_ids(request_directory: &Path) -> Result<Vec<String>, String> {
+    let mut request_ids = Vec::new();
+    let entries = fs::read_dir(request_directory)
+        .map_err(|_| "LOCAL_MODEL_CERTIFICATION_REQUEST_DIRECTORY_UNREADABLE".to_owned())?;
+    for entry in entries {
+        let entry = entry
+            .map_err(|_| "LOCAL_MODEL_CERTIFICATION_REQUEST_DIRECTORY_UNREADABLE".to_owned())?;
+        let file_type = entry
+            .file_type()
+            .map_err(|_| "LOCAL_MODEL_CERTIFICATION_REQUEST_UNREADABLE".to_owned())?;
+        let file_name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| "LOCAL_MODEL_CERTIFICATION_REQUEST_ID_INVALID".to_owned())?;
+        let Some(request_id) = file_name.strip_suffix(".request") else {
+            continue;
+        };
+        if !file_type.is_file() || file_type.is_symlink() {
+            return Err("LOCAL_MODEL_CERTIFICATION_REQUEST_INVALID".to_owned());
+        }
+        validate_certification_identifier(request_id)?;
+        request_ids.push(request_id.to_owned());
+    }
+    request_ids.sort();
+    Ok(request_ids)
+}
+
+fn certification_process_is_terminal(request_id: &str) -> Result<bool, String> {
+    validate_certification_identifier(request_id)?;
+    let certificate_path =
+        PathBuf::from(required_environment("TRPG_LOCAL_MODEL_CERTIFICATE_PATH")?);
+    let state_directory = certificate_path
+        .parent()
+        .ok_or_else(|| "LOCAL_MODEL_CERTIFICATION_STATE_PATH_INVALID".to_owned())?;
+    Ok(read_process_record(&state_directory.join(format!("{request_id}.result.json")))?
+        .is_some_and(|record| {
+            matches!(
+                record.state,
+                CertificationProcessState::Succeeded | CertificationProcessState::Failed
+            )
+        }))
+}
+
 fn write_private_once(path: &Path, encoded: &[u8]) -> Result<(), String> {
     if path.exists() {
         reject_symlink_if_present(path)?;
@@ -379,7 +451,30 @@ mod local_model_certification_process_tests {
             AgentWorkerStartupMode::parse(Some("certification-only")).unwrap(),
             AgentWorkerStartupMode::CertificationOnly
         );
+        assert_eq!(
+            AgentWorkerStartupMode::parse(Some("certification-service")).unwrap(),
+            AgentWorkerStartupMode::CertificationService
+        );
         assert!(AgentWorkerStartupMode::parse(Some("unrestricted")).is_err());
         assert!(validate_certification_identifier("../escape").is_err());
+    }
+
+    #[test]
+    fn certification_service_discovers_only_strict_request_artifacts() {
+        let root = std::env::temp_dir().join(format!(
+            "trpg-certification-service-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("request-one.request"), b"request").unwrap();
+        fs::write(root.join("request-one.status.json"), b"status").unwrap();
+
+        assert_eq!(
+            certification_request_ids(&root).unwrap(),
+            vec!["request-one".to_owned()]
+        );
+
+        fs::remove_dir_all(root).unwrap();
     }
 }

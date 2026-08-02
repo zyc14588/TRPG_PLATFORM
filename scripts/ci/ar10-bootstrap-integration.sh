@@ -34,6 +34,7 @@ cleanup() {
   if [[ -f "$state/runtime/compose.bootstrap.yml" ]]; then
     docker compose --project-name "$project" -f "$root/compose.yml" \
       -f "$provider/compose.yml" -f "$state/runtime/compose.bootstrap.yml" \
+      --profile staged-worker --profile local-model-certifier \
       down --volumes --remove-orphans >/dev/null 2>&1 || true
   fi
   if [[ "$code" -ne 0 && "${AR10_KEEP_FAILED_EVIDENCE:-}" == 1 ]]; then
@@ -111,6 +112,17 @@ if "${bad_bootstrap[@]}" >"$test_root/bad-prerequisite.log" 2>&1; then
   exit 1
 fi
 grep -F 'bootstrap error=PROVIDER_URL_INVALID' "$test_root/bad-prerequisite.log" >/dev/null
+missing_runtime_bootstrap=("${bootstrap[@]}")
+missing_runtime_bootstrap[2]="$test_root/missing-runtime-state"
+missing_runtime_bootstrap[4]="$project-missing-runtime"
+missing_runtime_bootstrap[6]="ollama"
+if TRPG_MODEL_PROVIDER_RUNTIME_SHA256="sha256:$(printf 'c%.0s' {1..64})" \
+  "${missing_runtime_bootstrap[@]}" >"$test_root/missing-runtime.log" 2>&1; then
+  printf 'bootstrap accepted a local provider without an explicit runtime digest\n' >&2
+  exit 1
+fi
+grep -F 'bootstrap error=PROVIDER_RUNTIME_DIGEST_REQUIRED' \
+  "$test_root/missing-runtime.log" >/dev/null
 steps=(preflight secrets compose_config compose_up recovery_roles admin_bootstrap provider_configure provider_probe model_certification_request model_certification agent_worker_ready tutorial_authority coc7_ruleset tutorial_scenario self_check)
 for step in "${steps[@]}"; do
   TRPG_BOOTSTRAP_TEST_STOP_AFTER_STEP="$step" "${bootstrap[@]}" >>"$log" 2>&1 &

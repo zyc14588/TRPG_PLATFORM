@@ -25,21 +25,30 @@ if ! step_done compose_config; then
     printf '    profiles: [staged-worker]\n'
     printf '    environment:\n'
     printf '      TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_DIRECTORY: /var/lib/trpg/model-certification-requests\n'
-    printf '      TRPG_MODEL_PROVIDER_RUNTIME_SHA256: ${TRPG_MODEL_PROVIDER_RUNTIME_SHA256:-}\n'
+    printf '      TRPG_MODEL_PROVIDER_RUNTIME_SHA256: %s\n' "$provider_runtime_sha256"
     printf '    volumes: ["model_certification_requests:/var/lib/trpg/model-certification-requests:ro"]\n'
+    printf '  local-model-certifier:\n'
+    printf '    environment:\n'
+    printf '      TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_DIRECTORY: /var/lib/trpg/model-certification-requests\n'
+    printf '      TRPG_LOCAL_MODEL_CERTIFICATION_STATUS_DIRECTORY: /var/lib/trpg/model-certification-status\n'
+    printf '      TRPG_MODEL_PROVIDER_RUNTIME_SHA256: %s\n' "$provider_runtime_sha256"
+    printf '    volumes: ["model_certification_requests:/var/lib/trpg/model-certification-requests:ro", "model_certification_status:/var/lib/trpg/model-certification-status"]\n'
     printf '  admin:\n'
-    printf '    volumes: ["model_certification_requests:/var/lib/trpg/model-certification-requests"]\n'
+    printf '    volumes: ["model_certification_requests:/var/lib/trpg/model-certification-requests", "model_certification_status:/var/lib/trpg/model-certification-status"]\n'
+    printf '    depends_on:\n'
+    printf '      export-volume-init:\n'
+    printf '        condition: service_completed_successfully\n'
     printf '  minio-init:\n'
     printf '    profiles: [staged-worker]\n'
     printf '  export-volume-init:\n'
     printf '    image: coc-ai-trpg/runtime:${TRPG_IMAGE_TAG:-local}\n'
     printf '    entrypoint: ["/bin/sh", "-ec"]\n'
-    printf '    command: ["install -d -o trpg -g trpg -m 0700 /var/lib/trpg/exports && install -d -o trpg -g trpg -m 0700 /var/lib/trpg/local-model-certification"]\n'
+    printf '    command: ["install -d -o trpg -g trpg -m 0700 /var/lib/trpg/exports && install -d -o trpg -g trpg -m 0700 /var/lib/trpg/local-model-certification && install -d -o trpg -g trpg -m 0700 /var/lib/trpg/model-certification-status"]\n'
     printf '    restart: "no"\n'
     printf '    read_only: true\n'
     printf '    network_mode: none\n'
     printf '    security_opt: ["no-new-privileges:true"]\n'
-    printf '    volumes: ["export_artifacts:/var/lib/trpg/exports", "agent_state:/var/lib/trpg"]\n'
+    printf '    volumes: ["export_artifacts:/var/lib/trpg/exports", "agent_state:/var/lib/trpg", "model_certification_status:/var/lib/trpg/model-certification-status"]\n'
     printf '  api:\n'
     printf '    depends_on:\n'
     printf '      export-volume-init:\n'
@@ -51,6 +60,7 @@ if ! step_done compose_config; then
     done
     printf 'volumes:\n'
     printf '  model_certification_requests:\n'
+    printf '  model_certification_status:\n'
   } | atomic_text "$overlay" 0600
   commit_step compose_config
 fi
@@ -69,6 +79,7 @@ compose=(docker compose --project-name "$project" -f "$root/compose.yml")
 [[ -z "$extra_compose_file" ]] || compose+=(-f "$extra_compose_file")
 compose+=(-f "$overlay")
 worker_compose=("${compose[@]}" --profile staged-worker)
+certifier_compose=("${compose[@]}" --profile staged-worker --profile local-model-certifier)
 "${compose[@]}" config --quiet
 step_done compose_up || { "${compose[@]}" up --detach --build --wait --wait-timeout 300; commit_step compose_up; }
 
@@ -205,6 +216,7 @@ certification_state_container='/var/lib/trpg/local-model-certification'
 certification_result_container="$certification_state_container/$certification_request_id.result.json"
 certification_certificate_container="$certification_state_container/certificate.json"
 certification_registry_container="$certification_state_container/registry.jsonl"
+certification_status_container="/var/lib/trpg/model-certification-status/$certification_request_id.status.json"
 if ! step_done model_certification_request; then
   if [[ "$runtime_provider_type" == cloud ]]; then
     printf 'bootstrap step=model_certification_request result=NOT_REQUIRED provider_type=cloud\n'
@@ -218,6 +230,7 @@ json.dump({"request_id": sys.argv[1], "model_id": sys.argv[2],
 PY
     [[ "$(api_call POST models/certification-requests "$scratch/mutation.headers" "$scratch/certification.json" "$response")" == 200 ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_REQUEST_FAILED\n' >&2; exit 6; }
     [[ "$(json_value "$response" result)" == CERTIFICATION_REQUESTED ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_REQUEST_NOT_PERSISTED\n' >&2; exit 6; }
+    [[ "$(json_value "$response" artifact_reference)" == "$certification_status_container" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_STATUS_REFERENCE_INVALID\n' >&2; exit 6; }
   fi
   commit_step model_certification_request
 fi
@@ -225,18 +238,34 @@ if ! step_done model_certification; then
   if [[ "$runtime_provider_type" == cloud ]]; then
     printf 'bootstrap step=model_certification result=NOT_REQUIRED provider_type=cloud\n'
   else
-    certification_exit=0
-    "${compose[@]}" run --rm --no-deps \
-      -e TRPG_AGENT_WORKER_MODE=certification-only \
-      -e TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_ID="$certification_request_id" \
-      agent-worker || certification_exit="$?"
-    if ! "${compose[@]}" run --rm --no-deps --entrypoint /bin/cat agent-worker \
+    "${certifier_compose[@]}" up --detach --no-build local-model-certifier
+    certification_deadline=$((SECONDS + 300))
+    certification_status_file="$scratch/certification-status.json"
+    while true; do
+      if "${certifier_compose[@]}" exec -T local-model-certifier /bin/cat \
+        "$certification_status_container" >"$certification_status_file" 2>/dev/null; then
+        [[ "$(json_value "$certification_status_file" schema_version)" == 1 ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_STATUS_SCHEMA_INVALID\n' >&2; exit 6; }
+        [[ "$(json_value "$certification_status_file" request_id)" == "$certification_request_id" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_STATUS_REQUEST_MISMATCH\n' >&2; exit 6; }
+        [[ "$(json_value "$certification_status_file" result_reference)" == "$certification_result_container" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_REFERENCE_INVALID\n' >&2; exit 6; }
+        certification_state="$(json_value "$certification_status_file" state)"
+        case "$certification_state" in
+          succeeded|failed) break ;;
+          claimed) ;;
+          *) printf 'bootstrap error=MODEL_CERTIFICATION_STATUS_INVALID state=%s\n' "$certification_state" >&2; exit 6 ;;
+        esac
+      fi
+      ((SECONDS < certification_deadline)) || { printf 'bootstrap error=MODEL_CERTIFICATION_TIMEOUT\n' >&2; exit 6; }
+      "${certifier_compose[@]}" ps --status running --services | grep -Fx local-model-certifier >/dev/null || { printf 'bootstrap error=MODEL_CERTIFIER_NOT_RUNNING\n' >&2; exit 6; }
+      sleep 0.25
+    done
+    if ! "${certifier_compose[@]}" exec -T local-model-certifier /bin/cat \
       "$certification_result_container" >"$scratch/certification-result.json"; then
       printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_UNAVAILABLE\n' >&2
       exit 6
     fi
-    if [[ "$certification_exit" -ne 0 ]]; then
-      certification_error="$(json_value "$scratch/certification-result.json" error_code)"
+    if [[ "$certification_state" == failed ]]; then
+      certification_error="$(json_value "$certification_status_file" error_code)"
+      [[ "$certification_error" == "$(json_value "$scratch/certification-result.json" error_code)" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_FAILURE_STATUS_MISMATCH\n' >&2; exit 6; }
       printf 'bootstrap error=MODEL_CERTIFICATION_TERMINAL_FAILURE detail=%s\n' "$certification_error" >&2
       exit 6
     fi
@@ -247,11 +276,12 @@ if ! step_done model_certification; then
     [[ "$(json_value "$scratch/certification-result.json" certificate_path)" == "$certification_certificate_container" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_CERTIFICATE_PATH_INVALID\n' >&2; exit 6; }
     certification_evidence_container="$(json_value "$scratch/certification-result.json" evidence_path)"
     [[ "$certification_evidence_container" =~ ^/var/lib/trpg/local-model-certification/[0-9a-f]{64}\.evidence\.json$ ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_RESULT_EVIDENCE_PATH_INVALID\n' >&2; exit 6; }
-    "${compose[@]}" run --rm --no-deps --entrypoint /bin/cat agent-worker \
+    [[ "$(json_value "$certification_status_file" certificate_reference)" == "$certification_certificate_container" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_STATUS_CERTIFICATE_MISMATCH\n' >&2; exit 6; }
+    "${certifier_compose[@]}" exec -T local-model-certifier /bin/cat \
       "$certification_certificate_container" >"$scratch/certificate.json"
-    "${compose[@]}" run --rm --no-deps --entrypoint /bin/cat agent-worker \
+    "${certifier_compose[@]}" exec -T local-model-certifier /bin/cat \
       "$certification_evidence_container" >"$scratch/certification-evidence.json"
-    "${compose[@]}" run --rm --no-deps --entrypoint /bin/cat agent-worker \
+    "${certifier_compose[@]}" exec -T local-model-certifier /bin/cat \
       "$certification_registry_container" >"$scratch/certification-registry.jsonl"
     [[ -s "$scratch/certification-registry.jsonl" ]] || { printf 'bootstrap error=MODEL_CERTIFICATION_REGISTRY_EMPTY\n' >&2; exit 6; }
     certification_evidence_sha256="sha256:$(sha256sum "$scratch/certification-evidence.json" | awk '{print $1}')"

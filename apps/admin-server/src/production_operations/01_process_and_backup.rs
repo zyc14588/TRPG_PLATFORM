@@ -3,6 +3,7 @@ use std::io::Write as _;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{
     optional_regular_file, required_environment, required_private_directory, required_regular_file,
@@ -28,6 +29,7 @@ pub struct ProductionAdminOperations {
     backup_directory: PathBuf,
     safety_directory: PathBuf,
     certification_directory: PathBuf,
+    certification_status_directory: PathBuf,
 }
 
 impl ProductionAdminOperations {
@@ -59,6 +61,8 @@ impl ProductionAdminOperations {
         let safety_directory = required_private_directory("TRPG_ADMIN_SAFETY_DIRECTORY")?;
         let certification_directory =
             required_private_directory("TRPG_ADMIN_CERTIFICATION_DIRECTORY")?;
+        let certification_status_directory =
+            required_private_directory("TRPG_ADMIN_CERTIFICATION_STATUS_DIRECTORY")?;
         Ok(Self {
             curl_path,
             psql_path,
@@ -72,6 +76,7 @@ impl ProductionAdminOperations {
             backup_directory,
             safety_directory,
             certification_directory,
+            certification_status_directory,
         })
     }
 
@@ -156,32 +161,73 @@ impl ProductionAdminOperations {
         request: &AdminModelCertificationRequest,
     ) -> Result<PathBuf, String> {
         validate_file_identifier(&request.request_id)?;
-        let path = self
+        let request_path = self
             .certification_directory
             .join(format!("{}.request", request.request_id));
+        let status_path = self
+            .certification_status_directory
+            .join(format!("{}.status.json", request.request_id));
         let encoded = encode_certification_request(request);
-        match std::fs::OpenOptions::new()
+        self.publish_certification_request(&request_path, &encoded)?;
+        Ok(status_path)
+    }
+
+    fn publish_certification_request(
+        &self,
+        path: &std::path::Path,
+        encoded: &[u8],
+    ) -> Result<(), String> {
+        match fs::symlink_metadata(path) {
+            Ok(metadata) => {
+                if !metadata.is_file() || metadata.file_type().is_symlink() {
+                    return Err("ADMIN_CERTIFICATION_REQUEST_INVALID".to_owned());
+                }
+                return if fs::read(path).ok().as_deref() == Some(encoded) {
+                    Ok(())
+                } else {
+                    Err("ADMIN_CERTIFICATION_REQUEST_CONFLICT".to_owned())
+                };
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err("ADMIN_CERTIFICATION_READ_FAILED".to_owned()),
+        }
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| "ADMIN_CERTIFICATION_CLOCK_INVALID".to_owned())?
+            .as_nanos();
+        let file_component = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| "ADMIN_CERTIFICATION_REQUEST_INVALID".to_owned())?;
+        let temporary = self.certification_directory.join(format!(
+            ".{}.request.tmp.{}.{}",
+            std::process::id(), file_component, nonce
+        ));
+        let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&path)
-        {
-            Ok(mut file) => {
-                file.write_all(&encoded)
-                    .and_then(|()| file.sync_all())
-                    .map_err(|_| "ADMIN_CERTIFICATION_WRITE_FAILED".to_owned())?;
-                set_private_file_permissions(&path)?;
-                sync_directory(&self.certification_directory)?;
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                let existing =
-                    fs::read(&path).map_err(|_| "ADMIN_CERTIFICATION_READ_FAILED".to_owned())?;
-                if existing != encoded {
-                    return Err("ADMIN_CERTIFICATION_REQUEST_CONFLICT".to_owned());
+            .open(&temporary)
+            .map_err(|_| "ADMIN_CERTIFICATION_CREATE_FAILED".to_owned())?;
+        let publish = (|| {
+            file.write_all(encoded)
+                .and_then(|()| file.sync_all())
+                .map_err(|_| "ADMIN_CERTIFICATION_WRITE_FAILED".to_owned())?;
+            set_private_file_permissions(&temporary)?;
+            match fs::hard_link(&temporary, path) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    if fs::read(path).ok().as_deref() == Some(encoded) {
+                        Ok(())
+                    } else {
+                        Err("ADMIN_CERTIFICATION_REQUEST_CONFLICT".to_owned())
+                    }
                 }
+                Err(_) => Err("ADMIN_CERTIFICATION_PUBLISH_FAILED".to_owned()),
             }
-            Err(_) => return Err("ADMIN_CERTIFICATION_CREATE_FAILED".to_owned()),
-        }
-        Ok(path)
+        })();
+        let _ = fs::remove_file(&temporary);
+        publish?;
+        sync_directory(&self.certification_directory)
     }
 
     fn persist_restore_intent(

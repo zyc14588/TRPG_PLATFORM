@@ -430,6 +430,15 @@ services:
       <<: *rust-healthcheck
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8082/health/ready"]
 
+  local-model-certifier:
+    extends:
+      service: agent-worker
+    profiles: [local-model-certifier]
+    environment:
+      TRPG_AGENT_WORKER_MODE: certification-service
+    healthcheck:
+      disable: true
+
   admin:
     <<: *trpg-runtime
     build:
@@ -478,6 +487,7 @@ services:
       TRPG_ADMIN_BACKUP_DIRECTORY: /var/lib/trpg/backups
       TRPG_ADMIN_SAFETY_DIRECTORY: /var/lib/trpg/restore-safety-points
       TRPG_ADMIN_CERTIFICATION_DIRECTORY: /var/lib/trpg/model-certification-requests
+      TRPG_ADMIN_CERTIFICATION_STATUS_DIRECTORY: /var/lib/trpg/model-certification-status
     secrets:
       - source: api_database_url
         target: api_database_url.v1

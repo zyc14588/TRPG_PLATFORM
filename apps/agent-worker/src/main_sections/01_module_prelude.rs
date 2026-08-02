@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -93,6 +94,15 @@ fn main() -> ExitCode {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => {
                     eprintln!("service=agent-worker mode=certification-only error={error}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
+        Ok(AgentWorkerStartupMode::CertificationService) => {
+            return match run_local_model_certification_service_from_environment() {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("service=agent-worker mode=certification-service error={error}");
                     ExitCode::FAILURE
                 }
             };
