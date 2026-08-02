@@ -111,10 +111,40 @@ export class ProductMock {
         return reply(200, { campaign_id: campaignId, group_id: groupId, user_id: userId });
       }
 
-      match = url.pathname.match(/^\/api\/api\/v1\/campaigns\/([^/]+)\/(characters|sessions|player-actions|agent-jobs|reconsiderations|exports)(?:\/.*)?$/);
+      match = url.pathname.match(/^\/api\/api\/v1\/campaigns\/([^/]+)\/(characters|sessions|player-actions|gameplay-actions|agent-jobs|reconsiderations|exports)(?:\/.*)?$/);
       if (match) {
         const campaignId = match[1];
         const resource = match[2];
+        if (resource === "gameplay-actions") {
+          if (campaignId !== "campaign_human" || user.roles[campaignId] !== "HUMAN_KEEPER") {
+            return reply(403, { error: "PUBLIC_GAMEPLAY_AUTHORITY_FORBIDDEN" });
+          }
+          const eventType = {
+            NPC_INTERACTION: "coc7.npc_decision_recorded",
+            COMBAT_ROUND: "CombatStateUpdated",
+            CHASE_SEGMENT: "ChaseSegmentResolved",
+          }[body.action?.kind];
+          if (!eventType) return reply(400, { error: "PUBLIC_GAMEPLAY_REQUEST_INVALID" });
+          const summary = {
+            NPC_INTERACTION: "与档案管理员玛塔的互动已形成正式记录",
+            COMBAT_ROUND: "基础战斗轮已结算：目标 HP 8→5",
+            CHASE_SEGMENT: "基础追逐段已结算：距离 2→1，状态 ONGOING",
+          }[body.action.kind];
+          const result = {
+            kind: body.action.kind,
+            summary,
+            random_source: body.action.kind === "NPC_INTERACTION" ? undefined : "SERVER_OS_CSPRNG",
+          };
+          const recorded = this.record(campaignId, eventType, "party_visible", result);
+          this.broadcast(campaignId, recorded);
+          return reply(200, {
+            action_id: body.action_id,
+            aggregate_version: 1,
+            event_sequence: recorded.sequence,
+            event_type: eventType,
+            result,
+          });
+        }
         if (resource === "player-actions" && request.method === "POST" && !url.pathname.endsWith("/confirm")) {
           const submitted = this.record(campaignId, "PlayerActionSubmitted", "party_visible", { summary: "调查行动已提交" });
           this.broadcast(campaignId, submitted);
@@ -132,9 +162,28 @@ export class ProductMock {
               route_authorization_event_id: "route_authorization_browser_1",
             });
             this.broadcast(campaignId, requested);
+            const gameplayKind = body.input.intent?.kind;
+            const gameplaySummary = {
+              NPC_INTERACTION: "AI NPC 互动已记录",
+              COMBAT_ROUND: "AI 基础战斗轮已结算",
+              CHASE_SEGMENT: "AI 基础追逐段已结算",
+            }[gameplayKind];
+            if (gameplaySummary) {
+              const tool = this.record(campaignId, "ToolExecutionSucceeded", "party_visible", {
+                ToolExecutionSucceeded: {
+                  tool: `resolve_${gameplayKind.toLowerCase()}`,
+                  result: {
+                    kind: gameplayKind,
+                    summary: gameplaySummary,
+                    random_source: gameplayKind === "NPC_INTERACTION" ? undefined : "SERVER_OS_CSPRNG",
+                  },
+                },
+              });
+              this.broadcast(campaignId, tool);
+            }
             const decision = this.record(campaignId, "DecisionCommitted", "party_visible", {
               DecisionCommitted: {
-                player_visible_text: "建议先核对潮汐日志，再检查钟楼地下入口。",
+                player_visible_text: gameplaySummary || "建议先核对潮汐日志，再检查钟楼地下入口。",
                 linked_records: ["DecisionRecord", "GameEvent", "ToolResult"],
               },
             });

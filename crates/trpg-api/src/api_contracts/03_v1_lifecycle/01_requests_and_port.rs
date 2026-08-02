@@ -73,6 +73,40 @@ pub struct SwitchSceneApiRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
+pub enum PublicGameplayActionApiRequest {
+    NpcInteraction {
+        character_id: String,
+        npc_id: String,
+        approach: String,
+        public_response: String,
+    },
+    CombatRound {
+        character_id: String,
+        npc_id: String,
+        action_kind: String,
+        defense: String,
+    },
+    ChaseSegment {
+        character_id: String,
+        npc_id: String,
+        initial_range: i8,
+        obstacle_id: Option<String>,
+        obstacle_cost: u8,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SubmitPublicGameplayActionApiRequest {
+    pub command: ApiCommandFields,
+    pub campaign_id: String,
+    pub session_id: String,
+    pub action_id: String,
+    pub action: PublicGameplayActionApiRequest,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct RequestReconsiderationApiRequest {
     pub command: ApiCommandFields,
     pub reconsideration_id: String,

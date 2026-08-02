@@ -261,6 +261,7 @@ impl AgentWorkerProcess {
         }
         let agent_jobs = optional_agent_job_worker_from_environment(
             workflow.clone(),
+            &runtime,
             model_provider,
             canonical,
             agent_commit_canonical,

@@ -2,7 +2,7 @@ import { api, realtime, root, state } from "./context.js";
 import {
   acceptInvite, createCampaign, createCharacter, endSession, issueInvite, loadCampaigns,
   login, logout, openCampaign, reviewCharacter, safetyPause, startSession, submitAction,
-  submitCharacter, switchScene,
+  submitCharacter, submitPublicGameplay, switchScene,
 } from "./campaign-operations.js";
 import {
   adminCreateUser, adminForkAuthority, adminLogin, approveAgentJob, confirmAction,
@@ -70,6 +70,7 @@ export async function handleForm(form) {
     "switch-scene": () => switchScene(data),
     "end-session": () => endSession(data),
     "submit-action": () => submitAction(data),
+    "public-gameplay": () => submitPublicGameplay(data),
     "agent-job": () => requestAgentJob(data),
     "approve-agent": () => approveAgentJob(data),
     "confirm-player-action": () => confirmAction(data),

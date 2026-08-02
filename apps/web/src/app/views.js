@@ -185,6 +185,7 @@ function playView({ canKeep, isSpectator, decision }) {
       </header>
       ${isSpectator ? spectatorView() : actionView()}
       ${state.authority?.mode === "AI_KP" ? decisionView(decision) : ""}
+      ${gameplayProjectionView()}
       <section class="character-strip" aria-labelledby="character-strip-title">
         <div><p class="eyeline">当前角色</p><h2 id="character-strip-title">${escapeHtml(state.recent.characterName || "尚未选择角色")}</h2></div>
         <dl><div><dt>角色 ID</dt><dd>${escapeHtml(state.recent.characterId || "—")}</dd></div><div><dt>席位</dt><dd>${escapeHtml(state.membership?.role || "—")}</dd></div><div><dt>状态</dt><dd>${escapeHtml(state.recent.characterState || "未载入")}</dd></div></dl>
@@ -197,13 +198,16 @@ function playView({ canKeep, isSpectator, decision }) {
 
 function actionView() {
   const pending = state.recent.pendingAction;
+  const aiGameplayOptions = state.authority?.mode === "AI_KP"
+    ? '<option value="NPC_INTERACTION">NPC 互动</option><option value="COMBAT_ROUND">基础战斗轮</option><option value="CHASE_SEGMENT">基础追逐段</option>'
+    : "";
   return `<section class="action-surface" aria-labelledby="action-title">
     <div class="section-tabs"><h2 id="action-title">Tutorial 检定</h2><span>服务端正式骰</span></div>
     <form data-form="submit-action" class="form-grid three">
       <label>角色 ID<input name="characterId" value="${escapeHtml(state.recent.characterId || "")}" required /></label>
       <label>Session ID<input name="sessionId" value="${escapeHtml(state.recent.sessionId || "")}" required /></label>
       <label>Scene ID<input name="sceneId" value="${escapeHtml(state.recent.sceneId || "")}" required /></label>
-      <label>检定类型<select name="intentKind"><option value="INVESTIGATION">调查 / 线索</option><option value="SANITY_CHECK">理智检定</option></select></label>
+      <label>行动类型<select name="intentKind"><option value="INVESTIGATION">调查 / 线索</option><option value="SANITY_CHECK">理智检定</option>${aiGameplayOptions}</select></label>
       <label>技能名<input name="skillName" value="Library Use" required /></label>
       <label>线索 ID<input name="clueId" value="tutorial_archive_clue" required /></label>
       <label>重要性<select name="clueImportance"><option value="CORE">核心线索</option><option value="OPTIONAL">可选线索</option></select></label>
@@ -211,6 +215,12 @@ function actionView() {
       <label>成功 SAN 损失<input name="successLoss" type="number" min="0" max="99" value="0" required /></label>
       <label>失败 SAN 损失<input name="failureLoss" type="number" min="0" max="99" value="1" required /></label>
       <label>游戏日键<input name="dayKey" value="tutorial_day_1" maxlength="128" required /></label>
+      <label>NPC ID<input name="npcId" value="npc_marta" required /></label>
+      <label>战斗动作<select name="combatActionKind"><option value="MELEE">近战</option><option value="FIREARM">枪械</option></select></label>
+      <label>目标防御<select name="combatDefense"><option value="DODGE">闪避</option><option value="NONE">不防御</option></select></label>
+      <label>追逐初始距离<input name="initialRange" type="number" min="1" max="4" value="2" required /></label>
+      <label>障碍 ID<input name="obstacleId" value="collapsing_salt_shelf" /></label>
+      <label>障碍成本<input name="obstacleCost" type="number" min="0" max="2" value="1" required /></label>
       <label class="span-two">行动说明<textarea name="description" maxlength="300" placeholder="描述你如何调查、检查或与环境互动。"></textarea></label>
       <button class="button primary span-three" type="submit">提交行动</button>
     </form>
@@ -240,6 +250,22 @@ function keeperRailView() {
         <button class="button" type="submit">记录 Tutorial 结局并结束</button>
       </form>
     </details>
+    ${isAi ? "" : `<details open><summary>NPC / 战斗 / 追逐</summary>
+      <form data-form="public-gameplay" class="form-stack compact">
+        <label>玩法类型<select name="gameplayKind"><option value="NPC_INTERACTION">NPC 互动</option><option value="COMBAT_ROUND">基础战斗轮</option><option value="CHASE_SEGMENT">基础追逐段</option></select></label>
+        <label>Session ID<input name="sessionId" value="${escapeHtml(state.recent.sessionId || "")}" required /></label>
+        <label>调查员 ID<input name="characterId" value="${escapeHtml(state.recent.characterId || "")}" required /></label>
+        <label>NPC ID<input name="npcId" value="npc_marta" required /></label>
+        <label>互动方式<input name="approach" value="询问昨夜的访客记录" maxlength="500" required /></label>
+        <label>NPC 公开回应<textarea name="publicResponse" maxlength="2000" required>玛塔避开视线，声称昨夜没有访客。</textarea></label>
+        <label>战斗动作<select name="combatActionKind"><option value="MELEE">近战</option><option value="FIREARM">枪械</option></select></label>
+        <label>目标防御<select name="combatDefense"><option value="DODGE">闪避</option><option value="NONE">不防御</option></select></label>
+        <label>追逐初始距离<input name="initialRange" type="number" min="1" max="4" value="2" required /></label>
+        <label>障碍 ID<input name="obstacleId" value="collapsing_salt_shelf" /></label>
+        <label>障碍成本<input name="obstacleCost" type="number" min="0" max="2" value="1" required /></label>
+        <button class="button approval" type="submit">由服务端结算并记录</button>
+      </form>
+    </details>`}
     <details open><summary>私密协作</summary>
       <form data-form="agent-job" class="form-stack compact">
         <label>Job ID<input name="jobId" required value="job_${Date.now().toString(36)}" /></label>
@@ -290,6 +316,26 @@ function decisionView(decision) {
     <div class="decision-grid"><div><h3>用户可见摘要</h3><p>${escapeHtml(decision.summary)}</p></div><div><h3>依据类别</h3><p>${decision.basis.map(escapeHtml).join(" / ") || "未报告"}</p></div><div><h3>模型 / 认证</h3><p>${escapeHtml(decision.model)} · ${escapeHtml(decision.certification)}</p></div></div>
     <button class="button" type="button" data-action="focus-reconsider">请求重考虑</button>
     <p class="form-note">界面不会展示 KP 私密 prompt 或 chain-of-thought。</p>
+  </section>`;
+}
+
+function gameplayProjectionView() {
+  const event = [...state.events].reverse().find((candidate) => {
+    if (["coc7.npc_decision_recorded", "CombatStateUpdated", "ChaseSegmentResolved"].includes(candidate?.event_type)) return true;
+    const result = candidate?.payload?.ToolExecutionSucceeded?.result;
+    return ["NPC_INTERACTION", "COMBAT_ROUND", "CHASE_SEGMENT"].includes(result?.kind);
+  });
+  const result = event?.payload?.ToolExecutionSucceeded?.result || event?.payload || state.recent.gameplayResult;
+  if (!result || !["NPC_INTERACTION", "COMBAT_ROUND", "CHASE_SEGMENT"].includes(result.kind)) return "";
+  const labels = {
+    NPC_INTERACTION: "NPC 互动",
+    COMBAT_ROUND: "基础战斗轮",
+    CHASE_SEGMENT: "基础追逐段",
+  };
+  return `<section class="decision-panel" aria-labelledby="gameplay-result-title" data-testid="gameplay-result">
+    <header><div><p class="eyeline">服务端规则结果</p><h2 id="gameplay-result-title">${escapeHtml(labels[result.kind])}</h2></div><span>事件 #${escapeHtml(event?.sequence || event?.cursor || "—")}</span></header>
+    <p>${escapeHtml(result.summary || "正式玩法结果已记录")}</p>
+    <p class="form-note">规则、随机数与权限均在服务端执行；此处仅投影公开结果。</p>
   </section>`;
 }
 

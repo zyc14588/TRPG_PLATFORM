@@ -66,6 +66,43 @@ async function main() {
   await keeper.waitForText("行动结果已确认");
   result.checks.push("character -> review -> Session -> action -> confirmation completed");
 
+  for (const [gameplayKind, expected] of [
+    ["NPC_INTERACTION", "与档案管理员玛塔的互动已形成正式记录"],
+    ["COMBAT_ROUND", "基础战斗轮已结算"],
+    ["CHASE_SEGMENT", "基础追逐段已结算"],
+  ]) {
+    await keeper.submit('form[data-form="public-gameplay"]', { gameplayKind });
+    await keeper.waitForText(expected);
+    await waitUntil(
+      () => keeper.evaluate('document.querySelector("#app")?.getAttribute("aria-busy") === "false"'),
+      8_000,
+      `${gameplayKind} submission did not settle`,
+    );
+  }
+  assert.equal(
+    await playerB.evaluate('document.querySelectorAll("form[data-form=\\"public-gameplay\\"]").length'),
+    0,
+  );
+  assert.equal(
+    await spectator.evaluate('document.querySelectorAll("form[data-form=\\"public-gameplay\\"]").length'),
+    0,
+  );
+  for (const token of ["token_player_b", "token_spectator"]) {
+    const denied = await fetch(`${mock.origin}/api/api/v1/campaigns/campaign_human/gameplay-actions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        command: { expected_version: 0 },
+        campaign_id: "campaign_human",
+        session_id: "session_browser",
+        action_id: "gameplay_escalation",
+        action: { kind: "COMBAT_ROUND" },
+      }),
+    });
+    assert.equal(denied.status, 403);
+  }
+  result.checks.push("HUMAN_KP NPC/combat/chase completed and PLAYER/SPECTATOR escalation failed");
+
   await keeper.submit('form[data-form="group"]', {
     groupId: "team_red",
     userId: "player_b",
@@ -85,6 +122,7 @@ async function main() {
   await playerB.waitForText("正在重连");
   await waitUntil(() => mock.connectionCount("token_player_b") > playerConnectionsBefore);
   await playerB.waitForText("已同步");
+  await playerB.waitForText("基础追逐段已结算");
   result.checks.push("disconnect -> cursor resume -> synced completed");
 
   const desktopPath = path.join(evidenceRoot, "human-kp-desktop.png");
@@ -110,6 +148,24 @@ async function main() {
     true,
     `AI_KP player action must enter Agent Gateway: ${aiActionRequests.join(" | ")}`,
   );
+  for (const [intentKind, expected] of [
+    ["NPC_INTERACTION", "AI NPC 互动已记录"],
+    ["COMBAT_ROUND", "AI 基础战斗轮已结算"],
+    ["CHASE_SEGMENT", "AI 基础追逐段已结算"],
+  ]) {
+    const requestStart = mock.requests.length;
+    await aiPlayer.submit('form[data-form="submit-action"]', { intentKind });
+    await aiPlayer.waitForText(expected);
+    await waitUntil(
+      () => aiPlayer.evaluate('document.querySelector("#app")?.getAttribute("aria-busy") === "false"'),
+      8_000,
+      `${intentKind} Agent Job submission did not settle`,
+    );
+    const requests = mock.requests.slice(requestStart);
+    assert.ok(requests.includes("POST /api/api/v1/campaigns/campaign_ai/agent-jobs"));
+    assert.equal(requests.some((request) => request.includes("/gameplay-actions")), false);
+  }
+  result.checks.push("AI_KP NPC/combat/chase remained behind Agent Gateway and projected tool results");
   assert.equal(
     aiActionRequests.includes("POST /api/api/v1/campaigns/campaign_ai/player-actions"),
     false,

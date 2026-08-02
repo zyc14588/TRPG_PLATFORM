@@ -219,14 +219,27 @@ export async function endSession(data) {
 
 export async function submitAction(data) {
   const actionId = `action_${Date.now().toString(36)}`;
-  const intent = data.intentKind === "SANITY_CHECK"
-    ? {
+  const intent = data.intentKind === "SANITY_CHECK" ? {
         kind: "SANITY_CHECK",
         success_loss: Number(data.successLoss),
         failure_loss: Number(data.failureLoss),
         day_key: data.dayKey,
-      }
-    : {
+      } : data.intentKind === "NPC_INTERACTION" ? {
+        kind: "NPC_INTERACTION",
+        npc_id: data.npcId,
+        approach: data.description || "与当前场景 NPC 交谈",
+      } : data.intentKind === "COMBAT_ROUND" ? {
+        kind: "COMBAT_ROUND",
+        npc_id: data.npcId,
+        action_kind: data.combatActionKind,
+        defense: data.combatDefense,
+      } : data.intentKind === "CHASE_SEGMENT" ? {
+        kind: "CHASE_SEGMENT",
+        npc_id: data.npcId,
+        initial_range: Number(data.initialRange),
+        obstacle_id: data.obstacleId || null,
+        obstacle_cost: Number(data.obstacleCost),
+      } : {
         kind: "INVESTIGATION",
         skill_name: data.skillName,
         clue_id: data.clueId,
@@ -266,5 +279,43 @@ export async function submitAction(data) {
   });
   Object.assign(state.recent, { characterId: data.characterId, sessionId: data.sessionId, sceneId: data.sceneId, pendingAction: { actionId } });
   setVersion(`action:${actionId}`, response.aggregate_version || 1);
+  await refreshEvents();
+}
+
+export async function submitPublicGameplay(data) {
+  const actionId = `gameplay_${Date.now().toString(36)}`;
+  const common = {
+    character_id: data.characterId,
+    npc_id: data.npcId,
+  };
+  const action = data.gameplayKind === "NPC_INTERACTION" ? {
+    kind: "NPC_INTERACTION",
+    ...common,
+    approach: data.approach,
+    public_response: data.publicResponse,
+  } : data.gameplayKind === "COMBAT_ROUND" ? {
+    kind: "COMBAT_ROUND",
+    ...common,
+    action_kind: data.combatActionKind,
+    defense: data.combatDefense,
+  } : {
+    kind: "CHASE_SEGMENT",
+    ...common,
+    initial_range: Number(data.initialRange),
+    obstacle_id: data.obstacleId || null,
+    obstacle_cost: Number(data.obstacleCost),
+  };
+  const response = await api.submitGameplayAction(state.campaign.campaign_id, {
+    command: createCommand("public_gameplay", 0),
+    campaign_id: state.campaign.campaign_id,
+    session_id: data.sessionId,
+    action_id: actionId,
+    action,
+  });
+  Object.assign(state.recent, {
+    characterId: data.characterId,
+    sessionId: data.sessionId,
+    gameplayResult: response.result,
+  });
   await refreshEvents();
 }

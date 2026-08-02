@@ -37,11 +37,7 @@ impl ApiApplication {
                             _ => Err(IdentityError::InvalidIdentityData),
                         }
                     } else {
-                        identity.command_actor(
-                            &requesting_authentication,
-                            &campaign,
-                            now_unix_ms,
-                        )
+                        identity.command_actor(&requesting_authentication, &campaign, now_unix_ms)
                     }
                     .map_err(identity_error)?;
                     let expires_at = now_unix_ms.checked_add(60_000).ok_or_else(internal_error)?;
@@ -78,13 +74,7 @@ impl ApiApplication {
                 Err(_) => return Err(internal_error()),
             };
         let authority_binding = authority_contract.binding().map_err(|error| {
-            kernel_error_response(
-                request,
-                &error,
-                operation,
-                resource_id,
-                error.code(),
-            )
+            kernel_error_response(request, &error, operation, resource_id, error.code())
         })?;
         let requesting_context = AuthenticatedCommandContext::new(
             requesting_actor.clone(),
@@ -95,13 +85,7 @@ impl ApiApplication {
             requesting_authentication.expires_at_unix_ms(),
         )
         .map_err(|error| {
-            kernel_error_response(
-                request,
-                &error,
-                operation,
-                resource_id,
-                error.code(),
-            )
+            kernel_error_response(request, &error, operation, resource_id, error.code())
         })?;
         let workflow_context = AuthenticatedCommandContext::new(
             workflow_actor,
@@ -112,13 +96,7 @@ impl ApiApplication {
             workflow_authentication.expires_at_unix_ms(),
         )
         .map_err(|error| {
-            kernel_error_response(
-                request,
-                &error,
-                operation,
-                resource_id,
-                error.code(),
-            )
+            kernel_error_response(request, &error, operation, resource_id, error.code())
         })?;
         let expected_version = u64::try_from(command.expected_version)
             .map_err(|_| core_request_error(error_namespace, "EXPECTED_VERSION_INVALID"))?;
@@ -143,13 +121,7 @@ impl ApiApplication {
                     requesting_actor.id().as_str(),
                 )
                 .map_err(|error| {
-                    kernel_error_response(
-                        request,
-                        &error,
-                        operation,
-                        resource_id,
-                        error.code(),
-                    )
+                    kernel_error_response(request, &error, operation, resource_id, error.code())
                 })?,
                 correlation_id: EntityId::new(&command.correlation_id)
                     .map_err(|_| core_request_error(error_namespace, "CORRELATION_ID_INVALID"))?,
@@ -173,13 +145,7 @@ impl ApiApplication {
                 now_unix_ms,
             )
             .map_err(|error| {
-                kernel_error_response(
-                    request,
-                    &error,
-                    operation,
-                    resource_id,
-                    error.code(),
-                )
+                kernel_error_response(request, &error, operation, resource_id, error.code())
             })?;
         AuthorizedCoreApiContext::from_authenticated_contexts(
             requesting_context,
@@ -190,17 +156,11 @@ impl ApiApplication {
         .map_err(player_action_api_error)
     }
 
-    fn handle_v1_route(
-        &self,
-        request: &HttpRequest,
-        segments: &[&str],
-    ) -> Option<HttpResponse> {
+    fn handle_v1_route(&self, request: &HttpRequest, segments: &[&str]) -> Option<HttpResponse> {
         match (request.method.as_str(), segments) {
             ("GET", ["campaigns"]) => Some(self.v1_list_campaigns(request)),
             ("POST", ["campaigns"]) => Some(self.v1_create_campaign(request)),
-            ("GET", ["campaigns", campaign_id]) => {
-                Some(self.v1_get_campaign(request, campaign_id))
-            }
+            ("GET", ["campaigns", campaign_id]) => Some(self.v1_get_campaign(request, campaign_id)),
             ("POST", ["campaigns", campaign_id, "invites"]) => {
                 Some(self.v1_issue_invite(request, campaign_id))
             }
@@ -213,14 +173,12 @@ impl ApiApplication {
             ("PUT", ["campaigns", campaign_id, "characters", character_id]) => {
                 Some(self.v1_update_character(request, campaign_id, character_id))
             }
-            (
-                "POST",
-                ["campaigns", campaign_id, "characters", character_id, "submit"],
-            ) => Some(self.v1_submit_character(request, campaign_id, character_id)),
-            (
-                "POST",
-                ["campaigns", campaign_id, "characters", character_id, "review"],
-            ) => Some(self.v1_review_character(request, campaign_id, character_id)),
+            ("POST", ["campaigns", campaign_id, "characters", character_id, "submit"]) => {
+                Some(self.v1_submit_character(request, campaign_id, character_id))
+            }
+            ("POST", ["campaigns", campaign_id, "characters", character_id, "review"]) => {
+                Some(self.v1_review_character(request, campaign_id, character_id))
+            }
             ("POST", ["campaigns", campaign_id, "scenarios", "import"]) => {
                 Some(self.v1_import_scenario(request, campaign_id))
             }
@@ -230,40 +188,22 @@ impl ApiApplication {
             ("PATCH", ["campaigns", campaign_id, "sessions", session_id]) => {
                 Some(self.v1_change_session_state(request, campaign_id, session_id))
             }
-            (
-                "POST",
-                ["campaigns", campaign_id, "sessions", session_id, "scenes"],
-            ) => Some(self.v1_switch_scene(request, campaign_id, session_id)),
-            (
-                "POST",
-                [
-                    "campaigns",
-                    campaign_id,
-                    "sessions",
-                    session_id,
-                    "characters",
-                    character_id,
-                    "join",
-                ],
-            ) => Some(self.v1_join_character(
-                request,
-                campaign_id,
-                session_id,
-                character_id,
-            )),
-            ("POST", ["campaigns", campaign_id, "player-actions"]) => {
-                Some(self.submit_player_action(request, campaign_id))
+            ("POST", ["campaigns", campaign_id, "sessions", session_id, "scenes"]) => {
+                Some(self.v1_switch_scene(request, campaign_id, session_id))
             }
             (
                 "POST",
-                [
-                    "campaigns",
-                    campaign_id,
-                    "player-actions",
-                    action_id,
-                    "confirm",
-                ],
-            ) => Some(self.confirm_player_action(request, campaign_id, action_id)),
+                ["campaigns", campaign_id, "sessions", session_id, "characters", character_id, "join"],
+            ) => Some(self.v1_join_character(request, campaign_id, session_id, character_id)),
+            ("POST", ["campaigns", campaign_id, "player-actions"]) => {
+                Some(self.submit_player_action(request, campaign_id))
+            }
+            ("POST", ["campaigns", campaign_id, "player-actions", action_id, "confirm"]) => {
+                Some(self.confirm_player_action(request, campaign_id, action_id))
+            }
+            ("POST", ["campaigns", campaign_id, "gameplay-actions"]) => {
+                Some(self.v1_submit_public_gameplay_action(request, campaign_id))
+            }
             ("POST", ["campaigns", campaign_id, "agent-jobs"]) => {
                 Some(self.request_agent_job(request, campaign_id))
             }
@@ -275,32 +215,12 @@ impl ApiApplication {
             }
             (
                 "POST",
-                [
-                    "campaigns",
-                    campaign_id,
-                    "reconsiderations",
-                    reconsideration_id,
-                    "review",
-                ],
-            ) => Some(self.v1_review_reconsideration(
-                request,
-                campaign_id,
-                reconsideration_id,
-            )),
+                ["campaigns", campaign_id, "reconsiderations", reconsideration_id, "review"],
+            ) => Some(self.v1_review_reconsideration(request, campaign_id, reconsideration_id)),
             (
                 "POST",
-                [
-                    "campaigns",
-                    campaign_id,
-                    "reconsiderations",
-                    reconsideration_id,
-                    "resolve",
-                ],
-            ) => Some(self.v1_resolve_reconsideration(
-                request,
-                campaign_id,
-                reconsideration_id,
-            )),
+                ["campaigns", campaign_id, "reconsiderations", reconsideration_id, "resolve"],
+            ) => Some(self.v1_resolve_reconsideration(request, campaign_id, reconsideration_id)),
             ("POST", ["campaigns", campaign_id, "forks"]) => {
                 Some(self.v1_fork_campaign(request, campaign_id))
             }
@@ -312,18 +232,11 @@ impl ApiApplication {
             }
             (
                 "POST",
-                [
-                    "campaigns",
-                    campaign_id,
-                    "exports",
-                    export_id,
-                    "download-authorizations",
-                ],
+                ["campaigns", campaign_id, "exports", export_id, "download-authorizations"],
             ) => Some(self.v1_issue_export_download(request, campaign_id, export_id)),
-            (
-                "GET",
-                ["campaigns", campaign_id, "exports", export_id, "download"],
-            ) => Some(self.v1_download_export(request, campaign_id, export_id)),
+            ("GET", ["campaigns", campaign_id, "exports", export_id, "download"]) => {
+                Some(self.v1_download_export(request, campaign_id, export_id))
+            }
             _ => None,
         }
     }
@@ -361,5 +274,6 @@ impl ApiApplication {
         );
         Ok((authentication.subject_id().as_str().to_owned(), include_all))
     }
-
 }
+
+include!("06_public_gameplay_routes.rs");

@@ -6,9 +6,16 @@ fn validate_structured_decision(
     if provider_tool_calls.len() > max_tool_calls {
         return Err(AgentJobError::terminal("AGENT_TOOL_CALL_LIMIT_EXCEEDED"));
     }
-    let value = value.ok_or_else(|| AgentJobError::terminal("AGENT_OUTPUT_SCHEMA_INVALID"))?;
-    let mut decision: AgentStructuredDecision = serde_json::from_value(value.clone())
-        .map_err(|_| AgentJobError::terminal("AGENT_OUTPUT_SCHEMA_INVALID"))?;
+    let mut decision: AgentStructuredDecision = match value {
+        Some(value) => serde_json::from_value(value.clone())
+            .map_err(|_| AgentJobError::terminal("AGENT_OUTPUT_SCHEMA_INVALID"))?,
+        None if provider_tool_calls.len() == 1 => AgentStructuredDecision {
+            kind: "npc_turn".to_owned(),
+            player_visible_text: "The AI Keeper requested server-side rules resolution.".to_owned(),
+            tool: None,
+        },
+        None => return Err(AgentJobError::terminal("AGENT_OUTPUT_SCHEMA_INVALID")),
+    };
     if decision.kind != "npc_turn"
         || decision.player_visible_text.trim().is_empty()
         || decision.player_visible_text.len() > 16_384
@@ -54,6 +61,9 @@ fn parse_agent_tool(name: &str) -> AgentJobResult<AgentTool> {
         "reveal_clue" => Ok(AgentTool::RevealClue),
         "apply_san_loss" => Ok(AgentTool::ApplySanLoss),
         "change_scene" => Ok(AgentTool::ChangeScene),
+        "resolve_npc_interaction" => Ok(AgentTool::ResolveNpcInteraction),
+        "resolve_combat_round" => Ok(AgentTool::ResolveCombatRound),
+        "resolve_chase_segment" => Ok(AgentTool::ResolveChaseSegment),
         _ => Err(AgentJobError::terminal("AGENT_TOOL_PERMISSION_DENIED")),
     }
 }
@@ -191,4 +201,49 @@ fn observed_now(started_unix_ms: i64, started: Instant) -> AgentJobResult<i64> {
 
 fn sha256_label(value: &[u8]) -> String {
     format!("sha256:{:x}", Sha256::digest(value))
+}
+
+#[cfg(test)]
+mod decision_validation_tests {
+    use super::*;
+
+    #[test]
+    fn native_provider_tool_call_is_a_valid_structured_decision() {
+        let call = crate::model_provider::ModelToolCall {
+            id: "call_rf04".to_owned(),
+            name: "resolve_combat_round".to_owned(),
+            arguments: json!({"character_id": "character_rf04"}),
+        };
+        let decision = validate_structured_decision(None, &[call], 1).unwrap();
+        assert_eq!(decision.kind, "npc_turn");
+        assert_eq!(decision.tool.unwrap().name, "resolve_combat_round");
+    }
+
+    #[test]
+    fn absent_output_and_multiple_provider_calls_fail_closed() {
+        assert_eq!(
+            validate_structured_decision(None, &[], 1)
+                .unwrap_err()
+                .code(),
+            "AGENT_OUTPUT_SCHEMA_INVALID"
+        );
+        let calls = [
+            crate::model_provider::ModelToolCall {
+                id: "call_rf04_a".to_owned(),
+                name: "resolve_combat_round".to_owned(),
+                arguments: json!({}),
+            },
+            crate::model_provider::ModelToolCall {
+                id: "call_rf04_b".to_owned(),
+                name: "resolve_chase_segment".to_owned(),
+                arguments: json!({}),
+            },
+        ];
+        assert_eq!(
+            validate_structured_decision(None, &calls, 1)
+                .unwrap_err()
+                .code(),
+            "AGENT_TOOL_CALL_LIMIT_EXCEEDED"
+        );
+    }
 }

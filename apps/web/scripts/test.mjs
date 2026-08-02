@@ -39,6 +39,14 @@ class TestWebSocket {
 }
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const gameplayViewSource = await readFile(path.join(root, "dist/src/app/views.js"), "utf8");
+for (const requiredPublicControl of ["NPC_INTERACTION", "COMBAT_ROUND", "CHASE_SEGMENT"]) {
+  assert.equal(
+    gameplayViewSource.includes(requiredPublicControl),
+    true,
+    `public gameplay control missing: ${requiredPublicControl}`,
+  );
+}
 let pendingActionReads = 0;
 assert.equal(await pendingActionId({
   evaluate: async () => ++pendingActionReads < 3

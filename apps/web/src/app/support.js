@@ -47,6 +47,7 @@ export function successFor(formName) {
     "switch-scene": "场景推进已提交",
     "end-session": "Tutorial 结局已记录，Session 已结束",
     "submit-action": "行动已提交",
+    "public-gameplay": "公开玩法结果已记录",
     "agent-job": "Agent 工作已请求",
     "approve-agent": "AI 草案批准已提交",
     "confirm-player-action": "行动结果已确认",
@@ -95,7 +96,41 @@ export function defaultCharacterSheet() {
       education: 75,
       luck: 60,
     },
-    skills: { "Library Use": 75, "Spot Hidden": 60 },
+    skills: {
+      "Library Use": 75,
+      "Spot Hidden": 60,
+      "Fighting (Brawl)": 45,
+      "Firearms (Handgun)": 35,
+      Dodge: 40,
+      "First Aid": 30,
+      Medicine: 10,
+    },
+    combat_profile: {
+      dexterity: 55,
+      skill_targets: { melee: 45, firearm: 35, dodge: 40, first_aid: 30, medicine: 10 },
+      skill_target_sources: {
+        melee: "Fighting (Brawl)",
+        firearm: "Firearms (Handgun)",
+        dodge: "Dodge",
+        first_aid: "First Aid",
+        medicine: "Medicine",
+      },
+      weapon_loadout: {
+        melee: {
+          weapon_id: "selected_melee_weapon",
+          damage_formula: { dice_count: 1, die_sides: 6, flat_bonus: 1 },
+        },
+        firearm: {
+          weapon_id: "selected_firearm",
+          damage_formula: { dice_count: 1, die_sides: 6, flat_bonus: 5 },
+        },
+      },
+      current_hp: 10,
+      max_hp: 10,
+      armor: 1,
+      condition: "ABLE",
+    },
+    chase_profile: { role: "QUARRY", movement_rate: 8 },
     backstory_anchors: ["保护消息来源", "不会抛下同伴"],
   }, null, 2);
 }

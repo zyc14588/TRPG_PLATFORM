@@ -159,6 +159,10 @@ export class ProductApi {
     );
   }
 
+  submitGameplayAction(campaignId, body) {
+    return this.#v1("POST", `/campaigns/${id(campaignId)}/gameplay-actions`, body);
+  }
+
   requestAgentJob(campaignId, body) {
     return this.#v1("POST", `/campaigns/${id(campaignId)}/agent-jobs`, body);
   }

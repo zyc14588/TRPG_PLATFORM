@@ -1,4 +1,3 @@
-
 impl ApiApplication {
     pub fn new(identity: IdentityService) -> Self {
         let identity_verifier = identity.verifier();
@@ -184,7 +183,10 @@ impl ApiApplication {
                 lifecycle_port: player_action_repository
                     .clone()
                     .map(RepositoryCampaignCharacterPort::new),
-                player_action_port: player_action_repository.map(RepositoryPlayerActionPort::new),
+                player_action_port: player_action_repository
+                    .clone()
+                    .map(RepositoryPlayerActionPort::new),
+                gameplay_repository: player_action_repository,
                 agent_jobs,
                 export_storage_root,
             })),
@@ -216,5 +218,4 @@ impl ApiApplication {
                 .to_owned(),
         )
     }
-
 }

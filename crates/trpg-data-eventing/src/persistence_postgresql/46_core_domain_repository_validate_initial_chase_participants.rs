@@ -1,5 +1,151 @@
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PublicGameplayContextKind {
+    NpcInteraction,
+    CombatRound,
+    ChaseSegment { initial_range: i8 },
+}
+
+/// Public-safe subset of the active scenario and approved character sheet.
+/// Keeper truth, NPC secrets, clue payloads, and unrelated profiles never
+/// leave the repository boundary.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PublicGameplayProfileContext {
+    pub npc_public_identity: String,
+    pub character_combat_profile: Value,
+    pub npc_combat_profile: Value,
+    pub character_chase_profile: Value,
+    pub npc_chase_profile: Value,
+}
+
 impl CoreDomainRepository {
+    pub async fn load_public_gameplay_profile_context(
+        &self,
+        campaign_id: &str,
+        session_id: &str,
+        character_id: &str,
+        npc_id: &str,
+        kind: PublicGameplayContextKind,
+    ) -> Result<PublicGameplayProfileContext, CoreDomainRepositoryError> {
+        for value in [campaign_id, session_id, character_id, npc_id] {
+            EntityId::new(value)
+                .map_err(|_| CoreDomainRepositoryError::InvalidInput("gameplay_id"))?;
+        }
+        if character_id == npc_id {
+            return Err(CoreDomainRepositoryError::InvalidInput(
+                "gameplay_participants",
+            ));
+        }
+        let row = sqlx::query(
+            r#"
+            SELECT scenario.document_json,
+                   active_scene.scene_key AS active_scene_key,
+                   sheet.sheet_json AS character_sheet_json
+              FROM core_domain.sessions AS session
+              JOIN public.scenarios AS scenario
+                ON scenario.scenario_id = session.scenario_id
+               AND scenario.campaign_id = session.campaign_id
+              JOIN public.scenes AS active_scene
+                ON active_scene.scene_id = session.active_scene_id
+               AND active_scene.session_id = session.session_id
+               AND active_scene.campaign_id = session.campaign_id
+              JOIN public.characters AS character
+                ON character.character_id = $3
+               AND character.campaign_id = session.campaign_id
+              JOIN public.character_sheet_versions AS sheet
+                ON sheet.character_id = character.character_id
+               AND sheet.campaign_id = character.campaign_id
+               AND sheet.version = character.current_sheet_version
+             WHERE session.session_id = $1
+               AND session.campaign_id = $2
+               AND session.state = 'ACTIVE'
+               AND character.state = 'APPROVED'
+               AND character.initial_version_locked
+               AND sheet.locked
+            "#,
+        )
+        .bind(session_id)
+        .bind(campaign_id)
+        .bind(character_id)
+        .fetch_optional(&self.primary)
+        .await
+        .map_err(database_error("load_public_gameplay_context"))?
+        .ok_or(CoreDomainRepositoryError::NotFound(
+            "public_gameplay_context",
+        ))?;
+        let scenario: Value = row.get("document_json");
+        let character_sheet: Value = row.get("character_sheet_json");
+        let active_scene_key = row.get::<Option<String>, _>("active_scene_key").ok_or(
+            CoreDomainRepositoryError::Integrity("public_gameplay_active_scene"),
+        )?;
+        let npc = scenario
+            .get("npcs")
+            .and_then(Value::as_array)
+            .and_then(|npcs| {
+                npcs.iter()
+                    .find(|npc| npc.get("id").and_then(Value::as_str) == Some(npc_id))
+            })
+            .ok_or(CoreDomainRepositoryError::NotFound("public_gameplay_npc"))?;
+        let participants = [character_id.to_owned(), npc_id.to_owned()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        let characters = [character_id.to_owned()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        let authorized = match kind {
+            PublicGameplayContextKind::NpcInteraction => scenario
+                .get("scenes")
+                .and_then(Value::as_array)
+                .and_then(|scenes| {
+                    scenes.iter().find(|scene| {
+                        scene.get("id").and_then(Value::as_str) == Some(&active_scene_key)
+                    })
+                })
+                .and_then(|scene| scene.get("visible_npcs"))
+                .and_then(Value::as_array)
+                .is_some_and(|npcs| npcs.iter().any(|id| id.as_str() == Some(npc_id))),
+            PublicGameplayContextKind::CombatRound => scenario_combat_authorizes_participants(
+                &scenario,
+                &active_scene_key,
+                &participants,
+                &characters,
+            ),
+            PublicGameplayContextKind::ChaseSegment { initial_range } => {
+                scenario_chase_authorizes_participants(
+                    &scenario,
+                    &active_scene_key,
+                    &participants,
+                    &characters,
+                    initial_range,
+                )
+            }
+        };
+        if !authorized {
+            return Err(CoreDomainRepositoryError::InvalidInput(
+                "public_gameplay_scene_authority",
+            ));
+        }
+        let profile = |source: &Value, name: &'static str| {
+            source
+                .get(name)
+                .cloned()
+                .ok_or(CoreDomainRepositoryError::Integrity(name))
+        };
+        Ok(PublicGameplayProfileContext {
+            npc_public_identity: npc
+                .get("public_identity")
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty() && value.len() <= 256)
+                .ok_or(CoreDomainRepositoryError::Integrity(
+                    "public_gameplay_npc_identity",
+                ))?
+                .to_owned(),
+            character_combat_profile: profile(&character_sheet, "combat_profile")?,
+            npc_combat_profile: profile(npc, "combat_profile")?,
+            character_chase_profile: profile(&character_sheet, "chase_profile")?,
+            npc_chase_profile: profile(npc, "chase_profile")?,
+        })
+    }
 
     async fn validate_initial_chase_participants(
         &self,

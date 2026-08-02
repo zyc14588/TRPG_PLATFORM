@@ -31,4 +31,13 @@ fn v1_schema_is_published_and_lifecycle_routes_authenticate_before_dispatch() {
         .expect("Campaign create route must be published");
     assert_eq!(campaign_create.status, 401);
     assert_eq!(campaign_create.body["error"], "AUTHENTICATION_REQUIRED");
+
+    let gameplay_action = application
+        .handle(&request(
+            "POST",
+            "/api/v1/campaigns/campaign_route_contract/gameplay-actions",
+        ))
+        .expect("public gameplay action route must be published");
+    assert_eq!(gameplay_action.status, 401);
+    assert_eq!(gameplay_action.body["error"], "AUTHENTICATION_REQUIRED");
 }
