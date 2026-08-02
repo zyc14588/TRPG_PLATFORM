@@ -7,13 +7,14 @@ impl AdminControlPlane {
         let metadata = mutation_metadata(request)?;
         let parsed: ProviderConfigureRequest = parse_body(request)?;
         let descriptor = format!(
-            "{}|{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{}",
             parsed.provider_type,
             parsed.base_url,
             parsed.model_id,
             parsed.model_artifact_sha256,
             parsed.credential_secret_id,
-            parsed.credential_secret_version
+            parsed.credential_secret_version,
+            self.local_provider_network_policy.canonical(),
         );
         let _lock = StateFileLock::acquire(&self.state_path)?;
         let mut state = read_state_unlocked(&self.state_path)?;
@@ -51,7 +52,8 @@ impl AdminControlPlane {
         )
         .map_err(|_| {
             AdminControlPlaneError::InvalidRequest("ADMIN_PROVIDER_CONFIGURATION_INVALID")
-        })?;
+        })?
+        .with_local_network_policy(self.local_provider_network_policy.clone());
         let attestation = validate_provider_boundary(&endpoint, self.secret_manager.as_ref())
             .map_err(|_| {
                 AdminControlPlaneError::InvalidRequest("ADMIN_PROVIDER_BOUNDARY_INVALID")
@@ -116,6 +118,32 @@ impl AdminControlPlane {
         let provider = state.provider.clone().ok_or(
             AdminControlPlaneError::Conflict("ADMIN_PROVIDER_NOT_CONFIGURED"),
         )?;
+        let reference = SecretReference::mounted(
+            provider.credential_secret_id.clone(),
+            provider.credential_secret_version,
+        )
+        .map_err(|_| AdminControlPlaneError::Persistence("ADMIN_PROVIDER_STATE_INVALID"))?;
+        let endpoint = ProviderEndpoint::new(
+            provider.provider_type.clone(),
+            provider.base_url.clone(),
+            reference.clone(),
+            DeploymentEnvironment::Production,
+            provider.model_id.clone(),
+            provider.model_artifact_sha256.clone(),
+        )
+        .map_err(|_| AdminControlPlaneError::Persistence("ADMIN_PROVIDER_STATE_INVALID"))?
+        .with_local_network_policy(self.local_provider_network_policy.clone());
+        let attestation = validate_provider_boundary(&endpoint, self.secret_manager.as_ref())
+            .map_err(|_| {
+                AdminControlPlaneError::OperationUnavailable(
+                    "provider boundary revalidation failed".to_owned(),
+                )
+            })?;
+        if attestation.security_snapshot_digest() != provider.security_snapshot_digest {
+            return Err(AdminControlPlaneError::OperationUnavailable(
+                "provider boundary attestation changed".to_owned(),
+            ));
+        }
         let descriptor = provider.security_snapshot_digest.clone();
         if let Some(response) =
             replay_response(&state, &metadata, "provider.probe", &descriptor)?
@@ -131,11 +159,6 @@ impl AdminControlPlane {
             return Ok(response);
         }
         ensure_expected_version(&state, &metadata)?;
-        let reference = SecretReference::mounted(
-            provider.credential_secret_id.clone(),
-            provider.credential_secret_version,
-        )
-        .map_err(|_| AdminControlPlaneError::Persistence("ADMIN_PROVIDER_STATE_INVALID"))?;
         let credential = self.secret_manager.resolve(&reference).map_err(|_| {
             AdminControlPlaneError::OperationUnavailable(
                 "provider credential unavailable".to_owned(),

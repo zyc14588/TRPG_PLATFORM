@@ -74,6 +74,7 @@ export TRPG_MODEL_PROVIDER_ID="$project-provider"
 export TRPG_MODEL_ID="$provider_model"
 export TRPG_MODEL_ARTIFACT_SHA256="${provider_sha256,,}"
 export TRPG_MODEL_PROVIDER_BASE_URL="$provider_url"
+export TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST="$local_provider_allowlist"
 export TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID="$project-provider-route-v1"
 if step_done model_certification; then
   export TRPG_AGENT_WORKER_MODE=ready

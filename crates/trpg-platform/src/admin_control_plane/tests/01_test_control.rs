@@ -116,6 +116,7 @@ impl TestControl {
                 secret_manager,
                 audit,
                 operations: Arc::new(TestOperations),
+                local_provider_network_policy: LocalProviderNetworkPolicy::loopback_only(),
             },
             root,
         }

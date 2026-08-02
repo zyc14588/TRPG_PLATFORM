@@ -8,6 +8,7 @@ struct ModelProviderEnvironment {
     route_authorization_event_id: trpg_agent_runtime::EntityId,
     capabilities: ProviderCapabilities,
     request_timeout: Duration,
+    local_network_policy: trpg_agent_runtime::model_provider::LocalProviderNetworkPolicy,
 }
 
 impl ModelProviderEnvironment {
@@ -48,6 +49,11 @@ impl ModelProviderEnvironment {
             .filter(|milliseconds| *milliseconds > 0)
             .map(Duration::from_millis)
             .ok_or_else(|| "TRPG_MODEL_PROVIDER_TIMEOUT_MS_INVALID".to_owned())?;
+        let local_network_policy =
+            trpg_agent_runtime::model_provider::LocalProviderNetworkPolicy::parse(
+                &required_environment("TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST")?,
+            )
+            .map_err(|_| "TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST_INVALID".to_owned())?;
         Ok(Self {
             provider_type,
             provider_id,
@@ -58,6 +64,7 @@ impl ModelProviderEnvironment {
             route_authorization_event_id,
             capabilities,
             request_timeout,
+            local_network_policy,
         })
     }
 
@@ -85,13 +92,15 @@ fn model_provider_from_environment(
 ) -> Result<HttpModelProvider<MountedFileSecretResolver>, String> {
     let environment = ModelProviderEnvironment::from_environment()?;
     let provider_ca = optional_file_bytes("TRPG_MODEL_PROVIDER_CA_CERT_PATH")?;
+    let local_network_policy = environment.local_network_policy.clone();
     secret_manager
         .register(&environment.credential)
         .map_err(|_| "MODEL_PROVIDER_CREDENTIAL_REGISTRATION_FAILED".to_owned())?;
-    HttpModelProvider::new_with_root_certificate(
+    HttpModelProvider::new_with_root_certificate_and_local_network_policy(
         environment.into_runtime(),
         secret_manager,
         provider_ca.as_deref(),
+        &local_network_policy,
     )
         .map_err(|error| error.code().to_owned())
 }
@@ -178,5 +187,21 @@ mod model_provider_construction_tests {
         assert!(parse_model_provider_capabilities("streaming,embeddings").is_err());
         assert!(parse_model_provider_capabilities("chat,unknown").is_err());
         assert!(parse_model_provider_capabilities("chat,chat").is_err());
+    }
+
+    #[test]
+    fn production_worker_local_network_policy_is_private_and_explicit() {
+        let policy = trpg_agent_runtime::model_provider::LocalProviderNetworkPolicy::parse(
+            "dns:ollama-proxy,cidr:172.20.0.0/16",
+        )
+        .unwrap();
+        assert_eq!(
+            policy.canonical(),
+            "loopback,dns:ollama-proxy,cidr:172.20.0.0/16"
+        );
+        assert!(trpg_agent_runtime::model_provider::LocalProviderNetworkPolicy::parse(
+            "dns:api.openai.com"
+        )
+        .is_err());
     }
 }

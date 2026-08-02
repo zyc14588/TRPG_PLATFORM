@@ -47,6 +47,13 @@ impl AdminControlPlane {
             64,
         )?)
         .map_err(|_| AdminControlPlaneError::Configuration("ADMIN_ARGON2_LIMIT_INVALID"))?;
+        let local_provider_network_policy = LocalProviderNetworkPolicy::parse(
+            &optional_environment("TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST")
+                .unwrap_or_else(|| "loopback".to_owned()),
+        )
+        .map_err(|_| {
+            AdminControlPlaneError::Configuration("ADMIN_LOCAL_PROVIDER_ALLOWLIST_INVALID")
+        })?;
 
         let mut identity_result = None;
         database_url
@@ -102,6 +109,7 @@ impl AdminControlPlane {
             secret_manager,
             audit,
             operations,
+            local_provider_network_policy,
         };
         control.load_state()?;
         Ok(control)

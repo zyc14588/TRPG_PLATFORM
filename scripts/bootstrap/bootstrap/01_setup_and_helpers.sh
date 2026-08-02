@@ -11,9 +11,15 @@ Secure, resumable COC AI TRPG bootstrap (Bash 5+):
     --provider-model exact-model-id --provider-sha256 sha256:<64-hex>
     [--provider-runtime-sha256 sha256:<64-hex>]
     --provider-credential-file /absolute/private/token
-    [--provider-ca-file /absolute/ca.pem] [--extra-compose-file /absolute/compose.yml]
+    [--provider-ca-file /absolute/ca.pem]
+    [--local-provider-allowlist loopback|dns:compose-service|cidr:private-network]
+    [--extra-compose-file /absolute/compose.yml]
 The provider runtime digest is required for Ollama and llama.cpp and is not
 accepted from an ambient environment variable.
+Non-loopback local providers require an exact allowlist entry and must expose
+an authenticated HTTPS proxy trusted by --provider-ca-file. On Linux, bind the
+host proxy only to a pinned internal Compose bridge gateway and allowlist that
+private CIDR, or use a single-label proxy service on the internal network.
 Re-running resumes completed steps. Secrets are written only to the reported
 private credentials file; they are never printed.
 USAGE
@@ -23,6 +29,7 @@ state_dir='' project='' provider_type='' provider_url='' provider_model=''
 provider_sha256='' provider_runtime_sha256='' provider_credential_file=''
 provider_ca_file='/etc/ssl/certs/ca-certificates.crt'
 extra_compose_file=''
+local_provider_allowlist='loopback'
 while (($#)); do
   case "$1" in
     --state-dir) state_dir="${2:-}"; shift 2 ;;
@@ -34,6 +41,7 @@ while (($#)); do
     --provider-runtime-sha256) provider_runtime_sha256="${2:-}"; shift 2 ;;
     --provider-credential-file) provider_credential_file="${2:-}"; shift 2 ;;
     --provider-ca-file) provider_ca_file="${2:-}"; shift 2 ;;
+    --local-provider-allowlist) local_provider_allowlist="${2:-}"; shift 2 ;;
     --extra-compose-file) extra_compose_file="${2:-}"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) printf 'bootstrap error=UNKNOWN_ARGUMENT argument=%q\n' "$1" >&2; usage >&2; exit 2 ;;
@@ -79,12 +87,77 @@ import sys
 from urllib.parse import urlsplit
 u = urlsplit(sys.argv[1])
 if u.scheme != "https" or not u.hostname or u.username or u.password or u.query or u.fragment:
-    raise SystemExit("provider URL must be credential-free HTTPS")
+    raise SystemExit(1)
 PY
   printf 'bootstrap error=PROVIDER_URL_INVALID\n' >&2; exit 2
 fi
+if ! local_provider_allowlist="$(python3 - "$runtime_provider_type" "$provider_url" "$local_provider_allowlist" <<'PY'
+import ipaddress, re, sys
+from urllib.parse import urlsplit
+provider_type, provider_url, raw_policy = sys.argv[1:]
+u = urlsplit(provider_url)
+if u.scheme != "https" or not u.hostname or u.username or u.password or u.query or u.fragment:
+    raise SystemExit(1)
+
+dns_entries = set()
+cidr_entries = set()
+for raw_entry in raw_policy.split(","):
+    entry = raw_entry.strip()
+    if entry.lower() == "loopback":
+        continue
+    if entry.startswith("dns:"):
+        host = entry[4:].strip().lower()
+        safe_label = (len(host) <= 63 and
+                      re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", host))
+        if not safe_label:
+            raise SystemExit(1)
+        dns_entries.add(host)
+        continue
+    if entry.startswith("cidr:"):
+        try:
+            network = ipaddress.ip_network(entry[5:].strip(), strict=True)
+        except ValueError:
+            raise SystemExit(1)
+        private_roots = ([ipaddress.ip_network("10.0.0.0/8"),
+                          ipaddress.ip_network("172.16.0.0/12"),
+                          ipaddress.ip_network("192.168.0.0/16"),
+                          ipaddress.ip_network("127.0.0.0/8")]
+                         if network.version == 4 else
+                         [ipaddress.ip_network("fc00::/7"), ipaddress.ip_network("::1/128")])
+        if not any(network.subnet_of(root) for root in private_roots):
+            raise SystemExit(1)
+        cidr_entries.add(network)
+        continue
+    raise SystemExit(1)
+if len(dns_entries) + len(cidr_entries) > 16:
+    raise SystemExit(1)
+
+host = u.hostname.lower()
+try:
+    address = ipaddress.ip_address(host)
+except ValueError:
+    address = None
+host_is_loopback = host == "localhost" or (address is not None and address.is_loopback)
+if provider_type == "cloud":
+    if host_is_loopback or dns_entries or cidr_entries:
+        raise SystemExit(1)
+else:
+    if not host_is_loopback:
+        if address is not None:
+            if not any(address in network for network in cidr_entries):
+                raise SystemExit(1)
+        elif host not in dns_entries:
+            raise SystemExit(1)
+
+canonical_cidrs = sorted(cidr_entries, key=lambda value: (value.version, int(value.network_address), value.prefixlen))
+print(",".join(["loopback"] + [f"dns:{host}" for host in sorted(dns_entries)] +
+               [f"cidr:{network}" for network in canonical_cidrs]))
+PY
+)"; then
+  printf 'bootstrap error=PROVIDER_NETWORK_POLICY_INVALID\n' >&2; exit 2
+fi
 for path in "$provider_credential_file" "$provider_ca_file"; do
-  [[ "$path" = /* && -f "$path" && ! -L "$path" ]] || { printf 'bootstrap error=PROVIDER_FILE_INVALID\n' >&2; exit 2; }
+  [[ "$path" = /* && -s "$path" && -f "$path" && ! -L "$path" ]] || { printf 'bootstrap error=PROVIDER_FILE_INVALID\n' >&2; exit 2; }
 done
 extra_digest='none'
 if [[ -n "$extra_compose_file" ]]; then
@@ -136,9 +209,9 @@ commit_step() {
 }
 
 configuration="$state_dir/configuration.tsv"
-printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
   "$project" "$provider_type" "$provider_url" "$provider_model" "${provider_sha256,,}" \
-  "$provider_runtime_sha256" "$extra_digest" \
+  "$provider_runtime_sha256" "$local_provider_allowlist" "$extra_digest" \
   >"$scratch/configuration"
 if [[ -f "$configuration" ]]; then
   cmp -s "$configuration" "$scratch/configuration" || { printf 'bootstrap error=CONFIGURATION_CHANGED_FORK_REQUIRED\n' >&2; exit 3; }

@@ -9,6 +9,7 @@ use tokio::sync::watch;
 use trpg_security_governance::cloud_egress::CloudEgressAttempt;
 pub use trpg_security_governance::cloud_egress::{CloudContextFact, CloudEgressAuthorization};
 pub use trpg_security_governance::secret::SecretReference;
+pub use trpg_security_governance::LocalProviderNetworkPolicy;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProviderType {
@@ -97,6 +98,26 @@ pub fn provider_boundary_snapshot() -> ModelProviderBoundarySnapshot {
 }
 
 pub fn validate_provider_config(config: &ProviderConfig) -> AgentResult<()> {
+    validate_provider_config_boundary(config)?;
+    validate_local_provider_runtime_identity(config)
+}
+
+pub fn validate_provider_config_with_local_network_policy(
+    config: &ProviderConfig,
+    policy: &LocalProviderNetworkPolicy,
+) -> AgentResult<()> {
+    let endpoint = validate_provider_config_boundary(config)?;
+    if config.provider_type.is_local() && !policy.permits(&endpoint) {
+        return Err(AgentError::Core(
+            trpg_shared_kernel::TrpgError::InvalidConfiguration(
+                "local_provider_endpoint_not_allowlisted",
+            ),
+        ));
+    }
+    validate_local_provider_runtime_identity(config)
+}
+
+fn validate_provider_config_boundary(config: &ProviderConfig) -> AgentResult<url::Url> {
     if config.model_id.trim().is_empty()
         || config.model_id.len() > 256
         || config.model_artifact_sha256.len() != 71
@@ -133,8 +154,15 @@ pub fn validate_provider_config(config: &ProviderConfig) -> AgentResult<()> {
             ),
         ));
     }
-    let host_is_loopback = matches!(endpoint.host_str(), Some("localhost" | "127.0.0.1" | "::1"));
-    if config.provider_type.is_local() && !host_is_loopback {
+    let host_is_loopback = endpoint.host_str().is_some_and(|host| {
+        host.eq_ignore_ascii_case("localhost")
+            || host
+                .parse::<std::net::IpAddr>()
+                .is_ok_and(|address| address.is_loopback())
+    });
+    if config.provider_type.is_local()
+        && !LocalProviderNetworkPolicy::endpoint_has_supported_private_shape(&endpoint)
+    {
         return Err(AgentError::UnauthenticatedLocalProviderExposed);
     }
     if config.provider_type == ProviderType::Cloud && host_is_loopback {
@@ -151,10 +179,13 @@ pub fn validate_provider_config(config: &ProviderConfig) -> AgentResult<()> {
             ),
         ));
     }
+    Ok(endpoint)
+}
+
+fn validate_local_provider_runtime_identity(config: &ProviderConfig) -> AgentResult<()> {
     if config.provider_type.is_local() && config.environment == Environment::Prod {
         resolve_provider_runtime_sha256(config)?;
     }
-
     Ok(())
 }
 

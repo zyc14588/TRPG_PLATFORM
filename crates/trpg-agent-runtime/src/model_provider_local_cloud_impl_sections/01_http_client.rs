@@ -18,7 +18,25 @@ impl<R: SecretResolver + 'static> HttpModelProvider<R> {
         credential_manager: Arc<SecretManager<R>>,
         root_certificate_pem: Option<&[u8]>,
     ) -> ModelProviderResult<Self> {
-        validate_provider_config(&runtime.provider).map_err(|_| configuration_error())?;
+        Self::new_with_root_certificate_and_local_network_policy(
+            runtime,
+            credential_manager,
+            root_certificate_pem,
+            &crate::model_provider::LocalProviderNetworkPolicy::loopback_only(),
+        )
+    }
+
+    pub fn new_with_root_certificate_and_local_network_policy(
+        runtime: ModelProviderRuntimeConfig,
+        credential_manager: Arc<SecretManager<R>>,
+        root_certificate_pem: Option<&[u8]>,
+        local_network_policy: &crate::model_provider::LocalProviderNetworkPolicy,
+    ) -> ModelProviderResult<Self> {
+        crate::model_provider::validate_provider_config_with_local_network_policy(
+            &runtime.provider,
+            local_network_policy,
+        )
+        .map_err(|_| configuration_error())?;
         if runtime.request_timeout < MIN_REQUEST_TIMEOUT
             || runtime.request_timeout > MAX_REQUEST_TIMEOUT
         {
@@ -34,6 +52,12 @@ impl<R: SecretResolver + 'static> HttpModelProvider<R> {
                 false,
                 None,
             ));
+        }
+        if runtime.provider.provider_type.is_local()
+            && runtime.provider.environment == crate::model_provider::Environment::Prod
+            && root_certificate_pem.is_none()
+        {
+            return Err(configuration_error());
         }
 
         let mut client = Client::builder()

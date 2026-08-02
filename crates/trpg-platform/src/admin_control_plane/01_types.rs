@@ -19,7 +19,8 @@ use trpg_security_governance::tamper_evident_audit::{
     AuditDecision, AuditRecordDraft, AuditSink, FileAuditLog,
 };
 use trpg_security_governance::{
-    validate_provider_boundary, DeploymentEnvironment, ProviderEndpoint,
+    validate_provider_boundary, DeploymentEnvironment, LocalProviderNetworkPolicy,
+    ProviderEndpoint,
 };
 use trpg_shared_kernel::{
     AuthorityContract, AuthorityContractDraft, AuthorityMode, AuthorityVersionSnapshotDraft,
@@ -326,4 +327,5 @@ pub struct AdminControlPlane {
     secret_manager: Arc<SecretManager<MountedFileSecretResolver>>,
     audit: FileAuditLog,
     operations: Arc<dyn AdminOperations>,
+    local_provider_network_policy: LocalProviderNetworkPolicy,
 }

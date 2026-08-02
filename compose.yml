@@ -348,6 +348,7 @@ services:
       TRPG_MODEL_ID: ${TRPG_MODEL_ID:?set model id}
       TRPG_MODEL_ARTIFACT_SHA256: ${TRPG_MODEL_ARTIFACT_SHA256:?set model artifact sha256}
       TRPG_MODEL_PROVIDER_BASE_URL: ${TRPG_MODEL_PROVIDER_BASE_URL:?set model provider base url}
+      TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST: ${TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST:-loopback}
       TRPG_MODEL_PROVIDER_CREDENTIAL_SECRET_ID: provider_credential
       TRPG_MODEL_PROVIDER_CREDENTIAL_SECRET_VERSION: "1"
       TRPG_MODEL_PROVIDER_CA_CERT_PATH: /run/secrets/provider_ca_certificate
@@ -476,6 +477,7 @@ services:
       TRPG_ADMIN_CURL_PATH: /usr/bin/curl
       TRPG_ADMIN_PSQL_PATH: /usr/local/libexec/trpg/psql
       TRPG_ADMIN_PROVIDER_CA_PATH: /run/secrets/provider_ca_certificate
+      TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST: ${TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST:-loopback}
       TRPG_ADMIN_OPENFGA_ADDRESS: 127.0.0.1:8085
       TRPG_ADMIN_OPENFGA_STORE_ID_FILE: /run/trpg-policy/openfga_store_id
       TRPG_ADMIN_OPENFGA_MODEL_ID_FILE: /run/trpg-policy/openfga_model_id

@@ -164,3 +164,66 @@ fn provider_secret_is_reference_only_and_probe_is_idempotent() {
     let persisted = read_tree_text(&fixture.root);
     assert!(!persisted.contains(PROVIDER_CANARY));
 }
+
+#[test]
+fn local_provider_configuration_and_probe_share_the_same_network_attestation() {
+    let mut fixture = TestControl::new();
+    fixture.control.local_provider_network_policy =
+        LocalProviderNetworkPolicy::parse("dns:ollama-proxy").unwrap();
+    let owner_token = fixture.bootstrap();
+
+    let rejected = fixture
+        .control
+        .handle(request(
+            "PUT",
+            "/admin/v1/providers/configuration",
+            &owner_token,
+            Some(1),
+            json!({
+                "provider_type": "ollama",
+                "base_url": "https://other-proxy:9443",
+                "model_id": "model-1",
+                "model_artifact_sha256": format!("sha256:{}", "a".repeat(64)),
+                "credential_secret_id": "provider_credential",
+                "credential_secret_version": 1
+            }),
+        ))
+        .expect("rejected response");
+    assert_eq!(rejected.status, 400);
+    assert_eq!(rejected.body["error"], "ADMIN_PROVIDER_BOUNDARY_INVALID");
+
+    let configured = fixture
+        .control
+        .handle(request_with_key(
+            "PUT",
+            "/admin/v1/providers/configuration",
+            &owner_token,
+            Some(1),
+            "local-provider-configure",
+            json!({
+                "provider_type": "ollama",
+                "base_url": "https://ollama-proxy:9443",
+                "model_id": "model-1",
+                "model_artifact_sha256": format!("sha256:{}", "a".repeat(64)),
+                "credential_secret_id": "provider_credential",
+                "credential_secret_version": 1
+            }),
+        ))
+        .expect("configure response");
+    assert_eq!(configured.status, 200);
+
+    fixture.control.local_provider_network_policy =
+        LocalProviderNetworkPolicy::parse("dns:llama-proxy").unwrap();
+    let drifted_probe = fixture
+        .control
+        .handle(request(
+            "POST",
+            "/admin/v1/providers/probe",
+            &owner_token,
+            Some(2),
+            Value::Null,
+        ))
+        .expect("probe response");
+    assert_eq!(drifted_probe.status, 503);
+    assert_eq!(drifted_probe.body["error"], "ADMIN_OPERATION_UNAVAILABLE");
+}
