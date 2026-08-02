@@ -114,7 +114,7 @@ bootstrap=(
   --extra-compose-file "$provider/compose.yml"
 )
 
-TRPG_BOOTSTRAP_TEST_STOP_AFTER_STEP=model_certification_request \
+TRPG_BOOTSTRAP_TEST_STOP_AFTER_STEP=provider_probe \
   "${bootstrap[@]}" >>"$log" 2>&1 &
 bootstrap_pid="$!"
 deadline=$((SECONDS + 1800))
@@ -122,7 +122,7 @@ while kill -0 "$bootstrap_pid" 2>/dev/null; do
   process_state="$(ps -o stat= -p "$bootstrap_pid" 2>/dev/null || true)"
   [[ "$process_state" == *T* ]] && break
   ((SECONDS < deadline)) || {
-    printf 'timed out waiting for certification request checkpoint\n' >&2
+    printf 'timed out waiting for pre-certification checkpoint\n' >&2
     kill -KILL "$bootstrap_pid" 2>/dev/null || true
     exit 1
   }
@@ -130,14 +130,29 @@ while kill -0 "$bootstrap_pid" 2>/dev/null; do
 done
 [[ "$(ps -o stat= -p "$bootstrap_pid" 2>/dev/null || true)" == *T* ]] || {
   tail -n 160 "$log" >&2
-  printf 'bootstrap did not stop after certification request\n' >&2
+  printf 'bootstrap did not stop before certification\n' >&2
   exit 1
 }
 kill -KILL "$bootstrap_pid"
 wait "$bootstrap_pid" 2>/dev/null || true
-awk -F $'\t' '$2 == "model_certification_request" && $3 == "OK" {found=1} END {exit !found}' \
+awk -F $'\t' '$2 == "provider_probe" && $3 == "OK" {found=1} END {exit !found}' \
   "$state/state.tsv"
 printf 'RF02 checkpoint captured project=%s\n' "$project"
+
+compose=(docker compose --project-name "$project" -f "$root/compose.yml" \
+  -f "$provider/compose.yml" -f "$state/runtime/compose.bootstrap.yml" \
+  --profile staged-worker --profile local-model-certifier)
+"${compose[@]}" up --detach --no-build --wait --wait-timeout 60 agent-worker
+"${compose[@]}" logs --no-color agent-worker >"$test_root/worker-before-certification.log"
+grep -F 'service=agent-worker mode=certification-service state=waiting' \
+  "$test_root/worker-before-certification.log" >/dev/null
+if grep -E 'agent_job_id=|agent[-_ ]job.*claim' \
+  "$test_root/worker-before-certification.log" >/dev/null; then
+  printf 'uncertified worker attempted to claim an agent job\n' >&2
+  exit 1
+fi
+"${compose[@]}" stop agent-worker >/dev/null
+printf 'RF02 uncertified worker remained in certification service mode project=%s\n' "$project"
 
 set +e
 "${bootstrap[@]}" >>"$log" 2>&1
@@ -152,9 +167,6 @@ grep -F 'bootstrap error=MODEL_CERTIFICATION_TERMINAL_FAILURE' "$log" >/dev/null
 grep -E '^POST /v1/(chat/completions|embeddings)$' "$provider/requests.log" >/dev/null
 printf 'RF02 terminal failure observed project=%s\n' "$project"
 
-compose=(docker compose --project-name "$project" -f "$root/compose.yml" \
-  -f "$provider/compose.yml" -f "$state/runtime/compose.bootstrap.yml" \
-  --profile staged-worker --profile local-model-certifier)
 "${compose[@]}" ps --status running --services | grep -Fx local-model-certifier >/dev/null
 if "${compose[@]}" ps --status running --services | grep -Fx agent-worker >/dev/null; then
   printf 'uncertified agent worker started after failed certification\n' >&2
@@ -165,6 +177,17 @@ result_path="/var/lib/trpg/local-model-certification/$request_id.result.json"
 status_path="/var/lib/trpg/model-certification-status/$request_id.status.json"
 "${compose[@]}" exec -T local-model-certifier /bin/cat "$result_path" >"$test_root/result-before.json"
 "${compose[@]}" exec -T local-model-certifier /bin/cat "$status_path" >"$test_root/status-before.json"
+evidence_path="$(python3 - "$test_root/result-before.json" <<'PY'
+import json, re, sys
+result = json.load(open(sys.argv[1], encoding="utf-8"))
+path = result.get("evidence_path")
+assert isinstance(path, str)
+assert re.fullmatch(r"/var/lib/trpg/local-model-certification/[0-9a-f]{64}\.evidence\.json", path)
+print(path)
+PY
+)"
+"${compose[@]}" exec -T local-model-certifier /bin/cat "$evidence_path" \
+  >"$test_root/evidence-before.json"
 "${compose[@]}" exec -T local-model-certifier /bin/sh -ec \
   'test ! -e /var/lib/trpg/local-model-certification/certificate.json; if test -e /var/lib/trpg/local-model-certification/registry.jsonl; then cat /var/lib/trpg/local-model-certification/registry.jsonl; fi' \
   >"$test_root/registry-before.jsonl"
@@ -176,6 +199,7 @@ status = json.load(open(sys.argv[2], encoding="utf-8"))
 request_id, result_path = sys.argv[3:]
 assert result["request_id"] == request_id and result["state"] == "failed"
 assert result["attempt"] == 1 and result["certificate_path"] is None
+assert result["evidence_sha256"].startswith("sha256:")
 assert status == {
     "schema_version": 1,
     "request_id": request_id,
@@ -185,6 +209,8 @@ assert status == {
     "error_code": result["error_code"],
 }
 PY
+[[ "sha256:$(sha256sum "$test_root/evidence-before.json" | awk '{print $1}')" == \
+  "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["evidence_sha256"])' "$test_root/result-before.json")" ]]
 
 set +e
 "${bootstrap[@]}" >>"$log" 2>&1
@@ -193,11 +219,14 @@ set -e
 [[ "$rerun_status" -eq 6 ]]
 "${compose[@]}" exec -T local-model-certifier /bin/cat "$result_path" >"$test_root/result-after.json"
 "${compose[@]}" exec -T local-model-certifier /bin/cat "$status_path" >"$test_root/status-after.json"
+"${compose[@]}" exec -T local-model-certifier /bin/cat "$evidence_path" \
+  >"$test_root/evidence-after.json"
 "${compose[@]}" exec -T local-model-certifier /bin/sh -ec \
   'test ! -e /var/lib/trpg/local-model-certification/certificate.json; if test -e /var/lib/trpg/local-model-certification/registry.jsonl; then cat /var/lib/trpg/local-model-certification/registry.jsonl; fi' \
   >"$test_root/registry-after.jsonl"
 cmp -s "$test_root/result-before.json" "$test_root/result-after.json"
 cmp -s "$test_root/status-before.json" "$test_root/status-after.json"
+cmp -s "$test_root/evidence-before.json" "$test_root/evidence-after.json"
 cmp -s "$test_root/registry-before.jsonl" "$test_root/registry-after.jsonl"
 if awk -F $'\t' '$2 == "model_certification" || $2 == "agent_worker_ready" {found=1} END {exit !found}' \
   "$state/state.tsv"; then

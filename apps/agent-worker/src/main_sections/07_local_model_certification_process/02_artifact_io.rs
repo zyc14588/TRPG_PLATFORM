@@ -445,6 +445,10 @@ mod local_model_certification_process_tests {
     fn startup_mode_is_fail_closed() {
         assert_eq!(
             AgentWorkerStartupMode::parse(None).unwrap(),
+            AgentWorkerStartupMode::CertificationService
+        );
+        assert_eq!(
+            AgentWorkerStartupMode::parse(Some("ready")).unwrap(),
             AgentWorkerStartupMode::Ready
         );
         assert_eq!(

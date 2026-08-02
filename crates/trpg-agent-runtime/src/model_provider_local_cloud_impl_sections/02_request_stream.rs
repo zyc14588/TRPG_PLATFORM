@@ -60,6 +60,17 @@ impl<R: SecretResolver + 'static> HttpModelProvider<R> {
         if !tools.is_empty() {
             payload.insert("tools".to_owned(), Value::Array(tools));
         }
+        if self.runtime.provider.provider_type == ProviderType::Ollama
+            && request
+                .messages
+                .last()
+                .is_some_and(|message| message.content.starts_with("/no_think\n"))
+        {
+            // Ollama exposes thinking as an explicit request option. Models such
+            // as Qwen do not reliably interpret the textual directive alone,
+            // so preserve the caller's explicit no-think contract natively.
+            payload.insert("think".to_owned(), Value::Bool(false));
+        }
         if let Some(structured) = &request.structured_output {
             if self.runtime.provider.provider_type == ProviderType::Ollama {
                 payload.insert("format".to_owned(), structured.schema.clone());

@@ -24,9 +24,9 @@ impl AgentWorkerStartupMode {
 
     fn parse(value: Option<&str>) -> Result<Self, String> {
         match value {
-            None | Some("ready") => Ok(Self::Ready),
+            None | Some("certification-service") => Ok(Self::CertificationService),
+            Some("ready") => Ok(Self::Ready),
             Some("certification-only") => Ok(Self::CertificationOnly),
-            Some("certification-service") => Ok(Self::CertificationService),
             Some(_) => Err("TRPG_AGENT_WORKER_MODE_INVALID".to_owned()),
         }
     }
@@ -75,6 +75,23 @@ struct CertificationLifecycleStatus<'a> {
     result_reference: String,
     certificate_reference: Option<&'a str>,
     error_code: Option<&'a str>,
+}
+
+#[derive(Debug)]
+struct CertificationExecutionFailure {
+    code: String,
+    evidence_path: Option<PathBuf>,
+    evidence_sha256: Option<String>,
+}
+
+impl From<String> for CertificationExecutionFailure {
+    fn from(code: String) -> Self {
+        Self {
+            code,
+            evidence_path: None,
+            evidence_sha256: None,
+        }
+    }
 }
 
 impl CertificationProcessRecord {
@@ -128,6 +145,7 @@ fn run_local_model_certification_service_from_environment() -> Result<(), String
         "TRPG_LOCAL_MODEL_CERTIFICATION_REQUEST_DIRECTORY",
     )?);
     validate_absolute_directory(&request_directory)?;
+    println!("service=agent-worker mode=certification-service state=waiting");
     let mut terminal_requests = BTreeSet::new();
     loop {
         for request_id in certification_request_ids(&request_directory)? {
@@ -305,10 +323,15 @@ fn run_local_model_certification_inner(request_id: &str) -> Result<(), String> {
                 CertificationProcessState::Failed,
                 attempt,
             );
-            failed.error_code = Some(error.clone());
+            failed.evidence_path = error
+                .evidence_path
+                .as_ref()
+                .map(|path| path.display().to_string());
+            failed.evidence_sha256 = error.evidence_sha256;
+            failed.error_code = Some(error.code.clone());
             write_process_record(&result_path, &failed)?;
             persist_certification_lifecycle_status(&result_path, &failed)?;
-            Err(error)
+            Err(error.code)
         }
     }
 }
@@ -319,7 +342,7 @@ fn execute_certification(
     authority: &LocalModelCertificationAuthority,
     certificate_path: &Path,
     state_directory: &Path,
-) -> Result<(LocalModelCertificate, PathBuf), String> {
+) -> Result<(LocalModelCertificate, PathBuf), CertificationExecutionFailure> {
     let suite = LocalModelCertificationSuite::keeper_v1();
     let provider_runtime_sha256 = provider.provider_runtime_sha256();
     let certification_request = CertificationRequest::new(
@@ -353,7 +376,11 @@ fn execute_certification(
     let run_evidence_path = evidence_path(state_directory, run.evidence_sha256())?;
     write_private_once(&run_evidence_path, run.canonical_manifest())?;
     if run.manifest().status() != CertificationRunStatus::Passed {
-        return Err("LOCAL_MODEL_CERTIFICATION_SUITE_FAILED".to_owned());
+        return Err(CertificationExecutionFailure {
+            code: "LOCAL_MODEL_CERTIFICATION_SUITE_FAILED".to_owned(),
+            evidence_path: Some(run_evidence_path),
+            evidence_sha256: Some(run.evidence_sha256().to_owned()),
+        });
     }
 
     let certificate = authority

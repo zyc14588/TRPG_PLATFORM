@@ -90,6 +90,34 @@ async fn ollama_provider_satisfies_the_common_contract() {
 }
 
 #[tokio::test]
+async fn ollama_maps_only_an_explicit_no_think_directive_to_the_native_option() {
+    let server = MockModelServer::spawn(ProviderType::Ollama, "ollama-model").await;
+    let provider = make_provider(
+        ProviderType::Ollama,
+        &server,
+        ProviderCapabilities::v1_complete(),
+        Duration::from_secs(1),
+    );
+
+    provider
+        .chat(&full_chat_request(), &ProviderCancellation::default())
+        .await
+        .unwrap();
+    let mut certification_request = full_chat_request();
+    certification_request.messages[0].content =
+        "/no_think\ncertification_case:latency".to_owned();
+    provider
+        .chat(
+            &certification_request,
+            &ProviderCancellation::default(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(server.chat_thinking_modes(), vec![None, Some(false)]);
+}
+
+#[tokio::test]
 async fn llama_cpp_provider_satisfies_the_common_contract() {
     assert_common_provider_contract(ProviderType::LlamaCpp).await;
 }

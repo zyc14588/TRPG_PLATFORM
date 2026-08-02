@@ -310,6 +310,7 @@ services:
     command: ["agent-worker"]
     network_mode: "service:openfga"
     environment:
+      TRPG_AGENT_WORKER_MODE: ${TRPG_AGENT_WORKER_MODE:-certification-service}
       TRPG_AGENT_WORKER_BIND: 0.0.0.0:8082
       TRPG_AGENT_WORKER_ID: agent-worker-primary
       TRPG_SECRET_MOUNT: /run/secrets
@@ -428,7 +429,7 @@ services:
         condition: service_completed_successfully
     healthcheck:
       <<: *rust-healthcheck
-      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8082/health/ready"]
+      test: ["CMD-SHELL", "if [ \"$$TRPG_AGENT_WORKER_MODE\" = certification-service ]; then exit 0; fi; exec curl --fail --silent http://127.0.0.1:8082/health/ready"]
 
   local-model-certifier:
     extends:

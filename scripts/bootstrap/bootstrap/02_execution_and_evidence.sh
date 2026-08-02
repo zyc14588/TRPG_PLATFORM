@@ -75,6 +75,11 @@ export TRPG_MODEL_ID="$provider_model"
 export TRPG_MODEL_ARTIFACT_SHA256="${provider_sha256,,}"
 export TRPG_MODEL_PROVIDER_BASE_URL="$provider_url"
 export TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID="$project-provider-route-v1"
+if step_done model_certification; then
+  export TRPG_AGENT_WORKER_MODE=ready
+else
+  export TRPG_AGENT_WORKER_MODE=certification-service
+fi
 compose=(docker compose --project-name "$project" -f "$root/compose.yml")
 [[ -z "$extra_compose_file" ]] || compose+=(-f "$extra_compose_file")
 compose+=(-f "$overlay")
@@ -308,6 +313,7 @@ if binding.get("evidence_sha256") != result.get("evidence_sha256"):
 PY
   fi
   commit_step model_certification
+  export TRPG_AGENT_WORKER_MODE=ready
 fi
 if ! step_done agent_worker_ready; then
   "${worker_compose[@]}" up --detach --wait --wait-timeout 300 agent-worker

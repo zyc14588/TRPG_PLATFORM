@@ -36,6 +36,7 @@ struct RequestMetadata {
     path: String,
     streaming: bool,
     authorization_present: bool,
+    thinking_disabled: Option<bool>,
 }
 
 struct MockModelServer {
@@ -101,6 +102,18 @@ impl MockModelServer {
     fn total_requests(&self) -> usize {
         self.requests.lock().unwrap().len()
     }
+
+    fn chat_thinking_modes(&self) -> Vec<Option<bool>> {
+        self.requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|request| {
+                request.path.ends_with("/chat/completions") || request.path == "/api/chat"
+            })
+            .map(|request| request.thinking_disabled)
+            .collect()
+    }
 }
 
 impl Drop for MockModelServer {
@@ -134,10 +147,14 @@ async fn handle_connection(
     let streaming = body
         .windows(br#""stream":true"#.len())
         .any(|window| window == br#""stream":true"#);
+    let thinking_disabled = serde_json::from_slice::<serde_json::Value>(&body)
+        .ok()
+        .and_then(|value| value.get("think").and_then(serde_json::Value::as_bool));
     requests.lock().unwrap().push(RequestMetadata {
         path: path.clone(),
         streaming,
         authorization_present,
+        thinking_disabled,
     });
 
     let behavior = *behavior.lock().unwrap();
