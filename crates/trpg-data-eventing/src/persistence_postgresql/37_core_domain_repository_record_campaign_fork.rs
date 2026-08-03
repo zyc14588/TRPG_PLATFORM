@@ -1,11 +1,24 @@
 
 impl CoreDomainRepository {
-
     pub async fn record_campaign_fork(
         &self,
         metadata: &CoreCommandMetadata,
         request: &RecordCampaignForkRequest,
     ) -> Result<PersistedCommit, CoreDomainRepositoryError> {
+        let (persisted, replay_events) = self
+            .commit_campaign_fork_events(metadata, request, None)
+            .await?;
+        self.project_campaign_fork_replay(metadata, request, &replay_events)
+            .await?;
+        Ok(persisted)
+    }
+
+    async fn commit_campaign_fork_events(
+        &self,
+        metadata: &CoreCommandMetadata,
+        request: &RecordCampaignForkRequest,
+        pending_child_room_id: Option<&str>,
+    ) -> Result<(PersistedCommit, Vec<CanonicalReplayEvent>), CoreDomainRepositoryError> {
         if metadata.expected_version != 0
             || request.parent_campaign_id == request.child_campaign_id
             || request.reason.trim().is_empty()
@@ -19,9 +32,11 @@ impl CoreDomainRepository {
         }
         self.ensure_campaign_admin(&request.parent_campaign_id, &metadata.requesting_actor_id)
             .await?;
-        self.ensure_campaign_admin(&request.child_campaign_id, &metadata.requesting_actor_id)
-            .await?;
-        self.validate_campaign_fork_authority(request).await?;
+        if pending_child_room_id.is_none() {
+            self.ensure_campaign_admin(&request.child_campaign_id, &metadata.requesting_actor_id)
+                .await?;
+            self.validate_campaign_fork_authority(request).await?;
+        }
 
         let child_campaign_events = self
             .load_campaign_events(&request.child_campaign_id)
@@ -153,30 +168,47 @@ impl CoreDomainRepository {
         let materialization = if retrying_canonical {
             campaign_fork_materialization_from_replay(&child_campaign_events, request)?
         } else {
-            let references_exist: bool = sqlx::query_scalar(
-                r#"
-                SELECT EXISTS(
-                    SELECT 1
-                      FROM core_domain.sessions AS source_session
-                      JOIN public.campaigns AS child
-                        ON child.campaign_id = $1
-                     WHERE source_session.session_id = $2
-                       AND source_session.campaign_id = $3
+            let references_exist: bool = if pending_child_room_id.is_some() {
+                sqlx::query_scalar(
+                    r#"
+                    SELECT EXISTS(
+                        SELECT 1
+                          FROM core_domain.sessions AS source_session
+                         WHERE source_session.session_id = $1
+                           AND source_session.campaign_id = $2
+                    )
+                    "#,
                 )
-                "#,
-            )
-            .bind(&request.child_campaign_id)
-            .bind(&request.source_session_id)
-            .bind(&request.parent_campaign_id)
-            .fetch_one(&self.primary)
-            .await
+                .bind(&request.source_session_id)
+                .bind(&request.parent_campaign_id)
+                .fetch_one(&self.primary)
+                .await
+            } else {
+                sqlx::query_scalar(
+                    r#"
+                    SELECT EXISTS(
+                        SELECT 1
+                          FROM core_domain.sessions AS source_session
+                          JOIN public.campaigns AS child
+                            ON child.campaign_id = $1
+                         WHERE source_session.session_id = $2
+                           AND source_session.campaign_id = $3
+                    )
+                    "#,
+                )
+                .bind(&request.child_campaign_id)
+                .bind(&request.source_session_id)
+                .bind(&request.parent_campaign_id)
+                .fetch_one(&self.primary)
+                .await
+            }
             .map_err(database_error("load_campaign_fork_references"))?;
             if !references_exist {
                 return Err(CoreDomainRepositoryError::NotFound(
                     "fork_campaign_or_session",
                 ));
             }
-            if !retrying_projection {
+            if pending_child_room_id.is_none() && !retrying_projection {
                 let child_has_gameplay_state: bool = sqlx::query_scalar(
                     r#"
                     SELECT EXISTS(
@@ -221,8 +253,12 @@ impl CoreDomainRepository {
                     "campaign_fork_snapshot_hash_mismatch",
                 ));
             }
-            self.build_campaign_fork_materialization(request, &snapshot)
-                .await?
+            self.build_campaign_fork_materialization(
+                request,
+                &snapshot,
+                pending_child_room_id,
+            )
+            .await?
         };
         let batch_count = u64::try_from(materialization.batches.len())
             .map_err(|_| CoreDomainRepositoryError::Integrity("fork_batch_count"))?;
@@ -351,8 +387,6 @@ impl CoreDomainRepository {
                 "campaign_fork_event_batch_mismatch",
             ));
         }
-        self.project_campaign_fork_replay(metadata, request, &replay_events)
-            .await?;
-        Ok(persisted)
+        Ok((persisted, replay_events))
     }
 }

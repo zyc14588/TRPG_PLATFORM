@@ -21,6 +21,17 @@ where
             .await
     }
 
+    pub async fn create_forked_campaign(
+        &self,
+        create_context: &AuthorizedCoreApiContext,
+        fork_context: &AuthorizedCoreApiContext,
+        request: &CreateForkedCampaignApiRequest,
+    ) -> Result<CoreApiCommitReceipt, CoreApiError> {
+        CampaignCharacterApi::new(Arc::clone(&self.port))
+            .create_forked_campaign(create_context, fork_context, request)
+            .await
+    }
+
     pub async fn issue_invite(
         &self,
         context: &AuthorizedCoreApiContext,

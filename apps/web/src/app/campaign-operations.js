@@ -57,7 +57,7 @@ export async function createCampaign(data) {
   }
   const authority = await api.getAuthority(data.campaignId);
   const snapshot = authority.snapshot || {};
-  await api.createCampaign({
+  const create = {
     command: createCommand("campaign_create", 0),
     campaign_id: data.campaignId,
     owner_user_id: state.session.userId,
@@ -71,16 +71,21 @@ export async function createCampaign(data) {
       authority_owner: authority.authority_owner,
       ...snapshot,
     },
-  });
+  };
   if (data.parentCampaignId) {
-    await api.forkCampaign(data.parentCampaignId, {
-      command: createCommand("campaign_fork", 0),
-      fork_id: `fork_${data.campaignId}`,
-      parent_campaign_id: data.parentCampaignId,
-      child_campaign_id: data.campaignId,
-      source_session_id: data.sourceSessionId,
-      reason: data.forkReason,
+    await api.createForkedCampaign(data.parentCampaignId, {
+      create,
+      fork: {
+        command: createCommand("campaign_fork", 0),
+        fork_id: `fork_${data.campaignId}`,
+        parent_campaign_id: data.parentCampaignId,
+        child_campaign_id: data.campaignId,
+        source_session_id: data.sourceSessionId,
+        reason: data.forkReason,
+      },
     });
+  } else {
+    await api.createCampaign(create);
   }
   await loadCampaigns();
 }

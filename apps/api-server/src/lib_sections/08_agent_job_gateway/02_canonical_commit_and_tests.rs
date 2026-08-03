@@ -68,14 +68,23 @@ fn commit_agent_gateway_event(
         }],
         audit: context.policy_audit().clone(),
     };
-    let receipt = custody
-        .canonical
-        .commit(&commit)
-        .and_then(|receipt| {
-            custody.canonical.verify_receipt(&commit, &receipt)?;
-            Ok(receipt)
-        })
-        .map_err(|_| agent_job_error(409, "AGENT_JOB_CANONICAL_COMMIT_FAILED"))?;
+    let receipt = if event_type == "AgentJobRequested" {
+        custody
+            .runtime
+            .lock()
+            .map_err(|_| internal_error())?
+            .block_on(custody.store.commit_agent_job_request(&commit, payload))
+            .map_err(|_| agent_job_error(409, "AGENT_JOB_CANONICAL_COMMIT_FAILED"))?
+    } else {
+        custody
+            .canonical
+            .commit(&commit)
+            .and_then(|receipt| {
+                custody.canonical.verify_receipt(&commit, &receipt)?;
+                Ok(receipt)
+            })
+            .map_err(|_| agent_job_error(409, "AGENT_JOB_CANONICAL_COMMIT_FAILED"))?
+    };
     let expected_stream_version = expected_version
         .checked_add(1)
         .ok_or_else(|| agent_job_error(409, "AGENT_JOB_EXPECTED_VERSION_INVALID"))?;

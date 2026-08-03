@@ -163,38 +163,78 @@
     );
     expect_status(&ended, 200, "Session end");
 
-    let child_campaign = call(
+    let invalid_fork = call(
         &application,
         "POST",
-        "/api/v1/campaigns",
+        &format!("/api/v1/campaigns/{CAMPAIGN_ID}/forked-campaigns"),
         Some(&keeper_token),
         Some(json!({
-            "command": command("child_campaign_create", 0),
-            "campaign_id": CHILD_CAMPAIGN_ID,
-            "owner_user_id": KEEPER_ID,
-            "title": "AR06 fork child",
-            "room_id": "room_ar06_http_fork",
-            "room_name": "AR06 fork table",
-            "created_at_unix_ms": 2,
-            "authority": authority_body(CHILD_CAMPAIGN_ID)
+            "create": {
+                "command": command("invalid_child_campaign_create", 0),
+                "campaign_id": CHILD_CAMPAIGN_ID,
+                "owner_user_id": KEEPER_ID,
+                "title": "AR06 fork child",
+                "room_id": "room_ar06_http_fork",
+                "room_name": "AR06 fork table",
+                "created_at_unix_ms": 2,
+                "authority": authority_body(CHILD_CAMPAIGN_ID)
+            },
+            "fork": {
+                "command": command("invalid_campaign_fork", 0),
+                "fork_id": "fork_ar06_http_invalid",
+                "parent_campaign_id": CAMPAIGN_ID,
+                "child_campaign_id": CHILD_CAMPAIGN_ID,
+                "source_session_id": "session_ar06_missing",
+                "reason": "Invalid source must not leave a child"
+            }
         })),
     );
-    expect_status(&child_campaign, 201, "Fork child Campaign create");
+    expect_status(&invalid_fork, 404, "invalid fork preflight");
+    let residue_after_invalid: (i64, i64) = setup_runtime
+        .block_on(
+            sqlx::query_as(
+                r#"
+                SELECT
+                    (SELECT count(*) FROM public.campaigns
+                      WHERE campaign_id = $1),
+                    (SELECT count(*) FROM public.event_store
+                      WHERE campaign_id = $1
+                        AND event_type = 'CampaignCreated')
+                "#,
+            )
+            .bind(CHILD_CAMPAIGN_ID)
+            .fetch_one(&api_pool),
+        )
+        .expect("verify invalid fork leaves no child");
+    assert_eq!(residue_after_invalid, (0, 0));
+
     let forked = call(
         &application,
         "POST",
-        &format!("/api/v1/campaigns/{CAMPAIGN_ID}/forks"),
+        &format!("/api/v1/campaigns/{CAMPAIGN_ID}/forked-campaigns"),
         Some(&keeper_token),
         Some(json!({
-            "command": command("campaign_fork", 0),
-            "fork_id": "fork_ar06_http",
-            "parent_campaign_id": CAMPAIGN_ID,
-            "child_campaign_id": CHILD_CAMPAIGN_ID,
-            "source_session_id": SESSION_ID,
-            "reason": "Preserve a canonical branch"
+            "create": {
+                "command": command("child_campaign_create", 0),
+                "campaign_id": CHILD_CAMPAIGN_ID,
+                "owner_user_id": KEEPER_ID,
+                "title": "AR06 fork child",
+                "room_id": "room_ar06_http_fork",
+                "room_name": "AR06 fork table",
+                "created_at_unix_ms": 2,
+                "authority": authority_body(CHILD_CAMPAIGN_ID)
+            },
+            "fork": {
+                "command": command("campaign_fork", 0),
+                "fork_id": "fork_ar06_http",
+                "parent_campaign_id": CAMPAIGN_ID,
+                "child_campaign_id": CHILD_CAMPAIGN_ID,
+                "source_session_id": SESSION_ID,
+                "reason": "Preserve a canonical branch"
+            }
         })),
     );
-    expect_status(&forked, 201, "Campaign fork");
+    expect_status(&forked, 201, "atomic Campaign fork creation");
 
     let parent_for_player = call(
         &application,

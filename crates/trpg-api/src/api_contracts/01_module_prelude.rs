@@ -255,6 +255,13 @@ pub struct CreateCampaignApiRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct CreateForkedCampaignApiRequest {
+    pub create: CreateCampaignApiRequest,
+    pub fork: ForkCampaignApiRequest,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct IssueInviteApiRequest {
     pub command: ApiCommandFields,
     pub campaign_id: String,

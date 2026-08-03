@@ -6,6 +6,13 @@ pub trait CampaignCharacterCommandPort: Send + Sync {
         request: &'a CreateCampaignApiRequest,
     ) -> CoreApiFuture<'a, CoreApiCommitReceipt>;
 
+    fn create_forked_campaign<'a>(
+        &'a self,
+        create_context: &'a AuthorizedCoreApiContext,
+        fork_context: &'a AuthorizedCoreApiContext,
+        request: &'a CreateForkedCampaignApiRequest,
+    ) -> CoreApiFuture<'a, CoreApiCommitReceipt>;
+
     fn issue_invite<'a>(
         &'a self,
         context: &'a AuthorizedCoreApiContext,
@@ -78,6 +85,62 @@ where
             EntityId::new(value).map_err(|_| CoreApiError::InvalidInput("campaign_id"))?;
         }
         self.port.create_campaign(context, request).await
+    }
+
+    pub async fn create_forked_campaign(
+        &self,
+        create_context: &AuthorizedCoreApiContext,
+        fork_context: &AuthorizedCoreApiContext,
+        request: &CreateForkedCampaignApiRequest,
+    ) -> Result<CoreApiCommitReceipt, CoreApiError> {
+        request.create.command.validate()?;
+        request.fork.command.validate()?;
+        create_context.validate(
+            &request.create.campaign_id,
+            "campaign",
+            &request.create.campaign_id,
+        )?;
+        fork_context.validate(
+            &request.create.campaign_id,
+            "campaign_fork",
+            &request.fork.fork_id,
+        )?;
+        create_context.require_keeper()?;
+        fork_context.require_keeper()?;
+        if request.create.command.expected_version != 0
+            || request.fork.command.expected_version != 0
+            || request.create.campaign_id != request.fork.child_campaign_id
+            || request.create.campaign_id == request.fork.parent_campaign_id
+            || request.create.owner_user_id != create_context.actor_id()
+            || create_context.actor_id() != fork_context.actor_id()
+            || create_context.authority_contract_id() != fork_context.authority_contract_id()
+            || request.create.authority.contract_id != create_context.authority_contract_id()
+            || request.create.authority.authority_owner != create_context.authority_owner()
+            || request.create.authority.authority_mode.to_ascii_lowercase()
+                != create_context.authority_mode()
+            || request.create.title.trim().is_empty()
+            || request.create.room_name.trim().is_empty()
+            || request.create.created_at_unix_ms == 0
+            || request.fork.reason.trim().is_empty()
+            || request.fork.reason.len() > 512
+        {
+            return Err(CoreApiError::InvalidInput("forked_campaign"));
+        }
+        for value in [
+            request.create.campaign_id.as_str(),
+            request.create.owner_user_id.as_str(),
+            request.create.room_id.as_str(),
+            request.create.authority.contract_id.as_str(),
+            request.fork.fork_id.as_str(),
+            request.fork.parent_campaign_id.as_str(),
+            request.fork.source_session_id.as_str(),
+        ] {
+            EntityId::new(value)
+                .map_err(|_| CoreApiError::InvalidInput("forked_campaign_id"))?;
+        }
+        self.port
+            .create_forked_campaign(create_context, fork_context, request)
+            .await
     }
 
     pub async fn issue_invite(

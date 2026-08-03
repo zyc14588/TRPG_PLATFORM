@@ -9,15 +9,15 @@ use trpg_api::api_contracts::{
     AcceptInviteApiRequest, ApiCommandFields, AuthorizedCoreApiContext,
     CampaignCharacterCommandPort, CharacterTransitionApiRequest, CoreApiCommitReceipt,
     CoreApiError, CoreApiFuture, CreateCampaignApiRequest, CreateCharacterApiRequest,
-    IssueInviteApiRequest, IssuedInviteApiResponse,
+    CreateForkedCampaignApiRequest, IssueInviteApiRequest, IssuedInviteApiResponse,
 };
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     CanonicalStoreError, PersistedCommit, PolicyAuditDraft,
 };
 use trpg_data_eventing::persistence_postgresql::{
     AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainRepository,
-    CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest, IssueInviteRequest,
-    MembershipRole,
+    CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest,
+    CreateForkedCampaignRequest, IssueInviteRequest, MembershipRole,
 };
 use trpg_ruleset_coc7::character_combat_san_chase::Coc7CharacterSheet;
 use trpg_shared_kernel::EventActorOriginWire;
@@ -165,6 +165,69 @@ impl CampaignCharacterCommandPort for RepositoryCampaignCharacterPort {
                                 .character_sheet_template_version
                                 .clone(),
                         },
+                    },
+                )
+                .await
+                .map_err(Self::map_error)?;
+            Ok(Self::receipt(persisted))
+        })
+    }
+
+    fn create_forked_campaign<'a>(
+        &'a self,
+        create_context: &'a AuthorizedCoreApiContext,
+        fork_context: &'a AuthorizedCoreApiContext,
+        request: &'a CreateForkedCampaignApiRequest,
+    ) -> CoreApiFuture<'a, CoreApiCommitReceipt> {
+        Box::pin(async move {
+            let campaign = CreateCampaignRequest {
+                campaign_id: request.create.campaign_id.clone(),
+                owner_user_id: request.create.owner_user_id.clone(),
+                title: request.create.title.clone(),
+                room_id: request.create.room_id.clone(),
+                room_name: request.create.room_name.clone(),
+                created_at_unix_ms: request.create.created_at_unix_ms,
+                authority: AuthorityContractSnapshot {
+                    contract_id: request.create.authority.contract_id.clone(),
+                    authority_mode: request.create.authority.authority_mode.clone(),
+                    authority_owner: request.create.authority.authority_owner.clone(),
+                    ruleset_version: request.create.authority.ruleset_version.clone(),
+                    house_rules_version: request.create.authority.house_rules_version.clone(),
+                    scenario_version: request.create.authority.scenario_version.clone(),
+                    prompt_version: request.create.authority.prompt_version.clone(),
+                    agent_pack_version: request.create.authority.agent_pack_version.clone(),
+                    tool_schema_version: request.create.authority.tool_schema_version.clone(),
+                    safety_profile_version: request.create.authority.safety_profile_version.clone(),
+                    ai_provider_snapshot: request.create.authority.ai_provider_snapshot.clone(),
+                    model_route_snapshot: request.create.authority.model_route_snapshot.clone(),
+                    character_sheet_template_version: request
+                        .create
+                        .authority
+                        .character_sheet_template_version
+                        .clone(),
+                },
+            };
+            let persisted = self
+                .repository
+                .create_forked_campaign(
+                    &Self::metadata(
+                        create_context,
+                        &request.create.command,
+                        "party_visible",
+                        "not_applicable",
+                    ),
+                    &Self::metadata(
+                        fork_context,
+                        &request.fork.command,
+                        "keeper_only",
+                        "not_applicable",
+                    ),
+                    &CreateForkedCampaignRequest {
+                        campaign,
+                        fork_id: request.fork.fork_id.clone(),
+                        parent_campaign_id: request.fork.parent_campaign_id.clone(),
+                        source_session_id: request.fork.source_session_id.clone(),
+                        reason: request.fork.reason.clone(),
                     },
                 )
                 .await

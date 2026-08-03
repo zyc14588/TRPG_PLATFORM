@@ -87,6 +87,10 @@ export class ProductApi {
     return this.#v1("POST", `/campaigns/${id(parentCampaignId)}/forks`, body);
   }
 
+  createForkedCampaign(parentCampaignId, body) {
+    return this.#v1("POST", `/campaigns/${id(parentCampaignId)}/forked-campaigns`, body);
+  }
+
   getAuthority(campaignId) {
     return this.#product("GET", `/campaigns/${id(campaignId)}/authority`);
   }

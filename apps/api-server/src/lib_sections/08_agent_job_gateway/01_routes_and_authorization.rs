@@ -165,18 +165,27 @@ impl ApiApplication {
                 _ => return agent_job_error(403, "AGENT_JOB_AUTHORITY_FORBIDDEN"),
             };
         let event_payload = json!({
+            "kind": "AGENT_JOB_REQUEST",
             "agent_kind": agent_kind,
+            "actor_id": actor_id,
             "authority_contract_id": authority.contract_id,
             "authority_contract_version": authority.contract_version,
             "authority_mode": authority.authority_mode,
+            "campaign_id": campaign_id,
             "deadline_unix_ms": body.deadline_unix_ms,
             "input": body.input,
+            "idempotency_key": body.command.idempotency_key,
             "job_id": body.job_id,
+            "model_artifact_sha256": gateway.route.model_artifact_sha256,
             "model_id": gateway.route.model_id,
+            "prompt_template_id": "keeper_turn",
+            "prompt_template_version": authority.prompt_version,
             "provider_id": gateway.route.provider_id,
+            "provider_type": gateway.route.provider_type,
             "rag_snapshot_id": body.rag_snapshot_id,
             "requested_by": context.actor_id(),
             "route_authorization_event_id": gateway.route.route_authorization_event_id,
+            "tool_schema_version": authority.tool_schema_version,
             "visibility_scope": visibility_scope,
         });
         let source_event = match commit_agent_gateway_event(
@@ -191,41 +200,18 @@ impl ApiApplication {
             Ok(event) => event,
             Err(response) => return response,
         };
-        let draft = AgentJobEnqueueDraft {
-            job_id: body.job_id.clone(),
-            campaign_id: campaign_id.to_owned(),
-            actor_id,
-            agent_kind: agent_kind.to_owned(),
-            authority_contract_id: authority.contract_id,
-            authority_mode: authority.authority_mode,
-            authority_contract_version: authority.contract_version,
-            input_event_sequence: match i64::try_from(source_event.sequence) {
-                Ok(sequence) => sequence,
-                Err(_) => return internal_error(),
-            },
-            input_stream_version: match i64::try_from(source_event.stream_version) {
-                Ok(version) => version,
-                Err(_) => return internal_error(),
-            },
-            visibility_scope_json: visibility_scope.to_string(),
-            rag_snapshot_id: body.rag_snapshot_id,
-            provider_id: gateway.route.provider_id.clone(),
-            provider_type: gateway.route.provider_type.clone(),
-            model_id: gateway.route.model_id.clone(),
-            model_artifact_sha256: gateway.route.model_artifact_sha256.clone(),
-            route_authorization_event_id: gateway.route.route_authorization_event_id.clone(),
-            prompt_template_id: "keeper_turn".to_owned(),
-            prompt_template_version: authority.prompt_version,
-            tool_schema_version: authority.tool_schema_version,
-            idempotency_key: body.command.idempotency_key,
-            deadline_unix_ms: body.deadline_unix_ms,
-        };
         let enqueued = match custody.runtime.lock() {
-            Ok(runtime) => runtime.block_on(gateway.workflow.enqueue_agent_job(&draft)),
+            Ok(runtime) => runtime.block_on(gateway.workflow.load_agent_job(&body.job_id)),
             Err(_) => return internal_error(),
         };
         match enqueued {
-            Ok(job) if job.state == WorkflowState::Requested => HttpResponse::json(
+            Ok(Some(job))
+                if job.state == WorkflowState::Requested
+                    && job.input_event_sequence
+                        == match i64::try_from(source_event.sequence) {
+                            Ok(sequence) => sequence,
+                            Err(_) => return internal_error(),
+                        } => HttpResponse::json(
                 202,
                 json!({
                     "input_event_sequence": job.input_event_sequence,
@@ -233,7 +219,8 @@ impl ApiApplication {
                     "state": job.state.as_str(),
                 }),
             ),
-            Ok(_) => agent_job_error(409, "AGENT_JOB_STATE_CONFLICT"),
+            Ok(Some(_)) => agent_job_error(409, "AGENT_JOB_STATE_CONFLICT"),
+            Ok(None) => agent_job_error(503, "AGENT_JOB_DURABLE_PROJECTION_MISSING"),
             Err(error) => workflow_error(error),
         }
     }

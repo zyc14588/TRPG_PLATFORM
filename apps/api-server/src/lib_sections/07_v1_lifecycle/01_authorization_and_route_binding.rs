@@ -224,6 +224,9 @@ impl ApiApplication {
             ("POST", ["campaigns", campaign_id, "forks"]) => {
                 Some(self.v1_fork_campaign(request, campaign_id))
             }
+            ("POST", ["campaigns", campaign_id, "forked-campaigns"]) => {
+                Some(self.v1_create_forked_campaign(request, campaign_id))
+            }
             ("POST", ["campaigns", campaign_id, "exports"]) => {
                 Some(self.v1_request_export(request, campaign_id))
             }

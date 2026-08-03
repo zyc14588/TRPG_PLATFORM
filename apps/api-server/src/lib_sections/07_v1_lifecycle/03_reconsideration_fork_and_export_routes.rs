@@ -177,6 +177,81 @@ impl ApiApplication {
         )
     }
 
+    fn v1_create_forked_campaign(
+        &self,
+        request: &HttpRequest,
+        parent_campaign_id: &str,
+    ) -> HttpResponse {
+        if let Err(response) = bearer_token(request) {
+            return response;
+        }
+        let body: CreateForkedCampaignApiRequest = match parse_json(request) {
+            Ok(body) => body,
+            Err(response) => return response,
+        };
+        if body.fork.parent_campaign_id != parent_campaign_id
+            || body.fork.child_campaign_id != body.create.campaign_id
+        {
+            return v1_path_body_mismatch();
+        }
+        let now = match now_unix_ms() {
+            Ok(now) => now,
+            Err(response) => return response,
+        };
+        let create_context = match self.authorized_core_context(
+            request,
+            &body.create.campaign_id,
+            "campaign",
+            &body.create.campaign_id,
+            &body.create.command,
+            Visibility::new(VisibilityLabel::PartyVisible),
+            false,
+            "CORE_API",
+            "authorize_forked_campaign_create",
+            now,
+        ) {
+            Ok(context) => context,
+            Err(response) => return response,
+        };
+        let fork_context = match self.authorized_core_context(
+            request,
+            &body.create.campaign_id,
+            "campaign_fork",
+            &body.fork.fork_id,
+            &body.fork.command,
+            Visibility::new(VisibilityLabel::KeeperOnly),
+            false,
+            "CORE_API",
+            "authorize_forked_campaign_materialization",
+            now,
+        ) {
+            Ok(context) => context,
+            Err(response) => return response,
+        };
+        let (custody, api) = match self.v1_binding() {
+            Ok(binding) => binding,
+            Err(response) => return response,
+        };
+        let result = match custody.runtime.lock() {
+            Ok(runtime) => runtime.block_on(api.create_forked_campaign(
+                &create_context,
+                &fork_context,
+                &body,
+            )),
+            Err(_) => return internal_error(),
+        };
+        match result {
+            Ok(receipt) => HttpResponse::json(
+                201,
+                json!({
+                    "last_event_sequence": receipt.last_event_sequence,
+                    "aggregate_version": receipt.aggregate_version,
+                }),
+            ),
+            Err(error) => player_action_api_error(error),
+        }
+    }
+
     fn v1_request_export(&self, request: &HttpRequest, campaign_id: &str) -> HttpResponse {
         if let Err(response) = bearer_token(request) {
             return response;

@@ -68,6 +68,15 @@ pub struct CreateCampaignRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CreateForkedCampaignRequest {
+    pub campaign: CreateCampaignRequest,
+    pub fork_id: String,
+    pub parent_campaign_id: String,
+    pub source_session_id: String,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IssueInviteRequest {
     pub invite_id: String,
     pub campaign_id: String,
