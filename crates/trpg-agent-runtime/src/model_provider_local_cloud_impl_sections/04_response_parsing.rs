@@ -1,3 +1,5 @@
+include!("06_structured_output_validation.rs");
+
 fn parse_probe_response(
     provider_type: ProviderType,
     model_id: &str,
@@ -65,7 +67,7 @@ fn required_bool(object: &Map<String, Value>, key: &str) -> ModelProviderResult<
 
 fn parse_chat_response(
     provider_type: ProviderType,
-    structured_requested: bool,
+    structured_schema: Option<&Value>,
     body: &[u8],
 ) -> ModelProviderResult<ModelChatResponse> {
     let value: Value = serde_json::from_slice(body)
@@ -104,13 +106,18 @@ fn parse_chat_response(
             "MODEL_PROVIDER_RESPONSE_SCHEMA_INVALID",
         ));
     }
-    let structured_output = if structured_requested {
-        Some(
-            serde_json::from_str(&content)
-                .map_err(|_| invalid_schema_error("MODEL_PROVIDER_STRUCTURED_OUTPUT_INVALID"))?,
-        )
-    } else {
-        None
+    let structured_output = match structured_schema {
+        Some(schema) => {
+            let output = serde_json::from_str(&content)
+                .map_err(|_| invalid_schema_error("MODEL_PROVIDER_STRUCTURED_OUTPUT_INVALID"))?;
+            if !validate_structured_output(schema, &output) {
+                return Err(invalid_schema_error(
+                    "MODEL_PROVIDER_STRUCTURED_OUTPUT_INVALID",
+                ));
+            }
+            Some(output)
+        }
+        None => None,
     };
     Ok(ModelChatResponse {
         content,

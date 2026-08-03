@@ -59,22 +59,19 @@ jobs:
   release-evidence:
     name: release-readiness-evidence / release-evidence
     needs: golden-product-flow
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64]
     timeout-minutes: 180
     env:
       TRPG_REQUIRE_REAL_LOCAL_PROVIDERS: "1"
       TRPG_REQUIRE_REAL_CLOUD_PROVIDER: "1"
-      TRPG_OLLAMA_CHAT_MODEL: qwen3.6:35b
       TRPG_OLLAMA_EMBEDDING_MODEL: qwen3-embedding:8b
       OLLAMA_MODELS: ${{ vars.TRPG_OLLAMA_MODELS_DIRECTORY }}
       TRPG_LLAMA_SERVER_BIN: ${{ vars.TRPG_LLAMA_SERVER_BIN }}
-      TRPG_LLAMA_CPP_CHAT_MODEL_PATH: ${{ vars.TRPG_LLAMA_CPP_CHAT_MODEL_PATH }}
       TRPG_LLAMA_CPP_EMBEDDING_MODEL_PATH: ${{ vars.TRPG_LLAMA_CPP_EMBEDDING_MODEL_PATH }}
-      TRPG_REAL_CLOUD_PROVIDER_URL: ${{ vars.TRPG_REAL_CLOUD_PROVIDER_URL }}
-      TRPG_REAL_CLOUD_CHAT_MODEL: ${{ vars.TRPG_REAL_CLOUD_CHAT_MODEL }}
-      TRPG_REAL_CLOUD_EMBEDDING_MODEL: ${{ vars.TRPG_REAL_CLOUD_EMBEDDING_MODEL }}
+      TRPG_REAL_CLOUD_CHAT_PROVIDER_URL: https://api.deepseek.com
+      TRPG_REAL_CLOUD_CHAT_MODEL: deepseek-v4-flash
       TRPG_REAL_CLOUD_CHAT_MODEL_SHA256: ${{ vars.TRPG_REAL_CLOUD_CHAT_MODEL_SHA256 }}
-      TRPG_REAL_CLOUD_EMBEDDING_MODEL_SHA256: ${{ vars.TRPG_REAL_CLOUD_EMBEDDING_MODEL_SHA256 }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -98,16 +95,16 @@ jobs:
         run: bash scripts/ci/integration-services.sh "$GITHUB_ENV"
       - name: Materialize the ephemeral cloud credential
         env:
-          TRPG_REAL_CLOUD_CREDENTIAL: ${{ secrets.TRPG_REAL_CLOUD_CREDENTIAL }}
-          TRPG_REAL_CLOUD_CREDENTIAL_PATH: ${{ runner.temp }}/trpg-real-cloud-credential
+          TRPG_REAL_CLOUD_CHAT_CREDENTIAL: ${{ secrets.TRPG_REAL_CLOUD_CHAT_CREDENTIAL }}
+          TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH: ${{ runner.temp }}/trpg-real-cloud-chat-credential
         run: |
-          test -n "$TRPG_REAL_CLOUD_CREDENTIAL"
-          install -m 0600 /dev/null "$TRPG_REAL_CLOUD_CREDENTIAL_PATH"
-          printf '%s' "$TRPG_REAL_CLOUD_CREDENTIAL" >"$TRPG_REAL_CLOUD_CREDENTIAL_PATH"
+          test -n "$TRPG_REAL_CLOUD_CHAT_CREDENTIAL"
+          install -m 0600 /dev/null "$TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH"
+          printf '%s' "$TRPG_REAL_CLOUD_CHAT_CREDENTIAL" >"$TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH"
       - name: Generate release input evidence
         env:
           TRPG_REAL_PROVIDER_EVIDENCE_DIR: ${{ runner.temp }}/release-readiness
-          TRPG_REAL_CLOUD_CREDENTIAL_PATH: ${{ runner.temp }}/trpg-real-cloud-credential
+          TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH: ${{ runner.temp }}/trpg-real-cloud-chat-credential
         run: |
           mkdir -p "$RUNNER_TEMP/release-readiness"
           bash scripts/ci/generate-integration-evidence.sh "$RUNNER_TEMP/release-readiness/release-input.json"
@@ -115,10 +112,56 @@ jobs:
       - name: Remove the ephemeral cloud credential
         if: always()
         env:
-          TRPG_REAL_CLOUD_CREDENTIAL_PATH: ${{ runner.temp }}/trpg-real-cloud-credential
-        run: rm -f "$TRPG_REAL_CLOUD_CREDENTIAL_PATH"
+          TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH: ${{ runner.temp }}/trpg-real-cloud-chat-credential
+        run: rm -f "$TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH"
       - name: Generate production security input evidence
         run: |
+          host_docker_host="${DOCKER_HOST:-unix:///var/run/docker.sock}"
+          host_daemon_id="$(DOCKER_HOST="$host_docker_host" docker info --format '{{.ID}}')"
+          host_swarm_before="$(DOCKER_HOST="$host_docker_host" docker info --format '{{.Swarm.LocalNodeState}}')"
+          dind_name="trpg-release-dind-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          dind_shared="$RUNNER_TEMP/$dind_name"
+          dind_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+          cleanup_dind() {
+            exit_code="$?"
+            trap - EXIT INT TERM
+            DOCKER_HOST="$host_docker_host" docker rm --force --volumes "$dind_name" >/dev/null 2>&1 || true
+            rm -rf -- "$dind_shared"
+            exit "$exit_code"
+          }
+          trap cleanup_dind EXIT INT TERM
+          install -d -m 0700 "$dind_shared"
+          DOCKER_HOST="$host_docker_host" docker run --detach \
+            --name "$dind_name" \
+            --privileged \
+            --env DOCKER_TLS_CERTDIR= \
+            --publish "127.0.0.1:$dind_port:2375" \
+            --publish 127.0.0.1:25432:25432 \
+            --publish 127.0.0.1:25433:25433 \
+            --publish 127.0.0.1:26379:26379 \
+            --publish 127.0.0.1:24222:24222 \
+            --publish 127.0.0.1:29000:29000 \
+            --publish 127.0.0.1:8080:8080 \
+            --publish 127.0.0.1:8443:8443 \
+            --volume "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE:ro" \
+            --volume "$dind_shared:$dind_shared:rw" \
+            docker@sha256:173f284a4299164772a90f52b373e73e087583c0963f1334c9995f190ef6f3f5 \
+            --host=tcp://0.0.0.0:2375 \
+            --host=unix:///var/run/docker.sock \
+            --tls=false
+          export DOCKER_HOST="tcp://127.0.0.1:$dind_port"
+          export TMPDIR="$dind_shared"
+          export TRPG_CI_PUBLISHED_HOST=0.0.0.0
+          for _ in {1..120}; do
+            if docker info >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          docker info >/dev/null
+          test "$(docker info --format '{{.ID}}')" != "$host_daemon_id"
+          dind_swarm_before="$(docker info --format '{{.Swarm.LocalNodeState}}')"
+          test "$dind_swarm_before" = inactive
           python3 scripts/ci/generate_evidence.py \
             --report "$RUNNER_TEMP/release-readiness/production-security-input.json" \
             --artifact MANIFEST.md \
@@ -130,6 +173,7 @@ jobs:
           python3 scripts/ci/verify_evidence_schema.py \
             --live-context \
             "$RUNNER_TEMP/release-readiness/production-security-input.json"
+          test "$(DOCKER_HOST="$host_docker_host" docker info --format '{{.Swarm.LocalNodeState}}')" = "$host_swarm_before"
       - name: Verify the truthful READY state
         run: |
           bash scripts/ci/generate-v1-acceptance-evidence.sh \
@@ -167,3 +211,22 @@ jobs:
           path: ${{ runner.temp }}/release-readiness
           if-no-files-found: error
           retention-days: 30
+      - name: Clean self-hosted integration resources
+        if: always()
+        run: |
+          if [[ -n "${TRPG_INTEGRATION_RUN_LABEL:-}" ]]; then
+            mapfile -t integration_containers < <(
+              docker ps --all --quiet \
+                --filter "label=trpg.integration.run=$TRPG_INTEGRATION_RUN_LABEL"
+            )
+            if (( ${#integration_containers[@]} > 0 )); then
+              docker rm --force "${integration_containers[@]}"
+            fi
+          fi
+          integration_root="${TRPG_POSTGRES_CLIENT_MOUNT_ROOT:-}"
+          if [[ -n "$integration_root" ]]; then
+            case "$integration_root" in
+              "$RUNNER_TEMP"/trpg-integration.*) rm -rf -- "$integration_root" ;;
+              *) printf 'refusing unexpected integration root: %s\n' "$integration_root" >&2; exit 1 ;;
+            esac
+          fi

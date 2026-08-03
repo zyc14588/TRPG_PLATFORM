@@ -122,6 +122,8 @@ environment_keys=(
 
 export TRPG_REQUIRE_REAL_LOCAL_PROVIDERS="${TRPG_REQUIRE_REAL_LOCAL_PROVIDERS:-0}"
 export TRPG_REQUIRE_REAL_CLOUD_PROVIDER="${TRPG_REQUIRE_REAL_CLOUD_PROVIDER:-0}"
+export TRPG_REAL_CLOUD_CHAT_PROVIDER_URL="${TRPG_REAL_CLOUD_CHAT_PROVIDER_URL:-${TRPG_REAL_CLOUD_PROVIDER_URL:-}}"
+export TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH="${TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH:-${TRPG_REAL_CLOUD_CREDENTIAL_PATH:-}}"
 case "$TRPG_REQUIRE_REAL_CLOUD_PROVIDER" in
   0) ;;
   1)
@@ -146,11 +148,9 @@ case "$TRPG_REQUIRE_REAL_LOCAL_PROVIDERS" in
   1)
     provider_environment_keys=(
       TRPG_REAL_PROVIDER_EVIDENCE_DIR
-      TRPG_OLLAMA_CHAT_MODEL
       TRPG_OLLAMA_EMBEDDING_MODEL
       OLLAMA_MODELS
       TRPG_LLAMA_SERVER_BIN
-      TRPG_LLAMA_CPP_CHAT_MODEL_PATH
       TRPG_LLAMA_CPP_EMBEDDING_MODEL_PATH
     )
     for key in "${provider_environment_keys[@]}"; do
@@ -167,21 +167,17 @@ case "$TRPG_REQUIRE_REAL_LOCAL_PROVIDERS" in
     for artifact_name in \
       real-ollama-server.log \
       real-ollama-tls-proxy.log \
-      real-llama-cpp-chat.log \
       real-llama-cpp-embedding.log \
-      real-llama-cpp-chat-tls-proxy.log \
       real-llama-cpp-embedding-tls-proxy.log; do
       arguments+=(--generated-artifact "$report_directory/$artifact_name")
     done
     case "$TRPG_REQUIRE_REAL_CLOUD_PROVIDER" in
       1)
         cloud_environment_keys=(
-          TRPG_REAL_CLOUD_PROVIDER_URL
+          TRPG_REAL_CLOUD_CHAT_PROVIDER_URL
           TRPG_REAL_CLOUD_CHAT_MODEL
-          TRPG_REAL_CLOUD_EMBEDDING_MODEL
           TRPG_REAL_CLOUD_CHAT_MODEL_SHA256
-          TRPG_REAL_CLOUD_EMBEDDING_MODEL_SHA256
-          TRPG_REAL_CLOUD_CREDENTIAL_PATH
+          TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH
         )
         for key in "${cloud_environment_keys[@]}"; do
           [[ -n "${!key:-}" ]] || {

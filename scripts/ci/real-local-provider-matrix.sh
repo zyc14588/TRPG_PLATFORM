@@ -27,42 +27,36 @@ llama_server="${TRPG_LLAMA_SERVER_BIN:-$(command -v llama-server || true)}"
   exit 2
 }
 
-ollama_chat_model="${TRPG_OLLAMA_CHAT_MODEL:-qwen3.6:35b}"
 ollama_embedding_model="${TRPG_OLLAMA_EMBEDDING_MODEL:-qwen3-embedding:8b}"
-llama_chat_model_path="${TRPG_LLAMA_CPP_CHAT_MODEL_PATH:?TRPG_LLAMA_CPP_CHAT_MODEL_PATH is required}"
 llama_embedding_model_path="${TRPG_LLAMA_CPP_EMBEDDING_MODEL_PATH:?TRPG_LLAMA_CPP_EMBEDDING_MODEL_PATH is required}"
-for model_path in "$llama_chat_model_path" "$llama_embedding_model_path"; do
-  [[ "$model_path" = /* && -f "$model_path" && ! -L "$model_path" ]] || {
-    printf 'llama.cpp model must be an absolute regular non-symlink file: %s\n' "$model_path" >&2
-    exit 2
-  }
-done
+[[ "$llama_embedding_model_path" = /* && -f "$llama_embedding_model_path" && ! -L "$llama_embedding_model_path" ]] || {
+  printf 'llama.cpp embedding model must be an absolute regular non-symlink file\n' >&2
+  exit 2
+}
 require_cloud_provider="${TRPG_REQUIRE_REAL_CLOUD_PROVIDER:-0}"
 case "$require_cloud_provider" in
   1)
-    cloud_provider_url="${TRPG_REAL_CLOUD_PROVIDER_URL:?TRPG_REAL_CLOUD_PROVIDER_URL is required}"
+    cloud_chat_provider_url="${TRPG_REAL_CLOUD_CHAT_PROVIDER_URL:-${TRPG_REAL_CLOUD_PROVIDER_URL:-}}"
+    : "${cloud_chat_provider_url:?TRPG_REAL_CLOUD_CHAT_PROVIDER_URL is required}"
     cloud_chat_model="${TRPG_REAL_CLOUD_CHAT_MODEL:?TRPG_REAL_CLOUD_CHAT_MODEL is required}"
-    cloud_embedding_model="${TRPG_REAL_CLOUD_EMBEDDING_MODEL:?TRPG_REAL_CLOUD_EMBEDDING_MODEL is required}"
     cloud_chat_sha256="${TRPG_REAL_CLOUD_CHAT_MODEL_SHA256:?TRPG_REAL_CLOUD_CHAT_MODEL_SHA256 is required}"
-    cloud_embedding_sha256="${TRPG_REAL_CLOUD_EMBEDDING_MODEL_SHA256:?TRPG_REAL_CLOUD_EMBEDDING_MODEL_SHA256 is required}"
-    cloud_credential_path="${TRPG_REAL_CLOUD_CREDENTIAL_PATH:?TRPG_REAL_CLOUD_CREDENTIAL_PATH is required}"
-    [[ "$cloud_provider_url" == https://* ]] || {
-      printf 'TRPG_REAL_CLOUD_PROVIDER_URL must use HTTPS\n' >&2
+    cloud_chat_credential_path="${TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH:-${TRPG_REAL_CLOUD_CREDENTIAL_PATH:-}}"
+    : "${cloud_chat_credential_path:?TRPG_REAL_CLOUD_CHAT_CREDENTIAL_PATH is required}"
+    [[ "$cloud_chat_provider_url" == https://* ]] || {
+      printf 'real cloud chat provider URL must use HTTPS\n' >&2
       exit 2
     }
-    for digest in "$cloud_chat_sha256" "$cloud_embedding_sha256"; do
-      [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-        printf 'real cloud model identity must be a sha256 digest\n' >&2
-        exit 2
-      }
-    done
-    [[ "$cloud_credential_path" = /* && -s "$cloud_credential_path" && ! -L "$cloud_credential_path" ]] || {
-      printf 'TRPG_REAL_CLOUD_CREDENTIAL_PATH must name an absolute nonempty non-symlink file\n' >&2
+    [[ "$cloud_chat_sha256" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+      printf 'real cloud chat model identity must be a sha256 digest\n' >&2
       exit 2
     }
-    credential_mode="$(stat -c '%a' "$cloud_credential_path")"
+    [[ "$cloud_chat_credential_path" = /* && -s "$cloud_chat_credential_path" && ! -L "$cloud_chat_credential_path" ]] || {
+      printf 'real cloud chat credential must be an absolute nonempty non-symlink file\n' >&2
+      exit 2
+    }
+    credential_mode="$(stat -c '%a' "$cloud_chat_credential_path")"
     if [[ ! "$credential_mode" =~ ^[0-7]{3,4}$ ]] || (( (8#$credential_mode & 077) != 0 )); then
-      printf 'TRPG_REAL_CLOUD_CREDENTIAL_PATH must not grant group or other access\n' >&2
+      printf 'real cloud chat credential must not grant group or other access\n' >&2
       exit 2
     fi
     ;;
@@ -91,7 +85,6 @@ trap cleanup EXIT
 free_port() {
   python3 - <<'PY'
 import socket
-
 with socket.socket() as listener:
     listener.bind(("127.0.0.1", 0))
     print(listener.getsockname()[1])
@@ -168,7 +161,6 @@ private_key = sys.argv[5]
 ready_file = Path(sys.argv[6])
 if upstream.scheme != "http" or upstream.hostname not in {"127.0.0.1", "localhost"}:
     raise SystemExit("upstream must be loopback HTTP")
-
 hop_headers = {
     "authorization",
     "connection",
@@ -182,16 +174,12 @@ hop_headers = {
     "transfer-encoding",
     "upgrade",
 }
-
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-
     def do_GET(self):
         self.forward()
-
     def do_POST(self):
         self.forward()
-
     def forward(self):
         if self.headers.get("Authorization") != f"Bearer {token}":
             body = b'{"error":"unauthorized"}'
@@ -233,10 +221,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             print(f"upstream failure: {type(error).__name__}", flush=True)
         finally:
             connection.close()
-
     def log_message(self, *_args):
         return
-
 server = http.server.ThreadingHTTPServer(("127.0.0.1", listen_port), Handler)
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 context.load_cert_chain(certificate, private_key)
@@ -264,26 +250,42 @@ PY
   return 1
 }
 
-run_contract() {
-  local provider_type="$1" chat_url="$2" embedding_url="$3"
-  local chat_model="$4" embedding_model="$5" chat_sha="$6" embedding_sha="$7"
-  local runtime_sha="$8" credential_path="${9:-$certificate_directory/token}"
+run_chat_contract() {
+  local provider_type="$1" provider_url="$2" model="$3" model_sha="$4"
+  local runtime_sha="$5" credential_path="${6:-$certificate_directory/token}"
   TRPG_REAL_PROVIDER_TYPE="$provider_type" \
-  TRPG_REAL_CHAT_PROVIDER_URL="$chat_url" \
-  TRPG_REAL_EMBEDDING_PROVIDER_URL="$embedding_url" \
-  TRPG_REAL_CHAT_MODEL="$chat_model" \
-  TRPG_REAL_EMBEDDING_MODEL="$embedding_model" \
-  TRPG_REAL_CHAT_MODEL_SHA256="$chat_sha" \
-  TRPG_REAL_EMBEDDING_MODEL_SHA256="$embedding_sha" \
+  TRPG_REAL_CHAT_PROVIDER_URL="$provider_url" \
+  TRPG_REAL_CHAT_MODEL="$model" \
+  TRPG_REAL_CHAT_MODEL_SHA256="$model_sha" \
   TRPG_REAL_PROVIDER_CREDENTIAL_PATH="$credential_path" \
+  TRPG_REAL_CHAT_PROVIDER_CREDENTIAL_PATH="$credential_path" \
   TRPG_REAL_PROVIDER_CA_PATH="$certificate_directory/ca.crt" \
   TRPG_REAL_WRONG_PROVIDER_CA_PATH="$certificate_directory/wrong-ca.crt" \
-  TRPG_REAL_WRONG_HOST_PROVIDER_URL="${chat_url/localhost/127.0.0.1}" \
+  TRPG_REAL_WRONG_HOST_PROVIDER_URL="${provider_url/localhost/127.0.0.1}" \
   TRPG_REAL_PROVIDER_ALLOWLIST=loopback \
   TRPG_MODEL_PROVIDER_RUNTIME_SHA256="$runtime_sha" \
     cargo test -p trpg-agent-runtime \
       --test real_local_provider_contract_tests \
-      authenticated_real_provider_satisfies_positive_and_negative_contracts \
+      authenticated_real_chat_provider_satisfies_positive_and_negative_contracts \
+      -- --ignored --exact --nocapture
+}
+
+run_embedding_contract() {
+  local provider_type="$1" provider_url="$2" model="$3" model_sha="$4" runtime_sha="$5"
+  TRPG_REAL_PROVIDER_TYPE="$provider_type" \
+  TRPG_REAL_EMBEDDING_PROVIDER_URL="$provider_url" \
+  TRPG_REAL_EMBEDDING_MODEL="$model" \
+  TRPG_REAL_EMBEDDING_MODEL_SHA256="$model_sha" \
+  TRPG_REAL_PROVIDER_CREDENTIAL_PATH="$certificate_directory/token" \
+  TRPG_REAL_EMBEDDING_PROVIDER_CREDENTIAL_PATH="$certificate_directory/token" \
+  TRPG_REAL_PROVIDER_CA_PATH="$certificate_directory/ca.crt" \
+  TRPG_REAL_WRONG_PROVIDER_CA_PATH="$certificate_directory/wrong-ca.crt" \
+  TRPG_REAL_WRONG_HOST_PROVIDER_URL="${provider_url/localhost/127.0.0.1}" \
+  TRPG_REAL_PROVIDER_ALLOWLIST=loopback \
+  TRPG_MODEL_PROVIDER_RUNTIME_SHA256="$runtime_sha" \
+    cargo test -p trpg-agent-runtime \
+      --test real_local_provider_contract_tests \
+      authenticated_real_embedding_provider_satisfies_positive_and_negative_contracts \
       -- --ignored --exact --nocapture
 }
 
@@ -297,14 +299,8 @@ ollama_pid=$!
 pids+=("$ollama_pid")
 wait_http "http://127.0.0.1:$ollama_port/api/tags" "$ollama_pid"
 ollama_models="$(curl --fail --silent --show-error "http://127.0.0.1:$ollama_port/api/tags")"
-ollama_chat_digest="$(python3 -c 'import json,sys; p=json.load(sys.stdin); n=sys.argv[1]; print(next((m["digest"] for m in p["models"] if m["name"] == n), ""))' "$ollama_chat_model" <<<"$ollama_models")"
 ollama_embedding_digest="$(python3 -c 'import json,sys; p=json.load(sys.stdin); n=sys.argv[1]; print(next((m["digest"] for m in p["models"] if m["name"] == n), ""))' "$ollama_embedding_model" <<<"$ollama_models")"
-[[ "$ollama_chat_digest" =~ ^[0-9a-f]{64}$ ]] && ollama_chat_digest="sha256:$ollama_chat_digest"
 [[ "$ollama_embedding_digest" =~ ^[0-9a-f]{64}$ ]] && ollama_embedding_digest="sha256:$ollama_embedding_digest"
-[[ "$ollama_chat_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-  printf 'Ollama chat model is not installed with a verifiable digest: %s\n' "$ollama_chat_model" >&2
-  exit 1
-}
 [[ "$ollama_embedding_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
   printf 'Ollama embedding model is not installed with a verifiable digest: %s\n' "$ollama_embedding_model" >&2
   exit 1
@@ -314,73 +310,48 @@ start_tls_proxy "$ollama_proxy_port" "http://127.0.0.1:$ollama_port" \
   "$evidence_directory/real-ollama-tls-proxy.log"
 ollama_proxy_pid="$proxy_pid"
 ollama_runtime_sha="sha256:$(sha256sum "$(command -v ollama)" | awk '{print $1}')"
-run_contract ollama \
+run_embedding_contract ollama \
   "https://localhost:$ollama_proxy_port/" \
-  "https://localhost:$ollama_proxy_port/" \
-  "$ollama_chat_model" "$ollama_embedding_model" \
-  "$ollama_chat_digest" "$ollama_embedding_digest" \
+  "$ollama_embedding_model" "$ollama_embedding_digest" \
   "$ollama_runtime_sha"
-printf 'provider_artifact provider=ollama chat_model=%s chat_sha256=%s embedding_model=%s embedding_sha256=%s runtime_sha256=%s\n' \
-  "$ollama_chat_model" "$ollama_chat_digest" \
+printf 'provider_artifact provider=ollama operation=embedding model=%s model_sha256=%s runtime_sha256=%s\n' \
   "$ollama_embedding_model" "$ollama_embedding_digest" "$ollama_runtime_sha"
-printf 'test real_local_provider::ollama_fresh_path ... ok\n'
+printf 'test real_local_embedding::ollama_fresh_path ... ok\n'
 kill_process "$ollama_proxy_pid"
 kill_process "$ollama_pid"
 
-llama_chat_port="$(free_port)"
 llama_embedding_port="$(free_port)"
-llama_chat_proxy_port="$(free_port)"
 llama_embedding_proxy_port="$(free_port)"
-"$llama_server" --host 127.0.0.1 --port "$llama_chat_port" \
-  --model "$llama_chat_model_path" --alias trpg-llama-chat --jinja \
-  --ctx-size 4096 --parallel 1 \
-  >"$evidence_directory/real-llama-cpp-chat.log" 2>&1 &
-llama_chat_pid=$!
-pids+=("$llama_chat_pid")
 "$llama_server" --host 127.0.0.1 --port "$llama_embedding_port" \
   --model "$llama_embedding_model_path" --alias trpg-llama-embedding \
   --embedding --pooling mean --ctx-size 4096 --parallel 1 \
   >"$evidence_directory/real-llama-cpp-embedding.log" 2>&1 &
 llama_embedding_pid=$!
 pids+=("$llama_embedding_pid")
-wait_http "http://127.0.0.1:$llama_chat_port/health" "$llama_chat_pid"
 wait_http "http://127.0.0.1:$llama_embedding_port/health" "$llama_embedding_pid"
-start_tls_proxy "$llama_chat_proxy_port" "http://127.0.0.1:$llama_chat_port" \
-  "$test_root/llama-chat-proxy.ready" \
-  "$evidence_directory/real-llama-cpp-chat-tls-proxy.log"
-llama_chat_proxy_pid="$proxy_pid"
 start_tls_proxy "$llama_embedding_proxy_port" "http://127.0.0.1:$llama_embedding_port" \
   "$test_root/llama-embedding-proxy.ready" \
   "$evidence_directory/real-llama-cpp-embedding-tls-proxy.log"
 llama_embedding_proxy_pid="$proxy_pid"
-llama_chat_sha256="sha256:$(sha256sum "$llama_chat_model_path" | awk '{print $1}')"
 llama_embedding_sha256="sha256:$(sha256sum "$llama_embedding_model_path" | awk '{print $1}')"
 llama_runtime_sha256="sha256:$(sha256sum "$llama_server" | awk '{print $1}')"
-run_contract llama_cpp \
-  "https://localhost:$llama_chat_proxy_port/v1/" \
+run_embedding_contract llama_cpp \
   "https://localhost:$llama_embedding_proxy_port/v1/" \
-  trpg-llama-chat trpg-llama-embedding \
-  "$llama_chat_sha256" "$llama_embedding_sha256" "$llama_runtime_sha256"
-printf 'provider_artifact provider=llama_cpp chat_model=%s chat_sha256=%s embedding_model=%s embedding_sha256=%s runtime_sha256=%s\n' \
-  trpg-llama-chat "$llama_chat_sha256" \
   trpg-llama-embedding "$llama_embedding_sha256" "$llama_runtime_sha256"
-printf 'test real_local_provider::llama_cpp_fresh_path ... ok\n'
-kill_process "$llama_chat_proxy_pid"
+printf 'provider_artifact provider=llama_cpp operation=embedding model=%s model_sha256=%s runtime_sha256=%s\n' \
+  trpg-llama-embedding "$llama_embedding_sha256" "$llama_runtime_sha256"
+printf 'test real_local_embedding::llama_cpp_fresh_path ... ok\n'
 kill_process "$llama_embedding_proxy_pid"
-kill_process "$llama_chat_pid"
 kill_process "$llama_embedding_pid"
 
 if [[ "$require_cloud_provider" == 1 ]]; then
   cloud_runtime_sha256="sha256:$(sha256sum scripts/ci/real-local-provider-matrix.sh | awk '{print $1}')"
-  run_contract cloud \
-    "$cloud_provider_url" "$cloud_provider_url" \
-    "$cloud_chat_model" "$cloud_embedding_model" \
-    "$cloud_chat_sha256" "$cloud_embedding_sha256" \
-    "$cloud_runtime_sha256" "$cloud_credential_path"
-  printf 'provider_artifact provider=cloud chat_model=%s chat_sha256=%s embedding_model=%s embedding_sha256=%s adapter_harness_sha256=%s\n' \
+  run_chat_contract cloud "$cloud_chat_provider_url" \
     "$cloud_chat_model" "$cloud_chat_sha256" \
-    "$cloud_embedding_model" "$cloud_embedding_sha256" "$cloud_runtime_sha256"
-  printf 'test real_cloud_provider::fresh_path ... ok\n'
+    "$cloud_runtime_sha256" "$cloud_chat_credential_path"
+  printf 'provider_artifact provider=cloud operation=chat model=%s model_sha256=%s adapter_harness_sha256=%s\n' \
+    "$cloud_chat_model" "$cloud_chat_sha256" "$cloud_runtime_sha256"
+  printf 'test real_cloud_chat::fresh_path ... ok\n'
 fi
 
 for log in "$evidence_directory"/real-*.log; do
@@ -389,4 +360,8 @@ for log in "$evidence_directory"/real-*.log; do
     "$(stat -c '%s' "$log")" \
     "$(basename "$log")"
 done
-printf 'fresh Ollama and llama.cpp provider matrix passed\n'
+if [[ "$require_cloud_provider" == 1 ]]; then
+  printf 'fresh cloud chat and Ollama/llama.cpp embedding matrix passed\n'
+else
+  printf 'fresh Ollama/llama.cpp embedding matrix passed\n'
+fi

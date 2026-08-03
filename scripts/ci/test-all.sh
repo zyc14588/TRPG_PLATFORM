@@ -201,7 +201,8 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 : "${AR09_PUBLIC_REDIS_URL:?AR09_PUBLIC_REDIS_URL is required for Agent Job identities}"
 cargo test --workspace --all-features --locked --no-fail-fast -- \
   --test-threads=1 \
-  --skip authenticated_real_provider_satisfies_positive_and_negative_contracts
+  --skip authenticated_real_chat_provider_satisfies_positive_and_negative_contracts \
+  --skip authenticated_real_embedding_provider_satisfies_positive_and_negative_contracts
 case "${TRPG_REQUIRE_REAL_LOCAL_PROVIDERS:-0}" in
   1)
     : "${TRPG_REAL_PROVIDER_EVIDENCE_DIR:?TRPG_REAL_PROVIDER_EVIDENCE_DIR is required}"

@@ -25,6 +25,7 @@ impl KmsClient for EnvironmentKms {
 
 type RealProvider = HttpModelProvider<KmsSecretResolver<EnvironmentKms>>;
 
+#[derive(Clone, Copy)]
 struct ProviderDefinition<'a> {
     id: &'a str,
     model: &'a str,
@@ -35,6 +36,16 @@ struct ProviderDefinition<'a> {
 
 fn required_environment(name: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| panic!("{name} is required"))
+}
+
+fn provider_credential(primary: &str, fallback: &str) -> Vec<u8> {
+    let path = std::env::var(primary).unwrap_or_else(|_| required_environment(fallback));
+    let mut credential = fs::read(path).expect("read real provider credential");
+    while credential.last().is_some_and(u8::is_ascii_whitespace) {
+        credential.pop();
+    }
+    assert!(!credential.is_empty(), "real provider credential is empty");
+    credential
 }
 
 fn provider_type() -> ProviderType {
@@ -96,23 +107,19 @@ fn message(content: &str) -> ModelMessage {
     }
 }
 
+include!("real_local_provider_contract_tests/00_negative_contracts.rs");
+
 #[tokio::test]
 #[ignore = "requires an authenticated TLS boundary and a real model provider"]
-async fn authenticated_real_provider_satisfies_positive_and_negative_contracts() {
+async fn authenticated_real_chat_provider_satisfies_positive_and_negative_contracts() {
     let provider_type = provider_type();
     let chat_url = required_environment("TRPG_REAL_CHAT_PROVIDER_URL");
-    let embedding_url =
-        std::env::var("TRPG_REAL_EMBEDDING_PROVIDER_URL").unwrap_or_else(|_| chat_url.clone());
     let chat_model = required_environment("TRPG_REAL_CHAT_MODEL");
-    let embedding_model = required_environment("TRPG_REAL_EMBEDDING_MODEL");
     let chat_sha256 = required_environment("TRPG_REAL_CHAT_MODEL_SHA256");
-    let embedding_sha256 = required_environment("TRPG_REAL_EMBEDDING_MODEL_SHA256");
-    let mut credential = fs::read(required_environment("TRPG_REAL_PROVIDER_CREDENTIAL_PATH"))
-        .expect("read real provider credential");
-    while credential.last().is_some_and(u8::is_ascii_whitespace) {
-        credential.pop();
-    }
-    assert!(!credential.is_empty(), "real provider credential is empty");
+    let chat_credential = provider_credential(
+        "TRPG_REAL_CHAT_PROVIDER_CREDENTIAL_PATH",
+        "TRPG_REAL_PROVIDER_CREDENTIAL_PATH",
+    );
     let root_certificate = provider_type.is_local().then(|| {
         fs::read(required_environment("TRPG_REAL_PROVIDER_CA_PATH")).expect("read real provider CA")
     });
@@ -125,17 +132,17 @@ async fn authenticated_real_provider_satisfies_positive_and_negative_contracts()
     )
     .expect("real provider allowlist");
     let cancellation = ProviderCancellation::default();
-
+    let definition = ProviderDefinition {
+        id: "real-chat",
+        model: &chat_model,
+        model_sha256: &chat_sha256,
+        base_url: &chat_url,
+        capabilities: ProviderCapabilities::v1_complete(),
+    };
     let chat_provider = provider(
         provider_type,
-        ProviderDefinition {
-            id: "real-local-chat",
-            model: &chat_model,
-            model_sha256: &chat_sha256,
-            base_url: &chat_url,
-            capabilities: ProviderCapabilities::v1_complete(),
-        },
-        &credential,
+        definition,
+        &chat_credential,
         root_certificate.as_deref(),
         &policy,
     )
@@ -230,23 +237,68 @@ async fn authenticated_real_provider_satisfies_positive_and_negative_contracts()
         .iter()
         .any(|call| call.name == "lookup_clue" && call.arguments["clue_id"] == "clue-1"));
 
+    let wrong_host_url = provider_type
+        .is_local()
+        .then(|| required_environment("TRPG_REAL_WRONG_HOST_PROVIDER_URL"));
+    assert_negative_provider_contracts(
+        provider_type,
+        definition,
+        &chat_credential,
+        root_certificate.as_deref(),
+        wrong_root_certificate.as_deref(),
+        wrong_host_url.as_deref(),
+        &policy,
+    )
+    .await;
+}
+
+#[tokio::test]
+#[ignore = "requires an authenticated TLS boundary and a real embedding provider"]
+async fn authenticated_real_embedding_provider_satisfies_positive_and_negative_contracts() {
+    let provider_type = provider_type();
+    let embedding_url = required_environment("TRPG_REAL_EMBEDDING_PROVIDER_URL");
+    let embedding_model = required_environment("TRPG_REAL_EMBEDDING_MODEL");
+    let embedding_sha256 = required_environment("TRPG_REAL_EMBEDDING_MODEL_SHA256");
+    let credential = provider_credential(
+        "TRPG_REAL_EMBEDDING_PROVIDER_CREDENTIAL_PATH",
+        "TRPG_REAL_PROVIDER_CREDENTIAL_PATH",
+    );
+    let root_certificate = provider_type.is_local().then(|| {
+        fs::read(required_environment("TRPG_REAL_PROVIDER_CA_PATH")).expect("read real provider CA")
+    });
+    let wrong_root_certificate = provider_type.is_local().then(|| {
+        fs::read(required_environment("TRPG_REAL_WRONG_PROVIDER_CA_PATH"))
+            .expect("read wrong provider CA")
+    });
+    let policy = LocalProviderNetworkPolicy::parse(
+        &std::env::var("TRPG_REAL_PROVIDER_ALLOWLIST").unwrap_or_else(|_| "loopback".to_owned()),
+    )
+    .expect("real provider allowlist");
+    let definition = ProviderDefinition {
+        id: "real-embedding",
+        model: &embedding_model,
+        model_sha256: &embedding_sha256,
+        base_url: &embedding_url,
+        capabilities: ProviderCapabilities {
+            embeddings: true,
+            ..ProviderCapabilities::default()
+        },
+    };
     let embedding_provider = provider(
         provider_type,
-        ProviderDefinition {
-            id: "real-local-embedding",
-            model: &embedding_model,
-            model_sha256: &embedding_sha256,
-            base_url: &embedding_url,
-            capabilities: ProviderCapabilities {
-                embeddings: true,
-                ..ProviderCapabilities::default()
-            },
-        },
+        definition,
         &credential,
         root_certificate.as_deref(),
         &policy,
     )
     .expect("construct real embedding provider");
+    let cancellation = ProviderCancellation::default();
+    let capabilities = embedding_provider
+        .probe_capabilities(&cancellation)
+        .await
+        .expect("probe real embedding provider")
+        .output;
+    assert!(capabilities.embeddings);
     let embedding = embedding_provider
         .embed(
             &ModelEmbeddingRequest {
@@ -258,119 +310,21 @@ async fn authenticated_real_provider_satisfies_positive_and_negative_contracts()
         .expect("real embedding request");
     assert_eq!(embedding.output.embeddings.len(), 1);
     assert!(embedding.output.embeddings[0].len() >= 32);
+    println!(
+        "provider_usage operation=embedding vectors={} dimensions={}",
+        embedding.output.embeddings.len(),
+        embedding.output.embeddings[0].len()
+    );
 
-    if provider_type.is_local() {
-        let wrong_ca_provider = provider(
-            provider_type,
-            ProviderDefinition {
-                id: "real-local-wrong-ca",
-                model: &chat_model,
-                model_sha256: &chat_sha256,
-                base_url: &chat_url,
-                capabilities: ProviderCapabilities::v1_complete(),
-            },
-            &credential,
-            wrong_root_certificate.as_deref(),
-            &policy,
-        )
-        .expect("wrong CA is syntactically valid");
-        assert_eq!(
-            wrong_ca_provider
-                .probe_capabilities(&cancellation)
-                .await
-                .expect_err("wrong CA must fail TLS")
-                .kind(),
-            ModelProviderErrorKind::Transport
-        );
-
-        let wrong_host_provider = provider(
-            provider_type,
-            ProviderDefinition {
-                id: "real-local-wrong-host",
-                model: &chat_model,
-                model_sha256: &chat_sha256,
-                base_url: &required_environment("TRPG_REAL_WRONG_HOST_PROVIDER_URL"),
-                capabilities: ProviderCapabilities::v1_complete(),
-            },
-            &credential,
-            root_certificate.as_deref(),
-            &policy,
-        )
-        .expect("wrong hostname URL is otherwise valid");
-        assert_eq!(
-            wrong_host_provider
-                .probe_capabilities(&cancellation)
-                .await
-                .expect_err("certificate hostname mismatch must fail TLS")
-                .kind(),
-            ModelProviderErrorKind::Transport
-        );
-    }
-
-    let wrong_credential_provider = provider(
+    let wrong_host_url = required_environment("TRPG_REAL_WRONG_HOST_PROVIDER_URL");
+    assert_negative_provider_contracts(
         provider_type,
-        ProviderDefinition {
-            id: "real-local-wrong-credential",
-            model: &chat_model,
-            model_sha256: &chat_sha256,
-            base_url: &chat_url,
-            capabilities: ProviderCapabilities::v1_complete(),
-        },
-        b"deliberately-wrong-provider-credential",
+        definition,
+        &credential,
         root_certificate.as_deref(),
+        wrong_root_certificate.as_deref(),
+        Some(&wrong_host_url),
         &policy,
     )
-    .expect("wrong credential provider construction");
-    assert_eq!(
-        wrong_credential_provider
-            .probe_capabilities(&cancellation)
-            .await
-            .expect_err("wrong credential must fail authentication")
-            .kind(),
-        ModelProviderErrorKind::Authentication
-    );
-
-    let mut plaintext_url = url::Url::parse(&chat_url).expect("chat URL");
-    plaintext_url.set_scheme("http").expect("HTTP scheme");
-    assert_eq!(
-        provider(
-            provider_type,
-            ProviderDefinition {
-                id: "real-local-plaintext",
-                model: &chat_model,
-                model_sha256: &chat_sha256,
-                base_url: plaintext_url.as_str(),
-                capabilities: ProviderCapabilities::v1_complete(),
-            },
-            &credential,
-            root_certificate.as_deref(),
-            &policy,
-        )
-        .err()
-        .expect("production plaintext transport must fail")
-        .kind(),
-        ModelProviderErrorKind::Configuration
-    );
-
-    if provider_type.is_local() {
-        assert_eq!(
-            provider(
-                provider_type,
-                ProviderDefinition {
-                    id: "real-local-unlisted",
-                    model: &chat_model,
-                    model_sha256: &chat_sha256,
-                    base_url: "https://unlisted-provider:9443",
-                    capabilities: ProviderCapabilities::v1_complete(),
-                },
-                &credential,
-                root_certificate.as_deref(),
-                &policy,
-            )
-            .err()
-            .expect("unlisted private service name must fail")
-            .kind(),
-            ModelProviderErrorKind::Configuration
-        );
-    }
+    .await;
 }

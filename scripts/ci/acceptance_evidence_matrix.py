@@ -60,9 +60,9 @@ REPAIR_BATCH_NEGATIVE_TESTS = {
         "production_provider_rejects_development_memory_credentials",
         "provider_endpoint_rejects_secret_carriers_and_plaintext_production_transport",
         "local_failure_does_not_contact_the_configured_cloud_provider",
-        "real_local_provider::ollama_fresh_path",
-        "real_local_provider::llama_cpp_fresh_path",
-        "real_cloud_provider::fresh_path",
+        "real_local_embedding::ollama_fresh_path",
+        "real_local_embedding::llama_cpp_fresh_path",
+        "real_cloud_chat::fresh_path",
     ),
     "RF04": (
         "agent_job::decision_validation_tests::absent_output_and_multiple_provider_calls_fail_closed",

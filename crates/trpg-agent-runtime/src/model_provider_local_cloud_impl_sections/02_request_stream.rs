@@ -25,7 +25,12 @@ impl<R: SecretResolver + 'static> HttpModelProvider<R> {
         }
     }
 
-    fn chat_payload(&self, request: &ModelChatRequest, stream: bool) -> Value {
+    fn chat_payload(
+        &self,
+        request: &ModelChatRequest,
+        stream: bool,
+        use_json_object_format: bool,
+    ) -> Value {
         let messages = request
             .messages
             .iter()
@@ -95,6 +100,11 @@ impl<R: SecretResolver + 'static> HttpModelProvider<R> {
         if let Some(structured) = &request.structured_output {
             if self.runtime.provider.provider_type == ProviderType::Ollama {
                 payload.insert("format".to_owned(), structured.schema.clone());
+            } else if use_json_object_format {
+                payload.insert(
+                    "response_format".to_owned(),
+                    json!({"type": "json_object"}),
+                );
             } else {
                 payload.insert(
                     "response_format".to_owned(),

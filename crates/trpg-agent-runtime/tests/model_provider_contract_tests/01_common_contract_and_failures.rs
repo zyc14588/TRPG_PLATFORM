@@ -95,6 +95,62 @@ async fn cloud_openai_compatible_provider_satisfies_the_common_contract() {
 }
 
 #[tokio::test]
+async fn cloud_provider_retries_json_object_after_json_schema_is_rejected() {
+    let server = MockModelServer::spawn(ProviderType::Cloud, "cloud-model").await;
+    server.set_behavior(MockBehavior::ChatRejectJsonSchema);
+    let provider = make_provider(
+        ProviderType::Cloud,
+        &server,
+        ProviderCapabilities::v1_complete(),
+        Duration::from_secs(2),
+    );
+
+    let response = provider
+        .chat(&full_chat_request(), &ProviderCancellation::default())
+        .await
+        .expect("cloud JSON-object compatibility retry");
+
+    assert_eq!(
+        response.output.structured_output,
+        Some(serde_json::json!({"scene": "library"}))
+    );
+    assert_eq!(
+        server.chat_structured_output_formats(),
+        vec![
+            Some("json_schema".to_owned()),
+            Some("json_object".to_owned())
+        ]
+    );
+}
+
+#[tokio::test]
+async fn cloud_json_object_compatibility_response_remains_schema_validated() {
+    let server = MockModelServer::spawn(ProviderType::Cloud, "cloud-model").await;
+    server.set_behavior(MockBehavior::ChatRejectJsonSchemaWithInvalidFallback);
+    let provider = make_provider(
+        ProviderType::Cloud,
+        &server,
+        ProviderCapabilities::v1_complete(),
+        Duration::from_secs(2),
+    );
+
+    let error = provider
+        .chat(&full_chat_request(), &ProviderCancellation::default())
+        .await
+        .expect_err("schema-invalid JSON-object fallback must fail closed");
+
+    assert_eq!(error.kind(), ModelProviderErrorKind::InvalidSchema);
+    assert_eq!(error.code(), "MODEL_PROVIDER_STRUCTURED_OUTPUT_INVALID");
+    assert_eq!(
+        server.chat_structured_output_formats(),
+        vec![
+            Some("json_schema".to_owned()),
+            Some("json_object".to_owned())
+        ]
+    );
+}
+
+#[tokio::test]
 async fn ollama_provider_satisfies_the_common_contract() {
     assert_common_provider_contract(ProviderType::Ollama).await;
 }

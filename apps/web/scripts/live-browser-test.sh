@@ -45,8 +45,62 @@ compose=(
   -f "$repository_root/apps/web/scripts/ar11-provider.compose.yml"
 )
 
+cleanup_project_resources() {
+  local output
+  local -a resources=()
+
+  output="$(
+    docker ps --all --quiet \
+      --filter "label=com.docker.compose.project=$project"
+  )" || return 1
+  if [[ -n "$output" ]]; then
+    mapfile -t resources <<<"$output"
+    docker rm --force "${resources[@]}" >/dev/null 2>&1 || return 1
+  fi
+
+  resources=()
+  output="$(
+    docker volume ls --quiet \
+      --filter "label=com.docker.compose.project=$project"
+  )" || return 1
+  if [[ -n "$output" ]]; then
+    mapfile -t resources <<<"$output"
+    docker volume rm "${resources[@]}" >/dev/null 2>&1 || return 1
+  fi
+
+  resources=()
+  output="$(
+    docker network ls --quiet \
+      --filter "label=com.docker.compose.project=$project"
+  )" || return 1
+  if [[ -n "$output" ]]; then
+    mapfile -t resources <<<"$output"
+    docker network rm "${resources[@]}" >/dev/null 2>&1 || return 1
+  fi
+}
+
+project_resources_remain() {
+  local output
+  output="$(
+    docker ps --all --quiet \
+      --filter "label=com.docker.compose.project=$project"
+  )" || return 0
+  [[ -n "$output" ]] && return 0
+  output="$(
+    docker volume ls --quiet \
+      --filter "label=com.docker.compose.project=$project"
+  )" || return 0
+  [[ -n "$output" ]] && return 0
+  output="$(
+    docker network ls --quiet \
+      --filter "label=com.docker.compose.project=$project"
+  )" || return 0
+  [[ -n "$output" ]]
+}
+
 cleanup() {
   local code="$?"
+  local cleanup_failed=false
   if [[ "$code" -ne 0 && "${AR11_KEEP_FAILED_STACK:-}" == 1 ]]; then
     install -m 0600 "$bootstrap_log" "$evidence/bootstrap.log" 2>/dev/null || true
     printf 'AR11 failed stack retained project=%s root=%s evidence=%s\n' \
@@ -62,9 +116,20 @@ cleanup() {
     "${compose[@]}" -f "$state/runtime/compose.bootstrap.yml" \
       down --volumes --remove-orphans >/dev/null 2>&1 || true
   fi
+  if ! cleanup_project_resources; then
+    cleanup_failed=true
+  fi
+  if project_resources_remain; then
+    cleanup_failed=true
+  fi
   rm -rf "$test_root"
   if [[ "$code" -ne 0 ]]; then
     printf 'AR11 live browser evidence retained at %s\n' "$evidence" >&2
+  fi
+  if [[ "$cleanup_failed" == true ]]; then
+    printf 'AR11 failed to clean project resources: %s\n' "$project" >&2
+    [[ "$code" -ne 0 ]] && return "$code"
+    return 1
   fi
   return "$code"
 }

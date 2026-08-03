@@ -68,18 +68,36 @@ impl<R: SecretResolver + 'static> ExecutableModelProvider for HttpModelProvider<
         self.require_capabilities(&required, cancellation).await?;
 
         let endpoint = self.endpoint(ModelOperation::Chat)?;
-        let request_builder = self
-            .authorized_request(Method::POST, endpoint)?
-            .json(&self.chat_payload(request, false));
-        let response = self
-            .send(request_builder, ModelOperation::Chat, cancellation)
-            .await?;
+        let mut use_json_object_format = false;
+        let response = loop {
+            let request_builder = self
+                .authorized_request(Method::POST, endpoint.clone())?
+                .json(&self.chat_payload(request, false, use_json_object_format));
+            match self
+                .send(request_builder, ModelOperation::Chat, cancellation)
+                .await
+            {
+                Ok(response) => break response,
+                Err(error)
+                    if !use_json_object_format
+                        && request.structured_output.is_some()
+                        && self.runtime.provider.provider_type == ProviderType::Cloud
+                        && error.upstream_status() == Some(400) =>
+                {
+                    use_json_object_format = true;
+                }
+                Err(error) => return Err(error),
+            }
+        };
         let body = self
             .read_bounded(response, ModelOperation::Chat, cancellation)
             .await?;
         let output = parse_chat_response(
             self.runtime.provider.provider_type,
-            request.structured_output.is_some(),
+            request
+                .structured_output
+                .as_ref()
+                .map(|structured| &structured.schema),
             &body,
         )?;
         Ok(ProviderExecution {
@@ -110,7 +128,7 @@ impl<R: SecretResolver + 'static> ExecutableModelProvider for HttpModelProvider<
         let endpoint = self.endpoint(ModelOperation::StreamingChat)?;
         let request_builder = self
             .authorized_request(Method::POST, endpoint)?
-            .json(&self.chat_payload(request, true));
+            .json(&self.chat_payload(request, true, false));
         let response = self
             .send(request_builder, ModelOperation::StreamingChat, cancellation)
             .await?;

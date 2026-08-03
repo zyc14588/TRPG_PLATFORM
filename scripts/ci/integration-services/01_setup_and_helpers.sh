@@ -10,6 +10,8 @@ if [[ -z "$github_env" ]]; then
 fi
 touch "$github_env"
 chmod 0600 "$github_env"
+integration_run_label="trpg-integration-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+printf 'TRPG_INTEGRATION_RUN_LABEL=%s\n' "$integration_run_label" >>"$github_env"
 
 postgres_image="${TRPG_INTEGRATION_POSTGRES_IMAGE:-postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777}"
 pgvector_image="${TRPG_INTEGRATION_PGVECTOR_IMAGE:-pgvector/pgvector@sha256:12a379b47ad65289572ea0756efc11b7c241a6662833e8af7038cd3b73d647e0}"
@@ -89,41 +91,49 @@ chmod 0644 "$minio_ca_bundle"
 chmod 0644 "$tls_directory/pg_hba.conf"
 
 docker run -d --name trpg-primary-postgres \
+  --label "trpg.integration.run=$integration_run_label" \
   -e "POSTGRES_PASSWORD=$postgres_password" \
   -e "POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256" \
   -e POSTGRES_DB=p02_identity \
   -p 127.0.0.1:15432:5432 \
   "$pgvector_image"
 docker run -d --name trpg-witness-postgres \
+  --label "trpg.integration.run=$integration_run_label" \
   -e "POSTGRES_PASSWORD=$postgres_password" \
   -e "POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256" \
   -p 127.0.0.1:15433:5432 \
   "$postgres_image"
 docker run -d --name trpg-tls-postgres \
+  --label "trpg.integration.run=$integration_run_label" \
   -e "POSTGRES_PASSWORD=$postgres_password" \
   -e "POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256" \
   -e POSTGRES_DB=p02_tls_identity \
   -p 127.0.0.1:15434:5432 \
   "$pgvector_image"
 docker run -d --name trpg-redis \
+  --label "trpg.integration.run=$integration_run_label" \
   -p 127.0.0.1:16379:6379 \
   "$redis_image"
 docker run -d --name trpg-nats \
+  --label "trpg.integration.run=$integration_run_label" \
   --user "$(id -u):$(id -g)" \
   -p 127.0.0.1:14222:4222 \
   -p 127.0.0.1:18222:8222 \
   -v "$nats_store_directory:/data" \
   "$nats_image" -js -sd /data -m 8222
 docker run -d --name trpg-openfga \
+  --label "trpg.integration.run=$integration_run_label" \
   -p 127.0.0.1:18080:8080 \
   "$openfga_image" \
   run --datastore-engine memory --playground-enabled=false
 docker run -d --name trpg-opa \
+  --label "trpg.integration.run=$integration_run_label" \
   -p 127.0.0.1:18082:8181 \
   -v "$root/policy/opa:/policy:ro" \
   "$opa_image" \
   run --server --addr=0.0.0.0:8181 /policy
 docker run -d --name trpg-minio \
+  --label "trpg.integration.run=$integration_run_label" \
   -e "MINIO_ROOT_USER=$minio_root_access_key" \
   -e "MINIO_ROOT_PASSWORD=$minio_root_secret_key" \
   -p 127.0.0.1:19000:9000 \

@@ -25,6 +25,8 @@ enum MockBehavior {
     Normal,
     ChatInvalidJson,
     ChatDuplicateToolCall,
+    ChatRejectJsonSchema,
+    ChatRejectJsonSchemaWithInvalidFallback,
     ChatDelay(u64),
     ChatStatus(u16),
     StreamDisconnect,
@@ -40,6 +42,7 @@ struct RequestMetadata {
     thinking_disabled: Option<bool>,
     max_output_tokens: Option<u64>,
     reasoning_effort: Option<String>,
+    structured_output_format: Option<String>,
 }
 
 struct MockModelServer {
@@ -139,6 +142,18 @@ impl MockModelServer {
                 request.path.ends_with("/chat/completions") || request.path == "/api/chat"
             })
             .map(|request| request.reasoning_effort.clone())
+            .collect()
+    }
+
+    fn chat_structured_output_formats(&self) -> Vec<Option<String>> {
+        self.requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|request| {
+                request.path.ends_with("/chat/completions") || request.path == "/api/chat"
+            })
+            .map(|request| request.structured_output_format.clone())
             .collect()
     }
 }

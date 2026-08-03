@@ -43,6 +43,11 @@ async fn handle_connection(
         .and_then(|value| value.get("reasoning_effort"))
         .and_then(serde_json::Value::as_str)
         .map(str::to_owned);
+    let structured_output_format = request_json
+        .as_ref()
+        .and_then(|value| value.pointer("/response_format/type"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
     requests.lock().unwrap().push(RequestMetadata {
         path: path.clone(),
         streaming,
@@ -50,6 +55,7 @@ async fn handle_connection(
         thinking_disabled,
         max_output_tokens,
         reasoning_effort,
+        structured_output_format: structured_output_format.clone(),
     });
 
     let behavior = *behavior.lock().unwrap();
@@ -86,6 +92,13 @@ async fn handle_connection(
             }
             MockBehavior::ChatInvalidJson if !streaming => {
                 write_json_response(&mut socket, 200, "{invalid").await;
+                return;
+            }
+            MockBehavior::ChatRejectJsonSchema
+            | MockBehavior::ChatRejectJsonSchemaWithInvalidFallback
+                if structured_output_format.as_deref() == Some("json_schema") =>
+            {
+                write_json_response(&mut socket, 400, "{}").await;
                 return;
             }
             MockBehavior::StreamDisconnect if streaming => {
@@ -133,8 +146,13 @@ async fn handle_connection(
             } else {
                 ""
             };
+            let content = if behavior == MockBehavior::ChatRejectJsonSchemaWithInvalidFallback {
+                r#"{\"scene\":7}"#
+            } else {
+                r#"{\"scene\":\"library\"}"#
+            };
             format!(
-                r#"{{"choices":[{{"message":{{"content":"{{\"scene\":\"library\"}}","tool_calls":[{{"id":"tool-call-1","type":"function","function":{{"name":"search_clue","arguments":"{{\"query\":\"clue\"}}"}}}}{second}]}}}}],"usage":{{"prompt_tokens":7,"completion_tokens":5}}}}"#
+                r#"{{"choices":[{{"message":{{"content":"{content}","tool_calls":[{{"id":"tool-call-1","type":"function","function":{{"name":"search_clue","arguments":"{{\"query\":\"clue\"}}"}}}}{second}]}}}}],"usage":{{"prompt_tokens":7,"completion_tokens":5}}}}"#
             )
         };
         write_json_response(&mut socket, 200, &response).await;

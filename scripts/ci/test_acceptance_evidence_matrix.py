@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from acceptance_evidence_matrix import (
+    REPAIR_BATCH_NEGATIVE_TESTS,
     ROOT,
     canonical_manifest_text,
     create_not_run_manifest,
@@ -113,6 +114,27 @@ class AcceptanceEvidenceMatrixTests(unittest.TestCase):
         self.assertEqual(validated, self.data)
         self.assertEqual([row["id"] for row in self.data["rows"]], list(range(1, 18)))
         self.assertEqual(self.data["rows"][14]["status"], "BLOCKED")
+
+    def test_real_provider_evidence_tokens_match_rf03_closure_contract(self) -> None:
+        expected = {
+            "real_local_embedding::ollama_fresh_path",
+            "real_local_embedding::llama_cpp_fresh_path",
+            "real_cloud_chat::fresh_path",
+        }
+        self.assertTrue(expected.issubset(REPAIR_BATCH_NEGATIVE_TESTS["RF03"]))
+
+        producer = (ROOT / "scripts/ci/real-local-provider-matrix.sh").read_text(
+            encoding="utf-8"
+        )
+        for test_name in expected:
+            self.assertIn(f"test {test_name} ... ok", producer)
+
+        legacy = {
+            "real_local_provider::ollama_fresh_path",
+            "real_local_provider::llama_cpp_fresh_path",
+            "real_cloud_provider::fresh_path",
+        }
+        self.assertTrue(legacy.isdisjoint(REPAIR_BATCH_NEGATIVE_TESTS["RF03"]))
 
     def test_machine_verified_command_evidence_can_support_a_pass_row(self) -> None:
         report, payload = self._machine_command_evidence("verified.json")
