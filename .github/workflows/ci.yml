@@ -18,6 +18,9 @@ jobs:
     name: workspace-ci / workspace
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      TRPG_REQUIRE_REAL_LOCAL_PROVIDERS: "0"
+      TRPG_REQUIRE_REAL_CLOUD_PROVIDER: "0"
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:

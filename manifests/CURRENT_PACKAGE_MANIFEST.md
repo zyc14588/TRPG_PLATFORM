@@ -11,7 +11,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `.cargo/audit.toml` | 459 | `a4bf433101dcf3237f5c40048dbedc382ac7584cf84e419fd65122c39ab4f012` | `100644` |
 | `.dockerignore` | 310 | `27b37e177162025db7fcf4113f89644ac480279e0354b40f82935c0f0fd5345b` | `100644` |
 | `.gitattributes` | 134 | `f7aac1365f4a60f0db78a43719a1ed0b754a952c79d4cd79aaa016dde285723f` | `100644` |
-| `.github/workflows/ci.yml` | 1701 | `9585441f6d8fd96632017c4fb691f5ecf027a0e1b90e74c7bdff41f9ab81e490` | `100644` |
+| `.github/workflows/ci.yml` | 1799 | `c8dd60011e4cf68e714885f6dc05da5341827838d49b61974db51298a5e8c678` | `100644` |
 | `.github/workflows/contracts.yml` | 1606 | `db3c629f8b1398505d67b3722a7de107da137df1c6a8194e07ebb6f574652a69` | `100644` |
 | `.github/workflows/docker-compose-smoke.yml` | 2329 | `d296631abfece19117df50181953e3931c96749be470af8ce3e694a481fbd4ab` | `100644` |
 | `.github/workflows/golden-scenarios.yml` | 2267 | `d973edbd5e5d9abfabf06c72dbaf284d025b8e9c69b25bcf0e7a9ccffc60d695` | `100644` |
