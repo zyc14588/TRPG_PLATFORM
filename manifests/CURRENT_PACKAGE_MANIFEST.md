@@ -16,7 +16,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `.github/workflows/docker-compose-smoke.yml` | 2329 | `d296631abfece19117df50181953e3931c96749be470af8ce3e694a481fbd4ab` | `100644` |
 | `.github/workflows/golden-scenarios.yml` | 2267 | `d973edbd5e5d9abfabf06c72dbaf284d025b8e9c69b25bcf0e7a9ccffc60d695` | `100644` |
 | `.github/workflows/p00-negative-matrix.yml` | 2447 | `1a538eee7d1250de6265a90faa575b540a1bf88489f080a3ed2d51d277420de0` | `100644` |
-| `.github/workflows/release.yml` | 12425 | `3d7659112872d101679cf73527c6224feb7a5a6a712ed539174418fba5f4472e` | `100644` |
+| `.github/workflows/release.yml` | 12428 | `df67ebc3205f9b77caf163f1447e1dc0b3ae11381c2617326e48a2d5b558713f` | `100644` |
 | `.gitignore` | 119 | `9ecfb64984af48448f5a8bab995e0760e6f68233af4c3009973f4e6c4032790d` | `100644` |
 | `.nvmrc` | 8 | `98182b41c9ce3357797985cf12dc3b0124490ef88bc918a905373e7688e6aec9` | `100644` |
 | `.python-version` | 7 | `3a55324cbeddc91df012407d051dad08c88624c95a82fbdb856728729fbd14ab` | `100644` |
