@@ -373,6 +373,8 @@ impl AgentJobDecisionPort for LoseFirstCanonicalReceipt {
     }
 }
 
+#[path = "agent_job_public_product_integration_sections/atomic_agent_job_request_rollback.rs"]
+mod atomic_agent_job_request_rollback;
 #[path = "agent_job_public_product_integration_sections/fixture.rs"]
 mod fixture;
 #[path = "agent_job_public_product_integration_sections/human_approval_test.rs"]

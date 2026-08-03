@@ -1,7 +1,7 @@
 # Repository Source Manifest v1
 
-Repository files: 4567
-Hashed files: 4564
+Repository files: 4571
+Hashed files: 4568
 
 All tracked paths are listed. The three generated outputs use a self-reference sentinel instead of an impossible self-hash.
 CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manifest.py` requires all three outputs to be byte-identical.
@@ -115,14 +115,15 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `apps/api-server/src/production_custody_tests.rs` | 313 | `263933e7bc3f45cd4b5fe1e0f4807fc9eab55bd7eb8993f4c5df7da8a7fa333f` | `100644` |
 | `apps/api-server/src/production_custody_tests/01_module_prelude.rs` | 12119 | `d13134f8cce39fdc85f9233b9c3c5f9227b873f26b3cfdb24ac8077a9354bca6` | `100644` |
 | `apps/api-server/src/production_custody_tests/02_production_runtime_without_a_bound_tool_executor_fails_closed.rs` | 1767 | `09b8cd339b087910ce05e54199467503bf28f39ff490f7ae9c9b584dbb3660b5` | `100644` |
-| `apps/api-server/tests/agent_job_public_product_integration.rs` | 13848 | `02ecb0063050a4dde4e0c9dd5aa24078e2f971e2a3688da2367d84004d06db55` | `100644` |
+| `apps/api-server/tests/agent_job_public_product_integration.rs` | 13982 | `0da00238e0c2e7cbec4ff6959eff1249c83bad9e36c6c77fdbd6ee60ac7f2e11` | `100644` |
+| `apps/api-server/tests/agent_job_public_product_integration_sections/atomic_agent_job_request_rollback.rs` | 2780 | `5516b7962aeeaf0febd73ab4aab4b13f6d81d86b2cd209f317b2ace93d0c07e0` | `100644` |
 | `apps/api-server/tests/agent_job_public_product_integration_sections/fixture.rs` | 4616 | `65be49fee1912f91e966bc4ac752b4cd63d1e21cafc4f1a8ca7015d1b95429c3` | `100644` |
 | `apps/api-server/tests/agent_job_public_product_integration_sections/human_approval_test.rs` | 15332 | `7ba5f468a01755fe384fc4da0d769a6e744d2a2d911342e38887982e20891f30` | `100644` |
 | `apps/api-server/tests/agent_job_public_product_integration_sections/production_kill9_test.rs` | 260 | `9702e7eaa463aa63efa772815603c5067ed6a25ba225d3fef91eadd6026fb51a` | `100644` |
 | `apps/api-server/tests/agent_job_public_product_integration_sections/production_kill9_test/01_crash_boundary_harness.rs` | 10047 | `26df1c381ff73fb90d4c5d8def5f2d7c8840ae72c013dea447f8673ab7ff987b` | `100644` |
 | `apps/api-server/tests/agent_job_public_product_integration_sections/production_kill9_test/02_child_process.rs` | 2912 | `7d62e243111e7c9bd0e88cbff894be7c08549e39b7674a3357f57c4d5f07d3d8` | `100644` |
 | `apps/api-server/tests/agent_job_public_product_integration_sections/production_kill9_test/03_recovery_contract.rs` | 11525 | `0db196bbe67679a32a95e3f797f5f9d5a14a0c2546c296ff679f0d08ad48c8a4` | `100644` |
-| `apps/api-server/tests/agent_job_public_product_integration_sections/test.rs` | 16117 | `c7d47484091dd08298a9d97492c254bc81ac20c5cbc69086fc0b88fb5b2b4d9e` | `100644` |
+| `apps/api-server/tests/agent_job_public_product_integration_sections/test.rs` | 13810 | `38597d22346e3f2f7dc4b44b20b54b65db3e62ddb32928009d15b43c862b7f45` | `100644` |
 | `apps/api-server/tests/auth_http_integration.rs` | 285 | `0c791441f656c2ba409c8f59d89e7e33366ade35fe5618dd0b1dc899ceaf342a` | `100644` |
 | `apps/api-server/tests/auth_http_integration/01_module_prelude.rs` | 193 | `6874e8ef20fa631840211bcc3617466cdf11d8f55e660c98478b8d9ee09f638c` | `100644` |
 | `apps/api-server/tests/auth_http_integration/01_module_prelude/01_http_harness.rs` | 8547 | `c32c4a78d638767ab90521e995a0c8898bb85426f7aa0b862fd86853952f34e4` | `100644` |
@@ -160,6 +161,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `apps/web/scripts/browser-test/product-fixtures.mjs` | 5729 | `3ce996f49bf449c5baa18bbb92666bded2105a30be284a8ab94dcc5a22b1ef1e` | `100644` |
 | `apps/web/scripts/browser-test/product-mock.mjs` | 16816 | `d7fc1e0cdfa030e81a21e3e269ffa57959aeb2cebd2cb472d41f12a410295733` | `100644` |
 | `apps/web/scripts/build.mjs` | 1490 | `a9c37504d8b6619b7e1e129bbd8da3b73820a46b0959fd071479270af2cf5527` | `100644` |
+| `apps/web/scripts/fork-contract-test.mjs` | 699 | `d10f3e8f18345f665644dd8226a5529c8b5e1185751d3bcd0be46436a2138482` | `100644` |
 | `apps/web/scripts/live-browser-test.mjs` | 13795 | `a5dd0db8b9adc80e47b137c6bf78c50b3cd8104a6004525f1c0acc1f9997630a` | `100644` |
 | `apps/web/scripts/live-browser-test.sh` | 8738 | `de4c7c63a0b3127b0c95116d56dee6fb7616fbac23d8d0e2f4e47b0dd498f481` | `100755` |
 | `apps/web/scripts/live-browser-test/ai-tutorial.mjs` | 14311 | `66a2e0b06084e572d3d721498644b20a5dcc675ddd3c5c447aac14b3415f8e40` | `100644` |
@@ -169,7 +171,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `apps/web/scripts/live-browser-test/page-actions.mjs` | 3822 | `0b112eaf04523a6f256b6ea77bb33a22be92a9d8d47b34ba570a1709dc35e8fb` | `100644` |
 | `apps/web/scripts/live-browser-test/support.mjs` | 3224 | `6d01c9ace30900bf06f585f6c10038bc8a41c788e0b83cb970e72f63a69f42dd` | `100644` |
 | `apps/web/scripts/serve.mjs` | 2114 | `9b6be0a11a874d70edbbc8e4089feef089f67750748ce61e414228ec2c30e5b1` | `100644` |
-| `apps/web/scripts/test.mjs` | 13920 | `b18f4bce024d20f8dd782ab114a051300d6616c023201d2541782ff0135be2a6` | `100644` |
+| `apps/web/scripts/test.mjs` | 13539 | `308ef9e07d3a66e10dc01c30776691351e61890da2d505ca0b03f7eb3e4dbd22` | `100644` |
 | `apps/web/src/api.js` | 10021 | `a288cc8439d87ef1c3c3ffe2e700a31796daa53fc30186704569118b486e56a9` | `100644` |
 | `apps/web/src/app.js` | 1682 | `1f2b50680c119b653c7358a31201b4f894966f838226f55aca17b986a31b9c46` | `100644` |
 | `apps/web/src/app/campaign-operations.js` | 11316 | `2ae2943d8ffaacb7a96afd3d6edc4b4d67f4449655987302b160ad1b74e46ac0` | `100644` |
@@ -1607,7 +1609,8 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-api/src/api_and_transport.rs` | 223 | `83358d535aa772a1164022835366755d27390b37072ff1732ce8155a88cfe0c9` | `100644` |
 | `crates/trpg-api/src/api_contracts.rs` | 239 | `2942c4b440ccb9ac0c64d71ccb138a3a841686402b21069683ad6b5d35aaa62f` | `100644` |
 | `crates/trpg-api/src/api_contracts/01_module_prelude.rs` | 13089 | `5c94144baebdda87374df6069b253c511fe9af3e2f48a0aa17b8eccc26106258` | `100644` |
-| `crates/trpg-api/src/api_contracts/02_create_campaign.rs` | 15284 | `a680355699ceeab03aa996d522d91bfcb359d6bdc1765fa0f9095f0fdecc19fb` | `100644` |
+| `crates/trpg-api/src/api_contracts/02_create_campaign.rs` | 13655 | `99fd293aa80e129cf47b12e5284c7f833d25ea685987d648bacdeea0547e5e00` | `100644` |
+| `crates/trpg-api/src/api_contracts/02_create_campaign_tests.rs` | 1670 | `14ed4817169a313d2289646dc6f6465054a22d46262a5126688af9af80cba1fb` | `100644` |
 | `crates/trpg-api/src/api_contracts/03_v1_lifecycle.rs` | 328 | `9812126a9dcea15b35bbc5e50f8cc1042a1c2a4a28d295ac7ee4ca2ca74c4147` | `100644` |
 | `crates/trpg-api/src/api_contracts/03_v1_lifecycle/01_requests_and_port.rs` | 10041 | `2b209b31c292fdeeb5abb5cda1c2193398f1b9f2d4e1b5ae70221e62ef0f8bb1` | `100644` |
 | `crates/trpg-api/src/api_contracts/03_v1_lifecycle/02_campaign_character_operations.rs` | 7890 | `cc28e45fa23b2ca72944c298932dd842fe4aedf90387fa47c6aeefd29e957827` | `100644` |
@@ -1638,7 +1641,8 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `crates/trpg-api/tests/batch_029_api_realtime_contract_tests.rs` | 9898 | `2ab1f9412fe41cfd49fb677854dcffc529b49ee4f908e02fe0170ec7c2769e33` | `100644` |
 | `crates/trpg-api/tests/campaign_character_api_integration.rs` | 421 | `b323fd8c466859c6bea025117c4deb470c8a9cbe51354d3d285eff287a28f20a` | `100644` |
 | `crates/trpg-api/tests/campaign_character_api_integration/01_module_prelude.rs` | 13381 | `cfd22143b70f8cccb30d7c023ebc41e8e346284602f2b0cebba03f0798086a5a` | `100644` |
-| `crates/trpg-api/tests/campaign_character_api_integration/02_repository_campaign_character_port_metadata.rs` | 18534 | `ddc278928cbbfbca713668049c19b06d227c8f15c6f1ca2364d8bbc4946c804f` | `100644` |
+| `crates/trpg-api/tests/campaign_character_api_integration/02_repository_campaign_character_port_metadata.rs` | 17691 | `5b72c813adde81b23fd1a526cf3de6361d4bf797f62c3c2457feb1fffd7f0798` | `100644` |
+| `crates/trpg-api/tests/campaign_character_api_integration/02a_valid_sheet_json.rs` | 880 | `272d45be30c179b93a49f53e42bd6bf9141b1734453b8d8d0c6c7ae3863e3d6c` | `100644` |
 | `crates/trpg-api/tests/campaign_character_api_integration/03_campaign_invite_and_character_api_use_the_real_repository.rs` | 11447 | `df87285715aee548e6e679aaaa5b0016f09cf24a381c189c21f79bf15e084f64` | `100644` |
 | `crates/trpg-api/tests/canonical_event_openapi_contract_tests.rs` | 367 | `070aaa8c0c36b7b2b126e06e2ccc44d50358d0232aedc8c83c6fb3201303ce98` | `100644` |
 | `crates/trpg-api/tests/common/mod.rs` | 2877 | `e384ac464c99ef29d1a53c132f6a8b5043c1cf7c6cca0202241ce5e9ab53c45c` | `100644` |

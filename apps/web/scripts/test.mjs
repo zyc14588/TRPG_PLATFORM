@@ -4,6 +4,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+import { assertCompositeForkContract } from "./fork-contract-test.mjs";
 import { pendingActionId } from "./live-browser-test/support.mjs";
 
 class TestWebSocket {
@@ -40,20 +41,7 @@ class TestWebSocket {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const gameplayViewSource = await readFile(path.join(root, "dist/src/app/views.js"), "utf8");
-const campaignOperationsSource = await readFile(
-  path.join(root, "dist/src/app/campaign-operations.js"),
-  "utf8",
-);
-assert.equal(
-  campaignOperationsSource.includes("api.createForkedCampaign(data.parentCampaignId"),
-  true,
-  "forked Campaign creation must use the composite server command",
-);
-assert.equal(
-  campaignOperationsSource.includes("await api.forkCampaign(data.parentCampaignId"),
-  false,
-  "browser must not create a child and materialize its fork in separate requests",
-);
+await assertCompositeForkContract(root);
 for (const requiredPublicControl of ["NPC_INTERACTION", "COMBAT_ROUND", "CHASE_SEGMENT"]) {
   assert.equal(
     gameplayViewSource.includes(requiredPublicControl),
