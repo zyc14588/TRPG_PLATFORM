@@ -45,7 +45,7 @@ jobs:
             --generated-artifact "$RUNNER_TEMP/golden-product-flow/compose-ps.json" \
             --generated-artifact "$RUNNER_TEMP/golden-product-flow/component-failure-gates.log" \
             --generated-artifact "$RUNNER_TEMP/golden-product-flow/live-browser-result.json" \
-            -- bash -lc 'bash scripts/ci/golden-product-flow.sh "$TRPG_GOLDEN_EVIDENCE_DIR"'
+            -- bash -lc "bash scripts/ci/golden-product-flow.sh \"\$TRPG_GOLDEN_EVIDENCE_DIR\""
           python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/golden-product-flow/v1-row-14.json"
       - name: Upload Golden product-flow evidence
         if: always()
