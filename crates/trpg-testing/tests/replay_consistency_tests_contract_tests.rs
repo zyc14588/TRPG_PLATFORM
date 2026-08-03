@@ -12,6 +12,7 @@ fn replay_consistency_rebuilds_projection_from_event_store() {
     assert_eq!(event.event_type, TESTING_QUALITY_DECISION_RECORDED_EVENT);
     assert!(EXPORT_SNAPSHOT_DATA.contains("player_export"));
     assert!(EXPORT_SNAPSHOT_DATA.contains("keeper_export"));
+    assert!(EXPORT_SNAPSHOT_DATA.contains("audit_export"));
 
     let projection = replay_consistency_tests::rebuild_projection(repository.events());
 

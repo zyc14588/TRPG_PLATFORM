@@ -77,6 +77,16 @@ async fn assert_common_provider_contract(provider_type: ProviderType) {
         .unwrap()
         .iter()
         .all(|request| request.authorization_present));
+    assert_eq!(server.chat_output_budgets(), vec![Some(256), Some(256)]);
+    let expected_reasoning = if provider_type == ProviderType::Cloud {
+        Some("none".to_owned())
+    } else {
+        None
+    };
+    assert_eq!(
+        server.chat_reasoning_efforts(),
+        vec![expected_reasoning.clone(), expected_reasoning]
+    );
 }
 
 #[tokio::test]

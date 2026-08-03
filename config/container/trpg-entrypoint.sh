@@ -9,7 +9,8 @@ for runtime_directory in \
     /var/lib/trpg/home \
     /var/lib/trpg/backups \
     /var/lib/trpg/restore-safety-points \
-    /var/lib/trpg/model-certification-requests
+    /var/lib/trpg/model-certification-requests \
+    /var/lib/trpg/model-certification-status
 do
     install -d -o trpg -g trpg -m 0700 "$runtime_directory"
 done

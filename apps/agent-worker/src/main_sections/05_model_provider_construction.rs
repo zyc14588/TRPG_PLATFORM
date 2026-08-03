@@ -8,6 +8,9 @@ struct ModelProviderEnvironment {
     route_authorization_event_id: trpg_agent_runtime::EntityId,
     capabilities: ProviderCapabilities,
     request_timeout: Duration,
+    max_output_tokens: std::num::NonZeroU64,
+    cloud_reasoning_effort:
+        Option<trpg_agent_runtime::model_provider::ModelReasoningEffort>,
     local_network_policy: trpg_agent_runtime::model_provider::LocalProviderNetworkPolicy,
 }
 
@@ -49,6 +52,14 @@ impl ModelProviderEnvironment {
             .filter(|milliseconds| *milliseconds > 0)
             .map(Duration::from_millis)
             .ok_or_else(|| "TRPG_MODEL_PROVIDER_TIMEOUT_MS_INVALID".to_owned())?;
+        let max_output_tokens = std::num::NonZeroU64::new(bounded_environment_u64(
+            "TRPG_AGENT_JOB_MAX_OUTPUT_TOKENS",
+            4_096,
+            1,
+            100_000,
+        )?)
+        .ok_or_else(|| "TRPG_AGENT_JOB_MAX_OUTPUT_TOKENS_INVALID".to_owned())?;
+        let cloud_reasoning_effort = optional_model_reasoning_effort_from_environment()?;
         let local_network_policy =
             trpg_agent_runtime::model_provider::LocalProviderNetworkPolicy::parse(
                 &required_environment("TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST")?,
@@ -64,6 +75,8 @@ impl ModelProviderEnvironment {
             route_authorization_event_id,
             capabilities,
             request_timeout,
+            max_output_tokens,
+            cloud_reasoning_effort,
             local_network_policy,
         })
     }
@@ -82,6 +95,8 @@ impl ModelProviderEnvironment {
             declared_capabilities: self.capabilities,
             route_authorization_event_id: self.route_authorization_event_id,
             request_timeout: self.request_timeout,
+            max_output_tokens: self.max_output_tokens,
+            cloud_reasoning_effort: self.cloud_reasoning_effort,
             development_connect_override: None,
         }
     }
@@ -126,6 +141,33 @@ fn parse_model_provider_type(value: &str) -> Result<ProviderType, String> {
         "ollama" => Ok(ProviderType::Ollama),
         "llama_cpp" => Ok(ProviderType::LlamaCpp),
         _ => Err("TRPG_MODEL_PROVIDER_TYPE_INVALID".to_owned()),
+    }
+}
+
+fn optional_model_reasoning_effort_from_environment(
+) -> Result<Option<trpg_agent_runtime::model_provider::ModelReasoningEffort>, String> {
+    match std::env::var("TRPG_MODEL_PROVIDER_REASONING_EFFORT") {
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(std::env::VarError::NotUnicode(_)) => {
+            Err("TRPG_MODEL_PROVIDER_REASONING_EFFORT_INVALID".to_owned())
+        }
+        Ok(value) => parse_model_reasoning_effort(&value).map(Some),
+    }
+}
+
+fn parse_model_reasoning_effort(
+    value: &str,
+) -> Result<trpg_agent_runtime::model_provider::ModelReasoningEffort, String> {
+    use trpg_agent_runtime::model_provider::ModelReasoningEffort;
+
+    match value {
+        "none" => Ok(ModelReasoningEffort::None),
+        "low" => Ok(ModelReasoningEffort::Low),
+        "medium" => Ok(ModelReasoningEffort::Medium),
+        "high" => Ok(ModelReasoningEffort::High),
+        "xhigh" => Ok(ModelReasoningEffort::XHigh),
+        "max" => Ok(ModelReasoningEffort::Max),
+        _ => Err("TRPG_MODEL_PROVIDER_REASONING_EFFORT_INVALID".to_owned()),
     }
 }
 
@@ -175,6 +217,15 @@ mod model_provider_construction_tests {
         );
         assert!(parse_model_provider_type("codex_cli_oss").is_err());
         assert!(parse_model_provider_type("local_openai_compatible").is_err());
+    }
+
+    #[test]
+    fn production_worker_reasoning_effort_is_explicit_and_bounded() {
+        assert_eq!(parse_model_reasoning_effort("none").unwrap().as_str(), "none");
+        assert_eq!(parse_model_reasoning_effort("max").unwrap().as_str(), "max");
+        assert!(parse_model_reasoning_effort("").is_err());
+        assert!(parse_model_reasoning_effort("minimal").is_err());
+        assert!(parse_model_reasoning_effort("ultra").is_err());
     }
 
     #[test]

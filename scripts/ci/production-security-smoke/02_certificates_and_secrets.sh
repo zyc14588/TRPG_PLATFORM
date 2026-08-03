@@ -156,6 +156,7 @@ export TRPG_MODEL_ID="runtime-smoke-model"
 export TRPG_MODEL_ARTIFACT_SHA256="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 export TRPG_MODEL_PROVIDER_BASE_URL="https://provider.invalid/v1"
 export TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID="runtime-smoke-provider-route-v1"
+export TRPG_AGENT_WORKER_MODE="ready"
 
 python3 "$root/scripts/ci/verify_compose_security.py" --check
 "${compose_command[@]}" config --quiet

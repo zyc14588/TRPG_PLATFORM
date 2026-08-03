@@ -116,12 +116,94 @@ environment_keys=(
   TRPG_POSTGRES_CLIENT_MOUNT_ROOT
   TMPDIR
   SSL_CERT_FILE
+  TRPG_REQUIRE_REAL_LOCAL_PROVIDERS
+  TRPG_REQUIRE_REAL_CLOUD_PROVIDER
 )
+
+export TRPG_REQUIRE_REAL_LOCAL_PROVIDERS="${TRPG_REQUIRE_REAL_LOCAL_PROVIDERS:-0}"
+export TRPG_REQUIRE_REAL_CLOUD_PROVIDER="${TRPG_REQUIRE_REAL_CLOUD_PROVIDER:-0}"
+case "$TRPG_REQUIRE_REAL_CLOUD_PROVIDER" in
+  0) ;;
+  1)
+    [[ "$TRPG_REQUIRE_REAL_LOCAL_PROVIDERS" == 1 ]] || {
+      printf 'real cloud provider verification requires the real provider matrix\n' >&2
+      exit 2
+    }
+    ;;
+  *)
+    printf 'TRPG_REQUIRE_REAL_CLOUD_PROVIDER must be 0 or 1\n' >&2
+    exit 2
+    ;;
+esac
 
 arguments=()
 for key in "${environment_keys[@]}"; do
   arguments+=(--environment-key "$key")
 done
+
+report_directory="$(realpath -m -- "$(dirname "$report_path")")"
+case "$TRPG_REQUIRE_REAL_LOCAL_PROVIDERS" in
+  1)
+    provider_environment_keys=(
+      TRPG_REAL_PROVIDER_EVIDENCE_DIR
+      TRPG_OLLAMA_CHAT_MODEL
+      TRPG_OLLAMA_EMBEDDING_MODEL
+      OLLAMA_MODELS
+      TRPG_LLAMA_SERVER_BIN
+      TRPG_LLAMA_CPP_CHAT_MODEL_PATH
+      TRPG_LLAMA_CPP_EMBEDDING_MODEL_PATH
+    )
+    for key in "${provider_environment_keys[@]}"; do
+      [[ -n "${!key:-}" ]] || {
+        printf 'missing real provider environment variable: %s\n' "$key" >&2
+        exit 2
+      }
+      arguments+=(--environment-key "$key")
+    done
+    [[ "$(realpath -m -- "$TRPG_REAL_PROVIDER_EVIDENCE_DIR")" == "$report_directory" ]] || {
+      printf 'TRPG_REAL_PROVIDER_EVIDENCE_DIR must equal the report directory\n' >&2
+      exit 2
+    }
+    for artifact_name in \
+      real-ollama-server.log \
+      real-ollama-tls-proxy.log \
+      real-llama-cpp-chat.log \
+      real-llama-cpp-embedding.log \
+      real-llama-cpp-chat-tls-proxy.log \
+      real-llama-cpp-embedding-tls-proxy.log; do
+      arguments+=(--generated-artifact "$report_directory/$artifact_name")
+    done
+    case "$TRPG_REQUIRE_REAL_CLOUD_PROVIDER" in
+      1)
+        cloud_environment_keys=(
+          TRPG_REAL_CLOUD_PROVIDER_URL
+          TRPG_REAL_CLOUD_CHAT_MODEL
+          TRPG_REAL_CLOUD_EMBEDDING_MODEL
+          TRPG_REAL_CLOUD_CHAT_MODEL_SHA256
+          TRPG_REAL_CLOUD_EMBEDDING_MODEL_SHA256
+          TRPG_REAL_CLOUD_CREDENTIAL_PATH
+        )
+        for key in "${cloud_environment_keys[@]}"; do
+          [[ -n "${!key:-}" ]] || {
+            printf 'missing real cloud environment variable: %s\n' "$key" >&2
+            exit 2
+          }
+          arguments+=(--environment-key "$key")
+        done
+        ;;
+      0) ;;
+      *)
+        printf 'TRPG_REQUIRE_REAL_CLOUD_PROVIDER must be 0 or 1\n' >&2
+        exit 2
+        ;;
+    esac
+    ;;
+  0) ;;
+  *)
+    printf 'TRPG_REQUIRE_REAL_LOCAL_PROVIDERS must be 0 or 1\n' >&2
+    exit 2
+    ;;
+esac
 
 python3 scripts/ci/generate_evidence.py \
   --report "$report_path" \

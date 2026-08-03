@@ -57,7 +57,9 @@ bash -n scripts/ci/postgres-container-client.sh
 bash -n scripts/ci/p07-integration-services.sh
 bash -n scripts/ci/p07-stop-integration-services.sh
 bash -n scripts/ci/generate-integration-evidence.sh
+bash -n scripts/ci/generate-v1-acceptance-evidence.sh
 bash -n scripts/ci/golden-product-flow.sh
+bash -n scripts/ci/real-local-provider-matrix.sh
 bash -n scripts/ci/production-security-smoke.sh
 bash -n scripts/ci/production-security-smoke/*.sh
 bash -n scripts/backup_restore/smoke.sh
@@ -197,7 +199,20 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 : "${AR09_PUBLIC_CANONICAL_DATABASE_URL:?AR09_PUBLIC_CANONICAL_DATABASE_URL is required for canonical Agent Job commit}"
 : "${AR09_PUBLIC_WITNESS_DATABASE_URL:?AR09_PUBLIC_WITNESS_DATABASE_URL is required for canonical Agent Job witness}"
 : "${AR09_PUBLIC_REDIS_URL:?AR09_PUBLIC_REDIS_URL is required for Agent Job identities}"
-cargo test --workspace --all-features --locked --no-fail-fast -- --test-threads=1
+cargo test --workspace --all-features --locked --no-fail-fast -- \
+  --test-threads=1 \
+  --skip authenticated_real_provider_satisfies_positive_and_negative_contracts
+case "${TRPG_REQUIRE_REAL_LOCAL_PROVIDERS:-0}" in
+  1)
+    : "${TRPG_REAL_PROVIDER_EVIDENCE_DIR:?TRPG_REAL_PROVIDER_EVIDENCE_DIR is required}"
+    bash scripts/ci/real-local-provider-matrix.sh "$TRPG_REAL_PROVIDER_EVIDENCE_DIR"
+    ;;
+  0) ;;
+  *)
+    printf 'TRPG_REQUIRE_REAL_LOCAL_PROVIDERS must be 0 or 1\n' >&2
+    exit 2
+    ;;
+esac
 "$P02_PSQL" "$P03_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
   -f "$P03_SCHEMA_ASSERTION_PATH"
 python3 scripts/ci/p02_boundary_regression.py

@@ -12,6 +12,7 @@ admin_root="$temporary_directory/admin"
 admin_backup_directory="$admin_root/backups"
 admin_safety_directory="$admin_root/restore-safety-points"
 admin_certification_directory="$admin_root/model-certification-requests"
+admin_certification_status_directory="$admin_root/model-certification-status"
 admin_state_path="$admin_root/control-state.json"
 admin_audit_path="$admin_root/audit.jsonl"
 admin_openfga_store_id_path="$admin_root/openfga-store-id"
@@ -115,7 +116,7 @@ printf '%s\n' '{"fuel_limit":100000,"memory_limit_bytes":1048576,"plugins":[]}' 
 install -d -m 0700 \
   "$secret_mount" "$secret_catalog_directory" "$export_root" \
   "$admin_root" "$admin_backup_directory" "$admin_safety_directory" \
-  "$admin_certification_directory"
+  "$admin_certification_directory" "$admin_certification_status_directory"
 (
   umask 077
   printf '%s\n' "$api_openfga_store_id" >"$admin_openfga_store_id_path"
@@ -217,6 +218,7 @@ start_service() {
   fi
   if [[ "$service" == agent-worker ]]; then
     command_environment+=(
+      "TRPG_AGENT_WORKER_MODE=ready"
       "TRPG_CANONICAL_DATABASE_URL_SECRET_ID=canonical_database_url"
       "TRPG_CANONICAL_DATABASE_URL_SECRET_VERSION=1"
       "TRPG_IDENTITY_SIGNING_KEY_SECRET_ID=identity_signing_key"
@@ -240,6 +242,7 @@ start_service() {
       "TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID=service-process-smoke-route"
       "TRPG_MODEL_PROVIDER_CAPABILITIES=chat,streaming,structured_output,tool_requests,embeddings"
       "TRPG_MODEL_PROVIDER_TIMEOUT_MS=30000"
+      "TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST=loopback"
       "TRPG_PLUGIN_REGISTRY_PATH=$plugin_registry"
       "TRPG_OBJECT_STORAGE_ENDPOINT=$object_storage_endpoint"
       "TRPG_OBJECT_STORAGE_REGION=$object_storage_region"
@@ -299,6 +302,7 @@ start_service() {
       "TRPG_ADMIN_BACKUP_DIRECTORY=$admin_backup_directory"
       "TRPG_ADMIN_SAFETY_DIRECTORY=$admin_safety_directory"
       "TRPG_ADMIN_CERTIFICATION_DIRECTORY=$admin_certification_directory"
+      "TRPG_ADMIN_CERTIFICATION_STATUS_DIRECTORY=$admin_certification_status_directory"
     )
   fi
   env "${command_environment[@]}" \

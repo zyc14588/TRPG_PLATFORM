@@ -234,8 +234,7 @@ fn optional_agent_job_worker_from_environment(
                 ))
                 .map_err(|_| "AGENT_GAMEPLAY_DATABASE_CONNECTION_FAILED".to_owned())
         })
-        .map_err(|_| "DATABASE_URL_SECRET_INVALID".to_owned())?
-        .map_err(|error| error)?;
+        .map_err(|_| "DATABASE_URL_SECRET_INVALID".to_owned())??;
     let canonical_runtime = Arc::new(Mutex::new(
         tokio::runtime::Runtime::new()
             .map_err(|_| "AGENT_CANONICAL_RUNTIME_INITIALIZATION_FAILED".to_owned())?,

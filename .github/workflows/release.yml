@@ -30,11 +30,14 @@ jobs:
       - name: Pin pnpm
         run: corepack enable && corepack prepare pnpm@11.9.0 --activate
       - name: Generate Golden product-flow evidence
+        env:
+          TRPG_GOLDEN_EVIDENCE_DIR: ${{ runner.temp }}/golden-product-flow
         run: |
           mkdir -p "$RUNNER_TEMP/golden-product-flow"
           python3 scripts/ci/generate_evidence.py \
-            --report "$RUNNER_TEMP/golden-product-flow/evidence-manifest.json" \
+            --report "$RUNNER_TEMP/golden-product-flow/v1-row-14.json" \
             --artifact MANIFEST.md \
+            --environment-key TRPG_GOLDEN_EVIDENCE_DIR \
             --generated-artifact "$RUNNER_TEMP/golden-product-flow/human-kp-tutorial.png" \
             --generated-artifact "$RUNNER_TEMP/golden-product-flow/ai-kp-tutorial.png" \
             --generated-artifact "$RUNNER_TEMP/golden-product-flow/login-error-mobile.png" \
@@ -42,8 +45,8 @@ jobs:
             --generated-artifact "$RUNNER_TEMP/golden-product-flow/compose-ps.json" \
             --generated-artifact "$RUNNER_TEMP/golden-product-flow/component-failure-gates.log" \
             --generated-artifact "$RUNNER_TEMP/golden-product-flow/live-browser-result.json" \
-            -- bash scripts/ci/golden-product-flow.sh "$RUNNER_TEMP/golden-product-flow"
-          python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/golden-product-flow/evidence-manifest.json"
+            -- bash -lc 'bash scripts/ci/golden-product-flow.sh "$TRPG_GOLDEN_EVIDENCE_DIR"'
+          python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/golden-product-flow/v1-row-14.json"
       - name: Upload Golden product-flow evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -56,8 +59,22 @@ jobs:
   release-evidence:
     name: release-readiness-evidence / release-evidence
     needs: golden-product-flow
-    runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 180
+    env:
+      TRPG_REQUIRE_REAL_LOCAL_PROVIDERS: "1"
+      TRPG_REQUIRE_REAL_CLOUD_PROVIDER: "1"
+      TRPG_OLLAMA_CHAT_MODEL: qwen3.6:35b
+      TRPG_OLLAMA_EMBEDDING_MODEL: qwen3-embedding:8b
+      OLLAMA_MODELS: ${{ vars.TRPG_OLLAMA_MODELS_DIRECTORY }}
+      TRPG_LLAMA_SERVER_BIN: ${{ vars.TRPG_LLAMA_SERVER_BIN }}
+      TRPG_LLAMA_CPP_CHAT_MODEL_PATH: ${{ vars.TRPG_LLAMA_CPP_CHAT_MODEL_PATH }}
+      TRPG_LLAMA_CPP_EMBEDDING_MODEL_PATH: ${{ vars.TRPG_LLAMA_CPP_EMBEDDING_MODEL_PATH }}
+      TRPG_REAL_CLOUD_PROVIDER_URL: ${{ vars.TRPG_REAL_CLOUD_PROVIDER_URL }}
+      TRPG_REAL_CLOUD_CHAT_MODEL: ${{ vars.TRPG_REAL_CLOUD_CHAT_MODEL }}
+      TRPG_REAL_CLOUD_EMBEDDING_MODEL: ${{ vars.TRPG_REAL_CLOUD_EMBEDDING_MODEL }}
+      TRPG_REAL_CLOUD_CHAT_MODEL_SHA256: ${{ vars.TRPG_REAL_CLOUD_CHAT_MODEL_SHA256 }}
+      TRPG_REAL_CLOUD_EMBEDDING_MODEL_SHA256: ${{ vars.TRPG_REAL_CLOUD_EMBEDDING_MODEL_SHA256 }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -72,15 +89,34 @@ jobs:
         run: corepack enable && corepack prepare pnpm@11.9.0 --activate
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
+      - name: Download exact-SHA Golden product-flow evidence
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: golden-product-flow-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-readiness
       - name: Start pinned integration services
         run: bash scripts/ci/integration-services.sh "$GITHUB_ENV"
+      - name: Materialize the ephemeral cloud credential
+        env:
+          TRPG_REAL_CLOUD_CREDENTIAL: ${{ secrets.TRPG_REAL_CLOUD_CREDENTIAL }}
+          TRPG_REAL_CLOUD_CREDENTIAL_PATH: ${{ runner.temp }}/trpg-real-cloud-credential
+        run: |
+          test -n "$TRPG_REAL_CLOUD_CREDENTIAL"
+          install -m 0600 /dev/null "$TRPG_REAL_CLOUD_CREDENTIAL_PATH"
+          printf '%s' "$TRPG_REAL_CLOUD_CREDENTIAL" >"$TRPG_REAL_CLOUD_CREDENTIAL_PATH"
       - name: Generate release input evidence
+        env:
+          TRPG_REAL_PROVIDER_EVIDENCE_DIR: ${{ runner.temp }}/release-readiness
+          TRPG_REAL_CLOUD_CREDENTIAL_PATH: ${{ runner.temp }}/trpg-real-cloud-credential
         run: |
           mkdir -p "$RUNNER_TEMP/release-readiness"
           bash scripts/ci/generate-integration-evidence.sh "$RUNNER_TEMP/release-readiness/release-input.json"
           python3 scripts/ci/verify_evidence_schema.py --live-context "$RUNNER_TEMP/release-readiness/release-input.json"
-      - name: Reclaim rebuildable Rust artifacts
-        run: cargo clean
+      - name: Remove the ephemeral cloud credential
+        if: always()
+        env:
+          TRPG_REAL_CLOUD_CREDENTIAL_PATH: ${{ runner.temp }}/trpg-real-cloud-credential
+        run: rm -f "$TRPG_REAL_CLOUD_CREDENTIAL_PATH"
       - name: Generate production security input evidence
         run: |
           python3 scripts/ci/generate_evidence.py \
@@ -96,16 +132,11 @@ jobs:
             "$RUNNER_TEMP/release-readiness/production-security-input.json"
       - name: Verify the truthful READY state
         run: |
-          python3 scripts/ci/acceptance_evidence_matrix.py create-not-run \
-            --manifest "$RUNNER_TEMP/release-readiness/acceptance-evidence-manifest.json" \
-            --evidence "$RUNNER_TEMP/release-readiness/release-input.json" \
-            --evidence "$RUNNER_TEMP/release-readiness/production-security-input.json"
-          python3 scripts/ci/acceptance_evidence_matrix.py generate \
-            --manifest "$RUNNER_TEMP/release-readiness/acceptance-evidence-manifest.json" \
-            --output "$RUNNER_TEMP/release-readiness/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md"
-          python3 scripts/ci/acceptance_evidence_matrix.py validate \
-            --manifest "$RUNNER_TEMP/release-readiness/acceptance-evidence-manifest.json" \
-            --matrix "$RUNNER_TEMP/release-readiness/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md"
+          bash scripts/ci/generate-v1-acceptance-evidence.sh \
+            "$RUNNER_TEMP/release-readiness" \
+            "$RUNNER_TEMP/release-readiness/release-input.json" \
+            "$RUNNER_TEMP/release-readiness/production-security-input.json" \
+            "$RUNNER_TEMP/release-readiness/v1-row-14.json"
           python3 scripts/ci/generate_evidence.py \
             --report "$RUNNER_TEMP/release-readiness/evidence-manifest.json" \
             --artifact MANIFEST.md \

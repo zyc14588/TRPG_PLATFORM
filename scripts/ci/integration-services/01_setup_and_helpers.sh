@@ -27,6 +27,7 @@ else
 fi
 tls_directory="$(mktemp -d "$runtime_root/trpg-postgres-tls.XXXXXX")"
 backup_directory="$(mktemp -d "$runtime_root/trpg-backup.XXXXXX")"
+nats_store_directory="$(mktemp -d "$runtime_root/trpg-nats-store.XXXXXX")"
 libpq_service_file="$backup_directory/pg_service.conf"
 minio_root_access_key="trpg_ci_root"
 minio_root_secret_key="$(openssl rand -hex 24)"
@@ -108,9 +109,11 @@ docker run -d --name trpg-redis \
   -p 127.0.0.1:16379:6379 \
   "$redis_image"
 docker run -d --name trpg-nats \
+  --user "$(id -u):$(id -g)" \
   -p 127.0.0.1:14222:4222 \
   -p 127.0.0.1:18222:8222 \
-  "$nats_image" -js -m 8222
+  -v "$nats_store_directory:/data" \
+  "$nats_image" -js -sd /data -m 8222
 docker run -d --name trpg-openfga \
   -p 127.0.0.1:18080:8080 \
   "$openfga_image" \

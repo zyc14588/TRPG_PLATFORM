@@ -57,6 +57,27 @@ impl<R: SecretResolver + 'static> HttpModelProvider<R> {
         );
         payload.insert("messages".to_owned(), Value::Array(messages));
         payload.insert("stream".to_owned(), Value::Bool(stream));
+        let max_output_tokens = Value::from(self.runtime.max_output_tokens.get());
+        match self.runtime.provider.provider_type {
+            ProviderType::Cloud => {
+                payload.insert("max_completion_tokens".to_owned(), max_output_tokens);
+                if let Some(reasoning_effort) = &self.runtime.cloud_reasoning_effort {
+                    payload.insert(
+                        "reasoning_effort".to_owned(),
+                        Value::String(reasoning_effort.as_str().to_owned()),
+                    );
+                }
+            }
+            ProviderType::Ollama => {
+                payload.insert(
+                    "options".to_owned(),
+                    json!({"num_predict": max_output_tokens}),
+                );
+            }
+            ProviderType::LlamaCpp | ProviderType::LocalOpenAiCompatible => {
+                payload.insert("max_tokens".to_owned(), max_output_tokens);
+            }
+        }
         if !tools.is_empty() {
             payload.insert("tools".to_owned(), Value::Array(tools));
         }

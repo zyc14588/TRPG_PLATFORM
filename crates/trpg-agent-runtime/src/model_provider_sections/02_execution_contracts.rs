@@ -99,11 +99,36 @@ impl<T> std::fmt::Debug for ProviderExecution<T> {
 }
 
 #[derive(Clone)]
+pub enum ModelReasoningEffort {
+    None,
+    Low,
+    Medium,
+    High,
+    XHigh,
+    Max,
+}
+
+impl ModelReasoningEffort {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::XHigh => "xhigh",
+            Self::Max => "max",
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct ModelProviderRuntimeConfig {
     pub provider: ProviderConfig,
     pub declared_capabilities: ProviderCapabilities,
     pub route_authorization_event_id: trpg_shared_kernel::EntityId,
     pub request_timeout: Duration,
+    pub max_output_tokens: std::num::NonZeroU64,
+    pub cloud_reasoning_effort: Option<ModelReasoningEffort>,
     /// Test-only DNS injection for development `.test` endpoints. Production
     /// construction rejects this field.
     pub development_connect_override: Option<SocketAddr>,
@@ -120,6 +145,14 @@ impl std::fmt::Debug for ModelProviderRuntimeConfig {
                 &self.route_authorization_event_id,
             )
             .field("request_timeout", &self.request_timeout)
+            .field("max_output_tokens", &self.max_output_tokens)
+            .field(
+                "cloud_reasoning_effort",
+                &self
+                    .cloud_reasoning_effort
+                    .as_ref()
+                    .map(ModelReasoningEffort::as_str),
+            )
             .field(
                 "development_connect_override",
                 &self
