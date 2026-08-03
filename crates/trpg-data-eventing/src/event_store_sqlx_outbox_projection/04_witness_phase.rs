@@ -12,6 +12,7 @@ enum AtomicProjection<'a> {
     CampaignInviteAcceptance(&'a serde_json::Value),
     GameplayRollReservation(&'a serde_json::Value),
     SessionEndingReservation(&'a serde_json::Value),
+    AgentJobRequest(&'a serde_json::Value),
 }
 
 impl WitnessPhase {

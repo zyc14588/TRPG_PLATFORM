@@ -271,6 +271,55 @@ impl PostgresCanonicalStore {
         .await
     }
 
+    /// Atomically appends the externally authorized AgentJobRequested event
+    /// and materializes the durable workflow row that workers claim. The
+    /// projection is content-addressed in the event's HMAC-bound target list,
+    /// so a canonical event can never be committed without its exact job
+    /// binding and a conflicting durable row aborts the Event Store append.
+    pub async fn commit_agent_job_request(
+        &self,
+        request: &CanonicalCommitRequest,
+        projection: &serde_json::Value,
+    ) -> KernelResult<CanonicalCommitReceipt> {
+        let mut draft = canonical_request_draft(request)?;
+        if draft.events.len() != 1
+            || draft.events[0].event_type != "AgentJobRequested"
+            || serde_json::from_str::<serde_json::Value>(&draft.events[0].payload_json).ok()
+                != Some(projection.clone())
+        {
+            return Err(TrpgError::AuditIntegrityViolation);
+        }
+        let projection_id: String = sqlx::query_scalar(
+            "SELECT core_domain.agent_job_request_projection_id($1::JSONB)",
+        )
+        .bind(Json(projection.clone()))
+        .fetch_one(&self.primary)
+        .await
+        .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        draft.events[0].projection_targets = vec![CanonicalProjectionTarget {
+            relation: "core_domain.agent_job_request".to_owned(),
+            row_id: projection_id,
+        }];
+
+        let persisted = self
+            .commit_with_projection(&draft, Some(AtomicProjection::AgentJobRequest(projection)))
+            .await
+            .map_err(map_canonical_port_error)?;
+        self.verify_integrity()
+            .await
+            .map_err(map_canonical_port_error)?;
+        let events = load_committed_events(&self.primary, &self.payload_cipher, &persisted)
+            .await
+            .map_err(map_canonical_port_error)?;
+        Ok(CanonicalCommitReceipt {
+            first_stream_version: u64::try_from(persisted.first_stream_version)
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?,
+            last_stream_version: u64::try_from(persisted.last_stream_version)
+                .map_err(|_| TrpgError::AuditIntegrityViolation)?,
+            events,
+        })
+    }
+
     async fn commit_with_projection(
         &self,
         draft: &AtomicCommitDraft,

@@ -22,6 +22,7 @@ from repo_truth import (
     evidence_environment_sha256,
     evidence_test_cases,
     false_skip_markers,
+    git_tree_sha,
     git_modes,
     repository_artifact_path,
     repository_slug,
@@ -163,6 +164,7 @@ def main() -> int:
         generated_paths.append(resolved)
 
     commit_before = base_commit()
+    tree_before = git_tree_sha()
     diff_before = worktree_diff_sha256()
     service_versions = {
         name: service_version_record(service_command)
@@ -211,6 +213,13 @@ def main() -> int:
         integrity_errors.append(f"cannot read base commit after evidence command: {error}")
     if commit_after != commit_before:
         integrity_errors.append("base commit changed while the evidence command ran")
+    try:
+        tree_after = git_tree_sha()
+    except (OSError, subprocess.SubprocessError) as error:
+        tree_after = None
+        integrity_errors.append(f"cannot read Git tree after evidence command: {error}")
+    if tree_after != tree_before:
+        integrity_errors.append("Git tree changed while the evidence command ran")
     github_sha = os.environ.get("GITHUB_SHA", commit_before)
     if github_sha != commit_before:
         integrity_errors.append("GITHUB_SHA does not match the checked-out commit")
@@ -295,6 +304,7 @@ def main() -> int:
     status = "PASS" if exit_code == 0 else "FAIL"
     evidence = {
         "base_commit": commit_before,
+        "tree_sha": tree_before,
         "worktree_diff_sha256": diff_before,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "generator_version": EVIDENCE_GENERATOR_VERSION,

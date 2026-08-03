@@ -1,8 +1,15 @@
 use crate::agent_runtime::{AgentError, AgentResult};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::watch;
 use trpg_security_governance::cloud_egress::CloudEgressAttempt;
 pub use trpg_security_governance::cloud_egress::{CloudContextFact, CloudEgressAuthorization};
 pub use trpg_security_governance::secret::SecretReference;
+pub use trpg_security_governance::LocalProviderNetworkPolicy;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProviderType {
@@ -91,6 +98,26 @@ pub fn provider_boundary_snapshot() -> ModelProviderBoundarySnapshot {
 }
 
 pub fn validate_provider_config(config: &ProviderConfig) -> AgentResult<()> {
+    validate_provider_config_boundary(config)?;
+    validate_local_provider_runtime_identity(config)
+}
+
+pub fn validate_provider_config_with_local_network_policy(
+    config: &ProviderConfig,
+    policy: &LocalProviderNetworkPolicy,
+) -> AgentResult<()> {
+    let endpoint = validate_provider_config_boundary(config)?;
+    if config.provider_type.is_local() && !policy.permits(&endpoint) {
+        return Err(AgentError::Core(
+            trpg_shared_kernel::TrpgError::InvalidConfiguration(
+                "local_provider_endpoint_not_allowlisted",
+            ),
+        ));
+    }
+    validate_local_provider_runtime_identity(config)
+}
+
+fn validate_provider_config_boundary(config: &ProviderConfig) -> AgentResult<url::Url> {
     if config.model_id.trim().is_empty()
         || config.model_id.len() > 256
         || config.model_artifact_sha256.len() != 71
@@ -127,8 +154,15 @@ pub fn validate_provider_config(config: &ProviderConfig) -> AgentResult<()> {
             ),
         ));
     }
-    let host_is_loopback = matches!(endpoint.host_str(), Some("localhost" | "127.0.0.1" | "::1"));
-    if config.provider_type.is_local() && !host_is_loopback {
+    let host_is_loopback = endpoint.host_str().is_some_and(|host| {
+        host.eq_ignore_ascii_case("localhost")
+            || host
+                .parse::<std::net::IpAddr>()
+                .is_ok_and(|address| address.is_loopback())
+    });
+    if config.provider_type.is_local()
+        && !LocalProviderNetworkPolicy::endpoint_has_supported_private_shape(&endpoint)
+    {
         return Err(AgentError::UnauthenticatedLocalProviderExposed);
     }
     if config.provider_type == ProviderType::Cloud && host_is_loopback {
@@ -145,8 +179,64 @@ pub fn validate_provider_config(config: &ProviderConfig) -> AgentResult<()> {
             ),
         ));
     }
+    Ok(endpoint)
+}
 
+fn validate_local_provider_runtime_identity(config: &ProviderConfig) -> AgentResult<()> {
+    if config.provider_type.is_local() && config.environment == Environment::Prod {
+        resolve_provider_runtime_sha256(config)?;
+    }
     Ok(())
+}
+
+/// Resolves the identity bound to local-provider certification. Production
+/// local providers must be pinned to the deployed runtime/container digest by
+/// the process owner; development providers use a deterministic adapter/route
+/// fingerprint so tests cannot substitute an applicant-supplied value.
+pub fn resolve_provider_runtime_sha256(config: &ProviderConfig) -> AgentResult<String> {
+    const RUNTIME_SHA256_ENV: &str = "TRPG_MODEL_PROVIDER_RUNTIME_SHA256";
+    let runtime_pin = if config.provider_type.is_local() && config.environment == Environment::Prod
+    {
+        let value = std::env::var(RUNTIME_SHA256_ENV).map_err(|_| {
+            AgentError::Core(trpg_shared_kernel::TrpgError::InvalidConfiguration(
+                "local_provider_runtime_identity_required",
+            ))
+        })?;
+        if !valid_sha256(&value) {
+            return Err(AgentError::Core(
+                trpg_shared_kernel::TrpgError::InvalidConfiguration(
+                    "local_provider_runtime_identity_invalid",
+                ),
+            ));
+        }
+        value
+    } else {
+        "development-runtime-unpinned".to_owned()
+    };
+
+    let environment = match config.environment {
+        Environment::Dev => "dev",
+        Environment::Prod => "prod",
+    };
+    let mut digest = Sha256::new();
+    for field in [
+        "trpg-http-model-provider-runtime-v1",
+        env!("CARGO_PKG_VERSION"),
+        config.provider_type.route_name(),
+        config.base_url.as_str(),
+        environment,
+        runtime_pin.as_str(),
+    ] {
+        digest.update((field.len() as u64).to_be_bytes());
+        digest.update(field.as_bytes());
+    }
+    Ok(format!("sha256:{:x}", digest.finalize()))
+}
+
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 71
+        && value.starts_with("sha256:")
+        && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 pub fn evaluate_cloud_fallback(
@@ -262,3 +352,6 @@ pub async fn send_audited_cloud_request<
         )
         .await
 }
+
+include!("model_provider_sections/01_request_contracts.rs");
+include!("model_provider_sections/02_execution_contracts.rs");

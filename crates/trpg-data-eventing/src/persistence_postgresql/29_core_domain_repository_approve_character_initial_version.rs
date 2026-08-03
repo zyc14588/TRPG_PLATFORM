@@ -17,8 +17,9 @@ impl CoreDomainRepository {
                    (
                        SELECT sheet_version_id
                          FROM public.character_sheet_versions
-                        WHERE character_id = $1 AND version = 1
-                   ) AS initial_sheet_version_id
+                        WHERE character_id = $1
+                          AND version = characters.current_sheet_version
+                   ) AS current_sheet_version_id
               FROM public.characters
              WHERE character_id = $1
             "#,
@@ -37,15 +38,15 @@ impl CoreDomainRepository {
             character_id: character_id.to_owned(),
             reviewed_by: metadata.requesting_actor_id.clone(),
         };
-        let initial_sheet_version_id = row
-            .get::<Option<String>, _>("initial_sheet_version_id")
+        let current_sheet_version_id = row
+            .get::<Option<String>, _>("current_sheet_version_id")
             .ok_or(CoreDomainRepositoryError::Integrity(
-                "initial_character_sheet_missing",
+                "current_character_sheet_missing",
             ))?;
         let projection_targets = || {
             vec![
                 projection_target("public.characters", character_id),
-                projection_target("public.character_sheet_versions", &initial_sheet_version_id),
+                projection_target("public.character_sheet_versions", &current_sheet_version_id),
             ]
         };
         let current_state: String = row.get("state");
@@ -149,7 +150,7 @@ impl CoreDomainRepository {
                    provenance_recorded_by = $5,
                    last_event_sequence = $6
              WHERE character_id = $7
-               AND version = 1
+               AND version = $8
                AND locked = FALSE
             "#,
         )
@@ -160,6 +161,7 @@ impl CoreDomainRepository {
         .bind(&metadata.provenance_recorded_by)
         .bind(persisted.last_event_sequence)
         .bind(character_id)
+        .bind(row.get::<i64, _>("current_sheet_version"))
         .execute(&mut *transaction)
         .await
         .map_err(database_error("lock_initial_character_sheet"))?;

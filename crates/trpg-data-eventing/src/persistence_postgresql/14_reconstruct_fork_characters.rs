@@ -18,6 +18,7 @@ fn reconstruct_fork_characters(
         if matches!(
             replay.event_type.as_str(),
             "CharacterCreated"
+                | "CharacterUpdated"
                 | "CharacterSubmitted"
                 | "CharacterInitialVersionApproved"
                 | "PlayerActionSubmitted"
@@ -83,6 +84,54 @@ fn reconstruct_fork_characters(
                         }),
                     },
                 );
+            }
+            "CharacterUpdated" => {
+                let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
+                    .map_err(|_| {
+                        CoreDomainRepositoryError::Integrity("fork_character_update_payload")
+                    })?;
+                let CoreDomainEvent::CharacterUpdated {
+                    character_id,
+                    campaign_id: event_campaign_id,
+                    display_name,
+                    sheet_json,
+                    ..
+                } = event
+                else {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_update_event",
+                    ));
+                };
+                if event_campaign_id != campaign_id {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_update_campaign",
+                    ));
+                }
+                let character = characters.get_mut(&character_id).ok_or(
+                    CoreDomainRepositoryError::Integrity("fork_character_update_chain"),
+                )?;
+                if character.state != "DRAFT" || character.initial_version_locked {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_update_locked",
+                    ));
+                }
+                let sheet_json: Value = serde_json::from_str(&sheet_json).map_err(|_| {
+                    CoreDomainRepositoryError::Integrity("fork_character_update_sheet")
+                })?;
+                if !sheet_json.is_object() {
+                    return Err(CoreDomainRepositoryError::Integrity(
+                        "fork_character_update_sheet",
+                    ));
+                }
+                character.display_name = display_name;
+                character.visibility_label = replay.visibility_label.clone();
+                character.visibility_subject = replay.visibility_subject.clone();
+                character.current_sheet = Some(ForkSnapshotSheet {
+                    sheet_json,
+                    locked: false,
+                    visibility_label: replay.visibility_label.clone(),
+                    visibility_subject: replay.visibility_subject.clone(),
+                });
             }
             "CharacterSubmitted" | "CharacterInitialVersionApproved" => {
                 let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
@@ -304,71 +353,11 @@ fn reconstruct_fork_characters(
                 character.visibility_subject = replay.visibility_subject.clone();
             }
             "CampaignForkMaterialized" => {
-                let event: CoreDomainEvent = serde_json::from_value(replay.payload.clone())
-                    .map_err(|_| {
-                        CoreDomainRepositoryError::Integrity("fork_nested_materialization_payload")
-                    })?;
-                let CoreDomainEvent::CampaignForkMaterialized {
-                    child_campaign_id,
-                    rows,
-                    ..
-                } = event
-                else {
-                    return Err(CoreDomainRepositoryError::Integrity(
-                        "fork_nested_materialization_event",
-                    ));
-                };
-                if child_campaign_id != campaign_id {
-                    return Err(CoreDomainRepositoryError::Integrity(
-                        "fork_nested_materialization_campaign",
-                    ));
-                }
-                for row in rows {
-                    let CampaignForkMaterializedRow::Character {
-                        character_id,
-                        owner_user_id,
-                        display_name,
-                        state,
-                        initial_version_locked,
-                        sheet_json,
-                        sheet_locked,
-                        visibility_label,
-                        visibility_subject,
-                        ..
-                    } = row
-                    else {
-                        continue;
-                    };
-                    if visibility_label != replay.visibility_label
-                        || visibility_subject != replay.visibility_subject
-                        || characters.contains_key(&character_id)
-                    {
-                        return Err(CoreDomainRepositoryError::Integrity(
-                            "fork_nested_character_chain",
-                        ));
-                    }
-                    let sheet_json: Value = serde_json::from_str(&sheet_json).map_err(|_| {
-                        CoreDomainRepositoryError::Integrity("fork_nested_character_sheet")
-                    })?;
-                    characters.insert(
-                        character_id.clone(),
-                        ForkSnapshotCharacter {
-                            character_id,
-                            owner_user_id,
-                            display_name,
-                            state,
-                            initial_version_locked,
-                            visibility_label: visibility_label.clone(),
-                            visibility_subject: visibility_subject.clone(),
-                            current_sheet: Some(ForkSnapshotSheet {
-                                sheet_json,
-                                locked: sheet_locked,
-                                visibility_label,
-                                visibility_subject,
-                            }),
-                        },
-                    );
-                }
+                apply_nested_fork_character_materialization(
+                    replay,
+                    campaign_id,
+                    &mut characters,
+                )?;
             }
             _ => {}
         }
@@ -388,3 +377,5 @@ fn reconstruct_fork_characters(
     });
     Ok(characters.into_values().collect())
 }
+
+include!("14_reconstruct_fork_characters/01_nested_fork_materialization.rs");

@@ -55,6 +55,10 @@ def validate_evidence(
         errors.append("command does not match command_argv")
     if data.get("base_commit") != base_commit(root):
         errors.append("base_commit mismatch")
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", str(data.get("tree_sha", ""))):
+        errors.append("invalid tree_sha")
+    elif data.get("tree_sha") != git_tree_sha(root):
+        errors.append("tree_sha mismatch")
     if data.get("github_sha") != data.get("base_commit"):
         errors.append("github_sha does not match base_commit")
     try:

@@ -226,7 +226,6 @@ impl CoreDomainRepository {
              WHERE action.campaign_id = $1
                AND action.action_id = $2
                AND action.state = 'AWAITING_HUMAN_CONFIRMATION'
-             FOR SHARE OF action, character, sheet
             "#,
         )
         .bind(campaign_id)

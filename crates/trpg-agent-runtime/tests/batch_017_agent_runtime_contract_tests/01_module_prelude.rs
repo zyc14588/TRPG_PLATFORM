@@ -12,7 +12,7 @@ use trpg_agent_runtime::agent_runtime_tool_protocol;
 use trpg_agent_runtime::ai_evaluation_golden_scenario;
 use trpg_agent_runtime::ai_evaluation_runtime;
 use trpg_agent_runtime::local_model_certification::{
-    certify_local_model, ensure_ai_keeper_model, CertificationInput, LocalModelLevel,
+    certify_local_model, ensure_ai_keeper_provider_config, CertificationInput, LocalModelLevel,
 };
 use trpg_agent_runtime::memory_rag;
 use trpg_agent_runtime::memory_rag_rag_snapshot;
@@ -85,7 +85,8 @@ impl AgentToolExecutor for SuccessfulToolExecutor {
     ) -> agent_runtime::AgentResult<AgentToolExecutionOutput> {
         Ok(AgentToolExecutionOutput {
             execution_id: format!("execution_{}", decision.decision_id.as_str()),
-            result_hash: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            result: serde_json::json!({}),
+            result_hash: "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
                 .to_owned(),
         })
     }

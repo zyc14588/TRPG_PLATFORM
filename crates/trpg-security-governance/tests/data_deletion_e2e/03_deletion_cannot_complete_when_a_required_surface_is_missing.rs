@@ -201,23 +201,28 @@ async fn expired_deletion_executions_are_reclaimed_and_counted_before_retry() {
             )
             .await
             .unwrap();
+        let claim_token = format!("expired-claim-{phase_nonce}");
 
         sqlx::query(
             "INSERT INTO privacy_subject_deletion_fences \
-             (subject_id, job_id, status, lease_expires_at) \
-             VALUES ($1, $2, 'running', statement_timestamp() + interval '1 second')",
+             (subject_id, job_id, status, lease_expires_at, execution_claim_token) \
+             VALUES ($1, $2, 'running', \
+                     statement_timestamp() + interval '1 second', $3)",
         )
         .bind(&subject_id)
         .bind(&job_id)
+        .bind(&claim_token)
         .execute(&pool)
         .await
         .unwrap();
         sqlx::query(
             "UPDATE privacy_deletion_jobs SET status = 'running', \
+             execution_claim_token = $2, \
              lease_expires_at = statement_timestamp() + interval '1 second' \
              WHERE job_id = $1",
         )
         .bind(&job_id)
+        .bind(&claim_token)
         .execute(&pool)
         .await
         .unwrap();

@@ -36,6 +36,7 @@ test -z "$(git status --porcelain=v1)"
 python3 scripts/ci/repo_truth.py --check
 python3 scripts/ci/check_source_file_size.py --check
 python3 scripts/ci/test_source_file_size.py
+python3 scripts/ci/test_acceptance_evidence_matrix.py
 python3 scripts/ci/validate_workflows.py
 python3 scripts/ci/discover_tests.py --check
 python3 scripts/ci/verify_test_inventory.py --report "$tool_dir/test-inventory.json"
@@ -44,6 +45,7 @@ python3 scripts/ci/verify_evidence_schema.py
 python3 scripts/ci/verify_compose_security.py --check
 python3 scripts/ci/check_dependency_directions.py
 python3 scripts/ci/test_dependency_directions.py
+python3 scripts/ci/check_rustsec_exceptions.py
 python3 scripts/ci/check_product_boundaries.py
 python3 scripts/ci/test_product_boundaries.py
 
@@ -55,6 +57,9 @@ bash -n scripts/ci/postgres-container-client.sh
 bash -n scripts/ci/p07-integration-services.sh
 bash -n scripts/ci/p07-stop-integration-services.sh
 bash -n scripts/ci/generate-integration-evidence.sh
+bash -n scripts/ci/generate-v1-acceptance-evidence.sh
+bash -n scripts/ci/golden-product-flow.sh
+bash -n scripts/ci/real-local-provider-matrix.sh
 bash -n scripts/ci/production-security-smoke.sh
 bash -n scripts/ci/production-security-smoke/*.sh
 bash -n scripts/backup_restore/smoke.sh
@@ -81,7 +86,9 @@ printf '%s  %s\n' 6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbedf
 tar -xJf "$tool_dir/shellcheck.tar.xz" -C "$tool_dir"
 ci_shell_scripts=()
 for script in scripts/ci/*.sh; do
-  if [[ "$script" != "scripts/ci/production-security-smoke.sh" ]]; then
+  if [[ "$script" != "scripts/ci/production-security-smoke.sh" &&
+        "$script" != "scripts/ci/integration-services.sh" &&
+        "$script" != "scripts/ci/service-process-smoke.sh" ]]; then
     ci_shell_scripts+=("$script")
   fi
 done
@@ -90,7 +97,10 @@ done
   scripts/backup_restore/*.sh \
   scripts/projection_rebuild/*.sh
 "$tool_dir/shellcheck-v0.10.0/shellcheck" -x \
-  scripts/ci/production-security-smoke.sh
+  scripts/ci/production-security-smoke.sh \
+  scripts/ci/integration-services.sh \
+  scripts/ci/service-process-smoke.sh \
+  scripts/bootstrap/bootstrap.sh
 
 if [[ "$mode" == "contracts" ]]; then
   python3 scripts/ci/test_repo_truth.py
@@ -100,6 +110,25 @@ fi
 cargo fmt --all -- --check
 cargo check --workspace --all-targets --all-features --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+: "${AR03_WITNESS_DATABASE_URL:?AR03_WITNESS_DATABASE_URL is required for the ledger checkpoint gate}"
+: "${AR06_ADMIN_DATABASE_URL:?AR06_ADMIN_DATABASE_URL is required for the V1 lifecycle gate}"
+: "${AR06_ADMIN_WITNESS_DATABASE_URL:?AR06_ADMIN_WITNESS_DATABASE_URL is required for the V1 lifecycle gate}"
+: "${AR06_API_DATABASE_URL:?AR06_API_DATABASE_URL is required for the V1 lifecycle gate}"
+: "${AR06_CANONICAL_DATABASE_URL:?AR06_CANONICAL_DATABASE_URL is required for the V1 lifecycle gate}"
+: "${AR06_WITNESS_DATABASE_URL:?AR06_WITNESS_DATABASE_URL is required for the V1 lifecycle gate}"
+: "${AR06_REDIS_URL:?AR06_REDIS_URL is required for the V1 lifecycle gate}"
+: "${AR06_OPENFGA_ADDRESS:?AR06_OPENFGA_ADDRESS is required for the V1 lifecycle gate}"
+: "${AR06_OPENFGA_STORE_ID:?AR06_OPENFGA_STORE_ID is required for the V1 lifecycle gate}"
+: "${AR06_OPENFGA_MODEL_ID:?AR06_OPENFGA_MODEL_ID is required for the V1 lifecycle gate}"
+: "${AR06_OPA_ADDRESS:?AR06_OPA_ADDRESS is required for the V1 lifecycle gate}"
+: "${AR06_OPA_REVISION:?AR06_OPA_REVISION is required for the V1 lifecycle gate}"
+: "${AR07_DATABASE_URL:?AR07_DATABASE_URL is required for the Realtime transport gate}"
+: "${AR07_REALTIME_DATABASE_URL:?AR07_REALTIME_DATABASE_URL is required for the Realtime transport gate}"
+: "${AR07_WITNESS_DATABASE_URL:?AR07_WITNESS_DATABASE_URL is required for the Realtime transport gate}"
+: "${AR07_NATS_URL:?AR07_NATS_URL is required for the Realtime transport gate}"
+: "${AR07_DATABASE_NAME:?AR07_DATABASE_NAME is required for the Realtime transport gate}"
+: "${AR07_WITNESS_DATABASE_NAME:?AR07_WITNESS_DATABASE_NAME is required for the Realtime transport gate}"
+: "${AR07_ALLOW_DATABASE_RESET:?AR07_ALLOW_DATABASE_RESET is required for the Realtime transport gate}"
 : "${P02_CANONICAL_DATABASE_URL:?P02_CANONICAL_DATABASE_URL is required for the real PostgreSQL gate}"
 : "${P02_CANONICAL_WITNESS_DATABASE_URL:?P02_CANONICAL_WITNESS_DATABASE_URL is required for the real PostgreSQL gate}"
 : "${P02_CANONICAL_ALLOW_DATABASE_RESET:?P02_CANONICAL_ALLOW_DATABASE_RESET is required for the destructive canonical gate}"
@@ -117,6 +146,7 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 : "${P02_TLS_CA_CERT_PATH:?P02_TLS_CA_CERT_PATH is required for certificate verification}"
 : "${P02_PG_DUMP:?P02_PG_DUMP is required for the real backup gate}"
 : "${P02_PG_RESTORE:?P02_PG_RESTORE is required for the real restore gate}"
+: "${P02_PSQL:?P02_PSQL is required for the schema assertion gate}"
 : "${P02_LIBPQ_SERVICE_FILE:?P02_LIBPQ_SERVICE_FILE is required for secret-safe backup connections}"
 : "${P02_BACKUP_SOURCE_SERVICE:?P02_BACKUP_SOURCE_SERVICE is required for the real backup gate}"
 : "${P02_BACKUP_TARGET_SERVICE:?P02_BACKUP_TARGET_SERVICE is required for the independent restore gate}"
@@ -125,6 +155,7 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 : "${P02_BACKUP_DIR:?P02_BACKUP_DIR is required for the backup artifact}"
 : "${P03_DATABASE_URL:?P03_DATABASE_URL is required for the destructive migration gate}"
 : "${P03_ALLOW_DATABASE_RESET:?P03_ALLOW_DATABASE_RESET is required for the destructive migration gate}"
+: "${P03_SCHEMA_ASSERTION_PATH:?P03_SCHEMA_ASSERTION_PATH is required for the schema assertion gate}"
 : "${P04_DATABASE_URL:?P04_DATABASE_URL is required for the real Event Store gate}"
 : "${P04_WITNESS_DATABASE_URL:?P04_WITNESS_DATABASE_URL is required for the independent witness gate}"
 : "${P04_ALLOW_DATABASE_RESET:?P04_ALLOW_DATABASE_RESET is required for the destructive Event Store gate}"
@@ -133,6 +164,7 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 : "${P04_PG_DUMP:?P04_PG_DUMP is required for the Event Store recovery drill}"
 : "${P04_PG_RESTORE:?P04_PG_RESTORE is required for the Event Store recovery drill}"
 : "${P05_DATABASE_URL:?P05_DATABASE_URL is required for the real privacy gate}"
+: "${P05_WORKER_DATABASE_URL:?P05_WORKER_DATABASE_URL is required for the privacy worker gate}"
 : "${P05_WITNESS_DATABASE_URL:?P05_WITNESS_DATABASE_URL is required for the privacy witness gate}"
 : "${P05_REDIS_URL:?P05_REDIS_URL is required for the deletion cache gate}"
 : "${P05_NATS_URL:?P05_NATS_URL is required for the deletion queue gate}"
@@ -157,9 +189,33 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 : "${P08_ALLOW_DATABASE_RESET:?P08_ALLOW_DATABASE_RESET is required for the destructive Tutorial gate}"
 : "${P08_RESET_DATABASE:?P08_RESET_DATABASE must name the dedicated Tutorial database}"
 : "${P08_WITNESS_RESET_DATABASE:?P08_WITNESS_RESET_DATABASE must name the dedicated Tutorial witness database}"
-cargo test --workspace --all-features --locked --no-fail-fast -- --test-threads=1
-psql "$P03_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
-  -f scripts/ci/assert-schema.sql
+: "${AR09_AGENT_JOB_FIXTURE_DATABASE_URL:?AR09_AGENT_JOB_FIXTURE_DATABASE_URL is required for the canonical fixture gate}"
+: "${AR09_AGENT_JOB_API_DATABASE_URL:?AR09_AGENT_JOB_API_DATABASE_URL is required for the API-role Agent Job gate}"
+: "${AR09_AGENT_JOB_WORKER_DATABASE_URL:?AR09_AGENT_JOB_WORKER_DATABASE_URL is required for the worker-role Agent Job gate}"
+: "${AR09_AGENT_JOB_CANONICAL_DATABASE_URL:?AR09_AGENT_JOB_CANONICAL_DATABASE_URL is required for the canonical-role Agent Job gate}"
+: "${AR09_PUBLIC_FIXTURE_DATABASE_URL:?AR09_PUBLIC_FIXTURE_DATABASE_URL is required for the public Agent Job fixture}"
+: "${AR09_PUBLIC_API_DATABASE_URL:?AR09_PUBLIC_API_DATABASE_URL is required for the public Agent Job API path}"
+: "${AR09_PUBLIC_WORKER_DATABASE_URL:?AR09_PUBLIC_WORKER_DATABASE_URL is required for the production Agent Job worker path}"
+: "${AR09_PUBLIC_CANONICAL_DATABASE_URL:?AR09_PUBLIC_CANONICAL_DATABASE_URL is required for canonical Agent Job commit}"
+: "${AR09_PUBLIC_WITNESS_DATABASE_URL:?AR09_PUBLIC_WITNESS_DATABASE_URL is required for canonical Agent Job witness}"
+: "${AR09_PUBLIC_REDIS_URL:?AR09_PUBLIC_REDIS_URL is required for Agent Job identities}"
+cargo test --workspace --all-features --locked --no-fail-fast -- \
+  --test-threads=1 \
+  --skip authenticated_real_chat_provider_satisfies_positive_and_negative_contracts \
+  --skip authenticated_real_embedding_provider_satisfies_positive_and_negative_contracts
+case "${TRPG_REQUIRE_REAL_LOCAL_PROVIDERS:-0}" in
+  1)
+    : "${TRPG_REAL_PROVIDER_EVIDENCE_DIR:?TRPG_REAL_PROVIDER_EVIDENCE_DIR is required}"
+    bash scripts/ci/real-local-provider-matrix.sh "$TRPG_REAL_PROVIDER_EVIDENCE_DIR"
+    ;;
+  0) ;;
+  *)
+    printf 'TRPG_REQUIRE_REAL_LOCAL_PROVIDERS must be 0 or 1\n' >&2
+    exit 2
+    ;;
+esac
+"$P02_PSQL" "$P03_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
+  -f "$P03_SCHEMA_ASSERTION_PATH"
 python3 scripts/ci/p02_boundary_regression.py
 npm test
 cargo build --workspace --all-targets --release --locked

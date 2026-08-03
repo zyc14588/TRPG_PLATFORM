@@ -255,6 +255,13 @@ pub struct CreateCampaignApiRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct CreateForkedCampaignApiRequest {
+    pub create: CreateCampaignApiRequest,
+    pub fork: ForkCampaignApiRequest,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct IssueInviteApiRequest {
     pub command: ApiCommandFields,
     pub campaign_id: String,
@@ -323,6 +330,7 @@ pub enum CoreApiError {
     InvalidInput(&'static str),
     InvalidAuthorizationContext,
     Forbidden,
+    NotFound,
     Conflict(&'static str),
     Unavailable(&'static str),
 }
@@ -332,6 +340,7 @@ impl CoreApiError {
         match self {
             Self::InvalidInput(_) => 400,
             Self::InvalidAuthorizationContext | Self::Forbidden => 403,
+            Self::NotFound => 404,
             Self::Conflict(_) => 409,
             Self::Unavailable(_) => 503,
         }
@@ -346,6 +355,7 @@ impl fmt::Display for CoreApiError {
                 formatter.write_str("CORE_API_AUTHORIZATION_CONTEXT_INVALID")
             }
             Self::Forbidden => formatter.write_str("CORE_API_FORBIDDEN"),
+            Self::NotFound => formatter.write_str("CORE_API_NOT_FOUND"),
             Self::Conflict(reason) => write!(formatter, "CORE_API_CONFLICT:{reason}"),
             Self::Unavailable(reason) => write!(formatter, "CORE_API_UNAVAILABLE:{reason}"),
         }
@@ -353,3 +363,5 @@ impl fmt::Display for CoreApiError {
 }
 
 impl Error for CoreApiError {}
+
+include!("03_v1_lifecycle.rs");

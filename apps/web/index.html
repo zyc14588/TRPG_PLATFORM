@@ -1,53 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#181818" />
-    <title>COC AI TRPG</title>
+    <meta name="theme-color" content="#111315" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; form-action 'self'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="icon" href="data:," />
+    <title>雾港调查台</title>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="brand-block">
-          <span class="brand-mark" aria-hidden="true">C7</span>
-          <div>
-            <h1>COC AI TRPG</h1>
-            <p id="environment-label">Local environment</p>
-          </div>
-        </div>
-        <div class="release-block" aria-label="Web release">
-          <span>Web</span>
-          <strong id="web-version">0.1.0</strong>
-        </div>
-      </header>
-
-      <main>
-        <section class="status-heading" aria-labelledby="runtime-heading">
-          <div>
-            <p class="section-label">Runtime</p>
-            <h2 id="runtime-heading">Process health</h2>
-          </div>
-          <button id="refresh-button" type="button">Refresh</button>
-        </section>
-
-        <section class="service-panel" aria-live="polite">
-          <div class="service-header" aria-hidden="true">
-            <span>Process</span>
-            <span>State</span>
-            <span>Version</span>
-            <span>Endpoint</span>
-          </div>
-          <div id="service-list" class="service-list"></div>
-        </section>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+    <div id="app" aria-busy="true">
+      <main id="main-content" class="boot-screen" tabindex="-1">
+        <p class="eyeline">雾港调查台</p>
+        <h1>正在打开调查档案…</h1>
       </main>
-
-      <footer>
-        <span id="summary">Checking 5 processes</span>
-        <time id="checked-at"></time>
-      </footer>
     </div>
+    <div id="announcer" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+    <noscript>此调查台需要 JavaScript 才能连接公开 API 与实时房间。</noscript>
     <script type="module" src="/src/app.js"></script>
   </body>
 </html>

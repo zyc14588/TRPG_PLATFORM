@@ -1,13 +1,15 @@
 use async_trait::async_trait;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use crate::{
     evaluate_testing_quality, standard_contract, TestingQualityAction, TestingQualityCommand,
     TestingQualityEventEnvelope, TestingQualityModuleContract, TestingQualityRepository,
 };
 use trpg_agent_runtime::{
-    certify_local_model, ensure_ai_keeper_model, evaluate_cloud_fallback, CertificationInput,
-    Environment, LocalModelCertificationAuthority, LocalModelLevel, ModelRouteSnapshot,
-    ProviderConfig, ProviderType,
+    certify_local_model, evaluate_cloud_fallback, CertificationInput, Environment,
+    LocalModelCertificationAuthority, LocalModelLevel, ModelRouteSnapshot, ProviderConfig,
+    ProviderType,
 };
 use trpg_domain_core::command_cqrs::{CommandAcceptedPayload, DomainCommandKind};
 use trpg_domain_core::ddd::{
@@ -19,13 +21,57 @@ use trpg_security_governance::cloud_egress::{
     CloudEgressLedger, CloudEgressOutcome, CloudEgressRequest, CloudRouteSnapshotRecord,
     ConsentVisibilityScope, PersistedCloudConsent, ProviderBoundary,
 };
-use trpg_security_governance::secret::SecretReference;
+use trpg_security_governance::secret::{
+    LedgerCheckpoint, LedgerCheckpointStore, SecretReference, LEDGER_CHECKPOINT_GENESIS_HASH,
+};
 use trpg_shared_kernel::{
-    CommandEnvelope, EntityId, KernelResult, PrincipalScope, Visibility, VisibilityLabel,
+    CommandEnvelope, EntityId, KernelResult, PrincipalScope, TrpgError, Visibility, VisibilityLabel,
 };
 
 pub const PROMPT_ID: &str = "CODEX-0091-10-TESTING-QUALITY-6730499fe0";
 pub const MODULE: &str = "testing_quality::model_certification_tests";
+
+#[derive(Default)]
+struct TestingCheckpointStore(Mutex<HashMap<String, Vec<LedgerCheckpoint>>>);
+
+impl LedgerCheckpointStore for TestingCheckpointStore {
+    fn latest(&self, ledger_id: &str) -> KernelResult<Option<LedgerCheckpoint>> {
+        Ok(self
+            .0
+            .lock()
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?
+            .get(ledger_id)
+            .and_then(|records| records.last())
+            .cloned())
+    }
+
+    fn append(&self, ledger_id: &str, checkpoint: &LedgerCheckpoint) -> KernelResult<()> {
+        let mut ledgers = self
+            .0
+            .lock()
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let records = ledgers.entry(ledger_id.to_owned()).or_default();
+        if records.last() == Some(checkpoint) {
+            return Ok(());
+        }
+        let valid_predecessor = records.last().map_or(
+            checkpoint.sequence() == 1
+                && checkpoint.previous_chain_head() == LEDGER_CHECKPOINT_GENESIS_HASH,
+            |previous| {
+                previous
+                    .sequence()
+                    .checked_add(1)
+                    .is_some_and(|sequence| sequence == checkpoint.sequence())
+                    && previous.chain_head() == checkpoint.previous_chain_head()
+            },
+        );
+        if !valid_predecessor {
+            return Err(TrpgError::AuditIntegrityViolation);
+        }
+        records.push(checkpoint.clone());
+        Ok(())
+    }
+}
 
 pub fn contract() -> TestingQualityModuleContract {
     standard_contract(
@@ -70,35 +116,42 @@ pub fn uncertified_local_model() -> CertificationInput {
     }
 }
 
+#[allow(deprecated)]
 pub fn level4_is_required_for_ai_keeper() -> bool {
     let level = certify_local_model(&certified_local_model());
     let weak_level = certify_local_model(&uncertified_local_model());
-    let registry_path = std::env::temp_dir().join(format!(
-        "trpg-testing-model-certification-{}.jsonl",
+    let registry_root = std::env::temp_dir().join(format!(
+        "trpg-testing-model-certification-{}",
         std::process::id()
     ));
-    let _ = std::fs::remove_file(&registry_path);
+    let _ = std::fs::remove_dir_all(&registry_root);
+    std::fs::create_dir_all(&registry_root).ok();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&registry_root, std::fs::Permissions::from_mode(0o700)).ok();
+    }
+    let registry_path = registry_root.join("registry.jsonl");
     let result = (|| {
-        let authority = LocalModelCertificationAuthority::new(
+        let authority = LocalModelCertificationAuthority::new_with_checkpoint(
             "testing-certification-key",
             &[0x72; 32],
             &registry_path,
+            Arc::new(TestingCheckpointStore::default()),
         )
         .ok()?;
         let artifact = format!("sha256:{}", "1".repeat(64));
-        let certificate = authority
-            .issue_level4(
-                &certified_local_model(),
-                &artifact,
-                "p05-level4-suite-v1",
-                std::time::Duration::from_secs(60),
-            )
-            .ok()?;
         Some(
             level == LocalModelLevel::Level4
                 && weak_level != LocalModelLevel::Level4
-                && ensure_ai_keeper_model(&authority, &certificate, "json-tool-stable", &artifact)
-                    .is_ok()
+                && authority
+                    .issue_level4(
+                        &certified_local_model(),
+                        &artifact,
+                        "p05-level4-suite-v1",
+                        std::time::Duration::from_secs(60),
+                    )
+                    .is_err()
                 && authority
                     .issue_level4(
                         &uncertified_local_model(),
@@ -110,7 +163,7 @@ pub fn level4_is_required_for_ai_keeper() -> bool {
         )
     })()
     .unwrap_or(false);
-    let _ = std::fs::remove_file(registry_path);
+    let _ = std::fs::remove_dir_all(registry_root);
     result
 }
 

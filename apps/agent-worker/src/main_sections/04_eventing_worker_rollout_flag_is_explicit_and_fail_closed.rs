@@ -7,6 +7,7 @@ mod tests {
     };
     use std::time::{Duration, Instant};
     use trpg_data_eventing::event_bus_nats_impl::{JetStreamOutboxError, PublishBatchResult};
+    use trpg_data_eventing::campaign_export_worker::CampaignExportOutcome;
 
     #[test]
     fn eventing_worker_rollout_flag_is_explicit_and_fail_closed() {
@@ -33,31 +34,57 @@ mod tests {
     fn delivery_projection_and_deletion_health_fail_independently() {
         let healthy_delivery = Ok(PublishBatchResult::default());
         let healthy_deletion = Ok(Vec::new());
+        let healthy_export = Ok(CampaignExportOutcome::Idle);
         assert_eq!(
-            background_cycle_error(&healthy_delivery, &Ok(1), &healthy_deletion),
+            background_cycle_error(
+                &healthy_delivery,
+                &Ok(1),
+                &healthy_deletion,
+                &healthy_export,
+            ),
             None
         );
 
         let delivery_failed = Err(JetStreamOutboxError::NatsUnavailable);
         assert_eq!(
-            background_cycle_error(&delivery_failed, &Ok(1), &healthy_deletion),
+            background_cycle_error(
+                &delivery_failed,
+                &Ok(1),
+                &healthy_deletion,
+                &healthy_export,
+            ),
             Some("EVENTING_DELIVERY_CYCLE_FAILED:NATS unavailable".to_owned())
         );
 
         let projection_failed: Result<(), JetStreamOutboxError> =
             Err(JetStreamOutboxError::Database("projection_rebuild"));
         assert_eq!(
-            background_cycle_error(&healthy_delivery, &projection_failed, &healthy_deletion),
+            background_cycle_error(
+                &healthy_delivery,
+                &projection_failed,
+                &healthy_deletion,
+                &healthy_export,
+            ),
             Some("PROJECTION_REBUILD_FAILED:outbox database failed: projection_rebuild".to_owned())
         );
         let deletion_failed =
             Err(trpg_security_governance::security_privacy::PrivacyError::Database);
         assert_eq!(
-            background_cycle_error(&healthy_delivery, &Ok(1), &deletion_failed),
+            background_cycle_error(
+                &healthy_delivery,
+                &Ok(1),
+                &deletion_failed,
+                &healthy_export,
+            ),
             Some("PRIVACY_DELETION_CYCLE_FAILED:PRIVACY_DATABASE_ERROR".to_owned())
         );
-        let combined =
-            background_cycle_error(&delivery_failed, &projection_failed, &deletion_failed).unwrap();
+        let combined = background_cycle_error(
+            &delivery_failed,
+            &projection_failed,
+            &deletion_failed,
+            &healthy_export,
+        )
+        .unwrap();
         assert!(combined.contains("EVENTING_DELIVERY_CYCLE_FAILED"));
         assert!(combined.contains("PROJECTION_REBUILD_FAILED"));
         assert!(combined.contains("PRIVACY_DELETION_CYCLE_FAILED"));

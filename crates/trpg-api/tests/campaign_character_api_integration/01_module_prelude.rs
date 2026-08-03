@@ -10,8 +10,8 @@ use trpg_api::api_contracts::{
     AcceptInviteApiRequest, ApiCommandFields, AuthoritySnapshotApiRequest,
     AuthorizedCoreApiContext, CampaignCharacterApi, CampaignCharacterCommandPort,
     CharacterTransitionApiRequest, CoreApiCommitReceipt, CoreApiError, CoreApiFuture,
-    CreateCampaignApiRequest, CreateCharacterApiRequest, IssueInviteApiRequest,
-    IssuedInviteApiResponse,
+    CreateCampaignApiRequest, CreateCharacterApiRequest, CreateForkedCampaignApiRequest,
+    IssueInviteApiRequest, IssuedInviteApiResponse,
 };
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     PolicyAuditDraft, PostgresCanonicalStore,
@@ -19,7 +19,7 @@ use trpg_data_eventing::event_store_sqlx_outbox_projection::{
 use trpg_data_eventing::persistence_postgresql::{
     AcceptInviteRequest, AuthorityContractSnapshot, CoreCommandMetadata, CoreDomainClock,
     CoreDomainRepository, CoreDomainRepositoryError, CreateCampaignRequest, CreateCharacterRequest,
-    IssueInviteRequest,
+    CreateForkedCampaignRequest, IssueInviteRequest,
 };
 use trpg_domain_core::domain_entities_value_objects::MembershipRole;
 use trpg_identity::{AuthenticationContext, CampaignRole, GlobalRole, WorkloadRole};

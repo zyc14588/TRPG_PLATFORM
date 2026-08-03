@@ -122,6 +122,7 @@ pub struct JetStreamOutboxPublisher {
     repository: PostgresOutboxLeaseRepository,
     projection: PostgresProjectionWorker,
     rag: PostgresRagSnapshotRepository,
+    client: async_nats::Client,
     jetstream: async_nats::jetstream::Context,
     metrics: Arc<EventingMetrics>,
     batch_size: i64,
@@ -135,9 +136,31 @@ impl fmt::Debug for JetStreamOutboxPublisher {
             .field("repository", &self.repository)
             .field("projection", &self.projection)
             .field("rag", &self.rag)
+            .field("client", &"[NATS CLIENT]")
             .field("jetstream", &"[JETSTREAM CONTEXT]")
             .field("metrics", &self.metrics)
             .field("batch_size", &self.batch_size)
             .finish()
+    }
+}
+
+pub struct CanonicalNotificationSubscription {
+    subscriber: async_nats::Subscriber,
+}
+
+impl std::fmt::Debug for CanonicalNotificationSubscription {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CanonicalNotificationSubscription")
+            .field("subscriber", &"[NATS SUBSCRIPTION]")
+            .finish()
+    }
+}
+
+impl CanonicalNotificationSubscription {
+    pub async fn next(&mut self) -> Result<bool, JetStreamOutboxError> {
+        use futures_util::StreamExt;
+
+        Ok(self.subscriber.next().await.is_some())
     }
 }

@@ -251,9 +251,12 @@ fn request_hash_base_fields(draft: &AtomicCommitDraft) -> Vec<String> {
         draft.audit.resource_id.clone(),
         draft.audit.action.clone(),
         draft.audit.requested_role.clone(),
-        draft.audit.openfga_decision_id.clone(),
+        // Decision IDs identify one concrete policy evaluation and therefore
+        // change when the same authorized command is retried. The canonical
+        // audit record still HMAC-binds the first evaluation's IDs; request
+        // identity binds the stable policy revisions so a retry under changed
+        // policy cannot alias the original commit.
         draft.audit.openfga_policy_revision.clone(),
-        draft.audit.opa_decision_id.clone(),
         draft.audit.opa_policy_revision.clone(),
         draft.events.len().to_string(),
     ];

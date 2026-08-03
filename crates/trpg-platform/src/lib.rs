@@ -1,3 +1,16 @@
+pub mod admin_control_plane {
+    include!("admin_control_plane/01_types.rs");
+    include!("admin_control_plane/02_storage_and_construction.rs");
+    include!("admin_control_plane/03_authentication_and_bootstrap.rs");
+    include!("admin_control_plane/04_routes_and_audit.rs");
+    include!("admin_control_plane/05_operational_mutations.rs");
+    include!("admin_control_plane/06_support.rs");
+
+    #[cfg(test)]
+    mod tests {
+        include!("admin_control_plane/tests.rs");
+    }
+}
 pub mod api_contracts;
 pub mod api_contracts_impl;
 pub mod background_workers;

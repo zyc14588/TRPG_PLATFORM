@@ -67,6 +67,7 @@ pub enum AgentEventPayload {
     ToolExecutionSucceeded {
         tool: &'static str,
         execution_id: EntityId,
+        result: serde_json::Value,
         result_hash: String,
         seal: AgentFormalEventSeal,
     },
@@ -123,6 +124,7 @@ fn derived_command<T: Clone>(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentToolExecutionOutput {
     pub execution_id: String,
+    pub result: serde_json::Value,
     pub result_hash: String,
 }
 

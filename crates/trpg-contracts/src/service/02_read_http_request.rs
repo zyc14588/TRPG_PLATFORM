@@ -1,45 +1,15 @@
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, ServiceError> {
-    let mut bytes = Vec::new();
-    let mut buffer = [0_u8; 4096];
-    let (header_end, content_length) = loop {
-        let count = stream.read(&mut buffer).map_err(io_service_error)?;
-        if count == 0 || bytes.len().saturating_add(count) > MAX_HTTP_REQUEST_BYTES {
-            return Err(ServiceError {
-                code: WireErrorCode::ServiceInitializationFailed,
-                detail: "invalid or oversized HTTP request".to_owned(),
-            });
-        }
-        bytes.extend_from_slice(&buffer[..count]);
-        if let Some(boundary) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
-            let header_text =
-                std::str::from_utf8(&bytes[..boundary]).map_err(|_| ServiceError {
-                    code: WireErrorCode::ServiceInitializationFailed,
-                    detail: "HTTP request headers are not UTF-8".to_owned(),
-                })?;
-            let content_length = header_text
-                .lines()
-                .filter_map(|line| line.split_once(':'))
-                .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
-                .map(|(_, value)| value.trim().parse::<usize>())
-                .transpose()
-                .map_err(|_| ServiceError {
-                    code: WireErrorCode::ServiceInitializationFailed,
-                    detail: "invalid Content-Length".to_owned(),
-                })?
-                .unwrap_or(0);
-            if boundary + 4 + content_length > MAX_HTTP_REQUEST_BYTES {
-                return Err(ServiceError {
-                    code: WireErrorCode::ServiceInitializationFailed,
-                    detail: "HTTP request body is too large".to_owned(),
-                });
-            }
-            if bytes.len() >= boundary + 4 + content_length {
-                break (boundary, content_length);
-            }
-        }
-    };
-
+async fn read_http_request(
+    stream: &mut TcpStream,
+    limits: ServiceLimits,
+) -> Result<HttpRequest, ServiceError> {
+    let (bytes, header_end) = time::timeout(
+        limits.header_timeout,
+        read_http_headers(stream, limits),
+    )
+    .await
+    .map_err(|_| timeout_service_error("HTTP request headers timed out"))??;
     let header_text = std::str::from_utf8(&bytes[..header_end]).map_err(|_| ServiceError {
         code: WireErrorCode::ServiceInitializationFailed,
         detail: "HTTP request headers are not UTF-8".to_owned(),
@@ -54,22 +24,136 @@ fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest, ServiceError
             detail: "invalid HTTP request line".to_owned(),
         });
     }
-    let headers = lines
-        .filter_map(|line| line.split_once(':'))
-        .map(|(name, value)| (name.trim().to_ascii_lowercase(), value.trim().to_owned()))
-        .collect();
+
+    let mut headers = HashMap::new();
+    let mut content_length = None;
+    for line in lines {
+        let (raw_name, raw_value) = line.split_once(':').ok_or_else(|| ServiceError {
+            code: WireErrorCode::ServiceInitializationFailed,
+            detail: "invalid HTTP request header".to_owned(),
+        })?;
+        let name = raw_name.trim().to_ascii_lowercase();
+        let value = raw_value.trim().to_owned();
+        if name == "transfer-encoding" {
+            return Err(ServiceError {
+                code: WireErrorCode::ServiceInitializationFailed,
+                detail: "Transfer-Encoding is not supported".to_owned(),
+            });
+        }
+        if name == "content-length" {
+            if content_length.is_some() {
+                return Err(ServiceError {
+                    code: WireErrorCode::ServiceInitializationFailed,
+                    detail: "duplicate Content-Length".to_owned(),
+                });
+            }
+            content_length = Some(value.parse::<usize>().map_err(|_| ServiceError {
+                code: WireErrorCode::ServiceInitializationFailed,
+                detail: "invalid Content-Length".to_owned(),
+            })?);
+        }
+        headers.insert(name, value);
+    }
+    let content_length = content_length.unwrap_or(0);
+    if content_length > limits.max_body_bytes {
+        return Err(ServiceError {
+            code: WireErrorCode::ServiceInitializationFailed,
+            detail: "HTTP request body is too large".to_owned(),
+        });
+    }
+
+    let body_start = header_end + 4;
+    let mut body = bytes[body_start..].to_vec();
+    body.truncate(content_length);
+    if body.len() < content_length {
+        body = time::timeout(
+            limits.body_timeout,
+            read_http_body(stream, body, content_length, limits.idle_timeout),
+        )
+        .await
+        .map_err(|_| timeout_service_error("HTTP request body timed out"))??;
+    }
+
     Ok(HttpRequest {
         method,
         path,
         headers,
-        body: bytes[header_end + 4..header_end + 4 + content_length].to_vec(),
+        body,
     })
 }
 
-fn write_json_response(
+async fn read_http_headers(
+    stream: &mut TcpStream,
+    limits: ServiceLimits,
+) -> Result<(Vec<u8>, usize), ServiceError> {
+    let mut bytes = Vec::with_capacity(limits.max_header_bytes.min(4_096));
+    let mut buffer = [0_u8; 4_096];
+    loop {
+        let count = read_with_idle_timeout(stream, &mut buffer, limits.idle_timeout).await?;
+        if count == 0 {
+            return Err(ServiceError {
+                code: WireErrorCode::ServiceInitializationFailed,
+                detail: "incomplete HTTP request headers".to_owned(),
+            });
+        }
+        bytes.extend_from_slice(&buffer[..count]);
+        if let Some(boundary) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+            if boundary > limits.max_header_bytes {
+                return Err(ServiceError {
+                    code: WireErrorCode::ServiceInitializationFailed,
+                    detail: "HTTP request headers are too large".to_owned(),
+                });
+            }
+            return Ok((bytes, boundary));
+        }
+        if bytes.len() > limits.max_header_bytes {
+            return Err(ServiceError {
+                code: WireErrorCode::ServiceInitializationFailed,
+                detail: "HTTP request headers are too large".to_owned(),
+            });
+        }
+    }
+}
+
+async fn read_http_body(
+    stream: &mut TcpStream,
+    mut body: Vec<u8>,
+    content_length: usize,
+    idle_timeout: Duration,
+) -> Result<Vec<u8>, ServiceError> {
+    let mut buffer = [0_u8; 4_096];
+    while body.len() < content_length {
+        let remaining = content_length - body.len();
+        let read_length = remaining.min(buffer.len());
+        let count =
+            read_with_idle_timeout(stream, &mut buffer[..read_length], idle_timeout).await?;
+        if count == 0 {
+            return Err(ServiceError {
+                code: WireErrorCode::ServiceInitializationFailed,
+                detail: "incomplete HTTP request body".to_owned(),
+            });
+        }
+        body.extend_from_slice(&buffer[..count]);
+    }
+    Ok(body)
+}
+
+async fn read_with_idle_timeout(
+    stream: &mut TcpStream,
+    buffer: &mut [u8],
+    idle_timeout: Duration,
+) -> Result<usize, ServiceError> {
+    time::timeout(idle_timeout, stream.read(buffer))
+        .await
+        .map_err(|_| timeout_service_error("HTTP connection idle timeout"))?
+        .map_err(io_service_error)
+}
+
+async fn write_json_response(
     stream: &mut TcpStream,
     status: u16,
     body: &str,
+    limits: ServiceLimits,
 ) -> Result<(), ServiceError> {
     let reason = match status {
         200 => "OK",
@@ -88,8 +172,9 @@ fn write_json_response(
         "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nAccess-Control-Allow-Origin: *\r\n\r\n{body}",
         body.len()
     );
-    stream
-        .write_all(response.as_bytes())
+    time::timeout(limits.write_timeout, stream.write_all(response.as_bytes()))
+        .await
+        .map_err(|_| timeout_service_error("HTTP response write timed out"))?
         .map_err(io_service_error)
 }
 
@@ -101,33 +186,27 @@ fn io_service_error(error: io::Error) -> ServiceError {
 }
 
 #[cfg(unix)]
-fn install_shutdown_handlers() -> Result<(), ServiceError> {
-    const SIGINT: i32 = 2;
-    const SIGTERM: i32 = 15;
-    const SIG_ERR: usize = usize::MAX;
+fn shutdown_signal() -> Result<ShutdownSignal, ServiceError> {
+    use tokio::signal::unix::{signal, SignalKind};
 
-    unsafe extern "C" {
-        fn signal(signal: i32, handler: usize) -> usize;
-    }
-
-    extern "C" fn request_shutdown(_: i32) {
-        SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
-    }
-
-    // SAFETY: the handler only performs an atomic store, and both signal numbers are POSIX-defined.
-    let int_result = unsafe { signal(SIGINT, request_shutdown as *const () as usize) };
-    // SAFETY: same handler and contract as the SIGINT registration above.
-    let term_result = unsafe { signal(SIGTERM, request_shutdown as *const () as usize) };
-    if int_result == SIG_ERR || term_result == SIG_ERR {
-        return Err(ServiceError {
-            code: WireErrorCode::ServiceInitializationFailed,
-            detail: "failed to install shutdown signal handlers".to_owned(),
-        });
-    }
-    Ok(())
+    let mut terminate = signal(SignalKind::terminate()).map_err(io_service_error)?;
+    Ok(Box::pin(async move {
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => {
+                if let Err(error) = result {
+                    eprintln!("shutdown_signal_error={error}");
+                }
+            }
+            _ = terminate.recv() => {}
+        }
+    }))
 }
 
 #[cfg(not(unix))]
-fn install_shutdown_handlers() -> Result<(), ServiceError> {
-    Ok(())
+fn shutdown_signal() -> Result<ShutdownSignal, ServiceError> {
+    Ok(Box::pin(async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            eprintln!("shutdown_signal_error={error}");
+        }
+    }))
 }

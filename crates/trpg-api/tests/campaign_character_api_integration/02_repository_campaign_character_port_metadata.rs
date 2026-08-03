@@ -142,6 +142,87 @@ impl CampaignCharacterCommandPort for RepositoryCampaignCharacterPort {
         })
     }
 
+    fn create_forked_campaign<'a>(
+        &'a self,
+        create_context: &'a AuthorizedCoreApiContext,
+        fork_context: &'a AuthorizedCoreApiContext,
+        request: &'a CreateForkedCampaignApiRequest,
+    ) -> CoreApiFuture<'a, CoreApiCommitReceipt> {
+        Box::pin(async move {
+            let campaign = CreateCampaignRequest {
+                campaign_id: request.create.campaign_id.clone(),
+                owner_user_id: request.create.owner_user_id.clone(),
+                title: request.create.title.clone(),
+                room_id: request.create.room_id.clone(),
+                room_name: request.create.room_name.clone(),
+                created_at_unix_ms: request.create.created_at_unix_ms,
+                authority: AuthorityContractSnapshot {
+                    contract_id: request.create.authority.contract_id.clone(),
+                    authority_mode: request.create.authority.authority_mode.clone(),
+                    authority_owner: request.create.authority.authority_owner.clone(),
+                    ruleset_version: request.create.authority.ruleset_version.clone(),
+                    house_rules_version: request.create.authority.house_rules_version.clone(),
+                    scenario_version: request.create.authority.scenario_version.clone(),
+                    prompt_version: request.create.authority.prompt_version.clone(),
+                    agent_pack_version: request.create.authority.agent_pack_version.clone(),
+                    tool_schema_version: request.create.authority.tool_schema_version.clone(),
+                    safety_profile_version: request
+                        .create
+                        .authority
+                        .safety_profile_version
+                        .clone(),
+                    ai_provider_snapshot: request
+                        .create
+                        .authority
+                        .ai_provider_snapshot
+                        .clone(),
+                    model_route_snapshot: request
+                        .create
+                        .authority
+                        .model_route_snapshot
+                        .clone(),
+                    character_sheet_template_version: request
+                        .create
+                        .authority
+                        .character_sheet_template_version
+                        .clone(),
+                },
+            };
+            let persisted = self
+                .repository
+                .create_forked_campaign(
+                    &Self::metadata(
+                        create_context,
+                        &request.create.command,
+                        &request.create.campaign_id,
+                        "campaign",
+                        "campaign.create",
+                        "party_visible",
+                        "not_applicable",
+                    ),
+                    &Self::metadata(
+                        fork_context,
+                        &request.fork.command,
+                        &request.fork.fork_id,
+                        "campaign_fork",
+                        "campaign.fork.record",
+                        "keeper_only",
+                        "not_applicable",
+                    ),
+                    &CreateForkedCampaignRequest {
+                        campaign,
+                        fork_id: request.fork.fork_id.clone(),
+                        parent_campaign_id: request.fork.parent_campaign_id.clone(),
+                        source_session_id: request.fork.source_session_id.clone(),
+                        reason: request.fork.reason.clone(),
+                    },
+                )
+                .await
+                .map_err(Self::map_error)?;
+            Ok(Self::receipt(persisted))
+        })
+    }
+
     fn issue_invite<'a>(
         &'a self,
         context: &'a AuthorizedCoreApiContext,
@@ -315,32 +396,4 @@ impl CampaignCharacterCommandPort for RepositoryCampaignCharacterPort {
     }
 }
 
-fn valid_sheet_json() -> String {
-    serde_json::to_string(&Coc7CharacterSheet {
-        name: "Evelyn Hart".to_owned(),
-        age: 31,
-        occupation: "Investigative journalist".to_owned(),
-        era: "1920s".to_owned(),
-        birthplace: "Brisbane".to_owned(),
-        characteristics: Coc7Characteristics {
-            strength: 50,
-            dexterity: 60,
-            power: 65,
-            constitution: 55,
-            size: 50,
-            appearance: 55,
-            intelligence: 70,
-            education: 75,
-            luck: 60,
-        },
-        skills: BTreeMap::from([
-            ("Library Use".to_owned(), 70),
-            ("Psychology".to_owned(), 55),
-        ]),
-        backstory_anchors: vec![
-            "Protects confidential sources".to_owned(),
-            "Distrusts official explanations".to_owned(),
-        ],
-    })
-    .unwrap()
-}
+include!("02a_valid_sheet_json.rs");

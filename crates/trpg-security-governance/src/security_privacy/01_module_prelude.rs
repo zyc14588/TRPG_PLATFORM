@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -13,9 +13,12 @@ use crate::{
     SecurityGovernanceRepository,
 };
 use async_trait::async_trait;
+use aws_sdk_s3::config::{BehaviorVersion, Credentials, Region};
+use aws_sdk_s3::primitives::ByteStream;
+use aws_sdk_s3::types::{BucketVersioningStatus, Delete, ObjectIdentifier};
+use aws_sdk_s3::Client as S3Client;
 use percent_encoding::percent_decode_str;
 use redis::aio::ConnectionManager;
-use s3::{creds::Credentials, serde_types::ObjectIdentifier, Bucket, Region};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::migrate::Migrator;
@@ -262,6 +265,52 @@ impl DeletionJob {
             })
         })
     }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct DeletionExecutionContext {
+    job_id: String,
+    subject_id: String,
+    claim_token: String,
+}
+
+impl DeletionExecutionContext {
+    fn new(job_id: &str, subject_id: &str, claim_token: String) -> Self {
+        Self {
+            job_id: job_id.to_owned(),
+            subject_id: subject_id.to_owned(),
+            claim_token,
+        }
+    }
+
+    pub fn job_id(&self) -> &str {
+        &self.job_id
+    }
+
+    pub fn subject_id(&self) -> &str {
+        &self.subject_id
+    }
+
+    pub(crate) fn claim_token(&self) -> &str {
+        &self.claim_token
+    }
+}
+
+impl std::fmt::Debug for DeletionExecutionContext {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("DeletionExecutionContext")
+            .field("job_id", &self.job_id)
+            .field("subject_id", &self.subject_id)
+            .field("claim_token", &"[REDACTED]")
+            .finish()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DeletionRevalidationClaim {
+    run_id: String,
+    claim_token: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

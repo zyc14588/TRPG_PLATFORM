@@ -37,8 +37,24 @@ impl PostgresDeletionRepository {
             "SELECT to_regclass('public.privacy_deletion_jobs') IS NOT NULL \
                     AND to_regclass('public.privacy_deletion_job_targets') IS NOT NULL \
                     AND to_regclass('public.privacy_subject_deletion_fences') IS NOT NULL \
+                    AND to_regclass('public.privacy_deletion_revalidation_runs') IS NOT NULL \
+                    AND to_regclass('public.privacy_deletion_revalidation_results') IS NOT NULL \
                     AND to_regprocedure('public.enforce_privacy_deletion_job_evidence()') \
-                        IS NOT NULL",
+                        IS NOT NULL \
+                    AND to_regprocedure(\
+                        'public.erase_privacy_database_subject(text,text,text)'\
+                    ) IS NOT NULL \
+                    AND to_regprocedure(\
+                        'public.erase_privacy_rag_subject(text,text,text)'\
+                    ) IS NOT NULL \
+                    AND to_regprocedure(\
+                        'public.begin_privacy_deletion_revalidation(text,text)'\
+                    ) IS NOT NULL \
+                    AND to_regprocedure(\
+                        'public.record_privacy_deletion_revalidation_result(\
+                            text,text,text,text,text,text,text,text\
+                        )'\
+                    ) IS NOT NULL",
         )
         .fetch_one(&self.pool)
         .await
@@ -138,11 +154,15 @@ impl PostgresDeletionRepository {
         .execute(&mut *transaction)
         .await
         .map_err(deletion_evidence_write_error)?;
+        // `INSERT .. ON CONFLICT` already waits for a concurrent writer of the
+        // same job identity. The canonical evidence columns are trigger-guarded
+        // and the API role is intentionally read/insert-only, so a FOR UPDATE
+        // lock would both be redundant and require prohibited UPDATE authority.
         let persisted = sqlx::query(
             "SELECT campaign_id, subject_id, requested_by, retention_policy, command_id, correlation_id, \
                     causation_id, canonical_event_type, evidence_status, \
                     canonical_event_sequence, canonical_event_integrity_hash \
-               FROM privacy_deletion_jobs WHERE job_id = $1 FOR UPDATE",
+               FROM privacy_deletion_jobs WHERE job_id = $1",
         )
         .bind(job_id)
         .fetch_one(&mut *transaction)
@@ -284,6 +304,7 @@ impl PostgresDeletionRepository {
         &self,
         job_id: &str,
         status: DeletionJobStatus,
+        claim_token: &str,
     ) -> Result<(), PrivacyError> {
         if status != DeletionJobStatus::Verifying {
             return Err(PrivacyError::InvalidInput);
@@ -292,16 +313,19 @@ impl PostgresDeletionRepository {
             "UPDATE privacy_deletion_jobs AS job \
                 SET status = $2, failure_code = NULL, updated_at = statement_timestamp() \
               WHERE job.job_id = $1 AND job.status = 'running' \
+                AND job.execution_claim_token = $3 \
                 AND job.lease_expires_at > statement_timestamp() \
                 AND EXISTS (\
                     SELECT 1 FROM privacy_subject_deletion_fences AS fence \
                      WHERE fence.subject_id = job.subject_id \
                        AND fence.job_id = job.job_id AND fence.status = 'running' \
+                       AND fence.execution_claim_token = $3 \
                        AND fence.lease_expires_at > statement_timestamp()\
                 )",
         )
         .bind(job_id)
         .bind(status.as_str())
+        .bind(claim_token)
         .execute(&self.pool)
         .await
         .map_err(|_| PrivacyError::Database)?

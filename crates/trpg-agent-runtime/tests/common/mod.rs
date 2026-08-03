@@ -1,3 +1,6 @@
+use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -12,7 +15,10 @@ use trpg_domain_core::ddd::{
 use trpg_domain_core::visibility_fact_provenance::CommittedFactEvidence;
 
 use trpg_agent_runtime::local_model_certification::{
-    CertificationInput, LocalModelCertificate, LocalModelCertificationAuthority,
+    LocalModelCertificate, LocalModelCertificationAuthority,
+};
+use trpg_agent_runtime::model_provider::{
+    resolve_provider_runtime_sha256, Environment, ProviderConfig, ProviderType,
 };
 use trpg_agent_runtime::{
     AgentEventPayload, AgentEventStore, AuthorityContract, ContextFact, FormalCommitAudit,
@@ -32,53 +38,73 @@ use trpg_shared_kernel::{
     TrpgError, Visibility, VisibilityLabel,
 };
 
+#[path = "../certification_ledger_integrity/checkpoint_store.rs"]
+mod checkpoint_store;
+use checkpoint_store::TestFileCheckpointStore;
+#[path = "../certification_support.rs"]
+mod certification_support;
+
 static NEXT_AUDIT_ID: AtomicU64 = AtomicU64::new(1);
 static NEXT_CERTIFICATION_ID: AtomicU64 = AtomicU64::new(1);
 
 pub struct CertificationFixture {
     pub authority: LocalModelCertificationAuthority,
     pub certificate: LocalModelCertificate,
-    registry_path: std::path::PathBuf,
+    pub provider: ProviderConfig,
+    root_path: std::path::PathBuf,
 }
 
 impl Drop for CertificationFixture {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.registry_path);
+        let _ = fs::remove_dir_all(&self.root_path);
     }
 }
 
 pub fn level4_certification(model_id: &str, model_artifact_sha256: &str) -> CertificationFixture {
+    let provider = ProviderConfig {
+        provider_id: EntityId::new("rf01_fake_provider").unwrap(),
+        provider_type: ProviderType::Ollama,
+        model_id: model_id.to_owned(),
+        model_artifact_sha256: model_artifact_sha256.to_owned(),
+        base_url: "http://127.0.0.1:11434".to_owned(),
+        credential: SecretReference::development("rf01_fake_provider", 1).unwrap(),
+        environment: Environment::Dev,
+    };
+    level4_certification_for_provider(&provider)
+}
+
+pub fn level4_certification_for_provider(provider: &ProviderConfig) -> CertificationFixture {
     let nonce = NEXT_CERTIFICATION_ID.fetch_add(1, Ordering::Relaxed);
-    let registry_path = std::env::temp_dir().join(format!(
-        "trpg-local-model-certification-{}-{nonce}.jsonl",
+    let root_path = std::env::temp_dir().join(format!(
+        "trpg-local-model-certification-{}-{nonce}",
         std::process::id()
     ));
-    let authority = LocalModelCertificationAuthority::new(
+    fs::create_dir_all(&root_path).unwrap();
+    #[cfg(unix)]
+    fs::set_permissions(&root_path, fs::Permissions::from_mode(0o700)).unwrap();
+    let registry_path = root_path.join("registry.jsonl");
+    let authority = LocalModelCertificationAuthority::new_with_checkpoint(
         "test-certification-key",
         &[0x91; 32],
         &registry_path,
+        TestFileCheckpointStore::shared(root_path.join("registry.external-witness")),
     )
     .unwrap();
+    let run = certification_support::passing_run_for_provider_blocking(
+        provider.provider_id.as_str(),
+        provider.provider_type,
+        &provider.model_id,
+        &provider.model_artifact_sha256,
+        &resolve_provider_runtime_sha256(provider).unwrap(),
+    );
     let certificate = authority
-        .issue_level4(
-            &CertificationInput {
-                model_id: model_id.to_owned(),
-                json_schema_support: true,
-                tool_call_support: true,
-                visibility_tests_pass: true,
-                prompt_injection_tests_pass: true,
-                rules_eval_pass: true,
-                latency_ms: 500,
-            },
-            model_artifact_sha256,
-            "p05-level4-suite-v1",
-            Duration::from_secs(60),
-        )
+        .issue_level4_from_run(&run, Duration::from_secs(60))
         .unwrap();
     CertificationFixture {
         authority,
         certificate,
-        registry_path,
+        provider: provider.clone(),
+        root_path,
     }
 }
 

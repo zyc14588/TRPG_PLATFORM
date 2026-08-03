@@ -8,7 +8,12 @@ use trpg_security_governance::secret::{
 };
 use trpg_shared_kernel::TrpgError;
 
+#[path = "common/ledger_checkpoint_store.rs"]
+mod ledger_checkpoint_store;
+use ledger_checkpoint_store::TestFileCheckpointStore;
+
 static NEXT_DIR: AtomicU64 = AtomicU64::new(1);
+const INTEGRITY_KEY: [u8; 32] = [0x39; 32];
 
 #[test]
 fn mounted_secret_is_redacted_rotatable_and_revocable() {
@@ -39,9 +44,12 @@ fn mounted_secret_is_redacted_rotatable_and_revocable() {
     assert!(!debug.contains(std::str::from_utf8(first_material).unwrap()));
 
     let catalog_path = root.join("secret-revocation-ledger.jsonl");
-    let manager = SecretManager::new_durable(
+    let manager = SecretManager::new_durable_with_checkpoint(
         MountedFileSecretResolver::new(&root).unwrap(),
         &catalog_path,
+        "test-secret-catalog-key",
+        &INTEGRITY_KEY,
+        TestFileCheckpointStore::shared(root.join("secret-revocation-ledger.witness")),
     )
     .unwrap();
     manager.register(&first).unwrap();
@@ -69,9 +77,12 @@ fn mounted_secret_is_redacted_rotatable_and_revocable() {
         .is_err());
 
     drop(manager);
-    let restarted = SecretManager::new_durable(
+    let restarted = SecretManager::new_durable_with_checkpoint(
         MountedFileSecretResolver::new(&root).unwrap(),
         &catalog_path,
+        "test-secret-catalog-key",
+        &INTEGRITY_KEY,
+        TestFileCheckpointStore::shared(root.join("secret-revocation-ledger.witness")),
     )
     .unwrap();
     assert!(matches!(

@@ -81,6 +81,12 @@ services:
       TRPG_OPENFGA_MODEL_ID_FILE: /run/trpg-policy/openfga_model_id
       TRPG_OPA_ADDRESS: 127.0.0.1:8181
       TRPG_OPA_POLICY_REVISION: opa-security-governance-v3
+      TRPG_MODEL_PROVIDER_TYPE: ${TRPG_MODEL_PROVIDER_TYPE:?set model provider type}
+      TRPG_MODEL_PROVIDER_ID: ${TRPG_MODEL_PROVIDER_ID:?set model provider id}
+      TRPG_MODEL_ID: ${TRPG_MODEL_ID:?set model id}
+      TRPG_MODEL_ARTIFACT_SHA256: ${TRPG_MODEL_ARTIFACT_SHA256:?set model artifact sha256}
+      TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID: ${TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID:?set model route authorization event id}
+      TRPG_EXPORT_STORAGE_ROOT: /var/lib/trpg/exports
     secrets:
       - source: api_database_url
         target: api_database_url.v1
@@ -104,6 +110,7 @@ services:
       - redis_client_tls_private_key
     volumes:
       - api_state:/var/lib/trpg
+      - export_artifacts:/var/lib/trpg/exports:ro
       - policy_bootstrap:/run/trpg-policy:ro
     depends_on:
       migration-runner:
@@ -157,6 +164,7 @@ services:
       backend:
         aliases:
           - api
+          - admin
     depends_on:
       openfga-migrate:
         condition: service_completed_successfully
@@ -229,6 +237,7 @@ services:
     command: ["realtime-server"]
     environment:
       TRPG_REALTIME_SERVER_BIND: 0.0.0.0:8081
+      TRPG_TENANT_ID: ${TRPG_TENANT_ID:-default}
       TRPG_SECRET_MOUNT: /run/secrets
       TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
       TRPG_DATABASE_URL_SECRET_ID: realtime_database_url
@@ -299,15 +308,22 @@ services:
       dockerfile: Dockerfile
       target: runtime
     command: ["agent-worker"]
+    network_mode: "service:openfga"
     environment:
+      TRPG_AGENT_WORKER_MODE: ${TRPG_AGENT_WORKER_MODE:-certification-service}
       TRPG_AGENT_WORKER_BIND: 0.0.0.0:8082
       TRPG_AGENT_WORKER_ID: agent-worker-primary
       TRPG_SECRET_MOUNT: /run/secrets
       TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
       TRPG_DATABASE_URL_SECRET_ID: worker_database_url
       TRPG_DATABASE_URL_SECRET_VERSION: "1"
-      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_read_database_url
+      TRPG_CANONICAL_DATABASE_URL_SECRET_ID: canonical_database_url
+      TRPG_CANONICAL_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_append_database_url
       TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_IDENTITY_SIGNING_KEY_SECRET_ID: identity_signing_key
+      TRPG_IDENTITY_SIGNING_KEY_SECRET_VERSION: "1"
+      TRPG_POSTGRES_CA_CERT_PATH: /run/secrets/postgres_ca_certificate
       TRPG_NATS_URL_SECRET_ID: nats_url
       TRPG_NATS_URL_SECRET_VERSION: "1"
       TRPG_REDIS_URL_SECRET_ID: redis_url
@@ -318,14 +334,42 @@ services:
       TRPG_PAYLOAD_ENCRYPTION_KEY_ID: ${TRPG_PAYLOAD_ENCRYPTION_KEY_ID:?set payload key id}
       TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_ID: payload_encryption_key
       TRPG_PAYLOAD_ENCRYPTION_KEY_SECRET_VERSION: "1"
+      TRPG_AUDIT_LOG_PATH: /var/lib/trpg/audit/security.jsonl
+      TRPG_AUDIT_HMAC_KEY_ID: ${TRPG_AUDIT_HMAC_KEY_ID:?set audit key id}
+      TRPG_AUDIT_HMAC_KEY_SECRET_ID: audit_hmac_key
+      TRPG_AUDIT_HMAC_KEY_SECRET_VERSION: "1"
+      TRPG_OPENFGA_ADDRESS: 127.0.0.1:8085
+      TRPG_OPENFGA_STORE_ID_FILE: /run/trpg-policy/openfga_store_id
+      TRPG_OPENFGA_MODEL_ID_FILE: /run/trpg-policy/openfga_model_id
+      TRPG_OPA_ADDRESS: 127.0.0.1:8181
+      TRPG_OPA_POLICY_REVISION: opa-security-governance-v3
+      TRPG_MODEL_PROVIDER_TYPE: ${TRPG_MODEL_PROVIDER_TYPE:?set model provider type}
+      TRPG_MODEL_PROVIDER_ID: ${TRPG_MODEL_PROVIDER_ID:?set model provider id}
+      TRPG_MODEL_ID: ${TRPG_MODEL_ID:?set model id}
+      TRPG_MODEL_ARTIFACT_SHA256: ${TRPG_MODEL_ARTIFACT_SHA256:?set model artifact sha256}
+      TRPG_MODEL_PROVIDER_BASE_URL: ${TRPG_MODEL_PROVIDER_BASE_URL:?set model provider base url}
+      TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST: ${TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST:-loopback}
+      TRPG_MODEL_PROVIDER_CREDENTIAL_SECRET_ID: provider_credential
+      TRPG_MODEL_PROVIDER_CREDENTIAL_SECRET_VERSION: "1"
+      TRPG_MODEL_PROVIDER_CA_CERT_PATH: /run/secrets/provider_ca_certificate
+      TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID: ${TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID:?set model route authorization event id}
+      TRPG_MODEL_PROVIDER_CAPABILITIES: chat,streaming,structured_output,tool_requests,embeddings
+      TRPG_MODEL_PROVIDER_TIMEOUT_MS: "30000"
+      TRPG_LOCAL_MODEL_CERTIFICATE_PATH: /var/lib/trpg/local-model-certification/certificate.json
+      TRPG_LOCAL_MODEL_CERTIFICATION_REGISTRY_PATH: /var/lib/trpg/local-model-certification/registry.jsonl
+      TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_ID: ${TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_ID:-local-model-certification-v1}
+      TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_SECRET_ID: local_model_certification_hmac_key
+      TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_SECRET_VERSION: "1"
       TRPG_OBJECT_STORAGE_ENDPOINT: https://minio:9000
       TRPG_OBJECT_STORAGE_REGION: ${TRPG_OBJECT_STORAGE_REGION:-us-east-1}
       TRPG_OBJECT_STORAGE_BUCKET: ${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}
+      TRPG_OBJECT_STORAGE_CA_CERT_PATH: /tmp/trpg-ca-bundle.crt
       TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_ID: object_storage_access_key
       TRPG_OBJECT_STORAGE_ACCESS_KEY_SECRET_VERSION: "1"
       TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_ID: object_storage_secret_key
       TRPG_OBJECT_STORAGE_SECRET_KEY_SECRET_VERSION: "1"
       TRPG_EXPORT_STORAGE_ROOT: /var/lib/trpg/exports
+      TRPG_EXPORT_RETENTION_SECONDS: ${TRPG_EXPORT_RETENTION_SECONDS:-604800}
       TRPG_PLUGIN_REGISTRY_PATH: /etc/trpg/plugins/registry.json
       TRPG_NATS_CA_CERT_PATH: /run/secrets/nats_tls_ca_certificate
       TRPG_NATS_CLIENT_CERT_PATH: /run/secrets/nats_client_tls_certificate
@@ -336,8 +380,12 @@ services:
     secrets:
       - source: worker_database_url
         target: worker_database_url.v1
-      - source: witness_read_database_url
-        target: witness_read_database_url.v1
+      - source: canonical_database_url
+        target: canonical_database_url.v1
+      - source: witness_append_database_url
+        target: witness_append_database_url.v1
+      - source: identity_signing_key
+        target: identity_signing_key.v1
       - source: nats_url
         target: nats_url.v1
       - source: redis_url
@@ -346,6 +394,13 @@ services:
         target: canonical_hmac_key.v1
       - source: payload_encryption_key
         target: payload_encryption_key.v1
+      - source: audit_hmac_key
+        target: audit_hmac_key.v1
+      - source: provider_credential
+        target: provider_credential.v1
+      - provider_ca_certificate
+      - source: local_model_certification_hmac_key
+        target: local_model_certification_hmac_key.v1
       - source: object_storage_access_key
         target: object_storage_access_key.v1
       - source: object_storage_secret_key
@@ -360,8 +415,8 @@ services:
       - postgres_ca_certificate
     volumes:
       - agent_state:/var/lib/trpg
-    networks:
-      - backend
+      - export_artifacts:/var/lib/trpg/exports
+      - policy_bootstrap:/run/trpg-policy:ro
     depends_on:
       migration-runner:
         condition: service_healthy
@@ -371,9 +426,20 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      policy-bootstrap:
+        condition: service_completed_successfully
     healthcheck:
       <<: *rust-healthcheck
-      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8082/health/ready"]
+      test: ["CMD-SHELL", "if [ \"$$TRPG_AGENT_WORKER_MODE\" = certification-service ]; then exit 0; fi; exec curl --fail --silent http://127.0.0.1:8082/health/ready"]
+
+  local-model-certifier:
+    extends:
+      service: agent-worker
+    profiles: [local-model-certifier]
+    environment:
+      TRPG_AGENT_WORKER_MODE: certification-service
+    healthcheck:
+      disable: true
 
   admin:
     <<: *trpg-runtime
@@ -384,10 +450,84 @@ services:
     command: ["admin-server"]
     environment:
       TRPG_ADMIN_SERVER_BIND: 0.0.0.0:8083
+      TRPG_SECRET_MOUNT: /run/secrets
+      TRPG_SECRET_CATALOG_PATH: /var/lib/trpg/secret-catalog/catalog.jsonl
+      TRPG_DATABASE_URL_SECRET_ID: api_database_url
+      TRPG_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_WITNESS_DATABASE_URL_SECRET_ID: witness_append_database_url
+      TRPG_WITNESS_DATABASE_URL_SECRET_VERSION: "1"
+      TRPG_IDENTITY_SIGNING_KEY_SECRET_ID: identity_signing_key
+      TRPG_IDENTITY_SIGNING_KEY_SECRET_VERSION: "1"
+      TRPG_REDIS_URL_SECRET_ID: redis_url
+      TRPG_REDIS_URL_SECRET_VERSION: "1"
+      TRPG_ADMIN_BOOTSTRAP_TOKEN_SECRET_ID: admin_bootstrap_token
+      TRPG_ADMIN_BOOTSTRAP_TOKEN_SECRET_VERSION: "1"
+      TRPG_CANONICAL_HMAC_KEY_ID: ${TRPG_CANONICAL_HMAC_KEY_ID:?set canonical key id}
+      TRPG_CANONICAL_HMAC_KEY_SECRET_ID: canonical_hmac_key
+      TRPG_CANONICAL_HMAC_KEY_SECRET_VERSION: "1"
+      TRPG_AUDIT_HMAC_KEY_ID: ${TRPG_AUDIT_HMAC_KEY_ID:?set audit key id}
+      TRPG_AUDIT_HMAC_KEY_SECRET_ID: audit_hmac_key
+      TRPG_AUDIT_HMAC_KEY_SECRET_VERSION: "1"
+      TRPG_ADMIN_STATE_PATH: /var/lib/trpg/admin/control-state.json
+      TRPG_ADMIN_AUDIT_LOG_PATH: /var/lib/trpg/audit/admin.jsonl
+      TRPG_POSTGRES_CA_CERT_PATH: /run/secrets/postgres_ca_certificate
+      TRPG_REDIS_CA_CERT_PATH: /run/secrets/redis_tls_ca_certificate
+      TRPG_REDIS_CLIENT_CERT_PATH: /run/secrets/redis_client_tls_certificate
+      TRPG_REDIS_CLIENT_KEY_PATH: /run/secrets/redis_client_tls_private_key
+      TRPG_ADMIN_CURL_PATH: /usr/bin/curl
+      TRPG_ADMIN_PSQL_PATH: /usr/local/libexec/trpg/psql
+      TRPG_ADMIN_PROVIDER_CA_PATH: /run/secrets/provider_ca_certificate
+      TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST: ${TRPG_LOCAL_PROVIDER_ENDPOINT_ALLOWLIST:-loopback}
+      TRPG_ADMIN_OPENFGA_ADDRESS: 127.0.0.1:8085
+      TRPG_ADMIN_OPENFGA_STORE_ID_FILE: /run/trpg-policy/openfga_store_id
+      TRPG_ADMIN_OPENFGA_MODEL_ID_FILE: /run/trpg-policy/openfga_model_id
+      TRPG_ADMIN_PG_DUMP_PATH: /usr/local/libexec/trpg/pg_dump
+      TRPG_ADMIN_PG_RESTORE_PATH: /usr/local/libexec/trpg/pg_restore
+      TRPG_ADMIN_PG_SERVICE_FILE_PATH: /tmp/trpg-mounted-secrets/admin_pg_service_file.v1
+      TRPG_ADMIN_PG_PASSFILE_PATH: /tmp/trpg-mounted-secrets/admin_pg_passfile.v1
+      TRPG_ADMIN_BACKUP_SOURCE_SERVICE: trpg_backup_source
+      TRPG_ADMIN_RESTORE_TARGET_SERVICE: trpg_restore_target
+      TRPG_ADMIN_BACKUP_DIRECTORY: /var/lib/trpg/backups
+      TRPG_ADMIN_SAFETY_DIRECTORY: /var/lib/trpg/restore-safety-points
+      TRPG_ADMIN_CERTIFICATION_DIRECTORY: /var/lib/trpg/model-certification-requests
+      TRPG_ADMIN_CERTIFICATION_STATUS_DIRECTORY: /var/lib/trpg/model-certification-status
+    secrets:
+      - source: api_database_url
+        target: api_database_url.v1
+      - source: witness_append_database_url
+        target: witness_append_database_url.v1
+      - source: identity_signing_key
+        target: identity_signing_key.v1
+      - source: redis_url
+        target: redis_url.v1
+      - source: canonical_hmac_key
+        target: canonical_hmac_key.v1
+      - source: audit_hmac_key
+        target: audit_hmac_key.v1
+      - source: admin_bootstrap_token
+        target: admin_bootstrap_token.v1
+      - source: provider_credential
+        target: provider_credential.v1
+      - source: admin_pg_service_file
+        target: admin_pg_service_file.v1
+      - source: admin_pg_passfile
+        target: admin_pg_passfile.v1
+      - postgres_ca_certificate
+      - redis_tls_ca_certificate
+      - redis_client_tls_certificate
+      - redis_client_tls_private_key
+      - provider_ca_certificate
     volumes:
       - admin_state:/var/lib/trpg
-    networks:
-      - backend
+      - policy_bootstrap:/run/trpg-policy:ro
+    network_mode: "service:openfga"
+    depends_on:
+      migration-runner:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      policy-bootstrap:
+        condition: service_completed_successfully
     healthcheck:
       <<: *rust-healthcheck
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8083/health/ready"]
@@ -448,6 +588,8 @@ services:
       POSTGRES_USER: trpg_database_owner
     secrets:
       - postgres_bootstrap_password
+      - postgres_backup_password
+      - postgres_restore_password
       - postgres_api_password
       - postgres_canonical_password
       - postgres_worker_password
@@ -638,12 +780,16 @@ services:
   minio-init:
     image: minio/mc@sha256:aead63c77f9db9107f1696fb08ecb0faeda23729cde94b0f663edf4fe09728e3
     restart: "no"
+    environment:
+      TRPG_OBJECT_STORAGE_BUCKET: ${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}
     depends_on:
       minio:
         condition: service_healthy
     secrets:
       - minio_root_user
       - minio_root_password
+      - object_storage_access_key
+      - object_storage_secret_key
       - minio_tls_ca_certificate
     networks:
       - backend
@@ -656,8 +802,54 @@ services:
         chmod 0644 /tmp/mc/certs/CAs/trpg-ca.crt
         export MC_CERTS_DIR=/tmp/mc/certs
         export MC_HOST_trpg="https://$$(cat /run/secrets/minio_root_user):$$(cat /run/secrets/minio_root_password)@minio:9000"
-        mc --config-dir /tmp/mc mb --ignore-existing "trpg/${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}"
-        mc --config-dir /tmp/mc version suspend "trpg/${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}"
+        runtime_bucket="$${TRPG_OBJECT_STORAGE_BUCKET:?TRPG_OBJECT_STORAGE_BUCKET is required}"
+        runtime_access="$$(cat /run/secrets/object_storage_access_key)"
+        runtime_secret="$$(cat /run/secrets/object_storage_secret_key)"
+        root_access="$$(cat /run/secrets/minio_root_user)"
+        if [ "$$runtime_access" = "$$root_access" ]; then
+          printf 'minio bootstrap refused root application credentials\n' >&2
+          exit 1
+        fi
+        mc --config-dir /tmp/mc mb --ignore-existing "trpg/$$runtime_bucket"
+        mc --config-dir /tmp/mc version enable "trpg/$$runtime_bucket"
+        cat >/tmp/trpg-object-erasure-policy.json <<POLICY
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:ListBucket",
+                "s3:ListBucketVersions"
+              ],
+              "Resource": ["arn:aws:s3:::$$runtime_bucket"],
+              "Condition": {
+                "StringLike": {"s3:prefix": ["subjects/*"]}
+              }
+            },
+            {
+              "Effect": "Allow",
+              "Action": ["s3:GetBucketVersioning"],
+              "Resource": ["arn:aws:s3:::$$runtime_bucket"]
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:DeleteObject",
+                "s3:DeleteObjectVersion",
+                "s3:PutObject"
+              ],
+              "Resource": ["arn:aws:s3:::$$runtime_bucket/subjects/*"]
+            }
+          ]
+        }
+        POLICY
+        mc --config-dir /tmp/mc admin policy create \
+          trpg trpg-object-erasure /tmp/trpg-object-erasure-policy.json
+        mc --config-dir /tmp/mc admin user rm trpg "$$runtime_access" >/dev/null 2>&1 || true
+        mc --config-dir /tmp/mc admin user add trpg "$$runtime_access" "$$runtime_secret"
+        mc --config-dir /tmp/mc admin policy attach \
+          trpg trpg-object-erasure --user "$$runtime_access"
 
   reverse-proxy:
     image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
@@ -718,6 +910,12 @@ secrets:
   postgres_realtime_password:
     external: true
     name: ${TRPG_POSTGRES_REALTIME_PASSWORD_SECRET:-trpg_postgres_realtime_password}
+  postgres_backup_password:
+    external: true
+    name: ${TRPG_POSTGRES_BACKUP_PASSWORD_SECRET:-trpg_postgres_backup_password}
+  postgres_restore_password:
+    external: true
+    name: ${TRPG_POSTGRES_RESTORE_PASSWORD_SECRET:-trpg_postgres_restore_password}
   owner_database_url:
     external: true
     name: ${TRPG_OWNER_DATABASE_URL_SECRET:-trpg_owner_database_url}
@@ -754,6 +952,24 @@ secrets:
   audit_hmac_key:
     external: true
     name: ${TRPG_AUDIT_HMAC_KEY_SECRET:-trpg_audit_hmac_key}
+  admin_bootstrap_token:
+    external: true
+    name: ${TRPG_ADMIN_BOOTSTRAP_TOKEN_SECRET:-trpg_admin_bootstrap_token}
+  provider_credential:
+    external: true
+    name: ${TRPG_PROVIDER_CREDENTIAL_SECRET:-trpg_provider_credential}
+  local_model_certification_hmac_key:
+    external: true
+    name: ${TRPG_LOCAL_MODEL_CERTIFICATION_HMAC_KEY_SECRET:-trpg_local_model_certification_hmac_key}
+  provider_ca_certificate:
+    external: true
+    name: ${TRPG_PROVIDER_CA_CERTIFICATE_SECRET:-trpg_provider_ca_certificate}
+  admin_pg_service_file:
+    external: true
+    name: ${TRPG_ADMIN_PG_SERVICE_FILE_SECRET:-trpg_admin_pg_service_file}
+  admin_pg_passfile:
+    external: true
+    name: ${TRPG_ADMIN_PG_PASSFILE_SECRET:-trpg_admin_pg_passfile}
   redis_url:
     external: true
     name: ${TRPG_REDIS_URL_SECRET:-trpg_redis_url}
@@ -878,6 +1094,7 @@ volumes:
   api_state:
   realtime_state:
   agent_state:
+  export_artifacts:
   admin_state:
   migration_state:
   openfga_data:

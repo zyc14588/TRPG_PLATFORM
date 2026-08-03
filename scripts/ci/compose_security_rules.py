@@ -66,6 +66,41 @@ def errors(root: Path = ROOT) -> list[str]:
         if image is None or "@sha256:" not in image.group(1):
             found.append(f"infrastructure image is not digest pinned: {service}")
 
+    agent_worker_block = service_blocks.get("agent-worker", "")
+    for fragment in (
+        "TRPG_OBJECT_STORAGE_CA_CERT_PATH: /tmp/trpg-ca-bundle.crt",
+        "- minio_tls_ca_certificate",
+    ):
+        if fragment not in agent_worker_block:
+            found.append(f"agent worker object-storage TLS binding is incomplete: {fragment}")
+    for forbidden_secret in ("minio_root_user", "minio_root_password"):
+        if re.search(
+            rf"(?m)^\s+- (?:source:\s+)?{re.escape(forbidden_secret)}\s*$",
+            agent_worker_block,
+        ):
+            found.append(
+                f"agent worker receives forbidden MinIO root secret: {forbidden_secret}"
+            )
+
+    minio_init_block = service_blocks.get("minio-init", "")
+    for fragment in (
+        "- object_storage_access_key",
+        "- object_storage_secret_key",
+        "minio bootstrap refused root application credentials",
+        '"s3:GetBucketVersioning"',
+        '"s3:ListBucketVersions"',
+        '"s3:DeleteObjectVersion"',
+        '"arn:aws:s3:::$$runtime_bucket/subjects/*"',
+        "admin policy create",
+        "admin user add",
+        "admin policy attach",
+        "TRPG_OBJECT_STORAGE_BUCKET: ${TRPG_OBJECT_STORAGE_BUCKET:-trpg-private-data}",
+        'runtime_bucket="$${TRPG_OBJECT_STORAGE_BUCKET:?TRPG_OBJECT_STORAGE_BUCKET is required}"',
+        'version enable "trpg/$$runtime_bucket"',
+    ):
+        if fragment not in minio_init_block:
+            found.append(f"MinIO least-privilege bootstrap is incomplete: {fragment}")
+
     declared_stages: set[str] = set()
     for instruction in re.findall(r"(?mi)^FROM\s+(.+)$", dockerfile):
         tokens = instruction.split()
@@ -327,30 +362,7 @@ def errors(root: Path = ROOT) -> list[str]:
         phase_reference = f"production-security-smoke/{phase_path.name}"
         if phase_reference not in smoke_entrypoint:
             found.append(f"production runtime smoke does not source phase: {phase_reference}")
-    required_runtime_fragments = (
-        '"${compose_command[@]}" build api web',
-        "up --detach --no-build --wait --wait-timeout 600",
-        "/api/health/ready",
-        "/realtime/health/ready",
-        "/admin/health/ready",
-        "docker secret create",
-        "docker service update",
-        "MinIO certificate fingerprint did not change after rotation",
-        "--write-out '%{http_code} %{redirect_url}'",
-        '[[ "$plaintext_proxy_status" != 308\\ https://* ]]',
-        '"${compose_command[@]}" run --rm witness-role-bootstrap',
-        "GRANT trpg_witness_owner TO trpg_witness_append_login",
-        "ALTER ROLE trpg_witness_append_login CREATEDB CREATEROLE BYPASSRLS",
-        'expected_append_privileges="trpg_witness_append_login|t|f|f|t|f|t|t|f|f|f|f|t|f|f|f|f|f|f"',
-        'expected_read_privileges="trpg_witness_read_login|t|f|f|t|f|t|f|f|f|f|f|f|t|f|f|f|f|f"',
-        "has_table_privilege(current_user, 'public.external_audit_witness', 'TRUNCATE')",
-        'witness_query trpg_witness_read_login "$postgres_witness_read_password"',
-        '"$postgres_witness_append_password" drop-table',
-        '"$postgres_witness_append_password" create-table',
-        "trpg_witness_read_login \"$postgres_witness_read_password\" insert",
-        "production security smoke: full product graph, witness least privilege",
-    )
-    for fragment in required_runtime_fragments:
+    for fragment in REQUIRED_RUNTIME_SMOKE_FRAGMENTS:
         if fragment not in smoke:
             found.append(f"production runtime smoke is incomplete: {fragment}")
     if smoke.count('"${compose_command[@]}" run --rm witness-role-bootstrap') < 2:
@@ -360,26 +372,5 @@ def errors(root: Path = ROOT) -> list[str]:
         )
     if "runtime-smoke-infrastructure-only" in smoke:
         found.append("production runtime smoke still uses a placeholder NATS credential")
-    entrypoint = (root / "config/container/trpg-entrypoint.sh").read_text(
-        encoding="utf-8"
-    )
-    security_manifest = (
-        root / "crates/trpg-security-governance/Cargo.toml"
-    ).read_text(encoding="utf-8")
-    if "minio_tls_ca_certificate" not in entrypoint or "SSL_CERT_FILE" not in entrypoint:
-        found.append("runtime does not trust the mounted MinIO CA without disabling TLS")
-    required_secret_staging_fragments = (
-        "private_secret_mount=/tmp/trpg-mounted-secrets",
-        "install -d -o trpg -g trpg -m 0700",
-        "install -o trpg -g trpg -m 0400",
-        'export TRPG_SECRET_MOUNT="$private_secret_mount"',
-    )
-    for fragment in required_secret_staging_fragments:
-        if fragment not in entrypoint:
-            found.append(
-                "runtime does not stage Compose/Docker secrets into a private "
-                f"non-root mount: {fragment}"
-            )
-    if "tokio-native-tls" not in security_manifest:
-        found.append("object-store client cannot consume the mounted native CA bundle")
+    found.extend(runtime_secret_staging_errors(root))
     return found

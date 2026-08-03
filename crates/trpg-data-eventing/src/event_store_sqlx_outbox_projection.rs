@@ -12,6 +12,7 @@ include!("event_store_sqlx_outbox_projection/07_verify_primary_commit.rs");
 include!("event_store_sqlx_outbox_projection/07_verify_primary_events.rs");
 include!("event_store_sqlx_outbox_projection/07_postgres_canonical_store_verify_integrity.rs");
 include!("event_store_sqlx_outbox_projection/08_postgres_canonical_store_load_replay_page.rs");
+include!("event_store_sqlx_outbox_projection/08_postgres_canonical_store_replay_bounds.rs");
 include!("event_store_sqlx_outbox_projection/09_append_canonical_events.rs");
 include!("event_store_sqlx_outbox_projection/09_postgres_canonical_store_commit_primary.rs");
 include!("event_store_sqlx_outbox_projection/10_postgres_canonical_store_insert_audit.rs");

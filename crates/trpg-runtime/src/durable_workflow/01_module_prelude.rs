@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
@@ -13,6 +14,13 @@ pub enum WorkflowState {
     Completed,
     Failed,
     Cancelled,
+    Requested,
+    Claimed,
+    AgentRunning,
+    AwaitingTool,
+    Committing,
+    RetryableFailed,
+    TerminalFailed,
 }
 
 impl WorkflowState {
@@ -24,6 +32,13 @@ impl WorkflowState {
             Self::Completed => "COMPLETED",
             Self::Failed => "FAILED",
             Self::Cancelled => "CANCELLED",
+            Self::Requested => "REQUESTED",
+            Self::Claimed => "CLAIMED",
+            Self::AgentRunning => "AGENT_RUNNING",
+            Self::AwaitingTool => "AWAITING_TOOL",
+            Self::Committing => "COMMITTING",
+            Self::RetryableFailed => "RETRYABLE_FAILED",
+            Self::TerminalFailed => "TERMINAL_FAILED",
         }
     }
 
@@ -35,6 +50,13 @@ impl WorkflowState {
             "COMPLETED" => Ok(Self::Completed),
             "FAILED" => Ok(Self::Failed),
             "CANCELLED" => Ok(Self::Cancelled),
+            "REQUESTED" => Ok(Self::Requested),
+            "CLAIMED" => Ok(Self::Claimed),
+            "AGENT_RUNNING" => Ok(Self::AgentRunning),
+            "AWAITING_TOOL" => Ok(Self::AwaitingTool),
+            "COMMITTING" => Ok(Self::Committing),
+            "RETRYABLE_FAILED" => Ok(Self::RetryableFailed),
+            "TERMINAL_FAILED" => Ok(Self::TerminalFailed),
             _ => Err(WorkflowStoreError::IntegrityViolation(
                 "unknown_workflow_state",
             )),
@@ -53,13 +75,49 @@ impl WorkflowState {
                     Self::Waiting,
                     Self::Running | Self::Failed | Self::Cancelled
                 )
+                | (Self::Requested, Self::Claimed | Self::TerminalFailed)
+                | (
+                    Self::Claimed,
+                    Self::AgentRunning
+                        | Self::AwaitingTool
+                        | Self::Committing
+                        | Self::RetryableFailed
+                        | Self::TerminalFailed
+                )
+                | (
+                    Self::AgentRunning,
+                    Self::Claimed
+                        | Self::AwaitingTool
+                        | Self::RetryableFailed
+                        | Self::TerminalFailed
+                )
+                | (
+                    Self::AwaitingTool,
+                    Self::Claimed
+                        | Self::Committing
+                        | Self::RetryableFailed
+                        | Self::TerminalFailed
+                )
+                | (
+                    Self::Committing,
+                    Self::Claimed
+                        | Self::Completed
+                        | Self::RetryableFailed
+                        | Self::TerminalFailed
+                )
+                | (Self::RetryableFailed, Self::Claimed | Self::TerminalFailed)
         )
     }
 
     fn releases_lease(self) -> bool {
         matches!(
             self,
-            Self::Waiting | Self::Completed | Self::Failed | Self::Cancelled
+            Self::Waiting
+                | Self::Completed
+                | Self::Failed
+                | Self::Cancelled
+                | Self::RetryableFailed
+                | Self::TerminalFailed
         )
     }
 }

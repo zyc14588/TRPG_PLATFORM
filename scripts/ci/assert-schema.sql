@@ -167,7 +167,8 @@ BEGIN
        OR has_table_privilege('trpg_canonical_service', 'users', 'SELECT')
        OR has_table_privilege('trpg_canonical_service', 'campaign_memberships', 'SELECT')
        OR has_table_privilege('trpg_canonical_service', 'cloud_egress_consents', 'SELECT')
-       OR has_table_privilege('trpg_canonical_service', 'privacy_subject_keys', 'SELECT')
+       OR has_table_privilege('trpg_canonical_service', 'privacy_subject_keys', 'UPDATE')
+       OR has_table_privilege('trpg_canonical_service', 'privacy_subject_keys', 'DELETE')
        OR EXISTS (
            SELECT 1
              FROM pg_class AS relation
@@ -309,6 +310,128 @@ BEGIN
            )
     THEN
         RAISE EXCEPTION 'deletion execution lease authority drifted';
+    END IF;
+    IF NOT has_column_privilege(
+               'trpg_worker_service', 'privacy_deletion_jobs',
+               'execution_claim_token', 'UPDATE'
+           )
+       OR NOT has_column_privilege(
+               'trpg_worker_service', 'privacy_subject_deletion_fences',
+               'execution_claim_token', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_api_service', 'privacy_deletion_jobs',
+               'execution_claim_token', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_canonical_service', 'privacy_deletion_jobs',
+               'execution_claim_token', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_realtime_service', 'privacy_deletion_jobs',
+               'execution_claim_token', 'UPDATE'
+           )
+       OR has_table_privilege('trpg_worker_service', 'users', 'UPDATE')
+       OR has_column_privilege(
+               'trpg_worker_service', 'campaign_memberships',
+               'revoked_at', 'UPDATE'
+           )
+       OR has_column_privilege(
+               'trpg_worker_service', 'campaign_group_memberships',
+               'revoked_at', 'UPDATE'
+           )
+       OR has_table_privilege('trpg_worker_service', 'sessions', 'DELETE')
+       OR has_table_privilege(
+               'trpg_worker_service', 'rag_snapshot_chunk', 'DELETE'
+           )
+       OR has_table_privilege(
+               'trpg_worker_service',
+               'privacy_deletion_surface_records',
+               'DELETE'
+           )
+       OR NOT has_function_privilege(
+               'trpg_worker_service',
+               'erase_privacy_database_subject(text,text,text)',
+               'EXECUTE'
+           )
+       OR NOT has_function_privilege(
+               'trpg_worker_service',
+               'erase_privacy_rag_subject(text,text,text)',
+               'EXECUTE'
+           )
+       OR NOT has_function_privilege(
+               'trpg_worker_service',
+               'begin_privacy_deletion_revalidation(text,text)',
+               'EXECUTE'
+           )
+       OR NOT has_function_privilege(
+               'trpg_worker_service',
+               'record_privacy_deletion_revalidation_result(text,text,text,text,text,text,text,text)',
+               'EXECUTE'
+           )
+       OR has_function_privilege(
+               'trpg_worker_service',
+               'require_privacy_deletion_claim(text,text,text)',
+               'EXECUTE'
+           )
+       OR EXISTS (
+           SELECT 1
+             FROM pg_proc AS procedure
+             CROSS JOIN LATERAL pg_catalog.aclexplode(
+                 COALESCE(
+                     procedure.proacl,
+                     pg_catalog.acldefault('f', procedure.proowner)
+                 )
+             ) AS privilege
+            WHERE procedure.oid = ANY (ARRAY[
+                'erase_privacy_database_subject(text,text,text)'::regprocedure,
+                'erase_privacy_rag_subject(text,text,text)'::regprocedure,
+                'begin_privacy_deletion_revalidation(text,text)'::regprocedure,
+                'record_privacy_deletion_revalidation_result(text,text,text,text,text,text,text,text)'::regprocedure,
+                'require_privacy_deletion_claim(text,text,text)'::regprocedure
+            ])
+              AND privilege.grantee = 0
+              AND privilege.privilege_type = 'EXECUTE'
+       )
+    THEN
+        RAISE EXCEPTION
+            'privacy deletion claim/function least-privilege authority drifted';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM (VALUES
+            ('require_privacy_deletion_claim',
+                'p_job_id text, p_subject_id text, p_claim_token text'),
+            ('erase_privacy_database_subject',
+                'p_job_id text, p_subject_id text, p_claim_token text'),
+            ('erase_privacy_rag_subject',
+                'p_job_id text, p_subject_id text, p_claim_token text'),
+            ('begin_privacy_deletion_revalidation',
+                'p_job_id text, p_subject_id text'),
+            ('record_privacy_deletion_revalidation_result',
+                'p_run_id text, p_job_id text, p_subject_id text, p_claim_token text, p_result_status text, p_failure_target text, p_error_code text, p_evidence_hash text')
+          ) AS expected(function_name, identity_arguments)
+          LEFT JOIN pg_proc AS procedure
+            ON procedure.pronamespace = 'public'::regnamespace
+           AND procedure.proname = expected.function_name
+           AND pg_get_function_identity_arguments(procedure.oid) =
+               expected.identity_arguments
+           AND procedure.prosecdef
+           AND procedure.proowner =
+               (SELECT relowner FROM pg_class
+                 WHERE oid = 'privacy_deletion_jobs'::regclass)
+           AND procedure.provolatile = 'v'
+           AND procedure.prokind = 'f'
+           AND COALESCE(
+                 procedure.proconfig @>
+                     ARRAY['search_path=pg_catalog, public']::TEXT[],
+                 FALSE
+               )
+         WHERE procedure.oid IS NULL
+    ) THEN
+        RAISE EXCEPTION
+            'privacy deletion constrained function execution properties drifted';
     END IF;
 
     SELECT array_agg(
@@ -542,7 +665,8 @@ BEGIN
                 'campaign_id:text:NO:-',
                 'lease_expires_at:timestamptz:YES:-',
                 'lease_recovery_count:int8:NO:0',
-                'last_lease_expired_at:timestamptz:YES:-'
+                'last_lease_expired_at:timestamptz:YES:-',
+                'execution_claim_token:text:YES:-'
             ]::TEXT[]),
             ('privacy_deletion_job_targets', ARRAY[
                 'job_id:text:NO:-', 'target:text:NO:-', 'status:text:NO:-',
@@ -561,7 +685,21 @@ BEGIN
             ('privacy_subject_deletion_fences', ARRAY[
                 'subject_id:text:NO:-', 'job_id:text:NO:-', 'status:text:NO:-',
                 'started_at:timestamptz:NO:now()', 'updated_at:timestamptz:NO:now()',
-                'lease_expires_at:timestamptz:YES:-'
+                'lease_expires_at:timestamptz:YES:-',
+                'execution_claim_token:text:YES:-'
+            ]::TEXT[]),
+            ('privacy_deletion_revalidation_runs', ARRAY[
+                'run_id:text:NO:-', 'job_id:text:NO:-', 'subject_id:text:NO:-',
+                'claim_token_hash:text:NO:-', 'completion_evidence_hash:text:NO:-',
+                'started_at:timestamptz:NO:statement_timestamp()',
+                'lease_expires_at:timestamptz:NO:-'
+            ]::TEXT[]),
+            ('privacy_deletion_revalidation_results', ARRAY[
+                'result_id:text:NO:-', 'run_id:text:NO:-',
+                'result_status:text:NO:-', 'failure_target:text:YES:-',
+                'error_code:text:YES:-', 'evidence_hash:text:NO:-',
+                'alert_status:text:NO:-',
+                'recorded_at:timestamptz:NO:statement_timestamp()'
             ]::TEXT[]),
             ('privacy_erased_subjects', ARRAY[
                 'subject_id:text:NO:-', 'erasure_digest:text:NO:-',
@@ -641,6 +779,10 @@ BEGIN
             ('privacy_deletion_job_targets', 'privacy_deletion_target_transition_guard'),
             ('privacy_deletion_job_targets', 'privacy_deletion_targets_delete_guard'),
             ('privacy_subject_deletion_fences', 'privacy_deletion_fences_delete_guard'),
+            ('privacy_deletion_revalidation_runs',
+                'privacy_deletion_revalidation_runs_immutable'),
+            ('privacy_deletion_revalidation_results',
+                'privacy_deletion_revalidation_results_immutable'),
             ('privacy_erased_subjects', 'privacy_erased_subjects_mutation_guard'),
             ('privacy_subject_keys', 'privacy_subject_key_destruction_guard'),
             ('privacy_subject_keys', 'privacy_subject_keys_delete_guard'),
@@ -690,7 +832,8 @@ BEGIN
             ('reject_erased_subject_session'),
             ('reject_erased_subject_membership'),
             ('reject_retained_security_history_truncate'),
-            ('reject_privacy_evidence_removal')
+            ('reject_privacy_evidence_removal'),
+            ('reject_privacy_revalidation_mutation')
           ) AS expected(function_name)
           LEFT JOIN pg_proc AS procedure
             ON procedure.pronamespace = 'public'::regnamespace
@@ -724,7 +867,8 @@ BEGIN
                'reject_erased_subject_session',
                'reject_erased_subject_membership',
                'reject_retained_security_history_truncate',
-               'reject_privacy_evidence_removal'
+               'reject_privacy_evidence_removal',
+               'reject_privacy_revalidation_mutation'
            )
            AND (
                procedure.prosecdef
@@ -805,6 +949,39 @@ BEGIN
            AND pg_get_constraintdef(oid) LIKE '%lease_expires_at IS NULL%'
     ) OR NOT EXISTS (
         SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'privacy_deletion_jobs'::regclass
+           AND conname = 'privacy_deletion_jobs_execution_claim_check'
+           AND pg_get_constraintdef(oid) LIKE
+               '%btrim(COALESCE(execution_claim_token%'
+           AND pg_get_constraintdef(oid) LIKE
+               '%execution_claim_token IS NULL%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'privacy_subject_deletion_fences'::regclass
+           AND conname = 'privacy_deletion_fences_execution_claim_check'
+           AND pg_get_constraintdef(oid) LIKE
+               '%btrim(COALESCE(execution_claim_token%'
+           AND pg_get_constraintdef(oid) LIKE
+               '%execution_claim_token IS NULL%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid =
+               'privacy_deletion_revalidation_runs'::regclass
+           AND conname =
+               'privacy_deletion_revalidation_runs_claim_token_hash_check'
+           AND pg_get_constraintdef(oid) LIKE
+               '%claim_token_hash ~ ''^[0-9a-f]{64}$''%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid =
+               'privacy_deletion_revalidation_results'::regclass
+           AND conname = 'privacy_deletion_revalidation_results_check'
+           AND pg_get_constraintdef(oid) LIKE
+               '%pending_acknowledgement%'
+           AND pg_get_constraintdef(oid) LIKE
+               '%failure_target IS NOT NULL%'
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
          WHERE conrelid = 'privacy_deletion_job_targets'::regclass
            AND conname = 'privacy_deletion_target_progress_cursor_check'
            AND pg_get_constraintdef(oid) LIKE '%progress_cursor > 0%'
@@ -836,7 +1013,7 @@ BEGIN
         );
     EXCEPTION WHEN raise_exception THEN
         IF SQLERRM =
-           'privacy erasure mutation requires a live confirmed deletion lease' THEN
+           'privacy erasure mutation requires a live confirmed deletion claim' THEN
             unauthorized_erasure_rejected := TRUE;
         ELSE
             RAISE EXCEPTION
@@ -1146,6 +1323,18 @@ BEGIN
         SELECT 1
           FROM pg_indexes
          WHERE schemaname = 'public'
+           AND tablename = 'privacy_deletion_revalidation_runs'
+           AND indexname = 'privacy_deletion_revalidation_runs_job_idx'
+           AND indexdef =
+               'CREATE INDEX privacy_deletion_revalidation_runs_job_idx ON public.privacy_deletion_revalidation_runs USING btree (job_id, started_at DESC, run_id)'
+    ) THEN
+        RAISE EXCEPTION 'privacy deletion revalidation query index drifted';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_indexes
+         WHERE schemaname = 'public'
            AND tablename = 'rag_snapshot_chunk'
            AND indexname = 'rag_snapshot_chunk_visibility_idx'
            AND indexdef =
@@ -1429,11 +1618,15 @@ BEGIN
                    AND (
                        lease_expires_at IS NULL
                        OR lease_expires_at <= statement_timestamp()
+                       OR btrim(COALESCE(execution_claim_token, '')) = ''
                    )
                )
             OR (
                    status NOT IN ('running', 'verifying')
-                   AND lease_expires_at IS NOT NULL
+                   AND (
+                       lease_expires_at IS NOT NULL
+                       OR execution_claim_token IS NOT NULL
+                   )
                )
             OR lease_recovery_count NOT BETWEEN 0 AND 3
             OR (
@@ -1452,14 +1645,44 @@ BEGIN
                    AND (
                        lease_expires_at IS NULL
                        OR lease_expires_at <= statement_timestamp()
+                       OR btrim(COALESCE(execution_claim_token, '')) = ''
                    )
                )
             OR (
                    status <> 'running'
-                   AND lease_expires_at IS NOT NULL
+                   AND (
+                       lease_expires_at IS NOT NULL
+                       OR execution_claim_token IS NOT NULL
+                   )
                )
     ) THEN
         RAISE EXCEPTION 'stale or inconsistent privacy deletion lease remains unrecovered';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM privacy_deletion_revalidation_results AS result
+          JOIN privacy_deletion_revalidation_runs AS run
+            ON run.run_id = result.run_id
+          JOIN privacy_deletion_jobs AS job
+            ON job.job_id = run.job_id
+           AND job.subject_id = run.subject_id
+          JOIN privacy_subject_deletion_fences AS fence
+            ON fence.job_id = job.job_id
+           AND fence.subject_id = job.subject_id
+         WHERE job.status <> 'completed'
+            OR fence.status <> 'completed'
+            OR (
+                result.result_status = 'failed'
+                AND result.alert_status <> 'pending_acknowledgement'
+            )
+            OR (
+                result.result_status = 'passed'
+                AND result.alert_status <> 'not_required'
+            )
+    ) THEN
+        RAISE EXCEPTION
+            'privacy deletion revalidation evidence is not bound to completion/alert state';
     END IF;
 
     IF EXISTS (

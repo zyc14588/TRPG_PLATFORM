@@ -9,6 +9,7 @@ license = "UNLICENSED"
 async-nats = { version = "0.49.1", default-features = false, features = ["jetstream", "nkeys", "ring", "server_2_10"] }
 base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+futures-util = "0.3"
 hmac = "0.12"
 percent-encoding = "2.3"
 redis = { version = "1.0", default-features = false, features = ["aio", "connection-manager", "script", "tokio-rustls-comp"] }
@@ -27,6 +28,5 @@ url = "2.5"
 zeroize = "1.8"
 
 [dev-dependencies]
-futures-util = "0.3"
 trpg-ruleset-coc7 = { path = "../trpg-ruleset-coc7" }
 trpg-test-support = { path = "../trpg-contracts/test-support" }

@@ -7,3 +7,4 @@ license = "UNLICENSED"
 
 [dependencies]
 serde_json = "1.0.149"
+tokio = { version = "1.48", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }

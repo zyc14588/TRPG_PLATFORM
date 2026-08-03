@@ -101,7 +101,7 @@ impl SecretCatalog {
 }
 
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
-#[serde(tag = "operation", rename_all = "snake_case")]
+#[serde(deny_unknown_fields, tag = "operation", rename_all = "snake_case")]
 enum CatalogMutation {
     Register {
         backend: SecretBackend,
@@ -164,121 +164,111 @@ impl CatalogMutation {
 }
 
 struct DurableSecretCatalog {
-    file: File,
+    path: PathBuf,
+    anchor_path: PathBuf,
+    integrity_key_id: String,
+    integrity_key: Zeroizing<[u8; 32]>,
+    ledger_id: String,
+    checkpoint_store: Arc<dyn LedgerCheckpointStore>,
+    lock_file: File,
+    observed_head: Option<(u64, String)>,
 }
 
 impl DurableSecretCatalog {
-    fn open(path: &Path) -> KernelResult<Self> {
-        if !path.is_absolute() || path.file_name().is_none() {
-            return Err(TrpgError::InvalidConfiguration(
-                "secret_catalog_path_invalid",
-            ));
-        }
-        let parent = path.parent().ok_or(TrpgError::InvalidConfiguration(
-            "secret_catalog_path_invalid",
-        ))?;
-        let parent_metadata = std::fs::symlink_metadata(parent)
-            .map_err(|_| TrpgError::InvalidConfiguration("secret_catalog_parent_missing"))?;
-        if !parent_metadata.is_dir() || parent_metadata.file_type().is_symlink() {
-            return Err(TrpgError::InvalidConfiguration(
-                "secret_catalog_parent_invalid",
-            ));
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if parent_metadata.permissions().mode() & 0o022 != 0 {
-                return Err(TrpgError::InvalidConfiguration(
-                    "secret_catalog_parent_permissions_too_broad",
-                ));
-            }
-        }
-        let file = rustix::fs::open(
-            path,
-            rustix::fs::OFlags::RDWR
-                | rustix::fs::OFlags::CREATE
-                | rustix::fs::OFlags::APPEND
-                | rustix::fs::OFlags::NOFOLLOW
-                | rustix::fs::OFlags::CLOEXEC,
-            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
-        )
-        .map(File::from)
-        .map_err(|_| TrpgError::InvalidConfiguration("secret_catalog_open_failed"))?;
-        let metadata = file
-            .metadata()
-            .map_err(|_| TrpgError::InvalidConfiguration("secret_catalog_open_failed"))?;
-        if !metadata.is_file() {
-            return Err(TrpgError::InvalidConfiguration(
-                "secret_catalog_not_regular_file",
-            ));
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if metadata.permissions().mode() & 0o077 != 0 {
-                return Err(TrpgError::InvalidConfiguration(
-                    "secret_catalog_permissions_too_broad",
-                ));
-            }
-        }
-        let mut durable = Self { file };
+    fn open(
+        path: &Path,
+        integrity_key_id: String,
+        integrity_key: &[u8; 32],
+        checkpoint_store: Arc<dyn LedgerCheckpointStore>,
+    ) -> KernelResult<Self> {
+        validate_secret_catalog_path(path)?;
+        validate_secret_integrity_key_id(&integrity_key_id)?;
+        let catalog_file = open_or_create_secret_file(path)?;
+        catalog_file
+            .sync_all()
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        sync_secret_parent(path)?;
+        let anchor_path = secret_companion_path(path, ".head");
+        validate_secret_file_if_present(&anchor_path)?;
+        let lock_path = secret_companion_path(path, ".lock");
+        let lock_file = open_or_create_secret_file(&lock_path)?;
+        let mut durable = Self {
+            path: path.to_path_buf(),
+            anchor_path,
+            integrity_key_id,
+            integrity_key: Zeroizing::new(*integrity_key),
+            ledger_id: ledger_checkpoint_id("secret-catalog", path)?,
+            checkpoint_store,
+            lock_file,
+            observed_head: None,
+        };
         durable.load()?;
         Ok(durable)
     }
 
     fn load(&mut self) -> KernelResult<SecretCatalog> {
-        self.with_exclusive_lock(replay_catalog)
+        let _lock = SecretCatalogFileLock::acquire(&self.lock_file)?;
+        read_verified_secret_catalog(
+            &self.path,
+            &self.anchor_path,
+            &self.ledger_id,
+            &self.integrity_key_id,
+            self.integrity_key.as_slice(),
+            self.checkpoint_store.as_ref(),
+            &mut self.observed_head,
+        )
+        .map(|(catalog, _)| catalog)
     }
 
     fn apply(&mut self, mutation: &CatalogMutation) -> KernelResult<SecretCatalog> {
-        self.with_exclusive_lock(|file| {
-            let mut catalog = replay_catalog(file)?;
-            mutation.apply(&mut catalog)?;
-            file.seek(SeekFrom::End(0))
-                .map_err(|_| TrpgError::AuditIntegrityViolation)?;
-            serde_json::to_writer(&mut *file, mutation)
-                .map_err(|_| TrpgError::AuditIntegrityViolation)?;
-            file.write_all(b"\n")
-                .and_then(|_| file.sync_all())
-                .map_err(|_| TrpgError::AuditIntegrityViolation)?;
-            Ok(catalog)
-        })
-    }
-
-    fn with_exclusive_lock<T>(
-        &mut self,
-        operation: impl FnOnce(&mut File) -> KernelResult<T>,
-    ) -> KernelResult<T> {
-        rustix::fs::flock(&self.file, rustix::fs::FlockOperation::LockExclusive)
-            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
-        let result = operation(&mut self.file);
-        let unlock = rustix::fs::flock(&self.file, rustix::fs::FlockOperation::Unlock)
-            .map_err(|_| TrpgError::AuditIntegrityViolation);
-        match (result, unlock) {
-            (Ok(value), Ok(())) => Ok(value),
-            (Err(error), _) => Err(error),
-            (_, Err(error)) => Err(error),
-        }
-    }
-}
-
-fn replay_catalog(file: &mut File) -> KernelResult<SecretCatalog> {
-    file.seek(SeekFrom::Start(0))
-        .map_err(|_| TrpgError::AuditIntegrityViolation)?;
-    let reader_file = file
-        .try_clone()
-        .map_err(|_| TrpgError::AuditIntegrityViolation)?;
-    let mut catalog = SecretCatalog::default();
-    for line in BufReader::new(reader_file).lines() {
-        let line = line.map_err(|_| TrpgError::AuditIntegrityViolation)?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        let mutation: CatalogMutation =
-            serde_json::from_str(&line).map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        let _lock = SecretCatalogFileLock::acquire(&self.lock_file)?;
+        let (mut catalog, records) = read_verified_secret_catalog(
+            &self.path,
+            &self.anchor_path,
+            &self.ledger_id,
+            &self.integrity_key_id,
+            self.integrity_key.as_slice(),
+            self.checkpoint_store.as_ref(),
+            &mut self.observed_head,
+        )?;
         mutation.apply(&mut catalog)?;
+        let sequence = records.last().map_or(Ok(1), |record| {
+            record
+                .sequence
+                .checked_add(1)
+                .ok_or(TrpgError::AuditIntegrityViolation)
+        })?;
+        let mut record = SecretCatalogRecord {
+            schema_version: SECRET_CATALOG_SCHEMA_VERSION,
+            sequence,
+            previous_hash: records.last().map_or_else(
+                || SECRET_CATALOG_GENESIS_HASH.to_owned(),
+                |record| record.record_hash.clone(),
+            ),
+            source: SecretCatalogRecordSource::Native,
+            mutation: mutation.clone(),
+            record_hash: String::new(),
+        };
+        record.record_hash =
+            secret_catalog_record_hash(&record, self.integrity_key.as_slice())?;
+        let mut encoded =
+            serde_json::to_vec(&record).map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        encoded.push(b'\n');
+        let mut file = open_secret_append(&self.path)?;
+        file.write_all(&encoded)
+            .and_then(|()| file.sync_all())
+            .map_err(|_| TrpgError::AuditIntegrityViolation)?;
+        write_secret_anchor(&self.anchor_path, &record)?;
+        write_secret_checkpoint(
+            self.checkpoint_store.as_ref(),
+            &self.ledger_id,
+            &self.integrity_key_id,
+            self.integrity_key.as_slice(),
+            &record,
+        )?;
+        self.observed_head = Some((record.sequence, record.record_hash));
+        Ok(catalog)
     }
-    Ok(catalog)
 }
 
 /// Resolves only the currently active version. Rotation immediately revokes

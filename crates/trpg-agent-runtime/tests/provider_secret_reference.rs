@@ -1,5 +1,6 @@
 use trpg_agent_runtime::model_provider::{
-    validate_provider_config, Environment, ProviderConfig, ProviderType, SecretReference,
+    validate_provider_config, validate_provider_config_with_local_network_policy, Environment,
+    LocalProviderNetworkPolicy, ProviderConfig, ProviderType, SecretReference,
 };
 
 #[test]
@@ -78,5 +79,31 @@ fn a_local_provider_label_cannot_hide_a_remote_https_endpoint() {
     assert_eq!(
         validate_provider_config(&config).unwrap_err().code(),
         "UNAUTHENTICATED_LOCAL_PROVIDER_EXPOSED"
+    );
+}
+
+#[test]
+fn local_provider_transport_requires_an_exact_private_network_policy_match() {
+    let config = ProviderConfig {
+        provider_id: trpg_shared_kernel::EntityId::new("ollama-private").unwrap(),
+        provider_type: ProviderType::Ollama,
+        model_id: "provider-model".to_owned(),
+        model_artifact_sha256: format!("sha256:{}", "a".repeat(64)),
+        base_url: "https://ollama-proxy:9443".to_owned(),
+        credential: SecretReference::development("ollama_private", 1).unwrap(),
+        environment: Environment::Dev,
+    };
+
+    validate_provider_config(&config).expect("private service DNS is structurally eligible");
+    let allowed = LocalProviderNetworkPolicy::parse("dns:ollama-proxy").unwrap();
+    validate_provider_config_with_local_network_policy(&config, &allowed)
+        .expect("exact deployment allowlist permits transport construction");
+
+    let adjacent = LocalProviderNetworkPolicy::parse("dns:llama-proxy").unwrap();
+    assert_eq!(
+        validate_provider_config_with_local_network_policy(&config, &adjacent)
+            .unwrap_err()
+            .code(),
+        "INVALID_CONFIGURATION"
     );
 }

@@ -24,10 +24,11 @@ MANIFEST_OUTPUTS = {
     "manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md",
 }
 PRODUCT_SERVICES = ("web", "api", "realtime", "agent-worker", "admin")
-EVIDENCE_SCHEMA_VERSION = "p00-6"
-EVIDENCE_GENERATOR_VERSION = "p00-6"
+EVIDENCE_SCHEMA_VERSION = "p00-7"
+EVIDENCE_GENERATOR_VERSION = "p00-7"
 EVIDENCE_REQUIRED = (
     "base_commit",
+    "tree_sha",
     "worktree_diff_sha256",
     "generated_at_utc",
     "generator_version",
@@ -309,6 +310,10 @@ def repository_artifact_path(name: str, root: Path = ROOT) -> Path:
 
 def base_commit(root: Path = ROOT) -> str:
     return run("git", "rev-parse", "HEAD", root=root).stdout.strip()
+
+
+def git_tree_sha(root: Path = ROOT) -> str:
+    return run("git", "rev-parse", "HEAD^{tree}", root=root).stdout.strip()
 
 
 def repository_slug(root: Path = ROOT) -> str:

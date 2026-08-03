@@ -1,24 +1,41 @@
-
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
 use serde_json::json;
 use trpg_api::api_contracts::{
-    ApiCommandFields, AuthorizedCoreApiContext, ConfirmPlayerActionApiRequest, CoreApiError,
-    PlayerActionApi, SubmitPlayerActionApiRequest,
+    AcceptInviteApiRequest, ApiCommandFields, AuthorizedCoreApiContext,
+    ChangeSessionStateApiRequest, CharacterTransitionApiRequest, ConfirmPlayerActionApiRequest,
+    CoreApiError, CreateCampaignApiRequest, CreateCharacterApiRequest,
+    CreateForkedCampaignApiRequest, ForkCampaignApiRequest, ImportScenarioApiRequest,
+    IssueInviteApiRequest, JoinCharacterSessionApiRequest,
+    PlayerActionApi, PublicGameplayActionApiRequest, RequestCampaignExportApiRequest,
+    RequestReconsiderationApiRequest, ResolveReconsiderationApiRequest,
+    ReviewReconsiderationApiRequest, StartSessionApiRequest, SubmitPlayerActionApiRequest,
+    SubmitPublicGameplayActionApiRequest, SwitchSceneApiRequest, UpdateCharacterApiRequest,
+    V1LifecycleApi,
 };
 use trpg_contracts::{HttpRequest, HttpResponse};
+use trpg_data_eventing::campaign_export_worker::{artifact_sha256, checked_artifact_path};
 use trpg_data_eventing::event_store_sqlx_outbox_projection::{
     CanonicalReplayEvent, CanonicalStoreError, PostgresCanonicalCommitPort, PostgresCanonicalStore,
 };
-use trpg_data_eventing::persistence_postgresql::CoreDomainRepository;
+use trpg_data_eventing::persistence_postgresql::{
+    CoreDomainRepository, CoreDomainRepositoryError, PublicGameplayContextKind,
+};
 use trpg_identity::{
     CampaignRole, GlobalRole, IdentityError, IdentityService, PrincipalKind, ReplayAuthorization,
     WorkloadRole,
 };
 use trpg_platform::security_privacy_copyright::{
     request_data_deletion_canonical, RequestDataDeletion,
+};
+use trpg_ruleset_coc7::coc7_rules_engine::{
+    resolve_public_gameplay, PublicGameplayAction, PublicGameplayContext,
+};
+use trpg_runtime::durable_workflow::{
+    AgentJobApprovalDraft, DurableWorkflowStore, WorkflowState, WorkflowStoreError,
 };
 use trpg_security_governance::authorize_campaign_membership_change;
 use trpg_security_governance::formal_commit_audit::{FormalCommitAudit, FormalCommitAuthorizer};
@@ -31,11 +48,13 @@ use trpg_shared_kernel::error_model::{
     describe_error, InternalErrorContext, TrustedErrorLogEntry, TrustedErrorLogSink,
 };
 use trpg_shared_kernel::{
-    AuthenticatedCommandContext, AuthorityMode, CanonicalCommitPort, CommandEnvelope,
-    CommandMetadata, EntityId, FactProvenance, FormalWritePath, ProvenanceKind, ResourceRef,
-    TrpgError, Visibility, VisibilityLabel,
+    Actor, ActorRole, AuthenticatedCommandContext, AuthorityMode, CanonicalCommitEvent,
+    CanonicalCommitPort, CanonicalCommitRequest, CommandEnvelope, CommandMetadata, EntityId,
+    EventActorOriginWire, FactProvenance, FormalWritePath, ProvenanceKind, ResourceRef, TrpgError,
+    Visibility, VisibilityLabel,
 };
 
+use core_domain::RepositoryCampaignCharacterPort;
 use middleware::{ApiAuthError, AuthenticationMiddleware};
 use player_action::RepositoryPlayerActionPort;
 
@@ -64,7 +83,11 @@ struct CanonicalCustody {
     deletion_repository: PostgresDeletionRepository,
     runtime_events: trpg_runtime::EventStore<trpg_runtime::RuntimeEventPayload>,
     agent_events: trpg_agent_runtime::AgentEventStore<trpg_agent_runtime::AgentEventPayload>,
+    lifecycle_port: Option<RepositoryCampaignCharacterPort>,
     player_action_port: Option<RepositoryPlayerActionPort>,
+    gameplay_repository: Option<CoreDomainRepository>,
+    agent_jobs: Option<AgentJobGateway>,
+    export_storage_root: Option<PathBuf>,
 }
 
 struct VisibleReplayPage {

@@ -5,6 +5,12 @@ openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 1 \
   -out "$runtime_directory/ca.crt" >/dev/null 2>&1
 chmod 0600 "$runtime_directory/ca.key"
 chmod 0644 "$runtime_directory/ca.crt"
+openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+  -subj "/CN=AR02 Deliberately Untrusted Root" \
+  -keyout "$runtime_directory/wrong-ca.key" \
+  -out "$runtime_directory/wrong-ca.crt" >/dev/null 2>&1
+chmod 0600 "$runtime_directory/wrong-ca.key"
+chmod 0644 "$runtime_directory/wrong-ca.crt"
 
 issue_certificate \
   postgres_server postgres serverAuth \
@@ -29,11 +35,15 @@ postgres_api_password="$(openssl rand -hex 24)"
 postgres_canonical_password="$(openssl rand -hex 24)"
 postgres_worker_password="$(openssl rand -hex 24)"
 postgres_realtime_password="$(openssl rand -hex 24)"
+postgres_backup_password="$(openssl rand -hex 24)"
+postgres_restore_password="$(openssl rand -hex 24)"
 redis_healthcheck_password="$(openssl rand -hex 24)"
 redis_application_password="$(openssl rand -hex 24)"
 nats_password="$(openssl rand -hex 24)"
-minio_user="trpg_runtime_smoke"
-minio_password="$(openssl rand -hex 24)"
+minio_root_user="trpg_root_smoke"
+minio_root_password="$(openssl rand -hex 24)"
+minio_service_user="trpg_s3_erasure"
+minio_service_password="$(openssl rand -hex 24)"
 
 write_secret postgres_bootstrap_password "$postgres_owner_password"
 write_secret postgres_witness_owner_password "$postgres_witness_owner_password"
@@ -43,6 +53,8 @@ write_secret postgres_api_password "$postgres_api_password"
 write_secret postgres_canonical_password "$postgres_canonical_password"
 write_secret postgres_worker_password "$postgres_worker_password"
 write_secret postgres_realtime_password "$postgres_realtime_password"
+write_secret postgres_backup_password "$postgres_backup_password"
+write_secret postgres_restore_password "$postgres_restore_password"
 write_secret owner_database_url \
   "postgresql://trpg_database_owner:$postgres_owner_password@postgres:5432/coc_ai_trpg?sslmode=verify-full&sslrootcert=/run/secrets/postgres_ca_certificate"
 write_secret api_database_url \
@@ -63,14 +75,36 @@ write_secret identity_signing_key "$(openssl rand -hex 32)"
 write_secret canonical_hmac_key "$(openssl rand -hex 32)"
 write_secret payload_encryption_key "$(openssl rand -hex 32)"
 write_secret audit_hmac_key "$(openssl rand -hex 32)"
+write_secret local_model_certification_hmac_key "$(openssl rand -hex 32)"
+write_secret admin_bootstrap_token "$(openssl rand -hex 32)"
+write_secret provider_credential "$(openssl rand -hex 32)"
+copy_secret provider_ca_certificate "$runtime_directory/ca.crt"
+write_secret admin_pg_service_file \
+  "[trpg_backup_source]
+host=postgres
+port=5432
+dbname=coc_ai_trpg
+user=trpg_backup_login
+sslmode=verify-full
+sslrootcert=/run/secrets/postgres_ca_certificate
+[trpg_restore_target]
+host=postgres
+port=5432
+dbname=coc_ai_trpg_restore
+user=trpg_restore_login
+sslmode=verify-full
+sslrootcert=/run/secrets/postgres_ca_certificate"
+write_secret admin_pg_passfile \
+  "postgres:5432:coc_ai_trpg:trpg_backup_login:$postgres_backup_password
+postgres:5432:coc_ai_trpg_restore:trpg_restore_login:$postgres_restore_password"
 write_secret redis_url "rediss://trpg_runtime:$redis_application_password@redis:6379"
 write_secret nats_url "tls://runtime_smoke:$nats_password@nats:4222"
 write_secret realtime_cache_key "$(openssl rand -hex 32)"
-write_secret object_storage_access_key "$minio_user"
-write_secret object_storage_secret_key "$minio_password"
+write_secret object_storage_access_key "$minio_service_user"
+write_secret object_storage_secret_key "$minio_service_password"
 write_secret redis_healthcheck_password "$redis_healthcheck_password"
-write_secret minio_root_user "$minio_user"
-write_secret minio_root_password "$minio_password"
+write_secret minio_root_user "$minio_root_user"
+write_secret minio_root_password "$minio_root_password"
 write_secret redis_acl \
   "user default off
 user healthcheck on >$redis_healthcheck_password ~* +ping
@@ -116,6 +150,13 @@ export TRPG_AUDIT_HMAC_KEY_ID="runtime-smoke-audit-v1"
 export TRPG_OBJECT_STORAGE_BUCKET="trpg-runtime-smoke"
 export TRPG_OBJECT_STORAGE_REGION="us-east-1"
 export TRPG_IMAGE_TAG="runtime-smoke"
+export TRPG_MODEL_PROVIDER_TYPE="cloud"
+export TRPG_MODEL_PROVIDER_ID="runtime-smoke-provider"
+export TRPG_MODEL_ID="runtime-smoke-model"
+export TRPG_MODEL_ARTIFACT_SHA256="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+export TRPG_MODEL_PROVIDER_BASE_URL="https://provider.invalid/v1"
+export TRPG_MODEL_ROUTE_AUTHORIZATION_EVENT_ID="runtime-smoke-provider-route-v1"
+export TRPG_AGENT_WORKER_MODE="ready"
 
 python3 "$root/scripts/ci/verify_compose_security.py" --check
 "${compose_command[@]}" config --quiet

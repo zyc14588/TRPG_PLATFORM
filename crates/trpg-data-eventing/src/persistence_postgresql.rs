@@ -1,6 +1,10 @@
 // Source is organized into ordered, responsibility-focused sections.
 // `include!` preserves this module's privacy boundary and public API.
 
+pub type LifecycleReconsiderationOutcome =
+    trpg_domain_core::domain_entities_value_objects::ReconsiderationOutcome;
+pub type LifecycleSessionState = trpg_domain_core::domain_entities_value_objects::SessionState;
+
 include!("persistence_postgresql/01_storage_tables.rs");
 include!("persistence_postgresql/02_authority_contract_snapshot.rs");
 include!("persistence_postgresql/03_fork_snapshot_session.rs");
@@ -45,6 +49,7 @@ include!("persistence_postgresql/23_apply_campaign_fork_replay_event.rs");
 include!("persistence_postgresql/24_apply_session_replay_event.rs");
 include!("persistence_postgresql/25_timestamp_from_unix_ms.rs");
 include!("persistence_postgresql/26_core_domain_repository_ensure_user_exists.rs");
+include!("persistence_postgresql/26a_campaign_creation_event_and_projection.rs");
 include!("persistence_postgresql/27_core_domain_repository_issue_invite.rs");
 include!("persistence_postgresql/28_core_domain_repository_create_character.rs");
 include!("persistence_postgresql/29_core_domain_repository_approve_character_initial_version.rs");
@@ -59,6 +64,7 @@ include!("persistence_postgresql/36_append_campaign_fork_state_rows.rs");
 include!("persistence_postgresql/36_core_domain_repository_build_campaign_fork_materialization.rs");
 include!("persistence_postgresql/37_campaign_fork_validation_and_projection.rs");
 include!("persistence_postgresql/37_core_domain_repository_record_campaign_fork.rs");
+include!("persistence_postgresql/37a_core_domain_repository_create_forked_campaign.rs");
 include!("persistence_postgresql/38_core_domain_repository_request_reconsideration.rs");
 include!("persistence_postgresql/39_core_domain_repository_resolve_reconsideration.rs");
 include!("persistence_postgresql/40_core_domain_repository_record_combat_state_inner.rs");
@@ -69,3 +75,5 @@ include!("persistence_postgresql/43_core_domain_repository_record_growth.rs");
 include!("persistence_postgresql/44_core_domain_repository_prepare_combat_health_projections.rs");
 include!("persistence_postgresql/45_core_domain_repository_lock_unconsumed_gameplay_rolls.rs");
 include!("persistence_postgresql/46_core_domain_repository_validate_initial_chase_participants.rs");
+include!("persistence_postgresql/47_core_domain_repository_v1_lifecycle.rs");
+include!("persistence_postgresql/48_campaign_export_download.rs");

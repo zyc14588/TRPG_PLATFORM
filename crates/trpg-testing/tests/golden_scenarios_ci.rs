@@ -8,6 +8,8 @@ const S11_EXPECTED: &str = include_str!(
     "../../../fixtures/stages/detailed/S11_golden_visibility_export_diff_expected.current.json.md"
 );
 
+// Fast fixture-contract companion only. The authoritative Golden gate is the
+// fresh production-composition flow in scripts/ci/golden-product-flow.sh.
 #[test]
 fn golden_scenarios_ci_stage_gate() {
     let combined = format!("{GOLDEN_SCENARIO}\n{GOLDEN_ACTIONS}\n{S11_EXPECTED}");

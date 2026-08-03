@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use sha2::{Digest, Sha256};
 use trpg_contracts::WireErrorCode;
 use trpg_identity::{
     AgentClass as IdentityAgentClass, AuthenticationContext, IdentityVerifier, PrincipalKind,
@@ -188,6 +189,9 @@ pub enum AgentTool {
     RevealClue,
     ApplySanLoss,
     ChangeScene,
+    ResolveNpcInteraction,
+    ResolveCombatRound,
+    ResolveChaseSegment,
     DraftSanLoss,
     NarrationOnly,
 }
@@ -199,6 +203,9 @@ impl AgentTool {
             Self::RevealClue => "reveal_clue",
             Self::ApplySanLoss => "apply_san_loss",
             Self::ChangeScene => "change_scene",
+            Self::ResolveNpcInteraction => "resolve_npc_interaction",
+            Self::ResolveCombatRound => "resolve_combat_round",
+            Self::ResolveChaseSegment => "resolve_chase_segment",
             Self::DraftSanLoss => "draft_san_loss",
             Self::NarrationOnly => "narration_only",
         }
@@ -231,9 +238,12 @@ impl ToolRequest {
             tool: match tool {
                 AgentTool::ApplySanLoss => AgentTool::DraftSanLoss,
                 AgentTool::DraftSanLoss | AgentTool::NarrationOnly => tool,
-                AgentTool::RequestSkillCheck | AgentTool::RevealClue | AgentTool::ChangeScene => {
-                    AgentTool::NarrationOnly
-                }
+                AgentTool::RequestSkillCheck
+                | AgentTool::RevealClue
+                | AgentTool::ChangeScene
+                | AgentTool::ResolveNpcInteraction
+                | AgentTool::ResolveCombatRound
+                | AgentTool::ResolveChaseSegment => AgentTool::NarrationOnly,
             },
             visibility: Visibility::new(VisibilityLabel::KeeperOnly),
         }

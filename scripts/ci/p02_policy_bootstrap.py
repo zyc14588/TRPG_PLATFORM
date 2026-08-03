@@ -153,6 +153,21 @@ def bootstrap(
                             "object": "campaign:campaign_p07_http",
                         },
                         {
+                            "user": "principal:api_core_workflow",
+                            "relation": "workflow",
+                            "object": "campaign:campaign_ar06_http",
+                        },
+                        {
+                            "user": "principal:api_core_workflow",
+                            "relation": "workflow",
+                            "object": "campaign:campaign_ar06_http_fork",
+                        },
+                        {
+                            "user": "principal:api_player_action_workflow",
+                            "relation": "workflow",
+                            "object": "campaign:campaign_ar06_http",
+                        },
+                        {
                             "user": "principal:owner_a",
                             "relation": "server_owner",
                             "object": "campaign:campaign_a",

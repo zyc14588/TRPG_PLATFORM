@@ -1,6 +1,10 @@
 {
   "environment": "Local environment",
   "version": "0.1.0",
+  "apiBase": "/api",
+  "v1Base": "/api/api/v1",
+  "realtimeBase": "/realtime",
+  "adminBase": "/admin/admin/v1",
   "services": [
     { "name": "API Server", "url": "http://127.0.0.1:8080" },
     { "name": "Realtime Server", "url": "http://127.0.0.1:8081" },

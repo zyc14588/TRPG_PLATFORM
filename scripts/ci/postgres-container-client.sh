@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+IFS=$'\n\t'
 
 tool_name="$(basename -- "$0")"
-if [[ "$tool_name" != "pg_dump" && "$tool_name" != "pg_restore" ]]; then
-  printf 'unsupported PostgreSQL client wrapper name: %s\n' "$tool_name" >&2
-  exit 2
-fi
+case "$tool_name" in
+  pg_dump|pg_restore|psql) ;;
+  *)
+    printf 'unsupported PostgreSQL client wrapper name: %s\n' "$tool_name" >&2
+    exit 2
+    ;;
+esac
 
 client_image="${TRPG_POSTGRES_CLIENT_IMAGE:-}"
 if [[ ! "$client_image" =~ ^[a-z0-9][a-z0-9._:/-]*@sha256:[0-9a-f]{64}$ ]]; then

@@ -4,19 +4,25 @@
 services:
   postgres:
     ports:
-      - "127.0.0.1:25432:5432"
+      - "${TRPG_CI_PUBLISHED_HOST:-127.0.0.1}:25432:5432"
+    configs:
+      - source: postgres_ci_hba
+        target: /etc/trpg/postgres/pg_hba.conf
   postgres-witness:
     ports:
-      - "127.0.0.1:25433:5432"
+      - "${TRPG_CI_PUBLISHED_HOST:-127.0.0.1}:25433:5432"
+    configs:
+      - source: postgres_witness_ci_hba
+        target: /etc/trpg/postgres/pg_hba.conf
   redis:
     ports:
-      - "127.0.0.1:26379:6379"
+      - "${TRPG_CI_PUBLISHED_HOST:-127.0.0.1}:26379:6379"
   nats:
     ports:
-      - "127.0.0.1:24222:4222"
+      - "${TRPG_CI_PUBLISHED_HOST:-127.0.0.1}:24222:4222"
   minio:
     ports:
-      - "127.0.0.1:29000:9000"
+      - "${TRPG_CI_PUBLISHED_HOST:-127.0.0.1}:29000:9000"
 
 # Production keeps the backend network internal. The isolated runtime smoke
 # must publish loopback-only ports to prove plaintext rejection and TLS/mTLS
@@ -25,6 +31,47 @@ services:
 networks:
   backend:
     internal: false
+
+# The outer Dind bridge forwards loopback traffic into the inner daemon with
+# source 172.17.0.1. Keep the production `samenet` rules and grant only that
+# single isolated gateway TLS+SCRAM access; plaintext and every other source
+# remain fail-closed. These configs replace the production targets only when
+# this CI override is explicitly selected.
+configs:
+  postgres_ci_hba:
+    content: |
+      local all all scram-sha-256
+      hostnossl all all 0.0.0.0/0 reject
+      hostnossl all all ::/0 reject
+      hostssl coc_ai_trpg trpg_database_owner samenet scram-sha-256
+      hostssl coc_ai_trpg trpg_api_login samenet scram-sha-256
+      hostssl coc_ai_trpg trpg_canonical_login samenet scram-sha-256
+      hostssl coc_ai_trpg trpg_worker_login samenet scram-sha-256
+      hostssl coc_ai_trpg trpg_realtime_login samenet scram-sha-256
+      hostssl coc_ai_trpg trpg_backup_login samenet scram-sha-256
+      hostssl coc_ai_trpg_restore trpg_restore_login samenet scram-sha-256
+      hostssl coc_ai_trpg trpg_database_owner 172.17.0.1/32 scram-sha-256
+      hostssl coc_ai_trpg trpg_api_login 172.17.0.1/32 scram-sha-256
+      hostssl coc_ai_trpg trpg_canonical_login 172.17.0.1/32 scram-sha-256
+      hostssl coc_ai_trpg trpg_worker_login 172.17.0.1/32 scram-sha-256
+      hostssl coc_ai_trpg trpg_realtime_login 172.17.0.1/32 scram-sha-256
+      hostssl coc_ai_trpg trpg_backup_login 172.17.0.1/32 scram-sha-256
+      hostssl coc_ai_trpg_restore trpg_restore_login 172.17.0.1/32 scram-sha-256
+      hostssl all all 0.0.0.0/0 reject
+      hostssl all all ::/0 reject
+  postgres_witness_ci_hba:
+    content: |
+      local all all scram-sha-256
+      hostnossl all all 0.0.0.0/0 reject
+      hostnossl all all ::/0 reject
+      hostssl coc_ai_trpg_witness trpg_witness_append_login samenet scram-sha-256
+      hostssl coc_ai_trpg_witness trpg_witness_read_login samenet scram-sha-256
+      hostssl coc_ai_trpg_witness trpg_witness_owner samenet scram-sha-256
+      hostssl coc_ai_trpg_witness trpg_witness_append_login 172.17.0.1/32 scram-sha-256
+      hostssl coc_ai_trpg_witness trpg_witness_read_login 172.17.0.1/32 scram-sha-256
+      hostssl coc_ai_trpg_witness trpg_witness_owner 172.17.0.1/32 scram-sha-256
+      hostssl all all 0.0.0.0/0 reject
+      hostssl all all ::/0 reject
 
 secrets:
   postgres_bootstrap_password:
@@ -51,6 +98,12 @@ secrets:
   postgres_realtime_password:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_realtime_password
+  postgres_backup_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_backup_password
+  postgres_restore_password:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/postgres_restore_password
   owner_database_url:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/owner_database_url
@@ -87,6 +140,24 @@ secrets:
   audit_hmac_key:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/audit_hmac_key
+  admin_bootstrap_token:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/admin_bootstrap_token
+  provider_credential:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/provider_credential
+  local_model_certification_hmac_key:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/local_model_certification_hmac_key
+  provider_ca_certificate:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/provider_ca_certificate
+  admin_pg_service_file:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/admin_pg_service_file
+  admin_pg_passfile:
+    external: false
+    file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/admin_pg_passfile
   redis_url:
     external: false
     file: ${TRPG_COMPOSE_SECRET_DIRECTORY:?set TRPG_COMPOSE_SECRET_DIRECTORY}/redis_url

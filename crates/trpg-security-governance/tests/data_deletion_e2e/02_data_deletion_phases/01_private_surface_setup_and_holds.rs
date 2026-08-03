@@ -1,6 +1,8 @@
 {
     let database_url = std::env::var("P05_DATABASE_URL")
         .expect("P05_DATABASE_URL must point to the P05 PostgreSQL test database");
+    let worker_database_url = std::env::var("P05_WORKER_DATABASE_URL")
+        .expect("P05_WORKER_DATABASE_URL must use the production worker login");
     let witness_url = std::env::var("P05_WITNESS_DATABASE_URL")
         .expect("P05_WITNESS_DATABASE_URL must point to an independent P05 witness database");
     let redis_url = std::env::var("P05_REDIS_URL")
@@ -15,6 +17,8 @@
         std::env::var("P05_MINIO_ACCESS_KEY").expect("P05_MINIO_ACCESS_KEY is required");
     let object_secret_key =
         std::env::var("P05_MINIO_SECRET_KEY").expect("P05_MINIO_SECRET_KEY is required");
+    let object_ca_bundle = std::env::var("P05_MINIO_CA_CERT_PATH")
+        .expect("P05_MINIO_CA_CERT_PATH is required");
     let store = PostgresCanonicalStore::connect(
         &database_url,
         &witness_url,
@@ -36,6 +40,30 @@
         .expect("connect P05 PostgreSQL");
     let repository = PostgresDeletionRepository::new(pool.clone());
     repository.migrate().await.expect("apply privacy schema");
+    let worker_options = PgConnectOptions::from_str(&worker_database_url)
+        .expect("parse P05 worker database URL");
+    let worker_pool = PgPoolOptions::new()
+        .max_connections(10)
+        .connect_with(worker_options)
+        .await
+        .expect("authenticate the real trpg_worker_login");
+    let worker_identity: (String, String) =
+        sqlx::query_as("SELECT session_user::text, current_user::text")
+            .fetch_one(&worker_pool)
+            .await
+            .expect("query authenticated worker identity");
+    assert_eq!(
+        worker_identity,
+        (
+            "trpg_worker_login".to_owned(),
+            "trpg_worker_login".to_owned()
+        )
+    );
+    let worker_repository = PostgresDeletionRepository::new(worker_pool.clone());
+    worker_repository
+        .check_readiness()
+        .await
+        .expect("worker can read the constrained deletion schema");
 
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -135,8 +163,9 @@
         .expect("index actual pgvector RAG read model");
 
     let database =
-        PostgresRecordDeletionSurface::new(pool.clone(), DeletionTarget::Database).unwrap();
-    let rag = PostgresRecordDeletionSurface::new(pool.clone(), DeletionTarget::RagIndex).unwrap();
+        PostgresRecordDeletionSurface::new(worker_pool.clone(), DeletionTarget::Database).unwrap();
+    let rag =
+        PostgresRecordDeletionSurface::new(worker_pool.clone(), DeletionTarget::RagIndex).unwrap();
     let cache_key = format!("privacy_projection_{nonce}");
     let production_cache = RedisProjectionCache::connect(
         &redis_url,
@@ -181,6 +210,7 @@
         &object_bucket,
         &object_access_key,
         &object_secret_key,
+        Path::new(&object_ca_bundle),
     )
     .await
     .expect("connect real S3-compatible object deletion surface");
@@ -218,7 +248,7 @@
     let queue = NatsQueueDeletionSurface::connect_crypto_erasure(
         &nats_url,
         "TRPG_CANONICAL_EVENTS",
-        pool.clone(),
+        worker_pool.clone(),
     )
     .await
     .unwrap();
@@ -231,7 +261,7 @@
             .await
             .unwrap();
     }
-    let backup_key = BackupKeyDeletionSurface::new(pool.clone());
+    let backup_key = BackupKeyDeletionSurface::new(worker_pool.clone());
 
     let legal_holds = PostgresLegalHoldResolver::new(pool.clone());
     legal_holds
@@ -257,8 +287,8 @@
     );
 
     let worker = DeletionWorker::new(
-        repository.clone(),
-        Arc::new(legal_holds.clone()),
+        worker_repository.clone(),
+        Arc::new(PostgresLegalHoldResolver::new(worker_pool)),
         vec![
             Box::new(database),
             Box::new(rag),
@@ -310,34 +340,5 @@
     assert_eq!(confirmed.status, DeletionJobStatus::Requested);
     assert_eq!(confirmed.evidence_status, DeletionEvidenceStatus::Confirmed);
     assert_eq!(confirmed.targets.len(), REQUIRED_DELETION_TARGETS.len());
-    publisher
-        .publish_batch()
-        .await
-        .expect("publish canonical deletion request before execution");
-
-    let blocked = worker.execute(&job_id).await.unwrap();
-    assert_eq!(blocked.status, DeletionJobStatus::BlockedLegalHold);
-    assert!(!object_storage.verify_absent(&subject_id).await.unwrap());
-    let rag_rows_before_release: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM rag_snapshot_chunk WHERE visibility_subject = $1")
-            .bind(&subject_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(rag_rows_before_release, 1);
-    assert!(!cache.verify_absent(&subject_id).await.unwrap());
-    assert!(!queue.verify_absent(&subject_id).await.unwrap());
-
-    legal_holds
-        .set_hold(&subject_id, &hold_reference, false)
-        .await
-        .unwrap();
-    let completed = worker.execute(&job_id).await.unwrap();
-    assert_eq!(completed.status, DeletionJobStatus::Completed);
-    assert!(completed.all_targets_verified());
-    assert!(completed
-        .targets
-        .iter()
-        .all(|target| target.status == DeletionTargetStatus::Verified));
-    include!("02_deletion_progress_and_surface_verification.rs");
+    include!("01_private_surface_setup_and_holds/02_claim_and_hold_release.rs");
 }

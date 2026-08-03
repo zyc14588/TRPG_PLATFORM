@@ -8,11 +8,12 @@ license = "UNLICENSED"
 [dependencies]
 async-trait = "0.1"
 async-nats = { version = "0.49.1", default-features = false, features = ["jetstream", "nkeys", "ring", "server_2_10"] }
+aws-sdk-s3 = { version = "1.140.0", default-features = false, features = ["default-https-client", "http-1x", "rt-tokio"] }
 hmac = "0.12"
 percent-encoding = "2.3"
 redis = { version = "1.0", default-features = false, features = ["aio", "connection-manager", "script", "tokio-rustls-comp"] }
+rustls = { version = "0.23.42", default-features = false, features = ["aws-lc-rs", "std", "tls12"] }
 rustix = { version = "1.1", features = ["fs"] }
-s3 = { package = "rust-s3", version = "0.37.2", default-features = false, features = ["fail-on-err", "tokio-native-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10.9"

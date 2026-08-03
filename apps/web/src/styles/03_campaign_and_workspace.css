@@ -1,0 +1,359 @@
+.campaign-list {
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.table-heading,
+.campaign-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.5fr) 150px 120px 130px;
+  gap: 18px;
+  align-items: center;
+}
+
+.table-heading {
+  min-height: 38px;
+  color: var(--faint);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.campaign-row {
+  position: relative;
+  min-height: 74px;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+}
+
+.campaign-row:hover {
+  background: #161a1b;
+}
+
+.campaign-row:hover::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--copper);
+}
+
+.campaign-row > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.campaign-row code {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.state-label {
+  color: var(--muted);
+}
+
+.lifecycle-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.open-panel {
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.open-panel summary,
+.keeper-rail summary {
+  list-style: none;
+}
+
+.open-panel summary::-webkit-details-marker,
+.keeper-rail summary::-webkit-details-marker {
+  display: none;
+}
+
+.open-panel summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 18px;
+  border-bottom: 1px solid transparent;
+  font-weight: 700;
+}
+
+.open-panel[open] summary {
+  border-bottom-color: var(--line);
+}
+
+.open-panel summary span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+
+.open-panel form {
+  padding: 18px;
+}
+
+.empty-state {
+  padding: 36px 20px;
+  text-align: center;
+}
+
+.empty-state p {
+  max-width: 520px;
+  margin: 8px auto 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.workspace {
+  min-width: 0;
+}
+
+.workspace-tabs {
+  height: 48px;
+  display: flex;
+  align-items: stretch;
+  padding-left: 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.workspace-tabs button {
+  position: relative;
+  padding: 0 18px;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.78rem;
+}
+
+.workspace-tabs button.active {
+  color: var(--copper-bright);
+}
+
+.workspace-tabs button.active::after {
+  content: "";
+  position: absolute;
+  inset: auto 8px -1px;
+  height: 2px;
+  background: var(--copper);
+}
+
+.workspace > .feedback {
+  margin: 16px 28px 0;
+}
+
+.play-layout {
+  min-height: calc(100vh - 152px);
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) minmax(260px, 300px) minmax(320px, 390px);
+}
+
+.scene-column {
+  min-width: 0;
+  padding: 32px clamp(24px, 3vw, 46px);
+}
+
+.scene-heading {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.scene-heading h1 {
+  margin-top: 8px;
+}
+
+.scene-heading p:last-child {
+  max-width: 760px;
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.action-surface {
+  padding: 24px 0 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.section-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.section-tabs h2 {
+  color: var(--copper-bright);
+}
+
+.section-tabs span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.pending-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 12px;
+  border-left: 2px solid var(--amber);
+  color: #d9c49e;
+  background: #211e18;
+  font-size: 0.78rem;
+}
+
+.spectator-copy {
+  min-height: 300px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.spectator-copy h2 {
+  margin: 8px 0;
+}
+
+.spectator-copy p:last-child {
+  max-width: 560px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.character-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 26px;
+  margin-top: 24px;
+  padding: 17px 18px;
+  border-left: 2px solid var(--copper);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.character-strip h2 {
+  margin-top: 4px;
+}
+
+.character-strip dl {
+  display: flex;
+  gap: 28px;
+}
+
+.character-strip dt,
+.metadata-list dt {
+  color: var(--faint);
+  font-size: 0.66rem;
+}
+
+.character-strip dd,
+.metadata-list dd {
+  margin-top: 4px;
+  font-size: 0.78rem;
+}
+
+.keeper-rail,
+.timeline {
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  background: #141719;
+}
+
+.keeper-rail {
+  padding: 22px 14px;
+}
+
+.keeper-rail > header,
+.timeline > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.keeper-rail h2,
+.timeline h2 {
+  margin-top: 5px;
+}
+
+.keeper-rail details {
+  border-top: 1px solid var(--line);
+}
+
+.keeper-rail details:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.keeper-rail summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  color: #c7cbc7;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.keeper-rail details[open] summary {
+  color: var(--copper-bright);
+}
+
+.keeper-rail form,
+.keeper-rail details > .tool-button {
+  margin-bottom: 14px;
+}
+
+.tool-button {
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  gap: 3px;
+  place-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  color: var(--ink);
+  background: #1a1e20;
+  text-align: left;
+}
+
+.tool-button small {
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+
+.tool-button.secret {
+  border-color: var(--copper);
+  color: var(--copper-bright);
+}
+
+.tool-button.danger {
+  border-color: #7c4844;
+  color: #e5a29c;
+}
+
+.player-rail {
+  padding-top: 30px;
+}
+
+.player-rail > .form-stack {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.player-rail > .form-note {
+  margin-top: 18px;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  padding: 22px 16px 14px;
+  background: #101315;
+}

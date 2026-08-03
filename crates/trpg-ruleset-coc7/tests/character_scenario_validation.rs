@@ -7,6 +7,8 @@ use trpg_ruleset_coc7::character_combat_san_chase::{
 
 const TUTORIAL_SCENARIO: &str =
     include_str!("../../../fixtures/scenarios/tutorial_mist_archive.scenario.yaml");
+const TUTORIAL_SCENARIO_JSON: &str =
+    include_str!("../../../fixtures/scenarios/tutorial_mist_archive.scenario.json");
 
 fn valid_character() -> Coc7CharacterSheet {
     Coc7CharacterSheet {
@@ -54,6 +56,11 @@ fn raw_tutorial_yaml_is_valid_and_round_trips_as_stable_json() {
     let json = parse_scenario_json(&yaml.canonical_json).expect("canonical JSON must parse");
     assert_eq!(json.content_hash, yaml.content_hash);
     assert_eq!(json.canonical_json, yaml.canonical_json);
+
+    let bootstrap_json =
+        parse_scenario_json(TUTORIAL_SCENARIO_JSON).expect("bootstrap scenario JSON must parse");
+    assert_eq!(bootstrap_json.content_hash, yaml.content_hash);
+    assert_eq!(bootstrap_json.canonical_json, yaml.canonical_json);
 }
 
 #[test]

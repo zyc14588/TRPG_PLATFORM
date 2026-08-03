@@ -154,7 +154,7 @@ async fn load_or_create_subject_payload_cipher(
     let key_reference = subject_key_reference(subject_id);
     let existing = sqlx::query(
         "SELECT key_reference, wrapped_key, destroyed_at IS NOT NULL AS destroyed \
-         FROM privacy_subject_keys WHERE subject_id = $1 FOR UPDATE",
+         FROM privacy_subject_keys WHERE subject_id = $1",
     )
     .bind(subject_id)
     .fetch_optional(&mut **transaction)

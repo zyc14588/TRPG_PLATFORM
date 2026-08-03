@@ -264,7 +264,10 @@ impl CoreDomainRepository {
             .filter(|event| {
                 matches!(
                     event.event_type.as_str(),
-                    "SessionStarted" | "SessionStateChanged" | "SceneSwitched"
+                    "SessionStarted"
+                        | "CharacterJoinedSession"
+                        | "SessionStateChanged"
+                        | "SceneSwitched"
                 )
             })
             .collect::<Vec<_>>();

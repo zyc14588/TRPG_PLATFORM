@@ -5,6 +5,7 @@ impl CoreDomainRepository {
         &self,
         request: &RecordCampaignForkRequest,
         snapshot: &CampaignForkSnapshotPreview,
+        pending_child_room_id: Option<&str>,
     ) -> Result<CampaignForkMaterialization, CoreDomainRepositoryError> {
         let envelope: ForkSnapshotEnvelope =
             serde_json::from_str(&snapshot.canonical_snapshot_json)
@@ -31,19 +32,25 @@ impl CoreDomainRepository {
             ));
         }
 
-        let child_rooms: Vec<String> = sqlx::query_scalar(
-            "SELECT room_id FROM public.rooms WHERE campaign_id = $1 ORDER BY room_id LIMIT 2",
-        )
-        .bind(&request.child_campaign_id)
-        .fetch_all(&self.primary)
-        .await
-        .map_err(database_error("load_fork_child_room"))?;
-        if child_rooms.len() != 1 {
-            return Err(CoreDomainRepositoryError::Integrity(
-                "fork_child_room_shape",
-            ));
-        }
-        let child_room_id = child_rooms[0].clone();
+        let child_room_id = if let Some(room_id) = pending_child_room_id {
+            EntityId::new(room_id)
+                .map_err(|_| CoreDomainRepositoryError::InvalidInput("fork_child_room"))?;
+            room_id.to_owned()
+        } else {
+            let child_rooms: Vec<String> = sqlx::query_scalar(
+                "SELECT room_id FROM public.rooms WHERE campaign_id = $1 ORDER BY room_id LIMIT 2",
+            )
+            .bind(&request.child_campaign_id)
+            .fetch_all(&self.primary)
+            .await
+            .map_err(database_error("load_fork_child_room"))?;
+            if child_rooms.len() != 1 {
+                return Err(CoreDomainRepositoryError::Integrity(
+                    "fork_child_room_shape",
+                ));
+            }
+            child_rooms[0].clone()
+        };
         let child_scenario_id =
             fork_child_id(&request.fork_id, "scenario", &request.source_session_id)?;
         let child_session_id =

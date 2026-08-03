@@ -15,6 +15,23 @@
 | 审计人员 | `DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md`、`V1_ACCEPTANCE_EVIDENCE_MATRIX.md`、`manifests/**`、`inventory/**` | 检查文档来源、覆盖关系、包完整性和验收证据链。 |
 | 发布负责人 | `CODEX_RELEASE_PREPARATION_GUIDE.md`、`codex-operator-guides/06_RELEASE_PREPARATION_PLAYBOOK.md` | 准备 release candidate、发布门禁、回滚与审计包。 |
 
+### Linux 安全初始化入口
+
+Linux 新环境的唯一 bootstrap 入口是 `scripts/bootstrap/bootstrap.sh`。先确认
+Docker Compose v2 可用，并查看脚本内置的完整参数说明：
+
+```bash
+docker compose version
+bash scripts/bootstrap/bootstrap.sh --help
+```
+
+正式运行时必须使用绝对路径的私有状态目录和权限受限的 Provider 凭据文件；
+不得把凭据写入命令行、仓库或日志。该入口负责生成其余随机秘密、启动生产
+Compose、创建锁定为 HUMAN_KP 的 COC7 Tutorial Campaign、通过正式 API 导入原创
+`tutorial_mist_archive` 场景、执行自检，并可用完全相同的参数安全重跑以恢复中断
+步骤。初始账户仅写入私有 `credentials/initial-accounts.env`，非敏感的 Tutorial
+资源标识写入同目录的 `tutorial.env`。
+
 ## 2. 项目施工主线
 
 Codex 必须按 S00 → S13 顺序施工，不得跳过阶段门禁：

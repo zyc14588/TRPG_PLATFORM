@@ -1,8 +1,12 @@
+#[doc(hidden)]
+pub use async_trait::async_trait as repository_async_trait;
+
 pub mod adr_0009_agent_governance;
 pub mod adr_0009_agent_governance_agent_governance;
 pub mod adr_0010_rag_snapshot;
 pub mod agent_context_assembler;
 pub mod agent_evaluation_golden_scenario;
+pub mod agent_job;
 pub mod agent_pack_sdk;
 pub mod agent_runtime;
 pub mod agent_runtime_impl;
@@ -27,6 +31,13 @@ pub mod tool_protocol;
 pub mod working_memory_long_memory_rag;
 pub mod working_memory_rag_rag_snapshot;
 
+pub use agent_job::{
+    AgentJobCommitReceipt, AgentJobDecisionPort, AgentJobError, AgentJobExecutionConfig,
+    AgentJobOutcome, AgentJobRepository, AgentJobToolCall, AgentJobToolPort, AgentJobToolResult,
+    AgentJobWorker, AgentSkillCheckRoll, AgentSkillCheckRulePort, AgentStructuredDecision,
+    CertifiedLocalModel, GovernedAgentDecisionPort, GovernedAgentJobToolPort,
+    ProductionAgentIdentityConfiguration, RejectingAgentJobToolPort,
+};
 pub use agent_runtime::EventStore as AgentEventStore;
 pub use agent_runtime::{
     assemble_context, assemble_context_for_audience, evaluate_agent_tool_request,
@@ -35,9 +46,15 @@ pub use agent_runtime::{
     AgentToolExecutionOutput, AgentToolExecutor, AssembledAgentContext, ContextFact,
     PromptInjectionReport, ToolDecision, ToolRequest,
 };
+#[allow(deprecated)]
+pub use local_model_certification::ensure_ai_keeper_model;
 pub use local_model_certification::{
-    certify_local_model, ensure_ai_keeper_model, CertificationInput, LocalModelCertificate,
-    LocalModelCertificationAuthority, LocalModelLevel,
+    certify_local_model, ensure_ai_keeper_provider, ensure_ai_keeper_provider_config,
+    CertificationBinding, CertificationCaseEvidence, CertificationCaseKind,
+    CertificationCaseStatus, CertificationEvidenceManifest, CertificationInput,
+    CertificationRequest, CertificationRunStatus, CompletedCertificationRun, LocalModelCertificate,
+    LocalModelCertificationAuthority, LocalModelCertificationRunner, LocalModelCertificationSuite,
+    LocalModelLevel,
 };
 pub use model_provider::{
     evaluate_cloud_fallback, provider_boundary_snapshot, validate_provider_config,

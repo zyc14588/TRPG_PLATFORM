@@ -160,6 +160,13 @@ impl PostgresCanonicalStore {
                         "reserve_session_ending",
                         "SELECT core_domain.reserve_session_ending($1, $2::JSONB)",
                     ),
+                    AtomicProjection::AgentJobRequest(projection) => (
+                        projection,
+                        "agent_job_request_projection_must_be_object",
+                        "set_agent_job_request_projection_capability",
+                        "apply_agent_job_request",
+                        "SELECT core_domain.apply_agent_job_request($1, $2::JSONB)",
+                    ),
                 };
             if !projection.is_object() {
                 return Err(CanonicalStoreError::Validation(validation_error));

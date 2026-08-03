@@ -4,6 +4,7 @@ use trpg_platform::deployment_ops::{
     DEPLOYMENT_CONFIGURED_EVENT,
 };
 use trpg_platform::PlatformEventStore;
+use trpg_security_governance::LocalProviderNetworkPolicy;
 use trpg_shared_kernel::{ActorRole, AuthorityMode, KernelResult, TrpgError};
 
 const MODEL_ARTIFACT_SHA256: &str =
@@ -99,6 +100,70 @@ fn production_rejects_non_loopback_local_provider_even_with_a_secret_reference()
     assert_eq!(
         err,
         TrpgError::InvalidConfiguration("unauthenticated_local_provider_exposed")
+    );
+}
+
+#[test]
+fn production_accepts_only_explicitly_allowlisted_private_local_provider_endpoints() {
+    let credential = SecretReference::kms("local_provider", 1).unwrap();
+    let manager = manager_for(&credential);
+    let compose_policy =
+        LocalProviderNetworkPolicy::parse("dns:ollama-proxy").expect("compose DNS policy");
+    let compose_endpoint =
+        endpoint_with_base_url("ollama", credential.clone(), "https://ollama-proxy:9443")
+            .with_local_network_policy(compose_policy.clone());
+
+    validate_provider_boundary(
+        &DeploymentEnvironment::Production,
+        &compose_endpoint,
+        &manager,
+    )
+    .expect("explicitly allowlisted Compose service is a supported local topology");
+
+    let unlisted = endpoint_with_base_url("ollama", credential.clone(), "https://other-proxy:9443")
+        .with_local_network_policy(compose_policy);
+    assert_eq!(
+        validate_provider_boundary(&DeploymentEnvironment::Production, &unlisted, &manager)
+            .expect_err("an adjacent service name is not implicitly trusted"),
+        TrpgError::InvalidConfiguration("local_provider_endpoint_not_allowlisted")
+    );
+
+    let private_network_policy =
+        LocalProviderNetworkPolicy::parse("cidr:172.20.0.0/16").expect("private network policy");
+    let private_endpoint =
+        endpoint_with_base_url("llama_cpp", credential, "https://172.20.0.12:9443/v1")
+            .with_local_network_policy(private_network_policy);
+    validate_provider_boundary(
+        &DeploymentEnvironment::Production,
+        &private_endpoint,
+        &manager,
+    )
+    .expect("explicitly allowlisted private CIDR is supported");
+}
+
+#[test]
+fn local_provider_policy_rejects_public_wildcard_and_plaintext_expansion() {
+    for policy in [
+        "dns:api.openai.com",
+        "dns:host.docker.internal",
+        "dns:*",
+        "cidr:0.0.0.0/0",
+        "cidr:8.8.8.0/24",
+    ] {
+        assert!(
+            LocalProviderNetworkPolicy::parse(policy).is_err(),
+            "unsafe local-provider policy accepted: {policy}"
+        );
+    }
+
+    let credential = SecretReference::mounted("local_provider", 1).unwrap();
+    let manager = manager_for(&credential);
+    let endpoint = endpoint_with_base_url("ollama", credential, "http://ollama-proxy:11434")
+        .with_local_network_policy(LocalProviderNetworkPolicy::parse("dns:ollama-proxy").unwrap());
+    assert_eq!(
+        validate_provider_boundary(&DeploymentEnvironment::Production, &endpoint, &manager)
+            .expect_err("allowlisting never permits plaintext production transport"),
+        TrpgError::InvalidConfiguration("production_provider_https_required")
     );
 }
 

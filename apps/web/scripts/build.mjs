@@ -15,12 +15,20 @@ for (const service of config.services) {
     throw new Error("web service configuration is invalid");
   }
 }
+for (const key of ["apiBase", "v1Base", "realtimeBase", "adminBase"]) {
+  if (
+    typeof config[key] !== "string"
+    || !config[key].startsWith("/")
+    || config[key].startsWith("//")
+    || config[key].includes("\\")
+  ) {
+    throw new Error(`web configuration ${key} must be a same-origin path`);
+  }
+}
 
 await rm(output, { recursive: true, force: true });
-await mkdir(path.join(output, "src"), { recursive: true });
-await cp(path.join(root, "src/app.js"), path.join(output, "src/app.js"));
-await cp(path.join(root, "src/health.js"), path.join(output, "src/health.js"));
-await cp(path.join(root, "src/styles.css"), path.join(output, "src/styles.css"));
+await mkdir(output, { recursive: true });
+await cp(path.join(root, "src"), path.join(output, "src"), { recursive: true });
 await cp(path.join(root, "src/config.json"), path.join(output, "config.json"));
 await writeFile(
   path.join(output, "index.html"),
