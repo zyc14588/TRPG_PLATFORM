@@ -204,14 +204,17 @@ impl ApiApplication {
             Ok(runtime) => runtime.block_on(gateway.workflow.load_agent_job(&body.job_id)),
             Err(_) => return internal_error(),
         };
+        let input_event_sequence = match i64::try_from(source_event.sequence) {
+            Ok(sequence) => sequence,
+            Err(_) => return internal_error(),
+        };
         match enqueued {
             Ok(Some(job))
-                if job.state == WorkflowState::Requested
-                    && job.input_event_sequence
-                        == match i64::try_from(source_event.sequence) {
-                            Ok(sequence) => sequence,
-                            Err(_) => return internal_error(),
-                        } => HttpResponse::json(
+                if agent_job_request_acknowledges_committed_event(
+                    job.state,
+                    job.input_event_sequence,
+                    input_event_sequence,
+                ) => HttpResponse::json(
                 202,
                 json!({
                     "input_event_sequence": job.input_event_sequence,

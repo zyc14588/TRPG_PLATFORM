@@ -77,8 +77,8 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `apps/api-server/src/lib_sections/07_v1_lifecycle/05_request_support.rs` | 613 | `b48ed6a5a1e1f903be561e04fcff0225188418ac8ffcd53699fe75624d401954` | `100644` |
 | `apps/api-server/src/lib_sections/07_v1_lifecycle/06_public_gameplay_routes.rs` | 7360 | `80853301731c020ad591e0dd65d382219f4193ef7641364446be17304f4ce261` | `100644` |
 | `apps/api-server/src/lib_sections/08_agent_job_gateway.rs` | 214 | `d826eed1cdc7c567ff7de7aaf0aeff6bc02cfe2a9f009d1478d5f841a963a17a` | `100644` |
-| `apps/api-server/src/lib_sections/08_agent_job_gateway/01_routes_and_authorization.rs` | 13243 | `3a03e737f673222c2a10da8e9882ed519505691ecfd7b8162c05c2f06bd0c401` | `100644` |
-| `apps/api-server/src/lib_sections/08_agent_job_gateway/02_canonical_commit_and_tests.rs` | 7466 | `81c6619162249e0ee3293a1624fcfac60425c8de00ce5c69484bc58e38b886ae` | `100644` |
+| `apps/api-server/src/lib_sections/08_agent_job_gateway/01_routes_and_authorization.rs` | 13303 | `772cae484467e88ecc3e89197f5b3d34ee03d8b9bf587e6bd0a6ab03174d1878` | `100644` |
+| `apps/api-server/src/lib_sections/08_agent_job_gateway/02_canonical_commit_and_tests.rs` | 9263 | `942ba7c3e6669dcbc3d41e115696a9f86e2b5e0eb18b3e65e18817bf11d3193c` | `100644` |
 | `apps/api-server/src/main.rs` | 257 | `281f31d5e10d07b37f6fb615156d7824c2ed85a89ee256c8b3e08fccc05aa211` | `100644` |
 | `apps/api-server/src/main_sections/01_module_prelude.rs` | 208 | `4849959d0e268ed4438f73fef309aca034ba6e0a7848a786fbe9c1d91f97d626` | `100644` |
 | `apps/api-server/src/main_sections/01_module_prelude/01_process_startup.rs` | 8307 | `89487477e90ded20c86c1e19c0b2480e066c43dc5e39827130f13271078ba0a0` | `100644` |

@@ -138,6 +138,25 @@ fn ai_kp_agent_job_request_role_allowed(actor_role: &str) -> bool {
     )
 }
 
+fn agent_job_request_acknowledges_committed_event(
+    state: WorkflowState,
+    job_input_event_sequence: i64,
+    committed_input_event_sequence: i64,
+) -> bool {
+    job_input_event_sequence == committed_input_event_sequence
+        && matches!(
+            state,
+            WorkflowState::Requested
+                | WorkflowState::Claimed
+                | WorkflowState::AgentRunning
+                | WorkflowState::AwaitingTool
+                | WorkflowState::Committing
+                | WorkflowState::RetryableFailed
+                | WorkflowState::Completed
+                | WorkflowState::TerminalFailed
+        )
+}
+
 #[cfg(test)]
 mod agent_job_gateway_configuration_tests {
     use super::*;
@@ -191,6 +210,44 @@ mod agent_job_gateway_configuration_tests {
             "workflow",
         ] {
             assert!(!ai_kp_agent_job_request_role_allowed(role));
+        }
+    }
+
+    #[test]
+    fn agent_job_request_acknowledges_worker_progress_after_atomic_commit() {
+        for state in [
+            WorkflowState::Requested,
+            WorkflowState::Claimed,
+            WorkflowState::AgentRunning,
+            WorkflowState::AwaitingTool,
+            WorkflowState::Committing,
+            WorkflowState::RetryableFailed,
+            WorkflowState::Completed,
+            WorkflowState::TerminalFailed,
+        ] {
+            assert!(agent_job_request_acknowledges_committed_event(
+                state, 42, 42
+            ));
+        }
+    }
+
+    #[test]
+    fn agent_job_request_rejects_mismatched_events_and_non_agent_states() {
+        assert!(!agent_job_request_acknowledges_committed_event(
+            WorkflowState::AgentRunning,
+            41,
+            42,
+        ));
+        for state in [
+            WorkflowState::Pending,
+            WorkflowState::Running,
+            WorkflowState::Waiting,
+            WorkflowState::Failed,
+            WorkflowState::Cancelled,
+        ] {
+            assert!(!agent_job_request_acknowledges_committed_event(
+                state, 42, 42
+            ));
         }
     }
 }
