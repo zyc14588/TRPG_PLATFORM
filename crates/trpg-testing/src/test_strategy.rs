@@ -23,7 +23,7 @@ pub fn contract() -> TestingQualityModuleContract {
         &[
             "stages/s11-testing-quality-golden-ci/TEST_PLAN.md",
             "stages/s11-testing-quality-golden-ci/TEST_DATA.md",
-            "PER_STAGE_FIXTURE_EXPANSION_PLAN.md",
+            "docs/planning/PER_STAGE_FIXTURE_EXPANSION_PLAN.md",
         ],
         &[
             "unit_contract_and_stage_tests_are_layered",

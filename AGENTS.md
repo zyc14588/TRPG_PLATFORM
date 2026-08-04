@@ -3,17 +3,17 @@
 
 > 适用对象：Codex CLI / Codex Cloud / Codex IDE / 自动修复代理
 > 当前基线日期：2026-07-01
-> 本文件是仓库根持久化施工提示词。把本包交给 Codex 时，先读取本文件，再读取 `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`。
+> 本文件是仓库根持久化施工提示词。把本包交给 Codex 时，先读取本文件，再读取 `docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`。
 
 ## 1. 当前权威顺序
 
 1. `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md`。
-2. 本文件与 `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`。
-3. `SOURCE_BUNDLE_INTEGRATION_GUIDE.md`。
+2. 本文件与 `docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`。
+3. `docs/construction/SOURCE_BUNDLE_INTEGRATION_GUIDE.md`。
 4. `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md`。
 5. `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md`。
 6. `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md`。
-7. `V1_ACCEPTANCE_EVIDENCE_MATRIX.md`。
+7. `docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md`。
 8. `stages/sXX-*/START_PROMPT.md`、`ACCEPTANCE_PROMPT.md`、`TEST_PLAN.md`、`TEST_DATA.md`。
 9. `docs/codex/00-index/codex-persistent-context.md` 与 `docs/codex/00-index/codex-prompt-boundary.md`。
 10. `batches/B###.md` 与 `codex-prompts/<category>/P####.md`。
@@ -50,8 +50,8 @@
 
 ```text
 读取本 AGENTS.md
-读取 CODEX_STANDALONE_BOOTSTRAP_PROMPT.md
-读取 SOURCE_BUNDLE_INTEGRATION_GUIDE.md
+读取 docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md
+读取 docs/construction/SOURCE_BUNDLE_INTEGRATION_GUIDE.md
 读取 docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md
 读取 docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md
 读取 docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md
@@ -81,4 +81,4 @@
 
 ## v2.21 Codex 操作指南要求
 
-Codex 执行任何工程实现前，必须读取 `CODEX_MASTER_EXECUTION_GUIDE.md`、`CODEX_START_ACCEPT_TEST_RELEASE_GUIDE.md`、`CODEX_STRICT_OPERATION_CHECKLIST.md`、`codex-operator-guides/README.md`。这些指南不降低任何顶层设计、Authority Contract、Agent Gateway、Visibility、Fact Provenance、Event Log 或 V1 Acceptance 约束。
+Codex 执行任何工程实现前，必须读取 `docs/construction/CODEX_MASTER_EXECUTION_GUIDE.md`、`docs/construction/CODEX_START_ACCEPT_TEST_RELEASE_GUIDE.md`、`docs/construction/CODEX_STRICT_OPERATION_CHECKLIST.md`、`docs/construction/operator-guides/README.md`。这些指南不降低任何顶层设计、Authority Contract、Agent Gateway、Visibility、Fact Provenance、Event Log 或 V1 Acceptance 约束。

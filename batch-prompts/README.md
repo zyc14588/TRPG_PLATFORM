@@ -7,7 +7,7 @@
 
 使用规则：
 
-1. 先读取 `README.md`、`AGENTS.md`、`CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`、`codex-active-normalized/**`。
+1. 先读取 `README.md`、`AGENTS.md`、`docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`、`codex-active-normalized/**`。
 2. 按 `batches/B###.md` 找到要执行的 batch。
 3. 将对应 `batch-prompts/start/B###.md` 中的中文提示词复制给 Codex。
 4. Codex 完成后，使用对应 `batch-prompts/accept/B###.md` 进行验收。

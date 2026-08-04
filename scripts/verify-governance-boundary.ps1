@@ -96,7 +96,7 @@ try {
         Assert-Governance ($target -notmatch '(^|/)source-archive/|(^|/)fix-history/|\.legacy(?:[-_.]|$)') 'PROVENANCE_USED_AS_AUTHORITY' "Safe output uses provenance as current: $target"
     }
 
-    $boundaryPath = Join-Path $root 'DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md'
+    $boundaryPath = Join-Path $root 'docs/governance/DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md'
     $boundaryBody = Get-Content -Raw -Encoding UTF8 -LiteralPath $boundaryPath
     $currentAreas = [regex]::Match($boundaryBody, '(?s)## Current execution areas(.*?)## Design and audit areas')
     $provenanceAreas = [regex]::Match($boundaryBody, '(?s)## Provenance-only areas(.*?)## Canonical token rewrite rule')

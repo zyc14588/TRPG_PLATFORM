@@ -7,8 +7,8 @@
 ## Required Reading Order
 
 1. `AGENTS.md`
-2. `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
-3. `SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
+2. `docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
+3. `docs/construction/SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
 4. `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md`
 5. `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md`
 6. `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md`

@@ -22,8 +22,8 @@ pub fn contract() -> TestingQualityModuleContract {
         TestingQualityAction::VerifyImplementationAcceptanceChecklistSourceContract,
         &[
             "stages/s11-testing-quality-golden-ci/ACCEPTANCE_PROMPT.md",
-            "V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
-            "CODEX_STRICT_OPERATION_CHECKLIST.md",
+            "docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
+            "docs/construction/CODEX_STRICT_OPERATION_CHECKLIST.md",
         ],
         &[
             "zero_p0_p1_open_items",
@@ -40,7 +40,7 @@ pub fn source_rules() -> Vec<AcceptanceSourceRule> {
             required_gate: "authority_contract_immutable",
         },
         AcceptanceSourceRule {
-            source: "V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
+            source: "docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
             required_gate: "p0_p1_has_evidence",
         },
         AcceptanceSourceRule {
@@ -48,7 +48,7 @@ pub fn source_rules() -> Vec<AcceptanceSourceRule> {
             required_gate: "s11_acceptance_completed",
         },
         AcceptanceSourceRule {
-            source: "CODEX_STRICT_OPERATION_CHECKLIST.md",
+            source: "docs/construction/CODEX_STRICT_OPERATION_CHECKLIST.md",
             required_gate: "strict_operation_checklist_completed",
         },
     ]

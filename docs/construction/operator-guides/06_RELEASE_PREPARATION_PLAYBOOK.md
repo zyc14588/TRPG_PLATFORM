@@ -7,25 +7,25 @@
 ## 必读输入
 
 1. `AGENTS.md`
-2. `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
-3. `SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
+2. `docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
+3. `docs/construction/SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
 4. `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md`
 5. `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md`
 6. `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md`
 7. `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md`
-8. `V1_ACCEPTANCE_EVIDENCE_MATRIX.md`
+8. `docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md`
 
 ## 可复制给 Codex 的中文提示词
 
 ```text
-请准备 release candidate，但不要创建 tag。先冻结 evidence，填充 V1 acceptance matrix，运行 CI、Docker Compose smoke、Golden Scenario、backup/restore、rollback 和 export privacy 检查。缺证据的 V1 项必须标记 FAIL。
+请准备 release candidate，但不要创建 tag。先冻结 evidence，用生成器在仓库外生成 V1 acceptance matrix，运行 CI、Docker Compose smoke、Golden Scenario、backup/restore、rollback 和 export privacy 检查。缺证据的 V1 项必须标记 FAIL 或 NOT_RUN。
 ```
 
 ## 执行步骤
 
 1. 确认 S00-S13 验收证据。
 2. 冻结 evidence 快照。
-3. 填充 V1 矩阵。
+3. 在仓库外生成并验证 V1 候选矩阵。
 4. 运行 release gate。
 5. 输出 rollback / restore 计划。
 
@@ -33,12 +33,13 @@
 
 ```powershell
 git status --short
-cargo test --workspace --all-features
-npm test
-python scripts/ci/release_readiness.py --require-ready
+cargo test --workspace --all-features --locked
+pnpm --filter ./apps/web... test
+python3 scripts/ci/release_readiness.py --require-ready
 ```
 
-当前仓库尚无产品前端或真实 Compose 产品服务，因此不提供 `pnpm test:e2e`；Readiness 非零退出会阻断发布。
+完整 readiness 命令必须额外传入仓库外的 release evidence、security evidence、
+acceptance manifest 和 candidate matrix；缺少任一真实证据都会阻断发布。
 
 ## 预期证据
 

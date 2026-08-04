@@ -1,6 +1,7 @@
 use trpg_testing::{record_contract_decision, research_decision_matrix};
 
-const V1_ACCEPTANCE: &str = include_str!("../../../V1_ACCEPTANCE_EVIDENCE_MATRIX.md");
+const V1_ACCEPTANCE: &str =
+    include_str!("../../../docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md");
 
 #[test]
 fn research_decision_matrix_keeps_v1_governance_choices_testable() {

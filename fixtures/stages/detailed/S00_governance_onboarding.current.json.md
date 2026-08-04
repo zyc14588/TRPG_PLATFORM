@@ -7,9 +7,9 @@
   "inputs": {
     "required_files": [
       "AGENTS.md",
-      "CODEX_STANDALONE_BOOTSTRAP_PROMPT.md",
-      "DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md",
-      "STRICT_LINK_AND_REFERENCE_VALIDATION.md"
+      "docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md",
+      "docs/governance/DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md",
+      "docs/governance/STRICT_LINK_AND_REFERENCE_VALIDATION.md"
     ],
     "repository_state": "fresh_checkout"
   },
@@ -19,7 +19,7 @@
       "type": "read_files",
       "files": [
         "AGENTS.md",
-        "CODEX_STANDALONE_BOOTSTRAP_PROMPT.md"
+        "docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md"
       ]
     },
     {

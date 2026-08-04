@@ -6,8 +6,8 @@
 2. Fixed all Codex guide files so `##` sections render as Markdown headings rather than indented code blocks.
 3. Removed active `CURRENT_TOKEN_REWRITE_TABLE.md` aliases and made `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md` the only canonical token rewrite source.
 4. Moved duplicate `github-actions-*.yml.md` files formerly stored under `ci-cd/` files to provenance and made `ci-cd/workflows-extractable/target-*.yml.md` the only canonical CI/CD extraction source.
-5. Added `DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md` to separate audit/design docs from Codex prompt docs and provenance-only materials.
-6. Strengthened `STRICT_LINK_AND_REFERENCE_VALIDATION.md` with guide heading, README directory, token canonical, CI canonical and stale-current gates.
+5. Added `docs/governance/DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md` to separate audit/design docs from Codex prompt docs and provenance-only materials.
+6. Strengthened `docs/governance/STRICT_LINK_AND_REFERENCE_VALIDATION.md` with guide heading, README directory, token canonical, CI canonical and stale-current gates.
 
 ## Current baseline
 

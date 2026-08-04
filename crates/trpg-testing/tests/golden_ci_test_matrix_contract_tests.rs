@@ -4,7 +4,8 @@ const S11_TEST_PLAN: &str =
     include_str!("../../../stages/s11-testing-quality-golden-ci/TEST_PLAN.md");
 const S11_ACCEPTANCE_FIXTURE: &str =
     include_str!("../../../fixtures/stages/S11_stage_acceptance_fixture.v1.json.md");
-const V1_ACCEPTANCE: &str = include_str!("../../../V1_ACCEPTANCE_EVIDENCE_MATRIX.md");
+const V1_ACCEPTANCE: &str =
+    include_str!("../../../docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md");
 
 #[test]
 fn golden_ci_test_matrix_requires_s11_governance_gates() {

@@ -2,7 +2,7 @@
 
 Batch: `BATCH-035-09-security-governance`
 
-This document is the current-safe traceability map for the security governance slice. It is bounded by `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md`, `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`, and the normalized prompt/output maps.
+This document is the current-safe traceability map for the security governance slice. It is bounded by `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md`, `docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`, and the normalized prompt/output maps.
 
 ## Current-Safe Outputs
 

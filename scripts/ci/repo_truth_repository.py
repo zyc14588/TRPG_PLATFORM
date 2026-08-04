@@ -21,9 +21,9 @@ from repo_truth_evidence import validate_evidence
 
 """Repository-level release truth aggregation and command entrypoint."""
 def decision_values(root: Path = ROOT) -> dict[str, str]:
-    path = root / "P00_REMOTE_CANONICALIZATION_DECISION.md"
+    path = root / "docs/governance/P00_REMOTE_CANONICALIZATION_DECISION.md"
     if not path.is_file():
-        raise ValueError("missing P00_REMOTE_CANONICALIZATION_DECISION.md")
+        raise ValueError("missing docs/governance/P00_REMOTE_CANONICALIZATION_DECISION.md")
     return dict(
         match.groups()
         for match in re.finditer(r"(?m)^([A-Z0-9_]+)\s*=\s*(.+?)\s*$", path.read_text(encoding="utf-8"))
