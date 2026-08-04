@@ -31,11 +31,21 @@ for required_command in \
 done
 
 # A hardened self-hosted runner may check out tracked files under umask 0077.
-# These two files are public Compose inputs (not credentials), and the
-# non-root Redis/PostgreSQL processes must be able to read their bind mounts.
+# These are public file-backed Compose configs (not credentials), and the
+# container users must be able to read their bind mounts. Compose ignores
+# per-config uid/gid/mode for local file sources.
 chmod 0644 \
+  "$root/config/nats/nats.conf" \
+  "$root/config/nginx/trpg.conf" \
   "$root/config/postgres/001-security-roles.sql" \
-  "$root/config/redis/redis.conf"
+  "$root/config/postgres/002-application-role.sh" \
+  "$root/config/postgres/pg_hba.conf" \
+  "$root/config/postgres/witness-runtime-roles.sh" \
+  "$root/config/postgres/witness_pg_hba.conf" \
+  "$root/config/redis/redis.conf" \
+  "$root/policy/opa/security_governance.rego" \
+  "$root/policy/openfga/security_governance.json" \
+  "$root/scripts/ci/p02_policy_bootstrap.py"
 
 install -d -m 0700 "$secret_directory"
 certificate_serial=1000

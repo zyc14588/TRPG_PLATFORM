@@ -3690,7 +3690,7 @@ CI evidence binds the manifest artifact hash to `base_commit`, and `verify_manif
 | `scripts/ci/p07-stop-integration-services.sh` | 292 | `4ae55d9d83ed2bd1dcccc09c64d85e7531c7ba1a11e79b081d6b4210cfe1bbd6` | `100755` |
 | `scripts/ci/postgres-container-client.sh` | 2553 | `bf46d9fe90922a23dc7697d4acbd47c833ff9e3637c74f7a100b3f16fe66dc85` | `100755` |
 | `scripts/ci/production-security-smoke.sh` | 1487 | `6318a4a7eefbe0251628adce49f9a61cb20552dd883cf744899444e46051f1a5` | `100755` |
-| `scripts/ci/production-security-smoke/01_preflight_and_helpers.sh` | 4276 | `dac6c9fe041afb18fc10bcd1fe70acc4e5520397e1172024f7b1ee0910c68872` | `100644` |
+| `scripts/ci/production-security-smoke/01_preflight_and_helpers.sh` | 4734 | `a9f352f87f821dc2353bc61ec89c41055b0fbe8c9c1e6d69ef239d2d72dd3e93` | `100644` |
 | `scripts/ci/production-security-smoke/02_certificates_and_secrets.sh` | 9480 | `9fd50e7b2b8d629ead996a914e45f089d064b1c5ab0992fafe21a8395f44584a` | `100644` |
 | `scripts/ci/production-security-smoke/03_transport_security.sh` | 8404 | `dfcf3f6c88095ac732ef5c50aae502034e631d3132ebf3de860b25b8d808c0c8` | `100644` |
 | `scripts/ci/production-security-smoke/04_runtime_and_witness_privileges.sh` | 7045 | `87f4bb9fdb65c34d62775b7af9cd4494003ffa7a96793141b82b27908815128c` | `100644` |
