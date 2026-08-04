@@ -30,6 +30,13 @@ for required_command in \
   fi
 done
 
+# A hardened self-hosted runner may check out tracked files under umask 0077.
+# These two files are public Compose inputs (not credentials), and the
+# non-root Redis/PostgreSQL processes must be able to read their bind mounts.
+chmod 0644 \
+  "$root/config/postgres/001-security-roles.sql" \
+  "$root/config/redis/redis.conf"
+
 install -d -m 0700 "$secret_directory"
 certificate_serial=1000
 
