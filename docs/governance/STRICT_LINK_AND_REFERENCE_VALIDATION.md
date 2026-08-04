@@ -49,10 +49,13 @@ PY
 
 ## 3. 旧根路径回流检查
 
-以下命令应无输出。`source-archive/**` 和历史 evidence 保持原始 provenance，不属于本检查范围。
+以下命令应无输出。规范分类目录前缀既允许仓库根相对形式（例如
+`docs/acceptance/...`），也允许 `docs/` 内文档使用的相对形式（例如
+`acceptance/...` 或 `../acceptance/...`）。`source-archive/**` 和历史 evidence
+保持原始 provenance，不属于本检查范围。
 
 ```bash
-rg -n -P '(?<!docs/construction/)CODEX_STANDALONE_BOOTSTRAP_PROMPT\.md|(?<!docs/construction/)SOURCE_BUNDLE_INTEGRATION_GUIDE\.md|(?<!docs/acceptance/)(?<!docs/reports/)V1_ACCEPTANCE_EVIDENCE_MATRIX\.md|(?<!docs/planning/)PER_STAGE_FIXTURE_EXPANSION_PLAN\.md' \
+rg -n -P '(?<!construction/)CODEX_STANDALONE_BOOTSTRAP_PROMPT\.md|(?<!construction/)SOURCE_BUNDLE_INTEGRATION_GUIDE\.md|(?<!acceptance/)(?<!reports/)V1_ACCEPTANCE_EVIDENCE_MATRIX\.md|(?<!planning/)PER_STAGE_FIXTURE_EXPANSION_PLAN\.md' \
   -g '!source-archive/**' -g '!evidence/**' -g '!inventory/**' \
   -g '!docs/governance/STRICT_LINK_AND_REFERENCE_VALIDATION.md' \
   -g '!MANIFEST.md' -g '!manifests/*PACKAGE_MANIFEST.md'
