@@ -1,145 +1,123 @@
-# COC AI TRPG — Codex v2.21 Strict Self-contained Construction Package
+# COC AI TRPG Platform
 
-## 0. 项目定位
+一个以 Rust 为核心、面向《克苏鲁的呼唤》第七版（COC 7）的在线跑团平台。它同时支持真人 Keeper（HUMAN_KP）与 AI Keeper（AI_KP），目标不是包装一个聊天窗口，而是提供可回放、可审计、可多人协作的完整游戏运行时。
 
-本包是面向 Codex 的完整工程施工资料包，用于把 **COC 7 首发的 AI / 真人 KP 在线跑团平台** 从设计阶段推进到可编码、可测试、可验收、可准备发布的工程实现阶段。
+平台把角色卡、调查、线索、检定、SAN、战斗、追逐、场景与 NPC 状态纳入统一规则和事件系统。AI 只能通过受治理的 Agent 工具链提出行动或裁定，不能直接改写正式状态、伪造骰子或绕过权限与可见性检查。
 
-项目本身不是普通聊天机器人，而是一个由规则包、角色卡、场景、线索、NPC、状态机、骰子、事件日志、可见性系统、Agent 裁定协议、多人实时同步、模型 Provider 和一键部署能力组成的游戏运行时。V1 的目标是完成一个可信、可部署、可审计、可完整游玩的 COC 7 闭环。
+> 当前发布状态以 [V1 验收定义](docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md) 和绑定具体提交的 CI evidence 为准；本 README 不单独宣告 release readiness。
 
-## 1. 本包面向的读者
+## 核心能力
 
-| 读者 | 主要入口 | 目的 |
-|---|---|---|
-| Codex 施工会话 | `AGENTS.md`、`CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`、`stages/**/START_PROMPT.md` | 分阶段执行编码、测试、评审和修复任务。 |
-| 人类工程负责人 | `CODEX_MASTER_EXECUTION_GUIDE.md`、`CODEX_STRICT_OPERATION_CHECKLIST.md` | 控制施工顺序、验收节奏、变更范围和 evidence 归档。 |
-| 审计人员 | `DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md`、`V1_ACCEPTANCE_EVIDENCE_MATRIX.md`、`manifests/**`、`inventory/**` | 检查文档来源、覆盖关系、包完整性和验收证据链。 |
-| 发布负责人 | `CODEX_RELEASE_PREPARATION_GUIDE.md`、`codex-operator-guides/06_RELEASE_PREPARATION_PLAYBOOK.md` | 准备 release candidate、发布门禁、回滚与审计包。 |
+- **双 Keeper 模式**：Campaign 创建时锁定 HUMAN_KP 或 AI_KP 权威模式；Authority Contract 不可原地修改，只能通过 fork 创建新世界线。
+- **COC 7 完整玩法骨架**：角色创建与审核、调查与核心线索、奖励/惩罚骰、SAN 与疯狂、NPC、基础战斗、追逐、成长和结局流程。
+- **可信状态与骰子**：所有正式写入遵循 `Command -> Workflow -> Decision -> Event Store -> Projection`；服务端骰子、裁定和重试都留下可验证记录。
+- **多人实时协作**：房间同步、断线恢复、分组调查、私密场景与按角色/玩家隔离的信息流。
+- **受治理的 AI**：统一经过 Agent Gateway、Runtime、工具权限门和 Model Provider Adapter；真人 KP 模式下 AI 只能生成待批准草稿。
+- **隐私与来源追踪**：Visibility Label 和 Fact Provenance 贯穿 API、Event、Agent Context、RAG、摘要、导出、回放、日志与指标。
+- **可替换模型 Provider**：支持云端和本地适配器、本地模型认证及显式跨隐私边界授权；禁止从本地模型静默回退到云端。
+- **生产化运行面**：Docker Compose、PostgreSQL/pgvector、Redis、NATS JetStream、MinIO、OpenFGA、OPA、TLS、备份恢复、迁移和审计证据链。
 
-### Linux 安全初始化入口
+## 架构概览
 
-Linux 新环境的唯一 bootstrap 入口是 `scripts/bootstrap/bootstrap.sh`。先确认
-Docker Compose v2 可用，并查看脚本内置的完整参数说明：
+```text
+Web / Admin
+    │
+API / Realtime ──> Command ──> Workflow ──> Decision ──> Event Store
+    │                                                        │
+    └──────────── Projection / Cache / Search / Export <─────┘
+
+Agent Job ──> Agent Gateway / Runtime ──> Provider Adapter ──> Model
+                    │
+                    └── Tool Request ──> 同一条正式 Decision Pipeline
+```
+
+Event Store 是正史；Projection、Cache、RAG Index 和 Summary 都是可重建读模型。权限决策由 OpenFGA/OPA 与领域策略共同执行，AI 输出不能绕过这条边界。
+
+## 技术栈
+
+| 层 | 主要技术 |
+| --- | --- |
+| 服务与领域 | Rust 1.96、Tokio、Axum、SQLx |
+| 数据与消息 | PostgreSQL 18、pgvector、Redis、NATS JetStream、MinIO |
+| 授权与策略 | OpenFGA、OPA、审计 HMAC、Visibility/Provenance contracts |
+| Web | 原生 ES Modules、HTML/CSS、WebSocket 客户端 |
+| 交付与测试 | Docker Compose、GitHub Actions、Cargo、Python、Node/pnpm |
+
+## 快速开始
+
+### 1. 准备工具链
+
+仓库固定了主要开发版本：Rust `1.96.0`、Node `24.17.0`、Python `3.14.6` 和 pnpm `11.9.0`。还需要 Docker 与 Docker Compose v2。
 
 ```bash
+rustc --version
+node --version
+python3 --version
+pnpm --version
 docker compose version
+```
+
+安装前端依赖并检查工作区：
+
+```bash
+pnpm install --frozen-lockfile
+cargo check --workspace --all-targets --all-features --locked
+pnpm --filter ./apps/web... build
+```
+
+### 2. 查看安全初始化参数
+
+生产拓扑需要生成并挂载多组秘密，不能直接用占位环境变量启动。统一入口会创建私有状态、证书和初始账户，启动 Compose，并执行初始化自检：
+
+```bash
 bash scripts/bootstrap/bootstrap.sh --help
 ```
 
-正式运行时必须使用绝对路径的私有状态目录和权限受限的 Provider 凭据文件；
-不得把凭据写入命令行、仓库或日志。该入口负责生成其余随机秘密、启动生产
-Compose、创建锁定为 HUMAN_KP 的 COC7 Tutorial Campaign、通过正式 API 导入原创
-`tutorial_mist_archive` 场景、执行自检，并可用完全相同的参数安全重跑以恢复中断
-步骤。初始账户仅写入私有 `credentials/initial-accounts.env`，非敏感的 Tutorial
-资源标识写入同目录的 `tutorial.env`。
+正式运行时必须传入绝对路径的私有状态目录、受限权限的 Provider 凭据文件、精确模型标识和 SHA-256 身份；凭据不得写入命令行、仓库或日志。初始化完成后，脚本会报告本机 HTTPS 入口和私有凭据文件位置。
 
-## 2. 项目施工主线
+### 3. 运行测试
 
-Codex 必须按 S00 → S13 顺序施工，不得跳过阶段门禁：
+常用的本地检查：
 
-```text
-S00 Governance onboarding
-S01 Foundation shared kernel
-S02 Domain core: Authority Contract / Event model
-S03 Data, eventing, persistence
-S04 Security, governance, visibility, provenance
-S05 COC7 ruleset engine
-S06 Runtime orchestration and decision pipeline
-S07 Agent runtime, provider, memory, RAG
-S08 API / realtime / contracts
-S09 Platform infrastructure and deployment
-S10 Ops, migration, runbooks
-S11 Testing, quality, Golden Scenario, CI
-S12 Extension SDK and UI boundary
-S13 V1 release hardening
+```bash
+cargo test -p trpg-domain-core --all-features --locked
+pnpm --filter ./apps/web... test
+python3 scripts/ci/check_product_boundaries.py
 ```
 
-## 3. 当前 Codex 读取顺序
+完整合并门禁由下列入口统一编排；它要求干净工作树、固定工具链、PowerShell、网络访问以及相应的真实后端环境：
 
-Codex 新会话必须先读取以下文件，之后才能进入任何 batch 或阶段 prompt：
-
-1. `AGENTS.md`
-2. `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
-3. `SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
-4. `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md`
-5. `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md`
-6. `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md`
-7. `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md`
-8. `DOCUMENT_ORGANIZATION_AND_AUDIT_BOUNDARY.md`
-9. `CODEX_MASTER_EXECUTION_GUIDE.md`
-10. `CODEX_START_ACCEPT_TEST_RELEASE_GUIDE.md`
-11. `CODEX_STRICT_OPERATION_CHECKLIST.md`
-12. `V1_ACCEPTANCE_EVIDENCE_MATRIX.md`
-13. `PER_STAGE_FIXTURE_EXPANSION_PLAN.md`
-14. `stages/s00-governance-onboarding/START_PROMPT.md`
-
-## 4. 目录职责
-
-| 路径 | 职责 | 当前执行权限 |
-|---|---|---|
-| `AGENTS.md` | 根级 Codex 持久化约束。 | 当前施工必读。 |
-| `prompts/persistent/**` | 可长期放入仓库的 Codex 持久化辅助提示词。 | 当前施工可用。 |
-| `stages/**` | 每阶段启动、验收、测试、测试数据和修复 prompt。 | 当前施工可用。 |
-| `codex-operator-guides/**` | 给人类操作员和 Codex 会话使用的专项执行手册。 | 当前施工可用。 |
-| `docs/top-level-design/**` | 顶层产品和架构设计基线。 | 当前设计权威。 |
-| `docs/codex/**` | 筛选后的 V6 Codex 稳定施工材料、batch、per-file prompt 和 traceability。 | 当前参考/施工材料；执行前必须应用 normalized maps。 |
-| `codex-active-normalized/**` | 当前 prompt 执行映射和安全 module/output 映射。 | 当前施工必读。 |
-| `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md` | 唯一 canonical token rewrite 表。 | 当前施工必读；没有其他 active alias。 |
-| `fixtures/**` | Tutorial、Golden、COC7、Visibility、Provider、API、Event Store、RAG、Export 等测试 fixture。 | 当前测试输入。 |
-| `ci-cd/workflows-extractable/**` | 唯一 canonical CI/CD workflow Markdown 提取源。 | 当前 CI/CD 落库源。 |
-| `inventory/**` | 输入筛选、Prompt 覆盖、batch 映射、清理审计。 | 审计和追踪用；不是施工 prompt。 |
-| `manifests/**` | 当前包 manifest、hash、strict validation 报告。 | 包验收用。 |
-| `source-archive/**` | 原始输入、旧报告、旧路径、旧 CI/CD 和 token alias provenance。 | 只读审计；不得作为当前施工入口。 |
-| `source-archive/reviews/**` | 用户提供的历史验收报告与复核结论 provenance。 | 只读审计；不得作为当前施工入口。 |
-
-## 5. CI/CD canonical source
-
-当前唯一 CI/CD 提取源是：
-
-```text
-ci-cd/workflows-extractable/target-ci.yml.md
-ci-cd/workflows-extractable/target-contracts.yml.md
-ci-cd/workflows-extractable/target-golden-scenarios.yml.md
-ci-cd/workflows-extractable/target-docker-compose-smoke.yml.md
-ci-cd/workflows-extractable/target-release.yml.md
+```bash
+bash scripts/ci/test-all.sh
 ```
 
-历史 `github-actions-*.yml.md` 文件已经转入 `source-archive/provenance/**`，只能用于来源追溯，不能作为 workflow 提取入口。
+当前 release provider matrix 使用 `deepseek-v4-flash` 执行真实云端 chat 合约，本机 Ollama 与 llama.cpp 只执行 embedding 合约。密钥和本地模型路径通过 CI secret/variable 或仓库外私有文件注入，不进入版本控制。
 
-## 6. 验收入口
+## 仓库结构
 
-严格验收从以下文件开始：
+| 路径 | 职责 |
+| --- | --- |
+| `apps/` | API、Realtime、Agent Worker、Admin、Migration Runner 和 Web 入口 |
+| `crates/` | 领域、运行时、规则、数据、AI、平台、安全、测试和扩展 SDK |
+| `migrations/` | PostgreSQL 前向迁移与安全角色定义 |
+| `policy/` | OpenFGA 模型与 OPA 策略 |
+| `config/`、`deploy/` | 运行配置和部署资产 |
+| `scripts/` | 初始化、CI、备份恢复、投影重建和运维脚本 |
+| `docs/` | 项目设计、架构、规划、施工、治理、验收、审计和报告 |
+| `fixtures/`、`test-data/` | 可执行测试输入 |
+| `stages/`、`batches/`、`codex-prompts/` | Codex 阶段与施工执行资产 |
+| `source-archive/` | 只读历史来源证明，不是当前实现入口 |
 
-- `STRICT_SELF_CONTAINED_ACCEPTANCE_REPORT.md`
-- `STRICT_V221_ACCEPTANCE_REPORT.md`
-- `V221_FULL_PACKAGE_MARKDOWN_CLEANUP_REPORT.md`
-- `STRICT_LINK_AND_REFERENCE_VALIDATION.md`
-- `manifests/V221_STRICT_VALIDATION_REPORT.md`
-- `manifests/CURRENT_PACKAGE_MANIFEST.md`
-- `inventory/V221_FULL_FILE_CLEANUP_AUDIT.md`
+完整文档导航见 [docs/README.md](docs/README.md)。Codex 或自动修复代理还必须先读取根目录 [AGENTS.md](AGENTS.md)。
 
-通过标准是：manifest 闭合、cleanup audit 覆盖全包、batch → prompt 引用闭合、guide heading 可渲染、README 声明目录真实存在、active token rewrite 入口唯一、CI/CD canonical source 唯一、active 区域无旧版本当前语义、actionable module/output 无旧版本命名。
+## 不可突破的系统边界
 
-## 7. 施工红线摘要
+- HUMAN_KP / AI_KP 权威模式创建后不可原地切换。
+- 业务层、规则引擎、KP 服务和前端不得直接调用裸 LLM。
+- Agent 不得直接写数据库、生成无记录正式骰子或修改 Authority Contract。
+- 正式状态只能通过 Decision Pipeline 写入 Event Store。
+- 私密事实不得泄露到摘要、RAG、导出、回放、日志或指标。
+- 未通过 Level 4 认证的本地模型不能担任 AI Keeper Orchestrator。
+- 跨 Provider 或跨隐私边界的回退必须显式配置、提示并审计。
 
-- V1 只允许 P0/P1 进入首发，P2/P3 默认进入 backlog。
-- HUMAN_KP / AI_KP 是 Campaign 级互斥权威模式，Authority Contract 锁定后只能 fork。
-- 所有正式裁定必须经过工具、规则引擎、状态服务和事件日志。
-- AI 只能通过 Agent Gateway / Orchestrator / Runtime / Provider Adapter 工作。
-- Agent 不能直接写数据库、伪造骰子、绕过规则引擎、泄露 keeper/private 内容或修改 Authority Contract。
-- Visibility Label 与 Fact Provenance 必须贯穿 API、Event、Agent、RAG、Export、Replay、Log 和 Metric。
-- 本地模型是一等 Provider，但未认证 Level 4 的模型不能担任 AI Keeper Orchestrator。
-- 默认不得从本地模型静默 fallback 到云端。
-
-
-
-
-
-## 8. 当前清理状态
-
-本包为 v2.21 清理版。active/current 区域只保留当前施工所需信息；历史失败报告、旧 CI/CD、旧 token alias、旧路径材料均保留在 `source-archive/**`，只作 provenance，不得作为当前施工入口。
-
-
-
-## v2.21 路径引用清理说明
-
-当前每批次人工启动提示词位于 `batch-prompts/start/B###.md`，每批次人工验收提示词位于 `batch-prompts/accept/B###.md`。旧 batch prompt 路径只保留在 `inventory/PATH_REWRITE_MAP.md` 的 `old_path` 字段中作为 provenance。
+更完整的产品范围和设计理由见 [CURRENT_TOP_LEVEL_DESIGN.md](docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md)。

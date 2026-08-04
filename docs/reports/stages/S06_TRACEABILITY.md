@@ -7,14 +7,14 @@ Date: 2026-07-04
 ## Required Inputs Rechecked
 
 - `AGENTS.md`
-- `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
-- `SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
+- `docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
+- `docs/construction/SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
 - `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md`
 - `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md`
 - `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md`
 - `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md`
-- `V1_ACCEPTANCE_EVIDENCE_MATRIX.md`
-- `PER_STAGE_FIXTURE_EXPANSION_PLAN.md`
+- `docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md`
+- `docs/planning/PER_STAGE_FIXTURE_EXPANSION_PLAN.md`
 - `stages/s06-runtime-orchestration-decision-pipeline/README.md`
 - `stages/s06-runtime-orchestration-decision-pipeline/START_PROMPT.md`
 - `stages/s06-runtime-orchestration-decision-pipeline/TEST_PLAN.md`

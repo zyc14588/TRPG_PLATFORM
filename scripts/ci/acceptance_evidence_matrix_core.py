@@ -15,7 +15,7 @@ from repo_truth_evidence import validate_evidence
 
 SCHEMA_VERSION = "v1"
 GENERATOR_VERSION = "acceptance-evidence-matrix-v1"
-DEFINITION_PATH = Path("V1_ACCEPTANCE_EVIDENCE_MATRIX.md")
+DEFINITION_PATH = Path("docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md")
 STATUSES = {"PASS", "FAIL", "BLOCKED", "NOT_RUN"}
 REPAIR_BATCHES = {
     "RF01": "F-AR01-001",

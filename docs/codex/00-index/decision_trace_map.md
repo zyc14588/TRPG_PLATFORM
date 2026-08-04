@@ -10,8 +10,8 @@ This file records how governance decisions are traced for the 00-index module.
 
 - `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md`
 - `AGENTS.md`
-- `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
-- `SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
+- `docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
+- `docs/construction/SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
 - `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md`
 - `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md`
 - `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md`

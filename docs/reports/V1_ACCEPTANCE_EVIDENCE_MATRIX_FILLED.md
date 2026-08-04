@@ -7,5 +7,5 @@
 closure evidence；生成器会把关联项（包括第 15 项）标记为 `BLOCKED`，其他未提供
 逐项证据的条目标记为 `NOT_RUN`。
 
-生成契约见 `docs/reports/V1_ACCEPTANCE_EVIDENCE_MATRIX.md`。任何把本文件当作 release
+生成契约见 `docs/reports/V1_ACCEPTANCE_EVIDENCE_GENERATION_CONTRACT.md`。任何把本文件当作 release
 evidence 的流程都必须 fail closed。

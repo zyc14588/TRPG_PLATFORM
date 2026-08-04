@@ -22,7 +22,7 @@ pub fn contract() -> TestingQualityModuleContract {
         "crates/trpg-testing/tests/requirement_to_test_trace_contract_tests.rs",
         TestingQualityAction::VerifyRequirementToTestTrace,
         &[
-            "V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
+            "docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
             "stages/s11-testing-quality-golden-ci/TEST_PLAN.md",
             "stages/s11-testing-quality-golden-ci/TEST_DATA.md",
         ],

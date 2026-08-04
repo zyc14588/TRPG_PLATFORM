@@ -15,7 +15,7 @@ STRICT_VALIDATION_GATE_UPDATE: PASS
 |---|---|
 | `source-archive/**` 中 4 个 Markdown 行级 fence parity 问题 | 已修复，当前全包 odd-fence 文件为 `0` |
 | 旧 provenance fence closure 注释 | 已清理，残留计数为 `2` |
-| `STRICT_LINK_AND_REFERENCE_VALIDATION.md` fence gate 过粗 | 已改为只统计行首 0 到 3 个空格后的 fenced code block marker |
+| `docs/governance/STRICT_LINK_AND_REFERENCE_VALIDATION.md` fence gate 过粗 | 已改为只统计行首 0 到 3 个空格后的 fenced code block marker |
 | 包内报告误报 PASS 风险 | 已重建 manifest、cleanup audit、validation report 与 acceptance report |
 
 ## 当前实测摘要

@@ -7,17 +7,17 @@
 ## 必读输入
 
 1. `AGENTS.md`
-2. `CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
-3. `SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
+2. `docs/construction/CODEX_STANDALONE_BOOTSTRAP_PROMPT.md`
+3. `docs/construction/SOURCE_BUNDLE_INTEGRATION_GUIDE.md`
 4. `docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md`
 5. `docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md`
 6. `docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md`
 7. `docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md`
-8. `V1_ACCEPTANCE_EVIDENCE_MATRIX.md`
-9. `04_TEST_STRATEGY_AND_TEST_DATA.md`
-10. `05_CI_CD_CONFIGURATION.md`
-11. `codex-operator-guides/04_TESTING_PLAYBOOK.md`
-12. `codex-operator-guides/10_STRICT_VALIDATION_COMMANDS.md`
+8. `docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md`
+9. `docs/planning/04_TEST_STRATEGY_AND_TEST_DATA.md`
+10. `docs/planning/05_CI_CD_CONFIGURATION.md`
+11. `docs/construction/operator-guides/04_TESTING_PLAYBOOK.md`
+12. `docs/construction/operator-guides/10_STRICT_VALIDATION_COMMANDS.md`
 
 ## 可复制给 Codex 的中文流程提示词
 
@@ -42,12 +42,13 @@
 New-Item -ItemType Directory -Force evidence/stages/SXX
 git diff --name-only
 cargo fmt --all -- --check
-cargo test --workspace --all-features
-npm test
-python scripts/ci/verify_test_inventory.py
+cargo test --workspace --all-features --locked
+pnpm --filter ./apps/web... test
+python3 scripts/ci/verify_test_inventory.py
 ```
 
-当前仓库尚无可执行产品前端，因此不声明 `pnpm typecheck` 或 `pnpm test:e2e`；这些能力出现前 Release Readiness 必须保持 `BLOCKED`。
+仓库已有可执行 Web 前端、浏览器测试和 Compose 产品拓扑。真实浏览器、Provider、
+Golden Scenario 与生产安全检查由对应 CI gate 运行，不得用空脚本或 mock-only 结果替代。
 
 ## 预期证据
 

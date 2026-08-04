@@ -25,7 +25,7 @@ pub fn contract() -> TestingQualityModuleContract {
             "stages/s11-testing-quality-golden-ci/TEST_PLAN.md",
             "fixtures/stages/S11_stage_acceptance_fixture.v1.json.md",
             "fixtures/stages/detailed/S11_golden_visibility_export_diff_expected.current.json.md",
-            "V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
+            "docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
         ],
         &[
             "golden_scenario_ci_is_required",

@@ -25,7 +25,7 @@ pub fn contract() -> TestingQualityModuleContract {
         &[
             "docs/codex/99-appendix/README.md",
             "docs/codex/99-appendix/unresolved-codex-questions.md",
-            "V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
+            "docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
         ],
         &[
             "research_decisions_preserve_v1_scope",

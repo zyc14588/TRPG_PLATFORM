@@ -21,7 +21,7 @@ pub fn contract() -> TestingQualityModuleContract {
         "crates/trpg-testing/tests/implementation_acceptance_checklist_contract_tests.rs",
         TestingQualityAction::VerifyImplementationAcceptance,
         &[
-            "V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
+            "docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
             "stages/s11-testing-quality-golden-ci/ACCEPTANCE_PROMPT.md",
         ],
         &[

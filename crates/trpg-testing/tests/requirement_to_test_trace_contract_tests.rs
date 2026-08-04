@@ -1,6 +1,7 @@
 use trpg_testing::{record_contract_decision, requirement_to_test_trace};
 
-const V1_ACCEPTANCE: &str = include_str!("../../../V1_ACCEPTANCE_EVIDENCE_MATRIX.md");
+const V1_ACCEPTANCE: &str =
+    include_str!("../../../docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md");
 const S11_TEST_PLAN: &str =
     include_str!("../../../stages/s11-testing-quality-golden-ci/TEST_PLAN.md");
 

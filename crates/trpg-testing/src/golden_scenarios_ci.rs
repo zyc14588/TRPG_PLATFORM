@@ -25,7 +25,7 @@ pub fn contract() -> TestingQualityModuleContract {
             "fixtures/scenarios/golden_salt_bell.scenario.yaml.md",
             "fixtures/actions/golden_salt_bell_action_sequence.v1.json.md",
             "fixtures/stages/detailed/S11_golden_visibility_export_diff_expected.current.json.md",
-            "V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
+            "docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
         ],
         &[
             "formal_rulings_use_command_workflow_decision_event_store_projection",

@@ -23,7 +23,7 @@ pub fn contract() -> TestingQualityModuleContract {
         TestingQualityAction::VerifyTopLevelPrincipleTrace,
         &[
             "docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md",
-            "V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
+            "docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md",
             "stages/s11-testing-quality-golden-ci/TEST_PLAN.md",
         ],
         &[
@@ -40,12 +40,12 @@ pub fn principle_traces() -> Vec<PrincipleTrace> {
         PrincipleTrace {
             principle: "authority_contract_is_immutable",
             test_module: "trpg_domain_core::authority_immutability",
-            evidence: "V1_ACCEPTANCE_EVIDENCE_MATRIX.md#authority-contract",
+            evidence: "docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md#authority-contract",
         },
         PrincipleTrace {
             principle: "agent_gateway_is_required",
             test_module: "trpg_agent_runtime::tool_gate",
-            evidence: "V1_ACCEPTANCE_EVIDENCE_MATRIX.md#agent-decision-commit",
+            evidence: "docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md#agent-decision-commit",
         },
         PrincipleTrace {
             principle: "event_store_is_canonical",

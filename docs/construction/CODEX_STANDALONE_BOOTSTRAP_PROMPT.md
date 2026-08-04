@@ -7,19 +7,19 @@
 
 ```text
 AGENTS.md
-SOURCE_BUNDLE_INTEGRATION_GUIDE.md
+docs/construction/SOURCE_BUNDLE_INTEGRATION_GUIDE.md
 docs/top-level-design/CURRENT_TOP_LEVEL_DESIGN.md
 docs/codex/00-index/CURRENT_NORMALIZED_PROMPT_EXECUTION_MAP.md
 docs/codex/00-index/CURRENT_SAFE_MODULE_AND_OUTPUT_MAP.md
 docs/codex/00-index/CURRENT_TOKEN_REWRITE_TABLE.md
-00_INPUT_ANALYSIS_AND_TRACEABILITY.md
-01_OVERALL_CONSTRUCTION_PLAN.md
-02_STAGE_CONFIRMATION_MATRIX.md
-03_ENGINEERING_DIRECTORY_PLAN.md
-04_TEST_STRATEGY_AND_TEST_DATA.md
-05_CI_CD_CONFIGURATION.md
-V1_ACCEPTANCE_EVIDENCE_MATRIX.md
-PER_STAGE_FIXTURE_EXPANSION_PLAN.md
+docs/planning/00_INPUT_ANALYSIS_AND_TRACEABILITY.md
+docs/planning/01_OVERALL_CONSTRUCTION_PLAN.md
+docs/planning/02_STAGE_CONFIRMATION_MATRIX.md
+docs/planning/03_ENGINEERING_DIRECTORY_PLAN.md
+docs/planning/04_TEST_STRATEGY_AND_TEST_DATA.md
+docs/planning/05_CI_CD_CONFIGURATION.md
+docs/acceptance/V1_ACCEPTANCE_EVIDENCE_MATRIX.md
+docs/planning/PER_STAGE_FIXTURE_EXPANSION_PLAN.md
 docs/codex/00-index/codex-persistent-context.md
 docs/codex/00-index/codex-prompt-boundary.md
 docs/codex/00-index/codex-batch-plan.md
@@ -68,13 +68,17 @@ docs/reports/stages/SXX_TRACEABILITY.md
 S13 必须生成：
 
 ```text
-docs/reports/V1_ACCEPTANCE_REPORT.md
-docs/reports/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md
+仓库外 evidence 目录/V1_ACCEPTANCE_REPORT.md
+仓库外 evidence 目录/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md
 artifacts/test-reports/golden-scenarios/**
 artifacts/test-reports/visibility-leakage/**
 artifacts/test-reports/model-certification/**
 artifacts/test-reports/docker-compose-smoke/**
 ```
+
+候选矩阵必须由 `scripts/ci/acceptance_evidence_matrix.py` 根据机器证据生成；tracked 的
+`docs/reports/V1_ACCEPTANCE_EVIDENCE_MATRIX_FILLED.md` 只保留 fail-closed 说明，不承载
+候选发布状态。
 
 
 ## v2.21 strict repair note
