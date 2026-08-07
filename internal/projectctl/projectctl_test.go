@@ -50,8 +50,8 @@ func TestGeneratedDocumentsAreCurrentAndMarked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(documents) != 3 {
-		t.Fatalf("generated %d documents, want 3", len(documents))
+	if len(documents) != 4 {
+		t.Fatalf("generated %d documents, want 4", len(documents))
 	}
 	for _, document := range documents {
 		if !bytes.Contains(document.data, []byte(generatedMarker)) {

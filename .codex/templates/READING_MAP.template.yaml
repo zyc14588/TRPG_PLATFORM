@@ -1,0 +1,12 @@
+route_schema_version: 1
+batch_id: '{{BATCH}}'
+always_read: []
+normative_references: []
+machine_contracts: []
+read_on_demand: []
+must_not_bulk_read:
+- docs/**
+- git-history
+- prior-chat-transcripts
+soft_context_ratio: 0.55
+hard_context_ratio: 0.7
