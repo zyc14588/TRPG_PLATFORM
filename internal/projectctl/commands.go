@@ -86,7 +86,7 @@ func (a *App) checkPinnedFiles(lock toolchainLock) error {
 			problems.add("read %s: %v", relative, err)
 			return
 		}
-		if strings.TrimSpace(string(data)) != expected {
+		if normalizePinnedText(data) != expected {
 			problems.add("%s does not match toolchain lock", relative)
 		}
 	}
@@ -161,6 +161,10 @@ func (a *App) checkPinnedFiles(lock toolchainLock) error {
 		}
 	}
 	return problems.err("toolchain lock")
+}
+
+func normalizePinnedText(data []byte) string {
+	return strings.TrimSpace(strings.ReplaceAll(string(data), "\r\n", "\n"))
 }
 
 func (a *App) checkPinnedWorkflows(lock toolchainLock, problems *validationErrors) error {

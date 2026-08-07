@@ -44,6 +44,14 @@ func TestToolchainPinsAreConsistent(t *testing.T) {
 	}
 }
 
+func TestPinnedTextAcceptsWindowsCheckoutNewlines(t *testing.T) {
+	input := []byte("golang 1.26.5\r\nnodejs 24.18.0\r\njust 1.58.0\r\n")
+	want := "golang 1.26.5\nnodejs 24.18.0\njust 1.58.0"
+	if got := normalizePinnedText(input); got != want {
+		t.Fatalf("normalizePinnedText()=%q, want %q", got, want)
+	}
+}
+
 func TestGeneratedDocumentsAreCurrentAndMarked(t *testing.T) {
 	a := testApp(t)
 	documents, err := a.generatedDocuments()
