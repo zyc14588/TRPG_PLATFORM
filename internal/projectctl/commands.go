@@ -14,9 +14,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -36,6 +39,7 @@ type toolchainLock struct {
 		Wails lockedTool `json:"wails"`
 	} `json:"tools"`
 	Frontend   map[string]lockedTool      `json:"frontend"`
+	Actions    map[string]lockedTool      `json:"actions"`
 	Containers map[string]lockedContainer `json:"containers"`
 }
 
@@ -46,6 +50,7 @@ type lockedTool struct {
 	ReleaseLine string `json:"release_line"`
 	Integrity   string `json:"integrity"`
 	Stability   string `json:"stability"`
+	SHA         string `json:"sha"`
 }
 
 type lockedContainer struct {
@@ -138,6 +143,9 @@ func (a *App) checkPinnedFiles(lock toolchainLock) error {
 			}
 		}
 	}
+	if err := a.checkPinnedWorkflows(lock, problems); err != nil {
+		return err
+	}
 
 	dockerfile, err := os.ReadFile(filepath.Join(a.root, "deploy", "docker", "Dockerfile"))
 	if err != nil {
@@ -153,6 +161,64 @@ func (a *App) checkPinnedFiles(lock toolchainLock) error {
 		}
 	}
 	return problems.err("toolchain lock")
+}
+
+func (a *App) checkPinnedWorkflows(lock toolchainLock, problems *validationErrors) error {
+	workflowRoot := filepath.Join(a.root, ".github", "workflows")
+	if _, err := os.Stat(workflowRoot); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	usesPattern := regexp.MustCompile(`(?m)^\s*uses:\s*([^@\s]+)@([^\s#]+)`)
+	used := map[string]bool{}
+	err := filepath.WalkDir(workflowRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".yml" && filepath.Ext(path) != ".yaml" {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var syntax yaml.Node
+		if err := yaml.Unmarshal(data, &syntax); err != nil {
+			return fmt.Errorf("parse workflow %s: %w", path, err)
+		}
+		for _, match := range usesPattern.FindAllStringSubmatch(string(data), -1) {
+			name, revision := match[1], match[2]
+			locked, exists := lock.Actions[name]
+			if !exists {
+				problems.add("workflow uses unregistered action %s", name)
+				continue
+			}
+			used[name] = true
+			if revision != locked.SHA || !commitPattern.MatchString(revision) {
+				problems.add("workflow action %s is not pinned to locked SHA %s", name, locked.SHA)
+			}
+		}
+		text := string(data)
+		for _, forbidden := range []string{"go test ", "go build ", "go vet ", "go run ", "pnpm -r ", "pnpm run "} {
+			if strings.Contains(text, forbidden) {
+				problems.add("workflow duplicates project logic with %q; call a Just target", forbidden)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("check workflow pins: %w", err)
+	}
+	for name, action := range lock.Actions {
+		if !commitPattern.MatchString(action.SHA) {
+			problems.add("action %s has invalid immutable SHA %q", name, action.SHA)
+		}
+		if !used[name] {
+			problems.add("locked action %s is not used by an M0 workflow", name)
+		}
+	}
+	return nil
 }
 
 func (a *App) bootstrap(ctx context.Context, args []string) error {
@@ -212,7 +278,7 @@ func (a *App) checkAll(ctx context.Context) error {
 		{name: "license", run: func() error { return a.checkLicense(ctx) }},
 		{name: "scope M0", run: func() error { return a.checkScope(ctx) }},
 	}
-	if _, err := os.Stat(filepath.Join(a.root, ".codex")); err == nil {
+	if _, err := os.Stat(filepath.Join(a.root, ".codex", "SESSION_START.md")); err == nil {
 		steps = append(steps, struct {
 			name string
 			run  func() error
@@ -534,6 +600,7 @@ func (a *App) checkScope(ctx context.Context) error {
 		"cmd/platformd/main.go", "cmd/workerd/main.go", "cmd/lua-runner/main.go", "cmd/creator-cli/main.go", "cmd/projectctl/main.go",
 		"apps/web-player/src/App.tsx", "apps/creator-studio/main.go", "apps/creator-studio/frontend/src/App.tsx",
 		"deploy/compose.yaml", "tools/toolchain.lock.json", "docs/70-decisions/DECISION_REGISTER.yaml", "docs/90-traceability/TRACEABILITY.yaml",
+		".github/workflows/m0-baseline.yml", "docs/60-quality/M0_CI_AND_GITHUB_GOVERNANCE.md",
 	}
 	present := map[string]bool{}
 	problems := &validationErrors{}

@@ -33,4 +33,11 @@ React、React DOM、Vite、Vite React 插件、Vitest 与类型包为 MIT；Type
 
 Builder 与 runtime 同时锁定可读 Tag 和多架构 manifest digest。M0 Compose 只运行三个无业务状态的进程空壳，不包含 PostgreSQL、对象存储、迁移或业务 Schema。
 
+## Actions 与 Runner 审查
+
+- Actions 选择 2026-08-08 可得的非 draft、非 prerelease 稳定版本，并把已验证发布标签解析为完整 Commit SHA；工作流不得直接引用浮动 Tag。
+- pnpm 11 使用官方推荐的 `pnpm/setup`，同时锁定 pnpm 11.20.0 与 Node 24.18.0；macOS 选择官方公布的 `macos-15` arm64 Runner，避开 pnpm 11 不提供 Intel macOS 独立二进制的限制。
+- Runner 固定为 `ubuntu-24.04`、`windows-2025` 与 `macos-15`，不使用会发生迁移的 `*-latest` 标签。
+- Actions 许可登记为 MIT 或 `MIT OR Apache-2.0`，完整名称、版本、SHA 和来源保存在 `tools/toolchain.lock.json`。
+
 本记录是工程许可筛查，不替代法律意见。最终递归依赖清单由 M0 证据中的 `DEPENDENCY_LICENSE_REPORT.md` 给出。
