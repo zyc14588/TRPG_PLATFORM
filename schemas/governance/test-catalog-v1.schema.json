@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zyc14588/TRPG_PLATFORM/schemas/governance/test-catalog-v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "test_count",
+    "tests"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "baseline": {
+      "type": "string"
+    },
+    "test_count": {
+      "type": "integer"
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "test_id",
+          "title",
+          "level",
+          "milestone",
+          "status",
+          "objective",
+          "required_evidence"
+        ],
+        "properties": {
+          "test_id": {
+            "type": "string",
+            "pattern": "^TEST-[A-Z0-9-]+$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "milestone": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "required_evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,597 @@
+---
+document_id: DECISION-INDEX
+authority: generated-reference
+status: ACTIVE
+source: DECISION_REGISTER.yaml
+---
+
+# R0—R24 决策索引
+
+> 本文件由机器登记生成，禁止手工修改。权威机器来源为 `DECISION_REGISTER.yaml`。
+
+- 决策总数：**455**
+- ACTIVE：**454**
+- SUPERSEDED：**1**
+- 基线状态：**FROZEN_FOR_M0**
+- 权威语言：zh-Hans
+
+## R0
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R0-A01` | `ACTIVE` | 产品组合定位 | `V1_AND_LONG_TERM` | 产品同时是在线桌面游戏平台、AI 原生游戏系统、可扩展内容平台和 Agent/长上下文/叙事研究载体。 |
+| `R0-A02` | `ACTIVE` | 旧方案偏离原因 | `V1_AND_LONG_TERM` | 旧方案范围失控、弱化 AI 主持核心能力，并让治理与工程细节压过产品体验。 |
+| `R0-A03` | `ACTIVE` | 旧代码关系 | `V1_AND_LONG_TERM` | 当前代码仅作历史与失败模式参考；新方案允许在原仓库内从零重新实现。 |
+| `R0-A04` | `ACTIVE` | 首要优化目标 | `V1_AND_LONG_TERM` | 优先优化用户游玩体验、AI 主持质量、内容管理、本地/云端模型兼容和跨游戏扩展。 |
+| `R0-A05` | `ACTIVE` | 核心用户闭环 | `V1_AND_LONG_TERM` | 用户选择游戏与模组，创建真人/AI 混合房间，可单人、邀请朋友或由 AI 补位完成跑团或其他桌游。 |
+| `R0-A06` | `ACTIVE` | 双垂直切片 | `V1_AND_LONG_TERM` | V1 同时完成一个 TRPG 和一个非 TRPG 桌游的近正式产品质量垂直切片。 |
+| `R0-A07` | `ACTIVE` | 内容来源 | `V1_AND_LONG_TERM` | V1 提供内置原创内容和私人导入，不建设公共内容市场。 |
+| `R0-A08` | `ACTIVE` | 生命周期 | `V1_AND_LONG_TERM` | V1 同时支持完整单局与长期 Campaign。 |
+| `R0-A09` | `ACTIVE` | AI 席位声明 | `V1_AND_LONG_TERM` | 哪些席位可由真人或 AI 占据以及接管规则由游戏包声明。 |
+| `R0-A10` | `ACTIVE` | 裁定权威 | `V1_AND_LONG_TERM` | 默认采用程序确定性规则与 AI 开放裁定相结合的混合权威模型，游戏包可在平台边界内细化。 |
+| `R0-A11` | `ACTIVE` | 客户端交互 | `V1_AND_LONG_TERM` | V1 采用文本与结构化游戏界面，不以纯文本或完整语音为首发目标。 |
+| `R0-A12` | `ACTIVE` | 高级模式 | `V1_AND_LONG_TERM` | 向用户开放高级实验模式；高级模型配置必须使用 BYOK。 |
+| `R0-A13` | `ACTIVE` | 优先级顺序 | `V1_AND_LONG_TERM` | 冲突取舍顺序为用户体验 > 跨规则/桌游扩展 > AI 主持质量 > 内容管理 > 模型兼容。 |
+| `R0-A14` | `ACTIVE` | V1 完整闭环 | `V1_AND_LONG_TERM` | 接受选择游戏、配置席位、邀请、完整游玩、保存恢复和过程记录作为 V1 验收闭环。 |
+
+## R1
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R1-A01` | `ACTIVE` | 创作者规则包 | `V1_AND_LONG_TERM` | 规则支持创作者制作和上传；正式发行只附带原创内容，开发测试阶段不限制测试规则来源。 |
+| `R1-A02` | `ACTIVE` | TRPG 题材组合 | `V1_AND_LONG_TERM` | 官方 TRPG 结合调查解谜、恐怖生存和奇幻冒险战斗。 |
+| `R1-A03` | `ACTIVE` | TRPG 内容深度 | `V1_AND_LONG_TERM` | 官方 TRPG 同时提供 2—4 小时单次模组和 3—5 Session 短战役。 |
+| `R1-A04` | `ACTIVE` | 非 TRPG 类型 | `V1_AND_LONG_TERM` | 第二垂直切片为隐藏信息、竞争式、回合制桌游。 |
+| `R1-A05` | `ACTIVE` | 桌游创作者内容 | `V1_AND_LONG_TERM` | 非 TRPG 也支持创作者制作和上传；正式发行只附带原创内容。 |
+| `R1-A06` | `ACTIVE` | 人类与 AI 席位 | `V1_AND_LONG_TERM` | 游戏包声明可替换席位；开局前允许真人或 AI 占据包括主持席在内的声明席位。 |
+| `R1-A07` | `ACTIVE` | 界面结构 | `V1_AND_LONG_TERM` | 统一平台外壳与游戏专属结构化面板结合。 |
+| `R1-A08` | `ACTIVE` | 质量标准 | `V1_AND_LONG_TERM` | 两个官方垂直切片均达到接近正式产品质量，不接受纯技术 Demo。 |
+| `R1-A09` | `ACTIVE` | Campaign 容器 | `V1_AND_LONG_TERM` | 平台提供通用 Campaign 容器；官方 TRPG 强制使用，官方桌游可不使用长期进度。 |
+| `R1-A10` | `ACTIVE` | 桌游 AI 水平 | `V1_AND_LONG_TERM` | 官方桌游 AI 首版目标为普通休闲玩家水平。 |
+| `R1-A11` | `ACTIVE` | TRPG 席位规模 | `V1_AND_LONG_TERM` | 席位规模由游戏包声明；官方 TRPG 为一名主持人加 1—4 名玩家。 |
+| `R1-A12` | `ACTIVE` | 主持交接 | `V1_AND_LONG_TERM` | 主持席在当前 Session 内锁定，可在 Session 之间通过显式交接更换。 |
+| `R1-A13` | `ACTIVE` | 角色创建 | `V1_AND_LONG_TERM` | 角色创建由游戏包声明；官方 TRPG 提供预设角色和引导式创建。 |
+| `R1-A14` | `ACTIVE` | 开放沙盒 | `V1_AND_LONG_TERM` | 官方 TRPG 采用开放沙盒，不固定调查、恐怖和战斗的比例或唯一推进顺序。 |
+| `R1-A15` | `ACTIVE` | 区域战斗 | `V1_AND_LONG_TERM` | 战斗形态由包声明；官方 TRPG 使用区域制结构化战斗。 |
+| `R1-A16` | `ACTIVE` | 模组真相边界 | `V1_AND_LONG_TERM` | 关键事实、线索和结局由作者锁定；支线、描述、NPC 应对和局部事件允许 AI 动态生成。 |
+| `R1-A17` | `ACTIVE` | 桌游人数 | `V1_AND_LONG_TERM` | 人数由包声明；官方桌游主要平衡并正式认证 3—4 人。 |
+| `R1-A18` | `ACTIVE` | 桌游时长 | `V1_AND_LONG_TERM` | 时长由包声明；官方桌游正式模式目标为 30—60 分钟。 |
+| `R1-A19` | `ACTIVE` | 隐藏信息 | `V1_AND_LONG_TERM` | 官方桌游采用私人手牌或资源与公共棋盘/公共状态结合。 |
+| `R1-A20` | `ACTIVE` | 时间模式 | `V1_AND_LONG_TERM` | V1 只支持同步在线游玩，可暂停和恢复，不实现异步轮流。 |
+
+## R2
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R2-A01` | `ACTIVE` | 逻辑包分层 | `V1_AND_LONG_TERM` | 游戏系统包、内容包、素材包和 UI 扩展包逻辑分离，并可组合为一次导入的 Bundle。 |
+| `R2-A02` | `ACTIVE` | 创作入口 | `V1_AND_LONG_TERM` | 可视化编辑器为主要入口，同时提供规范化源文件、文本编辑、CLI、编码规范和开发指导。 |
+| `R2-A03` | `ACTIVE` | 规则代码 | `V1_AND_LONG_TERM` | 声明式规则优先；高级逻辑使用受限沙箱代码，不得访问宿主机、密钥、任意网络或无授权数据。 |
+| `R2-A04` | `ACTIVE` | 状态模型 | `V1_AND_LONG_TERM` | 平台维护通用会话外壳；包定义类型化状态；所有有效变化通过命令和事件进入权威日志。 |
+| `R2-A05` | `ACTIVE` | UI 扩展 | `V1_AND_LONG_TERM` | 内置组件优先；高级包可使用受限自定义面板，但不能接管整个平台页面。 |
+| `R2-A06` | `ACTIVE` | AI 契约 | `V1_AND_LONG_TERM` | 游戏包提供结构化 AI 契约，声明角色、视图、动作、工具、目标、约束和评测。 |
+| `R2-A07` | `ACTIVE` | 开放裁定 | `V1_AND_LONG_TERM` | 裁定按类别配置自动执行或人工确认；结果必须结构化、可审计、可回滚。 |
+| `R2-A08` | `ACTIVE` | 版本锁定 | `V1_AND_LONG_TERM` | Campaign 与 Session 锁定精确包版本，只能在安全边界显式升级并先备份迁移。 |
+| `R2-A09` | `ACTIVE` | 依赖锁定 | `V1_AND_LONG_TERM` | 包依赖在安装时锁定精确版本和内容哈希；运行时不跟随最新版本。 |
+| `R2-A10` | `ACTIVE` | 模型能力声明 | `V1_AND_LONG_TERM` | 游戏包声明模型能力要求而不是供应商或具体模型。 |
+| `R2-A11` | `ACTIVE` | 信任等级 | `V1_AND_LONG_TERM` | 区分官方包、受信签名包、私人未验证包和开发包，并设置不同能力上限。 |
+| `R2-A12` | `ACTIVE` | 开发工作区 | `V1_AND_LONG_TERM` | 独立开发工作区可加载未签名、未完成或未认证内容，但不能突破主机、密钥和数据边界。 |
+| `R2-A13` | `ACTIVE` | 私人分享 | `V1_AND_LONG_TERM` | 支持 Bundle 导入导出以及加入私人房间时经明确同意传输所需内容。 |
+| `R2-A14` | `ACTIVE` | 验证状态 | `V1_AND_LONG_TERM` | 包使用草稿、可导入、可游玩、已认证四级状态，并执行结构、权限、恢复和 AI 测试。 |
+| `R2-A15` | `ACTIVE` | 权利元数据 | `V1_AND_LONG_TERM` | 包必须记录作者、来源、版本、许可或权利声明；正式发行仅允许批准清单内容。 |
+
+## R3
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R3-A01` | `ACTIVE` | 总体服务形态 | `V1_AND_LONG_TERM` | 核心采用模块化单体；AI、包验证和高风险长任务使用独立 Worker。 |
+| `R3-A02` | `ACTIVE` | 服务端权威 | `V1_AND_LONG_TERM` | 服务器是游戏最终权威；客户端、AI、包和 UI 只能提交命令。 |
+| `R3-A03` | `ACTIVE` | Session 单写入 | `V1_AND_LONG_TERM` | 每个活跃 Session 使用逻辑单写入者 Actor/状态机按序处理命令。 |
+| `R3-A04` | `ACTIVE` | 持久化顺序 | `V1_AND_LONG_TERM` | 验证后原子写入事件与 Outbox，再更新投影并广播；命令使用幂等 ID。 |
+| `R3-A05` | `ACTIVE` | 断线默认 | `V1_AND_LONG_TERM` | 真人断线时默认暂停需要其参与的流程；AI 接管必须在安全点显式授权。 |
+| `R3-A06` | `ACTIVE` | AI 席位隔离 | `V1_AND_LONG_TERM` | 每个 AI 席位拥有独立身份、权限视图、上下文和记忆。 |
+| `R3-A07` | `ACTIVE` | AI 主持结构 | `V1_AND_LONG_TERM` | 对外只有一个权威 AI 主持席；内部子 Agent 只能建议，不能直接写权威状态。 |
+| `R3-A08` | `ACTIVE` | 分层记忆 | `V1_AND_LONG_TERM` | 采用权威状态、工作上下文、事件摘要、Campaign 长期记忆和席位私有记忆。 |
+| `R3-A09` | `ACTIVE` | 上下文压缩 | `V1_AND_LONG_TERM` | 平台触发结构化压缩，保留来源、事实等级和可见范围；包可扩展字段。 |
+| `R3-A10` | `ACTIVE` | AI 动作提交 | `V1_AND_LONG_TERM` | AI 分离结构化动作与叙事；动作通过权限、规则和状态版本验证后提交。 |
+| `R3-A11` | `ACTIVE` | 模型路由 | `V1_AND_LONG_TERM` | 普通模式按能力自动路由；高级 BYOK 模式允许用户选兼容模型和参数。 |
+| `R3-A12` | `ACTIVE` | 密钥保存 | `V1_AND_LONG_TERM` | BYOK 使用加密凭据库或会话临时模式；原始密钥不得进入包、提示词或普通日志。 |
+| `R3-A13` | `ACTIVE` | 本地模型 V1 服务器路径 | `V1_AND_LONG_TERM` | 支持 OpenAI-compatible、Ollama 适配和经兼容服务器接入的 llama.cpp，并执行健康与能力探测。 |
+| `R3-A14` | `ACTIVE` | 模型失败 | `V1_AND_LONG_TERM` | 有限重试和格式修复；只有用户预授权且能力兼容时才切换后备模型，否则暂停席位。 |
+| `R3-A15` | `ACTIVE` | 审计重放 | `V1_AND_LONG_TERM` | 规则状态由已提交事件确定性重放；记录 AI 外部输入摘要、工具、结构化输出和验证，不保存隐藏推理。 |
+
+## R4
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R4-A01` | `ACTIVE` | 账户与访客 | `V1_AND_LONG_TERM` | 房主、创作者和长期 Campaign 成员必须有账户；受邀者可访客加入单次游戏并后续认领。 |
+| `R4-A02` | `ACTIVE` | 私人房间 | `V1_AND_LONG_TERM` | V1 只支持私人房间、邀请链接和房间代码，不提供公共浏览或陌生人匹配。 |
+| `R4-A03` | `ACTIVE` | 权限角色分离 | `V1_AND_LONG_TERM` | 房间所有者、管理员、当前主持人和席位控制者分别授权。 |
+| `R4-A04` | `ACTIVE` | 邀请不绑席位 | `V1_AND_LONG_TERM` | 支持链接、代码、过期和可选批准；邀请只授予加入资格，不指定席位。 |
+| `R4-A05` | `ACTIVE` | 内容同意 | `V1_AND_LONG_TERM` | 加入时展示包清单、版本、来源、大小、权限和信任等级，用户同意后下载缓存。 |
+| `R4-A06` | `ACTIVE` | 内容边界 | `V1_AND_LONG_TERM` | 提供内容标签、开局边界、安全暂停、退出机制和房间内容强度。 |
+| `R4-A07` | `ACTIVE` | 标准开局 | `V1_AND_LONG_TERM` | 选择游戏与内容、兼容检查、席位、AI、边界、准备门禁后启动。 |
+| `R4-A08` | `ACTIVE` | 席位申请 | `V1_AND_LONG_TERM` | 玩家申请或选择席位，经房主或主持人确认；空位按包规则配置 AI。 |
+| `R4-A09` | `ACTIVE` | AI 配置界面 | `V1_AND_LONG_TERM` | 普通模式显示语义化偏好；高级 BYOK 才显示模型、端点、预算和后备。 |
+| `R4-A10` | `ACTIVE` | 启动硬门禁 | `V1_AND_LONG_TERM` | 内容、依赖、席位、模型、权限和必要准备未通过时不能强制开局。 |
+| `R4-A11` | `ACTIVE` | 无普通观察者 | `V1_AND_LONG_TERM` | V1 不提供一般观察者席位。 |
+| `R4-A12` | `ACTIVE` | 通信频道 | `V1_AND_LONG_TERM` | 支持公共、阵营、席位私密、主持沟通和系统日志频道，由包声明可用范围。 |
+| `R4-A13` | `ACTIVE` | Campaign 成员模型 | `V1_AND_LONG_TERM` | Campaign 成员、角色和 Session 席位控制者分离，可在安全边界调整。 |
+| `R4-A14` | `ACTIVE` | 重连 | `V1_AND_LONG_TERM` | 重连重新验证席位、补齐事件、恢复私有视图和待处理行动，避免重复命令。 |
+| `R4-A15` | `ACTIVE` | 保存与结束产物 | `V1_AND_LONG_TERM` | 每个事件持续保存，安全边界建恢复点；结束后生成摘要、结果、权限过滤日志和导出。 |
+
+## R5
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R5-A01` | `ACTIVE` | 客户端分工 | `V1_AND_LONG_TERM` | Web Player 是唯一正式游玩客户端；桌面应用只提供无代码与混合创作功能。 |
+| `R5-A02` | `ACTIVE` | 移动端 | `V1_AND_LONG_TERM` | V1 不支持手机和平板的正式完整体验。 |
+| `R5-A03` | `ACTIVE` | 部署模式 | `V1_AND_LONG_TERM` | 同一核心代码支持官方托管和自托管。 |
+| `R5-A04` | `ACTIVE` | 自托管基线 | `V1_AND_LONG_TERM` | Linux 单机 Docker Compose 为正式一键部署基线；Windows 通过 WSL2/Docker Desktop。 |
+| `R5-A05` | `ACTIVE` | 租户模型 | `V1_AND_LONG_TERM` | 托管使用工作区/租户隔离；自托管默认主工作区但使用相同权限模型。 |
+| `R5-A06` | `ACTIVE` | 浏览器本地模型设计 | `POST_V1_DESIGN_ACTIVE` | 托管 Web 客户端可直接连接用户明确配置的本机模型端点；该能力后由 R12 延后至 V1 之后。 |
+| `R5-A07` | `ACTIVE` | 自托管模型连接 | `V1_AND_LONG_TERM` | 自托管服务器通过统一模型网关访问明确配置的本机或局域网端点。 |
+| `R5-A08` | `ACTIVE` | 本地权限最小化 | `V1_AND_LONG_TERM` | 本地访问只针对用户明确批准的端点、模型和目录，不自动扫描。 |
+| `R5-A09` | `ACTIVE` | 离线局域网 | `V1_AND_LONG_TERM` | 准备好包、素材和本地模型后，自托管可在无互联网环境运行核心账户、房间和游戏。 |
+| `R5-A10` | `ACTIVE` | 数据归属 | `V1_AND_LONG_TERM` | 权威数据属于当前部署；自托管不依赖强制中央账户或控制平面。 |
+| `R5-A11` | `ACTIVE` | 完整迁移 | `V1_AND_LONG_TERM` | 支持工作区、包、Campaign、Session、角色、事件、恢复点和设置的版本化导出导入，密钥除外。 |
+| `R5-A12` | `ACTIVE` | 对象存储抽象 | `V1_AND_LONG_TERM` | 大型内容使用对象存储抽象；本地目录和 S3-compatible 均可实现。 |
+| `R5-A13` | `ACTIVE` | 一致性备份 | `V1_AND_LONG_TERM` | 提供数据库与对象内容一致性备份、保留、升级前恢复点、恢复验证和 CLI。 |
+| `R5-A14` | `ACTIVE` | 加密边界 | `V1_AND_LONG_TERM` | 使用传输加密、凭据专用加密和部署侧静态保护，不宣称游戏内容端到端加密。 |
+| `R5-A15` | `ACTIVE` | 遥测 | `V1_AND_LONG_TERM` | 默认仅必要运行指标；内容和私密状态默认不外发，自托管默认关闭外发遥测。 |
+| `R5-A16` | `ACTIVE` | 浏览器兼容 | `POST_V1_DESIGN_ACTIVE` | 首版浏览器本地模型设计以 Chromium 桌面为兼容基线。 |
+| `R5-A17` | `ACTIVE` | 本地推理信息限制 | `POST_V1_DESIGN_ACTIVE` | 浏览器本地模型仅能处理本地执行者有权技术接触的推理信息。 |
+| `R5-A18` | `ACTIVE` | 竞争本地计算 | `POST_V1_DESIGN_ACTIVE` | 竞争游戏可使用信任型浏览器本地 AI，但需全员同意且不具严格公平认证。 |
+| `R5-A19` | `ACTIVE` | 多人 TRPG 限制 | `POST_V1_DESIGN_ACTIVE` | 浏览器本地模型不得担任多人 TRPG 的 AI 主持。 |
+| `R5-A20` | `ACTIVE` | 本地执行者断线 | `POST_V1_DESIGN_ACTIVE` | 本地执行者掉线时暂停相关 AI；仅预授权兼容后备模型可接管。 |
+| `R5-A21` | `ACTIVE` | 本地端点向导 | `POST_V1_DESIGN_ACTIVE` | Web 端只连接明确配置的 loopback 端点，不扫描端口、不自动改系统或通配 CORS。 |
+| `R5-A22` | `ACTIVE` | 本地凭据 | `POST_V1_DESIGN_ACTIVE` | 非敏感端点信息可同步；本地认证材料只存当前设备或会话。 |
+| `R5-A23` | `ACTIVE` | 本地执行分配 | `POST_V1_DESIGN_ACTIVE` | 每个浏览器本地 AI 席位明确绑定一个执行者；同一执行者可承担多个隔离席位。 |
+| `R5-A24` | `ACTIVE` | Studio 离线 | `V1_AND_LONG_TERM` | Creator Studio 支持完全离线创建、编辑、验证、预览和导出。 |
+| `R5-A25` | `ACTIVE` | 规范化源项目 | `V1_AND_LONG_TERM` | 规范化源文件和包清单是唯一可移植事实来源；Studio、文本编辑器和 CLI 可往返且不丢未知字段。 |
+
+## R6
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R6-A01` | `ACTIVE` | 桌游 AI 架构 | `V1_AND_LONG_TERM` | 规则系统生成合法动作，包提供目标、启发式和搜索接口，LLM 负责高层意图、风格和解释。 |
+| `R6-A02` | `ACTIVE` | 主持分层计划 | `V1_AND_LONG_TERM` | AI 主持维护 Campaign、Session、场景和 NPC 多层计划；计划可审计但不能改锁定事实。 |
+| `R6-A03` | `ACTIVE` | 生成内容持久化 | `V1_AND_LONG_TERM` | 区分临时叙事、场景状态和 Campaign 持久内容；持久化须通过结构化事件并记录来源。 |
+| `R6-A04` | `ACTIVE` | 真人自主权 | `V1_AND_LONG_TERM` | AI 可建议或解析意图，但未经明确接管授权不得替真人作实质决定。 |
+| `R6-A05` | `ACTIVE` | 席位级模型 | `V1_AND_LONG_TERM` | 每个 AI 席位可独立选择模型并分别满足能力、预算、权限和拓扑要求。 |
+| `R6-A06` | `ACTIVE` | 语义化 AI 配置 | `V1_AND_LONG_TERM` | 包定义谨慎、冒险、协作、叙事密度、策略等级等语义配置，平台映射到底层策略。 |
+| `R6-A07` | `ACTIVE` | 动作后叙事 | `V1_AND_LONG_TERM` | 先验证并提交结构化动作，再生成和流式展示最终叙事。 |
+| `R6-A08` | `ACTIVE` | 历史修正 | `V1_AND_LONG_TERM` | 提交前可重试；提交后只能用纠正事件、恢复点或分支，不能静默覆盖。 |
+| `R6-A09` | `ACTIVE` | 模型认证等级 | `V1_AND_LONG_TERM` | 模型按叙事/NPC、结构化工具、AI 玩家、完整 AI 主持等角色能力认证。 |
+| `R6-A10` | `ACTIVE` | 未认证 BYOK | `V1_AND_LONG_TERM` | 只允许高级私人模式或开发工作区使用，仍受最低安全、权限、预算和输出模式约束。 |
+| `R6-A11` | `ACTIVE` | 主动能力探测 | `V1_AND_LONG_TERM` | 对端点、模型、适配器和提示模板组合主动测试结构化输出、工具、上下文、流式、取消、延迟和视觉。 |
+| `R6-A12` | `ACTIVE` | 指令优先级 | `V1_AND_LONG_TERM` | 平台安全与权限 > 游戏包 AI 契约 > 模组锁定事实 > 房间设置 > 权威状态 > 用户输入/检索数据。 |
+| `R6-A13` | `ACTIVE` | 模型交接 | `V1_AND_LONG_TERM` | 切换模型时生成权限过滤的结构化交接包，不复制全部缓存或扩大秘密。 |
+| `R6-A14` | `ACTIVE` | 多级预算 | `V1_AND_LONG_TERM` | 工作区、房间、Session、席位和任务设置调用、Token、费用、延迟与本地资源预算，硬上限暂停。 |
+| `R6-A15` | `ACTIVE` | 质量门禁 | `V1_AND_LONG_TERM` | 黄金场景、自动评测和运行指标共同决定角色认证；回归时降级或撤销。 |
+
+## R7
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R7-A01` | `ACTIVE` | 项目目录 | `V1_AND_LONG_TERM` | Creator Studio 项目保存为普通目录中的规范化源文件和素材；缓存索引可重建。 |
+| `R7-A02` | `ACTIVE` | 无代码覆盖 | `V1_AND_LONG_TERM` | 官方两个垂直切片的大部分规则、内容和界面可由无代码组件维护，复杂部分可代码扩展。 |
+| `R7-A03` | `ACTIVE` | 混合往返 | `V1_AND_LONG_TERM` | Studio 可视化与手工代码往返；未知扩展保留或只读，冲突用差异界面处理。 |
+| `R7-A04` | `ACTIVE` | 协作范围 | `V1_AND_LONG_TERM` | V1 支持本地项目、Git、显式同步、签入签出和冲突检测，不实现实时共同编辑。 |
+| `R7-A05` | `ACTIVE` | 项目模板 | `V1_AND_LONG_TERM` | 提供最小游戏系统、官方 TRPG、隐藏信息桌游、内容、素材和 UI 扩展模板。 |
+| `R7-A06` | `ACTIVE` | 预览边界 | `V1_AND_LONG_TERM` | Studio 提供隔离本地单人预览；正式多人测试通过 Web Player 私人开发房间。 |
+| `R7-A07` | `ACTIVE` | 热更新 | `V1_AND_LONG_TERM` | 内容、素材和兼容 UI 可热更新；状态模式、核心规则和迁移需重启或显式迁移。 |
+| `R7-A08` | `ACTIVE` | 测试入口 | `V1_AND_LONG_TERM` | 同时提供可视化测试场景、规范化测试 DSL 和 CLI，支持固定随机种子、夹具、无头和 CI。 |
+| `R7-A09` | `ACTIVE` | AI 创作助手 | `V1_AND_LONG_TERM` | 可选本地或 BYOK 助手用于草稿、规则建议、测试和修复建议，所有修改以差异提交。 |
+| `R7-A10` | `ACTIVE` | 创作 AI 权限 | `V1_AND_LONG_TERM` | AI 只访问明确选择的项目文件、字段、素材和工具，不能读取秘密或任意目录。 |
+| `R7-A11` | `ACTIVE` | 素材管线 | `V1_AND_LONG_TERM` | 记录素材哈希、格式、尺寸、来源和权利声明，生成预览和兼容派生文件。 |
+| `R7-A12` | `ACTIVE` | 本地化 | `V1_AND_LONG_TERM` | V1 建立稳定文本 ID、源语言、语言包和回退；官方首发内容只强制简体中文。 |
+| `R7-A13` | `ACTIVE` | 可重复构建 | `V1_AND_LONG_TERM` | 相同规范化源、依赖锁和工具版本产生内容等价且哈希可验证的包。 |
+| `R7-A14` | `ACTIVE` | 认证流程 | `V1_AND_LONG_TERM` | 本地验证、私人测试、自动认证、必要人工审核与签名分阶段执行。 |
+| `R7-A15` | `ACTIVE` | V1 分发 | `V1_AND_LONG_TERM` | 支持本地导出、私人工作区上传、签名和认证元数据；公共市场与商业交易后续决定。 |
+
+## R8
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R8-A01` | `ACTIVE` | 内容优先首页 | `V1_AND_LONG_TERM` | 首页突出继续游戏、快速开始、创建房间和我的游戏；模型和开发设置进入次级页面。 |
+| `R8-A02` | `ACTIVE` | 首次快速开始 | `V1_AND_LONG_TERM` | 新用户可用官方单次 TRPG 推荐席位、AI、角色和安全默认值直接进入。 |
+| `R8-A03` | `ACTIVE` | 交互式教程 | `V1_AND_LONG_TERM` | 每个官方游戏提供可重复交互教程，并在正式游戏提供上下文提示。 |
+| `R8-A04` | `ACTIVE` | 规则渐进披露 | `V1_AND_LONG_TERM` | 当前场景显示相关规则和合法行动，同时提供可搜索完整规则、示例和解释。 |
+| `R8-A05` | `ACTIVE` | 误操作保护 | `V1_AND_LONG_TERM` | 提交前显示合法性和重大后果确认；教程可安全回退，正式历史遵守纠正/恢复/分支。 |
+| `R8-A06` | `ACTIVE` | 共享世界 | `V1_AND_LONG_TERM` | 单次模组与短战役使用同一原创规则和共享世界。 |
+| `R8-A07` | `ACTIVE` | 高复杂度 TRPG | `V1_AND_LONG_TERM` | 官方 TRPG 采用高复杂度模拟规则并参考规则怪谈类抽象概念。 |
+| `R8-A08` | `ACTIVE` | 失败推进线索 | `V1_AND_LONG_TERM` | 核心线索可由合理行动获得；检定影响质量、代价、风险、时间和额外收益，多路径避免卡关。 |
+| `R8-A09` | `ACTIVE` | 沙盒节奏 | `V1_AND_LONG_TERM` | 使用权威时间、威胁和派系进度推动世界，不强制唯一路线。 |
+| `R8-A10` | `ACTIVE` | 重大后果 | `V1_AND_LONG_TERM` | 模组声明后果强度；不可逆结果必须有明确风险信号和规则依据，默认失败推进。 |
+| `R8-A11` | `ACTIVE` | 裁定解释 | `V1_AND_LONG_TERM` | AI 主持展示适用规则、公开输入、骰子/状态结果和结构化依据，不展示秘密或隐藏推理。 |
+| `R8-A12` | `ACTIVE` | 桌游核心机制 | `V1_AND_LONG_TERM` | 官方桌游采用私人手牌/资源、公共区域行动和公开目标竞争。 |
+| `R8-A13` | `SUPERSEDED` | 初始低淘汰原则 | `V1_AND_LONG_TERM` | 原先要求有限干扰且不常规淘汰；后由 R11-A09/R11-A21 针对官方桌游覆盖。 |
+| `R8-A14` | `ACTIVE` | 随机与策略 | `V1_AND_LONG_TERM` | 使用中等且可管理的随机性，玩家可通过信息、资源和行动降低风险，AI 与真人同规则。 |
+| `R8-A15` | `ACTIVE` | 教程模式 | `V1_AND_LONG_TERM` | 桌游教程/快速模式与正式模式共享核心规则，只缩短区域、卡牌、目标和轮数。 |
+
+## R9
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R9-A01` | `ACTIVE` | 世界空间 | `V1_AND_LONG_TERM` | 稳定据点加多个异常地点或案件；单次模组为入口案件，短战役扩大探索范围。 |
+| `R9-A02` | `ACTIVE` | 世界内规则对象 | `V1_AND_LONG_TERM` | 规则采用结构化对象，包含来源、范围、触发、义务/禁令、例外、优先级、后果、可见性和证据。 |
+| `R9-A03` | `ACTIVE` | 规则真假 | `V1_AND_LONG_TERM` | 规则声明可真实、部分真实、过时、错误或敌对伪造；真相与证据路径由作者锁定。 |
+| `R9-A04` | `ACTIVE` | 规则冲突 | `V1_AND_LONG_TERM` | 按范围、来源权威、时间、例外和优先级解析；未解决冲突可成为调查问题。 |
+| `R9-A05` | `ACTIVE` | 违规后果 | `V1_AND_LONG_TERM` | 采用暴露、检测、严重度、反应窗口和后果流程；致命规则需显式配置并强预警。 |
+| `R9-A06` | `ACTIVE` | AI 生成规则 | `V1_AND_LONG_TERM` | 核心规则作者锁定；AI 仅可按预定义模板生成局部、临时或低风险规则。 |
+| `R9-A07` | `ACTIVE` | 角色知识传播 | `V1_AND_LONG_TERM` | 规则知识按角色和席位记录；观察、记录、验证、分享和隐瞒均为游戏行动。 |
+| `R9-A08` | `ACTIVE` | 共享模拟内核 | `V1_AND_LONG_TERM` | 调查、异常、生存、战斗等模块共享类型化状态、命令、事件和效果内核。 |
+| `R9-A09` | `ACTIVE` | 六大子系统 | `V1_AND_LONG_TERM` | 官方规则包含调查证据、异常规则、压力认知、生存资源、社会互动、区域战斗。 |
+| `R9-A10` | `ACTIVE` | 自然语言行动 | `V1_AND_LONG_TERM` | 玩家主要用自然语言声明，由 AI 转为结构化行动草案并在歧义/高影响时确认。 |
+| `R9-A11` | `ACTIVE` | 复杂计算展示 | `V1_AND_LONG_TERM` | 平台自动执行确定性计算，默认简明并可展开规则、输入、修正和事件详情。 |
+| `R9-A12` | `ACTIVE` | 角色结构成长 | `V1_AND_LONG_TERM` | 角色由背景、特质、关系、知识、禁忌、创伤、资源和能力模块构成，成长不只靠等级。 |
+| `R9-A13` | `ACTIVE` | 死亡后重返 | `V1_AND_LONG_TERM` | 死亡角色影响永久保留；玩家当前阶段只读旁观，在下一安全阶段以替代角色加入。 |
+| `R9-A14` | `ACTIVE` | 短战役结构 | `V1_AND_LONG_TERM` | 稳定据点、多案件/异常区域、派系、威胁进度和贯穿谜团构成 3—5 Session 战役。 |
+| `R9-A15` | `ACTIVE` | 复杂度引入 | `V1_AND_LONG_TERM` | 单次模组分阶段引入正式规则，短战役逐步扩展，不维护独立简化规则。 |
+
+## R10
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R10-A01` | `ACTIVE` | 百分骰 | `V1_AND_LONG_TERM` | 基础随机判定使用百分骰下掷并区分成功等级。 |
+| `R10-A02` | `ACTIVE` | 能力三层 | `V1_AND_LONG_TERM` | 角色能力分为核心素质、训练技能和专业特长。 |
+| `R10-A03` | `ACTIVE` | 难度修正 | `V1_AND_LONG_TERM` | 使用难度等级、优势/劣势和有上限的少量数值修正。 |
+| `R10-A04` | `ACTIVE` | 结果等级 | `V1_AND_LONG_TERM` | 区分卓越成功、成功、带代价成功、失败推进和有明确风险条件的灾难性失败。 |
+| `R10-A05` | `ACTIVE` | 对抗协作 | `V1_AND_LONG_TERM` | 对抗比较成功等级与优势；协作指定主要行动者和支援者并产生明确收益/代价。 |
+| `R10-A06` | `ACTIVE` | 有限判定资源 | `V1_AND_LONG_TERM` | 设置专注、意志或应变类有限资源，用于规则内准备、重试和缓解，不改写已提交事实。 |
+| `R10-A07` | `ACTIVE` | 证据对象 | `V1_AND_LONG_TERM` | 证据记录来源、载体、完整性、可靠性、可见性、关联事实、解释和保管关系。 |
+| `R10-A08` | `ACTIVE` | 规则认知 | `V1_AND_LONG_TERM` | 角色使用听闻、观察、推测、测试、交叉验证、反证和过时等认知状态，客观真假隐藏。 |
+| `R10-A09` | `ACTIVE` | 规则试验天赋 | `V1_AND_LONG_TERM` | 正式结构化规则试验仅由特定天赋解锁；无天赋队伍仍须能通过其他路径完成。 |
+| `R10-A10` | `ACTIVE` | 异常检测 | `V1_AND_LONG_TERM` | 规则可配置确定性或概率检测，结合暴露、环境、重复次数和异常状态。 |
+| `R10-A11` | `ACTIVE` | 多维异常风险 | `V1_AND_LONG_TERM` | 区分区域失稳、异常实体注意和角色个人标记/污染。 |
+| `R10-A12` | `ACTIVE` | 异常补救 | `V1_AND_LONG_TERM` | 提供规则定义的预警、反应、纠正和保护；极稀缺具体资源可重试或解除指定后果。 |
+| `R10-A13` | `ACTIVE` | 压力认知 | `V1_AND_LONG_TERM` | 区分急性压力、累积负担、持续创伤/适应和角色私有认知偏差。 |
+| `R10-A14` | `ACTIVE` | 伤势死亡 | `V1_AND_LONG_TERM` | 使用伤势严重度、功能影响、失血和救治窗口；死亡须满足明确阈值或预定义异常规则。 |
+| `R10-A15` | `ACTIVE` | 替代角色追赶 | `V1_AND_LONG_TERM` | 安全阶段引入与战役进度相适应的替代角色；知识、关系和物品仅按规则继承。 |
+| `R10-A16` | `ACTIVE` | 天赋获取 | `V1_AND_LONG_TERM` | 官方规则试验天赋从天赋池抽取，允许全队无人获得且无试验方式，但不能因此卡关。 |
+| `R10-A17` | `ACTIVE` | 试验独立完成 | `V1_AND_LONG_TERM` | 正式规则试验只能由天赋角色单独完成；可消耗珍稀资源获取额外信息或重试。 |
+| `R10-A18` | `ACTIVE` | 异常例外资源形态 | `V1_AND_LONG_TERM` | 使用世界内具体稀缺物品、权限或协议，每种资源限定异常类别和效果。 |
+| `R10-A19` | `ACTIVE` | 死亡逆转窗口 | `V1_AND_LONG_TERM` | 具体资源可在反应窗口重试或事后补偿；其他活着角色可在窗口内消耗适用资源逆转死亡。 |
+| `R10-A20` | `ACTIVE` | 多层时间 | `V1_AND_LONG_TERM` | 维护 Campaign 日历、场景时间、行动时间和战斗轮次。 |
+| `R10-A21` | `ACTIVE` | 负重模型 | `V1_AND_LONG_TERM` | 使用重量/体积等级、携带槽位和取用位置混合模型，关键消耗品记录精确数量。 |
+| `R10-A22` | `ACTIVE` | 生存资源启用 | `V1_AND_LONG_TERM` | 系统提供标准资源类型，模组声明实际启用项并权威跟踪。 |
+| `R10-A23` | `ACTIVE` | 恢复层级 | `V1_AND_LONG_TERM` | 区分安全据点休整、现场休息和紧急救治，严重伤势与创伤跨阶段恢复。 |
+| `R10-A24` | `ACTIVE` | 社会多元解析 | `V1_AND_LONG_TERM` | 社会互动结合技能检定、自然语言、结构化目标、立场、筹码、风险、承诺和代价。 |
+| `R10-A25` | `ACTIVE` | 关系状态 | `V1_AND_LONG_TERM` | 关系使用信任、义务、恐惧、敌意等少量维度并附结构化承诺/标签。 |
+| `R10-A26` | `ACTIVE` | 欺骗 | `V1_AND_LONG_TERM` | 欺骗结合证据、合理性、目标知识和利益；改变相信程度与行动倾向，不改变客观事实。 |
+| `R10-A27` | `ACTIVE` | 真人社会自主权例外 | `V1_AND_LONG_TERM` | 普通社会效果不替真人决定；预定义精神控制等特殊能力判定生效时可在明确范围内直接控制角色行动。 |
+| `R10-A28` | `ACTIVE` | 战斗行动经济 | `V1_AND_LONG_TERM` | 明确轮次和行动顺序；通常有主要行动、机动/准备动作和有限反应。 |
+| `R10-A29` | `ACTIVE` | 区域空间 | `V1_AND_LONG_TERM` | 区域连接图记录相邻、视线、掩体、狭窄、高低差、危险区和撤离路径。 |
+| `R10-A30` | `ACTIVE` | 攻击与 PVE | `V1_AND_LONG_TERM` | 攻击结合成功等级、武器、距离、掩体、护具和具体伤势；PVE 无通用投降，但保留救治、撤离和规则化脱离。 |
+
+## R11
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R11-A01` | `ACTIVE` | 世界关系 | `V1_AND_LONG_TERM` | 桌游与 TRPG 共享原创世界观或品牌意象，但剧情和状态相互独立。 |
+| `R11-A02` | `ACTIVE` | 核心机制 | `V1_AND_LONG_TERM` | 私人手牌与资源、公共地点行动、有限位置竞争和公开目标计分。 |
+| `R11-A03` | `ACTIVE` | 有限非对称 | `V1_AND_LONG_TERM` | 角色或派系具有有限非对称能力和初始条件，但共享核心规则。 |
+| `R11-A04` | `ACTIVE` | 秘密规划 | `V1_AND_LONG_TERM` | 每轮同时秘密规划部分行动，再按公开顺序或优先级解析。 |
+| `R11-A05` | `ACTIVE` | 私人信息 | `V1_AND_LONG_TERM` | 包含私人手牌/资源和少量私人目标；主要胜利路径公开。 |
+| `R11-A06` | `ACTIVE` | 行动点 | `V1_AND_LONG_TERM` | 每轮获得有限行动点，在地点、手牌、能力和干扰之间分配。 |
+| `R11-A07` | `ACTIVE` | 双胜利路径 | `V1_AND_LONG_TERM` | 同时支持公开终局计分和特定秘密目标立即胜利。 |
+| `R11-A08` | `ACTIVE` | 混合随机 | `V1_AND_LONG_TERM` | 随机来自服务器洗牌、抽取、随机事件和骰子；玩家可管理风险。 |
+| `R11-A09` | `ACTIVE` | 高烈度竞争 | `V1_AND_LONG_TERM` | 允许位置争夺、资源摧毁、完全压制和提前淘汰，不设统一竞争烈度上限。 |
+| `R11-A10` | `ACTIVE` | 软追赶 | `V1_AND_LONG_TERM` | 通过边际收益递减、公共机会、位置轮换和多条计分路径形成软追赶。 |
+| `R11-A11` | `ACTIVE` | 人数认证 | `V1_AND_LONG_TERM` | 官方首发严格认证 3—4 人，不承诺双人。 |
+| `R11-A12` | `ACTIVE` | AI 架构与高难度例外 | `V1_AND_LONG_TERM` | 标准 AI 只用席位可见信息；高难度允许读取包逐字段授权的额外秘密。 |
+| `R11-A13` | `ACTIVE` | 沟通交易 | `V1_AND_LONG_TERM` | 允许公共文字交流；私人交易/秘密频道只有规则明确启用时存在。 |
+| `R11-A14` | `ACTIVE` | 扩展方式 | `V1_AND_LONG_TERM` | 内容包可增加卡牌、角色、目标、区域和场景；核心状态/回合改变需新系统包版本和迁移。 |
+| `R11-A15` | `ACTIVE` | 教程缩短 | `V1_AND_LONG_TERM` | 教程保留相同回合、行动、私密信息和计分内核，只减少内容和轮数。 |
+| `R11-A16` | `ACTIVE` | 计划锁定 | `V1_AND_LONG_TERM` | 截止前可修改；最终确认或截止后锁定，全部锁定前不公开。 |
+| `R11-A17` | `ACTIVE` | 解析顺序 | `V1_AND_LONG_TERM` | 使用公开优先级/先攻轨道、行动速度和轮换首位玩家；同级确定性处理。 |
+| `R11-A18` | `ACTIVE` | 秘密胜利检查 | `V1_AND_LONG_TERM` | 当前秘密规划批次全部解析后统一检查立即胜利。 |
+| `R11-A19` | `ACTIVE` | 多秘密胜者 | `V1_AND_LONG_TERM` | 先比较目标显式优先级，再比较公开分数，最后用确定性平局规则。 |
+| `R11-A20` | `ACTIVE` | 秘密目标结构 | `V1_AND_LONG_TERM` | 每名玩家有普通私人目标，少量独立终局型目标提供立即胜利。 |
+| `R11-A21` | `ACTIVE` | 淘汰模式 | `V1_AND_LONG_TERM` | 正式模式从第一轮允许淘汰；快速模式和教程不淘汰。 |
+| `R11-A22` | `ACTIVE` | 淘汰后权限 | `V1_AND_LONG_TERM` | 被淘汰者只读公共状态和公开日志，不能行动、获取新私密信息或影响对局。 |
+| `R11-A23` | `ACTIVE` | 复归 | `V1_AND_LONG_TERM` | 只有明确卡牌、地点或角色能力可使被淘汰者重新进入。 |
+| `R11-A24` | `ACTIVE` | 最低保障 | `V1_AND_LONG_TERM` | 正式模式无统一最低保障；快速模式保留最低有效参与能力。 |
+| `R11-A25` | `ACTIVE` | 快速模式后果 | `V1_AND_LONG_TERM` | 教程与快速模式关闭提前淘汰但保留攻击、干扰和资源损失。 |
+| `R11-A26` | `ACTIVE` | 信息优势字段 | `V1_AND_LONG_TERM` | 高难度额外秘密由游戏系统包为每个难度档逐字段声明。 |
+| `R11-A27` | `ACTIVE` | 启用权限 | `V1_AND_LONG_TERM` | 高难度信息优势由房主开局前启用，开局后不可更改。 |
+| `R11-A28` | `ACTIVE` | 玩家侧标记 | `V1_AND_LONG_TERM` | 玩家侧只显示普通“高难度”，不单独显示信息优势认证或公平标签。 |
+| `R11-A29` | `ACTIVE` | 执行拓扑 | `V1_AND_LONG_TERM` | 浏览器本地模型不能承担信息优势 AI；服务器模型、服务器侧 BYOK 和自托管服务器模型网关可以。 |
+| `R11-A30` | `ACTIVE` | 公开输出隔离 | `V1_AND_LONG_TERM` | AI 可利用授权秘密决策，但公开行动解释、聊天和叙事不得泄露。 |
+
+## R12
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R12-A01` | `ACTIVE` | 首个里程碑 | `V1_AND_LONG_TERM` | 先制作长期保留为自动测试夹具的最小一致性游戏。 |
+| `R12-A02` | `ACTIVE` | 切片顺序 | `V1_AND_LONG_TERM` | 隐藏信息桌游 → TRPG 单次模组 → TRPG 短战役。 |
+| `R12-A03` | `ACTIVE` | 公开门槛 | `V1_AND_LONG_TERM` | 首个切片完成后只做封闭技术预览；两个切片、短战役和基础 Studio 达标后才发布 V1。 |
+| `R12-A04` | `ACTIVE` | Campaign 实施 | `V1_AND_LONG_TERM` | 先完成单次模组，再增加跨 Session 存档、记忆、主持交接和短战役。 |
+| `R12-A05` | `ACTIVE` | 创作工具顺序 | `V1_AND_LONG_TERM` | 先完成包规范、SDK、CLI 和官方源项目，再开发 Studio；Studio 是公开 V1 门槛。 |
+| `R12-A06` | `ACTIVE` | 官方内容验证包体系 | `V1_AND_LONG_TERM` | 两个官方游戏从一开始使用正式包规范和工具链维护，不先硬编码。 |
+| `R12-A07` | `ACTIVE` | AI 拓扑顺序 | `V1_AND_LONG_TERM` | 服务器侧 API/BYOK → 自托管本地模型网关 → 浏览器本地模型。 |
+| `R12-A08` | `ACTIVE` | 浏览器本地模型延期 | `V1_AND_LONG_TERM` | 浏览器本地模型推迟到 V1 发布后。 |
+| `R12-A09` | `ACTIVE` | 私人导入顺序 | `V1_AND_LONG_TERM` | CLI 构建和本地导入 → 私人工作区上传 → Studio 图形流程。 |
+| `R12-A10` | `ACTIVE` | 部署顺序 | `V1_AND_LONG_TERM` | 先建立 Linux Docker Compose 自托管开发基线，再建设托管封闭 Beta；V1 同时提供。 |
+| `R12-A11` | `ACTIVE` | 兼容冻结 | `V1_AND_LONG_TERM` | Alpha 可破坏调整；Beta 冻结包格式和核心存档契约，此后必须迁移。 |
+| `R12-A12` | `ACTIVE` | 原仓库重启 | `V1_AND_LONG_TERM` | 继续使用原仓库并给旧代码打 Tag；该选择后由 R13-A04 收紧为旧代码零迁移。 |
+| `R12-A13` | `ACTIVE` | 源码许可政策 | `V1_AND_LONG_TERM` | 公共源码采用禁止商业使用的源码可用许可。 |
+| `R12-A14` | `ACTIVE` | 里程碑验收 | `V1_AND_LONG_TERM` | 每个主要里程碑必须有可操作 E2E、自动测试、恢复验证和阻塞清单。 |
+| `R12-A15` | `ACTIVE` | 范围冻结 | `V1_AND_LONG_TERM` | R0—R12 形成的 V1 范围冻结；新增功能默认进入 V1.x/V2，除非等量替换。 |
+
+## R13
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R13-A01` | `ACTIVE` | 双重许可方向 | `V1_AND_LONG_TERM` | 公共版本采用非商业许可，项目权利主体可另行授予商业许可。 |
+| `R13-A02` | `ACTIVE` | 许可比较结论 | `V1_AND_LONG_TERM` | 比较 PolyForm 与定制方案后，最终选择原样采用 PolyForm Noncommercial 1.0.0。 |
+| `R13-A03` | `ACTIVE` | 新许可边界 | `V1_AND_LONG_TERM` | 新许可证从重启基线提交开始；旧 Tag 和历史版本保持原法律状态。 |
+| `R13-A04` | `ACTIVE` | 旧代码零迁移 | `V1_AND_LONG_TERM` | 旧代码只作参考，不复制、Cherry-pick、改名迁移或作为新主线脚手架。 |
+| `R13-A05` | `ACTIVE` | 开放贡献时机 | `V1_AND_LONG_TERM` | 完成核心包规范和贡献治理后再开放外部代码贡献。 |
+| `R13-A06` | `ACTIVE` | CLA | `V1_AND_LONG_TERM` | 外部代码贡献使用支持公共非商业发行和独立商业授权的 CLA。 |
+| `R13-A07` | `ACTIVE` | 来源声明 | `V1_AND_LONG_TERM` | 贡献者必须声明第三方代码、素材和生成式 AI 来源并保证拥有贡献权利。 |
+| `R13-A08` | `ACTIVE` | 资产分开授权 | `V1_AND_LONG_TERM` | 程序代码、官方内容、文档、商标、第三方素材和用户内容分别治理。 |
+| `R13-A09` | `ACTIVE` | 依赖许可治理 | `V1_AND_LONG_TERM` | 建立许可证允许清单、SBOM、自动扫描和人工例外审查。 |
+| `R13-A10` | `ACTIVE` | 强 Copyleft | `V1_AND_LONG_TERM` | 强 Copyleft 和其他源码可用依赖默认禁止进入核心发行物，除非完成兼容与义务审查。 |
+| `R13-A11` | `ACTIVE` | 创作者共同所有权目标 | `V1_AND_LONG_TERM` | 符合条件的创作者原创上传内容由项目权利主体与创作者共同拥有。 |
+| `R13-A12` | `ACTIVE` | 商标 | `V1_AND_LONG_TERM` | 代码许可不授予商标权；派生版本须使用不同名称和标志。 |
+| `R13-A13` | `ACTIVE` | 主分支保护 | `V1_AND_LONG_TERM` | main 受保护，正常变更必须经 PR、自动测试和审查，紧急绕过有审计。 |
+| `R13-A14` | `ACTIVE` | 公开时机 | `V1_AND_LONG_TERM` | 最小一致性游戏和许可审计通过后再公开新主线源码。 |
+| `R13-A15` | `ACTIVE` | 发行来源证明 | `V1_AND_LONG_TERM` | 正式发行提供签名 Tag、源码/二进制哈希、SBOM、依赖许可清单、工具链和可重复构建记录。 |
+| `R13-A16` | `ACTIVE` | 权利主体 | `V1_AND_LONG_TERM` | 项目权利主体由用户本人作为自然人担任。 |
+| `R13-A17` | `ACTIVE` | 程序代码许可 | `V1_AND_LONG_TERM` | 程序代码原样采用 PolyForm Noncommercial 1.0.0，并通过独立商业许可证处理商用。 |
+| `R13-A18` | `ACTIVE` | 宽泛非商业机构使用 | `V1_AND_LONG_TERM` | 接受 PolyForm 对教育、公共研究、政府和慈善组织的宽泛非商业授权。 |
+| `R13-A19` | `ACTIVE` | 非商业修改分发 | `V1_AND_LONG_TERM` | 允许第三方在遵守许可和通知要求下修改并非商业分发程序。 |
+| `R13-A20` | `ACTIVE` | 商业授权方式 | `V1_AND_LONG_TERM` | 商业代码许可证由项目权利主体逐案谈判和签发。 |
+| `R13-A21` | `ACTIVE` | 共有触发 | `V1_AND_LONG_TERM` | 创作者明确选择提交认证或平台分发并签署协议时才触发共同所有权。 |
+| `R13-A22` | `ACTIVE` | 自托管私人导入 | `V1_AND_LONG_TERM` | 自托管实例中的私人导入不转移所有权，只授予运行、存储和私人传输必要许可。 |
+| `R13-A23` | `ACTIVE` | 共有范围 | `V1_AND_LONG_TERM` | 共有只覆盖提交者拥有并有权转让的原创源文件、内容和素材，排除背景 IP 与第三方成分。 |
+| `R13-A24` | `ACTIVE` | 共有份额 | `V1_AND_LONG_TERM` | 项目权利主体与创作者各持有合格原创内容 50% 权益。 |
+| `R13-A25` | `ACTIVE` | 授权分工 | `V1_AND_LONG_TERM` | 项目权利主体可进行平台发行和商业授权；创作者可自行非商业使用，独立商业授权按协议限制。 |
+| `R13-A26` | `ACTIVE` | 商业收入 | `V1_AND_LONG_TERM` | 创作者内容商业收入逐项通过交易附表谈判。 |
+| `R13-A27` | `ACTIVE` | 内容撤回 | `V1_AND_LONG_TERM` | 撤回后停止新的展示和分发；已有房间、存档、发行物和已签发许可继续有效。 |
+| `R13-A28` | `ACTIVE` | 精神权利 | `V1_AND_LONG_TERM` | 保留署名；创作者签署协议时对列明的格式转换、修复、本地化、审核和合理改编预先书面同意。 |
+| `R13-A29` | `ACTIVE` | 签署资格 | `V1_AND_LONG_TERM` | 只有经身份确认的成年人或法人实体可签署，并声明第三方与 AI 来源。 |
+| `R13-A30` | `ACTIVE` | 适用法律 | `V1_AND_LONG_TERM` | 适用澳大利亚联邦及昆士兰州法律；先协商、再调解、最终由约定法院处理。 |
+
+## R14
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R14-A01` | `ACTIVE` | Due 参考范围 | `V1_AND_LONG_TERM` | 仅参考 Due 的组件、路由、中间件和 Actor Mailbox 思想，不直接依赖或复制 Due。 |
+| `R14-A02` | `ACTIVE` | 单节点进程 | `V1_AND_LONG_TERM` | 使用单权威 platformd 加同主机 workerd 与 lua-runner；不组成集群或横向复制。 |
+| `R14-A03` | `ACTIVE` | 组件生命周期 | `V1_AND_LONG_TERM` | 采用显式依赖、context、错误返回、健康状态和反向停止顺序的组件生命周期。 |
+| `R14-A04` | `ACTIVE` | Singleton Guard | `V1_AND_LONG_TERM` | 启动时通过部署级唯一锁防止误启动两个权威服务器，不建设自动选主。 |
+| `R14-A05` | `ACTIVE` | 优雅维护 | `V1_AND_LONG_TERM` | 维护或升级时停止新 Session、完成/取消任务、提交事件、创建恢复点并有状态关闭。 |
+| `R14-A06` | `ACTIVE` | 依赖注入 | `V1_AND_LONG_TERM` | 配置来自环境变量/文件和数据库；组件显式依赖注入，不用全局 Service Locator 或配置中心。 |
+| `R14-A07` | `ACTIVE` | 外部协议 | `V1_AND_LONG_TERM` | 只提供 HTTPS REST/OpenAPI 与 WebSocket，不引入 TCP/KCP 客户端协议。 |
+| `R14-A08` | `ACTIVE` | WebSocket 信封 | `V1_AND_LONG_TERM` | 使用包含协议版本、kind、route、seq、请求/关联 ID、Session、席位和状态版本的统一信封。 |
+| `R14-A09` | `ACTIVE` | 静态路由中间件 | `V1_AND_LONG_TERM` | 外部命令静态注册并固定执行协议、身份、工作区、席位、幂等、状态版本、限流与预算中间件。 |
+| `R14-A10` | `ACTIVE` | 进程内 Gateway | `V1_AND_LONG_TERM` | Gate 落地为 platformd 内部 Gateway 与 ConnectionHub，不拆独立 Gate 服务。 |
+| `R14-A11` | `ACTIVE` | Actor 范围 | `V1_AND_LONG_TERM` | 仅活跃 Game Session 使用 Actor；账户、工作区、包和普通 Campaign 管理使用应用服务。 |
+| `R14-A12` | `ACTIVE` | 有界 Mailbox | `V1_AND_LONG_TERM` | SessionActor 使用有界 Mailbox 串行处理命令，饱和时明确背压，Panic 隔离恢复。 |
+| `R14-A13` | `ACTIVE` | Actor 生命周期 | `V1_AND_LONG_TERM` | SessionActor 惰性激活、空闲休眠，从事件和快照恢复，不永久驻留。 |
+| `R14-A14` | `ACTIVE` | 任务与 Outbox | `V1_AND_LONG_TERM` | 使用 PostgreSQL 持久任务表和 Transactional Outbox；不引入 Redis/NATS/Kafka 等。 |
+| `R14-A15` | `ACTIVE` | Lua 版本 | `V1_AND_LONG_TERM` | 游戏包公开语言标准采用 Lua 5.5 Platform Profile。 |
+| `R14-A16` | `ACTIVE` | VM 实现解耦 | `V1_AND_LONG_TERM` | Lua 语言契约与具体 VM 解耦，M1 比较官方 C Lua、纯 Go 实现等并通过统一兼容测试。 |
+| `R14-A17` | `ACTIVE` | Lua 执行位置 | `V1_AND_LONG_TERM` | Lua 在同主机独立 lua-runner 进程池中，通过 Unix Socket/Named Pipe/stdio 本地 IPC。 |
+| `R14-A18` | `ACTIVE` | 包数据与脚本分离 | `V1_AND_LONG_TERM` | 清单 TOML、模式 JSON Schema、内容 JSON/YAML、可执行规则 Lua、UI 声明/受限前端扩展分离。 |
+| `R14-A19` | `ACTIVE` | Host Callback 变更模型 | `V1_AND_LONG_TERM` | Lua 可返回事件，也可通过 Go Host Callback 修改事务工作区或请求受控数据库操作；不能直接持有连接。 |
+| `R14-A20` | `ACTIVE` | Lua 确定性 | `V1_AND_LONG_TERM` | 权威逻辑随机和时间只来自 Host API，稳定遍历/序列化，关键数值使用整数或固定精度，AI 不在确定性函数内同步调用。 |
+| `R14-A21` | `ACTIVE` | Lua 依赖 | `V1_AND_LONG_TERM` | 允许包内与锁定依赖 Lua 模块和 SDK；禁止运行时 LuaRocks、原生 C 模块、动态库、宿主路径和 Bytecode。 |
+| `R14-A22` | `ACTIVE` | Session 长期 VM | `V1_AND_LONG_TERM` | 每个 Session 拥有独立长期 Lua VM，Session 结束后清理；运行时关键事实不得只存在 VM 内存。 |
+| `R14-A23` | `ACTIVE` | Lua Host API 工具链 | `V1_AND_LONG_TERM` | 提供最小能力 Host API、LuaLS、格式化、静态检查、固定种子、回滚、重放、预算、Studio 调试和 CI 认证。 |
+| `R14-A24` | `ACTIVE` | 数据库 | `V1_AND_LONG_TERM` | PostgreSQL + 显式 SQL；关系模型承载平台数据，追加事件表为权威历史，JSONB 仅用于受模式约束边界。 |
+| `R14-A25` | `ACTIVE` | 存储搜索 | `V1_AND_LONG_TERM` | 本地目录/S3-compatible 对象存储抽象与 PostgreSQL 全文检索；V1 不引入独立搜索集群。 |
+| `R14-A26` | `ACTIVE` | Web Player 技术 | `V1_AND_LONG_TERM` | React + TypeScript + Vite。 |
+| `R14-A27` | `ACTIVE` | Creator Studio 技术 | `V1_AND_LONG_TERM` | Wails + Go + React/TypeScript，稳定版本审查后锁定。 |
+| `R14-A28` | `ACTIVE` | Monorepo | `V1_AND_LONG_TERM` | 单一 Monorepo，根 Go Module、pnpm Workspace、共享 Schema、官方游戏与平台同仓。 |
+
+## R15
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R15-A01` | `ACTIVE` | 事务工作区 | `V1_AND_LONG_TERM` | Lua 状态与数据库修改先进入命令级事务工作区，通过验证后统一提交。 |
+| `R15-A02` | `ACTIVE` | 完整回滚 | `V1_AND_LONG_TERM` | Lua 执行失败时回滚本次状态、数据库、事件、任务、Outbox 和运行时修改。 |
+| `R15-A03` | `ACTIVE` | 异步外部任务 | `V1_AND_LONG_TERM` | 权威规则执行期间不得同步等待 AI 或外部服务，只能创建持久任务和 Continuation。 |
+| `R15-A04` | `ACTIVE` | 私人包数据库 | `V1_AND_LONG_TERM` | 普通创作者包只能使用平台提供的模式化命名空间数据接口。 |
+| `R15-A05` | `ACTIVE` | 受信包关系操作 | `V1_AND_LONG_TERM` | 官方和受信签名包可声明私有关系表和命名数据库操作，但仍由 Go 执行且无原始连接。 |
+| `R15-A06` | `ACTIVE` | 运行期 DDL 禁止 | `V1_AND_LONG_TERM` | Session 运行期间禁止 DDL；结构变化只在安装/升级迁移阶段。 |
+| `R15-A07` | `ACTIVE` | 一致性读取 | `V1_AND_LONG_TERM` | 同一命令使用一致性视图和事务覆盖层，并能读取自己的暂存写入。 |
+| `R15-A08` | `ACTIVE` | Lua 全局非权威 | `V1_AND_LONG_TERM` | Lua 全局变量只作缓存和临时状态；权威事实必须进共享状态、事件或检查点。 |
+| `R15-A09` | `ACTIVE` | VM 恢复 | `V1_AND_LONG_TERM` | 重启时重新创建 VM，加载包并恢复只含允许基本类型的显式运行时检查点。 |
+| `R15-A10` | `ACTIVE` | Coroutine | `V1_AND_LONG_TERM` | Coroutine 不直接跨命令保存调用栈；长期等待使用持久 Continuation/Task Token。 |
+| `R15-A11` | `ACTIVE` | 内存压力重建 | `V1_AND_LONG_TERM` | 尚未结束 Session 的 VM 仅在成功创建与当前状态一致的检查点后可提前重建。 |
+| `R15-A12` | `ACTIVE` | 信任分级数据库能力 | `V1_AND_LONG_TERM` | 官方/受信包可使用审核关系操作；私人包仅受限命名空间。 |
+| `R15-A13` | `ACTIVE` | 生产 Debug 禁令 | `V1_AND_LONG_TERM` | 生产环境所有包一律不加载 Lua Debug Library、远程 REPL 或动态调试组件。 |
+| `R15-A14` | `ACTIVE` | 回调预算 | `V1_AND_LONG_TERM` | 每次执行限制回调次数、递归、CPU、内存、时间、查询结果、状态补丁、事件和输出。 |
+| `R15-A15` | `ACTIVE` | 分级审计 | `V1_AND_LONG_TERM` | Host Callback 分 AUDIT-0 至 AUDIT-3 记录；生产最低审计不可关闭并按等级脱敏。 |
+
+## R16
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R16-A01` | `ACTIVE` | 不可变包 ID | `V1_AND_LONG_TERM` | package_id 使用发布者命名空间和稳定短名，改显示名称或版本不改变内部身份。 |
+| `R16-A02` | `ACTIVE` | 发布物身份 | `V1_AND_LONG_TERM` | 语义版本、内容哈希和构建来源共同标识发布物；Session 锁定精确哈希。 |
+| `R16-A03` | `ACTIVE` | TOML 清单 | `V1_AND_LONG_TERM` | 包清单使用版本化 TOML，复杂模式使用 JSON Schema。 |
+| `R16-A04` | `ACTIVE` | 能力授权 | `V1_AND_LONG_TERM` | 包声明所需最小能力，安装时按信任等级验证授予，未声明/未批准能力不可用。 |
+| `R16-A05` | `ACTIVE` | 认证绑定 | `V1_AND_LONG_TERM` | 签名与认证绑定内容哈希、依赖锁、Lua Profile、Host API 和测试套件版本。 |
+| `R16-A06` | `ACTIVE` | 标准 Lua 入口 | `V1_AND_LONG_TERM` | 平台定义版本化生命周期、命令、视图、检查点、恢复、Continuation、迁移和清理入口。 |
+| `R16-A07` | `ACTIVE` | Host API 版本 | `V1_AND_LONG_TERM` | 包声明 Host API 主版本和允许次版本范围，不兼容或缺能力时拒绝加载。 |
+| `R16-A08` | `ACTIVE` | 命令事件模式 | `V1_AND_LONG_TERM` | 每个命令和事件有稳定模式 ID、版本和 JSON Schema，并生成 Go/TypeScript/Lua 辅助。 |
+| `R16-A09` | `ACTIVE` | 事件不可改写 | `V1_AND_LONG_TERM` | 已发布事件语义不得复用或静默修改；通过新版本、兼容投影和 Upcaster 读取旧历史。 |
+| `R16-A10` | `ACTIVE` | 安全错误模型 | `V1_AND_LONG_TERM` | 对外使用稳定错误代码和安全消息，Lua 栈、SQL和私密状态只在独立诊断中受控查看。 |
+| `R16-A11` | `ACTIVE` | 私人包数据模型 | `V1_AND_LONG_TERM` | 私人包命名空间为带 JSON Schema、版本和声明式索引的文档/键值模型。 |
+| `R16-A12` | `ACTIVE` | 关系扩展清单 | `V1_AND_LONG_TERM` | 官方/受信包通过包内受审查关系模式、迁移和命名操作清单安装。 |
+| `R16-A13` | `ACTIVE` | 升级迁移 | `V1_AND_LONG_TERM` | 停止新 Session、建备份/恢复点、隔离副本预演、原子迁移、验证事件/快照/检查点后启用。 |
+| `R16-A14` | `ACTIVE` | 降级策略 | `V1_AND_LONG_TERM` | 不承诺通用自动降级；回退通过恢复升级前备份、旧包和旧依赖锁。 |
+| `R16-A15` | `ACTIVE` | 运行中版本锁 | `V1_AND_LONG_TERM` | 活跃 Session 只在结束或包声明且平台验证的安全边界显式升级。 |
+
+## R17
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R17-A01` | `ACTIVE` | library 包 | `V1_AND_LONG_TERM` | 增加 library 包类型用于可复用 Lua 模块、模式和 UI 组件，不能独立启动 Session。 |
+| `R17-A02` | `ACTIVE` | 版本范围与锁 | `V1_AND_LONG_TERM` | 源清单可声明兼容范围，构建生成精确版本、哈希和 Feature 锁文件。 |
+| `R17-A03` | `ACTIVE` | 多版本共存 | `V1_AND_LONG_TERM` | 部署可安装同包多个版本，但单个 Session 依赖图只能解析一个精确版本。 |
+| `R17-A04` | `ACTIVE` | 拒绝循环依赖 | `V1_AND_LONG_TERM` | 构建和安装阶段拒绝直接或间接循环依赖。 |
+| `R17-A05` | `ACTIVE` | 可选依赖 Feature | `V1_AND_LONG_TERM` | 允许显式可选依赖与 Feature，启用状态进入哈希、锁、认证和 Session 包锁。 |
+| `R17-A06` | `ACTIVE` | 原子导入安装 | `V1_AND_LONG_TERM` | 隔离暂存、解包安全、清单/模式、依赖、签名/权利、测试后原子安装。 |
+| `R17-A07` | `ACTIVE` | 内容寻址存储 | `V1_AND_LONG_TERM` | 包对象按内容哈希不可变保存，拒绝路径穿越、链接逃逸、压缩炸弹和超限文件。 |
+| `R17-A08` | `ACTIVE` | 物理与逻辑分层 | `V1_AND_LONG_TERM` | 部署物理对象、工作区逻辑安装、房间选择、Session 精确锁定分层。 |
+| `R17-A09` | `ACTIVE` | 卸载保留 | `V1_AND_LONG_TERM` | 有 Campaign、Session、恢复点、依赖、审计或法律引用时只能停用，不能物理删除。 |
+| `R17-A10` | `ACTIVE` | 跨工作区去重 | `V1_AND_LONG_TERM` | 相同哈希可物理去重，但权限、许可、可见性和安装状态独立。 |
+| `R17-A11` | `ACTIVE` | 双签名 | `V1_AND_LONG_TERM` | 发布者签名证明来源完整性，平台认证签名证明测试结果，两者独立。 |
+| `R17-A12` | `ACTIVE` | 发布者密钥链 | `V1_AND_LONG_TERM` | 发布者密钥版本化，支持轮换、撤销、泄露状态和继任证明。 |
+| `R17-A13` | `ACTIVE` | 未签名包 | `V1_AND_LONG_TERM` | 只可在开发工作区和明确提示的私人房间使用，不得成为受信或官方发行内容。 |
+| `R17-A14` | `ACTIVE` | 信任提升 | `V1_AND_LONG_TERM` | 签名、自动认证、必要人工审核后才可提升；官方包还需独立发行允许清单。 |
+| `R17-A15` | `ACTIVE` | 强制安全撤销 | `V1_AND_LONG_TERM` | 签名/认证安全撤销或严重安全问题时，阻止新使用并立即终止所有受影响现有 Session，保留证据等待审计。 |
+
+## R18
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R18-A01` | `ACTIVE` | Compose 拓扑 | `V1_AND_LONG_TERM` | 正式 Compose 分别运行 platformd、workerd、lua-runner、PostgreSQL 和对象存储，固定同一主机且不水平复制。 |
+| `R18-A02` | `ACTIVE` | TLS 反向代理 | `V1_AND_LONG_TERM` | 支持外部反向代理并提供官方入口配置；核心只信任配置代理和标准转发头。 |
+| `R18-A03` | `ACTIVE` | 生产秘密 | `V1_AND_LONG_TERM` | 秘密通过环境变量引用和只读文件提供，不写仓库、普通配置、命令行或日志。 |
+| `R18-A04` | `ACTIVE` | 数据库迁移 | `V1_AND_LONG_TERM` | 维护模式和迁移锁下执行；迁移前预检与备份，失败保持不可写并恢复旧一致状态。 |
+| `R18-A05` | `ACTIVE` | 签名升级 | `V1_AND_LONG_TERM` | 验证签名发行清单、健康预检、备份、迁移、启动、自动验收，失败恢复旧版本。 |
+| `R18-A06` | `ACTIVE` | 完整备份 | `V1_AND_LONG_TERM` | 覆盖 PostgreSQL、对象清单、包、素材、恢复点、法律协议、签名和加密凭据库；主密钥独立。 |
+| `R18-A07` | `ACTIVE` | 分层保留 | `V1_AND_LONG_TERM` | 每日、每周、每月可配置保留，并支持安全事件、法律和内容争议的独立保留锁。 |
+| `R18-A08` | `ACTIVE` | 备份加密 | `V1_AND_LONG_TERM` | 所有可搬离主机的备份必须加密，恢复密钥与备份分离；本机备份支持默认加密。 |
+| `R18-A09` | `ACTIVE` | 恢复演练 | `V1_AND_LONG_TERM` | 定期在隔离环境自动恢复，验证数据库、对象哈希、包依赖、事件重放和最小一致性游戏。 |
+| `R18-A10` | `ACTIVE` | 无高可用承诺 | `V1_AND_LONG_TERM` | V1 不承诺零停机或商业高可用 SLA；公开可测量的备份新鲜度和恢复演练结果。 |
+| `R18-A11` | `ACTIVE` | 统一可观测性 | `V1_AND_LONG_TERM` | 结构化日志、指标和追踪使用统一关联 ID，支持本地查看和可选标准导出。 |
+| `R18-A12` | `ACTIVE` | 日志分类 | `V1_AND_LONG_TERM` | 运行日志、安全审计、玩家日志、Lua 回调审计和取证证据分别权限、脱敏和保留。 |
+| `R18-A13` | `ACTIVE` | 安全分级 | `V1_AND_LONG_TERM` | 建立严重度与自动动作矩阵；密钥泄露、沙箱逃逸、数据库越权、大规模秘密泄露触发 R17 强制终止。 |
+| `R18-A14` | `ACTIVE` | 取证存储 | `V1_AND_LONG_TERM` | 证据加密、内容寻址、访问审计和保留锁；原始证据不可覆盖，分析结果分离。 |
+| `R18-A15` | `ACTIVE` | 审计后恢复 | `V1_AND_LONG_TERM` | 只能由授权管理员依据正式结论选择误报后继、修复包迁移、可信恢复点或永久归档；原终止 Session 不复活。 |
+
+## R19
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R19-A01` | `ACTIVE` | 统一命令事实源 | `V1_AND_LONG_TERM` | 所有构建、测试、迁移、扫描和打包命令由仓库内版本化入口提供，CI 只调用。 |
+| `R19-A02` | `ACTIVE` | 官方 CI | `V1_AND_LONG_TERM` | GitHub Actions 为官方 CI，但核心脚本平台无关并可本地运行。 |
+| `R19-A03` | `ACTIVE` | 分支模型 | `V1_AND_LONG_TERM` | 受保护 main、短生命周期功能分支和 PR，不维护长期 develop。 |
+| `R19-A04` | `ACTIVE` | 环境分层 | `V1_AND_LONG_TERM` | 明确本地、CI、集成测试、封闭 Staging 和 Production；生产数据不直接复制到低环境。 |
+| `R19-A05` | `ACTIVE` | 兼容矩阵 | `V1_AND_LONG_TERM` | 服务器 Linux amd64；Web Player 验证 Windows/Linux/macOS Chromium；Studio 验证 Windows/Linux。 |
+| `R19-A06` | `ACTIVE` | 产物晋级 | `V1_AND_LONG_TERM` | 构建一次、签名一次，同一哈希产物从 Alpha 晋级 Beta、RC、Stable。 |
+| `R19-A07` | `ACTIVE` | 测试层级 | `V1_AND_LONG_TERM` | Go 单元/集成、Lua 包、TypeScript 组件、协议契约和完整 E2E 分层。 |
+| `R19-A08` | `ACTIVE` | 真实依赖测试 | `V1_AND_LONG_TERM` | 数据库和对象存储集成使用真实临时隔离环境，不以纯 Mock 代替事务、迁移、恢复。 |
+| `R19-A09` | `ACTIVE` | Lua 生产 Profile | `V1_AND_LONG_TERM` | 所有包通过生产 Profile 的语法、禁用 API、确定性、预算、回滚、检查点和重放测试。 |
+| `R19-A10` | `ACTIVE` | 固定重放场景 | `V1_AND_LONG_TERM` | 事件重放与状态不变量使用人工编写的版本化固定场景，不使用生成式完整状态机探索。 |
+| `R19-A11` | `ACTIVE` | AI 测试分层 | `V1_AND_LONG_TERM` | 普通 PR 使用确定性模拟/录制响应；真实模型在手工、定时或认证流水线。 |
+| `R19-A12` | `ACTIVE` | Studio 测试 | `V1_AND_LONG_TERM` | 测试源文件往返、未知字段、外部冲突、离线构建、Lua 预览与 CLI 构建等价。 |
+| `R19-A13` | `ACTIVE` | 供应链扫描 | `V1_AND_LONG_TERM` | PR 和发行执行秘密、漏洞、许可证、SBOM、静态、容器和包扫描，例外有期限。 |
+| `R19-A14` | `ACTIVE` | Fuzz 范围 | `V1_AND_LONG_TERM` | 持续 Fuzz WebSocket 信封、包导入、解包、Schema、Host Callback、事件反序列化和迁移入口。 |
+| `R19-A15` | `ACTIVE` | 单节点性能 | `V1_AND_LONG_TERM` | 在固定参考硬件设置 Session、连接、Mailbox、Lua、数据库和 AI 队列预算并持续测试。 |
+| `R19-A16` | `ACTIVE` | 故障注入 | `V1_AND_LONG_TERM` | 按风险需要执行，高风险变更针对性测试，正式发布前完整故障注入强制。 |
+| `R19-A17` | `ACTIVE` | Flaky 治理 | `V1_AND_LONG_TERM` | Required Check 不得靠重跑掩盖失败；Flaky Test 登记、隔离影响并限期修复。 |
+| `R19-A18` | `ACTIVE` | 发布门禁 | `V1_AND_LONG_TERM` | RC 必须通过兼容、迁移、恢复、两个游戏、Lua、安全、SBOM、签名来源和人工批准；阻塞项为零。 |
+
+## R20
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R20-A01` | `ACTIVE` | README 边界 | `V1_AND_LONG_TERM` | 根 README 只负责概览、状态、快速启动和权威文档索引。 |
+| `R20-A02` | `ACTIVE` | 决策持久化 | `V1_AND_LONG_TERM` | R0—R20 转化为版本化决策登记和主题规范，原聊天不作为开发事实来源。 |
+| `R20-A03` | `ACTIVE` | 历史文档 | `V1_AND_LONG_TERM` | 活动主线只保存现行规范；旧方案由 Git Tag 与历史保存，不建并列 legacy 设计树。 |
+| `R20-A04` | `ACTIVE` | 双向追踪 | `V1_AND_LONG_TERM` | 建立决策、需求、规范、里程碑、实现模块和测试 ID 的双向追踪。 |
+| `R20-A05` | `ACTIVE` | 机器契约 | `V1_AND_LONG_TERM` | JSON Schema、OpenAPI、事件模式和 Lua Host API 描述为机器事实来源并检查生成漂移。 |
+| `R20-A06` | `ACTIVE` | Codex 自主路线 | `V1_AND_LONG_TERM` | Codex 自主决定工程施工路线与批次拆分，但不能改变产品路线、V1 范围、外部契约和门禁。 |
+| `R20-A07` | `ACTIVE` | 单一批次目标 | `V1_AND_LONG_TERM` | 每个批次只解决一个主要交付目标，不无约束混入重构、依赖升级或目录清理。 |
+| `R20-A08` | `ACTIVE` | 变更停止 | `V1_AND_LONG_TERM` | 触及 R0—R19、扩大 V1 或修改外部契约时停止并形成显式变更提案。 |
+| `R20-A09` | `ACTIVE` | 交付完成定义 | `V1_AND_LONG_TERM` | 代码、测试、文档、迁移、验收证据和已知问题清单完整才算批次交付。 |
+| `R20-A10` | `ACTIVE` | 失败修复轮次 | `V1_AND_LONG_TERM` | 验收失败保留原批次编号并建立受限修复轮次，只修复登记问题。 |
+| `R20-A11` | `ACTIVE` | 设计与提示词分离 | `V1_AND_LONG_TERM` | 设计/审计文档与 .codex 施工提示词分开，通过稳定 ID 引用。 |
+| `R20-A12` | `ACTIVE` | 施工提示词合同 | `V1_AND_LONG_TERM` | 每个提示词包含目标、非目标、阅读顺序、允许/禁止范围、不变量、步骤、测试、交付和停止条件。 |
+| `R20-A13` | `ACTIVE` | Codex 自主权边界 | `V1_AND_LONG_TERM` | 可在明确范围内实现和修复；架构、公共契约、许可或范围变化必须停止报告。 |
+| `R20-A14` | `ACTIVE` | 独立验收 | `V1_AND_LONG_TERM` | 施工与严格验收使用独立提示词和上下文；验收默认只读。 |
+| `R20-A15` | `ACTIVE` | 上下文压缩 | `V1_AND_LONG_TERM` | 使用版本化项目摘要、决策索引、里程碑状态和批次 Handoff，不依赖完整聊天历史。 |
+| `R20-A16` | `ACTIVE` | 分支提交 | `V1_AND_LONG_TERM` | 每个批次用短生命周期分支，逻辑提交，验收通过后才合并 main。 |
+| `R20-A17` | `ACTIVE` | 修复可追踪 | `V1_AND_LONG_TERM` | 修复提交关联原验收问题 ID，不混入无关改进，原失败记录保留。 |
+| `R20-A18` | `ACTIVE` | 验收证据 | `V1_AND_LONG_TERM` | 机器报告作为 CI Artifact；仓库只保存稳定摘要、规范和必要基线。 |
+
+## R21
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R21-A01` | `ACTIVE` | 旧项目冻结 Tag | `M0_GOVERNANCE` | 创建签名注释 Tag，记录旧 HEAD、原许可状态、构建状态和文件清单。 |
+| `R21-A02` | `ACTIVE` | 重启分支 | `M0_GOVERNANCE` | 从冻结旧项目创建短生命周期 restart/v1-baseline 分支，通过验收后合并 main。 |
+| `R21-A03` | `ACTIVE` | 活动树清理 | `M0_GOVERNANCE` | Tag 后删除活动树全部旧代码、测试、迁移、设计和 Codex 提示词，不建 legacy 目录。 |
+| `R21-A04` | `ACTIVE` | GitHub 历史 | `M0_GOVERNANCE` | 保留 Issue、PR、Release 和历史记录；旧未完成 Issue 标记旧范围并关闭。 |
+| `R21-A05` | `ACTIVE` | M0 骨架 | `M0_GOVERNANCE` | M0 建立最小可构建 Monorepo 骨架但不实现业务功能。 |
+| `R21-A06` | `ACTIVE` | 许可起点 | `M0_GOVERNANCE` | 新主线第一份新文件起使用 PolyForm，明确旧 Tag 不受追溯影响。 |
+| `R21-A07` | `ACTIVE` | 决策机器源 | `M0_GOVERNANCE` | DECISION_REGISTER.yaml 为机器来源并生成 DECISION_INDEX.md。 |
+| `R21-A08` | `ACTIVE` | 文档语言 | `M0_GOVERNANCE` | 简体中文为权威自然语言；代码标识、Schema ID 和公开 API 使用英文。 |
+| `R21-A09` | `ACTIVE` | 文档生成 | `M0_GOVERNANCE` | 仓库内 Go 工具从 YAML/Schema/OpenAPI 生成索引与参考文档并检查漂移。 |
+| `R21-A10` | `ACTIVE` | 法律草案状态 | `M0_GOVERNANCE` | M0 放正式 PolyForm 和许可边界；CLA、共有协议等未经律师审核文件标记非发行草案。 |
+| `R21-A11` | `ACTIVE` | 首组 Codex 资产 | `M0_GOVERNANCE` | M0 同时生成重启施工、独立验收提示词和失败修复模板。 |
+| `R21-A12` | `ACTIVE` | M1 自主计划 | `M0_GOVERNANCE` | M0 完成后 Codex 根据 M1 出口门禁生成首份路线，无需人工固定全部批次。 |
+| `R21-A13` | `ACTIVE` | 路线更新 | `M0_GOVERNANCE` | 每次独立验收后可自主更新未开始批次，记录原因且不改冻结契约。 |
+| `R21-A14` | `ACTIVE` | M0 范围 | `M0_GOVERNANCE` | M0 只做冻结、许可、文档、生成工具、空骨架、CI 和治理，不实现账户/房间/Session/Lua/游戏。 |
+| `R21-A15` | `ACTIVE` | M0 合并门禁 | `M0_GOVERNANCE` | 独立上下文验证 Tag、零迁移、许可、文档追踪、可构建骨架和 CI 后才合并。 |
+
+## R22
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R22-A01` | `ACTIVE` | 仓库与 Module | `M0_GOVERNANCE` | 保持仓库名 TRPG_PLATFORM；Go Module 为 github.com/zyc14588/TRPG_PLATFORM。 |
+| `R22-A02` | `ACTIVE` | Tag 签名方式 | `M0_GOVERNANCE` | 可用 SSH 或 GPG 签名注释 Tag，记录签名类型、指纹和验证结果。 |
+| `R22-A03` | `ACTIVE` | Commit 签名 | `M0_GOVERNANCE` | 所有进入 main 的 Commit 必须具有可验证签名。 |
+| `R22-A04` | `ACTIVE` | Go Module 组织 | `M0_GOVERNANCE` | M0 使用单一根 Go Module，只有独立发布组件确有需要时再拆分。 |
+| `R22-A05` | `ACTIVE` | 工具版本 | `M0_GOVERNANCE` | 精确锁定 Go、Node、pnpm、Just、Wails、前端工具和容器基础镜像，禁止 latest。 |
+| `R22-A06` | `ACTIVE` | 统一命令入口 | `M0_GOVERNANCE` | projectctl 实现工程逻辑；Justfile 取代 Bash/PowerShell 包装并作为开发者、Codex、CI 统一入口。 |
+| `R22-A07` | `ACTIVE` | Web 骨架 | `M0_GOVERNANCE` | M0 初始化可构建 React/TypeScript/Vite 应用，仅显示基线状态。 |
+| `R22-A08` | `ACTIVE` | Studio 骨架 | `M0_GOVERNANCE` | 许可和稳定版本审查后初始化 Wails+Go+React 骨架，不实现创作功能。 |
+| `R22-A09` | `ACTIVE` | lua-runner 骨架 | `M0_GOVERNANCE` | M0 只实现进程骨架、版本、健康和稳定退出码，Lua VM 留到 M1。 |
+| `R22-A10` | `ACTIVE` | Compose 骨架 | `M0_GOVERNANCE` | M0 提供开发 Compose 和健康定义，不建业务 Schema 或生产能力。 |
+| `R22-A11` | `ACTIVE` | 生成工具入口 | `M0_GOVERNANCE` | projectctl docs generate/check 统一处理决策、追踪、Schema 参考和漂移。 |
+| `R22-A12` | `ACTIVE` | M0 CI 矩阵 | `M0_GOVERNANCE` | Linux 完整基线；Windows 验证 projectctl/Go/Web/Studio；macOS 验证 Web 构建。 |
+| `R22-A13` | `ACTIVE` | SPDX | `M0_GOVERNANCE` | 所有适用新源码添加 SPDX；生成文件记录生成器和来源。 |
+| `R22-A14` | `ACTIVE` | Legacy 元数据 | `M0_GOVERNANCE` | 建立 Legacy Milestone/标签并关闭旧未完成 Issue，不自动转为 V1 任务。 |
+| `R22-A15` | `ACTIVE` | 非 Squash 合并 | `M0_GOVERNANCE` | M0 PR 保留多个逻辑清晰的签名 Commit，非 Squash 合并。 |
+| `R22-A16` | `ACTIVE` | Codex 渐进披露 | `M0_GOVERNANCE` | Codex 专用文档采用 L0—L5 渐进式披露，当前任务只读取最小权威集合。 |
+| `R22-A17` | `ACTIVE` | Codex 自主进度 | `M0_GOVERNANCE` | Codex 可拆分、合并、重排尚未开始批次，但不得改冻结范围、公共契约或里程碑门禁。 |
+
+## R23
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R23-A01` | `ACTIVE` | 单一会话入口 | `M0_GOVERNANCE` | 所有 Codex 会话从 SESSION_START.md 识别 PLAN/IMPLEMENT/ACCEPT/REPAIR 并路由。 |
+| `R23-A02` | `ACTIVE` | Front Matter | `M0_GOVERNANCE` | 所有活动 .codex 文档包含文档 ID、模式、权威等级、依赖、状态和来源 Commit。 |
+| `R23-A03` | `ACTIVE` | 精确路由 | `M0_GOVERNANCE` | projectctl codex route 按模式、里程碑、批次生成绑定哈希的精确阅读集合。 |
+| `R23-A04` | `ACTIVE` | 不复制规范 | `M0_GOVERNANCE` | 施工提示词只引用稳定文档/章节/Schema ID，不复制权威规范正文。 |
+| `R23-A05` | `ACTIVE` | 上下文过大 | `M0_GOVERNANCE` | 先缩小章节，仍超过预算则停止并拆分批次，不能截断要求。 |
+| `R23-A06` | `ACTIVE` | 拆分计划批次 | `M0_GOVERNANCE` | Codex 可拆分尚未开始批次，保持同一里程碑、单一目标和出口门禁并记录变化。 |
+| `R23-A07` | `ACTIVE` | 合并计划批次 | `M0_GOVERNANCE` | Codex 可合并尚未开始批次，但合并后仍单一目标且不扩大范围。 |
+| `R23-A08` | `ACTIVE` | 契约冻结 | `M0_GOVERNANCE` | 批次进入 IMPLEMENTING 前冻结；之后扩大目标需停止并建变更或新批次。 |
+| `R23-A09` | `ACTIVE` | 无需逐次批准 | `M0_GOVERNANCE` | 未触发变更门禁时，Codex 可自主更新未开始路线。 |
+| `R23-A10` | `ACTIVE` | 强制重评 | `M0_GOVERNANCE` | 每次独立验收、阻塞、依赖变化和里程碑状态变化后重评路线。 |
+| `R23-A11` | `ACTIVE` | 验收阅读顺序 | `M0_GOVERNANCE` | 契约 → 需求/机器契约 → Diff → 测试证据 → 最后 Handoff。 |
+| `R23-A12` | `ACTIVE` | 路由过期 | `M0_GOVERNANCE` | 阅读图绑定 Commit 和文档哈希；不一致时停止并重新生成。 |
+| `R23-A13` | `ACTIVE` | Handoff 降权 | `M0_GOVERNANCE` | Handoff 只作导航和施工声明，不覆盖规范、代码、测试和独立验收。 |
+| `R23-A14` | `ACTIVE` | Codex 文档检查 | `M0_GOVERNANCE` | CI 检查规范复制、无界阅读、失效引用和超过阈值的提示词膨胀。 |
+| `R23-A15` | `ACTIVE` | Just Codex 入口 | `M0_GOVERNANCE` | Justfile 提供 codex-plan/route/check/accept，实际逻辑由 projectctl。 |
+
+## R24
+
+| 决策 ID | 状态 | 标题 | 范围 | 结论 |
+|---|---|---|---|---|
+| `R24-A01` | `ACTIVE` | 一次性 Bootstrap | `M0_GOVERNANCE` | 首次 M0 使用仓库外版本化 M0_BOOTSTRAP_PACKET，记录哈希；完成后由新 .codex 接管。 |
+| `R24-A02` | `ACTIVE` | M0 自主步骤 | `M0_GOVERNANCE` | Codex 可在固定 M0 范围内自主规划逻辑步骤和 Commit，最终形成一个 restart/v1-baseline PR。 |
+| `R24-A03` | `ACTIVE` | 清理授权 | `M0_GOVERNANCE` | 完成远端签名 Tag 验证和冻结证据后，Codex 可直接清空活动树而无需逐目录确认。 |
+| `R24-A04` | `ACTIVE` | 签名失败停止 | `M0_GOVERNANCE` | 签名能力不可用或远端验证失败时必须停止，不降级轻量/未签名 Tag。 |
+| `R24-A05` | `ACTIVE` | GitHub 权限 | `M0_GOVERNANCE` | 仅在获得仓库限定权限时用 gh 操作元数据；不足则生成清单并标记 BLOCKED。 |
+| `R24-A06` | `ACTIVE` | 路由运行目录 | `M0_GOVERNANCE` | 具体路由清单写入被 Git 忽略的 .codex/runtime，作为可重建短期产物。 |
+| `R24-A07` | `ACTIVE` | 稳定 Section ID | `M0_GOVERNANCE` | 规范章节使用显式稳定 Section ID，路由不使用易变行号。 |
+| `R24-A08` | `ACTIVE` | 上下文预算 | `M0_GOVERNANCE` | 路由材料软上限 55%、硬上限 70%，为代码、工具和输出保留空间。 |
+| `R24-A09` | `ACTIVE` | 过期路由限制 | `M0_GOVERNANCE` | 过期后只能查看原因，不得施工或形成验收结论，必须重新生成。 |
+| `R24-A10` | `ACTIVE` | 批次 ID | `M0_GOVERNANCE` | 里程碑内单调递增且永不复用；拆分、合并、取消保留墓碑。 |
+| `R24-A11` | `ACTIVE` | 受控并行 | `M0_GOVERNANCE` | 默认顺序施工；只有 parallel_safe、范围互斥、依赖独立时才允许独立分支并行。 |
+| `R24-A12` | `ACTIVE` | 计划写权限 | `M0_GOVERNANCE` | 只有 PLAN 模式可修改 MILESTONE_PLAN；其他模式只读。 |
+| `R24-A13` | `ACTIVE` | 干净工作树 | `M0_GOVERNANCE` | 除 .codex/runtime 产物外，未提交修改存在时拒绝新施工/验收路由。 |
+| `R24-A14` | `ACTIVE` | 生成文件 | `M0_GOVERNANCE` | 生成文件只能通过 projectctl generate 更新，手工编辑由 CI 阻塞。 |
+| `R24-A15` | `ACTIVE` | M0 到 M1 | `M0_GOVERNANCE` | 仅在 M0 独立 PASS、合并 main 后，由全新 PLAN 上下文生成 M1 路线。 |
+

@@ -1,0 +1,853 @@
+schema_version: 1
+baseline: R0-R24
+requirement_count: 77
+requirements:
+- requirement_id: REQ-PRODUCT-001
+  title: AI 原生桌面游戏平台
+  statement: 平台必须让用户选择游戏和模组，并以真人/AI混合席位完成 TRPG 或其他桌游。
+  source_decisions:
+  - R0-A01
+  - R0-A02
+  - R0-A03
+  - R0-A04
+  - R0-A05
+  owning_spec: SPEC-PRODUCT-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PRODUCT-002
+  title: 双垂直切片
+  statement: V1 必须交付一个官方 TRPG 和一个官方隐藏信息桌游的近正式产品质量切片。
+  source_decisions:
+  - R0-A06
+  - R0-A07
+  - R0-A08
+  - R0-A09
+  - R0-A10
+  - R0-A11
+  - R0-A12
+  - R0-A13
+  - R0-A14
+  owning_spec: SPEC-V1-SCOPE-001
+  milestone: M5
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PRODUCT-003
+  title: 长期 Campaign
+  statement: V1 必须支持跨 Session 的 Campaign、角色、世界状态、记忆和恢复。
+  source_decisions:
+  - R0-A08
+  - R1-A03
+  - R1-A09
+  owning_spec: SPEC-V1-SCOPE-001
+  milestone: M5
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PLAYER-001
+  title: 私人房间
+  statement: V1 只提供私人房间、邀请链接和房间代码。
+  source_decisions:
+  - R4-A02
+  - R4-A04
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PLAYER-002
+  title: 权限角色分离
+  statement: 房间所有者、管理员、主持人和席位控制者必须分别授权。
+  source_decisions:
+  - R4-A03
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PLAYER-003
+  title: 访客单局
+  statement: 受邀访客可加入单次游戏并后续认领，但不能拥有长期资产或保存凭据。
+  source_decisions:
+  - R4-A01
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PLAYER-004
+  title: 启动硬门禁
+  statement: 依赖、内容同意、席位、模型、权限和准备不完整时不能开局。
+  source_decisions:
+  - R4-A05
+  - R4-A07
+  - R4-A10
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PLAYER-005
+  title: 断线重连
+  statement: 断线不得静默 AI 接管；重连必须恢复游标、私有视图和待处理行动。
+  source_decisions:
+  - R3-A05
+  - R4-A14
+  owning_spec: SPEC-SESSION-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PLAYER-006
+  title: 安全工具
+  statement: 内容边界、安全暂停、退出和 AI 生成约束必须在游戏中持续生效。
+  source_decisions:
+  - R4-A06
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PLAYER-007
+  title: 权限过滤导出
+  statement: 游戏结果和日志必须按请求者权限过滤并支持恢复点。
+  source_decisions:
+  - R4-A15
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-001
+  title: 官方内容
+  statement: 官方 TRPG 必须包含一个 2—4 小时单次模组和一个 3—5 Session 短战役。
+  source_decisions:
+  - R1-A02
+  - R1-A03
+  - R8-A06
+  owning_spec: SPEC-TRPG-001
+  milestone: M5
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-002
+  title: 规则异常三层模型
+  statement: 客观异常法则、世界内声明和角色知识必须独立建模。
+  source_decisions:
+  - R9-A02
+  - R9-A03
+  - R9-A04
+  - R9-A05
+  - R9-A06
+  - R9-A07
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-003
+  title: 六类子系统
+  statement: 调查、异常、压力、生存、社会和区域战斗必须共享命令事件内核。
+  source_decisions:
+  - R9-A08
+  - R9-A09
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-004
+  title: 自然语言行动
+  statement: 玩家自然语言必须经 AI 转换为结构化草案，高影响或歧义动作需要确认。
+  source_decisions:
+  - R9-A10
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-005
+  title: 失败推进
+  statement: 核心线索不能因一次失败永久丢失，检定产生质量、代价、风险和时间差异。
+  source_decisions:
+  - R8-A08
+  - R10-A04
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-006
+  title: 规则试验门禁
+  statement: 正式规则试验仅由天赋角色单独执行；无天赋队伍仍能完成内容。
+  source_decisions:
+  - R10-A09
+  - R10-A16
+  - R10-A17
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-007
+  title: 异常风险
+  statement: 区域失稳、实体注意和个人污染独立跟踪，违规采用暴露/检测/反应/后果链。
+  source_decisions:
+  - R9-A05
+  - R10-A10
+  - R10-A11
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-008
+  title: 死亡逆转
+  statement: 致命结果必须有规则化逆转窗口，适用珍稀资源可由活着角色消耗并留下补偿事件。
+  source_decisions:
+  - R10-A12
+  - R10-A18
+  - R10-A19
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-009
+  title: 精神控制例外
+  statement: 普通社会效果不替真人决定；特殊精神控制仅按预定义能力和结构化范围生效。
+  source_decisions:
+  - R10-A24
+  - R10-A27
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-010
+  title: 区域战斗
+  statement: 区域连接、视线、掩体、行动经济和具体伤势进入权威状态；PVE 无通用投降。
+  source_decisions:
+  - R10-A28
+  - R10-A29
+  - R10-A30
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-011
+  title: 死亡后替代
+  statement: 角色终局死亡后原玩家当前阶段只读旁观，下个安全边界引入不继承元知识的替代角色。
+  source_decisions:
+  - R9-A13
+  - R10-A15
+  owning_spec: SPEC-TRPG-001
+  milestone: M5
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-TRPG-012
+  title: AI 主持事实边界
+  statement: AI 主持不得改变作者锁定真相，计划不是事实，裁定解释不得泄露秘密。
+  source_decisions:
+  - R1-A16
+  - R6-A02
+  - R8-A11
+  owning_spec: SPEC-AI-001
+  milestone: M4
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-BOARD-001
+  title: 3—4 人正式模式
+  statement: 官方桌游必须分别验证三人和四人模式。
+  source_decisions:
+  - R1-A17
+  - R11-A11
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-BOARD-002
+  title: 秘密规划
+  statement: 计划锁定前可修改，锁定后保密并按公开确定性顺序解析。
+  source_decisions:
+  - R11-A04
+  - R11-A16
+  - R11-A17
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-BOARD-003
+  title: 双胜利
+  statement: 批次结束统一检查秘密立即胜利，公开终局按确定性计分和平局规则。
+  source_decisions:
+  - R11-A07
+  - R11-A18
+  - R11-A19
+  - R11-A20
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-BOARD-004
+  title: 混合随机
+  statement: 洗牌、抽取、事件和骰子由服务器权威生成并可重放。
+  source_decisions:
+  - R11-A08
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-BOARD-005
+  title: 正式淘汰
+  statement: 正式模式可从第一轮淘汰且无统一最低保障；快速/教程模式不淘汰并保底。
+  source_decisions:
+  - R11-A21
+  - R11-A22
+  - R11-A23
+  - R11-A24
+  - R11-A25
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-BOARD-006
+  title: 淘汰只读与复归
+  statement: 淘汰者只看公共信息，只有明确规则效果可复归。
+  source_decisions:
+  - R11-A22
+  - R11-A23
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-BOARD-007
+  title: 标准公平 AI
+  statement: 标准 AI 只使用席位可见信息、合法动作、相同随机和资源规则。
+  source_decisions:
+  - R11-A12
+  owning_spec: SPEC-AI-001
+  milestone: M3
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-BOARD-008
+  title: 高难度信息优势
+  statement: 高难度由房主开局前锁定，可按字段清单读取额外秘密，且不能用浏览器本地模型。
+  source_decisions:
+  - R11-A26
+  - R11-A27
+  - R11-A28
+  - R11-A29
+  - R11-A30
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-CREATOR-001
+  title: 规范化源项目
+  statement: Creator Studio、CLI 和文本编辑器必须以普通目录规范化源文件为共同事实来源。
+  source_decisions:
+  - R5-A25
+  - R7-A01
+  - R7-A03
+  owning_spec: SPEC-CREATOR-001
+  milestone: M6
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-CREATOR-002
+  title: 离线 Studio
+  statement: Studio 在无账户和网络时可创建、编辑、验证、预览和导出。
+  source_decisions:
+  - R5-A24
+  owning_spec: SPEC-CREATOR-001
+  milestone: M6
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-CREATOR-003
+  title: 无代码覆盖
+  statement: 官方两个游戏的大部分规则、内容和 UI 可无代码维护。
+  source_decisions:
+  - R7-A02
+  owning_spec: SPEC-CREATOR-001
+  milestone: M6
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-CREATOR-004
+  title: 未知字段与冲突
+  statement: Studio 不得静默删除未知字段或覆盖外部修改。
+  source_decisions:
+  - R7-A03
+  owning_spec: SPEC-CREATOR-001
+  milestone: M6
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-CREATOR-005
+  title: 测试 DSL
+  statement: Studio、CLI 和 CI 支持固定种子、夹具、权限视图和无头测试。
+  source_decisions:
+  - R7-A08
+  owning_spec: SPEC-CREATOR-001
+  milestone: M6
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PACKAGE-001
+  title: 分层包模型
+  statement: 必须支持 game-system、content、assets、ui-extension、library 和 Bundle。
+  source_decisions:
+  - R2-A01
+  - R17-A01
+  owning_spec: SPEC-PACKAGE-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PACKAGE-002
+  title: 不可变身份与发布物
+  statement: 包 ID 不可变，发布物由语义版本、内容哈希、构建来源和依赖锁标识。
+  source_decisions:
+  - R16-A01
+  - R16-A02
+  owning_spec: SPEC-PACKAGE-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PACKAGE-003
+  title: 能力最小授权
+  statement: 包能力必须声明、按信任等级批准并在执行上下文收窄。
+  source_decisions:
+  - R16-A04
+  - R2-A11
+  owning_spec: SPEC-PACKAGE-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PACKAGE-004
+  title: 精确依赖与单版本
+  statement: 构建生成精确依赖锁；单 Session 同 package_id 只加载一个版本，循环依赖拒绝。
+  source_decisions:
+  - R17-A02
+  - R17-A03
+  - R17-A04
+  - R17-A05
+  owning_spec: SPEC-PACKAGE-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PACKAGE-005
+  title: 原子安装
+  statement: 包必须经过隔离安全、模式、依赖、权利、签名和测试后原子安装。
+  source_decisions:
+  - R17-A06
+  - R17-A07
+  owning_spec: SPEC-PACKAGE-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PACKAGE-006
+  title: 双签名信任
+  statement: 发布者签名和平台认证签名独立，信任提升不可自报。
+  source_decisions:
+  - R17-A11
+  - R17-A12
+  - R17-A13
+  - R17-A14
+  owning_spec: SPEC-PACKAGE-TRUST-001
+  milestone: M7
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PACKAGE-007
+  title: 安全撤销
+  statement: 安全撤销必须立即终止所有受影响 Session，回滚未提交变更并保全证据。
+  source_decisions:
+  - R17-A15
+  - R18-A13
+  - R18-A15
+  owning_spec: SPEC-INCIDENT-001
+  milestone: M7
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-PACKAGE-008
+  title: 升级兼容
+  statement: 活跃 Session 锁定精确包；升级在安全边界预演、备份、原子迁移并保留原事件。
+  source_decisions:
+  - R16-A09
+  - R16-A10
+  - R16-A11
+  - R16-A12
+  - R16-A13
+  - R16-A14
+  - R16-A15
+  owning_spec: SPEC-MIGRATION-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-SESSION-001
+  title: 服务端权威
+  statement: 客户端、AI、Lua 和 UI 扩展不能直接写权威状态。
+  source_decisions:
+  - R3-A02
+  - R3-A04
+  owning_spec: SPEC-SESSION-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-SESSION-002
+  title: 单写入 Actor
+  statement: 每个活跃 Session 有一个有界 Mailbox Actor 串行处理命令。
+  source_decisions:
+  - R3-A03
+  - R14-A11
+  - R14-A12
+  owning_spec: SPEC-SESSION-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-SESSION-003
+  title: 先提交后广播
+  statement: 事件和 Outbox 原子提交后才广播，命令幂等。
+  source_decisions:
+  - R3-A04
+  owning_spec: SPEC-SESSION-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-LUA-001
+  title: Lua 5.5 Profile
+  statement: 游戏包使用版本化 Lua 5.5 Profile，源码-only，生产禁用危险库和 Debug。
+  source_decisions:
+  - R14-A15
+  - R15-A13
+  owning_spec: SPEC-LUA-RUNTIME-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-LUA-002
+  title: Session 专属 VM
+  statement: 每个 Session 独立长期 VM，结束销毁，故障可从权威状态和检查点重建。
+  source_decisions:
+  - R14-A22
+  - R15-A09
+  - R15-A11
+  owning_spec: SPEC-LUA-RUNTIME-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-LUA-003
+  title: 事务工作区与回滚
+  statement: Lua/Host Callback 的状态、数据库、事件、任务和 Outbox 全部命令级原子提交或回滚。
+  source_decisions:
+  - R14-A19
+  - R15-A01
+  - R15-A02
+  owning_spec: SPEC-HOST-CALLBACK-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-LUA-004
+  title: 数据库能力分级
+  statement: 私人包仅模式化命名空间；官方/受信包仅命名关系操作；所有包运行期无 DDL/原始 SQL。
+  source_decisions:
+  - R15-A04
+  - R15-A05
+  - R15-A06
+  - R15-A07
+  owning_spec: SPEC-HOST-CALLBACK-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-LUA-005
+  title: 异步 Continuation
+  statement: AI/外部任务不能在权威事务中同步等待，必须用持久 Continuation 回到 Actor。
+  source_decisions:
+  - R15-A03
+  - R15-A10
+  owning_spec: SPEC-LUA-RUNTIME-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-LUA-006
+  title: 资源和分级审计
+  statement: Lua 与回调必须受硬预算和 AUDIT 分级记录；生产最低审计不可关闭。
+  source_decisions:
+  - R15-A14
+  - R15-A15
+  owning_spec: SPEC-LUA-RUNTIME-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-AI-001
+  title: AI 席位隔离
+  statement: 每个 AI 席位的身份、视图、记忆和工具独立。
+  source_decisions:
+  - R3-A06
+  owning_spec: SPEC-AI-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-AI-002
+  title: 模型认证
+  statement: 模型按通用角色和游戏专属黄金场景认证，配置变化使结果失效。
+  source_decisions:
+  - R6-A09
+  - R6-A11
+  - R6-A15
+  owning_spec: SPEC-AI-001
+  milestone: M3
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-AI-003
+  title: 预算与失败
+  statement: 多级预算硬上限暂停；失败仅有限重试和预授权兼容后备。
+  source_decisions:
+  - R3-A14
+  - R6-A14
+  owning_spec: SPEC-AI-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-DATA-001
+  title: 事件权威
+  statement: 事件日志为权威历史，快照和投影可重建，重放不重新调用模型。
+  source_decisions:
+  - R3-A15
+  - R16-A09
+  owning_spec: SPEC-DATA-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-DATA-002
+  title: 租户和对象隔离
+  statement: 所有数据有工作区边界；对象哈希去重不共享权限。
+  source_decisions:
+  - R5-A05
+  - R17-A10
+  owning_spec: SPEC-DATA-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-DATA-003
+  title: 完整导出迁移
+  statement: 工作区、包、Campaign、Session、事件和恢复点可校验导入导出，密钥除外。
+  source_decisions:
+  - R5-A11
+  owning_spec: SPEC-DATA-001
+  milestone: M7
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-SEC-001
+  title: 安全硬边界
+  statement: 身份、席位、隐藏信息、租户、沙箱、密钥和审计不能由包或高级模式关闭。
+  source_decisions:
+  - R2-A11
+  - R2-A12
+  - R2-A13
+  - R2-A14
+  - R2-A15
+  - R3-A02
+  - R3-A03
+  - R3-A04
+  - R3-A05
+  - R3-A06
+  owning_spec: SPEC-SECURITY-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-SEC-002
+  title: 内容寻址取证
+  statement: SEC-0 证据必须加密、不可覆盖、内容寻址、访问审计并保留锁。
+  source_decisions:
+  - R18-A13
+  - R18-A14
+  owning_spec: SPEC-INCIDENT-001
+  milestone: M7
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-OPS-001
+  title: 单节点 Compose
+  statement: 同一主机运行分进程服务，只有一个权威 platformd，不水平复制。
+  source_decisions:
+  - R14-A02
+  - R18-A01
+  owning_spec: SPEC-DEPLOYMENT-001
+  milestone: M2
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-OPS-002
+  title: 一致性备份恢复
+  statement: 完整备份覆盖数据库与对象并定期隔离恢复演练最小游戏。
+  source_decisions:
+  - R18-A06
+  - R18-A07
+  - R18-A08
+  - R18-A09
+  - R18-A10
+  owning_spec: SPEC-OPS-001
+  milestone: M7
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-OPS-003
+  title: 签名升级
+  statement: 升级必须验证发行清单、备份、迁移、自动验收，失败恢复旧一致状态。
+  source_decisions:
+  - R18-A02
+  - R18-A03
+  - R18-A04
+  - R18-A05
+  owning_spec: SPEC-OPS-SELFHOST-001
+  milestone: M7
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-QUALITY-001
+  title: 统一命令入口
+  statement: 本地和 CI 通过 Just 调用 projectctl，同一逻辑可复现。
+  source_decisions:
+  - R19-A01
+  - R22-A06
+  owning_spec: SPEC-RELEASE-GATE-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-QUALITY-002
+  title: 跨平台矩阵
+  statement: 按 Linux 服务端、Windows/Linux/macOS Chromium Web、Windows/Linux Studio 矩阵验证。
+  source_decisions:
+  - R19-A05
+  - R22-A12
+  owning_spec: SPEC-RELEASE-GATE-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-QUALITY-003
+  title: 固定重放与边界 Fuzz
+  statement: 完整状态重放使用固定场景；协议/包/Schema/回调/迁移持续 Fuzz。
+  source_decisions:
+  - R19-A10
+  - R19-A14
+  owning_spec: SPEC-QUALITY-001
+  milestone: M1
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-QUALITY-004
+  title: RC 发布门禁
+  statement: RC 必须通过完整兼容、迁移、恢复、官方游戏、Lua、安全、SBOM、签名和人工批准。
+  source_decisions:
+  - R19-A18
+  owning_spec: SPEC-RELEASE-GATE-001
+  milestone: M8
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-GOV-001
+  title: 机器决策与追踪
+  statement: R0—R24 决策、要求和测试必须机器可读并生成索引，无漂移。
+  source_decisions:
+  - R20-A02
+  - R20-A03
+  - R20-A04
+  - R20-A05
+  - R21-A07
+  - R21-A09
+  owning_spec: SPEC-DOCUMENT-AUTHORITY-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-GOV-002
+  title: Codex 渐进披露
+  statement: Codex 通过模式路由、章节级阅读和 55/70% 预算施工，不批量读取全部文档。
+  source_decisions:
+  - R22-A16
+  - R23-A01
+  - R23-A02
+  - R23-A03
+  - R23-A04
+  - R23-A05
+  - R24-A06
+  - R24-A07
+  - R24-A08
+  - R24-A09
+  owning_spec: SPEC-IMPLEMENTATION-GOV-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-GOV-003
+  title: 自主规划边界
+  statement: Codex 可改未开始工程路线，但只有 PLAN 可写计划，批次施工前冻结并触及顶层时停止。
+  source_decisions:
+  - R20-A06
+  - R20-A08
+  - R22-A17
+  - R23-A06
+  - R23-A07
+  - R23-A08
+  - R23-A09
+  - R23-A10
+  - R24-A10
+  - R24-A11
+  - R24-A12
+  owning_spec: SPEC-IMPLEMENTATION-GOV-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-GOV-004
+  title: 独立严格验收
+  statement: 施工和验收独立；验收客观证据优先；失败用受限修复轮次。
+  source_decisions:
+  - R20-A10
+  - R20-A14
+  - R20-A17
+  - R23-A11
+  - R23-A13
+  owning_spec: SPEC-ACCEPTANCE-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-M0-001
+  title: 签名冻结
+  statement: 清理旧树前必须远端验证签名注释 Tag 和冻结证据。
+  source_decisions:
+  - R21-A01
+  - R24-A03
+  - R24-A04
+  owning_spec: SPEC-M0-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-M0-002
+  title: 旧代码零迁移
+  statement: 活动树必须清除旧代码、测试、迁移、文档和提示词，不建 legacy 树。
+  source_decisions:
+  - R13-A04
+  - R21-A03
+  owning_spec: SPEC-M0-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-M0-003
+  title: 新许可边界
+  statement: 新文件使用 PolyForm，旧 Tag 保持实际原许可状态，法律草案不可执行。
+  source_decisions:
+  - R21-A06
+  - R21-A10
+  owning_spec: SPEC-LICENSE-RIGHTS-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-M0-004
+  title: 空骨架
+  statement: M0 建立单根 Go Module、Web/Studio/lua-runner/Compose/CI 骨架但无业务实现。
+  source_decisions:
+  - R22-A04
+  - R22-A05
+  - R22-A06
+  - R22-A07
+  - R22-A08
+  - R22-A09
+  - R22-A10
+  - R22-A11
+  - R22-A12
+  owning_spec: SPEC-M0-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-M0-005
+  title: Bootstrap 与分支
+  statement: M0 使用仓库外 Bootstrap，冻结实际默认 master 后规范化 main，创建 restart/v1-baseline PR。
+  source_decisions:
+  - R21-A02
+  - R24-A01
+  - R24-A02
+  owning_spec: SPEC-M0-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED
+- requirement_id: REQ-M0-006
+  title: Commit 签名与非 Squash
+  statement: 进入 main 的 Commit 可验证签名，M0 PR 保留逻辑提交并非 Squash 合并。
+  source_decisions:
+  - R22-A03
+  - R22-A15
+  owning_spec: SPEC-M0-001
+  milestone: M0
+  priority: P0
+  v1_status: REQUIRED

@@ -23,7 +23,7 @@ status: ACTIVE
 ## 新主线
 
 - Restart branch: `restart/v1-baseline`
-- First new baseline commit: the signed commit that first adds this file and root `LICENSE`; its immutable SHA is pinned in the immediately following governance commit and the external M0 implementation evidence.
+- First new baseline commit: `dbc5e7638bde687f698568328fdbc88d21c7a5f1` (signed and locally verified); this is the commit that first adds this file and root `LICENSE`.
 - Active branch after normalization: `main`
 - Program code license: `PolyForm-Noncommercial-1.0.0`
 - Rights holder: `Yucheng Zhao`
