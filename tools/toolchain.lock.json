@@ -42,6 +42,38 @@
     "vite": { "version": "8.2.1", "license": "MIT" },
     "vitest": { "version": "4.1.10", "license": "MIT" }
   },
+  "actions": {
+    "actions/checkout": {
+      "version": "7.0.1",
+      "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "license": "MIT",
+      "source": "https://github.com/actions/checkout/releases/tag/v7.0.1"
+    },
+    "actions/setup-go": {
+      "version": "7.0.0",
+      "sha": "b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
+      "license": "MIT",
+      "source": "https://github.com/actions/setup-go/releases/tag/v7.0.0"
+    },
+    "pnpm/setup": {
+      "version": "2.0.1",
+      "sha": "4700d737c3d7a2e7199f3d42a920f0bf7f34e411",
+      "license": "MIT",
+      "source": "https://github.com/pnpm/setup/releases/tag/v2.0.1"
+    },
+    "extractions/setup-just": {
+      "version": "4",
+      "sha": "53165ef7e734c5c07cb06b3c8e7b647c5aa16db3",
+      "license": "MIT OR Apache-2.0",
+      "source": "https://github.com/extractions/setup-just/tree/v4"
+    },
+    "actions/upload-artifact": {
+      "version": "7.0.1",
+      "sha": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+      "license": "MIT",
+      "source": "https://github.com/actions/upload-artifact/releases/tag/v7.0.1"
+    }
+  },
   "containers": {
     "go_builder": {
       "reference": "docker.io/library/golang:1.26.5-alpine3.23@sha256:622e56dbc11a8cfe87cafa2331e9a201877271cbff918af53d3be315f3da88cc",
