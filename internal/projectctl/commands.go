@@ -601,6 +601,7 @@ func (a *App) checkScope(ctx context.Context) error {
 		"apps/web-player/src/App.tsx", "apps/creator-studio/main.go", "apps/creator-studio/frontend/src/App.tsx",
 		"deploy/compose.yaml", "tools/toolchain.lock.json", "docs/70-decisions/DECISION_REGISTER.yaml", "docs/90-traceability/TRACEABILITY.yaml",
 		".github/workflows/m0-baseline.yml", "docs/60-quality/M0_CI_AND_GITHUB_GOVERNANCE.md",
+		".codex/SESSION_START.md", ".codex/state/DECISION_DIGEST.md", ".codex/templates/READING_MAP.template.yaml",
 	}
 	present := map[string]bool{}
 	problems := &validationErrors{}
