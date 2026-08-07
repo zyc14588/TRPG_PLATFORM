@@ -1,0 +1,28 @@
+---
+document_id: SUPERSESSION-MAP
+authority: normative-index
+status: ACTIVE
+---
+
+# 决策覆盖、例外与细化映射
+
+本文件记录容易误读的主要关系。机器登记中的 `relationship_type` 是权威分类；只有 `SUPERSEDES` 会把登记内目标标记为 `SUPERSEDED`。
+
+| 关系类型 | 原对象 | 后续决策 | 影响 |
+|---|---|---|---|
+| `SUPERSEDES_EXTERNAL` | `LEGACY-D001-D201-AND-ALL-PRE-R0-RESTRUCTURE-PLANS` | `R0-A01` | 全部旧重构产品、架构、批次和 Codex 施工路线失效，仅保留历史参考。 |
+| `SUPERSEDES` | `R8-A13` | `R11-A09` | 仅针对官方隐藏信息桌游：正式模式允许高烈度竞争与提前淘汰；快速/教程模式仍无淘汰。 |
+| `SCOPED_EXCEPTION` | `R6-A06` | `R11-A12` | 仅针对官方桌游高难度模式：允许按字段清单读取额外私人信息；其他 AI 难度不得靠越权信息提高。 |
+| `DELIVERY_DEFERRED` | `R5-A06-V1-TIMING` | `R12-A08` | 浏览器本地模型设计保留，但不属于 V1 交付和发布门禁。 |
+| `REFINEMENT` | `R12-A12-SELECTIVE-OLD-CODE-MIGRATION` | `R13-A04` | 旧代码从“可审计后迁入”收紧为“零迁移，只作参考”。 |
+| `SUPERSEDES_EXTERNAL` | `PREVIOUS-R14-RUST-OR-DISTRIBUTED-DRAFTS` | `R14-A01` | 最终技术基线为参考 Due 思想的单节点 Go 服务器和 Lua 5.5 游戏包，不使用 Rust 核心或分布式架构。 |
+| `REFINEMENT` | `R22-A06-SHELL-THIN-WRAPPER-DRAFT` | `R22-A06` | 统一外壳使用 Justfile；复杂逻辑由 projectctl 实现，不维护 Bash/PowerShell 双套脚本。 |
+
+## 适用原则
+
+1. 更晚且更具体的决策可形成领域例外，不自动推翻全平台原则。
+2. `R8-A13` 已被官方桌游后续设计完整替代，因此状态为 `SUPERSEDED`。
+3. `R6-A06` 保持全局有效，`R11-A12` 只对官方隐藏信息桌游高难度 AI 形成例外。
+4. `R4-A11` 的无普通观察者原则保持有效，死亡后/淘汰后只读状态是窄例外。
+5. `R12-A08` 只改变浏览器本地模型的交付版本，不删除 R5 的长期设计。
+6. `R13-A04` 是旧代码处理的最终规则：零迁移。

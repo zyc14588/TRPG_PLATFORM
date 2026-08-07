@@ -28,7 +28,9 @@ license_boundary:
   rights_holder: Yucheng Zhao
   contact_email: zyc14588@gmail.com
 baseline_reset_commit:
-  resolution: containing signed commit; immutable SHA pinned by the next governance commit and external implementation evidence
+  commit: dbc5e7638bde687f698568328fdbc88d21c7a5f1
+  signature: VERIFIED_SSH_ED25519
+  status: PINNED
 zero_migration:
   legacy_source: false
   legacy_tests: false
