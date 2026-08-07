@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "creator-studio",
+  "outputfilename": "creator-studio",
+  "frontend:install": "pnpm install --frozen-lockfile",
+  "frontend:build": "pnpm run build",
+  "frontend:dev:watcher": "pnpm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Yucheng Zhao",
+    "email": "zyc14588@gmail.com"
+  },
+  "info": {
+    "companyName": "Yucheng Zhao",
+    "productName": "TRPG Platform Creator Studio",
+    "productVersion": "0.0.0-m0",
+    "copyright": "Copyright © 2026 Yucheng Zhao",
+    "comments": "M0 engineering shell only; no playable or creator functionality."
+  }
+}

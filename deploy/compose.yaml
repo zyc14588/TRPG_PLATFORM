@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+name: trpg-platform-m0
+
+x-process-shell: &process-shell
+  restart: unless-stopped
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  command:
+    - serve
+  healthcheck:
+    test: ["CMD", "/app/service", "health"]
+    interval: 10s
+    timeout: 3s
+    retries: 3
+    start_period: 2s
+
+services:
+  platformd:
+    <<: *process-shell
+    image: trpg-platform/platformd:0.0.0-m0
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        BINARY: platformd
+
+  workerd:
+    <<: *process-shell
+    image: trpg-platform/workerd:0.0.0-m0
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        BINARY: workerd
+
+  lua-runner:
+    <<: *process-shell
+    image: trpg-platform/lua-runner:0.0.0-m0
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        BINARY: lua-runner
