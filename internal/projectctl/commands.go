@@ -93,6 +93,7 @@ func (a *App) checkPinnedFiles(lock toolchainLock) error {
 	checkTextFile(".go-version", lock.Tools.Go.Version)
 	checkTextFile(".node-version", lock.Tools.Node.Version)
 	checkTextFile(".tool-versions", fmt.Sprintf("golang %s\nnodejs %s\njust %s", lock.Tools.Go.Version, lock.Tools.Node.Version, lock.Tools.Just.Version))
+	checkTextFile(".gitattributes", "# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0\n\n* text=auto eol=lf\n\n*.gif binary\n*.ico binary\n*.jpg binary\n*.jpeg binary\n*.png binary\n*.webp binary\n*.woff binary\n*.woff2 binary")
 
 	goMod, err := os.ReadFile(filepath.Join(a.root, "go.mod"))
 	if err != nil {
@@ -600,7 +601,7 @@ func (a *App) checkScope(ctx context.Context) error {
 		return err
 	}
 	expected := []string{
-		"README.md", "LICENSE", "go.mod", "go.sum", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml",
+		"README.md", "LICENSE", ".gitattributes", "go.mod", "go.sum", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml",
 		"cmd/platformd/main.go", "cmd/workerd/main.go", "cmd/lua-runner/main.go", "cmd/creator-cli/main.go", "cmd/projectctl/main.go",
 		"apps/web-player/src/App.tsx", "apps/creator-studio/main.go", "apps/creator-studio/frontend/src/App.tsx",
 		"deploy/compose.yaml", "tools/toolchain.lock.json", "docs/70-decisions/DECISION_REGISTER.yaml", "docs/90-traceability/TRACEABILITY.yaml",
