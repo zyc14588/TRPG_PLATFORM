@@ -1,0 +1,202 @@
+/* SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 */
+
+:root {
+  color: #aeb7c5;
+  background: #07111e;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --background: #07111e;
+  --text: #aeb7c5;
+  --text-strong: #c5ccd5;
+  --line: #172436;
+  --accent: #cb7241;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.baseline-shell {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--background);
+  isolation: isolate;
+}
+
+.brand {
+  position: absolute;
+  top: clamp(1.5rem, 5vw, 3rem);
+  left: clamp(1.5rem, 4vw, 3rem);
+  color: var(--text);
+  font-size: clamp(1rem, 2vw, 1.5rem);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.baseline-status {
+  z-index: 1;
+  align-self: center;
+  justify-self: center;
+  width: min(52rem, calc(100% - 3rem));
+  text-align: center;
+  transform: translateY(-1vh);
+}
+
+.divider {
+  display: grid;
+  grid-template-columns: 1fr 1.25rem 1fr;
+  align-items: center;
+  gap: 0.85rem;
+  width: min(48rem, 100%);
+  margin: 0 auto clamp(1.5rem, 4vh, 2.5rem);
+  color: var(--accent);
+}
+
+.divider span {
+  height: 1px;
+  background: currentColor;
+}
+
+.divider i {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  margin: auto;
+  border: 1px solid currentColor;
+  transform: rotate(45deg);
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+h1 {
+  color: var(--text-strong);
+  font-family: "Iowan Old Style", Baskerville, "Times New Roman", serif;
+  font-size: clamp(3.25rem, 8vw, 6.75rem);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+}
+
+.status-primary,
+.status-secondary {
+  color: var(--text);
+  font-size: clamp(1rem, 2.2vw, 1.65rem);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+}
+
+.status-primary {
+  margin-top: clamp(2rem, 5vh, 3.5rem);
+}
+
+.status-rule {
+  position: relative;
+  width: min(27rem, 72%);
+  height: 1px;
+  margin: 1.35rem auto;
+  background: var(--accent);
+}
+
+.status-rule::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 1px solid var(--accent);
+  background: var(--background);
+  box-shadow: 0 0 0 0.55rem var(--background);
+  content: "";
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.footer-rule {
+  position: absolute;
+  right: clamp(1.5rem, 4vw, 3rem);
+  bottom: clamp(1.5rem, 5vh, 3rem);
+  left: clamp(1.5rem, 4vw, 3rem);
+  height: 1px;
+  background: var(--accent);
+}
+
+.contour {
+  position: absolute;
+  z-index: -1;
+  width: 32rem;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 45% 55% 62% 38%;
+  opacity: 0.7;
+}
+
+.contour::before,
+.contour::after {
+  position: absolute;
+  content: "";
+  border: 1px solid var(--line);
+  border-radius: inherit;
+  inset: 12%;
+}
+
+.contour::after {
+  inset: 24%;
+}
+
+.contour-top {
+  top: -19rem;
+  right: -8rem;
+  transform: rotate(24deg);
+}
+
+.contour-bottom {
+  bottom: -20rem;
+  left: -9rem;
+  transform: rotate(-18deg);
+}
+
+@media (max-width: 640px) {
+  .baseline-status {
+    transform: none;
+  }
+
+  .divider {
+    grid-template-columns: 1fr 0.9rem 1fr;
+  }
+
+  .divider i {
+    width: 0.7rem;
+    height: 0.7rem;
+  }
+
+  .status-primary,
+  .status-secondary {
+    letter-spacing: 0.045em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}

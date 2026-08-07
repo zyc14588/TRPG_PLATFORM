@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+.git
+.github
+.codex
+.env
+.env.*
+secrets
+node_modules
+**/node_modules
+dist
+**/dist
+.vite
+**/.vite
+coverage.out
+docs
+legal
+LICENSES
+games
+apps
+deploy
+tools
