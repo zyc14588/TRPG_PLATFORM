@@ -125,8 +125,9 @@ Usage:
   projectctl license check
   projectctl scope check --milestone M0
   projectctl check|build|test|ci
-  projectctl codex plan
-  projectctl codex route --mode PLAN|IMPLEMENT|ACCEPT|REPAIR
+  projectctl codex plan --milestone M?
+  projectctl codex route --mode PLAN --milestone M?
+  projectctl codex route --mode IMPLEMENT|ACCEPT|REPAIR --milestone M? --batch M?-B???
   projectctl codex check
   projectctl accept --milestone M0`)
 }

@@ -26,11 +26,11 @@ docs-check:
 license-check:
     {{projectctl}} license check
 
-codex-plan:
-    {{projectctl}} codex plan
+codex-plan milestone:
+    {{projectctl}} codex plan --milestone {{milestone}}
 
-codex-route mode="PLAN":
-    {{projectctl}} codex route --mode {{mode}}
+codex-route mode milestone batch="":
+    {{projectctl}} codex route --mode {{mode}} --milestone {{milestone}} --batch '{{batch}}'
 
 codex-check:
     {{projectctl}} codex check
