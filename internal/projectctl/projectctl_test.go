@@ -372,14 +372,15 @@ func TestRouteRequestBindsModeMilestoneAndBatch(t *testing.T) {
 			t.Fatalf("invalid route request unexpectedly passed: %+v", invalid)
 		}
 	}
-	currentPlan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
-	if err != nil {
-		t.Fatal(err)
+	notGeneratedPlan := milestonePlan{
+		SchemaVersion: milestonePlanSchemaVersion, PlanID: "M1-MILESTONE-PLAN", PlanVersion: 0,
+		Milestone: "M1", Status: "NOT_GENERATED", ModifiableOnlyInMode: "PLAN", NextBatchSequence: 1,
+		Batches: []milestoneBatch{}, Tombstones: []batchTombstone{},
 	}
-	if err := validateRouteAgainstPlan(planRequest, currentPlan, catalog); err != nil {
+	if err := validateRouteAgainstPlan(planRequest, notGeneratedPlan, catalog); err != nil {
 		t.Fatalf("M1 PLAN request did not match the planning baseline: %v", err)
 	}
-	if err := validateRouteAgainstPlan(request, currentPlan, catalog); err == nil {
+	if err := validateRouteAgainstPlan(request, notGeneratedPlan, catalog); err == nil {
 		t.Fatal("batch-scoped route accepted a syntactic but unallocated M1 batch ID")
 	}
 	realBatch := testMilestoneBatch("M1-B001", 1)
