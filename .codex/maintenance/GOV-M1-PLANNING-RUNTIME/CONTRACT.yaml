@@ -25,6 +25,27 @@ allowed_scope:
 - path: .codex/templates/READING_MAP.template.yaml
   section_id: CODEX-READING-MAP-TEMPLATE
   kind: machine-contract
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-ENTRY
+  kind: normative-section
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-ROUTE
+  kind: normative-section
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-BUDGET
+  kind: normative-section
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MODES
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-PROGRESSIVE
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
 - path: docs/70-decisions/DECISION_REGISTER.yaml
   section_id: R25-A01
   kind: machine-contract
@@ -115,25 +136,7 @@ forbidden_scope:
 - cherry-pick, push, or adoption of diagnostic commit c83e645810d82f2303569dca488c78d1b68e05eb
 normative_references:
 - path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
-  section_id: SPEC-CODEX-ENTRY
-  kind: normative-section
-- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
-  section_id: SPEC-CODEX-ROUTE
-  kind: normative-section
-- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
-  section_id: SPEC-CODEX-BUDGET
-  kind: normative-section
-- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
-  section_id: SPEC-CODEX-MAINTENANCE
-  kind: normative-section
-- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
-  section_id: SPEC-IMPLEMENTATION-GOV-MODES
-  kind: normative-section
-- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
-  section_id: SPEC-IMPLEMENTATION-GOV-PROGRESSIVE
-  kind: normative-section
-- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
-  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  section_id: SPEC-CODEX-PLAN
   kind: normative-section
 acceptance:
 - REPAIR and ACCEPT governance-maintenance routes generate route_scope GOVERNANCE_MAINTENANCE without milestone or batch_id.

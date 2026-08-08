@@ -25,27 +25,27 @@ Context policy 按 executor/profile 生效。`codex/codex-default` 不启用项�
 
 `R23-A05` 的 context-overflow 强制拆批仅适用于 enforcement-enabled profile。
 
-<a id="SPEC-CODEX-MAINTENANCE"></a>
-## 4. Governance maintenance
-
-Governance control-plane maintenance 不属于 milestone product batch，ID 必须匹配 `GOV-[A-Z0-9-]+`，并由 `.codex/maintenance/<id>/CONTRACT.yaml` 机器契约限定目标、source blocker、允许/禁止范围、规范、验收、测试和停止条件。只有控制面无法为自身生成合法 route 的 bootstrap deadlock 才可使用一次性仓库外 Bootstrap；正式 REPAIR route 通过检查后 Bootstrap 永久失效，同类后续任务必须使用正式 route。Governance maintenance 不得实现产品功能、生成 M1 plan 或分配 M1 batch。
-
 <a id="SPEC-CODEX-PLAN"></a>
-## 5. 自主计划
+## 4. 自主计划
 
 只有 PLAN 可修改 `MILESTONE_PLAN.yaml`。Codex 可拆分、合并和重排未开始批次，ID 永不复用并保留墓碑。触及 V1、顶层、许可、公共契约或门禁时停止。
 
 <a id="SPEC-CODEX-FREEZE"></a>
-## 6. 批次冻结
+## 5. 批次冻结
 
 批次进入 IMPLEMENTING 前冻结目标、要求、范围、阅读图、测试和停止条件。冻结后不能修改契约掩盖越界。
 
 <a id="SPEC-CODEX-ACCEPT"></a>
-## 7. 独立验收
+## 6. 独立验收
 
 ACCEPT 默认只读，客观证据优先，Handoff 最后读取且无验收权威。FAIL 后使用新的 REPAIR 上下文按问题 ID 最小修复。
 
 <a id="SPEC-CODEX-CHECK"></a>
-## 8. CI 检查
+## 7. CI 检查
 
 检查 Front Matter、ID、失效引用、无界阅读、规范复制、提示词膨胀、路由哈希、工作树门禁、生成文件保护和模式写权限。
+
+<a id="SPEC-CODEX-MAINTENANCE"></a>
+## 8. Governance maintenance
+
+Governance control-plane maintenance 不属于 milestone product batch，ID 必须匹配 `GOV-[A-Z0-9-]+`，并由 `.codex/maintenance/<id>/CONTRACT.yaml` 机器契约限定目标、source blocker、允许/禁止范围、规范、验收、测试和停止条件。只有控制面无法为自身生成合法 route 的 bootstrap deadlock 才可使用一次性仓库外 Bootstrap；正式 REPAIR route 通过检查后 Bootstrap 永久失效，同类后续任务必须使用正式 route。Governance maintenance 不得实现产品功能、生成 M1 plan 或分配 M1 batch。

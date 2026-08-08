@@ -33,22 +33,22 @@ Codex 可以自主决定工程施工顺序、批次拆分/合并和实现策略�
 
 每个批次必须含：目标、非目标、关联要求、前置条件、阅读图、允许/禁止目录、不变量、实施步骤、测试命令、交付物、风险和停止条件。
 
-<a id="SPEC-IMPLEMENTATION-GOV-MAINTENANCE"></a>
-## 5. Governance maintenance contract
-
-治理控制面维护使用可验证的 `GOV-*` ID 和 tracked machine contract，不占用 milestone batch。ACCEPT/REPAIR 可选择该 target；PLAN/IMPLEMENT 不可选择。契约必须阻止产品功能、M1 plan 和 batch 分配。只有控制面自路由死锁且项目所有者明确授权时可一次性外部 Bootstrap；正式 route 自证成功后授权立即退休。
-
 <a id="SPEC-IMPLEMENTATION-GOV-BRANCH"></a>
-## 6. 分支和提交
+## 5. 分支和提交
 
 每个批次使用短生命周期分支。提交按可审查逻辑组织并签名；验收通过后才能合并受保护 main。修复提交必须引用原 `ACC-*`。
 
 <a id="SPEC-IMPLEMENTATION-GOV-ACCEPT"></a>
-## 7. 验收顺序
+## 6. 验收顺序
 
 批次契约 → 需求/规范 → 机器契约 → 基线和候选 Commit → Diff → 自动证据 → 恢复/安全证据 → 最后 Handoff。Handoff 不构成完成证明。
 
 <a id="SPEC-IMPLEMENTATION-GOV-EVIDENCE"></a>
-## 8. 证据
+## 7. 证据
 
 大型日志、覆盖率、E2E 录像、扫描、SBOM、恢复演练和性能报告存为 CI Artifact。仓库只保存稳定摘要、Run ID、Artifact 名称/哈希和问题 ID。
+
+<a id="SPEC-IMPLEMENTATION-GOV-MAINTENANCE"></a>
+## 8. Governance maintenance contract
+
+治理控制面维护使用可验证的 `GOV-*` ID 和 tracked machine contract，不占用 milestone batch。ACCEPT/REPAIR 可选择该 target；PLAN/IMPLEMENT 不可选择。契约必须阻止产品功能、M1 plan 和 batch 分配。只有控制面自路由死锁且项目所有者明确授权时可一次性外部 Bootstrap；正式 route 自证成功后授权立即退休。
