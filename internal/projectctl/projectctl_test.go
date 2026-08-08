@@ -111,3 +111,52 @@ func TestScopeAndLicensePathClassifiers(t *testing.T) {
 		t.Fatal("secret path classifier drift")
 	}
 }
+
+func TestFinalRuntimeSupplyChainIsComponentFree(t *testing.T) {
+	a := testApp(t)
+	lock, err := a.loadToolchain()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := lock.Containers["runtime"]
+	if runtime.Role != "final-runtime" || runtime.Reference != "scratch" || runtime.License != "NONE" || len(runtime.DistributionComponents) != 0 {
+		t.Fatalf("unexpected final runtime lock: %+v", runtime)
+	}
+}
+
+func TestContainerSupplyChainRejectsAggregateAndCopyleftMisclassification(t *testing.T) {
+	base := toolchainLock{Containers: map[string]lockedContainer{
+		"builder": {Reference: "builder@example@sha256:abc", Role: "build-only", License: "NOASSERTION"},
+	}}
+	tests := []struct {
+		name       string
+		runtime    lockedContainer
+		dockerfile string
+	}{
+		{
+			name:       "aggregate MIT label cannot hide Alpine packages",
+			runtime:    lockedContainer{Reference: "alpine@example@sha256:def", Role: "final-runtime", License: "MIT"},
+			dockerfile: "FROM builder@example@sha256:abc AS build\nFROM alpine@example@sha256:def\n",
+		},
+		{
+			name: "strong copyleft component is prohibited",
+			runtime: lockedContainer{
+				Reference: "runtime@example@sha256:def", Role: "final-runtime", License: "NOASSERTION",
+				DistributionComponents: []lockedContainerComponent{{Name: "busybox", Version: "1.37.0-r30", License: "GPL-2.0-only"}},
+			},
+			dockerfile: "FROM builder@example@sha256:abc AS build\nFROM runtime@example@sha256:def\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			lock := base
+			lock.Containers = map[string]lockedContainer{
+				"builder": base.Containers["builder"],
+				"runtime": test.runtime,
+			}
+			if err := validateContainerSupplyChain(lock, []byte(test.dockerfile)); err == nil {
+				t.Fatal("invalid final runtime unexpectedly passed")
+			}
+		})
+	}
+}

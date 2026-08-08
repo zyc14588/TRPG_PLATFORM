@@ -54,8 +54,16 @@ type lockedTool struct {
 }
 
 type lockedContainer struct {
-	Reference string `json:"reference"`
-	License   string `json:"license"`
+	Reference              string                     `json:"reference"`
+	Role                   string                     `json:"role"`
+	License                string                     `json:"license"`
+	DistributionComponents []lockedContainerComponent `json:"distribution_components"`
+}
+
+type lockedContainerComponent struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	License string `json:"license"`
 }
 
 func (a *App) loadToolchain() (toolchainLock, error) {
@@ -151,17 +159,98 @@ func (a *App) checkPinnedFiles(lock toolchainLock) error {
 	dockerfile, err := os.ReadFile(filepath.Join(a.root, "deploy", "docker", "Dockerfile"))
 	if err != nil {
 		problems.add("read deploy/docker/Dockerfile: %v", err)
-	} else {
-		for name, container := range lock.Containers {
-			if !strings.Contains(string(dockerfile), container.Reference) {
-				problems.add("Dockerfile does not contain locked %s image", name)
-			}
-			if !strings.Contains(container.Reference, "@sha256:") {
-				problems.add("container %s lacks immutable digest", name)
-			}
-		}
+	} else if err := validateContainerSupplyChain(lock, dockerfile); err != nil {
+		problems.add("%v", err)
 	}
 	return problems.err("toolchain lock")
+}
+
+func validateContainerSupplyChain(lock toolchainLock, dockerfile []byte) error {
+	problems := &validationErrors{}
+	var finalName string
+	var final lockedContainer
+	for name, container := range lock.Containers {
+		switch container.Role {
+		case "build-only":
+			if !strings.Contains(container.Reference, "@sha256:") {
+				problems.add("build-only container %s lacks immutable digest", name)
+			}
+		case "final-runtime":
+			if finalName != "" {
+				problems.add("multiple final-runtime containers: %s and %s", finalName, name)
+			}
+			finalName, final = name, container
+		default:
+			problems.add("container %s has invalid role %q", name, container.Role)
+		}
+	}
+	if finalName == "" {
+		problems.add("container lock has no final-runtime entry")
+		return problems.err("container supply chain")
+	}
+
+	fromReferences := dockerFromReferences(string(dockerfile))
+	if len(fromReferences) == 0 {
+		problems.add("Dockerfile has no FROM instruction")
+	} else if got := fromReferences[len(fromReferences)-1]; got != final.Reference {
+		problems.add("Dockerfile final FROM is %q, lock final-runtime %s is %q", got, finalName, final.Reference)
+	}
+	for name, container := range lock.Containers {
+		found := false
+		for _, reference := range fromReferences {
+			if reference == container.Reference {
+				found = true
+				break
+			}
+		}
+		if !found {
+			problems.add("Dockerfile does not contain locked %s image %q", name, container.Reference)
+		}
+	}
+
+	if final.Reference == "scratch" {
+		if final.License != "NONE" {
+			problems.add("scratch final runtime license must be NONE, got %q", final.License)
+		}
+		if len(final.DistributionComponents) != 0 {
+			problems.add("scratch final runtime must have an empty distribution component inventory")
+		}
+	} else {
+		if !strings.Contains(final.Reference, "@sha256:") {
+			problems.add("final runtime %s lacks immutable digest", finalName)
+		}
+		if len(final.DistributionComponents) == 0 {
+			problems.add("non-scratch final runtime requires a component-level license inventory; aggregate label %q is insufficient", final.License)
+		}
+	}
+	for _, component := range final.DistributionComponents {
+		if component.Name == "" || component.Version == "" || component.License == "" {
+			problems.add("final runtime component inventory contains an incomplete record")
+			continue
+		}
+		if prohibitedDistributionLicense(component.License) {
+			problems.add("final runtime component %s@%s has prohibited license %s", component.Name, component.Version, component.License)
+		}
+	}
+	return problems.err("container supply chain")
+}
+
+func dockerFromReferences(dockerfile string) []string {
+	var references []string
+	for _, line := range strings.Split(dockerfile, "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) >= 2 && strings.EqualFold(fields[0], "FROM") {
+			references = append(references, fields[1])
+		}
+	}
+	return references
+}
+
+func prohibitedDistributionLicense(identifier string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(identifier))
+	return strings.HasPrefix(upper, "GPL-") || strings.HasPrefix(upper, "AGPL-") ||
+		strings.HasPrefix(upper, "SSPL-") || strings.HasPrefix(upper, "BUSL-") ||
+		upper == "ELASTIC-2.0" || strings.Contains(upper, "COMMONS-CLAUSE")
 }
 
 func normalizePinnedText(data []byte) string {
@@ -490,7 +579,8 @@ func (a *App) goSourceFiles() ([]string, error) {
 }
 
 func (a *App) checkLicense(ctx context.Context) error {
-	if _, err := a.loadToolchain(); err != nil {
+	lock, err := a.loadToolchain()
+	if err != nil {
 		return err
 	}
 	license, err := os.ReadFile(filepath.Join(a.root, "LICENSE"))
@@ -542,7 +632,8 @@ func (a *App) checkLicense(ctx context.Context) error {
 	if err := problems.err("license"); err != nil {
 		return err
 	}
-	fmt.Fprintf(a.stdout, "[PASS] license boundary: official PolyForm hash and %d repository paths checked\n", len(files))
+	runtime := lock.Containers["runtime"]
+	fmt.Fprintf(a.stdout, "[PASS] license boundary: official PolyForm hash, %d repository paths, final runtime %s with %d bundled components\n", len(files), runtime.Reference, len(runtime.DistributionComponents))
 	return nil
 }
 

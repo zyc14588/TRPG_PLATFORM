@@ -17,12 +17,11 @@ RUN test -n "${BINARY}" && \
       -ldflags="-s -w -buildid=" \
       -o /out/service "./cmd/${BINARY}"
 
-FROM docker.io/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+FROM scratch
 
-RUN addgroup -S trpg && adduser -S -D -H -G trpg trpg
-COPY --from=build --chown=trpg:trpg /out/service /app/service
+COPY --from=build --chown=65532:65532 /out/service /app/service
 
-USER trpg:trpg
+USER 65532:65532
 WORKDIR /app
 ENTRYPOINT ["/app/service"]
 CMD ["--help"]
