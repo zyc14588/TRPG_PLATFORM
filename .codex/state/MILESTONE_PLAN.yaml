@@ -1,7 +1,9 @@
 schema_version: 1
+plan_id: M0-MILESTONE-PLAN
 plan_version: 0
 milestone: M0
 status: NOT_GENERATED
 modifiable_only_in_mode: PLAN
+next_batch_sequence: 1
 batches: []
 tombstones: []

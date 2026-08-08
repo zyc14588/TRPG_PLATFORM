@@ -88,15 +88,70 @@ func TestMilestoneGateIsExact(t *testing.T) {
 }
 
 func TestRoutesStayProgressive(t *testing.T) {
+	a := testApp(t)
 	for _, mode := range []string{"PLAN", "IMPLEMENT", "ACCEPT", "REPAIR"} {
 		paths := routePaths(mode)
 		if len(paths.always) == 0 || len(paths.machine) == 0 {
 			t.Fatalf("%s route is incomplete", mode)
 		}
-		for _, path := range append(append(paths.always, paths.normative...), paths.machine...) {
-			if path == "docs/**" || strings.Contains(path, "git-history") {
-				t.Fatalf("%s route contains a bulk-read path %q", mode, path)
+		all := append(append(append(paths.always, paths.normative...), paths.machine...), paths.onDemand...)
+		seen := map[string]bool{}
+		for _, spec := range all {
+			if err := validateBoundedRoutePath(spec.path); err != nil {
+				t.Fatalf("%s route: %v", mode, err)
 			}
+			key := spec.path + "#" + spec.sectionID
+			if seen[key] {
+				t.Fatalf("%s route repeats %s", mode, key)
+			}
+			seen[key] = true
+			data, err := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(spec.path)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := sectionMaterial(data, spec.sectionID); err != nil {
+				t.Fatalf("%s route has invalid Section ID %s: %v", mode, key, err)
+			}
+		}
+	}
+}
+
+func TestGeneratedReadingMapContractIsMachineValid(t *testing.T) {
+	a := testApp(t)
+	for _, mode := range []string{"PLAN", "IMPLEMENT", "ACCEPT", "REPAIR"} {
+		specs := routePaths(mode)
+		routeMap := readingMap{
+			RouteSchemaVersion: readingMapSchemaVersion,
+			Mode:               mode, Milestone: "M0", BatchID: "M0-B001",
+			ContextProfile:  contextProfile{ProfileID: contextProfileID, CapacityBytes: defaultContextCapacity, Measurement: contextMeasurement},
+			MustNotBulkRead: []string{"docs/**", "git-history", "prior-chat-transcripts"},
+		}
+		var err error
+		if routeMap.AlwaysRead, err = a.hashRouteSections(specs.always); err != nil {
+			t.Fatal(err)
+		}
+		if routeMap.NormativeReferences, err = a.hashRouteSections(specs.normative); err != nil {
+			t.Fatal(err)
+		}
+		if routeMap.MachineContracts, err = a.hashRouteSections(specs.machine); err != nil {
+			t.Fatal(err)
+		}
+		if routeMap.ReadOnDemand, err = a.hashRouteSections(specs.onDemand); err != nil {
+			t.Fatal(err)
+		}
+		if err := applyContextBudget(&routeMap); err != nil {
+			t.Fatal(err)
+		}
+		routeMap.RouteBindingSHA256, err = readingMapBindingDigest(routeMap)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := validateReadingMapMetadata(routeMap); err != nil {
+			t.Fatalf("%s reading map contract is invalid: %v", mode, err)
+		}
+		routeMap.BatchID = "M0-B999"
+		if err := validateReadingMapMetadata(routeMap); err == nil {
+			t.Fatalf("%s reading map accepted a batch ID detached from its binding", mode)
 		}
 	}
 }
@@ -185,4 +240,234 @@ func TestCodexSourceCommitRejectsPredecessorAndInvalidIdentity(t *testing.T) {
 	if err := a.verifyTrustedSSHCommit(ctx, "73bcee9500720f0d26d2b6f9676d4a2e6f30d964"); err == nil {
 		t.Fatal("commit outside the trusted SSH signer identity unexpectedly passed")
 	}
+}
+
+func TestSectionMaterialRequiresUniqueStableID(t *testing.T) {
+	valid := []byte("intro\n<a id=\"SECTION-A\"></a>\n## A\nbody\n<a id=\"SECTION-B\"></a>\n## B\n")
+	material, err := sectionMaterial(valid, "SECTION-A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(material), "SECTION-B") {
+		t.Fatal("section extraction crossed the next stable Section ID")
+	}
+	duplicate := append(valid, []byte("<a id=\"SECTION-A\"></a>\n")...)
+	if _, err := sectionMaterial(duplicate, "SECTION-A"); err == nil {
+		t.Fatal("duplicate stable Section ID unexpectedly passed")
+	}
+	if _, err := sectionMaterial(valid, "MISSING"); err == nil {
+		t.Fatal("missing stable Section ID unexpectedly passed")
+	}
+}
+
+func TestRouteRequestBindsModeMilestoneAndBatch(t *testing.T) {
+	request, err := parseCodexRouteRequest([]string{
+		"--mode", "repair", "--milestone", "M0", "--batch", "M0-B007", "--context-capacity-bytes", "4096",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.Mode != "REPAIR" || request.Milestone != "M0" || request.BatchID != "M0-B007" || request.ContextCapacityBytes != 4096 {
+		t.Fatalf("unexpected route request: %+v", request)
+	}
+	for _, invalid := range []codexRouteRequest{
+		{Mode: "IMPLEMENT", Milestone: "M0", BatchID: "M1-B001", ContextCapacityBytes: 1},
+		{Mode: "IMPLEMENT", Milestone: "M1", BatchID: "M1-B001", ContextCapacityBytes: 1},
+		{Mode: "UNKNOWN", Milestone: "M0", BatchID: "M0-B001", ContextCapacityBytes: 1},
+	} {
+		if err := validateCodexRouteRequest(invalid); err == nil {
+			t.Fatalf("invalid route request unexpectedly passed: %+v", invalid)
+		}
+	}
+	for _, path := range []string{"docs/**", "docs", "../docs/file.md", "git-history", ".git/objects"} {
+		if err := validateBoundedRoutePath(path); err == nil {
+			t.Fatalf("unbounded route path %q unexpectedly passed", path)
+		}
+	}
+}
+
+func TestContextBudgetBoundariesAndReduction(t *testing.T) {
+	makeRoute := func(always, onDemand, capacity int) readingMap {
+		return readingMap{
+			ContextProfile: contextProfile{ProfileID: contextProfileID, CapacityBytes: capacity, Measurement: contextMeasurement},
+			AlwaysRead:     []routeSection{{MaterialBytes: always}},
+			ReadOnDemand:   []routeSection{{Path: "optional", SectionID: "OPTIONAL", MaterialBytes: onDemand}},
+		}
+	}
+
+	at55 := makeRoute(550, 0, 1000)
+	if err := applyContextBudget(&at55); err != nil || at55.Budget.Status != "WITHIN_BUDGET" || at55.Budget.ActualRatio != 0.55 {
+		t.Fatalf("55%% boundary mishandled: budget=%+v err=%v", at55.Budget, err)
+	}
+	at70 := makeRoute(700, 0, 1000)
+	if err := applyContextBudget(&at70); err != nil || at70.Budget.Status != "SOFT_LIMIT_EXCEEDED_REVIEW_REQUIRED" || at70.Budget.ActualRatio != 0.70 {
+		t.Fatalf("70%% boundary mishandled: budget=%+v err=%v", at70.Budget, err)
+	}
+	over70 := makeRoute(701, 0, 1000)
+	if err := applyContextBudget(&over70); err == nil || !strings.Contains(err.Error(), "PLAN") {
+		t.Fatalf("hard limit did not require PLAN split: %v", err)
+	}
+	reduced := makeRoute(500, 100, 1000)
+	if err := applyContextBudget(&reduced); err != nil {
+		t.Fatal(err)
+	}
+	if reduced.Budget.Status != "SOFT_LIMIT_REDUCED" || reduced.Budget.ActualRatio != 0.5 || len(reduced.ReadOnDemand) != 0 || len(reduced.SoftLimitOmissions) != 1 {
+		t.Fatalf("soft-limit route was not deterministically reduced: %+v", reduced)
+	}
+}
+
+func TestCurrentMilestonePlanIsValidAndDoesNotPlanM1(t *testing.T) {
+	a := testApp(t)
+	plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateMilestonePlan(plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.Milestone != "M0" || plan.Status != "NOT_GENERATED" || plan.PlanVersion != 0 || len(plan.Batches) != 0 {
+		t.Fatalf("M0 placeholder generated a route prematurely: %+v", plan)
+	}
+}
+
+func TestMilestonePlanIsWritableOnlyInPlanModeAndIDsNeverReuse(t *testing.T) {
+	previous := emptyMilestonePlan()
+	proposed := activeMilestonePlan(1, 2, []milestoneBatch{testMilestoneBatch("M0-B001", 1)}, nil)
+	if err := validateMilestonePlanChange(previous, proposed, "PLAN"); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		if err := validateMilestonePlanChange(previous, proposed, mode); err == nil {
+			t.Fatalf("%s mode unexpectedly modified the plan", mode)
+		}
+	}
+
+	reused := proposed
+	reused.Tombstones = []batchTombstone{{BatchID: "M0-B001", Sequence: 1, Action: "CANCELLED", Reason: "reuse test"}}
+	if err := validateMilestonePlan(reused); err == nil {
+		t.Fatal("tombstoned batch ID reuse unexpectedly passed")
+	}
+	skipped := activeMilestonePlan(1, 3, []milestoneBatch{testMilestoneBatch("M0-B002", 2)}, nil)
+	if err := validateMilestonePlanChange(previous, skipped, "PLAN"); err == nil {
+		t.Fatal("non-monotonic batch allocation unexpectedly passed")
+	}
+}
+
+func TestMilestonePlanSplitMergeCancelPreserveTombstones(t *testing.T) {
+	original := activeMilestonePlan(1, 2, []milestoneBatch{testMilestoneBatch("M0-B001", 1)}, nil)
+	cancelled := activeMilestonePlan(2, 2, nil, []batchTombstone{{
+		BatchID: "M0-B001", Sequence: 1, Action: "CANCELLED", Reason: "no longer needed", ReplacementIDs: []string{},
+	}})
+	if err := validateMilestonePlanChange(original, cancelled, "PLAN"); err != nil {
+		t.Fatalf("valid cancellation failed: %v", err)
+	}
+
+	split := activeMilestonePlan(2, 4, []milestoneBatch{
+		testMilestoneBatch("M0-B002", 2), testMilestoneBatch("M0-B003", 3),
+	}, []batchTombstone{{
+		BatchID: "M0-B001", Sequence: 1, Action: "SPLIT", Reason: "single objective per replacement", ReplacementIDs: []string{"M0-B002", "M0-B003"},
+	}})
+	if err := validateMilestonePlanChange(original, split, "PLAN"); err != nil {
+		t.Fatalf("valid split failed: %v", err)
+	}
+	withoutTombstone := split
+	withoutTombstone.Tombstones = nil
+	if err := validateMilestonePlanChange(original, withoutTombstone, "PLAN"); err == nil {
+		t.Fatal("split without tombstone unexpectedly passed")
+	}
+
+	mergeSource := activeMilestonePlan(1, 3, []milestoneBatch{
+		testMilestoneBatch("M0-B001", 1), testMilestoneBatch("M0-B002", 2),
+	}, nil)
+	merged := activeMilestonePlan(2, 4, []milestoneBatch{testMilestoneBatch("M0-B003", 3)}, []batchTombstone{
+		{BatchID: "M0-B001", Sequence: 1, Action: "MERGED", Reason: "same objective", ReplacementIDs: []string{"M0-B003"}},
+		{BatchID: "M0-B002", Sequence: 2, Action: "MERGED", Reason: "same objective", ReplacementIDs: []string{"M0-B003"}},
+	})
+	if err := validateMilestonePlanChange(mergeSource, merged, "PLAN"); err != nil {
+		t.Fatalf("valid merge failed: %v", err)
+	}
+}
+
+func TestMilestonePlanFreezeTransitionsAndParallelSafety(t *testing.T) {
+	plannedBatch := testMilestoneBatch("M0-B001", 1)
+	plannedBatch.State = "PLANNED"
+	planned := activeMilestonePlan(1, 2, []milestoneBatch{plannedBatch}, nil)
+	frozenBatch := plannedBatch
+	frozenBatch.State = "FROZEN"
+	frozenBatch.FrozenContractSHA256 = mustBatchContractDigest(t, frozenBatch)
+	frozen := activeMilestonePlan(2, 2, []milestoneBatch{frozenBatch}, nil)
+	if err := validateMilestonePlanChange(planned, frozen, "PLAN"); err != nil {
+		t.Fatalf("valid freeze failed: %v", err)
+	}
+	implementingBatch := frozenBatch
+	implementingBatch.State = "IMPLEMENTING"
+	implementing := activeMilestonePlan(3, 2, []milestoneBatch{implementingBatch}, nil)
+	if err := validateMilestonePlanChange(frozen, implementing, "PLAN"); err != nil {
+		t.Fatalf("valid frozen-to-implementing transition failed: %v", err)
+	}
+	changed := frozenBatch
+	changed.Objective = "silently expanded objective"
+	changed.FrozenContractSHA256 = mustBatchContractDigest(t, changed)
+	changedPlan := activeMilestonePlan(3, 2, []milestoneBatch{changed}, nil)
+	if err := validateMilestonePlanChange(frozen, changedPlan, "PLAN"); err == nil {
+		t.Fatal("silent frozen-contract change unexpectedly passed")
+	}
+	skipped := plannedBatch
+	skipped.State = "IMPLEMENTING"
+	skipped.FrozenContractSHA256 = mustBatchContractDigest(t, skipped)
+	if err := validateMilestonePlanChange(planned, activeMilestonePlan(2, 2, []milestoneBatch{skipped}, nil), "PLAN"); err == nil {
+		t.Fatal("illegal PLANNED-to-IMPLEMENTING transition unexpectedly passed")
+	}
+
+	left := testMilestoneBatch("M0-B001", 1)
+	left.ParallelSafe, left.DependencyIndependent, left.ParallelScopeKeys = true, true, []string{"apps/web-player"}
+	right := testMilestoneBatch("M0-B002", 2)
+	right.ParallelSafe, right.DependencyIndependent, right.ParallelScopeKeys = true, true, []string{"apps/creator-studio"}
+	parallel := activeMilestonePlan(1, 3, []milestoneBatch{left, right}, nil)
+	if err := validateMilestonePlan(parallel); err != nil {
+		t.Fatalf("valid parallel-safe plan failed: %v", err)
+	}
+	right.ParallelScopeKeys = []string{"apps/web-player"}
+	if err := validateMilestonePlan(activeMilestonePlan(1, 3, []milestoneBatch{left, right}, nil)); err == nil {
+		t.Fatal("overlapping parallel scopes unexpectedly passed")
+	}
+	unsafe := testMilestoneBatch("M0-B001", 1)
+	unsafe.ParallelSafe = true
+	if err := validateMilestonePlan(activeMilestonePlan(1, 2, []milestoneBatch{unsafe}, nil)); err == nil {
+		t.Fatal("parallel_safe without evidence unexpectedly passed")
+	}
+}
+
+func emptyMilestonePlan() milestonePlan {
+	return milestonePlan{
+		SchemaVersion: 1, PlanID: "M0-MILESTONE-PLAN", PlanVersion: 0, Milestone: "M0", Status: "NOT_GENERATED",
+		ModifiableOnlyInMode: "PLAN", NextBatchSequence: 1, Batches: []milestoneBatch{}, Tombstones: []batchTombstone{},
+	}
+}
+
+func activeMilestonePlan(version, next int, batches []milestoneBatch, tombstones []batchTombstone) milestonePlan {
+	return milestonePlan{
+		SchemaVersion: 1, PlanID: "M0-MILESTONE-PLAN", PlanVersion: version, Milestone: "M0", Status: "ACTIVE",
+		ModifiableOnlyInMode: "PLAN", NextBatchSequence: next, Batches: batches, Tombstones: tombstones,
+	}
+}
+
+func testMilestoneBatch(id string, sequence int) milestoneBatch {
+	return milestoneBatch{
+		BatchID: id, Sequence: sequence, State: "DRAFT", Objective: "one bounded objective",
+		NonGoals: []string{}, Requirements: []string{"REQ-GOV-003"}, AllowedScope: []string{"internal/projectctl"},
+		ForbiddenScope: []string{"apps"}, MachineContracts: []string{"SCHEMA-CODEX-MILESTONE-PLAN-V1"},
+		ReadingMapSections: []string{"SPEC-CODEX-PLAN"}, Acceptance: []string{"TEST-GOV-003"},
+		Tests: []string{"go test ./internal/projectctl"}, StopConditions: []string{"public contract change"}, DependsOn: []string{},
+		ParallelSafe: false, DependencyIndependent: false, ParallelScopeKeys: []string{},
+	}
+}
+
+func mustBatchContractDigest(t *testing.T, batch milestoneBatch) string {
+	t.Helper()
+	digest, err := batchContractDigest(batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return digest
 }

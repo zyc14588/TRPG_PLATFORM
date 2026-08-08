@@ -11,6 +11,15 @@ source_commit: "{{SOURCE_COMMIT}}"
 
 # {{BATCH}} 批次契约
 
+## 机器生命周期
+
+- batch_id: `{{BATCH}}`
+- state: `DRAFT`
+- parallel_safe: `false`
+- dependency_independent: `false`
+- parallel_scope_keys: `[]`
+- frozen_contract_sha256: ``
+
 ## 主要目标
 ## 关联要求
 ## 前置条件
