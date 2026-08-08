@@ -20,6 +20,8 @@ source: DECISION_REGISTER.yaml
 | `REFINEMENT` | `R12-A12-SELECTIVE-OLD-CODE-MIGRATION` | `R13-A04` | 旧代码从“可审计后迁入”收紧为“零迁移，只作参考”。 |
 | `SUPERSEDES_EXTERNAL` | `PREVIOUS-R14-RUST-OR-DISTRIBUTED-DRAFTS` | `R14-A01` | 最终技术基线为参考 Due 思想的单节点 Go 服务器和 Lua 5.5 游戏包，不使用 Rust 核心或分布式架构。 |
 | `REFINEMENT` | `R22-A06-SHELL-THIN-WRAPPER-DRAFT` | `R22-A06` | 统一外壳使用 Justfile；复杂逻辑由 projectctl 实现，不维护 Bash/PowerShell 双套脚本。 |
+| `PARTIALLY_SUPERSEDED_BY` | `R24-A08` | `R25-A01` | R24-A08 PARTIALLY_SUPERSEDED_BY R25；55%/70% 不再是全局统一门禁，只对 enforcement-enabled profile 生效。 |
+| `SCOPED_REFINEMENT` | `R23-A05` | `R25-A01` | R23-A05 的 context-overflow 强制拆批仅适用于 enforcement-enabled profile；其他渐进式披露与完整要求规则不变。 |
 
 ## 适用原则
 
@@ -29,3 +31,4 @@ source: DECISION_REGISTER.yaml
 4. `R4-A11` 的无普通观察者原则保持有效，死亡后/淘汰后只读状态是窄例外。
 5. `R12-A08` 只改变浏览器本地模型的交付版本，不删除 R5 的长期设计。
 6. `R13-A04` 是旧代码处理的最终规则：零迁移。
+7. `R24-A08` 的全局 55%/70% 预算已由 R25 部分覆盖；只有 enforcement-enabled profile 执行 ratio gate。

@@ -94,12 +94,14 @@ type traceMapping struct {
 	ImplementationStatus string   `yaml:"implementation_status"`
 }
 
+// x-section-id: PROJECTCTL-CODEX-MODELS
 type readingMap struct {
 	RouteSchemaVersion  int            `yaml:"route_schema_version"`
 	Mode                string         `yaml:"mode"`
-	Milestone           string         `yaml:"milestone"`
+	Milestone           string         `yaml:"milestone,omitempty"`
 	RouteScope          string         `yaml:"route_scope"`
 	BatchID             string         `yaml:"batch_id,omitempty"`
+	MaintenanceID       string         `yaml:"maintenance_id,omitempty"`
 	SourceCommit        string         `yaml:"source_commit"`
 	SourceTree          string         `yaml:"source_tree"`
 	RouteBindingSHA256  string         `yaml:"route_binding_sha256"`
@@ -115,19 +117,21 @@ type readingMap struct {
 }
 
 type contextProfile struct {
+	Executor      string `yaml:"executor"`
 	ProfileID     string `yaml:"profile_id"`
-	CapacityBytes int    `yaml:"capacity_bytes"`
+	Enforcement   bool   `yaml:"enforcement"`
+	CapacityBytes int    `yaml:"capacity_bytes,omitempty"`
 	Measurement   string `yaml:"measurement"`
 }
 
 type contextBudget struct {
 	InitialMaterialBytes int     `yaml:"initial_material_bytes"`
 	MaterialBytes        int     `yaml:"material_bytes"`
-	CapacityBytes        int     `yaml:"capacity_bytes"`
-	InitialRatio         float64 `yaml:"initial_ratio"`
-	ActualRatio          float64 `yaml:"actual_ratio"`
-	SoftLimitRatio       float64 `yaml:"soft_limit_ratio"`
-	HardLimitRatio       float64 `yaml:"hard_limit_ratio"`
+	CapacityBytes        int     `yaml:"capacity_bytes,omitempty"`
+	InitialRatio         float64 `yaml:"initial_ratio,omitempty"`
+	ActualRatio          float64 `yaml:"actual_ratio,omitempty"`
+	SoftLimitRatio       float64 `yaml:"soft_limit_ratio,omitempty"`
+	HardLimitRatio       float64 `yaml:"hard_limit_ratio,omitempty"`
 	Status               string  `yaml:"status"`
 	ReductionApplied     bool    `yaml:"reduction_applied"`
 	PlanSplitRequired    bool    `yaml:"plan_split_required"`
@@ -140,6 +144,38 @@ type routeSection struct {
 	SHA256        string `yaml:"sha256"`
 	SectionSHA256 string `yaml:"section_sha256"`
 	MaterialBytes int    `yaml:"material_bytes"`
+}
+
+type governanceMaintenanceContract struct {
+	SchemaVersion       int                   `yaml:"schema_version"`
+	SectionID           string                `yaml:"x-section-id"`
+	MaintenanceID       string                `yaml:"maintenance_id"`
+	Objective           []string              `yaml:"objective"`
+	Reason              string                `yaml:"reason"`
+	SourceBlocker       string                `yaml:"source_blocker"`
+	AllowedScope        []maintenanceRouteRef `yaml:"allowed_scope"`
+	ForbiddenScope      []string              `yaml:"forbidden_scope"`
+	NormativeReferences []maintenanceRouteRef `yaml:"normative_references"`
+	Acceptance          []string              `yaml:"acceptance"`
+	Tests               []string              `yaml:"tests"`
+	StopConditions      []string              `yaml:"stop_conditions"`
+	Bootstrap           maintenanceBootstrap  `yaml:"bootstrap"`
+	Status              string                `yaml:"status"`
+}
+
+type maintenanceRouteRef struct {
+	Path      string `yaml:"path"`
+	SectionID string `yaml:"section_id"`
+	Kind      string `yaml:"kind"`
+}
+
+type maintenanceBootstrap struct {
+	BootstrapID         string   `yaml:"bootstrap_id"`
+	Authorization       string   `yaml:"authorization"`
+	AllowedScope        []string `yaml:"allowed_scope"`
+	RetirementCondition string   `yaml:"retirement_condition"`
+	Status              string   `yaml:"status"`
+	RetirementEvidence  []string `yaml:"retirement_evidence"`
 }
 
 type milestonePlan struct {

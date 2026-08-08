@@ -90,7 +90,11 @@ type milestoneRouteInputs struct {
 	normative    []routeSpec
 }
 
+// x-section-id: PROJECTCTL-CODEX-CATALOG
 func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
+	if request.MaintenanceID != "" {
+		return a.maintenanceRoutePaths(request)
+	}
 	routeDocumentIDs := map[string]string{
 		"PLAN": "CODEX-ROUTE-PLAN", "IMPLEMENT": "CODEX-ROUTE-IMPLEMENT",
 		"ACCEPT": "CODEX-ROUTE-ACCEPT", "REPAIR": "CODEX-ROUTE-REPAIR",
@@ -137,7 +141,7 @@ func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
 		paths.machine = append(paths.machine, route("docs/90-traceability/TRACEABILITY.yaml", mapping.RequirementID, "machine-contract"))
 	}
 	paths.machine = append(paths.machine,
-		route("schemas/codex/reading-map-v3.schema.json", "SCHEMA-CODEX-READING-MAP-V3", "machine-contract"),
+		route("schemas/codex/reading-map-v4.schema.json", "SCHEMA-CODEX-READING-MAP-V4", "machine-contract"),
 		route("schemas/codex/milestone-plan-v2.schema.json", "SCHEMA-CODEX-MILESTONE-PLAN-V2", "machine-contract"),
 		route(".codex/state/MILESTONE_PLAN.yaml", request.Milestone+"-MILESTONE-PLAN", "machine-contract"),
 	)

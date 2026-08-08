@@ -35,22 +35,23 @@ func (v *validationErrors) err(label string) error {
 	return fmt.Errorf("%s validation failed:\n- %s", label, strings.Join(v.items, "\n- "))
 }
 
+// x-section-id: PROJECTCTL-DECISION-VALIDATION
 func validateDecisions(register decisionRegister) error {
 	problems := &validationErrors{}
 	if register.RegisterSchemaVersion != 1 {
 		problems.add("register_schema_version is %d, want 1", register.RegisterSchemaVersion)
 	}
-	if register.BaselineID != "TRPG-PLATFORM-R0-R24" {
+	if register.BaselineID != "TRPG-PLATFORM-R0-R26" {
 		problems.add("unexpected baseline_id %q", register.BaselineID)
 	}
-	if register.BaselineStatus != "FROZEN_FOR_M0" {
+	if register.BaselineStatus != "ACTIVE_GOVERNANCE" {
 		problems.add("unexpected baseline_status %q", register.BaselineStatus)
 	}
 	if register.DecisionCount != len(register.Decisions) {
 		problems.add("decision_count=%d but found %d entries", register.DecisionCount, len(register.Decisions))
 	}
-	if len(register.Decisions) != 455 {
-		problems.add("frozen R0-R24 baseline must contain 455 decisions, found %d", len(register.Decisions))
+	if len(register.Decisions) != 463 {
+		problems.add("R0-R26 decision register must contain 463 decisions, found %d", len(register.Decisions))
 	}
 
 	allowedStatus := map[string]bool{"ACTIVE": true, "SUPERSEDED": true, "DEFERRED": true, "REJECTED": true}

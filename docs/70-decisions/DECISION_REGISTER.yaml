@@ -1,9 +1,9 @@
 register_schema_version: 1
-baseline_id: TRPG-PLATFORM-R0-R24
-baseline_status: FROZEN_FOR_M0
+baseline_id: TRPG-PLATFORM-R0-R26
+baseline_status: ACTIVE_GOVERNANCE
 authoritative_language: zh-Hans
-generated_at: '2026-08-07T00:00:00+10:00'
-decision_count: 455
+generated_at: '2026-08-09T00:00:00+10:00'
+decision_count: 463
 status_values:
 - ACTIVE
 - SUPERSEDED
@@ -3276,6 +3276,70 @@ decisions:
   source_stage: R24
   scope: M0_GOVERNANCE
   specifications: *id025
+- decision_id: R25-A01
+  status: ACTIVE
+  title: Executor/profile 专属上下文策略
+  statement: Context budget 按 executor/model profile 决定；R24-A08 的全局统一阈值被部分覆盖，R23-A05 的 context-overflow 强制拆批只适用于 enforcement-enabled profile。
+  source_stage: R25
+  scope: GOVERNANCE_CONTROL_PLANE
+  specifications:
+  - SPEC-CODEX-001
+- decision_id: R25-A02
+  status: ACTIVE
+  title: Codex 仅记录上下文遥测
+  statement: codex/codex-default 不启用项目级 context soft/hard limit；可测量 route bytes 和显式容量下的 ratio，但不因 55%/70% 或 ratio 强制拆批，Section ID、渐进披露、禁止批量读取、binding、stale route、schema 和 target 校验继续强制；不声明模型物理上下文无限。
+  source_stage: R25
+  scope: GOVERNANCE_CONTROL_PLANE
+  specifications:
+  - SPEC-CODEX-001
+- decision_id: R25-A03
+  status: ACTIVE
+  title: OpenCode deepseek-v4-flash 强制预算
+  statement: opencode/opencode-deepseek-v4-flash 必须显式提供实际 capacity；ratio 小于等于 0.55 为 NORMAL，超过 0.55 且不超过 0.70 时缩减 on-demand Section、无法继续降低则进入 review state，超过 0.70 HARD FAIL 并要求缩小 route 或拆 batch；projectctl 不猜测容量。
+  source_stage: R25
+  scope: GOVERNANCE_CONTROL_PLANE
+  specifications:
+  - SPEC-CODEX-001
+- decision_id: R25-A04
+  status: ACTIVE
+  title: 未知上下文 profile fail closed
+  statement: 未知 executor/model profile 返回 PROFILE_REQUIRED，不得自动继承 Codex unrestricted policy。
+  source_stage: R25
+  scope: GOVERNANCE_CONTROL_PLANE
+  specifications:
+  - SPEC-CODEX-001
+- decision_id: R26-A01
+  status: ACTIVE
+  title: Governance maintenance 独立 target
+  statement: Governance control-plane maintenance 不属于 milestone product batch，使用可验证的 GOV-[A-Z0-9-]+ 标识。
+  source_stage: R26
+  scope: GOVERNANCE_CONTROL_PLANE
+  specifications:
+  - SPEC-CODEX-001
+- decision_id: R26-A02
+  status: ACTIVE
+  title: 四模式保持不变
+  statement: 不新增第五种 mode；PLAN、IMPLEMENT、ACCEPT、REPAIR 保持不变，ACCEPT/REPAIR 可选择 milestone batch 或 governance-maintenance target，IMPLEMENT 不可选择 governance maintenance。
+  source_stage: R26
+  scope: GOVERNANCE_CONTROL_PLANE
+  specifications:
+  - SPEC-CODEX-001
+- decision_id: R26-A03
+  status: ACTIVE
+  title: Governance maintenance 机器契约
+  statement: 每个 governance maintenance 必须有 tracked CONTRACT.yaml，包含 maintenance_id、objective、reason、source blocker、allowed/forbidden scope、normative references、acceptance、tests、stop conditions 和 status；不得借 GOV task 实现产品功能。
+  source_stage: R26
+  scope: GOVERNANCE_CONTROL_PLANE
+  specifications:
+  - SPEC-CODEX-001
+- decision_id: R26-A04
+  status: ACTIVE
+  title: 一次性 Maintenance Bootstrap
+  statement: 只有控制面无法为自身生成合法 route 的 bootstrap deadlock 且有明确授权、固定 scope 和审计记录时，才允许一次性仓库外 Bootstrap；必须修复正式 route，并在正式 REPAIR route 通过检查后退休，后续同类任务只能使用正式 route。
+  source_stage: R26
+  scope: GOVERNANCE_CONTROL_PLANE
+  specifications:
+  - SPEC-CODEX-001
 supersessions:
 - superseded: LEGACY-D001-D201-AND-ALL-PRE-R0-RESTRUCTURE-PLANS
   superseded_by: R0-A01
@@ -3305,8 +3369,16 @@ supersessions:
   superseded_by: R22-A06
   effect: 统一外壳使用 Justfile；复杂逻辑由 projectctl 实现，不维护 Bash/PowerShell 双套脚本。
   relationship_type: REFINEMENT
+- superseded: R24-A08
+  superseded_by: R25-A01
+  effect: R24-A08 PARTIALLY_SUPERSEDED_BY R25；55%/70% 不再是全局统一门禁，只对 enforcement-enabled profile 生效。
+  relationship_type: PARTIALLY_SUPERSEDED_BY
+- superseded: R23-A05
+  superseded_by: R25-A01
+  effect: R23-A05 的 context-overflow 强制拆批仅适用于 enforcement-enabled profile；其他渐进式披露与完整要求规则不变。
+  relationship_type: SCOPED_REFINEMENT
 notes:
-- 本登记含 455 项已确认决策：454 项 ACTIVE，1 项 SUPERSEDED。
+- 本登记含 463 项已确认决策：462 项 ACTIVE，1 项 SUPERSEDED。
 - SCOPED_EXCEPTION 不改变被引用决策的 ACTIVE 状态，只在明确领域内形成例外。
 - R5 浏览器本地模型设计保留为 Post-V1 设计，不属于 V1 实施门禁。
-- M0 落地后，DECISION_INDEX.md 与 SUPERSESSION_MAP.md 必须由 projectctl 从本登记生成。
+- DECISION_INDEX.md、SUPERSESSION_MAP.md 与 Codex decision digest 必须由 projectctl 从本登记生成。

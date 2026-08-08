@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zyc14588/TRPG_PLATFORM/schemas/codex/reading-map-v4.schema.json",
+  "x-section-id": "SCHEMA-CODEX-READING-MAP-V4",
+  "type": "object",
+  "required": [
+    "route_schema_version",
+    "mode",
+    "route_scope",
+    "source_commit",
+    "source_tree",
+    "route_binding_sha256",
+    "generated_utc",
+    "context_profile",
+    "budget",
+    "always_read",
+    "normative_references",
+    "machine_contracts",
+    "read_on_demand",
+    "must_not_bulk_read"
+  ],
+  "properties": {
+    "route_schema_version": { "const": 4 },
+    "mode": { "enum": ["PLAN", "IMPLEMENT", "ACCEPT", "REPAIR"] },
+    "milestone": { "$ref": "#/$defs/milestone" },
+    "route_scope": { "enum": ["MILESTONE", "BATCH", "GOVERNANCE_MAINTENANCE"] },
+    "batch_id": { "$ref": "#/$defs/batchId" },
+    "maintenance_id": { "type": "string", "pattern": "^GOV-[A-Z0-9-]+$" },
+    "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "source_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "route_binding_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "generated_utc": { "type": "string", "format": "date-time" },
+    "context_profile": {
+      "type": "object",
+      "required": ["executor", "profile_id", "enforcement", "measurement"],
+      "properties": {
+        "executor": { "enum": ["codex", "opencode"] },
+        "profile_id": { "enum": ["codex-default", "opencode-deepseek-v4-flash"] },
+        "enforcement": { "type": "boolean" },
+        "capacity_bytes": { "type": "integer", "minimum": 1 },
+        "measurement": { "const": "utf8-bytes" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "executor": { "const": "codex" } }, "required": ["executor"] },
+          "then": {
+            "properties": {
+              "profile_id": { "const": "codex-default" },
+              "enforcement": { "const": false }
+            }
+          },
+          "else": {
+            "required": ["capacity_bytes"],
+            "properties": {
+              "executor": { "const": "opencode" },
+              "profile_id": { "const": "opencode-deepseek-v4-flash" },
+              "enforcement": { "const": true }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "initial_material_bytes",
+        "material_bytes",
+        "status",
+        "reduction_applied",
+        "plan_split_required"
+      ],
+      "properties": {
+        "initial_material_bytes": { "type": "integer", "minimum": 0 },
+        "material_bytes": { "type": "integer", "minimum": 0 },
+        "capacity_bytes": { "type": "integer", "minimum": 1 },
+        "initial_ratio": { "type": "number", "minimum": 0 },
+        "actual_ratio": { "type": "number", "minimum": 0 },
+        "soft_limit_ratio": { "const": 0.55 },
+        "hard_limit_ratio": { "const": 0.7 },
+        "status": {
+          "enum": ["TELEMETRY_ONLY", "WITHIN_BUDGET", "SOFT_LIMIT_REDUCED", "SOFT_LIMIT_EXCEEDED_REVIEW_REQUIRED"]
+        },
+        "reduction_applied": { "type": "boolean" },
+        "plan_split_required": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "always_read": { "$ref": "#/$defs/routeSections" },
+    "normative_references": { "$ref": "#/$defs/routeSections" },
+    "machine_contracts": { "$ref": "#/$defs/routeSections" },
+    "read_on_demand": { "$ref": "#/$defs/optionalRouteSections" },
+    "soft_limit_omissions": { "$ref": "#/$defs/optionalRouteSections" },
+    "must_not_bulk_read": {
+      "type": "array",
+      "uniqueItems": true,
+      "allOf": [
+        { "contains": { "const": "docs/**" } },
+        { "contains": { "const": "git-history" } },
+        { "contains": { "const": "prior-chat-transcripts" } }
+      ],
+      "items": { "type": "string" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "route_scope": { "const": "MILESTONE" } }, "required": ["route_scope"] },
+      "then": {
+        "required": ["milestone"],
+        "properties": { "mode": { "const": "PLAN" } },
+        "not": { "anyOf": [{ "required": ["batch_id"] }, { "required": ["maintenance_id"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "route_scope": { "const": "BATCH" } }, "required": ["route_scope"] },
+      "then": {
+        "required": ["milestone", "batch_id"],
+        "properties": { "mode": { "enum": ["IMPLEMENT", "ACCEPT", "REPAIR"] } },
+        "not": { "required": ["maintenance_id"] }
+      }
+    },
+    {
+      "if": { "properties": { "route_scope": { "const": "GOVERNANCE_MAINTENANCE" } }, "required": ["route_scope"] },
+      "then": {
+        "required": ["maintenance_id"],
+        "properties": { "mode": { "enum": ["ACCEPT", "REPAIR"] } },
+        "not": { "anyOf": [{ "required": ["milestone"] }, { "required": ["batch_id"] }] }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "context_profile": {
+            "properties": { "enforcement": { "const": false } },
+            "required": ["enforcement"]
+          }
+        },
+        "required": ["context_profile"]
+      },
+      "then": {
+        "properties": {
+          "budget": {
+            "properties": {
+              "status": { "const": "TELEMETRY_ONLY" },
+              "reduction_applied": { "const": false },
+              "plan_split_required": { "const": false }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "budget": {
+            "required": ["capacity_bytes", "initial_ratio", "actual_ratio", "soft_limit_ratio", "hard_limit_ratio"],
+            "properties": {
+              "status": { "enum": ["WITHIN_BUDGET", "SOFT_LIMIT_REDUCED", "SOFT_LIMIT_EXCEEDED_REVIEW_REQUIRED"] },
+              "soft_limit_ratio": { "const": 0.55 },
+              "hard_limit_ratio": { "const": 0.7 }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "milestone": {
+      "type": "string",
+      "enum": ["M0", "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8"]
+    },
+    "batchId": {
+      "type": "string",
+      "pattern": "^M(?:0|[1-8])-B[0-9]{3,}$"
+    },
+    "optionalRouteSections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/routeSection" }
+    },
+    "routeSections": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/routeSection" }
+    },
+    "routeSection": {
+      "type": "object",
+      "required": ["path", "section_id", "kind", "sha256", "section_sha256", "material_bytes"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "not": { "pattern": "\\*|\\?|\\[" } },
+        "section_id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "section_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "material_bytes": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
