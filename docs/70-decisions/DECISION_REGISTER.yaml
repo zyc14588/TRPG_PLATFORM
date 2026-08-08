@@ -1,0 +1,3312 @@
+register_schema_version: 1
+baseline_id: TRPG-PLATFORM-R0-R24
+baseline_status: FROZEN_FOR_M0
+authoritative_language: zh-Hans
+generated_at: '2026-08-07T00:00:00+10:00'
+decision_count: 455
+status_values:
+- ACTIVE
+- SUPERSEDED
+- DEFERRED
+- REJECTED
+decisions:
+- decision_id: R0-A01
+  status: ACTIVE
+  title: 产品组合定位
+  statement: 产品同时是在线桌面游戏平台、AI 原生游戏系统、可扩展内容平台和 Agent/长上下文/叙事研究载体。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: &id001
+  - SPEC-PRODUCT-001
+  - SPEC-V1-SCOPE-001
+- decision_id: R0-A02
+  status: ACTIVE
+  title: 旧方案偏离原因
+  statement: 旧方案范围失控、弱化 AI 主持核心能力，并让治理与工程细节压过产品体验。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A03
+  status: ACTIVE
+  title: 旧代码关系
+  statement: 当前代码仅作历史与失败模式参考；新方案允许在原仓库内从零重新实现。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A04
+  status: ACTIVE
+  title: 首要优化目标
+  statement: 优先优化用户游玩体验、AI 主持质量、内容管理、本地/云端模型兼容和跨游戏扩展。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A05
+  status: ACTIVE
+  title: 核心用户闭环
+  statement: 用户选择游戏与模组，创建真人/AI 混合房间，可单人、邀请朋友或由 AI 补位完成跑团或其他桌游。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A06
+  status: ACTIVE
+  title: 双垂直切片
+  statement: V1 同时完成一个 TRPG 和一个非 TRPG 桌游的近正式产品质量垂直切片。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A07
+  status: ACTIVE
+  title: 内容来源
+  statement: V1 提供内置原创内容和私人导入，不建设公共内容市场。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A08
+  status: ACTIVE
+  title: 生命周期
+  statement: V1 同时支持完整单局与长期 Campaign。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A09
+  status: ACTIVE
+  title: AI 席位声明
+  statement: 哪些席位可由真人或 AI 占据以及接管规则由游戏包声明。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A10
+  status: ACTIVE
+  title: 裁定权威
+  statement: 默认采用程序确定性规则与 AI 开放裁定相结合的混合权威模型，游戏包可在平台边界内细化。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A11
+  status: ACTIVE
+  title: 客户端交互
+  statement: V1 采用文本与结构化游戏界面，不以纯文本或完整语音为首发目标。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A12
+  status: ACTIVE
+  title: 高级模式
+  statement: 向用户开放高级实验模式；高级模型配置必须使用 BYOK。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A13
+  status: ACTIVE
+  title: 优先级顺序
+  statement: 冲突取舍顺序为用户体验 > 跨规则/桌游扩展 > AI 主持质量 > 内容管理 > 模型兼容。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R0-A14
+  status: ACTIVE
+  title: V1 完整闭环
+  statement: 接受选择游戏、配置席位、邀请、完整游玩、保存恢复和过程记录作为 V1 验收闭环。
+  source_stage: R0
+  scope: V1_AND_LONG_TERM
+  specifications: *id001
+- decision_id: R1-A01
+  status: ACTIVE
+  title: 创作者规则包
+  statement: 规则支持创作者制作和上传；正式发行只附带原创内容，开发测试阶段不限制测试规则来源。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: &id002
+  - SPEC-PRODUCT-001
+  - SPEC-TRPG-001
+  - SPEC-BOARDGAME-001
+- decision_id: R1-A02
+  status: ACTIVE
+  title: TRPG 题材组合
+  statement: 官方 TRPG 结合调查解谜、恐怖生存和奇幻冒险战斗。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A03
+  status: ACTIVE
+  title: TRPG 内容深度
+  statement: 官方 TRPG 同时提供 2—4 小时单次模组和 3—5 Session 短战役。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A04
+  status: ACTIVE
+  title: 非 TRPG 类型
+  statement: 第二垂直切片为隐藏信息、竞争式、回合制桌游。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A05
+  status: ACTIVE
+  title: 桌游创作者内容
+  statement: 非 TRPG 也支持创作者制作和上传；正式发行只附带原创内容。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A06
+  status: ACTIVE
+  title: 人类与 AI 席位
+  statement: 游戏包声明可替换席位；开局前允许真人或 AI 占据包括主持席在内的声明席位。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A07
+  status: ACTIVE
+  title: 界面结构
+  statement: 统一平台外壳与游戏专属结构化面板结合。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A08
+  status: ACTIVE
+  title: 质量标准
+  statement: 两个官方垂直切片均达到接近正式产品质量，不接受纯技术 Demo。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A09
+  status: ACTIVE
+  title: Campaign 容器
+  statement: 平台提供通用 Campaign 容器；官方 TRPG 强制使用，官方桌游可不使用长期进度。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A10
+  status: ACTIVE
+  title: 桌游 AI 水平
+  statement: 官方桌游 AI 首版目标为普通休闲玩家水平。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A11
+  status: ACTIVE
+  title: TRPG 席位规模
+  statement: 席位规模由游戏包声明；官方 TRPG 为一名主持人加 1—4 名玩家。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A12
+  status: ACTIVE
+  title: 主持交接
+  statement: 主持席在当前 Session 内锁定，可在 Session 之间通过显式交接更换。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A13
+  status: ACTIVE
+  title: 角色创建
+  statement: 角色创建由游戏包声明；官方 TRPG 提供预设角色和引导式创建。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A14
+  status: ACTIVE
+  title: 开放沙盒
+  statement: 官方 TRPG 采用开放沙盒，不固定调查、恐怖和战斗的比例或唯一推进顺序。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A15
+  status: ACTIVE
+  title: 区域战斗
+  statement: 战斗形态由包声明；官方 TRPG 使用区域制结构化战斗。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A16
+  status: ACTIVE
+  title: 模组真相边界
+  statement: 关键事实、线索和结局由作者锁定；支线、描述、NPC 应对和局部事件允许 AI 动态生成。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A17
+  status: ACTIVE
+  title: 桌游人数
+  statement: 人数由包声明；官方桌游主要平衡并正式认证 3—4 人。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A18
+  status: ACTIVE
+  title: 桌游时长
+  statement: 时长由包声明；官方桌游正式模式目标为 30—60 分钟。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A19
+  status: ACTIVE
+  title: 隐藏信息
+  statement: 官方桌游采用私人手牌或资源与公共棋盘/公共状态结合。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R1-A20
+  status: ACTIVE
+  title: 时间模式
+  statement: V1 只支持同步在线游玩，可暂停和恢复，不实现异步轮流。
+  source_stage: R1
+  scope: V1_AND_LONG_TERM
+  specifications: *id002
+- decision_id: R2-A01
+  status: ACTIVE
+  title: 逻辑包分层
+  statement: 游戏系统包、内容包、素材包和 UI 扩展包逻辑分离，并可组合为一次导入的 Bundle。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: &id003
+  - SPEC-PACKAGE-001
+  - SPEC-CREATOR-001
+  - SPEC-SECURITY-001
+- decision_id: R2-A02
+  status: ACTIVE
+  title: 创作入口
+  statement: 可视化编辑器为主要入口，同时提供规范化源文件、文本编辑、CLI、编码规范和开发指导。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A03
+  status: ACTIVE
+  title: 规则代码
+  statement: 声明式规则优先；高级逻辑使用受限沙箱代码，不得访问宿主机、密钥、任意网络或无授权数据。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A04
+  status: ACTIVE
+  title: 状态模型
+  statement: 平台维护通用会话外壳；包定义类型化状态；所有有效变化通过命令和事件进入权威日志。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A05
+  status: ACTIVE
+  title: UI 扩展
+  statement: 内置组件优先；高级包可使用受限自定义面板，但不能接管整个平台页面。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A06
+  status: ACTIVE
+  title: AI 契约
+  statement: 游戏包提供结构化 AI 契约，声明角色、视图、动作、工具、目标、约束和评测。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A07
+  status: ACTIVE
+  title: 开放裁定
+  statement: 裁定按类别配置自动执行或人工确认；结果必须结构化、可审计、可回滚。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A08
+  status: ACTIVE
+  title: 版本锁定
+  statement: Campaign 与 Session 锁定精确包版本，只能在安全边界显式升级并先备份迁移。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A09
+  status: ACTIVE
+  title: 依赖锁定
+  statement: 包依赖在安装时锁定精确版本和内容哈希；运行时不跟随最新版本。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A10
+  status: ACTIVE
+  title: 模型能力声明
+  statement: 游戏包声明模型能力要求而不是供应商或具体模型。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A11
+  status: ACTIVE
+  title: 信任等级
+  statement: 区分官方包、受信签名包、私人未验证包和开发包，并设置不同能力上限。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A12
+  status: ACTIVE
+  title: 开发工作区
+  statement: 独立开发工作区可加载未签名、未完成或未认证内容，但不能突破主机、密钥和数据边界。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A13
+  status: ACTIVE
+  title: 私人分享
+  statement: 支持 Bundle 导入导出以及加入私人房间时经明确同意传输所需内容。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A14
+  status: ACTIVE
+  title: 验证状态
+  statement: 包使用草稿、可导入、可游玩、已认证四级状态，并执行结构、权限、恢复和 AI 测试。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R2-A15
+  status: ACTIVE
+  title: 权利元数据
+  statement: 包必须记录作者、来源、版本、许可或权利声明；正式发行仅允许批准清单内容。
+  source_stage: R2
+  scope: V1_AND_LONG_TERM
+  specifications: *id003
+- decision_id: R3-A01
+  status: ACTIVE
+  title: 总体服务形态
+  statement: 核心采用模块化单体；AI、包验证和高风险长任务使用独立 Worker。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: &id004
+  - SPEC-SYSTEM-ARCH-001
+  - SPEC-SESSION-001
+  - SPEC-AI-001
+- decision_id: R3-A02
+  status: ACTIVE
+  title: 服务端权威
+  statement: 服务器是游戏最终权威；客户端、AI、包和 UI 只能提交命令。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A03
+  status: ACTIVE
+  title: Session 单写入
+  statement: 每个活跃 Session 使用逻辑单写入者 Actor/状态机按序处理命令。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A04
+  status: ACTIVE
+  title: 持久化顺序
+  statement: 验证后原子写入事件与 Outbox，再更新投影并广播；命令使用幂等 ID。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A05
+  status: ACTIVE
+  title: 断线默认
+  statement: 真人断线时默认暂停需要其参与的流程；AI 接管必须在安全点显式授权。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A06
+  status: ACTIVE
+  title: AI 席位隔离
+  statement: 每个 AI 席位拥有独立身份、权限视图、上下文和记忆。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A07
+  status: ACTIVE
+  title: AI 主持结构
+  statement: 对外只有一个权威 AI 主持席；内部子 Agent 只能建议，不能直接写权威状态。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A08
+  status: ACTIVE
+  title: 分层记忆
+  statement: 采用权威状态、工作上下文、事件摘要、Campaign 长期记忆和席位私有记忆。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A09
+  status: ACTIVE
+  title: 上下文压缩
+  statement: 平台触发结构化压缩，保留来源、事实等级和可见范围；包可扩展字段。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A10
+  status: ACTIVE
+  title: AI 动作提交
+  statement: AI 分离结构化动作与叙事；动作通过权限、规则和状态版本验证后提交。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A11
+  status: ACTIVE
+  title: 模型路由
+  statement: 普通模式按能力自动路由；高级 BYOK 模式允许用户选兼容模型和参数。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A12
+  status: ACTIVE
+  title: 密钥保存
+  statement: BYOK 使用加密凭据库或会话临时模式；原始密钥不得进入包、提示词或普通日志。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A13
+  status: ACTIVE
+  title: 本地模型 V1 服务器路径
+  statement: 支持 OpenAI-compatible、Ollama 适配和经兼容服务器接入的 llama.cpp，并执行健康与能力探测。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A14
+  status: ACTIVE
+  title: 模型失败
+  statement: 有限重试和格式修复；只有用户预授权且能力兼容时才切换后备模型，否则暂停席位。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R3-A15
+  status: ACTIVE
+  title: 审计重放
+  statement: 规则状态由已提交事件确定性重放；记录 AI 外部输入摘要、工具、结构化输出和验证，不保存隐藏推理。
+  source_stage: R3
+  scope: V1_AND_LONG_TERM
+  specifications: *id004
+- decision_id: R4-A01
+  status: ACTIVE
+  title: 账户与访客
+  statement: 房主、创作者和长期 Campaign 成员必须有账户；受邀者可访客加入单次游戏并后续认领。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: &id005
+  - SPEC-PLAYER-EXPERIENCE-001
+  - SPEC-SESSION-001
+- decision_id: R4-A02
+  status: ACTIVE
+  title: 私人房间
+  statement: V1 只支持私人房间、邀请链接和房间代码，不提供公共浏览或陌生人匹配。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A03
+  status: ACTIVE
+  title: 权限角色分离
+  statement: 房间所有者、管理员、当前主持人和席位控制者分别授权。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A04
+  status: ACTIVE
+  title: 邀请不绑席位
+  statement: 支持链接、代码、过期和可选批准；邀请只授予加入资格，不指定席位。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A05
+  status: ACTIVE
+  title: 内容同意
+  statement: 加入时展示包清单、版本、来源、大小、权限和信任等级，用户同意后下载缓存。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A06
+  status: ACTIVE
+  title: 内容边界
+  statement: 提供内容标签、开局边界、安全暂停、退出机制和房间内容强度。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A07
+  status: ACTIVE
+  title: 标准开局
+  statement: 选择游戏与内容、兼容检查、席位、AI、边界、准备门禁后启动。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A08
+  status: ACTIVE
+  title: 席位申请
+  statement: 玩家申请或选择席位，经房主或主持人确认；空位按包规则配置 AI。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A09
+  status: ACTIVE
+  title: AI 配置界面
+  statement: 普通模式显示语义化偏好；高级 BYOK 才显示模型、端点、预算和后备。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A10
+  status: ACTIVE
+  title: 启动硬门禁
+  statement: 内容、依赖、席位、模型、权限和必要准备未通过时不能强制开局。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A11
+  status: ACTIVE
+  title: 无普通观察者
+  statement: V1 不提供一般观察者席位。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+  exceptions:
+  - R9-A13
+  - R11-A22
+- decision_id: R4-A12
+  status: ACTIVE
+  title: 通信频道
+  statement: 支持公共、阵营、席位私密、主持沟通和系统日志频道，由包声明可用范围。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A13
+  status: ACTIVE
+  title: Campaign 成员模型
+  statement: Campaign 成员、角色和 Session 席位控制者分离，可在安全边界调整。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A14
+  status: ACTIVE
+  title: 重连
+  statement: 重连重新验证席位、补齐事件、恢复私有视图和待处理行动，避免重复命令。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R4-A15
+  status: ACTIVE
+  title: 保存与结束产物
+  statement: 每个事件持续保存，安全边界建恢复点；结束后生成摘要、结果、权限过滤日志和导出。
+  source_stage: R4
+  scope: V1_AND_LONG_TERM
+  specifications: *id005
+- decision_id: R5-A01
+  status: ACTIVE
+  title: 客户端分工
+  statement: Web Player 是唯一正式游玩客户端；桌面应用只提供无代码与混合创作功能。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: &id006
+  - SPEC-DEPLOYMENT-001
+  - SPEC-CREATOR-001
+  - SPEC-DATA-001
+- decision_id: R5-A02
+  status: ACTIVE
+  title: 移动端
+  statement: V1 不支持手机和平板的正式完整体验。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A03
+  status: ACTIVE
+  title: 部署模式
+  statement: 同一核心代码支持官方托管和自托管。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A04
+  status: ACTIVE
+  title: 自托管基线
+  statement: Linux 单机 Docker Compose 为正式一键部署基线；Windows 通过 WSL2/Docker Desktop。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A05
+  status: ACTIVE
+  title: 租户模型
+  statement: 托管使用工作区/租户隔离；自托管默认主工作区但使用相同权限模型。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A06
+  status: ACTIVE
+  title: 浏览器本地模型设计
+  statement: 托管 Web 客户端可直接连接用户明确配置的本机模型端点；该能力后由 R12 延后至 V1 之后。
+  source_stage: R5
+  scope: POST_V1_DESIGN_ACTIVE
+  specifications: *id006
+  implementation_status: DEFERRED_BY_R12_A08
+- decision_id: R5-A07
+  status: ACTIVE
+  title: 自托管模型连接
+  statement: 自托管服务器通过统一模型网关访问明确配置的本机或局域网端点。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A08
+  status: ACTIVE
+  title: 本地权限最小化
+  statement: 本地访问只针对用户明确批准的端点、模型和目录，不自动扫描。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A09
+  status: ACTIVE
+  title: 离线局域网
+  statement: 准备好包、素材和本地模型后，自托管可在无互联网环境运行核心账户、房间和游戏。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A10
+  status: ACTIVE
+  title: 数据归属
+  statement: 权威数据属于当前部署；自托管不依赖强制中央账户或控制平面。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A11
+  status: ACTIVE
+  title: 完整迁移
+  statement: 支持工作区、包、Campaign、Session、角色、事件、恢复点和设置的版本化导出导入，密钥除外。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A12
+  status: ACTIVE
+  title: 对象存储抽象
+  statement: 大型内容使用对象存储抽象；本地目录和 S3-compatible 均可实现。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A13
+  status: ACTIVE
+  title: 一致性备份
+  statement: 提供数据库与对象内容一致性备份、保留、升级前恢复点、恢复验证和 CLI。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A14
+  status: ACTIVE
+  title: 加密边界
+  statement: 使用传输加密、凭据专用加密和部署侧静态保护，不宣称游戏内容端到端加密。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A15
+  status: ACTIVE
+  title: 遥测
+  statement: 默认仅必要运行指标；内容和私密状态默认不外发，自托管默认关闭外发遥测。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A16
+  status: ACTIVE
+  title: 浏览器兼容
+  statement: 首版浏览器本地模型设计以 Chromium 桌面为兼容基线。
+  source_stage: R5
+  scope: POST_V1_DESIGN_ACTIVE
+  specifications: *id006
+  implementation_status: DEFERRED_BY_R12_A08
+- decision_id: R5-A17
+  status: ACTIVE
+  title: 本地推理信息限制
+  statement: 浏览器本地模型仅能处理本地执行者有权技术接触的推理信息。
+  source_stage: R5
+  scope: POST_V1_DESIGN_ACTIVE
+  specifications: *id006
+  implementation_status: DEFERRED_BY_R12_A08
+- decision_id: R5-A18
+  status: ACTIVE
+  title: 竞争本地计算
+  statement: 竞争游戏可使用信任型浏览器本地 AI，但需全员同意且不具严格公平认证。
+  source_stage: R5
+  scope: POST_V1_DESIGN_ACTIVE
+  specifications: *id006
+  implementation_status: DEFERRED_BY_R12_A08
+- decision_id: R5-A19
+  status: ACTIVE
+  title: 多人 TRPG 限制
+  statement: 浏览器本地模型不得担任多人 TRPG 的 AI 主持。
+  source_stage: R5
+  scope: POST_V1_DESIGN_ACTIVE
+  specifications: *id006
+  implementation_status: DEFERRED_BY_R12_A08
+- decision_id: R5-A20
+  status: ACTIVE
+  title: 本地执行者断线
+  statement: 本地执行者掉线时暂停相关 AI；仅预授权兼容后备模型可接管。
+  source_stage: R5
+  scope: POST_V1_DESIGN_ACTIVE
+  specifications: *id006
+  implementation_status: DEFERRED_BY_R12_A08
+- decision_id: R5-A21
+  status: ACTIVE
+  title: 本地端点向导
+  statement: Web 端只连接明确配置的 loopback 端点，不扫描端口、不自动改系统或通配 CORS。
+  source_stage: R5
+  scope: POST_V1_DESIGN_ACTIVE
+  specifications: *id006
+  implementation_status: DEFERRED_BY_R12_A08
+- decision_id: R5-A22
+  status: ACTIVE
+  title: 本地凭据
+  statement: 非敏感端点信息可同步；本地认证材料只存当前设备或会话。
+  source_stage: R5
+  scope: POST_V1_DESIGN_ACTIVE
+  specifications: *id006
+  implementation_status: DEFERRED_BY_R12_A08
+- decision_id: R5-A23
+  status: ACTIVE
+  title: 本地执行分配
+  statement: 每个浏览器本地 AI 席位明确绑定一个执行者；同一执行者可承担多个隔离席位。
+  source_stage: R5
+  scope: POST_V1_DESIGN_ACTIVE
+  specifications: *id006
+  implementation_status: DEFERRED_BY_R12_A08
+- decision_id: R5-A24
+  status: ACTIVE
+  title: Studio 离线
+  statement: Creator Studio 支持完全离线创建、编辑、验证、预览和导出。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R5-A25
+  status: ACTIVE
+  title: 规范化源项目
+  statement: 规范化源文件和包清单是唯一可移植事实来源；Studio、文本编辑器和 CLI 可往返且不丢未知字段。
+  source_stage: R5
+  scope: V1_AND_LONG_TERM
+  specifications: *id006
+- decision_id: R6-A01
+  status: ACTIVE
+  title: 桌游 AI 架构
+  statement: 规则系统生成合法动作，包提供目标、启发式和搜索接口，LLM 负责高层意图、风格和解释。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: &id007
+  - SPEC-AI-001
+  - SPEC-QUALITY-001
+- decision_id: R6-A02
+  status: ACTIVE
+  title: 主持分层计划
+  statement: AI 主持维护 Campaign、Session、场景和 NPC 多层计划；计划可审计但不能改锁定事实。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A03
+  status: ACTIVE
+  title: 生成内容持久化
+  statement: 区分临时叙事、场景状态和 Campaign 持久内容；持久化须通过结构化事件并记录来源。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A04
+  status: ACTIVE
+  title: 真人自主权
+  statement: AI 可建议或解析意图，但未经明确接管授权不得替真人作实质决定。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A05
+  status: ACTIVE
+  title: 席位级模型
+  statement: 每个 AI 席位可独立选择模型并分别满足能力、预算、权限和拓扑要求。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A06
+  status: ACTIVE
+  title: 语义化 AI 配置
+  statement: 包定义谨慎、冒险、协作、叙事密度、策略等级等语义配置，平台映射到底层策略。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+  exceptions:
+  - R11-A12
+- decision_id: R6-A07
+  status: ACTIVE
+  title: 动作后叙事
+  statement: 先验证并提交结构化动作，再生成和流式展示最终叙事。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A08
+  status: ACTIVE
+  title: 历史修正
+  statement: 提交前可重试；提交后只能用纠正事件、恢复点或分支，不能静默覆盖。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A09
+  status: ACTIVE
+  title: 模型认证等级
+  statement: 模型按叙事/NPC、结构化工具、AI 玩家、完整 AI 主持等角色能力认证。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A10
+  status: ACTIVE
+  title: 未认证 BYOK
+  statement: 只允许高级私人模式或开发工作区使用，仍受最低安全、权限、预算和输出模式约束。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A11
+  status: ACTIVE
+  title: 主动能力探测
+  statement: 对端点、模型、适配器和提示模板组合主动测试结构化输出、工具、上下文、流式、取消、延迟和视觉。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A12
+  status: ACTIVE
+  title: 指令优先级
+  statement: 平台安全与权限 > 游戏包 AI 契约 > 模组锁定事实 > 房间设置 > 权威状态 > 用户输入/检索数据。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A13
+  status: ACTIVE
+  title: 模型交接
+  statement: 切换模型时生成权限过滤的结构化交接包，不复制全部缓存或扩大秘密。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A14
+  status: ACTIVE
+  title: 多级预算
+  statement: 工作区、房间、Session、席位和任务设置调用、Token、费用、延迟与本地资源预算，硬上限暂停。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R6-A15
+  status: ACTIVE
+  title: 质量门禁
+  statement: 黄金场景、自动评测和运行指标共同决定角色认证；回归时降级或撤销。
+  source_stage: R6
+  scope: V1_AND_LONG_TERM
+  specifications: *id007
+- decision_id: R7-A01
+  status: ACTIVE
+  title: 项目目录
+  statement: Creator Studio 项目保存为普通目录中的规范化源文件和素材；缓存索引可重建。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: &id008
+  - SPEC-CREATOR-001
+  - SPEC-PACKAGE-001
+- decision_id: R7-A02
+  status: ACTIVE
+  title: 无代码覆盖
+  statement: 官方两个垂直切片的大部分规则、内容和界面可由无代码组件维护，复杂部分可代码扩展。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A03
+  status: ACTIVE
+  title: 混合往返
+  statement: Studio 可视化与手工代码往返；未知扩展保留或只读，冲突用差异界面处理。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A04
+  status: ACTIVE
+  title: 协作范围
+  statement: V1 支持本地项目、Git、显式同步、签入签出和冲突检测，不实现实时共同编辑。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A05
+  status: ACTIVE
+  title: 项目模板
+  statement: 提供最小游戏系统、官方 TRPG、隐藏信息桌游、内容、素材和 UI 扩展模板。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A06
+  status: ACTIVE
+  title: 预览边界
+  statement: Studio 提供隔离本地单人预览；正式多人测试通过 Web Player 私人开发房间。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A07
+  status: ACTIVE
+  title: 热更新
+  statement: 内容、素材和兼容 UI 可热更新；状态模式、核心规则和迁移需重启或显式迁移。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A08
+  status: ACTIVE
+  title: 测试入口
+  statement: 同时提供可视化测试场景、规范化测试 DSL 和 CLI，支持固定随机种子、夹具、无头和 CI。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A09
+  status: ACTIVE
+  title: AI 创作助手
+  statement: 可选本地或 BYOK 助手用于草稿、规则建议、测试和修复建议，所有修改以差异提交。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A10
+  status: ACTIVE
+  title: 创作 AI 权限
+  statement: AI 只访问明确选择的项目文件、字段、素材和工具，不能读取秘密或任意目录。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A11
+  status: ACTIVE
+  title: 素材管线
+  statement: 记录素材哈希、格式、尺寸、来源和权利声明，生成预览和兼容派生文件。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A12
+  status: ACTIVE
+  title: 本地化
+  statement: V1 建立稳定文本 ID、源语言、语言包和回退；官方首发内容只强制简体中文。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A13
+  status: ACTIVE
+  title: 可重复构建
+  statement: 相同规范化源、依赖锁和工具版本产生内容等价且哈希可验证的包。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A14
+  status: ACTIVE
+  title: 认证流程
+  statement: 本地验证、私人测试、自动认证、必要人工审核与签名分阶段执行。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R7-A15
+  status: ACTIVE
+  title: V1 分发
+  statement: 支持本地导出、私人工作区上传、签名和认证元数据；公共市场与商业交易后续决定。
+  source_stage: R7
+  scope: V1_AND_LONG_TERM
+  specifications: *id008
+- decision_id: R8-A01
+  status: ACTIVE
+  title: 内容优先首页
+  statement: 首页突出继续游戏、快速开始、创建房间和我的游戏；模型和开发设置进入次级页面。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: &id009
+  - SPEC-PLAYER-EXPERIENCE-001
+  - SPEC-TRPG-001
+  - SPEC-BOARDGAME-001
+- decision_id: R8-A02
+  status: ACTIVE
+  title: 首次快速开始
+  statement: 新用户可用官方单次 TRPG 推荐席位、AI、角色和安全默认值直接进入。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A03
+  status: ACTIVE
+  title: 交互式教程
+  statement: 每个官方游戏提供可重复交互教程，并在正式游戏提供上下文提示。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A04
+  status: ACTIVE
+  title: 规则渐进披露
+  statement: 当前场景显示相关规则和合法行动，同时提供可搜索完整规则、示例和解释。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A05
+  status: ACTIVE
+  title: 误操作保护
+  statement: 提交前显示合法性和重大后果确认；教程可安全回退，正式历史遵守纠正/恢复/分支。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A06
+  status: ACTIVE
+  title: 共享世界
+  statement: 单次模组与短战役使用同一原创规则和共享世界。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A07
+  status: ACTIVE
+  title: 高复杂度 TRPG
+  statement: 官方 TRPG 采用高复杂度模拟规则并参考规则怪谈类抽象概念。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A08
+  status: ACTIVE
+  title: 失败推进线索
+  statement: 核心线索可由合理行动获得；检定影响质量、代价、风险、时间和额外收益，多路径避免卡关。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A09
+  status: ACTIVE
+  title: 沙盒节奏
+  statement: 使用权威时间、威胁和派系进度推动世界，不强制唯一路线。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A10
+  status: ACTIVE
+  title: 重大后果
+  statement: 模组声明后果强度；不可逆结果必须有明确风险信号和规则依据，默认失败推进。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A11
+  status: ACTIVE
+  title: 裁定解释
+  statement: AI 主持展示适用规则、公开输入、骰子/状态结果和结构化依据，不展示秘密或隐藏推理。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A12
+  status: ACTIVE
+  title: 桌游核心机制
+  statement: 官方桌游采用私人手牌/资源、公共区域行动和公开目标竞争。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A13
+  status: SUPERSEDED
+  title: 初始低淘汰原则
+  statement: 原先要求有限干扰且不常规淘汰；后由 R11-A09/R11-A21 针对官方桌游覆盖。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+  superseded_by:
+  - R11-A09
+  - R11-A21
+- decision_id: R8-A14
+  status: ACTIVE
+  title: 随机与策略
+  statement: 使用中等且可管理的随机性，玩家可通过信息、资源和行动降低风险，AI 与真人同规则。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R8-A15
+  status: ACTIVE
+  title: 教程模式
+  statement: 桌游教程/快速模式与正式模式共享核心规则，只缩短区域、卡牌、目标和轮数。
+  source_stage: R8
+  scope: V1_AND_LONG_TERM
+  specifications: *id009
+- decision_id: R9-A01
+  status: ACTIVE
+  title: 世界空间
+  statement: 稳定据点加多个异常地点或案件；单次模组为入口案件，短战役扩大探索范围。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: &id010
+  - SPEC-TRPG-001
+- decision_id: R9-A02
+  status: ACTIVE
+  title: 世界内规则对象
+  statement: 规则采用结构化对象，包含来源、范围、触发、义务/禁令、例外、优先级、后果、可见性和证据。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A03
+  status: ACTIVE
+  title: 规则真假
+  statement: 规则声明可真实、部分真实、过时、错误或敌对伪造；真相与证据路径由作者锁定。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A04
+  status: ACTIVE
+  title: 规则冲突
+  statement: 按范围、来源权威、时间、例外和优先级解析；未解决冲突可成为调查问题。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A05
+  status: ACTIVE
+  title: 违规后果
+  statement: 采用暴露、检测、严重度、反应窗口和后果流程；致命规则需显式配置并强预警。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A06
+  status: ACTIVE
+  title: AI 生成规则
+  statement: 核心规则作者锁定；AI 仅可按预定义模板生成局部、临时或低风险规则。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A07
+  status: ACTIVE
+  title: 角色知识传播
+  statement: 规则知识按角色和席位记录；观察、记录、验证、分享和隐瞒均为游戏行动。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A08
+  status: ACTIVE
+  title: 共享模拟内核
+  statement: 调查、异常、生存、战斗等模块共享类型化状态、命令、事件和效果内核。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A09
+  status: ACTIVE
+  title: 六大子系统
+  statement: 官方规则包含调查证据、异常规则、压力认知、生存资源、社会互动、区域战斗。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A10
+  status: ACTIVE
+  title: 自然语言行动
+  statement: 玩家主要用自然语言声明，由 AI 转为结构化行动草案并在歧义/高影响时确认。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A11
+  status: ACTIVE
+  title: 复杂计算展示
+  statement: 平台自动执行确定性计算，默认简明并可展开规则、输入、修正和事件详情。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A12
+  status: ACTIVE
+  title: 角色结构成长
+  statement: 角色由背景、特质、关系、知识、禁忌、创伤、资源和能力模块构成，成长不只靠等级。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A13
+  status: ACTIVE
+  title: 死亡后重返
+  statement: 死亡角色影响永久保留；玩家当前阶段只读旁观，在下一安全阶段以替代角色加入。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A14
+  status: ACTIVE
+  title: 短战役结构
+  statement: 稳定据点、多案件/异常区域、派系、威胁进度和贯穿谜团构成 3—5 Session 战役。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R9-A15
+  status: ACTIVE
+  title: 复杂度引入
+  statement: 单次模组分阶段引入正式规则，短战役逐步扩展，不维护独立简化规则。
+  source_stage: R9
+  scope: V1_AND_LONG_TERM
+  specifications: *id010
+- decision_id: R10-A01
+  status: ACTIVE
+  title: 百分骰
+  statement: 基础随机判定使用百分骰下掷并区分成功等级。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: &id011
+  - SPEC-TRPG-001
+- decision_id: R10-A02
+  status: ACTIVE
+  title: 能力三层
+  statement: 角色能力分为核心素质、训练技能和专业特长。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A03
+  status: ACTIVE
+  title: 难度修正
+  statement: 使用难度等级、优势/劣势和有上限的少量数值修正。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A04
+  status: ACTIVE
+  title: 结果等级
+  statement: 区分卓越成功、成功、带代价成功、失败推进和有明确风险条件的灾难性失败。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A05
+  status: ACTIVE
+  title: 对抗协作
+  statement: 对抗比较成功等级与优势；协作指定主要行动者和支援者并产生明确收益/代价。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A06
+  status: ACTIVE
+  title: 有限判定资源
+  statement: 设置专注、意志或应变类有限资源，用于规则内准备、重试和缓解，不改写已提交事实。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A07
+  status: ACTIVE
+  title: 证据对象
+  statement: 证据记录来源、载体、完整性、可靠性、可见性、关联事实、解释和保管关系。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A08
+  status: ACTIVE
+  title: 规则认知
+  statement: 角色使用听闻、观察、推测、测试、交叉验证、反证和过时等认知状态，客观真假隐藏。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A09
+  status: ACTIVE
+  title: 规则试验天赋
+  statement: 正式结构化规则试验仅由特定天赋解锁；无天赋队伍仍须能通过其他路径完成。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A10
+  status: ACTIVE
+  title: 异常检测
+  statement: 规则可配置确定性或概率检测，结合暴露、环境、重复次数和异常状态。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A11
+  status: ACTIVE
+  title: 多维异常风险
+  statement: 区分区域失稳、异常实体注意和角色个人标记/污染。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A12
+  status: ACTIVE
+  title: 异常补救
+  statement: 提供规则定义的预警、反应、纠正和保护；极稀缺具体资源可重试或解除指定后果。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A13
+  status: ACTIVE
+  title: 压力认知
+  statement: 区分急性压力、累积负担、持续创伤/适应和角色私有认知偏差。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A14
+  status: ACTIVE
+  title: 伤势死亡
+  statement: 使用伤势严重度、功能影响、失血和救治窗口；死亡须满足明确阈值或预定义异常规则。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A15
+  status: ACTIVE
+  title: 替代角色追赶
+  statement: 安全阶段引入与战役进度相适应的替代角色；知识、关系和物品仅按规则继承。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A16
+  status: ACTIVE
+  title: 天赋获取
+  statement: 官方规则试验天赋从天赋池抽取，允许全队无人获得且无试验方式，但不能因此卡关。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A17
+  status: ACTIVE
+  title: 试验独立完成
+  statement: 正式规则试验只能由天赋角色单独完成；可消耗珍稀资源获取额外信息或重试。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A18
+  status: ACTIVE
+  title: 异常例外资源形态
+  statement: 使用世界内具体稀缺物品、权限或协议，每种资源限定异常类别和效果。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A19
+  status: ACTIVE
+  title: 死亡逆转窗口
+  statement: 具体资源可在反应窗口重试或事后补偿；其他活着角色可在窗口内消耗适用资源逆转死亡。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A20
+  status: ACTIVE
+  title: 多层时间
+  statement: 维护 Campaign 日历、场景时间、行动时间和战斗轮次。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A21
+  status: ACTIVE
+  title: 负重模型
+  statement: 使用重量/体积等级、携带槽位和取用位置混合模型，关键消耗品记录精确数量。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A22
+  status: ACTIVE
+  title: 生存资源启用
+  statement: 系统提供标准资源类型，模组声明实际启用项并权威跟踪。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A23
+  status: ACTIVE
+  title: 恢复层级
+  statement: 区分安全据点休整、现场休息和紧急救治，严重伤势与创伤跨阶段恢复。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A24
+  status: ACTIVE
+  title: 社会多元解析
+  statement: 社会互动结合技能检定、自然语言、结构化目标、立场、筹码、风险、承诺和代价。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A25
+  status: ACTIVE
+  title: 关系状态
+  statement: 关系使用信任、义务、恐惧、敌意等少量维度并附结构化承诺/标签。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A26
+  status: ACTIVE
+  title: 欺骗
+  statement: 欺骗结合证据、合理性、目标知识和利益；改变相信程度与行动倾向，不改变客观事实。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A27
+  status: ACTIVE
+  title: 真人社会自主权例外
+  statement: 普通社会效果不替真人决定；预定义精神控制等特殊能力判定生效时可在明确范围内直接控制角色行动。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A28
+  status: ACTIVE
+  title: 战斗行动经济
+  statement: 明确轮次和行动顺序；通常有主要行动、机动/准备动作和有限反应。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A29
+  status: ACTIVE
+  title: 区域空间
+  statement: 区域连接图记录相邻、视线、掩体、狭窄、高低差、危险区和撤离路径。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R10-A30
+  status: ACTIVE
+  title: 攻击与 PVE
+  statement: 攻击结合成功等级、武器、距离、掩体、护具和具体伤势；PVE 无通用投降，但保留救治、撤离和规则化脱离。
+  source_stage: R10
+  scope: V1_AND_LONG_TERM
+  specifications: *id011
+- decision_id: R11-A01
+  status: ACTIVE
+  title: 世界关系
+  statement: 桌游与 TRPG 共享原创世界观或品牌意象，但剧情和状态相互独立。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: &id012
+  - SPEC-BOARDGAME-001
+- decision_id: R11-A02
+  status: ACTIVE
+  title: 核心机制
+  statement: 私人手牌与资源、公共地点行动、有限位置竞争和公开目标计分。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A03
+  status: ACTIVE
+  title: 有限非对称
+  statement: 角色或派系具有有限非对称能力和初始条件，但共享核心规则。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A04
+  status: ACTIVE
+  title: 秘密规划
+  statement: 每轮同时秘密规划部分行动，再按公开顺序或优先级解析。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A05
+  status: ACTIVE
+  title: 私人信息
+  statement: 包含私人手牌/资源和少量私人目标；主要胜利路径公开。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A06
+  status: ACTIVE
+  title: 行动点
+  statement: 每轮获得有限行动点，在地点、手牌、能力和干扰之间分配。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A07
+  status: ACTIVE
+  title: 双胜利路径
+  statement: 同时支持公开终局计分和特定秘密目标立即胜利。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A08
+  status: ACTIVE
+  title: 混合随机
+  statement: 随机来自服务器洗牌、抽取、随机事件和骰子；玩家可管理风险。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A09
+  status: ACTIVE
+  title: 高烈度竞争
+  statement: 允许位置争夺、资源摧毁、完全压制和提前淘汰，不设统一竞争烈度上限。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A10
+  status: ACTIVE
+  title: 软追赶
+  statement: 通过边际收益递减、公共机会、位置轮换和多条计分路径形成软追赶。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A11
+  status: ACTIVE
+  title: 人数认证
+  statement: 官方首发严格认证 3—4 人，不承诺双人。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A12
+  status: ACTIVE
+  title: AI 架构与高难度例外
+  statement: 标准 AI 只用席位可见信息；高难度允许读取包逐字段授权的额外秘密。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A13
+  status: ACTIVE
+  title: 沟通交易
+  statement: 允许公共文字交流；私人交易/秘密频道只有规则明确启用时存在。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A14
+  status: ACTIVE
+  title: 扩展方式
+  statement: 内容包可增加卡牌、角色、目标、区域和场景；核心状态/回合改变需新系统包版本和迁移。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A15
+  status: ACTIVE
+  title: 教程缩短
+  statement: 教程保留相同回合、行动、私密信息和计分内核，只减少内容和轮数。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A16
+  status: ACTIVE
+  title: 计划锁定
+  statement: 截止前可修改；最终确认或截止后锁定，全部锁定前不公开。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A17
+  status: ACTIVE
+  title: 解析顺序
+  statement: 使用公开优先级/先攻轨道、行动速度和轮换首位玩家；同级确定性处理。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A18
+  status: ACTIVE
+  title: 秘密胜利检查
+  statement: 当前秘密规划批次全部解析后统一检查立即胜利。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A19
+  status: ACTIVE
+  title: 多秘密胜者
+  statement: 先比较目标显式优先级，再比较公开分数，最后用确定性平局规则。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A20
+  status: ACTIVE
+  title: 秘密目标结构
+  statement: 每名玩家有普通私人目标，少量独立终局型目标提供立即胜利。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A21
+  status: ACTIVE
+  title: 淘汰模式
+  statement: 正式模式从第一轮允许淘汰；快速模式和教程不淘汰。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A22
+  status: ACTIVE
+  title: 淘汰后权限
+  statement: 被淘汰者只读公共状态和公开日志，不能行动、获取新私密信息或影响对局。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A23
+  status: ACTIVE
+  title: 复归
+  statement: 只有明确卡牌、地点或角色能力可使被淘汰者重新进入。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A24
+  status: ACTIVE
+  title: 最低保障
+  statement: 正式模式无统一最低保障；快速模式保留最低有效参与能力。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A25
+  status: ACTIVE
+  title: 快速模式后果
+  statement: 教程与快速模式关闭提前淘汰但保留攻击、干扰和资源损失。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A26
+  status: ACTIVE
+  title: 信息优势字段
+  statement: 高难度额外秘密由游戏系统包为每个难度档逐字段声明。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A27
+  status: ACTIVE
+  title: 启用权限
+  statement: 高难度信息优势由房主开局前启用，开局后不可更改。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A28
+  status: ACTIVE
+  title: 玩家侧标记
+  statement: 玩家侧只显示普通“高难度”，不单独显示信息优势认证或公平标签。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A29
+  status: ACTIVE
+  title: 执行拓扑
+  statement: 浏览器本地模型不能承担信息优势 AI；服务器模型、服务器侧 BYOK 和自托管服务器模型网关可以。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R11-A30
+  status: ACTIVE
+  title: 公开输出隔离
+  statement: AI 可利用授权秘密决策，但公开行动解释、聊天和叙事不得泄露。
+  source_stage: R11
+  scope: V1_AND_LONG_TERM
+  specifications: *id012
+- decision_id: R12-A01
+  status: ACTIVE
+  title: 首个里程碑
+  statement: 先制作长期保留为自动测试夹具的最小一致性游戏。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: &id013
+  - SPEC-V1-ROADMAP-001
+  - SPEC-V1-SCOPE-001
+- decision_id: R12-A02
+  status: ACTIVE
+  title: 切片顺序
+  statement: 隐藏信息桌游 → TRPG 单次模组 → TRPG 短战役。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A03
+  status: ACTIVE
+  title: 公开门槛
+  statement: 首个切片完成后只做封闭技术预览；两个切片、短战役和基础 Studio 达标后才发布 V1。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A04
+  status: ACTIVE
+  title: Campaign 实施
+  statement: 先完成单次模组，再增加跨 Session 存档、记忆、主持交接和短战役。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A05
+  status: ACTIVE
+  title: 创作工具顺序
+  statement: 先完成包规范、SDK、CLI 和官方源项目，再开发 Studio；Studio 是公开 V1 门槛。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A06
+  status: ACTIVE
+  title: 官方内容验证包体系
+  statement: 两个官方游戏从一开始使用正式包规范和工具链维护，不先硬编码。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A07
+  status: ACTIVE
+  title: AI 拓扑顺序
+  statement: 服务器侧 API/BYOK → 自托管本地模型网关 → 浏览器本地模型。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A08
+  status: ACTIVE
+  title: 浏览器本地模型延期
+  statement: 浏览器本地模型推迟到 V1 发布后。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A09
+  status: ACTIVE
+  title: 私人导入顺序
+  statement: CLI 构建和本地导入 → 私人工作区上传 → Studio 图形流程。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A10
+  status: ACTIVE
+  title: 部署顺序
+  statement: 先建立 Linux Docker Compose 自托管开发基线，再建设托管封闭 Beta；V1 同时提供。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A11
+  status: ACTIVE
+  title: 兼容冻结
+  statement: Alpha 可破坏调整；Beta 冻结包格式和核心存档契约，此后必须迁移。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A12
+  status: ACTIVE
+  title: 原仓库重启
+  statement: 继续使用原仓库并给旧代码打 Tag；该选择后由 R13-A04 收紧为旧代码零迁移。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A13
+  status: ACTIVE
+  title: 源码许可政策
+  statement: 公共源码采用禁止商业使用的源码可用许可。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A14
+  status: ACTIVE
+  title: 里程碑验收
+  statement: 每个主要里程碑必须有可操作 E2E、自动测试、恢复验证和阻塞清单。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R12-A15
+  status: ACTIVE
+  title: 范围冻结
+  statement: R0—R12 形成的 V1 范围冻结；新增功能默认进入 V1.x/V2，除非等量替换。
+  source_stage: R12
+  scope: V1_AND_LONG_TERM
+  specifications: *id013
+- decision_id: R13-A01
+  status: ACTIVE
+  title: 双重许可方向
+  statement: 公共版本采用非商业许可，项目权利主体可另行授予商业许可。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: &id014
+  - SPEC-LICENSE-RIGHTS-001
+  - SPEC-SUPPLY-CHAIN-001
+- decision_id: R13-A02
+  status: ACTIVE
+  title: 许可比较结论
+  statement: 比较 PolyForm 与定制方案后，最终选择原样采用 PolyForm Noncommercial 1.0.0。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A03
+  status: ACTIVE
+  title: 新许可边界
+  statement: 新许可证从重启基线提交开始；旧 Tag 和历史版本保持原法律状态。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A04
+  status: ACTIVE
+  title: 旧代码零迁移
+  statement: 旧代码只作参考，不复制、Cherry-pick、改名迁移或作为新主线脚手架。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A05
+  status: ACTIVE
+  title: 开放贡献时机
+  statement: 完成核心包规范和贡献治理后再开放外部代码贡献。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A06
+  status: ACTIVE
+  title: CLA
+  statement: 外部代码贡献使用支持公共非商业发行和独立商业授权的 CLA。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R13-A07
+  status: ACTIVE
+  title: 来源声明
+  statement: 贡献者必须声明第三方代码、素材和生成式 AI 来源并保证拥有贡献权利。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A08
+  status: ACTIVE
+  title: 资产分开授权
+  statement: 程序代码、官方内容、文档、商标、第三方素材和用户内容分别治理。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A09
+  status: ACTIVE
+  title: 依赖许可治理
+  statement: 建立许可证允许清单、SBOM、自动扫描和人工例外审查。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A10
+  status: ACTIVE
+  title: 强 Copyleft
+  statement: 强 Copyleft 和其他源码可用依赖默认禁止进入核心发行物，除非完成兼容与义务审查。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A11
+  status: ACTIVE
+  title: 创作者共同所有权目标
+  statement: 符合条件的创作者原创上传内容由项目权利主体与创作者共同拥有。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R13-A12
+  status: ACTIVE
+  title: 商标
+  statement: 代码许可不授予商标权；派生版本须使用不同名称和标志。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A13
+  status: ACTIVE
+  title: 主分支保护
+  statement: main 受保护，正常变更必须经 PR、自动测试和审查，紧急绕过有审计。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A14
+  status: ACTIVE
+  title: 公开时机
+  statement: 最小一致性游戏和许可审计通过后再公开新主线源码。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A15
+  status: ACTIVE
+  title: 发行来源证明
+  statement: 正式发行提供签名 Tag、源码/二进制哈希、SBOM、依赖许可清单、工具链和可重复构建记录。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A16
+  status: ACTIVE
+  title: 权利主体
+  statement: 项目权利主体由用户本人作为自然人担任。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A17
+  status: ACTIVE
+  title: 程序代码许可
+  statement: 程序代码原样采用 PolyForm Noncommercial 1.0.0，并通过独立商业许可证处理商用。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A18
+  status: ACTIVE
+  title: 宽泛非商业机构使用
+  statement: 接受 PolyForm 对教育、公共研究、政府和慈善组织的宽泛非商业授权。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A19
+  status: ACTIVE
+  title: 非商业修改分发
+  statement: 允许第三方在遵守许可和通知要求下修改并非商业分发程序。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A20
+  status: ACTIVE
+  title: 商业授权方式
+  statement: 商业代码许可证由项目权利主体逐案谈判和签发。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A21
+  status: ACTIVE
+  title: 共有触发
+  statement: 创作者明确选择提交认证或平台分发并签署协议时才触发共同所有权。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R13-A22
+  status: ACTIVE
+  title: 自托管私人导入
+  statement: 自托管实例中的私人导入不转移所有权，只授予运行、存储和私人传输必要许可。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+- decision_id: R13-A23
+  status: ACTIVE
+  title: 共有范围
+  statement: 共有只覆盖提交者拥有并有权转让的原创源文件、内容和素材，排除背景 IP 与第三方成分。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R13-A24
+  status: ACTIVE
+  title: 共有份额
+  statement: 项目权利主体与创作者各持有合格原创内容 50% 权益。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R13-A25
+  status: ACTIVE
+  title: 授权分工
+  statement: 项目权利主体可进行平台发行和商业授权；创作者可自行非商业使用，独立商业授权按协议限制。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R13-A26
+  status: ACTIVE
+  title: 商业收入
+  statement: 创作者内容商业收入逐项通过交易附表谈判。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R13-A27
+  status: ACTIVE
+  title: 内容撤回
+  statement: 撤回后停止新的展示和分发；已有房间、存档、发行物和已签发许可继续有效。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R13-A28
+  status: ACTIVE
+  title: 精神权利
+  statement: 保留署名；创作者签署协议时对列明的格式转换、修复、本地化、审核和合理改编预先书面同意。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R13-A29
+  status: ACTIVE
+  title: 签署资格
+  statement: 只有经身份确认的成年人或法人实体可签署，并声明第三方与 AI 来源。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R13-A30
+  status: ACTIVE
+  title: 适用法律
+  statement: 适用澳大利亚联邦及昆士兰州法律；先协商、再调解、最终由约定法院处理。
+  source_stage: R13
+  scope: V1_AND_LONG_TERM
+  specifications: *id014
+  implementation_status: POLICY_DECIDED_LEGAL_TEXT_PENDING_REVIEW
+- decision_id: R14-A01
+  status: ACTIVE
+  title: Due 参考范围
+  statement: 仅参考 Due 的组件、路由、中间件和 Actor Mailbox 思想，不直接依赖或复制 Due。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: &id015
+  - SPEC-SYSTEM-ARCH-001
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-DATA-001
+- decision_id: R14-A02
+  status: ACTIVE
+  title: 单节点进程
+  statement: 使用单权威 platformd 加同主机 workerd 与 lua-runner；不组成集群或横向复制。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A03
+  status: ACTIVE
+  title: 组件生命周期
+  statement: 采用显式依赖、context、错误返回、健康状态和反向停止顺序的组件生命周期。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A04
+  status: ACTIVE
+  title: Singleton Guard
+  statement: 启动时通过部署级唯一锁防止误启动两个权威服务器，不建设自动选主。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A05
+  status: ACTIVE
+  title: 优雅维护
+  statement: 维护或升级时停止新 Session、完成/取消任务、提交事件、创建恢复点并有状态关闭。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A06
+  status: ACTIVE
+  title: 依赖注入
+  statement: 配置来自环境变量/文件和数据库；组件显式依赖注入，不用全局 Service Locator 或配置中心。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A07
+  status: ACTIVE
+  title: 外部协议
+  statement: 只提供 HTTPS REST/OpenAPI 与 WebSocket，不引入 TCP/KCP 客户端协议。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A08
+  status: ACTIVE
+  title: WebSocket 信封
+  statement: 使用包含协议版本、kind、route、seq、请求/关联 ID、Session、席位和状态版本的统一信封。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A09
+  status: ACTIVE
+  title: 静态路由中间件
+  statement: 外部命令静态注册并固定执行协议、身份、工作区、席位、幂等、状态版本、限流与预算中间件。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A10
+  status: ACTIVE
+  title: 进程内 Gateway
+  statement: Gate 落地为 platformd 内部 Gateway 与 ConnectionHub，不拆独立 Gate 服务。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A11
+  status: ACTIVE
+  title: Actor 范围
+  statement: 仅活跃 Game Session 使用 Actor；账户、工作区、包和普通 Campaign 管理使用应用服务。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A12
+  status: ACTIVE
+  title: 有界 Mailbox
+  statement: SessionActor 使用有界 Mailbox 串行处理命令，饱和时明确背压，Panic 隔离恢复。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A13
+  status: ACTIVE
+  title: Actor 生命周期
+  statement: SessionActor 惰性激活、空闲休眠，从事件和快照恢复，不永久驻留。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A14
+  status: ACTIVE
+  title: 任务与 Outbox
+  statement: 使用 PostgreSQL 持久任务表和 Transactional Outbox；不引入 Redis/NATS/Kafka 等。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A15
+  status: ACTIVE
+  title: Lua 版本
+  statement: 游戏包公开语言标准采用 Lua 5.5 Platform Profile。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A16
+  status: ACTIVE
+  title: VM 实现解耦
+  statement: Lua 语言契约与具体 VM 解耦，M1 比较官方 C Lua、纯 Go 实现等并通过统一兼容测试。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A17
+  status: ACTIVE
+  title: Lua 执行位置
+  statement: Lua 在同主机独立 lua-runner 进程池中，通过 Unix Socket/Named Pipe/stdio 本地 IPC。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A18
+  status: ACTIVE
+  title: 包数据与脚本分离
+  statement: 清单 TOML、模式 JSON Schema、内容 JSON/YAML、可执行规则 Lua、UI 声明/受限前端扩展分离。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A19
+  status: ACTIVE
+  title: Host Callback 变更模型
+  statement: Lua 可返回事件，也可通过 Go Host Callback 修改事务工作区或请求受控数据库操作；不能直接持有连接。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A20
+  status: ACTIVE
+  title: Lua 确定性
+  statement: 权威逻辑随机和时间只来自 Host API，稳定遍历/序列化，关键数值使用整数或固定精度，AI 不在确定性函数内同步调用。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A21
+  status: ACTIVE
+  title: Lua 依赖
+  statement: 允许包内与锁定依赖 Lua 模块和 SDK；禁止运行时 LuaRocks、原生 C 模块、动态库、宿主路径和 Bytecode。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A22
+  status: ACTIVE
+  title: Session 长期 VM
+  statement: 每个 Session 拥有独立长期 Lua VM，Session 结束后清理；运行时关键事实不得只存在 VM 内存。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A23
+  status: ACTIVE
+  title: Lua Host API 工具链
+  statement: 提供最小能力 Host API、LuaLS、格式化、静态检查、固定种子、回滚、重放、预算、Studio 调试和 CI 认证。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A24
+  status: ACTIVE
+  title: 数据库
+  statement: PostgreSQL + 显式 SQL；关系模型承载平台数据，追加事件表为权威历史，JSONB 仅用于受模式约束边界。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A25
+  status: ACTIVE
+  title: 存储搜索
+  statement: 本地目录/S3-compatible 对象存储抽象与 PostgreSQL 全文检索；V1 不引入独立搜索集群。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A26
+  status: ACTIVE
+  title: Web Player 技术
+  statement: React + TypeScript + Vite。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A27
+  status: ACTIVE
+  title: Creator Studio 技术
+  statement: Wails + Go + React/TypeScript，稳定版本审查后锁定。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R14-A28
+  status: ACTIVE
+  title: Monorepo
+  statement: 单一 Monorepo，根 Go Module、pnpm Workspace、共享 Schema、官方游戏与平台同仓。
+  source_stage: R14
+  scope: V1_AND_LONG_TERM
+  specifications: *id015
+- decision_id: R15-A01
+  status: ACTIVE
+  title: 事务工作区
+  statement: Lua 状态与数据库修改先进入命令级事务工作区，通过验证后统一提交。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: &id016
+  - SPEC-HOST-CALLBACK-001
+  - SPEC-LUA-RUNTIME-001
+- decision_id: R15-A02
+  status: ACTIVE
+  title: 完整回滚
+  statement: Lua 执行失败时回滚本次状态、数据库、事件、任务、Outbox 和运行时修改。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A03
+  status: ACTIVE
+  title: 异步外部任务
+  statement: 权威规则执行期间不得同步等待 AI 或外部服务，只能创建持久任务和 Continuation。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A04
+  status: ACTIVE
+  title: 私人包数据库
+  statement: 普通创作者包只能使用平台提供的模式化命名空间数据接口。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A05
+  status: ACTIVE
+  title: 受信包关系操作
+  statement: 官方和受信签名包可声明私有关系表和命名数据库操作，但仍由 Go 执行且无原始连接。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A06
+  status: ACTIVE
+  title: 运行期 DDL 禁止
+  statement: Session 运行期间禁止 DDL；结构变化只在安装/升级迁移阶段。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A07
+  status: ACTIVE
+  title: 一致性读取
+  statement: 同一命令使用一致性视图和事务覆盖层，并能读取自己的暂存写入。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A08
+  status: ACTIVE
+  title: Lua 全局非权威
+  statement: Lua 全局变量只作缓存和临时状态；权威事实必须进共享状态、事件或检查点。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A09
+  status: ACTIVE
+  title: VM 恢复
+  statement: 重启时重新创建 VM，加载包并恢复只含允许基本类型的显式运行时检查点。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A10
+  status: ACTIVE
+  title: Coroutine
+  statement: Coroutine 不直接跨命令保存调用栈；长期等待使用持久 Continuation/Task Token。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A11
+  status: ACTIVE
+  title: 内存压力重建
+  statement: 尚未结束 Session 的 VM 仅在成功创建与当前状态一致的检查点后可提前重建。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A12
+  status: ACTIVE
+  title: 信任分级数据库能力
+  statement: 官方/受信包可使用审核关系操作；私人包仅受限命名空间。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A13
+  status: ACTIVE
+  title: 生产 Debug 禁令
+  statement: 生产环境所有包一律不加载 Lua Debug Library、远程 REPL 或动态调试组件。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A14
+  status: ACTIVE
+  title: 回调预算
+  statement: 每次执行限制回调次数、递归、CPU、内存、时间、查询结果、状态补丁、事件和输出。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R15-A15
+  status: ACTIVE
+  title: 分级审计
+  statement: Host Callback 分 AUDIT-0 至 AUDIT-3 记录；生产最低审计不可关闭并按等级脱敏。
+  source_stage: R15
+  scope: V1_AND_LONG_TERM
+  specifications: *id016
+- decision_id: R16-A01
+  status: ACTIVE
+  title: 不可变包 ID
+  statement: package_id 使用发布者命名空间和稳定短名，改显示名称或版本不改变内部身份。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: &id017
+  - SPEC-PACKAGE-001
+  - SPEC-MIGRATION-001
+- decision_id: R16-A02
+  status: ACTIVE
+  title: 发布物身份
+  statement: 语义版本、内容哈希和构建来源共同标识发布物；Session 锁定精确哈希。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A03
+  status: ACTIVE
+  title: TOML 清单
+  statement: 包清单使用版本化 TOML，复杂模式使用 JSON Schema。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A04
+  status: ACTIVE
+  title: 能力授权
+  statement: 包声明所需最小能力，安装时按信任等级验证授予，未声明/未批准能力不可用。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A05
+  status: ACTIVE
+  title: 认证绑定
+  statement: 签名与认证绑定内容哈希、依赖锁、Lua Profile、Host API 和测试套件版本。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A06
+  status: ACTIVE
+  title: 标准 Lua 入口
+  statement: 平台定义版本化生命周期、命令、视图、检查点、恢复、Continuation、迁移和清理入口。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A07
+  status: ACTIVE
+  title: Host API 版本
+  statement: 包声明 Host API 主版本和允许次版本范围，不兼容或缺能力时拒绝加载。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A08
+  status: ACTIVE
+  title: 命令事件模式
+  statement: 每个命令和事件有稳定模式 ID、版本和 JSON Schema，并生成 Go/TypeScript/Lua 辅助。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A09
+  status: ACTIVE
+  title: 事件不可改写
+  statement: 已发布事件语义不得复用或静默修改；通过新版本、兼容投影和 Upcaster 读取旧历史。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A10
+  status: ACTIVE
+  title: 安全错误模型
+  statement: 对外使用稳定错误代码和安全消息，Lua 栈、SQL和私密状态只在独立诊断中受控查看。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A11
+  status: ACTIVE
+  title: 私人包数据模型
+  statement: 私人包命名空间为带 JSON Schema、版本和声明式索引的文档/键值模型。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A12
+  status: ACTIVE
+  title: 关系扩展清单
+  statement: 官方/受信包通过包内受审查关系模式、迁移和命名操作清单安装。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A13
+  status: ACTIVE
+  title: 升级迁移
+  statement: 停止新 Session、建备份/恢复点、隔离副本预演、原子迁移、验证事件/快照/检查点后启用。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A14
+  status: ACTIVE
+  title: 降级策略
+  statement: 不承诺通用自动降级；回退通过恢复升级前备份、旧包和旧依赖锁。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R16-A15
+  status: ACTIVE
+  title: 运行中版本锁
+  statement: 活跃 Session 只在结束或包声明且平台验证的安全边界显式升级。
+  source_stage: R16
+  scope: V1_AND_LONG_TERM
+  specifications: *id017
+- decision_id: R17-A01
+  status: ACTIVE
+  title: library 包
+  statement: 增加 library 包类型用于可复用 Lua 模块、模式和 UI 组件，不能独立启动 Session。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: &id018
+  - SPEC-PACKAGE-TRUST-001
+  - SPEC-INCIDENT-001
+- decision_id: R17-A02
+  status: ACTIVE
+  title: 版本范围与锁
+  statement: 源清单可声明兼容范围，构建生成精确版本、哈希和 Feature 锁文件。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A03
+  status: ACTIVE
+  title: 多版本共存
+  statement: 部署可安装同包多个版本，但单个 Session 依赖图只能解析一个精确版本。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A04
+  status: ACTIVE
+  title: 拒绝循环依赖
+  statement: 构建和安装阶段拒绝直接或间接循环依赖。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A05
+  status: ACTIVE
+  title: 可选依赖 Feature
+  statement: 允许显式可选依赖与 Feature，启用状态进入哈希、锁、认证和 Session 包锁。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A06
+  status: ACTIVE
+  title: 原子导入安装
+  statement: 隔离暂存、解包安全、清单/模式、依赖、签名/权利、测试后原子安装。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A07
+  status: ACTIVE
+  title: 内容寻址存储
+  statement: 包对象按内容哈希不可变保存，拒绝路径穿越、链接逃逸、压缩炸弹和超限文件。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A08
+  status: ACTIVE
+  title: 物理与逻辑分层
+  statement: 部署物理对象、工作区逻辑安装、房间选择、Session 精确锁定分层。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A09
+  status: ACTIVE
+  title: 卸载保留
+  statement: 有 Campaign、Session、恢复点、依赖、审计或法律引用时只能停用，不能物理删除。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A10
+  status: ACTIVE
+  title: 跨工作区去重
+  statement: 相同哈希可物理去重，但权限、许可、可见性和安装状态独立。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A11
+  status: ACTIVE
+  title: 双签名
+  statement: 发布者签名证明来源完整性，平台认证签名证明测试结果，两者独立。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A12
+  status: ACTIVE
+  title: 发布者密钥链
+  statement: 发布者密钥版本化，支持轮换、撤销、泄露状态和继任证明。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A13
+  status: ACTIVE
+  title: 未签名包
+  statement: 只可在开发工作区和明确提示的私人房间使用，不得成为受信或官方发行内容。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A14
+  status: ACTIVE
+  title: 信任提升
+  statement: 签名、自动认证、必要人工审核后才可提升；官方包还需独立发行允许清单。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R17-A15
+  status: ACTIVE
+  title: 强制安全撤销
+  statement: 签名/认证安全撤销或严重安全问题时，阻止新使用并立即终止所有受影响现有 Session，保留证据等待审计。
+  source_stage: R17
+  scope: V1_AND_LONG_TERM
+  specifications: *id018
+- decision_id: R18-A01
+  status: ACTIVE
+  title: Compose 拓扑
+  statement: 正式 Compose 分别运行 platformd、workerd、lua-runner、PostgreSQL 和对象存储，固定同一主机且不水平复制。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: &id019
+  - SPEC-DEPLOYMENT-001
+  - SPEC-OPS-001
+  - SPEC-INCIDENT-001
+- decision_id: R18-A02
+  status: ACTIVE
+  title: TLS 反向代理
+  statement: 支持外部反向代理并提供官方入口配置；核心只信任配置代理和标准转发头。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A03
+  status: ACTIVE
+  title: 生产秘密
+  statement: 秘密通过环境变量引用和只读文件提供，不写仓库、普通配置、命令行或日志。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A04
+  status: ACTIVE
+  title: 数据库迁移
+  statement: 维护模式和迁移锁下执行；迁移前预检与备份，失败保持不可写并恢复旧一致状态。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A05
+  status: ACTIVE
+  title: 签名升级
+  statement: 验证签名发行清单、健康预检、备份、迁移、启动、自动验收，失败恢复旧版本。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A06
+  status: ACTIVE
+  title: 完整备份
+  statement: 覆盖 PostgreSQL、对象清单、包、素材、恢复点、法律协议、签名和加密凭据库；主密钥独立。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A07
+  status: ACTIVE
+  title: 分层保留
+  statement: 每日、每周、每月可配置保留，并支持安全事件、法律和内容争议的独立保留锁。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A08
+  status: ACTIVE
+  title: 备份加密
+  statement: 所有可搬离主机的备份必须加密，恢复密钥与备份分离；本机备份支持默认加密。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A09
+  status: ACTIVE
+  title: 恢复演练
+  statement: 定期在隔离环境自动恢复，验证数据库、对象哈希、包依赖、事件重放和最小一致性游戏。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A10
+  status: ACTIVE
+  title: 无高可用承诺
+  statement: V1 不承诺零停机或商业高可用 SLA；公开可测量的备份新鲜度和恢复演练结果。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A11
+  status: ACTIVE
+  title: 统一可观测性
+  statement: 结构化日志、指标和追踪使用统一关联 ID，支持本地查看和可选标准导出。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A12
+  status: ACTIVE
+  title: 日志分类
+  statement: 运行日志、安全审计、玩家日志、Lua 回调审计和取证证据分别权限、脱敏和保留。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A13
+  status: ACTIVE
+  title: 安全分级
+  statement: 建立严重度与自动动作矩阵；密钥泄露、沙箱逃逸、数据库越权、大规模秘密泄露触发 R17 强制终止。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A14
+  status: ACTIVE
+  title: 取证存储
+  statement: 证据加密、内容寻址、访问审计和保留锁；原始证据不可覆盖，分析结果分离。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R18-A15
+  status: ACTIVE
+  title: 审计后恢复
+  statement: 只能由授权管理员依据正式结论选择误报后继、修复包迁移、可信恢复点或永久归档；原终止 Session 不复活。
+  source_stage: R18
+  scope: V1_AND_LONG_TERM
+  specifications: *id019
+- decision_id: R19-A01
+  status: ACTIVE
+  title: 统一命令事实源
+  statement: 所有构建、测试、迁移、扫描和打包命令由仓库内版本化入口提供，CI 只调用。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: &id020
+  - SPEC-QUALITY-001
+  - SPEC-RELEASE-GATE-001
+- decision_id: R19-A02
+  status: ACTIVE
+  title: 官方 CI
+  statement: GitHub Actions 为官方 CI，但核心脚本平台无关并可本地运行。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A03
+  status: ACTIVE
+  title: 分支模型
+  statement: 受保护 main、短生命周期功能分支和 PR，不维护长期 develop。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A04
+  status: ACTIVE
+  title: 环境分层
+  statement: 明确本地、CI、集成测试、封闭 Staging 和 Production；生产数据不直接复制到低环境。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A05
+  status: ACTIVE
+  title: 兼容矩阵
+  statement: 服务器 Linux amd64；Web Player 验证 Windows/Linux/macOS Chromium；Studio 验证 Windows/Linux。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A06
+  status: ACTIVE
+  title: 产物晋级
+  statement: 构建一次、签名一次，同一哈希产物从 Alpha 晋级 Beta、RC、Stable。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A07
+  status: ACTIVE
+  title: 测试层级
+  statement: Go 单元/集成、Lua 包、TypeScript 组件、协议契约和完整 E2E 分层。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A08
+  status: ACTIVE
+  title: 真实依赖测试
+  statement: 数据库和对象存储集成使用真实临时隔离环境，不以纯 Mock 代替事务、迁移、恢复。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A09
+  status: ACTIVE
+  title: Lua 生产 Profile
+  statement: 所有包通过生产 Profile 的语法、禁用 API、确定性、预算、回滚、检查点和重放测试。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A10
+  status: ACTIVE
+  title: 固定重放场景
+  statement: 事件重放与状态不变量使用人工编写的版本化固定场景，不使用生成式完整状态机探索。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A11
+  status: ACTIVE
+  title: AI 测试分层
+  statement: 普通 PR 使用确定性模拟/录制响应；真实模型在手工、定时或认证流水线。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A12
+  status: ACTIVE
+  title: Studio 测试
+  statement: 测试源文件往返、未知字段、外部冲突、离线构建、Lua 预览与 CLI 构建等价。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A13
+  status: ACTIVE
+  title: 供应链扫描
+  statement: PR 和发行执行秘密、漏洞、许可证、SBOM、静态、容器和包扫描，例外有期限。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A14
+  status: ACTIVE
+  title: Fuzz 范围
+  statement: 持续 Fuzz WebSocket 信封、包导入、解包、Schema、Host Callback、事件反序列化和迁移入口。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A15
+  status: ACTIVE
+  title: 单节点性能
+  statement: 在固定参考硬件设置 Session、连接、Mailbox、Lua、数据库和 AI 队列预算并持续测试。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A16
+  status: ACTIVE
+  title: 故障注入
+  statement: 按风险需要执行，高风险变更针对性测试，正式发布前完整故障注入强制。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A17
+  status: ACTIVE
+  title: Flaky 治理
+  statement: Required Check 不得靠重跑掩盖失败；Flaky Test 登记、隔离影响并限期修复。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R19-A18
+  status: ACTIVE
+  title: 发布门禁
+  statement: RC 必须通过兼容、迁移、恢复、两个游戏、Lua、安全、SBOM、签名来源和人工批准；阻塞项为零。
+  source_stage: R19
+  scope: V1_AND_LONG_TERM
+  specifications: *id020
+- decision_id: R20-A01
+  status: ACTIVE
+  title: README 边界
+  statement: 根 README 只负责概览、状态、快速启动和权威文档索引。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: &id021
+  - SPEC-IMPLEMENTATION-GOV-001
+  - SPEC-ACCEPTANCE-001
+- decision_id: R20-A02
+  status: ACTIVE
+  title: 决策持久化
+  statement: R0—R20 转化为版本化决策登记和主题规范，原聊天不作为开发事实来源。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A03
+  status: ACTIVE
+  title: 历史文档
+  statement: 活动主线只保存现行规范；旧方案由 Git Tag 与历史保存，不建并列 legacy 设计树。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A04
+  status: ACTIVE
+  title: 双向追踪
+  statement: 建立决策、需求、规范、里程碑、实现模块和测试 ID 的双向追踪。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A05
+  status: ACTIVE
+  title: 机器契约
+  statement: JSON Schema、OpenAPI、事件模式和 Lua Host API 描述为机器事实来源并检查生成漂移。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A06
+  status: ACTIVE
+  title: Codex 自主路线
+  statement: Codex 自主决定工程施工路线与批次拆分，但不能改变产品路线、V1 范围、外部契约和门禁。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A07
+  status: ACTIVE
+  title: 单一批次目标
+  statement: 每个批次只解决一个主要交付目标，不无约束混入重构、依赖升级或目录清理。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A08
+  status: ACTIVE
+  title: 变更停止
+  statement: 触及 R0—R19、扩大 V1 或修改外部契约时停止并形成显式变更提案。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A09
+  status: ACTIVE
+  title: 交付完成定义
+  statement: 代码、测试、文档、迁移、验收证据和已知问题清单完整才算批次交付。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A10
+  status: ACTIVE
+  title: 失败修复轮次
+  statement: 验收失败保留原批次编号并建立受限修复轮次，只修复登记问题。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A11
+  status: ACTIVE
+  title: 设计与提示词分离
+  statement: 设计/审计文档与 .codex 施工提示词分开，通过稳定 ID 引用。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A12
+  status: ACTIVE
+  title: 施工提示词合同
+  statement: 每个提示词包含目标、非目标、阅读顺序、允许/禁止范围、不变量、步骤、测试、交付和停止条件。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A13
+  status: ACTIVE
+  title: Codex 自主权边界
+  statement: 可在明确范围内实现和修复；架构、公共契约、许可或范围变化必须停止报告。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A14
+  status: ACTIVE
+  title: 独立验收
+  statement: 施工与严格验收使用独立提示词和上下文；验收默认只读。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A15
+  status: ACTIVE
+  title: 上下文压缩
+  statement: 使用版本化项目摘要、决策索引、里程碑状态和批次 Handoff，不依赖完整聊天历史。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A16
+  status: ACTIVE
+  title: 分支提交
+  statement: 每个批次用短生命周期分支，逻辑提交，验收通过后才合并 main。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A17
+  status: ACTIVE
+  title: 修复可追踪
+  statement: 修复提交关联原验收问题 ID，不混入无关改进，原失败记录保留。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R20-A18
+  status: ACTIVE
+  title: 验收证据
+  statement: 机器报告作为 CI Artifact；仓库只保存稳定摘要、规范和必要基线。
+  source_stage: R20
+  scope: V1_AND_LONG_TERM
+  specifications: *id021
+- decision_id: R21-A01
+  status: ACTIVE
+  title: 旧项目冻结 Tag
+  statement: 创建签名注释 Tag，记录旧 HEAD、原许可状态、构建状态和文件清单。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: &id022
+  - SPEC-M0-001
+  - SPEC-RESTART-001
+- decision_id: R21-A02
+  status: ACTIVE
+  title: 重启分支
+  statement: 从冻结旧项目创建短生命周期 restart/v1-baseline 分支，通过验收后合并 main。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A03
+  status: ACTIVE
+  title: 活动树清理
+  statement: Tag 后删除活动树全部旧代码、测试、迁移、设计和 Codex 提示词，不建 legacy 目录。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A04
+  status: ACTIVE
+  title: GitHub 历史
+  statement: 保留 Issue、PR、Release 和历史记录；旧未完成 Issue 标记旧范围并关闭。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A05
+  status: ACTIVE
+  title: M0 骨架
+  statement: M0 建立最小可构建 Monorepo 骨架但不实现业务功能。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A06
+  status: ACTIVE
+  title: 许可起点
+  statement: 新主线第一份新文件起使用 PolyForm，明确旧 Tag 不受追溯影响。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A07
+  status: ACTIVE
+  title: 决策机器源
+  statement: DECISION_REGISTER.yaml 为机器来源并生成 DECISION_INDEX.md。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A08
+  status: ACTIVE
+  title: 文档语言
+  statement: 简体中文为权威自然语言；代码标识、Schema ID 和公开 API 使用英文。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A09
+  status: ACTIVE
+  title: 文档生成
+  statement: 仓库内 Go 工具从 YAML/Schema/OpenAPI 生成索引与参考文档并检查漂移。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A10
+  status: ACTIVE
+  title: 法律草案状态
+  statement: M0 放正式 PolyForm 和许可边界；CLA、共有协议等未经律师审核文件标记非发行草案。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A11
+  status: ACTIVE
+  title: 首组 Codex 资产
+  statement: M0 同时生成重启施工、独立验收提示词和失败修复模板。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A12
+  status: ACTIVE
+  title: M1 自主计划
+  statement: M0 完成后 Codex 根据 M1 出口门禁生成首份路线，无需人工固定全部批次。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A13
+  status: ACTIVE
+  title: 路线更新
+  statement: 每次独立验收后可自主更新未开始批次，记录原因且不改冻结契约。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A14
+  status: ACTIVE
+  title: M0 范围
+  statement: M0 只做冻结、许可、文档、生成工具、空骨架、CI 和治理，不实现账户/房间/Session/Lua/游戏。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R21-A15
+  status: ACTIVE
+  title: M0 合并门禁
+  statement: 独立上下文验证 Tag、零迁移、许可、文档追踪、可构建骨架和 CI 后才合并。
+  source_stage: R21
+  scope: M0_GOVERNANCE
+  specifications: *id022
+- decision_id: R22-A01
+  status: ACTIVE
+  title: 仓库与 Module
+  statement: 保持仓库名 TRPG_PLATFORM；Go Module 为 github.com/zyc14588/TRPG_PLATFORM。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: &id023
+  - SPEC-M0-001
+  - SPEC-CODEX-001
+- decision_id: R22-A02
+  status: ACTIVE
+  title: Tag 签名方式
+  statement: 可用 SSH 或 GPG 签名注释 Tag，记录签名类型、指纹和验证结果。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A03
+  status: ACTIVE
+  title: Commit 签名
+  statement: 所有进入 main 的 Commit 必须具有可验证签名。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A04
+  status: ACTIVE
+  title: Go Module 组织
+  statement: M0 使用单一根 Go Module，只有独立发布组件确有需要时再拆分。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A05
+  status: ACTIVE
+  title: 工具版本
+  statement: 精确锁定 Go、Node、pnpm、Just、Wails、前端工具和容器基础镜像，禁止 latest。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A06
+  status: ACTIVE
+  title: 统一命令入口
+  statement: projectctl 实现工程逻辑；Justfile 取代 Bash/PowerShell 包装并作为开发者、Codex、CI 统一入口。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A07
+  status: ACTIVE
+  title: Web 骨架
+  statement: M0 初始化可构建 React/TypeScript/Vite 应用，仅显示基线状态。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A08
+  status: ACTIVE
+  title: Studio 骨架
+  statement: 许可和稳定版本审查后初始化 Wails+Go+React 骨架，不实现创作功能。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A09
+  status: ACTIVE
+  title: lua-runner 骨架
+  statement: M0 只实现进程骨架、版本、健康和稳定退出码，Lua VM 留到 M1。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A10
+  status: ACTIVE
+  title: Compose 骨架
+  statement: M0 提供开发 Compose 和健康定义，不建业务 Schema 或生产能力。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A11
+  status: ACTIVE
+  title: 生成工具入口
+  statement: projectctl docs generate/check 统一处理决策、追踪、Schema 参考和漂移。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A12
+  status: ACTIVE
+  title: M0 CI 矩阵
+  statement: Linux 完整基线；Windows 验证 projectctl/Go/Web/Studio；macOS 验证 Web 构建。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A13
+  status: ACTIVE
+  title: SPDX
+  statement: 所有适用新源码添加 SPDX；生成文件记录生成器和来源。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A14
+  status: ACTIVE
+  title: Legacy 元数据
+  statement: 建立 Legacy Milestone/标签并关闭旧未完成 Issue，不自动转为 V1 任务。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A15
+  status: ACTIVE
+  title: 非 Squash 合并
+  statement: M0 PR 保留多个逻辑清晰的签名 Commit，非 Squash 合并。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A16
+  status: ACTIVE
+  title: Codex 渐进披露
+  statement: Codex 专用文档采用 L0—L5 渐进式披露，当前任务只读取最小权威集合。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R22-A17
+  status: ACTIVE
+  title: Codex 自主进度
+  statement: Codex 可拆分、合并、重排尚未开始批次，但不得改冻结范围、公共契约或里程碑门禁。
+  source_stage: R22
+  scope: M0_GOVERNANCE
+  specifications: *id023
+- decision_id: R23-A01
+  status: ACTIVE
+  title: 单一会话入口
+  statement: 所有 Codex 会话从 SESSION_START.md 识别 PLAN/IMPLEMENT/ACCEPT/REPAIR 并路由。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: &id024
+  - SPEC-CODEX-001
+- decision_id: R23-A02
+  status: ACTIVE
+  title: Front Matter
+  statement: 所有活动 .codex 文档包含文档 ID、模式、权威等级、依赖、状态和来源 Commit。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A03
+  status: ACTIVE
+  title: 精确路由
+  statement: projectctl codex route 按模式、里程碑、批次生成绑定哈希的精确阅读集合。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A04
+  status: ACTIVE
+  title: 不复制规范
+  statement: 施工提示词只引用稳定文档/章节/Schema ID，不复制权威规范正文。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A05
+  status: ACTIVE
+  title: 上下文过大
+  statement: 先缩小章节，仍超过预算则停止并拆分批次，不能截断要求。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A06
+  status: ACTIVE
+  title: 拆分计划批次
+  statement: Codex 可拆分尚未开始批次，保持同一里程碑、单一目标和出口门禁并记录变化。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A07
+  status: ACTIVE
+  title: 合并计划批次
+  statement: Codex 可合并尚未开始批次，但合并后仍单一目标且不扩大范围。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A08
+  status: ACTIVE
+  title: 契约冻结
+  statement: 批次进入 IMPLEMENTING 前冻结；之后扩大目标需停止并建变更或新批次。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A09
+  status: ACTIVE
+  title: 无需逐次批准
+  statement: 未触发变更门禁时，Codex 可自主更新未开始路线。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A10
+  status: ACTIVE
+  title: 强制重评
+  statement: 每次独立验收、阻塞、依赖变化和里程碑状态变化后重评路线。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A11
+  status: ACTIVE
+  title: 验收阅读顺序
+  statement: 契约 → 需求/机器契约 → Diff → 测试证据 → 最后 Handoff。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A12
+  status: ACTIVE
+  title: 路由过期
+  statement: 阅读图绑定 Commit 和文档哈希；不一致时停止并重新生成。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A13
+  status: ACTIVE
+  title: Handoff 降权
+  statement: Handoff 只作导航和施工声明，不覆盖规范、代码、测试和独立验收。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A14
+  status: ACTIVE
+  title: Codex 文档检查
+  statement: CI 检查规范复制、无界阅读、失效引用和超过阈值的提示词膨胀。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R23-A15
+  status: ACTIVE
+  title: Just Codex 入口
+  statement: Justfile 提供 codex-plan/route/check/accept，实际逻辑由 projectctl。
+  source_stage: R23
+  scope: M0_GOVERNANCE
+  specifications: *id024
+- decision_id: R24-A01
+  status: ACTIVE
+  title: 一次性 Bootstrap
+  statement: 首次 M0 使用仓库外版本化 M0_BOOTSTRAP_PACKET，记录哈希；完成后由新 .codex 接管。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: &id025
+  - SPEC-M0-001
+  - SPEC-CODEX-001
+- decision_id: R24-A02
+  status: ACTIVE
+  title: M0 自主步骤
+  statement: Codex 可在固定 M0 范围内自主规划逻辑步骤和 Commit，最终形成一个 restart/v1-baseline PR。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A03
+  status: ACTIVE
+  title: 清理授权
+  statement: 完成远端签名 Tag 验证和冻结证据后，Codex 可直接清空活动树而无需逐目录确认。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A04
+  status: ACTIVE
+  title: 签名失败停止
+  statement: 签名能力不可用或远端验证失败时必须停止，不降级轻量/未签名 Tag。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A05
+  status: ACTIVE
+  title: GitHub 权限
+  statement: 仅在获得仓库限定权限时用 gh 操作元数据；不足则生成清单并标记 BLOCKED。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A06
+  status: ACTIVE
+  title: 路由运行目录
+  statement: 具体路由清单写入被 Git 忽略的 .codex/runtime，作为可重建短期产物。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A07
+  status: ACTIVE
+  title: 稳定 Section ID
+  statement: 规范章节使用显式稳定 Section ID，路由不使用易变行号。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A08
+  status: ACTIVE
+  title: 上下文预算
+  statement: 路由材料软上限 55%、硬上限 70%，为代码、工具和输出保留空间。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A09
+  status: ACTIVE
+  title: 过期路由限制
+  statement: 过期后只能查看原因，不得施工或形成验收结论，必须重新生成。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A10
+  status: ACTIVE
+  title: 批次 ID
+  statement: 里程碑内单调递增且永不复用；拆分、合并、取消保留墓碑。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A11
+  status: ACTIVE
+  title: 受控并行
+  statement: 默认顺序施工；只有 parallel_safe、范围互斥、依赖独立时才允许独立分支并行。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A12
+  status: ACTIVE
+  title: 计划写权限
+  statement: 只有 PLAN 模式可修改 MILESTONE_PLAN；其他模式只读。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A13
+  status: ACTIVE
+  title: 干净工作树
+  statement: 除 .codex/runtime 产物外，未提交修改存在时拒绝新施工/验收路由。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A14
+  status: ACTIVE
+  title: 生成文件
+  statement: 生成文件只能通过 projectctl generate 更新，手工编辑由 CI 阻塞。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+- decision_id: R24-A15
+  status: ACTIVE
+  title: M0 到 M1
+  statement: 仅在 M0 独立 PASS、合并 main 后，由全新 PLAN 上下文生成 M1 路线。
+  source_stage: R24
+  scope: M0_GOVERNANCE
+  specifications: *id025
+supersessions:
+- superseded: LEGACY-D001-D201-AND-ALL-PRE-R0-RESTRUCTURE-PLANS
+  superseded_by: R0-A01
+  effect: 全部旧重构产品、架构、批次和 Codex 施工路线失效，仅保留历史参考。
+  relationship_type: SUPERSEDES_EXTERNAL
+- superseded: R8-A13
+  superseded_by: R11-A09
+  effect: 仅针对官方隐藏信息桌游：正式模式允许高烈度竞争与提前淘汰；快速/教程模式仍无淘汰。
+  relationship_type: SUPERSEDES
+- superseded: R6-A06
+  superseded_by: R11-A12
+  effect: 仅针对官方桌游高难度模式：允许按字段清单读取额外私人信息；其他 AI 难度不得靠越权信息提高。
+  relationship_type: SCOPED_EXCEPTION
+- superseded: R5-A06-V1-TIMING
+  superseded_by: R12-A08
+  effect: 浏览器本地模型设计保留，但不属于 V1 交付和发布门禁。
+  relationship_type: DELIVERY_DEFERRED
+- superseded: R12-A12-SELECTIVE-OLD-CODE-MIGRATION
+  superseded_by: R13-A04
+  effect: 旧代码从“可审计后迁入”收紧为“零迁移，只作参考”。
+  relationship_type: REFINEMENT
+- superseded: PREVIOUS-R14-RUST-OR-DISTRIBUTED-DRAFTS
+  superseded_by: R14-A01
+  effect: 最终技术基线为参考 Due 思想的单节点 Go 服务器和 Lua 5.5 游戏包，不使用 Rust 核心或分布式架构。
+  relationship_type: SUPERSEDES_EXTERNAL
+- superseded: R22-A06-SHELL-THIN-WRAPPER-DRAFT
+  superseded_by: R22-A06
+  effect: 统一外壳使用 Justfile；复杂逻辑由 projectctl 实现，不维护 Bash/PowerShell 双套脚本。
+  relationship_type: REFINEMENT
+notes:
+- 本登记含 455 项已确认决策：454 项 ACTIVE，1 项 SUPERSEDED。
+- SCOPED_EXCEPTION 不改变被引用决策的 ACTIVE 状态，只在明确领域内形成例外。
+- R5 浏览器本地模型设计保留为 Post-V1 设计，不属于 V1 实施门禁。
+- M0 落地后，DECISION_INDEX.md 与 SUPERSESSION_MAP.md 必须由 projectctl 从本登记生成。

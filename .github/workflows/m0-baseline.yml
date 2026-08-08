@@ -1,0 +1,143 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+name: M0 Baseline
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - restart/v1-baseline
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m0-baseline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: M0 / Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout immutable revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install locked Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          cache: true
+      - name: Install locked pnpm and Node
+        uses: pnpm/setup@4700d737c3d7a2e7199f3d42a920f0bf7f34e411 # v2.0.1
+        with:
+          version: 11.20.0
+          runtime: node@24.18.0
+          cache: true
+          install: false
+      - name: Install locked Just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+        with:
+          just-version: 1.58.0
+      - name: Install native Studio build prerequisites
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
+      - name: Bootstrap locked dependencies
+        run: just bootstrap
+      - name: Run canonical M0 gate
+        run: just ci
+      - name: Upload baseline web artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: m0-baseline-Linux-${{ github.sha }}
+          path: |
+            apps/web-player/dist/
+            apps/creator-studio/frontend/dist/
+            tools/toolchain.lock.json
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: M0 / Windows
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Checkout immutable revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install locked Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          cache: true
+      - name: Install locked pnpm and Node
+        uses: pnpm/setup@4700d737c3d7a2e7199f3d42a920f0bf7f34e411 # v2.0.1
+        with:
+          version: 11.20.0
+          runtime: node@24.18.0
+          cache: true
+          install: false
+      - name: Install locked Just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+        with:
+          just-version: 1.58.0
+      - name: Bootstrap locked dependencies
+        run: just bootstrap
+      - name: Run canonical M0 gate
+        run: just ci
+      - name: Upload baseline web artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: m0-baseline-Windows-${{ github.sha }}
+          path: |
+            apps/web-player/dist/
+            apps/creator-studio/frontend/dist/
+            tools/toolchain.lock.json
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    name: M0 / macOS
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout immutable revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install locked Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          cache: true
+      - name: Install locked pnpm and Node
+        uses: pnpm/setup@4700d737c3d7a2e7199f3d42a920f0bf7f34e411 # v2.0.1
+        with:
+          version: 11.20.0
+          runtime: node@24.18.0
+          cache: true
+          install: false
+      - name: Install locked Just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+        with:
+          just-version: 1.58.0
+      - name: Bootstrap locked dependencies
+        run: just bootstrap
+      - name: Run canonical M0 gate
+        run: just ci
+      - name: Upload baseline web artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: m0-baseline-macOS-${{ github.sha }}
+          path: |
+            apps/web-player/dist/
+            apps/creator-studio/frontend/dist/
+            tools/toolchain.lock.json
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+schema_version: 1
+record_id: M0-BOOTSTRAP-PROVENANCE-20260808
+status: LICENSE_BASELINE_ESTABLISHED
+repository: github.com/zyc14588/TRPG_PLATFORM
+packet:
+  id: M0-BOOTSTRAP-001
+  version: 1.0.1
+  immutable_sha256s_file: 67e82cf6bcf6d84fa321470c37270263e81f73b50b250b6f55c6d7e11cd89f5c
+delivery:
+  version: 1.0.1
+  immutable_sha256s_file: 0cd4a5b58c0ec71ced8eb8184799d85c14ba1b3f6594ba56ef7c2d31ae81a0b6
+legacy_freeze:
+  default_branch: master
+  commit: 73bcee9500720f0d26d2b6f9676d4a2e6f30d964
+  tree: 6e4e7e7100a977f97d1dbb4be4564450081767a9
+  tag: legacy/pre-r0-restart-20260807
+  tag_object: 29a4174795f8d29c8ba9bad9e73d3e5247864bfc
+  github_verification: valid
+  evidence_manifest_sha256: 0b4aecfa8558af40e5cf121ccd74394759a8e6ca5011e9cc3ca78772a33191d5
+branch_normalization:
+  active_branch: main
+  restart_branch: restart/v1-baseline
+  displaced_non_default_main: legacy/main-pre-r0-20260713
+license_boundary:
+  identifier: PolyForm-Noncommercial-1.0.0
+  official_text_sha256: ffcca38841adb694b6f380647e15f17c446a4d1656fed51a1e2041d064c94cc8
+  rights_holder: Yucheng Zhao
+  contact_email: zyc14588@gmail.com
+baseline_reset_commit:
+  commit: dbc5e7638bde687f698568328fdbc88d21c7a5f1
+  signature: VERIFIED_SSH_ED25519
+  status: PINNED
+zero_migration:
+  legacy_source: false
+  legacy_tests: false
+  legacy_migrations: false
+  legacy_docs: false
+  legacy_prompts: false
+  legacy_assets: false
+independent_acceptance:
+  executed: false
+  result: NOT_RUN

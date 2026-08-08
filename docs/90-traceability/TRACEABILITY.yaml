@@ -1,0 +1,776 @@
+schema_version: 1
+baseline: R0-R24
+mapping_count: 77
+mappings:
+- requirement_id: REQ-PRODUCT-001
+  source_decisions:
+  - R0-A01
+  - R0-A02
+  - R0-A03
+  - R0-A04
+  - R0-A05
+  owning_spec: SPEC-PRODUCT-001
+  milestone: M2
+  test_ids:
+  - TEST-PRODUCT-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PRODUCT-002
+  source_decisions:
+  - R0-A06
+  - R0-A07
+  - R0-A08
+  - R0-A09
+  - R0-A10
+  - R0-A11
+  - R0-A12
+  - R0-A13
+  - R0-A14
+  owning_spec: SPEC-V1-SCOPE-001
+  milestone: M5
+  test_ids:
+  - TEST-PRODUCT-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PRODUCT-003
+  source_decisions:
+  - R0-A08
+  - R1-A03
+  - R1-A09
+  owning_spec: SPEC-V1-SCOPE-001
+  milestone: M5
+  test_ids:
+  - TEST-PRODUCT-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PLAYER-001
+  source_decisions:
+  - R4-A02
+  - R4-A04
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M2
+  test_ids:
+  - TEST-PLAYER-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PLAYER-002
+  source_decisions:
+  - R4-A03
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M2
+  test_ids:
+  - TEST-PLAYER-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PLAYER-003
+  source_decisions:
+  - R4-A01
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M2
+  test_ids:
+  - TEST-PLAYER-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PLAYER-004
+  source_decisions:
+  - R4-A05
+  - R4-A07
+  - R4-A10
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M2
+  test_ids:
+  - TEST-PLAYER-004
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PLAYER-005
+  source_decisions:
+  - R3-A05
+  - R4-A14
+  owning_spec: SPEC-SESSION-001
+  milestone: M2
+  test_ids:
+  - TEST-PLAYER-005
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PLAYER-006
+  source_decisions:
+  - R4-A06
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M4
+  test_ids:
+  - TEST-PLAYER-006
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PLAYER-007
+  source_decisions:
+  - R4-A15
+  owning_spec: SPEC-PLAYER-EXPERIENCE-001
+  milestone: M2
+  test_ids:
+  - TEST-PLAYER-007
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-001
+  source_decisions:
+  - R1-A02
+  - R1-A03
+  - R8-A06
+  owning_spec: SPEC-TRPG-001
+  milestone: M5
+  test_ids:
+  - TEST-TRPG-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-002
+  source_decisions:
+  - R9-A02
+  - R9-A03
+  - R9-A04
+  - R9-A05
+  - R9-A06
+  - R9-A07
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  test_ids:
+  - TEST-TRPG-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-003
+  source_decisions:
+  - R9-A08
+  - R9-A09
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  test_ids:
+  - TEST-TRPG-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-004
+  source_decisions:
+  - R9-A10
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  test_ids:
+  - TEST-TRPG-004
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-005
+  source_decisions:
+  - R8-A08
+  - R10-A04
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  test_ids:
+  - TEST-TRPG-005
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-006
+  source_decisions:
+  - R10-A09
+  - R10-A16
+  - R10-A17
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  test_ids:
+  - TEST-TRPG-006
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-007
+  source_decisions:
+  - R9-A05
+  - R10-A10
+  - R10-A11
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  test_ids:
+  - TEST-TRPG-007
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-008
+  source_decisions:
+  - R10-A12
+  - R10-A18
+  - R10-A19
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  test_ids:
+  - TEST-TRPG-008
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-009
+  source_decisions:
+  - R10-A24
+  - R10-A27
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  test_ids:
+  - TEST-TRPG-009
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-010
+  source_decisions:
+  - R10-A28
+  - R10-A29
+  - R10-A30
+  owning_spec: SPEC-TRPG-001
+  milestone: M4
+  test_ids:
+  - TEST-TRPG-010
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-011
+  source_decisions:
+  - R9-A13
+  - R10-A15
+  owning_spec: SPEC-TRPG-001
+  milestone: M5
+  test_ids:
+  - TEST-TRPG-011
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-TRPG-012
+  source_decisions:
+  - R1-A16
+  - R6-A02
+  - R8-A11
+  owning_spec: SPEC-AI-001
+  milestone: M4
+  test_ids:
+  - TEST-TRPG-012
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-BOARD-001
+  source_decisions:
+  - R1-A17
+  - R11-A11
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  test_ids:
+  - TEST-BOARD-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-BOARD-002
+  source_decisions:
+  - R11-A04
+  - R11-A16
+  - R11-A17
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  test_ids:
+  - TEST-BOARD-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-BOARD-003
+  source_decisions:
+  - R11-A07
+  - R11-A18
+  - R11-A19
+  - R11-A20
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  test_ids:
+  - TEST-BOARD-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-BOARD-004
+  source_decisions:
+  - R11-A08
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  test_ids:
+  - TEST-BOARD-004
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-BOARD-005
+  source_decisions:
+  - R11-A21
+  - R11-A22
+  - R11-A23
+  - R11-A24
+  - R11-A25
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  test_ids:
+  - TEST-BOARD-005
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-BOARD-006
+  source_decisions:
+  - R11-A22
+  - R11-A23
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  test_ids:
+  - TEST-BOARD-006
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-BOARD-007
+  source_decisions:
+  - R11-A12
+  owning_spec: SPEC-AI-001
+  milestone: M3
+  test_ids:
+  - TEST-BOARD-007
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-BOARD-008
+  source_decisions:
+  - R11-A26
+  - R11-A27
+  - R11-A28
+  - R11-A29
+  - R11-A30
+  owning_spec: SPEC-BOARDGAME-001
+  milestone: M3
+  test_ids:
+  - TEST-BOARD-008
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-CREATOR-001
+  source_decisions:
+  - R5-A25
+  - R7-A01
+  - R7-A03
+  owning_spec: SPEC-CREATOR-001
+  milestone: M6
+  test_ids:
+  - TEST-CREATOR-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-CREATOR-002
+  source_decisions:
+  - R5-A24
+  owning_spec: SPEC-CREATOR-001
+  milestone: M6
+  test_ids:
+  - TEST-CREATOR-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-CREATOR-003
+  source_decisions:
+  - R7-A02
+  owning_spec: SPEC-CREATOR-001
+  milestone: M6
+  test_ids:
+  - TEST-CREATOR-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-CREATOR-004
+  source_decisions:
+  - R7-A03
+  owning_spec: SPEC-CREATOR-001
+  milestone: M6
+  test_ids:
+  - TEST-CREATOR-004
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-CREATOR-005
+  source_decisions:
+  - R7-A08
+  owning_spec: SPEC-CREATOR-001
+  milestone: M6
+  test_ids:
+  - TEST-CREATOR-005
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PACKAGE-001
+  source_decisions:
+  - R2-A01
+  - R17-A01
+  owning_spec: SPEC-PACKAGE-001
+  milestone: M1
+  test_ids:
+  - TEST-PACKAGE-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PACKAGE-002
+  source_decisions:
+  - R16-A01
+  - R16-A02
+  owning_spec: SPEC-PACKAGE-001
+  milestone: M1
+  test_ids:
+  - TEST-PACKAGE-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PACKAGE-003
+  source_decisions:
+  - R16-A04
+  - R2-A11
+  owning_spec: SPEC-PACKAGE-001
+  milestone: M1
+  test_ids:
+  - TEST-PACKAGE-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PACKAGE-004
+  source_decisions:
+  - R17-A02
+  - R17-A03
+  - R17-A04
+  - R17-A05
+  owning_spec: SPEC-PACKAGE-001
+  milestone: M1
+  test_ids:
+  - TEST-PACKAGE-004
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PACKAGE-005
+  source_decisions:
+  - R17-A06
+  - R17-A07
+  owning_spec: SPEC-PACKAGE-001
+  milestone: M1
+  test_ids:
+  - TEST-PACKAGE-005
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PACKAGE-006
+  source_decisions:
+  - R17-A11
+  - R17-A12
+  - R17-A13
+  - R17-A14
+  owning_spec: SPEC-PACKAGE-TRUST-001
+  milestone: M7
+  test_ids:
+  - TEST-PACKAGE-006
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PACKAGE-007
+  source_decisions:
+  - R17-A15
+  - R18-A13
+  - R18-A15
+  owning_spec: SPEC-INCIDENT-001
+  milestone: M7
+  test_ids:
+  - TEST-PACKAGE-007
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-PACKAGE-008
+  source_decisions:
+  - R16-A09
+  - R16-A10
+  - R16-A11
+  - R16-A12
+  - R16-A13
+  - R16-A14
+  - R16-A15
+  owning_spec: SPEC-MIGRATION-001
+  milestone: M1
+  test_ids:
+  - TEST-PACKAGE-008
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-SESSION-001
+  source_decisions:
+  - R3-A02
+  - R3-A04
+  owning_spec: SPEC-SESSION-001
+  milestone: M2
+  test_ids:
+  - TEST-SESSION-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-SESSION-002
+  source_decisions:
+  - R3-A03
+  - R14-A11
+  - R14-A12
+  owning_spec: SPEC-SESSION-001
+  milestone: M1
+  test_ids:
+  - TEST-SESSION-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-SESSION-003
+  source_decisions:
+  - R3-A04
+  owning_spec: SPEC-SESSION-001
+  milestone: M1
+  test_ids:
+  - TEST-SESSION-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-LUA-001
+  source_decisions:
+  - R14-A15
+  - R15-A13
+  owning_spec: SPEC-LUA-RUNTIME-001
+  milestone: M1
+  test_ids:
+  - TEST-LUA-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-LUA-002
+  source_decisions:
+  - R14-A22
+  - R15-A09
+  - R15-A11
+  owning_spec: SPEC-LUA-RUNTIME-001
+  milestone: M1
+  test_ids:
+  - TEST-LUA-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-LUA-003
+  source_decisions:
+  - R14-A19
+  - R15-A01
+  - R15-A02
+  owning_spec: SPEC-HOST-CALLBACK-001
+  milestone: M1
+  test_ids:
+  - TEST-LUA-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-LUA-004
+  source_decisions:
+  - R15-A04
+  - R15-A05
+  - R15-A06
+  - R15-A07
+  owning_spec: SPEC-HOST-CALLBACK-001
+  milestone: M1
+  test_ids:
+  - TEST-LUA-004
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-LUA-005
+  source_decisions:
+  - R15-A03
+  - R15-A10
+  owning_spec: SPEC-LUA-RUNTIME-001
+  milestone: M2
+  test_ids:
+  - TEST-LUA-005
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-LUA-006
+  source_decisions:
+  - R15-A14
+  - R15-A15
+  owning_spec: SPEC-LUA-RUNTIME-001
+  milestone: M1
+  test_ids:
+  - TEST-LUA-006
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-AI-001
+  source_decisions:
+  - R3-A06
+  owning_spec: SPEC-AI-001
+  milestone: M2
+  test_ids:
+  - TEST-AI-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-AI-002
+  source_decisions:
+  - R6-A09
+  - R6-A11
+  - R6-A15
+  owning_spec: SPEC-AI-001
+  milestone: M3
+  test_ids:
+  - TEST-AI-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-AI-003
+  source_decisions:
+  - R3-A14
+  - R6-A14
+  owning_spec: SPEC-AI-001
+  milestone: M2
+  test_ids:
+  - TEST-AI-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-DATA-001
+  source_decisions:
+  - R3-A15
+  - R16-A09
+  owning_spec: SPEC-DATA-001
+  milestone: M1
+  test_ids:
+  - TEST-DATA-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-DATA-002
+  source_decisions:
+  - R5-A05
+  - R17-A10
+  owning_spec: SPEC-DATA-001
+  milestone: M2
+  test_ids:
+  - TEST-DATA-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-DATA-003
+  source_decisions:
+  - R5-A11
+  owning_spec: SPEC-DATA-001
+  milestone: M7
+  test_ids:
+  - TEST-DATA-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-SEC-001
+  source_decisions:
+  - R2-A11
+  - R2-A12
+  - R2-A13
+  - R2-A14
+  - R2-A15
+  - R3-A02
+  - R3-A03
+  - R3-A04
+  - R3-A05
+  - R3-A06
+  owning_spec: SPEC-SECURITY-001
+  milestone: M1
+  test_ids:
+  - TEST-SEC-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-SEC-002
+  source_decisions:
+  - R18-A13
+  - R18-A14
+  owning_spec: SPEC-INCIDENT-001
+  milestone: M7
+  test_ids:
+  - TEST-SEC-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-OPS-001
+  source_decisions:
+  - R14-A02
+  - R18-A01
+  owning_spec: SPEC-DEPLOYMENT-001
+  milestone: M2
+  test_ids:
+  - TEST-OPS-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-OPS-002
+  source_decisions:
+  - R18-A06
+  - R18-A07
+  - R18-A08
+  - R18-A09
+  - R18-A10
+  owning_spec: SPEC-OPS-001
+  milestone: M7
+  test_ids:
+  - TEST-OPS-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-OPS-003
+  source_decisions:
+  - R18-A02
+  - R18-A03
+  - R18-A04
+  - R18-A05
+  owning_spec: SPEC-OPS-SELFHOST-001
+  milestone: M7
+  test_ids:
+  - TEST-OPS-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-QUALITY-001
+  source_decisions:
+  - R19-A01
+  - R22-A06
+  owning_spec: SPEC-RELEASE-GATE-001
+  milestone: M0
+  test_ids:
+  - TEST-QUALITY-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-QUALITY-002
+  source_decisions:
+  - R19-A05
+  - R22-A12
+  owning_spec: SPEC-RELEASE-GATE-001
+  milestone: M0
+  test_ids:
+  - TEST-QUALITY-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-QUALITY-003
+  source_decisions:
+  - R19-A10
+  - R19-A14
+  owning_spec: SPEC-QUALITY-001
+  milestone: M1
+  test_ids:
+  - TEST-QUALITY-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-QUALITY-004
+  source_decisions:
+  - R19-A18
+  owning_spec: SPEC-RELEASE-GATE-001
+  milestone: M8
+  test_ids:
+  - TEST-QUALITY-004
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-GOV-001
+  source_decisions:
+  - R20-A02
+  - R20-A03
+  - R20-A04
+  - R20-A05
+  - R21-A07
+  - R21-A09
+  owning_spec: SPEC-DOCUMENT-AUTHORITY-001
+  milestone: M0
+  test_ids:
+  - TEST-GOV-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-GOV-002
+  source_decisions:
+  - R22-A16
+  - R23-A01
+  - R23-A02
+  - R23-A03
+  - R23-A04
+  - R23-A05
+  - R24-A06
+  - R24-A07
+  - R24-A08
+  - R24-A09
+  owning_spec: SPEC-IMPLEMENTATION-GOV-001
+  milestone: M0
+  test_ids:
+  - TEST-GOV-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-GOV-003
+  source_decisions:
+  - R20-A06
+  - R20-A08
+  - R22-A17
+  - R23-A06
+  - R23-A07
+  - R23-A08
+  - R23-A09
+  - R23-A10
+  - R24-A10
+  - R24-A11
+  - R24-A12
+  owning_spec: SPEC-IMPLEMENTATION-GOV-001
+  milestone: M0
+  test_ids:
+  - TEST-GOV-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-GOV-004
+  source_decisions:
+  - R20-A10
+  - R20-A14
+  - R20-A17
+  - R23-A11
+  - R23-A13
+  owning_spec: SPEC-ACCEPTANCE-001
+  milestone: M0
+  test_ids:
+  - TEST-GOV-004
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-M0-001
+  source_decisions:
+  - R21-A01
+  - R24-A03
+  - R24-A04
+  owning_spec: SPEC-M0-001
+  milestone: M0
+  test_ids:
+  - TEST-M0-001
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-M0-002
+  source_decisions:
+  - R13-A04
+  - R21-A03
+  owning_spec: SPEC-M0-001
+  milestone: M0
+  test_ids:
+  - TEST-M0-002
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-M0-003
+  source_decisions:
+  - R21-A06
+  - R21-A10
+  owning_spec: SPEC-LICENSE-RIGHTS-001
+  milestone: M0
+  test_ids:
+  - TEST-M0-003
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-M0-004
+  source_decisions:
+  - R22-A04
+  - R22-A05
+  - R22-A06
+  - R22-A07
+  - R22-A08
+  - R22-A09
+  - R22-A10
+  - R22-A11
+  - R22-A12
+  owning_spec: SPEC-M0-001
+  milestone: M0
+  test_ids:
+  - TEST-M0-004
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-M0-005
+  source_decisions:
+  - R21-A02
+  - R24-A01
+  - R24-A02
+  owning_spec: SPEC-M0-001
+  milestone: M0
+  test_ids:
+  - TEST-M0-005
+  implementation_status: NOT_STARTED
+- requirement_id: REQ-M0-006
+  source_decisions:
+  - R22-A03
+  - R22-A15
+  owning_spec: SPEC-M0-001
+  milestone: M0
+  test_ids:
+  - TEST-M0-006
+  implementation_status: NOT_STARTED

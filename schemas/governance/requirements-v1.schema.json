@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zyc14588/TRPG_PLATFORM/schemas/governance/requirements-v1.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "requirement_count",
+    "requirements"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "baseline": {
+      "type": "string"
+    },
+    "requirement_count": {
+      "type": "integer"
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "requirement_id",
+          "title",
+          "statement",
+          "source_decisions",
+          "owning_spec",
+          "milestone",
+          "priority",
+          "v1_status"
+        ],
+        "properties": {
+          "requirement_id": {
+            "type": "string",
+            "pattern": "^REQ-[A-Z0-9-]+$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "statement": {
+            "type": "string"
+          },
+          "source_decisions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owning_spec": {
+            "type": "string"
+          },
+          "milestone": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "v1_status": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

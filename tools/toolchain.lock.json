@@ -1,0 +1,91 @@
+{
+  "spdx_license_identifier": "PolyForm-Noncommercial-1.0.0",
+  "schema_version": 1,
+  "locked_at": "2026-08-08",
+  "tools": {
+    "go": {
+      "version": "1.26.5",
+      "license": "BSD-3-Clause",
+      "source": "https://go.dev/dl/"
+    },
+    "node": {
+      "version": "24.18.0",
+      "release_line": "LTS",
+      "license": "MIT",
+      "source": "https://nodejs.org/download/release/v24.18.0/"
+    },
+    "pnpm": {
+      "version": "11.20.0",
+      "license": "MIT",
+      "integrity": "sha512-mm8zCpW2ZEbqCI+vFSFAWooB8H/ecSTMmVjf7VLUu0NnN+ZbCPhfN7Rvy6N1CSVYrFEmK4FoRLIvY0Bu0Wa/7g==",
+      "source": "https://github.com/pnpm/pnpm/releases/tag/v11.20.0"
+    },
+    "just": {
+      "version": "1.58.0",
+      "license": "CC0-1.0",
+      "source": "https://github.com/casey/just/releases/tag/1.58.0"
+    },
+    "wails": {
+      "version": "2.13.0",
+      "stability": "stable",
+      "license": "MIT",
+      "source": "https://github.com/wailsapp/wails/releases/tag/v2.13.0"
+    }
+  },
+  "frontend": {
+    "react": { "version": "19.2.8", "license": "MIT" },
+    "react-dom": { "version": "19.2.8", "license": "MIT" },
+    "@types/react": { "version": "19.2.18", "license": "MIT" },
+    "@types/react-dom": { "version": "19.2.4", "license": "MIT" },
+    "@vitejs/plugin-react": { "version": "6.0.5", "license": "MIT" },
+    "typescript": { "version": "7.0.2", "license": "Apache-2.0" },
+    "vite": { "version": "8.2.1", "license": "MIT" },
+    "vitest": { "version": "4.1.10", "license": "MIT" }
+  },
+  "actions": {
+    "actions/checkout": {
+      "version": "7.0.1",
+      "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "license": "MIT",
+      "source": "https://github.com/actions/checkout/releases/tag/v7.0.1"
+    },
+    "actions/setup-go": {
+      "version": "7.0.0",
+      "sha": "b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
+      "license": "MIT",
+      "source": "https://github.com/actions/setup-go/releases/tag/v7.0.0"
+    },
+    "pnpm/setup": {
+      "version": "2.0.1",
+      "sha": "4700d737c3d7a2e7199f3d42a920f0bf7f34e411",
+      "license": "MIT",
+      "source": "https://github.com/pnpm/setup/releases/tag/v2.0.1"
+    },
+    "extractions/setup-just": {
+      "version": "4",
+      "sha": "53165ef7e734c5c07cb06b3c8e7b647c5aa16db3",
+      "license": "MIT OR Apache-2.0",
+      "source": "https://github.com/extractions/setup-just/tree/v4"
+    },
+    "actions/upload-artifact": {
+      "version": "7.0.1",
+      "sha": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+      "license": "MIT",
+      "source": "https://github.com/actions/upload-artifact/releases/tag/v7.0.1"
+    }
+  },
+  "containers": {
+    "go_builder": {
+      "reference": "docker.io/library/golang:1.26.5-alpine3.23@sha256:622e56dbc11a8cfe87cafa2331e9a201877271cbff918af53d3be315f3da88cc",
+      "role": "build-only",
+      "license": "Docker Official Image; bundled components retain their licenses",
+      "distribution_components": []
+    },
+    "runtime": {
+      "reference": "scratch",
+      "role": "final-runtime",
+      "license": "NONE",
+      "distribution_components": []
+    }
+  }
+}

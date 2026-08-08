@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zyc14588/TRPG_PLATFORM/schemas/codex/document-front-matter-v1.schema.json",
+  "type": "object",
+  "required": [
+    "document_id",
+    "document_kind",
+    "authority",
+    "status",
+    "source_commit"
+  ],
+  "properties": {
+    "document_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "type": "integer"
+    },
+    "document_kind": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "PLAN",
+        "IMPLEMENT",
+        "ACCEPT",
+        "REPAIR"
+      ]
+    },
+    "authority": {
+      "type": "string",
+      "enum": [
+        "governance-policy",
+        "machine-contract",
+        "normative-spec",
+        "execution-contract",
+        "state-summary",
+        "handoff",
+        "evidence-index"
+      ]
+    },
+    "status": {
+      "type": "string"
+    },
+    "source_commit": {
+      "type": "string"
+    },
+    "milestone": {
+      "type": "string"
+    },
+    "batch": {
+      "type": "string"
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "read_on_demand": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "prohibits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

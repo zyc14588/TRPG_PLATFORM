@@ -1,15 +1,17 @@
 {
-  "name": "coc-ai-trpg-contract-harness",
+  "name": "trpg-platform",
+  "version": "0.0.0-m0",
   "private": true,
-  "type": "module",
-  "packageManager": "pnpm@11.9.0",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "packageManager": "pnpm@11.20.0",
   "engines": {
-    "node": "24.17.0"
+    "node": "24.18.0",
+    "pnpm": "11.20.0"
   },
   "scripts": {
-    "web:build": "pnpm --filter ./apps/web... build",
-    "web:dev": "pnpm --filter ./apps/web... dev",
-    "test": "node scripts/s12_ui_boundary_test.mjs && python3 scripts/ci/test_repo_truth.py",
-    "test:inventory": "python3 scripts/ci/verify_test_inventory.py"
+    "build": "pnpm --recursive --if-present run build",
+    "check": "pnpm --recursive --if-present run check",
+    "test": "pnpm --recursive --if-present run test",
+    "typecheck": "pnpm --recursive --if-present run typecheck"
   }
 }

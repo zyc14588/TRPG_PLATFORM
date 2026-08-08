@@ -1,0 +1,32 @@
+route_schema_version: 2
+mode: '{{MODE}}'
+milestone: '{{MILESTONE}}'
+batch_id: '{{BATCH}}'
+source_commit: '{{SOURCE_COMMIT}}'
+source_tree: '{{SOURCE_TREE}}'
+route_binding_sha256: '{{ROUTE_BINDING_SHA256}}'
+generated_utc: '{{GENERATED_UTC}}'
+context_profile:
+  profile_id: codex-utf8-bytes-v1
+  capacity_bytes: 131072
+  measurement: utf8-bytes
+budget:
+  initial_material_bytes: 0
+  material_bytes: 0
+  capacity_bytes: 131072
+  initial_ratio: 0
+  actual_ratio: 0
+  soft_limit_ratio: 0.55
+  hard_limit_ratio: 0.7
+  status: WITHIN_BUDGET
+  reduction_applied: false
+  plan_split_required: false
+always_read: []
+normative_references: []
+machine_contracts: []
+read_on_demand: []
+soft_limit_omissions: []
+must_not_bulk_read:
+- docs/**
+- git-history
+- prior-chat-transcripts

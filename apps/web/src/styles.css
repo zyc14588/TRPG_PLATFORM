@@ -1,6 +1,0 @@
-/* Decomposed stylesheet entrypoint. Imports preserve the original cascade order. */
-@import url("./styles/01_foundation_and_forms.css");
-@import url("./styles/02_login_and_shell.css");
-@import url("./styles/03_campaign_and_workspace.css");
-@import url("./styles/04_timeline_evidence_and_admin.css");
-@import url("./styles/05_responsive_and_motion.css");

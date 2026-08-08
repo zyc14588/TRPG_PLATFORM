@@ -1,0 +1,774 @@
+schema_version: 1
+baseline: R0-R24
+test_count: 77
+tests:
+- test_id: TEST-PRODUCT-001
+  title: AI 原生桌面游戏平台验收
+  level: E2E
+  milestone: M2
+  status: PLANNED
+  objective: 验证：平台必须让用户选择游戏和模组，并以真人/AI混合席位完成 TRPG 或其他桌游。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PRODUCT-002
+  title: 双垂直切片验收
+  level: E2E
+  milestone: M5
+  status: PLANNED
+  objective: 验证：V1 必须交付一个官方 TRPG 和一个官方隐藏信息桌游的近正式产品质量切片。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PRODUCT-003
+  title: 长期 Campaign验收
+  level: E2E
+  milestone: M5
+  status: PLANNED
+  objective: 验证：V1 必须支持跨 Session 的 Campaign、角色、世界状态、记忆和恢复。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PLAYER-001
+  title: 私人房间验收
+  level: E2E
+  milestone: M2
+  status: PLANNED
+  objective: 验证：V1 只提供私人房间、邀请链接和房间代码。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PLAYER-002
+  title: 权限角色分离验收
+  level: E2E
+  milestone: M2
+  status: PLANNED
+  objective: 验证：房间所有者、管理员、主持人和席位控制者必须分别授权。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PLAYER-003
+  title: 访客单局验收
+  level: E2E
+  milestone: M2
+  status: PLANNED
+  objective: 验证：受邀访客可加入单次游戏并后续认领，但不能拥有长期资产或保存凭据。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PLAYER-004
+  title: 启动硬门禁验收
+  level: E2E
+  milestone: M2
+  status: PLANNED
+  objective: 验证：依赖、内容同意、席位、模型、权限和准备不完整时不能开局。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PLAYER-005
+  title: 断线重连验收
+  level: E2E
+  milestone: M2
+  status: PLANNED
+  objective: 验证：断线不得静默 AI 接管；重连必须恢复游标、私有视图和待处理行动。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PLAYER-006
+  title: 安全工具验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：内容边界、安全暂停、退出和 AI 生成约束必须在游戏中持续生效。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PLAYER-007
+  title: 权限过滤导出验收
+  level: E2E
+  milestone: M2
+  status: PLANNED
+  objective: 验证：游戏结果和日志必须按请求者权限过滤并支持恢复点。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-001
+  title: 官方内容验收
+  level: E2E
+  milestone: M5
+  status: PLANNED
+  objective: 验证：官方 TRPG 必须包含一个 2—4 小时单次模组和一个 3—5 Session 短战役。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-002
+  title: 规则异常三层模型验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：客观异常法则、世界内声明和角色知识必须独立建模。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-003
+  title: 六类子系统验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：调查、异常、压力、生存、社会和区域战斗必须共享命令事件内核。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-004
+  title: 自然语言行动验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：玩家自然语言必须经 AI 转换为结构化草案，高影响或歧义动作需要确认。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-005
+  title: 失败推进验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：核心线索不能因一次失败永久丢失，检定产生质量、代价、风险和时间差异。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-006
+  title: 规则试验门禁验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：正式规则试验仅由天赋角色单独执行；无天赋队伍仍能完成内容。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-007
+  title: 异常风险验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：区域失稳、实体注意和个人污染独立跟踪，违规采用暴露/检测/反应/后果链。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-008
+  title: 死亡逆转验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：致命结果必须有规则化逆转窗口，适用珍稀资源可由活着角色消耗并留下补偿事件。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-009
+  title: 精神控制例外验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：普通社会效果不替真人决定；特殊精神控制仅按预定义能力和结构化范围生效。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-010
+  title: 区域战斗验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：区域连接、视线、掩体、行动经济和具体伤势进入权威状态；PVE 无通用投降。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-011
+  title: 死亡后替代验收
+  level: E2E
+  milestone: M5
+  status: PLANNED
+  objective: 验证：角色终局死亡后原玩家当前阶段只读旁观，下个安全边界引入不继承元知识的替代角色。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-TRPG-012
+  title: AI 主持事实边界验收
+  level: E2E
+  milestone: M4
+  status: PLANNED
+  objective: 验证：AI 主持不得改变作者锁定真相，计划不是事实，裁定解释不得泄露秘密。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-BOARD-001
+  title: 3—4 人正式模式验收
+  level: E2E
+  milestone: M3
+  status: PLANNED
+  objective: 验证：官方桌游必须分别验证三人和四人模式。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-BOARD-002
+  title: 秘密规划验收
+  level: E2E
+  milestone: M3
+  status: PLANNED
+  objective: 验证：计划锁定前可修改，锁定后保密并按公开确定性顺序解析。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-BOARD-003
+  title: 双胜利验收
+  level: E2E
+  milestone: M3
+  status: PLANNED
+  objective: 验证：批次结束统一检查秘密立即胜利，公开终局按确定性计分和平局规则。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-BOARD-004
+  title: 混合随机验收
+  level: E2E
+  milestone: M3
+  status: PLANNED
+  objective: 验证：洗牌、抽取、事件和骰子由服务器权威生成并可重放。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-BOARD-005
+  title: 正式淘汰验收
+  level: E2E
+  milestone: M3
+  status: PLANNED
+  objective: 验证：正式模式可从第一轮淘汰且无统一最低保障；快速/教程模式不淘汰并保底。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-BOARD-006
+  title: 淘汰只读与复归验收
+  level: E2E
+  milestone: M3
+  status: PLANNED
+  objective: 验证：淘汰者只看公共信息，只有明确规则效果可复归。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-BOARD-007
+  title: 标准公平 AI验收
+  level: E2E
+  milestone: M3
+  status: PLANNED
+  objective: 验证：标准 AI 只使用席位可见信息、合法动作、相同随机和资源规则。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-BOARD-008
+  title: 高难度信息优势验收
+  level: E2E
+  milestone: M3
+  status: PLANNED
+  objective: 验证：高难度由房主开局前锁定，可按字段清单读取额外秘密，且不能用浏览器本地模型。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-CREATOR-001
+  title: 规范化源项目验收
+  level: INTEGRATION_AND_E2E
+  milestone: M6
+  status: PLANNED
+  objective: 验证：Creator Studio、CLI 和文本编辑器必须以普通目录规范化源文件为共同事实来源。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-CREATOR-002
+  title: 离线 Studio验收
+  level: INTEGRATION_AND_E2E
+  milestone: M6
+  status: PLANNED
+  objective: 验证：Studio 在无账户和网络时可创建、编辑、验证、预览和导出。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-CREATOR-003
+  title: 无代码覆盖验收
+  level: INTEGRATION_AND_E2E
+  milestone: M6
+  status: PLANNED
+  objective: 验证：官方两个游戏的大部分规则、内容和 UI 可无代码维护。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-CREATOR-004
+  title: 未知字段与冲突验收
+  level: INTEGRATION_AND_E2E
+  milestone: M6
+  status: PLANNED
+  objective: 验证：Studio 不得静默删除未知字段或覆盖外部修改。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-CREATOR-005
+  title: 测试 DSL验收
+  level: INTEGRATION_AND_E2E
+  milestone: M6
+  status: PLANNED
+  objective: 验证：Studio、CLI 和 CI 支持固定种子、夹具、权限视图和无头测试。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PACKAGE-001
+  title: 分层包模型验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：必须支持 game-system、content、assets、ui-extension、library 和 Bundle。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PACKAGE-002
+  title: 不可变身份与发布物验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：包 ID 不可变，发布物由语义版本、内容哈希、构建来源和依赖锁标识。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PACKAGE-003
+  title: 能力最小授权验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：包能力必须声明、按信任等级批准并在执行上下文收窄。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PACKAGE-004
+  title: 精确依赖与单版本验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：构建生成精确依赖锁；单 Session 同 package_id 只加载一个版本，循环依赖拒绝。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PACKAGE-005
+  title: 原子安装验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：包必须经过隔离安全、模式、依赖、权利、签名和测试后原子安装。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PACKAGE-006
+  title: 双签名信任验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M7
+  status: PLANNED
+  objective: 验证：发布者签名和平台认证签名独立，信任提升不可自报。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PACKAGE-007
+  title: 安全撤销验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M7
+  status: PLANNED
+  objective: 验证：安全撤销必须立即终止所有受影响 Session，回滚未提交变更并保全证据。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-PACKAGE-008
+  title: 升级兼容验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：活跃 Session 锁定精确包；升级在安全边界预演、备份、原子迁移并保留原事件。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-SESSION-001
+  title: 服务端权威验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M2
+  status: PLANNED
+  objective: 验证：客户端、AI、Lua 和 UI 扩展不能直接写权威状态。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-SESSION-002
+  title: 单写入 Actor验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：每个活跃 Session 有一个有界 Mailbox Actor 串行处理命令。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-SESSION-003
+  title: 先提交后广播验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：事件和 Outbox 原子提交后才广播，命令幂等。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-LUA-001
+  title: Lua 5.5 Profile验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：游戏包使用版本化 Lua 5.5 Profile，源码-only，生产禁用危险库和 Debug。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-LUA-002
+  title: Session 专属 VM验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：每个 Session 独立长期 VM，结束销毁，故障可从权威状态和检查点重建。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-LUA-003
+  title: 事务工作区与回滚验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：Lua/Host Callback 的状态、数据库、事件、任务和 Outbox 全部命令级原子提交或回滚。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-LUA-004
+  title: 数据库能力分级验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：私人包仅模式化命名空间；官方/受信包仅命名关系操作；所有包运行期无 DDL/原始 SQL。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-LUA-005
+  title: 异步 Continuation验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M2
+  status: PLANNED
+  objective: 验证：AI/外部任务不能在权威事务中同步等待，必须用持久 Continuation 回到 Actor。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-LUA-006
+  title: 资源和分级审计验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：Lua 与回调必须受硬预算和 AUDIT 分级记录；生产最低审计不可关闭。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-AI-001
+  title: AI 席位隔离验收
+  level: INTEGRATION_AND_E2E
+  milestone: M2
+  status: PLANNED
+  objective: 验证：每个 AI 席位的身份、视图、记忆和工具独立。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-AI-002
+  title: 模型认证验收
+  level: INTEGRATION_AND_E2E
+  milestone: M3
+  status: PLANNED
+  objective: 验证：模型按通用角色和游戏专属黄金场景认证，配置变化使结果失效。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-AI-003
+  title: 预算与失败验收
+  level: INTEGRATION_AND_E2E
+  milestone: M2
+  status: PLANNED
+  objective: 验证：多级预算硬上限暂停；失败仅有限重试和预授权兼容后备。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-DATA-001
+  title: 事件权威验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M1
+  status: PLANNED
+  objective: 验证：事件日志为权威历史，快照和投影可重建，重放不重新调用模型。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-DATA-002
+  title: 租户和对象隔离验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M2
+  status: PLANNED
+  objective: 验证：所有数据有工作区边界；对象哈希去重不共享权限。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-DATA-003
+  title: 完整导出迁移验收
+  level: INTEGRATION_AND_CONTRACT
+  milestone: M7
+  status: PLANNED
+  objective: 验证：工作区、包、Campaign、Session、事件和恢复点可校验导入导出，密钥除外。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-SEC-001
+  title: 安全硬边界验收
+  level: SYSTEM_AND_SECURITY
+  milestone: M1
+  status: PLANNED
+  objective: 验证：身份、席位、隐藏信息、租户、沙箱、密钥和审计不能由包或高级模式关闭。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-SEC-002
+  title: 内容寻址取证验收
+  level: SYSTEM_AND_SECURITY
+  milestone: M7
+  status: PLANNED
+  objective: 验证：SEC-0 证据必须加密、不可覆盖、内容寻址、访问审计并保留锁。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-OPS-001
+  title: 单节点 Compose验收
+  level: SYSTEM_AND_SECURITY
+  milestone: M2
+  status: PLANNED
+  objective: 验证：同一主机运行分进程服务，只有一个权威 platformd，不水平复制。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-OPS-002
+  title: 一致性备份恢复验收
+  level: SYSTEM_AND_SECURITY
+  milestone: M7
+  status: PLANNED
+  objective: 验证：完整备份覆盖数据库与对象并定期隔离恢复演练最小游戏。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-OPS-003
+  title: 签名升级验收
+  level: SYSTEM_AND_SECURITY
+  milestone: M7
+  status: PLANNED
+  objective: 验证：升级必须验证发行清单、备份、迁移、自动验收，失败恢复旧一致状态。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-QUALITY-001
+  title: 统一命令入口验收
+  level: SYSTEM_AND_SECURITY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：本地和 CI 通过 Just 调用 projectctl，同一逻辑可复现。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-QUALITY-002
+  title: 跨平台矩阵验收
+  level: SYSTEM_AND_SECURITY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：按 Linux 服务端、Windows/Linux/macOS Chromium Web、Windows/Linux Studio 矩阵验证。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-QUALITY-003
+  title: 固定重放与边界 Fuzz验收
+  level: SYSTEM_AND_SECURITY
+  milestone: M1
+  status: PLANNED
+  objective: 验证：完整状态重放使用固定场景；协议/包/Schema/回调/迁移持续 Fuzz。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-QUALITY-004
+  title: RC 发布门禁验收
+  level: SYSTEM_AND_SECURITY
+  milestone: M8
+  status: PLANNED
+  objective: 验证：RC 必须通过完整兼容、迁移、恢复、官方游戏、Lua、安全、SBOM、签名和人工批准。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-GOV-001
+  title: 机器决策与追踪验收
+  level: POLICY_AND_REPOSITORY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：R0—R24 决策、要求和测试必须机器可读并生成索引，无漂移。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-GOV-002
+  title: Codex 渐进披露验收
+  level: POLICY_AND_REPOSITORY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：Codex 通过模式路由、章节级阅读和 55/70% 预算施工，不批量读取全部文档。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-GOV-003
+  title: 自主规划边界验收
+  level: POLICY_AND_REPOSITORY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：Codex 可改未开始工程路线，但只有 PLAN 可写计划，批次施工前冻结并触及顶层时停止。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-GOV-004
+  title: 独立严格验收验收
+  level: POLICY_AND_REPOSITORY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：施工和验收独立；验收客观证据优先；失败用受限修复轮次。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-M0-001
+  title: 签名冻结验收
+  level: POLICY_AND_REPOSITORY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：清理旧树前必须远端验证签名注释 Tag 和冻结证据。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-M0-002
+  title: 旧代码零迁移验收
+  level: POLICY_AND_REPOSITORY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：活动树必须清除旧代码、测试、迁移、文档和提示词，不建 legacy 树。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-M0-003
+  title: 新许可边界验收
+  level: POLICY_AND_REPOSITORY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：新文件使用 PolyForm，旧 Tag 保持实际原许可状态，法律草案不可执行。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-M0-004
+  title: 空骨架验收
+  level: POLICY_AND_REPOSITORY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：M0 建立单根 Go Module、Web/Studio/lua-runner/Compose/CI 骨架但无业务实现。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-M0-005
+  title: Bootstrap 与分支验收
+  level: POLICY_AND_REPOSITORY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：M0 使用仓库外 Bootstrap，冻结实际默认 master 后规范化 main，创建 restart/v1-baseline PR。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA
+- test_id: TEST-M0-006
+  title: Commit 签名与非 Squash验收
+  level: POLICY_AND_REPOSITORY
+  milestone: M0
+  status: PLANNED
+  objective: 验证：进入 main 的 Commit 可验证签名，M0 PR 保留逻辑提交并非 Squash 合并。
+  required_evidence:
+  - 可重复命令及退出码
+  - 机器报告或 CI Artifact
+  - 精确 Commit SHA

@@ -1,3 +1,12 @@
-/MANIFEST.md text eol=lf
-/manifests/CURRENT_PACKAGE_MANIFEST.md text eol=lf
-/manifests/SELF_CONTAINED_PACKAGE_MANIFEST.md text eol=lf
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+* text=auto eol=lf
+
+*.gif binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.webp binary
+*.woff binary
+*.woff2 binary

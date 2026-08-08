@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zyc14588/TRPG_PLATFORM/schemas/codex/milestone-plan-v1.schema.json",
+  "x-section-id": "SCHEMA-CODEX-MILESTONE-PLAN-V1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "plan_id",
+    "plan_version",
+    "milestone",
+    "status",
+    "modifiable_only_in_mode",
+    "next_batch_sequence",
+    "batches",
+    "tombstones"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "plan_id": { "const": "M0-MILESTONE-PLAN" },
+    "plan_version": { "type": "integer", "minimum": 0 },
+    "milestone": { "const": "M0" },
+    "status": { "enum": ["NOT_GENERATED", "ACTIVE", "COMPLETE"] },
+    "modifiable_only_in_mode": { "const": "PLAN" },
+    "next_batch_sequence": { "type": "integer", "minimum": 1 },
+    "batches": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/batch" }
+    },
+    "tombstones": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/tombstone" }
+    }
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "batch": {
+      "type": "object",
+      "required": [
+        "batch_id", "sequence", "state", "objective", "non_goals", "requirements",
+        "allowed_scope", "forbidden_scope", "machine_contracts", "reading_map_sections",
+        "acceptance", "tests", "stop_conditions", "depends_on", "parallel_safe",
+        "dependency_independent", "parallel_scope_keys"
+      ],
+      "properties": {
+        "batch_id": { "type": "string", "pattern": "^M0-B[0-9]{3,}$" },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "state": { "enum": ["DRAFT", "PLANNED", "FROZEN", "IMPLEMENTING", "VERIFYING", "BLOCKED", "COMPLETED"] },
+        "objective": { "type": "string", "minLength": 1 },
+        "non_goals": { "$ref": "#/$defs/stringArray" },
+        "requirements": { "$ref": "#/$defs/stringArray" },
+        "allowed_scope": { "$ref": "#/$defs/stringArray" },
+        "forbidden_scope": { "$ref": "#/$defs/stringArray" },
+        "machine_contracts": { "$ref": "#/$defs/stringArray" },
+        "reading_map_sections": { "$ref": "#/$defs/stringArray" },
+        "acceptance": { "$ref": "#/$defs/stringArray" },
+        "tests": { "$ref": "#/$defs/stringArray" },
+        "stop_conditions": { "$ref": "#/$defs/stringArray" },
+        "depends_on": { "$ref": "#/$defs/stringArray" },
+        "parallel_safe": { "type": "boolean", "default": false },
+        "dependency_independent": { "type": "boolean", "default": false },
+        "parallel_scope_keys": { "$ref": "#/$defs/stringArray" },
+        "frozen_contract_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "tombstone": {
+      "type": "object",
+      "required": ["batch_id", "sequence", "action", "reason", "replacement_ids"],
+      "properties": {
+        "batch_id": { "type": "string", "pattern": "^M0-B[0-9]{3,}$" },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "action": { "enum": ["SPLIT", "MERGED", "CANCELLED"] },
+        "reason": { "type": "string", "minLength": 1 },
+        "replacement_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^M0-B[0-9]{3,}$" },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

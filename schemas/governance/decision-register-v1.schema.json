@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zyc14588/TRPG_PLATFORM/schemas/decisions/register-v1.schema.json",
+  "title": "TRPG_PLATFORM Decision Register",
+  "type": "object",
+  "required": [
+    "register_schema_version",
+    "baseline_id",
+    "baseline_status",
+    "decision_count",
+    "decisions",
+    "supersessions"
+  ],
+  "properties": {
+    "register_schema_version": {
+      "const": 1
+    },
+    "baseline_id": {
+      "type": "string"
+    },
+    "baseline_status": {
+      "type": "string"
+    },
+    "authoritative_language": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "decision_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "decision_id",
+          "status",
+          "title",
+          "statement",
+          "source_stage",
+          "scope",
+          "specifications"
+        ],
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "pattern": "^R[0-9]+-A[0-9]{2}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "SUPERSEDED",
+              "DEFERRED",
+              "REJECTED"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_stage": {
+            "type": "string",
+            "pattern": "^R[0-9]+$"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "implementation_status": {
+            "type": "string"
+          },
+          "specifications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "superseded_by": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^R[0-9]+-A[0-9]{2}$"
+            },
+            "uniqueItems": true
+          },
+          "exceptions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^R[0-9]+-A[0-9]{2}$"
+            },
+            "uniqueItems": true
+          },
+          "refined_by": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^R[0-9]+-A[0-9]{2}$"
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "supersessions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "superseded",
+          "superseded_by",
+          "effect",
+          "relationship_type"
+        ],
+        "properties": {
+          "superseded": {
+            "type": "string",
+            "minLength": 1
+          },
+          "superseded_by": {
+            "type": "string",
+            "pattern": "^R[0-9]+-A[0-9]{2}$"
+          },
+          "effect": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relationship_type": {
+            "type": "string",
+            "enum": [
+              "SUPERSEDES",
+              "SUPERSEDES_EXTERNAL",
+              "SCOPED_EXCEPTION",
+              "DELIVERY_DEFERRED",
+              "REFINEMENT"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status_values": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "SUPERSEDED",
+          "DEFERRED",
+          "REJECTED"
+        ]
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

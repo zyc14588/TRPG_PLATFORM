@@ -1,12 +1,35 @@
-/target/
-/node_modules/
-apps/web/dist/
-/.pnpm-store/
-__pycache__/
-*.pyc
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+# Local secrets and environment overrides
 .env
 .env.*
 !.env.example
 secrets/
-*.key
 *.pem
+*.key
+
+# Codex local runtime
+.codex/runtime/
+
+# Go
+/bin/
+coverage.out
+
+# Node and frontend
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Python helper caches
+__pycache__/
+*.py[cod]
+
+# Rust and legacy build output retained only outside the active tree
+target/
+
+# OS and editor state
+.DS_Store
+.idea/
+.vscode/
+*.swp
