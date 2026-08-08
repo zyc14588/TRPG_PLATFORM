@@ -4,7 +4,7 @@ schema_version: 1
 document_kind: mode-router
 authority: governance-policy
 status: ACTIVE
-source_commit: "936324365c39d118ac7d5c7401db626f2aad0644"
+source_commit: "9940a9ff18ac4b09d27d982d84a0703d3469c781"
 ---
 
 # Codex 会话入口

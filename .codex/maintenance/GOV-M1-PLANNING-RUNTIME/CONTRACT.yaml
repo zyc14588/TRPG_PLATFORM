@@ -166,6 +166,8 @@ bootstrap:
   - R25/R26 governance decisions and generated governance references
   - governance-maintenance route, contract, schemas, context profiles, and lifecycle tests
   retirement_condition: A clean-HEAD REPAIR route for GOV-M1-PLANNING-RUNTIME passes projectctl codex check.
-  status: AUTHORIZED_ONCE
-  retirement_evidence: []
-status: ACTIVE
+  status: RETIRED
+  retirement_evidence:
+  - REPAIR GOV-M1-PLANNING-RUNTIME route generated at source commit 9940a9ff18ac4b09d27d982d84a0703d3469c781.
+  - projectctl codex check PASS for the bound REPAIR route with codex-default TELEMETRY_ONLY policy.
+status: READY_FOR_ACCEPTANCE
