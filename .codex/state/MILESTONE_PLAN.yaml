@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 1
+plan_version: 2
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -727,8 +727,17 @@ batches:
   - TEST-QUALITY-003 produces repeatable commands, exit codes, a machine-readable result, and the exact candidate SHA.
   tests:
   - "TEST-QUALITY-003: go test -json -tags=m1_acceptance ./tests/m1/... ./tests/fixture-minimal/... produces machine-readable fixed-replay and complete 16-test M1 exit-gate evidence."
-  - go test -fuzz=Fuzz -fuzztime=30s ./tests/fuzz/protocol/... ./tests/fuzz/package/... ./tests/fuzz/callback/... ./tests/fuzz/event/... ./tests/fuzz/migration/... runs each bounded M1 fuzz target and preserves regression seeds.
-  - docker compose -f deploy/compose.yaml config validates the pinned M1 smoke topology; the smoke harness then builds, starts, health-checks, exercises, restarts, replays, migrates, and tears down its isolated project with zero exit status.
+  - "go test -run='^$' -fuzz='^FuzzProtocolEnvelope$' -fuzztime=30s ./tests/fuzz/protocol runs the bounded protocol-envelope target."
+  - "go test -run='^$' -fuzz='^FuzzPackageArchive$' -fuzztime=30s ./tests/fuzz/package runs the bounded package-archive target."
+  - "go test -run='^$' -fuzz='^FuzzPackageManifestTOML$' -fuzztime=30s ./tests/fuzz/package runs the bounded package-manifest TOML target."
+  - "go test -run='^$' -fuzz='^FuzzPackageSchema$' -fuzztime=30s ./tests/fuzz/package runs the bounded package-schema target."
+  - "go test -run='^$' -fuzz='^FuzzHostCallbackParameters$' -fuzztime=30s ./tests/fuzz/callback runs the bounded Host Callback parameter target."
+  - "go test -run='^$' -fuzz='^FuzzEventDeserialization$' -fuzztime=30s ./tests/fuzz/event runs the bounded event-deserialization target."
+  - "go test -run='^$' -fuzz='^FuzzEventUpcaster$' -fuzztime=30s ./tests/fuzz/event runs the bounded event-Upcaster target."
+  - "go test -run='^$' -fuzz='^FuzzMigrationEntrypoint$' -fuzztime=30s ./tests/fuzz/migration runs the bounded migration-entrypoint target."
+  - Each exact target runs its committed testdata/fuzz/<target> regression corpus first, and every minimized failure is promoted into that target's corpus before the owning defect is closed.
+  - docker compose -f deploy/compose.yaml config validates the pinned M1-only test topology.
+  - "go run ./tests/smoke/m1_lifecycle --compose-file=deploy/compose.yaml --candidate-sha=HEAD --evidence=tests/smoke/.artifacts/m1-lifecycle.json executes tests/smoke/m1_lifecycle/main.go: it resolves HEAD to the exact 40-hex candidate SHA; builds, starts, health-checks, exercises, restarts, replays, safely migrates, and tears down a unique isolated Compose project; atomically writes per-phase JSON machine evidence including the candidate SHA and replay/migration hashes; and exits zero only when every phase, evidence write, and cleanup succeeds. The harness registers cleanup before startup and, on success, any phase failure, or SIGINT/SIGTERM, runs docker compose down --volumes --remove-orphans for that project and verifies no project container, network, or volume remains; cleanup failure forces a nonzero exit."
   - just check, just build, just test, just ci, go test ./..., go vet ./..., and just license-check pass from a clean tracked tree.
   stop_conditions:
   - Stop and return a defect to its owning batch if certification requires changing core package, Lua, Host API, Session, data, migration, or security implementation.
