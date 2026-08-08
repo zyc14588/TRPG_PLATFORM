@@ -4,6 +4,7 @@ package projectctl
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -158,5 +159,30 @@ func TestContainerSupplyChainRejectsAggregateAndCopyleftMisclassification(t *tes
 				t.Fatal("invalid final runtime unexpectedly passed")
 			}
 		})
+	}
+}
+
+func TestCodexSourceCommitHasTrustedCandidateProvenance(t *testing.T) {
+	a := testApp(t)
+	if err := a.verifyCodexSourceCommit(context.Background(), governanceSourceCommit); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCodexSourceCommitRejectsPredecessorAndInvalidIdentity(t *testing.T) {
+	a := testApp(t)
+	ctx := context.Background()
+	for name, commit := range map[string]string{
+		"replaced predecessor chain": "1bb2e4ec9b569e4b8dab1e43ffb91e03c44f2acc",
+		"missing object":             "0000000000000000000000000000000000000000",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := a.verifyCodexSourceCommit(ctx, commit); err == nil {
+				t.Fatalf("invalid source commit %s unexpectedly passed", commit)
+			}
+		})
+	}
+	if err := a.verifyTrustedSSHCommit(ctx, "73bcee9500720f0d26d2b6f9676d4a2e6f30d964"); err == nil {
+		t.Fatal("commit outside the trusted SSH signer identity unexpectedly passed")
 	}
 }

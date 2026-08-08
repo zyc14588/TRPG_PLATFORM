@@ -5,7 +5,10 @@ package projectctl
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
@@ -61,7 +64,7 @@ func (a *App) generateCodexRoute(ctx context.Context, mode string) error {
 	if err := a.requireCleanWorktree(ctx); err != nil {
 		return err
 	}
-	if err := a.checkCodexStatic(); err != nil {
+	if err := a.checkCodexStatic(ctx); err != nil {
 		return err
 	}
 	commit, err := a.capture(ctx, "git", "rev-parse", "HEAD")
@@ -194,7 +197,7 @@ func (a *App) requireCleanWorktree(ctx context.Context) error {
 }
 
 func (a *App) checkCodex(ctx context.Context) error {
-	if err := a.checkCodexStatic(); err != nil {
+	if err := a.checkCodexStatic(ctx); err != nil {
 		return err
 	}
 	runtimePath := filepath.Join(a.root, ".codex", "runtime", "READING_MAP.yaml")
@@ -233,7 +236,7 @@ func (a *App) checkCodex(ctx context.Context) error {
 	return nil
 }
 
-func (a *App) checkCodexStatic() error {
+func (a *App) checkCodexStatic(ctx context.Context) error {
 	required := []string{
 		".codex/README.md", ".codex/SESSION_START.md", ".codex/planning/AUTONOMOUS_PLANNING_POLICY.md",
 		".codex/routes/PLAN.md", ".codex/routes/IMPLEMENT.md", ".codex/routes/ACCEPT.md", ".codex/routes/REPAIR.md",
@@ -242,6 +245,7 @@ func (a *App) checkCodexStatic() error {
 		".codex/templates/IMPLEMENT.template.md", ".codex/templates/READING_MAP.template.yaml", ".codex/templates/REPAIR.template.md",
 	}
 	problems := &validationErrors{}
+	verifiedCommits := map[string]bool{}
 	for _, relative := range required {
 		data, err := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(relative)))
 		if err != nil {
@@ -257,6 +261,12 @@ func (a *App) checkCodexStatic() error {
 				commit := frontMatterValue(text, "source_commit")
 				if !commitPattern.MatchString(commit) {
 					problems.add("%s source_commit must be a full immutable SHA", relative)
+				} else if !verifiedCommits[commit] {
+					if err := a.verifyCodexSourceCommit(ctx, commit); err != nil {
+						problems.add("%s has invalid source_commit %s: %v", relative, commit, err)
+					} else {
+						verifiedCommits[commit] = true
+					}
 				}
 				if strings.Contains(text, "{{") {
 					problems.add("active Codex file contains template placeholder: %s", relative)
@@ -265,6 +275,108 @@ func (a *App) checkCodexStatic() error {
 		}
 	}
 	return problems.err("Codex governance")
+}
+
+func (a *App) verifyCodexSourceCommit(ctx context.Context, commit string) error {
+	if !commitPattern.MatchString(commit) {
+		return errors.New("source commit is not a full lowercase SHA-1")
+	}
+	if _, err := a.capture(ctx, "git", "cat-file", "-e", commit+"^{commit}"); err != nil {
+		return fmt.Errorf("source commit does not exist: %w", err)
+	}
+	if _, err := a.capture(ctx, "git", "merge-base", "--is-ancestor", commit, "HEAD"); err != nil {
+		return errors.New("source commit is not an ancestor of the current candidate HEAD")
+	}
+	return a.verifyTrustedSSHCommit(ctx, commit)
+}
+
+func (a *App) verifyTrustedSSHCommit(ctx context.Context, commit string) error {
+	raw, err := a.capture(ctx, "git", "cat-file", "-p", commit)
+	if err != nil {
+		return err
+	}
+	publicKey, algorithm, err := commitSSHPublicKey(raw)
+	if err != nil {
+		return err
+	}
+	digest := sha256.Sum256(publicKey)
+	fingerprint := "SHA256:" + base64.RawStdEncoding.EncodeToString(digest[:])
+	if fingerprint != governanceSignerFingerprint {
+		return fmt.Errorf("SSH signer fingerprint %s is not the trusted governance signer", fingerprint)
+	}
+
+	allowedSigners, err := os.CreateTemp("", "trpg-codex-allowed-signers-*")
+	if err != nil {
+		return fmt.Errorf("create temporary allowed-signers file: %w", err)
+	}
+	allowedSignersPath := allowedSigners.Name()
+	defer os.Remove(allowedSignersPath)
+	line := fmt.Sprintf("codex-governance %s %s\n", algorithm, base64.StdEncoding.EncodeToString(publicKey))
+	if _, err := allowedSigners.WriteString(line); err != nil {
+		allowedSigners.Close()
+		return fmt.Errorf("write temporary allowed-signers file: %w", err)
+	}
+	if err := allowedSigners.Close(); err != nil {
+		return fmt.Errorf("close temporary allowed-signers file: %w", err)
+	}
+	if _, err := a.capture(ctx, "git", "-c", "gpg.ssh.allowedSignersFile="+allowedSignersPath, "verify-commit", commit); err != nil {
+		return fmt.Errorf("SSH signature verification failed: %w", err)
+	}
+	return nil
+}
+
+func commitSSHPublicKey(rawCommit string) ([]byte, string, error) {
+	lines := strings.Split(rawCommit, "\n")
+	var signature strings.Builder
+	collecting := false
+	for _, line := range lines {
+		if strings.HasPrefix(line, "gpgsig ") {
+			collecting = true
+			signature.WriteString(strings.TrimPrefix(line, "gpgsig "))
+			signature.WriteByte('\n')
+			continue
+		}
+		if collecting && strings.HasPrefix(line, " ") {
+			signature.WriteString(strings.TrimPrefix(line, " "))
+			signature.WriteByte('\n')
+			continue
+		}
+		if collecting {
+			break
+		}
+	}
+	block, _ := pem.Decode([]byte(signature.String()))
+	if block == nil || block.Type != "SSH SIGNATURE" {
+		return nil, "", errors.New("source commit does not contain an SSH signature")
+	}
+	if len(block.Bytes) < 10 || string(block.Bytes[:6]) != "SSHSIG" || binary.BigEndian.Uint32(block.Bytes[6:10]) != 1 {
+		return nil, "", errors.New("source commit contains an unsupported SSH signature envelope")
+	}
+	publicKey, _, err := readSSHString(block.Bytes, 10)
+	if err != nil {
+		return nil, "", fmt.Errorf("read SSH signature public key: %w", err)
+	}
+	algorithmBytes, _, err := readSSHString(publicKey, 0)
+	if err != nil {
+		return nil, "", fmt.Errorf("read SSH public key algorithm: %w", err)
+	}
+	algorithm := string(algorithmBytes)
+	if algorithm != "ssh-ed25519" {
+		return nil, "", fmt.Errorf("unsupported governance signing algorithm %q", algorithm)
+	}
+	return publicKey, algorithm, nil
+}
+
+func readSSHString(data []byte, offset int) ([]byte, int, error) {
+	if offset < 0 || len(data)-offset < 4 {
+		return nil, offset, errors.New("truncated SSH string length")
+	}
+	length := int(binary.BigEndian.Uint32(data[offset : offset+4]))
+	start := offset + 4
+	if length < 0 || length > len(data)-start {
+		return nil, offset, errors.New("truncated SSH string payload")
+	}
+	return data[start : start+length], start + length, nil
 }
 
 func frontMatterValue(text, key string) string {

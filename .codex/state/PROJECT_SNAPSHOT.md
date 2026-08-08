@@ -4,7 +4,7 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "1bb2e4ec9b569e4b8dab1e43ffb91e03c44f2acc"
+source_commit: "936324365c39d118ac7d5c7401db626f2aad0644"
 ---
 
 # 项目摘要
