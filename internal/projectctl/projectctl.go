@@ -113,6 +113,7 @@ func (a *App) Run(ctx context.Context, args []string) error {
 	}
 }
 
+// x-section-id: PROJECTCTL-CODEX-CLI
 func (a *App) usage() {
 	fmt.Fprintln(a.stdout, `projectctl - TRPG Platform engineering control plane
 
@@ -125,9 +126,10 @@ Usage:
   projectctl license check
   projectctl scope check --milestone M0
   projectctl check|build|test|ci
-  projectctl codex plan --milestone M?
-  projectctl codex route --mode PLAN --milestone M?
-  projectctl codex route --mode IMPLEMENT|ACCEPT|REPAIR --milestone M? --batch M?-B???
+  projectctl codex plan --milestone M? [--executor codex --profile codex-default]
+  projectctl codex route --mode PLAN --milestone M? [profile options]
+  projectctl codex route --mode IMPLEMENT|ACCEPT|REPAIR --milestone M? --batch M?-B??? [profile options]
+  projectctl codex route --mode ACCEPT|REPAIR --maintenance GOV-ID [profile options]
   projectctl codex check
   projectctl accept --milestone M0`)
 }

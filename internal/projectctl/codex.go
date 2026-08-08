@@ -24,16 +24,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// x-section-id: PROJECTCTL-CODEX-ROUTING
 const (
-	readingMapSchemaVersion    = 3
+	readingMapSchemaVersion    = 4
 	milestonePlanSchemaVersion = 2
-	defaultContextCapacity     = 131072
-	contextProfileID           = "codex-utf8-bytes-v1"
+	codexExecutor              = "codex"
+	codexContextProfileID      = "codex-default"
+	openCodeExecutor           = "opencode"
+	openCodeContextProfileID   = "opencode-deepseek-v4-flash"
 	contextMeasurement         = "utf8-bytes"
 	softContextRatio           = 0.55
 	hardContextRatio           = 0.70
 	milestoneRouteScope        = "MILESTONE"
 	batchRouteScope            = "BATCH"
+	maintenanceRouteScope      = "GOVERNANCE_MAINTENANCE"
 )
 
 var (
@@ -47,13 +51,17 @@ type codexRouteRequest struct {
 	Mode                 string
 	Milestone            string
 	BatchID              string
+	MaintenanceID        string
+	Executor             string
+	ProfileID            string
 	ContextCapacityBytes int
 }
 
 func newCodexRouteRequest(mode string) codexRouteRequest {
 	return codexRouteRequest{
-		Mode:                 strings.ToUpper(mode),
-		ContextCapacityBytes: defaultContextCapacity,
+		Mode:      strings.ToUpper(mode),
+		Executor:  codexExecutor,
+		ProfileID: codexContextProfileID,
 	}
 }
 
@@ -75,7 +83,7 @@ func (a *App) codexCommand(ctx context.Context, args []string) error {
 		}
 		return a.generateCodexRouteRequest(ctx, request)
 	}
-	return usageError("codex plan --milestone M?|route --mode MODE --milestone M? [--batch M?-B???] [--context-capacity-bytes N]|check")
+	return usageError("codex plan --milestone M? [profile options]|route --mode MODE (--milestone M? [--batch M?-B???] | --maintenance GOV-ID) [profile options]|check")
 }
 
 func parseCodexPlanRequest(args []string) (codexRouteRequest, error) {
@@ -93,6 +101,10 @@ func parseCodexPlanRequest(args []string) (codexRouteRequest, error) {
 		switch option {
 		case "--milestone":
 			request.Milestone = value
+		case "--executor":
+			request.Executor = strings.ToLower(value)
+		case "--profile":
+			request.ProfileID = value
 		case "--context-capacity-bytes":
 			capacity, err := strconv.Atoi(value)
 			if err != nil || capacity <= 0 {
@@ -128,6 +140,12 @@ func parseCodexRouteRequest(args []string) (codexRouteRequest, error) {
 			request.Milestone = value
 		case "--batch":
 			request.BatchID = value
+		case "--maintenance":
+			request.MaintenanceID = value
+		case "--executor":
+			request.Executor = strings.ToLower(value)
+		case "--profile":
+			request.ProfileID = value
 		case "--context-capacity-bytes":
 			capacity, err := strconv.Atoi(value)
 			if err != nil || capacity <= 0 {
@@ -141,8 +159,8 @@ func parseCodexRouteRequest(args []string) (codexRouteRequest, error) {
 	if request.Mode == "" {
 		return request, errors.New("Codex route requires --mode")
 	}
-	if request.Milestone == "" {
-		return request, errors.New("Codex route requires --milestone")
+	if request.Milestone == "" && request.MaintenanceID == "" {
+		return request, errors.New("Codex route requires a milestone/batch target or --maintenance")
 	}
 	return request, nil
 }
@@ -153,6 +171,10 @@ func (a *App) generateCodexRouteRequest(ctx context.Context, request codexRouteR
 		return err
 	}
 	if err := validateCodexRouteRequest(request, catalog); err != nil {
+		return err
+	}
+	profile, err := contextProfileForRequest(request)
+	if err != nil {
 		return err
 	}
 	if err := a.enforceMilestonePlanMode(ctx, request.Mode); err != nil {
@@ -186,17 +208,14 @@ func (a *App) generateCodexRouteRequest(ctx context.Context, request codexRouteR
 		RouteSchemaVersion: readingMapSchemaVersion,
 		Mode:               request.Mode,
 		Milestone:          request.Milestone,
-		RouteScope:         routeScopeForMode(request.Mode),
+		RouteScope:         routeScopeForRequest(request),
 		BatchID:            request.BatchID,
+		MaintenanceID:      request.MaintenanceID,
 		SourceCommit:       commit,
 		SourceTree:         tree,
 		GeneratedUTC:       time.Now().UTC().Format(time.RFC3339),
-		MustNotBulkRead:    []string{"docs/**", "git-history", "prior-chat-transcripts"},
-		ContextProfile: contextProfile{
-			ProfileID:     contextProfileID,
-			CapacityBytes: request.ContextCapacityBytes,
-			Measurement:   contextMeasurement,
-		},
+		MustNotBulkRead:    mustNotBulkReadForRequest(request),
+		ContextProfile:     profile,
 	}
 	if mapFile.AlwaysRead, err = a.hashRouteSections(specs.always); err != nil {
 		return err
@@ -229,12 +248,8 @@ func (a *App) generateCodexRouteRequest(ctx context.Context, request codexRouteR
 	if err := atomicWrite(path, data, 0o644); err != nil {
 		return fmt.Errorf("write Codex reading map: %w", err)
 	}
-	target := request.Milestone + "/" + request.BatchID
-	if request.BatchID == "" {
-		target = request.Milestone + "/MILESTONE"
-	}
-	fmt.Fprintf(a.stdout, "[ROUTE] %s %s -> .codex/runtime/READING_MAP.yaml (%s, %.4f context ratio, %s)\n",
-		request.Mode, target, commit, mapFile.Budget.ActualRatio, mapFile.Budget.Status)
+	fmt.Fprintf(a.stdout, "[ROUTE] %s %s -> .codex/runtime/READING_MAP.yaml (%s, %s, %s)\n",
+		request.Mode, routeRequestTarget(request), commit, contextTelemetrySummary(mapFile), mapFile.Budget.Status)
 	return nil
 }
 
@@ -255,8 +270,11 @@ func route(path, sectionID, kind string) routeSpec {
 	return routeSpec{path: path, sectionID: sectionID, kind: kind}
 }
 
-func routeScopeForMode(mode string) string {
-	if mode == "PLAN" {
+func routeScopeForRequest(request codexRouteRequest) string {
+	if request.MaintenanceID != "" {
+		return maintenanceRouteScope
+	}
+	if request.Mode == "PLAN" {
 		return milestoneRouteScope
 	}
 	return batchRouteScope
@@ -266,25 +284,66 @@ func validateCodexRouteRequest(request codexRouteRequest, catalog v1MilestoneCat
 	if !map[string]bool{"PLAN": true, "IMPLEMENT": true, "ACCEPT": true, "REPAIR": true}[request.Mode] {
 		return fmt.Errorf("invalid Codex mode %q", request.Mode)
 	}
-	if err := validateKnownMilestone(request.Milestone, catalog); err != nil {
-		return err
+	if request.BatchID != "" && request.MaintenanceID != "" {
+		return errors.New("--batch and --maintenance are mutually exclusive")
 	}
-	if request.Mode == "PLAN" {
-		if request.BatchID != "" {
-			return errors.New("PLAN routes are milestone-level and must not allocate or accept a batch_id")
+	if request.MaintenanceID != "" {
+		if request.Milestone != "" {
+			return errors.New("governance maintenance routes must not claim a milestone")
+		}
+		if !maintenanceIDPattern.MatchString(request.MaintenanceID) {
+			return fmt.Errorf("invalid governance maintenance ID %q; expected GOV-[A-Z0-9-]+", request.MaintenanceID)
+		}
+		if request.Mode == "PLAN" || request.Mode == "IMPLEMENT" {
+			return fmt.Errorf("%s cannot target governance maintenance", request.Mode)
 		}
 	} else {
-		if request.BatchID == "" {
-			return fmt.Errorf("%s routes require a real batch_id", request.Mode)
+		if request.Milestone == "" {
+			return errors.New("milestone target is required when --maintenance is absent")
 		}
-		if err := validateBatchID(request.Milestone, request.BatchID); err != nil {
+		if err := validateKnownMilestone(request.Milestone, catalog); err != nil {
 			return err
 		}
+		if request.Mode == "PLAN" {
+			if request.BatchID != "" {
+				return errors.New("PLAN routes are milestone-level and must not allocate or accept a batch_id")
+			}
+		} else {
+			if request.BatchID == "" {
+				return fmt.Errorf("%s routes require a real batch_id or governance maintenance target", request.Mode)
+			}
+			if err := validateBatchID(request.Milestone, request.BatchID); err != nil {
+				return err
+			}
+		}
 	}
-	if request.ContextCapacityBytes <= 0 {
-		return errors.New("context capacity must be positive")
+	if _, err := contextProfileForRequest(request); err != nil {
+		return err
 	}
 	return nil
+}
+
+func contextProfileForRequest(request codexRouteRequest) (contextProfile, error) {
+	switch {
+	case request.Executor == codexExecutor && request.ProfileID == codexContextProfileID:
+		if request.ContextCapacityBytes < 0 {
+			return contextProfile{}, errors.New("Codex telemetry capacity cannot be negative")
+		}
+		return contextProfile{
+			Executor: codexExecutor, ProfileID: codexContextProfileID, Enforcement: false,
+			CapacityBytes: request.ContextCapacityBytes, Measurement: contextMeasurement,
+		}, nil
+	case request.Executor == openCodeExecutor && request.ProfileID == openCodeContextProfileID:
+		if request.ContextCapacityBytes <= 0 {
+			return contextProfile{}, errors.New("PROFILE_REQUIRED: opencode-deepseek-v4-flash requires explicit --context-capacity-bytes")
+		}
+		return contextProfile{
+			Executor: openCodeExecutor, ProfileID: openCodeContextProfileID, Enforcement: true,
+			CapacityBytes: request.ContextCapacityBytes, Measurement: contextMeasurement,
+		}, nil
+	default:
+		return contextProfile{}, fmt.Errorf("PROFILE_REQUIRED: unknown executor/profile %q/%q", request.Executor, request.ProfileID)
+	}
 }
 
 func validateBatchID(milestone, batchID string) error {
@@ -296,6 +355,10 @@ func validateBatchID(milestone, batchID string) error {
 }
 
 func (a *App) validateRouteAgainstCurrentPlan(request codexRouteRequest, catalog v1MilestoneCatalog) error {
+	if request.MaintenanceID != "" {
+		_, err := a.loadGovernanceMaintenanceContract(request.MaintenanceID)
+		return err
+	}
 	plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
 	if err != nil {
 		return err
@@ -361,6 +424,12 @@ func sectionMaterial(data []byte, sectionID string) ([]byte, error) {
 	markers := make([]sectionMarker, 0)
 	for index, withEnding := range lines {
 		line := strings.TrimSpace(strings.TrimSuffix(withEnding, "\n"))
+		for _, prefix := range []string{"// x-section-id:", "# x-section-id:"} {
+			if strings.HasPrefix(line, prefix) {
+				id := strings.Trim(strings.TrimSpace(strings.TrimPrefix(line, prefix)), `"'`)
+				markers = append(markers, sectionMarker{id: id, kind: "anchor", group: prefix, line: index})
+			}
+		}
 		if strings.HasPrefix(line, `<a id="`) && strings.HasSuffix(line, `"></a>`) {
 			id := strings.TrimSuffix(strings.TrimPrefix(line, `<a id="`), `"></a>`)
 			markers = append(markers, sectionMarker{id: id, kind: "anchor", group: "anchor", line: index})
@@ -414,25 +483,32 @@ func sectionMaterial(data []byte, sectionID string) ([]byte, error) {
 	return material, nil
 }
 
+// x-section-id: PROJECTCTL-CONTEXT-POLICY
 func applyContextBudget(route *readingMap) error {
+	if err := validateContextProfile(route.ContextProfile); err != nil {
+		return err
+	}
 	capacity := route.ContextProfile.CapacityBytes
-	if capacity <= 0 {
-		return errors.New("context capacity must be positive")
-	}
 	initial := measureRouteSections(route.AlwaysRead, route.NormativeReferences, route.MachineContracts, route.ReadOnDemand)
-	initialRatio := float64(initial) / float64(capacity)
-	if initialRatio > hardContextRatio {
-		return fmt.Errorf("Codex route context hard limit exceeded: %.4f > %.2f; hard stop, return to PLAN and split the batch", initialRatio, hardContextRatio)
-	}
 	route.Budget = contextBudget{
 		InitialMaterialBytes: initial,
 		MaterialBytes:        initial,
 		CapacityBytes:        capacity,
-		InitialRatio:         initialRatio,
-		ActualRatio:          initialRatio,
-		SoftLimitRatio:       softContextRatio,
-		HardLimitRatio:       hardContextRatio,
-		Status:               "WITHIN_BUDGET",
+		Status:               "TELEMETRY_ONLY",
+	}
+	if capacity > 0 {
+		route.Budget.InitialRatio = float64(initial) / float64(capacity)
+		route.Budget.ActualRatio = route.Budget.InitialRatio
+	}
+	if !route.ContextProfile.Enforcement {
+		return nil
+	}
+	initialRatio := route.Budget.InitialRatio
+	route.Budget.SoftLimitRatio = softContextRatio
+	route.Budget.HardLimitRatio = hardContextRatio
+	route.Budget.Status = "WITHIN_BUDGET"
+	if initialRatio > hardContextRatio {
+		return fmt.Errorf("%s context hard limit exceeded: %.4f > %.2f; hard stop, shrink the route or split the batch", route.ContextProfile.ProfileID, initialRatio, hardContextRatio)
 	}
 	if initialRatio <= softContextRatio {
 		return nil
@@ -454,6 +530,26 @@ func applyContextBudget(route *readingMap) error {
 	return nil
 }
 
+func validateContextProfile(profile contextProfile) error {
+	if profile.Measurement != contextMeasurement {
+		return fmt.Errorf("context profile measurement %q is unsupported", profile.Measurement)
+	}
+	switch {
+	case profile.Executor == codexExecutor && profile.ProfileID == codexContextProfileID && !profile.Enforcement:
+		if profile.CapacityBytes < 0 {
+			return errors.New("Codex telemetry capacity cannot be negative")
+		}
+		return nil
+	case profile.Executor == openCodeExecutor && profile.ProfileID == openCodeContextProfileID && profile.Enforcement:
+		if profile.CapacityBytes <= 0 {
+			return errors.New("PROFILE_REQUIRED: opencode-deepseek-v4-flash requires explicit capacity")
+		}
+		return nil
+	default:
+		return fmt.Errorf("PROFILE_REQUIRED: unknown or mismatched executor/profile %q/%q", profile.Executor, profile.ProfileID)
+	}
+}
+
 func measureRouteSections(groups ...[]routeSection) int {
 	total := 0
 	for _, group := range groups {
@@ -471,6 +567,7 @@ func readingMapBindingDigest(route readingMap) (string, error) {
 		Milestone           string         `json:"milestone"`
 		RouteScope          string         `json:"route_scope"`
 		BatchID             string         `json:"batch_id,omitempty"`
+		MaintenanceID       string         `json:"maintenance_id,omitempty"`
 		SourceCommit        string         `json:"source_commit"`
 		SourceTree          string         `json:"source_tree"`
 		ContextProfile      contextProfile `json:"context_profile"`
@@ -483,7 +580,7 @@ func readingMapBindingDigest(route readingMap) (string, error) {
 		MustNotBulkRead     []string       `json:"must_not_bulk_read"`
 	}{
 		RouteSchemaVersion: route.RouteSchemaVersion, Mode: route.Mode, Milestone: route.Milestone,
-		RouteScope: route.RouteScope, BatchID: route.BatchID,
+		RouteScope: route.RouteScope, BatchID: route.BatchID, MaintenanceID: route.MaintenanceID,
 		SourceCommit: route.SourceCommit, SourceTree: route.SourceTree, ContextProfile: route.ContextProfile, Budget: route.Budget,
 		AlwaysRead: route.AlwaysRead, NormativeReferences: route.NormativeReferences, MachineContracts: route.MachineContracts,
 		ReadOnDemand: route.ReadOnDemand, SoftLimitOmissions: route.SoftLimitOmissions, MustNotBulkRead: route.MustNotBulkRead,
@@ -518,6 +615,7 @@ func (a *App) requireCleanWorktree(ctx context.Context) error {
 	return nil
 }
 
+// x-section-id: PROJECTCTL-CODEX-VALIDATION
 func (a *App) checkCodex(ctx context.Context) error {
 	if err := a.checkCodexStatic(ctx); err != nil {
 		return err
@@ -541,7 +639,8 @@ func (a *App) checkCodex(ctx context.Context) error {
 		return err
 	}
 	if err := a.validateRouteAgainstCurrentPlan(codexRouteRequest{
-		Mode: route.Mode, Milestone: route.Milestone, BatchID: route.BatchID,
+		Mode: route.Mode, Milestone: route.Milestone, BatchID: route.BatchID, MaintenanceID: route.MaintenanceID,
+		Executor: route.ContextProfile.Executor, ProfileID: route.ContextProfile.ProfileID,
 		ContextCapacityBytes: route.ContextProfile.CapacityBytes,
 	}, catalog); err != nil {
 		return err
@@ -590,14 +689,15 @@ func (a *App) checkCodex(ctx context.Context) error {
 			return fmt.Errorf("Codex runtime route is stale: section %s#%s changed; regenerate it", section.Path, section.SectionID)
 		}
 	}
-	fmt.Fprintf(a.stdout, "[PASS] Codex %s route for %s is current at %s (%.4f context ratio, %s)\n",
-		route.Mode, routeTarget(route), route.SourceCommit, route.Budget.ActualRatio, route.Budget.Status)
+	fmt.Fprintf(a.stdout, "[PASS] Codex %s route for %s is current at %s (%s, %s)\n",
+		route.Mode, routeTarget(route), route.SourceCommit, contextTelemetrySummary(route), route.Budget.Status)
 	return nil
 }
 
 func (a *App) validateCanonicalReadingMap(actual readingMap) error {
 	specs, err := a.routePaths(codexRouteRequest{
-		Mode: actual.Mode, Milestone: actual.Milestone, BatchID: actual.BatchID,
+		Mode: actual.Mode, Milestone: actual.Milestone, BatchID: actual.BatchID, MaintenanceID: actual.MaintenanceID,
+		Executor: actual.ContextProfile.Executor, ProfileID: actual.ContextProfile.ProfileID,
 		ContextCapacityBytes: actual.ContextProfile.CapacityBytes,
 	})
 	if err != nil {
@@ -605,7 +705,7 @@ func (a *App) validateCanonicalReadingMap(actual readingMap) error {
 	}
 	expected := readingMap{
 		ContextProfile:  actual.ContextProfile,
-		MustNotBulkRead: []string{"docs/**", "git-history", "prior-chat-transcripts"},
+		MustNotBulkRead: mustNotBulkReadForRequest(codexRouteRequest{MaintenanceID: actual.MaintenanceID}),
 	}
 	if expected.AlwaysRead, err = a.hashRouteSections(specs.always); err != nil {
 		return err
@@ -663,11 +763,15 @@ func validateReadingMapMetadata(route readingMap, catalog v1MilestoneCatalog) er
 		return errors.New("Codex runtime route schema version is invalid")
 	}
 	if err := validateCodexRouteRequest(codexRouteRequest{
-		Mode: route.Mode, Milestone: route.Milestone, BatchID: route.BatchID, ContextCapacityBytes: route.ContextProfile.CapacityBytes,
+		Mode: route.Mode, Milestone: route.Milestone, BatchID: route.BatchID, MaintenanceID: route.MaintenanceID,
+		Executor: route.ContextProfile.Executor, ProfileID: route.ContextProfile.ProfileID,
+		ContextCapacityBytes: route.ContextProfile.CapacityBytes,
 	}, catalog); err != nil {
 		return err
 	}
-	if route.RouteScope != routeScopeForMode(route.Mode) {
+	if route.RouteScope != routeScopeForRequest(codexRouteRequest{
+		Mode: route.Mode, Milestone: route.Milestone, BatchID: route.BatchID, MaintenanceID: route.MaintenanceID,
+	}) {
 		return fmt.Errorf("Codex runtime route scope %q is invalid for %s mode", route.RouteScope, route.Mode)
 	}
 	if !commitPattern.MatchString(route.SourceCommit) || !commitPattern.MatchString(route.SourceTree) {
@@ -676,8 +780,8 @@ func validateReadingMapMetadata(route readingMap, catalog v1MilestoneCatalog) er
 	if _, err := time.Parse(time.RFC3339, route.GeneratedUTC); err != nil {
 		return errors.New("Codex runtime route generation timestamp is invalid")
 	}
-	if route.ContextProfile.ProfileID != contextProfileID || route.ContextProfile.Measurement != contextMeasurement {
-		return errors.New("Codex runtime route context profile is invalid")
+	if err := validateContextProfile(route.ContextProfile); err != nil {
+		return fmt.Errorf("Codex runtime route context profile is invalid: %w", err)
 	}
 	for _, forbidden := range []string{"docs/**", "git-history", "prior-chat-transcripts"} {
 		found := false
@@ -709,21 +813,36 @@ func validateReadingMapMetadata(route readingMap, catalog v1MilestoneCatalog) er
 }
 
 func validateContextBudget(route readingMap) error {
+	if err := validateContextProfile(route.ContextProfile); err != nil {
+		return err
+	}
 	current := measureRouteSections(route.AlwaysRead, route.NormativeReferences, route.MachineContracts, route.ReadOnDemand)
 	initial := current + measureRouteSections(route.SoftLimitOmissions)
 	capacity := route.ContextProfile.CapacityBytes
-	if capacity <= 0 {
-		return errors.New("Codex runtime route context capacity is invalid")
-	}
-	initialRatio := float64(initial) / float64(capacity)
-	actualRatio := float64(current) / float64(capacity)
 	budget := route.Budget
-	if budget.InitialMaterialBytes != initial || budget.MaterialBytes != current || budget.CapacityBytes != capacity ||
-		budget.InitialRatio != initialRatio || budget.ActualRatio != actualRatio || budget.SoftLimitRatio != softContextRatio || budget.HardLimitRatio != hardContextRatio {
+	if budget.InitialMaterialBytes != initial || budget.MaterialBytes != current || budget.CapacityBytes != capacity {
 		return errors.New("Codex runtime route context budget measurement is inconsistent")
 	}
+	initialRatio, actualRatio := 0.0, 0.0
+	if capacity > 0 {
+		initialRatio = float64(initial) / float64(capacity)
+		actualRatio = float64(current) / float64(capacity)
+	}
+	if budget.InitialRatio != initialRatio || budget.ActualRatio != actualRatio {
+		return errors.New("Codex runtime route context ratio telemetry is inconsistent")
+	}
+	if !route.ContextProfile.Enforcement {
+		if budget.Status != "TELEMETRY_ONLY" || budget.SoftLimitRatio != 0 || budget.HardLimitRatio != 0 ||
+			budget.ReductionApplied || budget.PlanSplitRequired || len(route.SoftLimitOmissions) != 0 || current != initial {
+			return errors.New("Codex unrestricted profile applied a project-level context gate")
+		}
+		return nil
+	}
+	if budget.SoftLimitRatio != softContextRatio || budget.HardLimitRatio != hardContextRatio {
+		return errors.New("enforcement-enabled context thresholds are inconsistent")
+	}
 	if initialRatio > hardContextRatio || budget.PlanSplitRequired {
-		return errors.New("Codex runtime route exceeds the hard context limit; hard stop and return PLAN split required")
+		return errors.New("enforcement-enabled runtime route exceeds the hard context limit; shrink route or split required")
 	}
 	switch {
 	case initialRatio <= softContextRatio:
@@ -753,10 +872,38 @@ func allReadingMapSections(route readingMap) []routeSection {
 }
 
 func routeTarget(route readingMap) string {
+	if route.MaintenanceID != "" {
+		return route.MaintenanceID
+	}
 	if route.BatchID == "" {
 		return route.Milestone + "/MILESTONE"
 	}
 	return route.Milestone + "/" + route.BatchID
+}
+
+func routeRequestTarget(request codexRouteRequest) string {
+	if request.MaintenanceID != "" {
+		return request.MaintenanceID
+	}
+	if request.BatchID == "" {
+		return request.Milestone + "/MILESTONE"
+	}
+	return request.Milestone + "/" + request.BatchID
+}
+
+func mustNotBulkReadForRequest(request codexRouteRequest) []string {
+	forbidden := []string{"docs/**", "git-history", "prior-chat-transcripts"}
+	if request.MaintenanceID != "" {
+		forbidden = append(forbidden, "unrelated-product-specs", "M1-business-implementation")
+	}
+	return forbidden
+}
+
+func contextTelemetrySummary(route readingMap) string {
+	if route.ContextProfile.CapacityBytes == 0 {
+		return fmt.Sprintf("%d context bytes measured", route.Budget.MaterialBytes)
+	}
+	return fmt.Sprintf("%.4f context ratio", route.Budget.ActualRatio)
 }
 
 func validateBoundedRoutePath(path string) error {
@@ -777,7 +924,9 @@ func (a *App) checkCodexStatic(ctx context.Context) error {
 		".codex/state/DECISION_DIGEST.md", ".codex/state/MILESTONE_PLAN.yaml", ".codex/state/MILESTONE_STATUS.md", ".codex/state/PROJECT_SNAPSHOT.md",
 		".codex/templates/ACCEPT.template.md", ".codex/templates/BATCH_CONTRACT.template.md", ".codex/templates/HANDOFF.template.md",
 		".codex/templates/IMPLEMENT.template.md", ".codex/templates/READING_MAP.template.yaml", ".codex/templates/REPAIR.template.md",
-		"schemas/codex/reading-map-v2.schema.json", "schemas/codex/reading-map-v3.schema.json",
+		".codex/maintenance/GOV-M1-PLANNING-RUNTIME/CONTRACT.yaml",
+		"schemas/codex/reading-map-v2.schema.json", "schemas/codex/reading-map-v3.schema.json", "schemas/codex/reading-map-v4.schema.json",
+		"schemas/codex/governance-maintenance-contract-v1.schema.json",
 		"schemas/codex/milestone-plan-v1.schema.json", "schemas/codex/milestone-plan-v2.schema.json",
 	}
 	problems := &validationErrors{}
@@ -820,8 +969,19 @@ func (a *App) checkCodexStatic(ctx context.Context) error {
 	} else if err := validateMilestonePlan(plan, catalog); err != nil {
 		problems.add("invalid MILESTONE_PLAN.yaml: %v", err)
 	}
+	maintenanceContracts, globErr := filepath.Glob(filepath.Join(a.root, ".codex", "maintenance", "*", "CONTRACT.yaml"))
+	if globErr != nil {
+		problems.add("discover governance maintenance contracts: %v", globErr)
+	}
+	for _, path := range maintenanceContracts {
+		maintenanceID := filepath.Base(filepath.Dir(path))
+		if _, err := a.loadGovernanceMaintenanceContract(maintenanceID); err != nil {
+			problems.add("invalid governance maintenance contract %s: %v", maintenanceID, err)
+		}
+	}
 	for _, relative := range []string{
-		"schemas/codex/reading-map-v2.schema.json", "schemas/codex/reading-map-v3.schema.json",
+		"schemas/codex/reading-map-v2.schema.json", "schemas/codex/reading-map-v3.schema.json", "schemas/codex/reading-map-v4.schema.json",
+		"schemas/codex/governance-maintenance-contract-v1.schema.json",
 		"schemas/codex/milestone-plan-v1.schema.json", "schemas/codex/milestone-plan-v2.schema.json",
 	} {
 		data, err := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(relative)))
@@ -866,6 +1026,7 @@ func decodeMilestonePlan(data []byte) (milestonePlan, error) {
 	return plan, nil
 }
 
+// x-section-id: PROJECTCTL-MILESTONE-LIFECYCLE
 func validateMilestonePlan(plan milestonePlan, catalog v1MilestoneCatalog) error {
 	if plan.SchemaVersion != milestonePlanSchemaVersion || plan.PlanID != plan.Milestone+"-MILESTONE-PLAN" || plan.ModifiableOnlyInMode != "PLAN" {
 		return errors.New("plan metadata is invalid")

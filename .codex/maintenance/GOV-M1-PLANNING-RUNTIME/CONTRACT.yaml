@@ -1,0 +1,171 @@
+schema_version: 1
+x-section-id: GOV-M1-PLANNING-RUNTIME
+maintenance_id: GOV-M1-PLANNING-RUNTIME
+objective:
+- 修复 Milestone Plan lifecycle governance tests，使其验证 NOT_GENERATED、ACTIVE、COMPLETE 状态机不变量而非永久仓库快照。
+- 实现 R25 executor/profile-specific context policy，并保持所有非 context-ratio 治理门禁。
+reason: M1 首次诊断性 PLAN 暴露了 lifecycle snapshot 测试和全局 context ratio gate 会阻断合法规划；治理控制面必须先自修复。
+source_blocker: Diagnostic commit c83e645810d82f2303569dca488c78d1b68e05eb 仅证明首次 PLAN blocker，不得 cherry-pick、push 或视为正式 M1 plan。
+allowed_scope:
+- path: .codex/maintenance/GOV-M1-PLANNING-RUNTIME/CONTRACT.yaml
+  section_id: GOV-M1-PLANNING-RUNTIME
+  kind: machine-contract
+- path: .codex/SESSION_START.md
+  section_id: CODEX-SESSION-START
+  kind: governance-entry
+- path: .codex/routes/REPAIR.md
+  section_id: CODEX-ROUTE-REPAIR
+  kind: governance-policy
+- path: .codex/routes/ACCEPT.md
+  section_id: CODEX-ROUTE-ACCEPT
+  kind: governance-policy
+- path: .codex/routes/IMPLEMENT.md
+  section_id: CODEX-ROUTE-IMPLEMENT
+  kind: governance-policy
+- path: .codex/templates/READING_MAP.template.yaml
+  section_id: CODEX-READING-MAP-TEMPLATE
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R25-A01
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R25-A02
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R25-A03
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R25-A04
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R26-A01
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R26-A02
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R26-A03
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R26-A04
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_INDEX.md
+  section_id: DECISION-INDEX
+  kind: generated-reference
+- path: docs/70-decisions/SUPERSESSION_MAP.md
+  section_id: SUPERSESSION-MAP
+  kind: generated-reference
+- path: .codex/state/DECISION_DIGEST.md
+  section_id: CODEX-DECISION-DIGEST
+  kind: generated-reference
+- path: internal/projectctl/codex.go
+  section_id: PROJECTCTL-CODEX-ROUTING
+  kind: production-code
+- path: internal/projectctl/codex.go
+  section_id: PROJECTCTL-CONTEXT-POLICY
+  kind: production-code
+- path: internal/projectctl/codex.go
+  section_id: PROJECTCTL-CODEX-VALIDATION
+  kind: production-code
+- path: internal/projectctl/codex.go
+  section_id: PROJECTCTL-MILESTONE-LIFECYCLE
+  kind: production-code
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-CODEX-CATALOG
+  kind: production-code
+- path: internal/projectctl/codex_maintenance.go
+  section_id: PROJECTCTL-CODEX-MAINTENANCE
+  kind: production-code
+- path: internal/projectctl/models.go
+  section_id: PROJECTCTL-CODEX-MODELS
+  kind: production-code
+- path: internal/projectctl/projectctl.go
+  section_id: PROJECTCTL-CODEX-CLI
+  kind: production-code
+- path: internal/projectctl/validation.go
+  section_id: PROJECTCTL-DECISION-VALIDATION
+  kind: production-code
+- path: internal/projectctl/documents.go
+  section_id: PROJECTCTL-GOVERNANCE-SOURCE
+  kind: production-code
+- path: internal/projectctl/documents.go
+  section_id: PROJECTCTL-DECISION-GENERATOR
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-CODEX-ROUTE-TESTS
+  kind: test
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-MILESTONE-LIFECYCLE-TESTS
+  kind: test
+- path: schemas/codex/reading-map-v4.schema.json
+  section_id: SCHEMA-CODEX-READING-MAP-V4
+  kind: machine-contract
+- path: schemas/codex/governance-maintenance-contract-v1.schema.json
+  section_id: SCHEMA-CODEX-GOVERNANCE-MAINTENANCE-V1
+  kind: machine-contract
+forbidden_scope:
+- M1 plan generation or modification of .codex/state/MILESTONE_PLAN.yaml
+- allocation or creation of any M1-B###
+- package implementation
+- Lua implementation
+- Session implementation
+- fixture implementation
+- product or business code
+- V1 scope expansion
+- cherry-pick, push, or adoption of diagnostic commit c83e645810d82f2303569dca488c78d1b68e05eb
+normative_references:
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-ENTRY
+  kind: normative-section
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-ROUTE
+  kind: normative-section
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-BUDGET
+  kind: normative-section
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MODES
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-PROGRESSIVE
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+acceptance:
+- REPAIR and ACCEPT governance-maintenance routes generate route_scope GOVERNANCE_MAINTENANCE without milestone or batch_id.
+- IMPLEMENT governance-maintenance, invalid IDs, missing contracts, and simultaneous batch/maintenance targets fail closed.
+- Maintenance Reading Map contains the contract, R25/R26, allowed scope, relevant schemas/code/tests, necessary M1 state, and forbidden bulk-read rules.
+- codex/codex-default records context telemetry without applying 55%/70% project gates.
+- opencode/opencode-deepseek-v4-flash requires explicit capacity and enforces soft 0.55/hard 0.70.
+- Milestone Plan tests validate NOT_GENERATED, ACTIVE, COMPLETE and transition invariants without fixed production batch IDs or dependency graphs.
+- All required repository checks pass and no M1 plan or product implementation is created.
+tests:
+- go test ./internal/projectctl
+- go test ./...
+- go vet ./...
+- just check
+- just test
+- just ci
+- projectctl codex route --mode REPAIR --maintenance GOV-M1-PLANNING-RUNTIME
+- projectctl codex route --mode ACCEPT --maintenance GOV-M1-PLANNING-RUNTIME
+- projectctl codex check
+stop_conditions:
+- expected base or maintenance identity changes
+- any requirement to generate an M1 plan or allocate M1-B###
+- any product/business implementation or V1 scope expansion
+- unknown executor/profile or unconfirmed OpenCode capacity
+- stale route, invalid binding, invalid Section ID, forbidden bulk read, schema failure, or test failure
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-001
+  authorization: Explicit project-owner authorization in the initiating task.
+  allowed_scope:
+  - R25/R26 governance decisions and generated governance references
+  - governance-maintenance route, contract, schemas, context profiles, and lifecycle tests
+  retirement_condition: A clean-HEAD REPAIR route for GOV-M1-PLANNING-RUNTIME passes projectctl codex check.
+  status: AUTHORIZED_ONCE
+  retirement_evidence: []
+status: ACTIVE

@@ -1,26 +1,24 @@
-route_schema_version: 3
+# x-section-id: CODEX-READING-MAP-TEMPLATE
+route_schema_version: 4
 mode: '{{MODE}}'
-milestone: '{{MILESTONE}}'
 route_scope: '{{ROUTE_SCOPE}}'
-# Omit batch_id for PLAN/MILESTONE routes. It is required for BATCH routes.
+# Exactly one target shape is valid:
+# milestone: '{{MILESTONE}}' # PLAN/MILESTONE
 # batch_id: '{{BATCH_ID}}'
+# maintenance_id: '{{MAINTENANCE_ID}}' # ACCEPT|REPAIR/GOVERNANCE_MAINTENANCE
 source_commit: '{{SOURCE_COMMIT}}'
 source_tree: '{{SOURCE_TREE}}'
 route_binding_sha256: '{{ROUTE_BINDING_SHA256}}'
 generated_utc: '{{GENERATED_UTC}}'
 context_profile:
-  profile_id: codex-utf8-bytes-v1
-  capacity_bytes: 131072
+  executor: codex
+  profile_id: codex-default
+  enforcement: false
   measurement: utf8-bytes
 budget:
   initial_material_bytes: 0
   material_bytes: 0
-  capacity_bytes: 131072
-  initial_ratio: 0
-  actual_ratio: 0
-  soft_limit_ratio: 0.55
-  hard_limit_ratio: 0.7
-  status: WITHIN_BUDGET
+  status: TELEMETRY_ONLY
   reduction_applied: false
   plan_split_required: false
 always_read: []

@@ -11,6 +11,16 @@ import (
 	"testing"
 )
 
+const testContextCapacity = 131072
+
+func testCodexRequest(mode, milestone, batchID string) codexRouteRequest {
+	request := newCodexRouteRequest(mode)
+	request.Milestone = milestone
+	request.BatchID = batchID
+	request.ContextCapacityBytes = testContextCapacity
+	return request
+}
+
 func testApp(t *testing.T) *App {
 	t.Helper()
 	root, err := findRoot()
@@ -108,9 +118,10 @@ func TestMilestoneGateIsExact(t *testing.T) {
 	}
 }
 
+// x-section-id: PROJECTCTL-CODEX-ROUTE-TESTS
 func TestRoutesStayProgressive(t *testing.T) {
 	a := testApp(t)
-	request := codexRouteRequest{Mode: "PLAN", Milestone: "M1", ContextCapacityBytes: defaultContextCapacity}
+	request := testCodexRequest("PLAN", "M1", "")
 	paths, err := a.routePaths(request)
 	if err != nil {
 		t.Fatal(err)
@@ -164,7 +175,7 @@ func TestRoutesStayProgressive(t *testing.T) {
 func TestGeneratedReadingMapContractIsMachineValid(t *testing.T) {
 	a := testApp(t)
 	catalog := testV1MilestoneCatalog(t, a)
-	request := codexRouteRequest{Mode: "PLAN", Milestone: "M1", ContextCapacityBytes: defaultContextCapacity}
+	request := testCodexRequest("PLAN", "M1", "")
 	specs, err := a.routePaths(request)
 	if err != nil {
 		t.Fatal(err)
@@ -173,8 +184,11 @@ func TestGeneratedReadingMapContractIsMachineValid(t *testing.T) {
 		RouteSchemaVersion: readingMapSchemaVersion,
 		Mode:               "PLAN", Milestone: "M1", RouteScope: milestoneRouteScope,
 		SourceCommit: strings.Repeat("a", 40), SourceTree: strings.Repeat("b", 40),
-		GeneratedUTC:    "2026-08-08T00:00:00Z",
-		ContextProfile:  contextProfile{ProfileID: contextProfileID, CapacityBytes: defaultContextCapacity, Measurement: contextMeasurement},
+		GeneratedUTC: "2026-08-08T00:00:00Z",
+		ContextProfile: contextProfile{
+			Executor: codexExecutor, ProfileID: codexContextProfileID, Enforcement: false,
+			CapacityBytes: testContextCapacity, Measurement: contextMeasurement,
+		},
 		MustNotBulkRead: []string{"docs/**", "git-history", "prior-chat-transcripts"},
 	}
 	if routeMap.AlwaysRead, err = a.hashRouteSections(specs.always); err != nil {
@@ -335,24 +349,24 @@ func TestRouteRequestBindsModeMilestoneAndBatch(t *testing.T) {
 	}
 
 	request, err := parseCodexRouteRequest([]string{
-		"--mode", "repair", "--milestone", "M1", "--batch", "M1-B007", "--context-capacity-bytes", "4096",
+		"--mode", "repair", "--milestone", "M1", "--batch", "M1-B001", "--context-capacity-bytes", "4096",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if request.Mode != "REPAIR" || request.Milestone != "M1" || request.BatchID != "M1-B007" || request.ContextCapacityBytes != 4096 {
+	if request.Mode != "REPAIR" || request.Milestone != "M1" || request.BatchID != "M1-B001" || request.ContextCapacityBytes != 4096 {
 		t.Fatalf("unexpected route request: %+v", request)
 	}
 	if err := validateCodexRouteRequest(request, catalog); err != nil {
 		t.Fatal(err)
 	}
 	for _, invalid := range []codexRouteRequest{
-		{Mode: "IMPLEMENT", Milestone: "M0", BatchID: "M1-B001", ContextCapacityBytes: 1},
-		{Mode: "IMPLEMENT", Milestone: "M9", BatchID: "M9-B001", ContextCapacityBytes: 1},
-		{Mode: "IMPLEMENT", Milestone: "M01", BatchID: "M01-B001", ContextCapacityBytes: 1},
-		{Mode: "IMPLEMENT", Milestone: "M1", ContextCapacityBytes: 1},
-		{Mode: "PLAN", Milestone: "M1", BatchID: "M1-B001", ContextCapacityBytes: 1},
-		{Mode: "UNKNOWN", Milestone: "M0", BatchID: "M0-B001", ContextCapacityBytes: 1},
+		{Mode: "IMPLEMENT", Milestone: "M0", BatchID: "M1-B001", Executor: codexExecutor, ProfileID: codexContextProfileID},
+		{Mode: "IMPLEMENT", Milestone: "M9", BatchID: "M9-B001", Executor: codexExecutor, ProfileID: codexContextProfileID},
+		{Mode: "IMPLEMENT", Milestone: "M01", BatchID: "M01-B001", Executor: codexExecutor, ProfileID: codexContextProfileID},
+		{Mode: "IMPLEMENT", Milestone: "M1", Executor: codexExecutor, ProfileID: codexContextProfileID},
+		{Mode: "PLAN", Milestone: "M1", BatchID: "M1-B001", Executor: codexExecutor, ProfileID: codexContextProfileID},
+		{Mode: "UNKNOWN", Milestone: "M0", BatchID: "M0-B001", Executor: codexExecutor, ProfileID: codexContextProfileID},
 	} {
 		if err := validateCodexRouteRequest(invalid, catalog); err == nil {
 			t.Fatalf("invalid route request unexpectedly passed: %+v", invalid)
@@ -376,9 +390,7 @@ func TestRouteRequestBindsModeMilestoneAndBatch(t *testing.T) {
 		Batches: []milestoneBatch{realBatch}, Tombstones: []batchTombstone{},
 	}
 	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
-		batchRequest := codexRouteRequest{
-			Mode: mode, Milestone: "M1", BatchID: "M1-B001", ContextCapacityBytes: defaultContextCapacity,
-		}
+		batchRequest := testCodexRequest(mode, "M1", "M1-B001")
 		if err := validateCodexRouteRequest(batchRequest, catalog); err != nil {
 			t.Fatalf("%s rejected a valid batch binding: %v", mode, err)
 		}
@@ -393,37 +405,208 @@ func TestRouteRequestBindsModeMilestoneAndBatch(t *testing.T) {
 	}
 }
 
-func TestContextBudgetBoundariesAndReduction(t *testing.T) {
-	makeRoute := func(always, onDemand, capacity int) readingMap {
-		return readingMap{
-			ContextProfile: contextProfile{ProfileID: contextProfileID, CapacityBytes: capacity, Measurement: contextMeasurement},
-			AlwaysRead:     []routeSection{{MaterialBytes: always}},
-			ReadOnDemand:   []routeSection{{Path: "optional", SectionID: "OPTIONAL", MaterialBytes: onDemand}},
+func TestGovernanceMaintenanceTargetsAndProgressiveRoute(t *testing.T) {
+	a := testApp(t)
+	catalog := testV1MilestoneCatalog(t, a)
+	maintenanceID := "GOV-M1-PLANNING-RUNTIME"
+	for _, mode := range []string{"REPAIR", "ACCEPT"} {
+		request := newCodexRouteRequest(mode)
+		request.MaintenanceID = maintenanceID
+		if err := validateCodexRouteRequest(request, catalog); err != nil {
+			t.Fatalf("%s maintenance target failed request validation: %v", mode, err)
+		}
+		if err := a.validateRouteAgainstCurrentPlan(request, catalog); err != nil {
+			t.Fatalf("%s maintenance target failed contract validation: %v", mode, err)
+		}
+		if routeScopeForRequest(request) != maintenanceRouteScope {
+			t.Fatalf("%s maintenance target has wrong route scope", mode)
 		}
 	}
 
-	at55 := makeRoute(550, 0, 1000)
-	if err := applyContextBudget(&at55); err != nil || at55.Budget.Status != "WITHIN_BUDGET" || at55.Budget.ActualRatio != 0.55 {
-		t.Fatalf("55%% boundary mishandled: budget=%+v err=%v", at55.Budget, err)
+	implement := newCodexRouteRequest("IMPLEMENT")
+	implement.MaintenanceID = maintenanceID
+	if err := validateCodexRouteRequest(implement, catalog); err == nil {
+		t.Fatal("IMPLEMENT governance maintenance unexpectedly passed")
 	}
-	at70 := makeRoute(700, 0, 1000)
-	if err := applyContextBudget(&at70); err != nil || at70.Budget.Status != "SOFT_LIMIT_EXCEEDED_REVIEW_REQUIRED" || at70.Budget.ActualRatio != 0.70 {
-		t.Fatalf("70%% boundary mishandled: budget=%+v err=%v", at70.Budget, err)
+	missing := newCodexRouteRequest("REPAIR")
+	missing.MaintenanceID = "GOV-NOT-REGISTERED"
+	if err := validateCodexRouteRequest(missing, catalog); err != nil {
+		t.Fatalf("syntactically valid missing maintenance ID failed before contract lookup: %v", err)
 	}
-	over70 := makeRoute(701, 0, 1000)
-	if err := applyContextBudget(&over70); err == nil || !strings.Contains(err.Error(), "PLAN") {
-		t.Fatalf("hard limit did not require PLAN split: %v", err)
+	if err := a.validateRouteAgainstCurrentPlan(missing, catalog); err == nil || !strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("missing maintenance contract did not fail closed: %v", err)
 	}
-	reduced := makeRoute(500, 100, 1000)
-	if err := applyContextBudget(&reduced); err != nil {
+	invalidID := newCodexRouteRequest("REPAIR")
+	invalidID.MaintenanceID = "M1-B001"
+	if err := validateCodexRouteRequest(invalidID, catalog); err == nil {
+		t.Fatal("non-GOV maintenance ID unexpectedly passed")
+	}
+	conflicting := newCodexRouteRequest("REPAIR")
+	conflicting.Milestone, conflicting.BatchID, conflicting.MaintenanceID = "M1", "M1-B001", maintenanceID
+	if err := validateCodexRouteRequest(conflicting, catalog); err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("batch + maintenance target did not fail closed: %v", err)
+	}
+
+	request := newCodexRouteRequest("REPAIR")
+	request.MaintenanceID = maintenanceID
+	paths, err := a.routePaths(request)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if reduced.Budget.Status != "SOFT_LIMIT_REDUCED" || reduced.Budget.ActualRatio != 0.5 || len(reduced.ReadOnDemand) != 0 || len(reduced.SoftLimitOmissions) != 1 {
-		t.Fatalf("soft-limit route was not deterministically reduced: %+v", reduced)
+	contract, err := a.loadGovernanceMaintenanceContract(maintenanceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	present := map[string]bool{}
+	allSpecs := append(append(append(paths.always, paths.normative...), paths.machine...), paths.onDemand...)
+	for _, spec := range allSpecs {
+		key := spec.path + "#" + spec.sectionID
+		present[key] = true
+		if strings.HasPrefix(spec.path, "apps/") || strings.HasPrefix(spec.path, "packages/") || strings.HasPrefix(spec.path, "docs/10-product/") {
+			t.Fatalf("maintenance route disclosed product scope %s", key)
+		}
+	}
+	for _, reference := range contract.AllowedScope {
+		key := reference.Path + "#" + reference.SectionID
+		if !present[key] {
+			t.Errorf("maintenance route omitted allowed scope %s", key)
+		}
+	}
+	for _, forbidden := range []string{"docs/**", "git-history", "prior-chat-transcripts", "unrelated-product-specs", "M1-business-implementation"} {
+		if !contains(mustNotBulkReadForRequest(request), forbidden) {
+			t.Errorf("maintenance route omitted forbidden bulk-read rule %q", forbidden)
+		}
+	}
+
+	profile, err := contextProfileForRequest(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	routeMap := readingMap{
+		RouteSchemaVersion: readingMapSchemaVersion, Mode: request.Mode, RouteScope: maintenanceRouteScope,
+		MaintenanceID: maintenanceID, SourceCommit: strings.Repeat("a", 40), SourceTree: strings.Repeat("b", 40),
+		GeneratedUTC: "2026-08-09T00:00:00Z", ContextProfile: profile, MustNotBulkRead: mustNotBulkReadForRequest(request),
+	}
+	if routeMap.AlwaysRead, err = a.hashRouteSections(paths.always); err != nil {
+		t.Fatal(err)
+	}
+	if routeMap.NormativeReferences, err = a.hashRouteSections(paths.normative); err != nil {
+		t.Fatal(err)
+	}
+	if routeMap.MachineContracts, err = a.hashRouteSections(paths.machine); err != nil {
+		t.Fatal(err)
+	}
+	if routeMap.ReadOnDemand, err = a.hashRouteSections(paths.onDemand); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyContextBudget(&routeMap); err != nil {
+		t.Fatal(err)
+	}
+	if routeMap.RouteBindingSHA256, err = readingMapBindingDigest(routeMap); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateReadingMapMetadata(routeMap, catalog); err != nil {
+		t.Fatalf("maintenance Reading Map metadata is invalid: %v", err)
+	}
+	if err := a.validateCanonicalReadingMap(routeMap); err != nil {
+		t.Fatalf("maintenance Reading Map is not canonical: %v", err)
+	}
+	routeMap.SourceTree = strings.Repeat("c", 40)
+	if err := validateReadingMapMetadata(routeMap, catalog); err == nil {
+		t.Fatal("maintenance Reading Map accepted a stale/invalid binding")
 	}
 }
 
-func TestCurrentMilestonePlanIsM1NotGeneratedBaseline(t *testing.T) {
+func TestCodexContextProfileIsTelemetryOnlyAtEveryRatio(t *testing.T) {
+	for _, material := range []int{500, 600, 701} {
+		routeMap := readingMap{
+			ContextProfile: contextProfile{
+				Executor: codexExecutor, ProfileID: codexContextProfileID, Enforcement: false,
+				CapacityBytes: 1000, Measurement: contextMeasurement,
+			},
+			AlwaysRead:   []routeSection{{MaterialBytes: material}},
+			ReadOnDemand: []routeSection{{Path: "optional", SectionID: "OPTIONAL", MaterialBytes: 1}},
+		}
+		if err := applyContextBudget(&routeMap); err != nil {
+			t.Fatalf("Codex telemetry route at %d bytes failed: %v", material, err)
+		}
+		if routeMap.Budget.Status != "TELEMETRY_ONLY" || routeMap.Budget.ActualRatio <= 0 ||
+			routeMap.Budget.ReductionApplied || len(routeMap.ReadOnDemand) != 1 || len(routeMap.SoftLimitOmissions) != 0 {
+			t.Fatalf("Codex profile applied a context gate at %d bytes: %+v", material, routeMap)
+		}
+		if err := validateContextBudget(routeMap); err != nil {
+			t.Fatalf("Codex telemetry budget failed validation: %v", err)
+		}
+	}
+	withoutCapacity := readingMap{
+		ContextProfile: contextProfile{Executor: codexExecutor, ProfileID: codexContextProfileID, Measurement: contextMeasurement},
+		AlwaysRead:     []routeSection{{MaterialBytes: 900}},
+	}
+	if err := applyContextBudget(&withoutCapacity); err != nil || withoutCapacity.Budget.MaterialBytes != 900 || withoutCapacity.Budget.ActualRatio != 0 {
+		t.Fatalf("Codex optional capacity telemetry failed: budget=%+v err=%v", withoutCapacity.Budget, err)
+	}
+	withoutCapacity.Budget.MaterialBytes++
+	if err := validateContextBudget(withoutCapacity); err == nil {
+		t.Fatal("invalid Codex telemetry measurement unexpectedly passed")
+	}
+}
+
+func TestOpenCodeDeepSeekContextProfileEnforcesExplicitBudget(t *testing.T) {
+	a := testApp(t)
+	catalog := testV1MilestoneCatalog(t, a)
+	request, err := parseCodexPlanRequest([]string{
+		"--milestone", "M1", "--executor", openCodeExecutor, "--profile", openCodeContextProfileID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateCodexRouteRequest(request, catalog); err == nil || !strings.Contains(err.Error(), "PROFILE_REQUIRED") {
+		t.Fatalf("OpenCode request without explicit capacity did not fail closed: %v", err)
+	}
+	request.ContextCapacityBytes = 1000
+	if err := validateCodexRouteRequest(request, catalog); err != nil {
+		t.Fatalf("OpenCode request with explicit profile capacity failed: %v", err)
+	}
+
+	makeRoute := func(always, onDemand int) readingMap {
+		return readingMap{
+			ContextProfile: contextProfile{
+				Executor: openCodeExecutor, ProfileID: openCodeContextProfileID, Enforcement: true,
+				CapacityBytes: 1000, Measurement: contextMeasurement,
+			},
+			AlwaysRead:   []routeSection{{MaterialBytes: always}},
+			ReadOnDemand: []routeSection{{Path: "optional", SectionID: "OPTIONAL", MaterialBytes: onDemand}},
+		}
+	}
+	at55 := makeRoute(550, 0)
+	if err := applyContextBudget(&at55); err != nil || at55.Budget.Status != "WITHIN_BUDGET" || at55.Budget.ActualRatio != 0.55 {
+		t.Fatalf("55%% boundary mishandled: budget=%+v err=%v", at55.Budget, err)
+	}
+	reduced := makeRoute(500, 100)
+	if err := applyContextBudget(&reduced); err != nil || reduced.Budget.Status != "SOFT_LIMIT_REDUCED" ||
+		reduced.Budget.ActualRatio != 0.5 || len(reduced.ReadOnDemand) != 0 || len(reduced.SoftLimitOmissions) != 1 {
+		t.Fatalf("soft-limit route was not deterministically reduced: budget=%+v err=%v", reduced.Budget, err)
+	}
+	at70 := makeRoute(700, 0)
+	if err := applyContextBudget(&at70); err != nil || at70.Budget.Status != "SOFT_LIMIT_EXCEEDED_REVIEW_REQUIRED" || at70.Budget.ActualRatio != 0.70 {
+		t.Fatalf("70%% boundary mishandled: budget=%+v err=%v", at70.Budget, err)
+	}
+	over70 := makeRoute(701, 0)
+	if err := applyContextBudget(&over70); err == nil || !strings.Contains(err.Error(), "split") {
+		t.Fatalf("hard limit did not require route shrink/split: %v", err)
+	}
+	missingCapacity := contextProfile{Executor: openCodeExecutor, ProfileID: openCodeContextProfileID, Enforcement: true, Measurement: contextMeasurement}
+	if err := validateContextProfile(missingCapacity); err == nil || !strings.Contains(err.Error(), "PROFILE_REQUIRED") {
+		t.Fatalf("missing OpenCode capacity did not fail closed: %v", err)
+	}
+	unknown := contextProfile{Executor: "unknown", ProfileID: "unknown", Measurement: contextMeasurement}
+	if err := validateContextProfile(unknown); err == nil || !strings.Contains(err.Error(), "PROFILE_REQUIRED") {
+		t.Fatalf("unknown profile did not fail closed: %v", err)
+	}
+}
+
+// x-section-id: PROJECTCTL-MILESTONE-LIFECYCLE-TESTS
+func TestTrackedMilestonePlanMatchesItsLifecycleState(t *testing.T) {
 	a := testApp(t)
 	catalog := testV1MilestoneCatalog(t, a)
 	plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
@@ -433,23 +616,59 @@ func TestCurrentMilestonePlanIsM1NotGeneratedBaseline(t *testing.T) {
 	if err := validateMilestonePlan(plan, catalog); err != nil {
 		t.Fatal(err)
 	}
-	if plan.SchemaVersion != 2 || plan.PlanID != "M1-MILESTONE-PLAN" || plan.Milestone != "M1" ||
-		plan.Status != "NOT_GENERATED" || plan.PlanVersion != 0 || plan.NextBatchSequence != 1 ||
-		len(plan.Batches) != 0 || len(plan.Tombstones) != 0 {
-		t.Fatalf("M1 planning baseline allocated work prematurely: %+v", plan)
+	switch plan.Status {
+	case "NOT_GENERATED":
+		if plan.PlanVersion != 0 || plan.NextBatchSequence != 1 || len(plan.Batches) != 0 || len(plan.Tombstones) != 0 {
+			t.Fatalf("tracked NOT_GENERATED plan violates lifecycle invariants: %+v", plan)
+		}
+	case "ACTIVE":
+		if plan.PlanVersion < 1 || plan.NextBatchSequence < 2 {
+			t.Fatalf("tracked ACTIVE plan violates lifecycle invariants: %+v", plan)
+		}
+	case "COMPLETE":
+		if plan.PlanVersion < 1 {
+			t.Fatalf("tracked COMPLETE plan violates lifecycle invariants: %+v", plan)
+		}
+		for _, batch := range plan.Batches {
+			if batch.State != "COMPLETED" {
+				t.Fatalf("tracked COMPLETE plan contains non-terminal batch %s in %s", batch.BatchID, batch.State)
+			}
+		}
+	default:
+		t.Fatalf("tracked plan has unknown status %q", plan.Status)
 	}
+}
 
-	withBatch := plan
-	withBatch.Batches = []milestoneBatch{testMilestoneBatch("M1-B001", 1)}
-	if err := validateMilestonePlan(withBatch, catalog); err == nil {
-		t.Fatal("M1 plan version 0 accepted a real batch")
+func TestMilestonePlanLifecycleStatesAreValid(t *testing.T) {
+	a := testApp(t)
+	catalog := testV1MilestoneCatalog(t, a)
+	notGenerated := emptyMilestonePlan()
+	if err := validateMilestonePlan(notGenerated, catalog); err != nil {
+		t.Fatalf("valid NOT_GENERATED fixture failed: %v", err)
+	}
+	versionZeroWithBatch := notGenerated
+	versionZeroWithBatch.Batches = []milestoneBatch{testMilestoneBatch("M0-B001", 1)}
+	if err := validateMilestonePlan(versionZeroWithBatch, catalog); err == nil {
+		t.Fatal("version-0 plan with a batch unexpectedly passed")
+	}
+	active := activeMilestonePlan(1, 2, []milestoneBatch{testMilestoneBatch("M0-B001", 1)}, nil)
+	if err := validateMilestonePlan(active, catalog); err != nil {
+		t.Fatalf("valid ACTIVE fixture failed: %v", err)
+	}
+	completedBatch := testMilestoneBatch("M0-B001", 1)
+	completedBatch.State = "COMPLETED"
+	completedBatch.FrozenContractSHA256 = mustBatchContractDigest(t, completedBatch)
+	complete := activeMilestonePlan(2, 2, []milestoneBatch{completedBatch}, nil)
+	complete.Status = "COMPLETE"
+	if err := validateMilestonePlan(complete, catalog); err != nil {
+		t.Fatalf("valid COMPLETE fixture failed: %v", err)
 	}
 }
 
 func TestClosedM0RemainsHistoricallyExplainableButInactive(t *testing.T) {
 	a := testApp(t)
 	catalog := testV1MilestoneCatalog(t, a)
-	request := codexRouteRequest{Mode: "PLAN", Milestone: "M0", ContextCapacityBytes: defaultContextCapacity}
+	request := testCodexRequest("PLAN", "M0", "")
 	if err := validateCodexRouteRequest(request, catalog); err != nil {
 		t.Fatalf("known historical M0 request became syntactically invalid: %v", err)
 	}
@@ -489,10 +708,8 @@ func TestClosedM0RemainsHistoricallyExplainableButInactive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, statement := range []string{"M0 result: `PASS / MERGED / CLOSED`", "M1 status: `PLAN_READY`", "Active M1 batch: none"} {
-		if !bytes.Contains(status, []byte(statement)) {
-			t.Errorf("milestone status omits %q", statement)
-		}
+	if !bytes.Contains(status, []byte("M0 result: `PASS / MERGED / CLOSED`")) {
+		t.Error("milestone history lost the closed M0 result")
 	}
 }
 
