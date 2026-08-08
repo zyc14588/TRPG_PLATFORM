@@ -519,6 +519,9 @@ func (a *App) checkCodex(ctx context.Context) error {
 	if route.SourceTree != strings.TrimSpace(tree) {
 		return errors.New("Codex runtime route is stale: source tree differs from HEAD; regenerate it")
 	}
+	if err := a.validateCanonicalReadingMap(route); err != nil {
+		return err
+	}
 	seen := map[string]bool{}
 	for _, section := range allReadingMapSections(route) {
 		if err := validateBoundedRoutePath(section.Path); err != nil {
@@ -548,6 +551,64 @@ func (a *App) checkCodex(ctx context.Context) error {
 	}
 	fmt.Fprintf(a.stdout, "[PASS] Codex %s route for %s is current at %s (%.4f context ratio, %s)\n",
 		route.Mode, route.BatchID, route.SourceCommit, route.Budget.ActualRatio, route.Budget.Status)
+	return nil
+}
+
+func (a *App) validateCanonicalReadingMap(actual readingMap) error {
+	specs := routePaths(actual.Mode)
+	expected := readingMap{
+		ContextProfile:  actual.ContextProfile,
+		MustNotBulkRead: []string{"docs/**", "git-history", "prior-chat-transcripts"},
+	}
+	var err error
+	if expected.AlwaysRead, err = a.hashRouteSections(specs.always); err != nil {
+		return err
+	}
+	if expected.NormativeReferences, err = a.hashRouteSections(specs.normative); err != nil {
+		return err
+	}
+	if expected.MachineContracts, err = a.hashRouteSections(specs.machine); err != nil {
+		return err
+	}
+	if expected.ReadOnDemand, err = a.hashRouteSections(specs.onDemand); err != nil {
+		return err
+	}
+	if err := applyContextBudget(&expected); err != nil {
+		return err
+	}
+	actualCanonical, err := json.Marshal(struct {
+		Budget              contextBudget
+		AlwaysRead          []routeSection
+		NormativeReferences []routeSection
+		MachineContracts    []routeSection
+		ReadOnDemand        []routeSection
+		SoftLimitOmissions  []routeSection
+		MustNotBulkRead     []string
+	}{
+		actual.Budget, actual.AlwaysRead, actual.NormativeReferences, actual.MachineContracts,
+		actual.ReadOnDemand, actual.SoftLimitOmissions, actual.MustNotBulkRead,
+	})
+	if err != nil {
+		return err
+	}
+	expectedCanonical, err := json.Marshal(struct {
+		Budget              contextBudget
+		AlwaysRead          []routeSection
+		NormativeReferences []routeSection
+		MachineContracts    []routeSection
+		ReadOnDemand        []routeSection
+		SoftLimitOmissions  []routeSection
+		MustNotBulkRead     []string
+	}{
+		expected.Budget, expected.AlwaysRead, expected.NormativeReferences, expected.MachineContracts,
+		expected.ReadOnDemand, expected.SoftLimitOmissions, expected.MustNotBulkRead,
+	})
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(actualCanonical, expectedCanonical) {
+		return errors.New("Codex runtime route does not match the canonical Section set for its mode and context profile; regenerate it")
+	}
 	return nil
 }
 

@@ -149,6 +149,14 @@ func TestGeneratedReadingMapContractIsMachineValid(t *testing.T) {
 		if err := validateReadingMapMetadata(routeMap); err != nil {
 			t.Fatalf("%s reading map contract is invalid: %v", mode, err)
 		}
+		if err := a.validateCanonicalReadingMap(routeMap); err != nil {
+			t.Fatalf("%s canonical reading map failed: %v", mode, err)
+		}
+		nonCanonical := routeMap
+		nonCanonical.MachineContracts = append([]routeSection(nil), routeMap.MachineContracts[1:]...)
+		if err := a.validateCanonicalReadingMap(nonCanonical); err == nil {
+			t.Fatalf("%s reading map accepted a non-canonical but non-empty Section set", mode)
+		}
 		routeMap.BatchID = "M0-B999"
 		if err := validateReadingMapMetadata(routeMap); err == nil {
 			t.Fatalf("%s reading map accepted a batch ID detached from its binding", mode)
