@@ -1,7 +1,9 @@
-route_schema_version: 2
+route_schema_version: 3
 mode: '{{MODE}}'
 milestone: '{{MILESTONE}}'
-batch_id: '{{BATCH}}'
+route_scope: '{{ROUTE_SCOPE}}'
+# Omit batch_id for PLAN/MILESTONE routes. It is required for BATCH routes.
+# batch_id: '{{BATCH_ID}}'
 source_commit: '{{SOURCE_COMMIT}}'
 source_tree: '{{SOURCE_TREE}}'
 route_binding_sha256: '{{ROUTE_BINDING_SHA256}}'

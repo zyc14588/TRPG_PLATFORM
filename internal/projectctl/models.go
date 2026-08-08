@@ -98,7 +98,8 @@ type readingMap struct {
 	RouteSchemaVersion  int            `yaml:"route_schema_version"`
 	Mode                string         `yaml:"mode"`
 	Milestone           string         `yaml:"milestone"`
-	BatchID             string         `yaml:"batch_id"`
+	RouteScope          string         `yaml:"route_scope"`
+	BatchID             string         `yaml:"batch_id,omitempty"`
 	SourceCommit        string         `yaml:"source_commit"`
 	SourceTree          string         `yaml:"source_tree"`
 	RouteBindingSHA256  string         `yaml:"route_binding_sha256"`

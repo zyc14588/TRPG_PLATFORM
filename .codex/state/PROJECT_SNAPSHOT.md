@@ -4,7 +4,7 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "936324365c39d118ac7d5c7401db626f2aad0644"
+source_commit: "28ddda38e0a426be314ae8af2298672a61e972f9"
 ---
 
 # 项目摘要
@@ -15,8 +15,8 @@ V1：官方隐藏信息桌游 + 规则异常 TRPG + Creator Studio + 托管/自�
 
 技术：单节点 Go、Lua 5.5 游戏包、React Web、Wails Studio、PostgreSQL。
 
-当前里程碑：`M0`。
+M0 已独立验收 `PASS`、合并并关闭。当前边界为 `M1` 里程碑规划，状态为 `PLAN_READY`。
 
-当前活动树只包含工程基线，不包含可玩功能、Lua VM 或业务持久化。
+M1 计划尚未生成，没有活动 M1 批次，也尚未开始 package、Session、Lua VM 或其他业务实现。
 
 状态摘要不覆盖权威规范。

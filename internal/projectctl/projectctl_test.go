@@ -20,6 +20,27 @@ func testApp(t *testing.T) *App {
 	return &App{root: root, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
 }
 
+func testV1MilestoneCatalog(t *testing.T, a *App) v1MilestoneCatalog {
+	t.Helper()
+	catalog, err := a.loadV1MilestoneCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return catalog
+}
+
+func TestJustCodexPlanForwardsMilestone(t *testing.T) {
+	a := testApp(t)
+	data, err := os.ReadFile(filepath.Join(a.root, "Justfile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "codex-plan milestone:\n    {{projectctl}} codex plan --milestone {{milestone}}") {
+		t.Fatal("codex-plan does not forward its required milestone argument to projectctl")
+	}
+}
+
 func TestFrozenAuthorityValidates(t *testing.T) {
 	a := testApp(t)
 	decisions, requirements, tests, trace, err := a.loadAuthority()
@@ -89,78 +110,109 @@ func TestMilestoneGateIsExact(t *testing.T) {
 
 func TestRoutesStayProgressive(t *testing.T) {
 	a := testApp(t)
-	for _, mode := range []string{"PLAN", "IMPLEMENT", "ACCEPT", "REPAIR"} {
-		paths := routePaths(mode)
-		if len(paths.always) == 0 || len(paths.machine) == 0 {
-			t.Fatalf("%s route is incomplete", mode)
+	request := codexRouteRequest{Mode: "PLAN", Milestone: "M1", ContextCapacityBytes: defaultContextCapacity}
+	paths, err := a.routePaths(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths.always) == 0 || len(paths.machine) == 0 {
+		t.Fatal("M1 PLAN route is incomplete")
+	}
+	all := append(append(append(paths.always, paths.normative...), paths.machine...), paths.onDemand...)
+	seen := map[string]bool{}
+	wanted := map[string]bool{
+		"docs/80-roadmap/V1_MILESTONES.md#SPEC-V1-ROADMAP-M1":                   false,
+		"docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md#SPEC-M1-EXIT":                false,
+		"docs/90-traceability/REQUIREMENTS.yaml#REQ-PACKAGE-001":                false,
+		"docs/90-traceability/TEST_CATALOG.yaml#TEST-PACKAGE-001":               false,
+		"docs/90-traceability/TRACEABILITY.yaml#REQ-PACKAGE-001":                false,
+		"docs/70-decisions/DECISION_REGISTER.yaml#R2-A01":                       false,
+		"docs/30-package-spec/PACKAGE_MODEL.md#SPEC-PACKAGE-001":                false,
+		"docs/20-architecture/LUA_RUNTIME.md#SPEC-LUA-RUNTIME-001":              false,
+		"docs/30-package-spec/HOST_API_AND_CALLBACKS.md#SPEC-HOST-CALLBACK-001": false,
+	}
+	for _, spec := range all {
+		if err := validateBoundedRoutePath(spec.path); err != nil {
+			t.Fatalf("M1 PLAN route: %v", err)
 		}
-		all := append(append(append(paths.always, paths.normative...), paths.machine...), paths.onDemand...)
-		seen := map[string]bool{}
-		for _, spec := range all {
-			if err := validateBoundedRoutePath(spec.path); err != nil {
-				t.Fatalf("%s route: %v", mode, err)
-			}
-			key := spec.path + "#" + spec.sectionID
-			if seen[key] {
-				t.Fatalf("%s route repeats %s", mode, key)
-			}
-			seen[key] = true
-			data, err := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(spec.path)))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := sectionMaterial(data, spec.sectionID); err != nil {
-				t.Fatalf("%s route has invalid Section ID %s: %v", mode, key, err)
-			}
+		if spec.path == "docs/**" || strings.ContainsAny(spec.path, "*?[") {
+			t.Fatalf("M1 PLAN route contains an unbounded path %q", spec.path)
+		}
+		key := spec.path + "#" + spec.sectionID
+		if seen[key] {
+			t.Fatalf("M1 PLAN route repeats %s", key)
+		}
+		seen[key] = true
+		if _, ok := wanted[key]; ok {
+			wanted[key] = true
+		}
+		data, err := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(spec.path)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := sectionMaterial(data, spec.sectionID); err != nil {
+			t.Fatalf("M1 PLAN route has invalid Section ID %s: %v", key, err)
+		}
+	}
+	for key, found := range wanted {
+		if !found {
+			t.Errorf("M1 PLAN route omitted %s", key)
 		}
 	}
 }
 
 func TestGeneratedReadingMapContractIsMachineValid(t *testing.T) {
 	a := testApp(t)
-	for _, mode := range []string{"PLAN", "IMPLEMENT", "ACCEPT", "REPAIR"} {
-		specs := routePaths(mode)
-		routeMap := readingMap{
-			RouteSchemaVersion: readingMapSchemaVersion,
-			Mode:               mode, Milestone: "M0", BatchID: "M0-B001",
-			ContextProfile:  contextProfile{ProfileID: contextProfileID, CapacityBytes: defaultContextCapacity, Measurement: contextMeasurement},
-			MustNotBulkRead: []string{"docs/**", "git-history", "prior-chat-transcripts"},
-		}
-		var err error
-		if routeMap.AlwaysRead, err = a.hashRouteSections(specs.always); err != nil {
-			t.Fatal(err)
-		}
-		if routeMap.NormativeReferences, err = a.hashRouteSections(specs.normative); err != nil {
-			t.Fatal(err)
-		}
-		if routeMap.MachineContracts, err = a.hashRouteSections(specs.machine); err != nil {
-			t.Fatal(err)
-		}
-		if routeMap.ReadOnDemand, err = a.hashRouteSections(specs.onDemand); err != nil {
-			t.Fatal(err)
-		}
-		if err := applyContextBudget(&routeMap); err != nil {
-			t.Fatal(err)
-		}
-		routeMap.RouteBindingSHA256, err = readingMapBindingDigest(routeMap)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := validateReadingMapMetadata(routeMap); err != nil {
-			t.Fatalf("%s reading map contract is invalid: %v", mode, err)
-		}
-		if err := a.validateCanonicalReadingMap(routeMap); err != nil {
-			t.Fatalf("%s canonical reading map failed: %v", mode, err)
-		}
-		nonCanonical := routeMap
-		nonCanonical.MachineContracts = append([]routeSection(nil), routeMap.MachineContracts[1:]...)
-		if err := a.validateCanonicalReadingMap(nonCanonical); err == nil {
-			t.Fatalf("%s reading map accepted a non-canonical but non-empty Section set", mode)
-		}
-		routeMap.BatchID = "M0-B999"
-		if err := validateReadingMapMetadata(routeMap); err == nil {
-			t.Fatalf("%s reading map accepted a batch ID detached from its binding", mode)
-		}
+	catalog := testV1MilestoneCatalog(t, a)
+	request := codexRouteRequest{Mode: "PLAN", Milestone: "M1", ContextCapacityBytes: defaultContextCapacity}
+	specs, err := a.routePaths(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	routeMap := readingMap{
+		RouteSchemaVersion: readingMapSchemaVersion,
+		Mode:               "PLAN", Milestone: "M1", RouteScope: milestoneRouteScope,
+		SourceCommit: strings.Repeat("a", 40), SourceTree: strings.Repeat("b", 40),
+		GeneratedUTC:    "2026-08-08T00:00:00Z",
+		ContextProfile:  contextProfile{ProfileID: contextProfileID, CapacityBytes: defaultContextCapacity, Measurement: contextMeasurement},
+		MustNotBulkRead: []string{"docs/**", "git-history", "prior-chat-transcripts"},
+	}
+	if routeMap.AlwaysRead, err = a.hashRouteSections(specs.always); err != nil {
+		t.Fatal(err)
+	}
+	if routeMap.NormativeReferences, err = a.hashRouteSections(specs.normative); err != nil {
+		t.Fatal(err)
+	}
+	if routeMap.MachineContracts, err = a.hashRouteSections(specs.machine); err != nil {
+		t.Fatal(err)
+	}
+	if routeMap.ReadOnDemand, err = a.hashRouteSections(specs.onDemand); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyContextBudget(&routeMap); err != nil {
+		t.Fatal(err)
+	}
+	routeMap.RouteBindingSHA256, err = readingMapBindingDigest(routeMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateReadingMapMetadata(routeMap, catalog); err != nil {
+		t.Fatalf("M1 PLAN reading map contract is invalid: %v", err)
+	}
+	if err := a.validateCanonicalReadingMap(routeMap); err != nil {
+		t.Fatalf("M1 PLAN canonical reading map failed: %v", err)
+	}
+	if routeMap.BatchID != "" || routeMap.RouteScope != milestoneRouteScope {
+		t.Fatalf("M1 PLAN route allocated a batch: %+v", routeMap)
+	}
+	nonCanonical := routeMap
+	nonCanonical.MachineContracts = append([]routeSection(nil), routeMap.MachineContracts[1:]...)
+	if err := a.validateCanonicalReadingMap(nonCanonical); err == nil {
+		t.Fatal("M1 PLAN reading map accepted a non-canonical but non-empty Section set")
+	}
+	routeMap.BatchID = "M1-B999"
+	if err := validateReadingMapMetadata(routeMap, catalog); err == nil {
+		t.Fatal("M1 PLAN reading map accepted a prematurely allocated batch ID")
 	}
 }
 
@@ -269,22 +321,69 @@ func TestSectionMaterialRequiresUniqueStableID(t *testing.T) {
 }
 
 func TestRouteRequestBindsModeMilestoneAndBatch(t *testing.T) {
+	a := testApp(t)
+	catalog := testV1MilestoneCatalog(t, a)
+	planRequest, err := parseCodexPlanRequest([]string{"--milestone", "M1", "--context-capacity-bytes", "4096"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planRequest.Mode != "PLAN" || planRequest.Milestone != "M1" || planRequest.BatchID != "" {
+		t.Fatalf("unexpected milestone-level plan request: %+v", planRequest)
+	}
+	if err := validateCodexRouteRequest(planRequest, catalog); err != nil {
+		t.Fatal(err)
+	}
+
 	request, err := parseCodexRouteRequest([]string{
-		"--mode", "repair", "--milestone", "M0", "--batch", "M0-B007", "--context-capacity-bytes", "4096",
+		"--mode", "repair", "--milestone", "M1", "--batch", "M1-B007", "--context-capacity-bytes", "4096",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if request.Mode != "REPAIR" || request.Milestone != "M0" || request.BatchID != "M0-B007" || request.ContextCapacityBytes != 4096 {
+	if request.Mode != "REPAIR" || request.Milestone != "M1" || request.BatchID != "M1-B007" || request.ContextCapacityBytes != 4096 {
 		t.Fatalf("unexpected route request: %+v", request)
+	}
+	if err := validateCodexRouteRequest(request, catalog); err != nil {
+		t.Fatal(err)
 	}
 	for _, invalid := range []codexRouteRequest{
 		{Mode: "IMPLEMENT", Milestone: "M0", BatchID: "M1-B001", ContextCapacityBytes: 1},
-		{Mode: "IMPLEMENT", Milestone: "M1", BatchID: "M1-B001", ContextCapacityBytes: 1},
+		{Mode: "IMPLEMENT", Milestone: "M9", BatchID: "M9-B001", ContextCapacityBytes: 1},
+		{Mode: "IMPLEMENT", Milestone: "M01", BatchID: "M01-B001", ContextCapacityBytes: 1},
+		{Mode: "IMPLEMENT", Milestone: "M1", ContextCapacityBytes: 1},
+		{Mode: "PLAN", Milestone: "M1", BatchID: "M1-B001", ContextCapacityBytes: 1},
 		{Mode: "UNKNOWN", Milestone: "M0", BatchID: "M0-B001", ContextCapacityBytes: 1},
 	} {
-		if err := validateCodexRouteRequest(invalid); err == nil {
+		if err := validateCodexRouteRequest(invalid, catalog); err == nil {
 			t.Fatalf("invalid route request unexpectedly passed: %+v", invalid)
+		}
+	}
+	currentPlan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateRouteAgainstPlan(planRequest, currentPlan, catalog); err != nil {
+		t.Fatalf("M1 PLAN request did not match the planning baseline: %v", err)
+	}
+	if err := validateRouteAgainstPlan(request, currentPlan, catalog); err == nil {
+		t.Fatal("batch-scoped route accepted a syntactic but unallocated M1 batch ID")
+	}
+	realBatch := testMilestoneBatch("M1-B001", 1)
+	realBatch.Requirements = []string{"REQ-PACKAGE-001"}
+	activePlan := milestonePlan{
+		SchemaVersion: milestonePlanSchemaVersion, PlanID: "M1-MILESTONE-PLAN", PlanVersion: 1,
+		Milestone: "M1", Status: "ACTIVE", ModifiableOnlyInMode: "PLAN", NextBatchSequence: 2,
+		Batches: []milestoneBatch{realBatch}, Tombstones: []batchTombstone{},
+	}
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		batchRequest := codexRouteRequest{
+			Mode: mode, Milestone: "M1", BatchID: "M1-B001", ContextCapacityBytes: defaultContextCapacity,
+		}
+		if err := validateCodexRouteRequest(batchRequest, catalog); err != nil {
+			t.Fatalf("%s rejected a valid batch binding: %v", mode, err)
+		}
+		if err := validateRouteAgainstPlan(batchRequest, activePlan, catalog); err != nil {
+			t.Fatalf("%s rejected a real allocated batch: %v", mode, err)
 		}
 	}
 	for _, path := range []string{"docs/**", "docs", "../docs/file.md", "git-history", ".git/objects"} {
@@ -324,50 +423,146 @@ func TestContextBudgetBoundariesAndReduction(t *testing.T) {
 	}
 }
 
-func TestCurrentMilestonePlanIsValidAndDoesNotPlanM1(t *testing.T) {
+func TestCurrentMilestonePlanIsM1NotGeneratedBaseline(t *testing.T) {
 	a := testApp(t)
+	catalog := testV1MilestoneCatalog(t, a)
 	plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateMilestonePlan(plan); err != nil {
+	if err := validateMilestonePlan(plan, catalog); err != nil {
 		t.Fatal(err)
 	}
-	if plan.Milestone != "M0" || plan.Status != "NOT_GENERATED" || plan.PlanVersion != 0 || len(plan.Batches) != 0 {
-		t.Fatalf("M0 placeholder generated a route prematurely: %+v", plan)
+	if plan.SchemaVersion != 2 || plan.PlanID != "M1-MILESTONE-PLAN" || plan.Milestone != "M1" ||
+		plan.Status != "NOT_GENERATED" || plan.PlanVersion != 0 || plan.NextBatchSequence != 1 ||
+		len(plan.Batches) != 0 || len(plan.Tombstones) != 0 {
+		t.Fatalf("M1 planning baseline allocated work prematurely: %+v", plan)
+	}
+
+	withBatch := plan
+	withBatch.Batches = []milestoneBatch{testMilestoneBatch("M1-B001", 1)}
+	if err := validateMilestonePlan(withBatch, catalog); err == nil {
+		t.Fatal("M1 plan version 0 accepted a real batch")
+	}
+}
+
+func TestClosedM0RemainsHistoricallyExplainableButInactive(t *testing.T) {
+	a := testApp(t)
+	catalog := testV1MilestoneCatalog(t, a)
+	request := codexRouteRequest{Mode: "PLAN", Milestone: "M0", ContextCapacityBytes: defaultContextCapacity}
+	if err := validateCodexRouteRequest(request, catalog); err != nil {
+		t.Fatalf("known historical M0 request became syntactically invalid: %v", err)
+	}
+	paths, err := a.routePaths(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundM0Scope := false
+	for _, spec := range paths.normative {
+		if spec.path == "docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md" {
+			t.Fatal("historical M0 route was rebound to M1 scope")
+		}
+		if spec.path == "docs/80-roadmap/M0_SCOPE_AND_EXIT_GATE.md" && spec.sectionID == "SPEC-M0-EXIT" {
+			foundM0Scope = true
+		}
+	}
+	if !foundM0Scope {
+		t.Fatal("historical M0 route lost its M0 exit gate")
+	}
+	currentPlan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateRouteAgainstPlan(request, currentPlan, catalog); err == nil {
+		t.Fatal("closed M0 was reinterpreted as the active planning boundary")
+	}
+	for _, relative := range []string{"schemas/codex/reading-map-v2.schema.json", "schemas/codex/milestone-plan-v1.schema.json"} {
+		data, err := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(relative)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(data, []byte(`"const": "M0"`)) {
+			t.Fatalf("legacy M0 schema semantics were silently rewritten in %s", relative)
+		}
+	}
+	status, err := os.ReadFile(filepath.Join(a.root, ".codex/state/MILESTONE_STATUS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{"M0 result: `PASS / MERGED / CLOSED`", "M1 status: `PLAN_READY`", "Active M1 batch: none"} {
+		if !bytes.Contains(status, []byte(statement)) {
+			t.Errorf("milestone status omits %q", statement)
+		}
+	}
+}
+
+func TestMilestonePlanAdvancesOnlyToNextNotGeneratedBaseline(t *testing.T) {
+	a := testApp(t)
+	catalog := testV1MilestoneCatalog(t, a)
+	completedBatch := testMilestoneBatch("M0-B001", 1)
+	completedBatch.State = "COMPLETED"
+	completedBatch.FrozenContractSHA256 = mustBatchContractDigest(t, completedBatch)
+	previous := activeMilestonePlan(4, 2, []milestoneBatch{completedBatch}, nil)
+	previous.Status = "COMPLETE"
+	proposed := milestonePlan{
+		SchemaVersion: milestonePlanSchemaVersion, PlanID: "M1-MILESTONE-PLAN", Milestone: "M1",
+		PlanVersion: 0, Status: "NOT_GENERATED", ModifiableOnlyInMode: "PLAN", NextBatchSequence: 1,
+		Batches: []milestoneBatch{}, Tombstones: []batchTombstone{},
+	}
+	if err := validateMilestonePlanChange(previous, proposed, "PLAN", catalog); err != nil {
+		t.Fatalf("valid M0 to M1 planning-boundary transition failed: %v", err)
+	}
+	if err := validateMilestonePlanChange(previous, proposed, "REPAIR", catalog); err == nil {
+		t.Fatal("REPAIR mode changed the milestone plan")
+	}
+	skipped := proposed
+	skipped.PlanID, skipped.Milestone = "M2-MILESTONE-PLAN", "M2"
+	if err := validateMilestonePlanChange(previous, skipped, "PLAN", catalog); err == nil {
+		t.Fatal("milestone plan skipped a known V1 milestone")
 	}
 }
 
 func TestMilestonePlanIsWritableOnlyInPlanModeAndIDsNeverReuse(t *testing.T) {
+	a := testApp(t)
+	catalog := testV1MilestoneCatalog(t, a)
 	previous := emptyMilestonePlan()
 	proposed := activeMilestonePlan(1, 2, []milestoneBatch{testMilestoneBatch("M0-B001", 1)}, nil)
-	if err := validateMilestonePlanChange(previous, proposed, "PLAN"); err != nil {
+	if err := validateMilestonePlanChange(previous, proposed, "PLAN", catalog); err != nil {
 		t.Fatal(err)
 	}
 	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
-		if err := validateMilestonePlanChange(previous, proposed, mode); err == nil {
+		if err := validateMilestonePlanChange(previous, proposed, mode, catalog); err == nil {
 			t.Fatalf("%s mode unexpectedly modified the plan", mode)
 		}
 	}
 
 	reused := proposed
 	reused.Tombstones = []batchTombstone{{BatchID: "M0-B001", Sequence: 1, Action: "CANCELLED", Reason: "reuse test"}}
-	if err := validateMilestonePlan(reused); err == nil {
+	if err := validateMilestonePlan(reused, catalog); err == nil {
 		t.Fatal("tombstoned batch ID reuse unexpectedly passed")
 	}
 	skipped := activeMilestonePlan(1, 3, []milestoneBatch{testMilestoneBatch("M0-B002", 2)}, nil)
-	if err := validateMilestonePlanChange(previous, skipped, "PLAN"); err == nil {
+	if err := validateMilestonePlanChange(previous, skipped, "PLAN", catalog); err == nil {
 		t.Fatal("non-monotonic batch allocation unexpectedly passed")
 	}
 }
 
 func TestMilestonePlanSplitMergeCancelPreserveTombstones(t *testing.T) {
+	a := testApp(t)
+	catalog := testV1MilestoneCatalog(t, a)
 	original := activeMilestonePlan(1, 2, []milestoneBatch{testMilestoneBatch("M0-B001", 1)}, nil)
 	cancelled := activeMilestonePlan(2, 2, nil, []batchTombstone{{
 		BatchID: "M0-B001", Sequence: 1, Action: "CANCELLED", Reason: "no longer needed", ReplacementIDs: []string{},
 	}})
-	if err := validateMilestonePlanChange(original, cancelled, "PLAN"); err != nil {
+	if err := validateMilestonePlanChange(original, cancelled, "PLAN", catalog); err != nil {
 		t.Fatalf("valid cancellation failed: %v", err)
+	}
+	modifiedTombstone := cancelled
+	modifiedTombstone.PlanVersion++
+	modifiedTombstone.Tombstones = append([]batchTombstone(nil), cancelled.Tombstones...)
+	modifiedTombstone.Tombstones[0].Reason = "rewritten history"
+	if err := validateMilestonePlanChange(cancelled, modifiedTombstone, "PLAN", catalog); err == nil {
+		t.Fatal("immutable tombstone rewrite unexpectedly passed")
 	}
 
 	split := activeMilestonePlan(2, 4, []milestoneBatch{
@@ -375,12 +570,12 @@ func TestMilestonePlanSplitMergeCancelPreserveTombstones(t *testing.T) {
 	}, []batchTombstone{{
 		BatchID: "M0-B001", Sequence: 1, Action: "SPLIT", Reason: "single objective per replacement", ReplacementIDs: []string{"M0-B002", "M0-B003"},
 	}})
-	if err := validateMilestonePlanChange(original, split, "PLAN"); err != nil {
+	if err := validateMilestonePlanChange(original, split, "PLAN", catalog); err != nil {
 		t.Fatalf("valid split failed: %v", err)
 	}
 	withoutTombstone := split
 	withoutTombstone.Tombstones = nil
-	if err := validateMilestonePlanChange(original, withoutTombstone, "PLAN"); err == nil {
+	if err := validateMilestonePlanChange(original, withoutTombstone, "PLAN", catalog); err == nil {
 		t.Fatal("split without tombstone unexpectedly passed")
 	}
 
@@ -391,12 +586,14 @@ func TestMilestonePlanSplitMergeCancelPreserveTombstones(t *testing.T) {
 		{BatchID: "M0-B001", Sequence: 1, Action: "MERGED", Reason: "same objective", ReplacementIDs: []string{"M0-B003"}},
 		{BatchID: "M0-B002", Sequence: 2, Action: "MERGED", Reason: "same objective", ReplacementIDs: []string{"M0-B003"}},
 	})
-	if err := validateMilestonePlanChange(mergeSource, merged, "PLAN"); err != nil {
+	if err := validateMilestonePlanChange(mergeSource, merged, "PLAN", catalog); err != nil {
 		t.Fatalf("valid merge failed: %v", err)
 	}
 }
 
 func TestMilestonePlanFreezeTransitionsAndParallelSafety(t *testing.T) {
+	a := testApp(t)
+	catalog := testV1MilestoneCatalog(t, a)
 	plannedBatch := testMilestoneBatch("M0-B001", 1)
 	plannedBatch.State = "PLANNED"
 	planned := activeMilestonePlan(1, 2, []milestoneBatch{plannedBatch}, nil)
@@ -404,26 +601,26 @@ func TestMilestonePlanFreezeTransitionsAndParallelSafety(t *testing.T) {
 	frozenBatch.State = "FROZEN"
 	frozenBatch.FrozenContractSHA256 = mustBatchContractDigest(t, frozenBatch)
 	frozen := activeMilestonePlan(2, 2, []milestoneBatch{frozenBatch}, nil)
-	if err := validateMilestonePlanChange(planned, frozen, "PLAN"); err != nil {
+	if err := validateMilestonePlanChange(planned, frozen, "PLAN", catalog); err != nil {
 		t.Fatalf("valid freeze failed: %v", err)
 	}
 	implementingBatch := frozenBatch
 	implementingBatch.State = "IMPLEMENTING"
 	implementing := activeMilestonePlan(3, 2, []milestoneBatch{implementingBatch}, nil)
-	if err := validateMilestonePlanChange(frozen, implementing, "PLAN"); err != nil {
+	if err := validateMilestonePlanChange(frozen, implementing, "PLAN", catalog); err != nil {
 		t.Fatalf("valid frozen-to-implementing transition failed: %v", err)
 	}
 	changed := frozenBatch
 	changed.Objective = "silently expanded objective"
 	changed.FrozenContractSHA256 = mustBatchContractDigest(t, changed)
 	changedPlan := activeMilestonePlan(3, 2, []milestoneBatch{changed}, nil)
-	if err := validateMilestonePlanChange(frozen, changedPlan, "PLAN"); err == nil {
+	if err := validateMilestonePlanChange(frozen, changedPlan, "PLAN", catalog); err == nil {
 		t.Fatal("silent frozen-contract change unexpectedly passed")
 	}
 	skipped := plannedBatch
 	skipped.State = "IMPLEMENTING"
 	skipped.FrozenContractSHA256 = mustBatchContractDigest(t, skipped)
-	if err := validateMilestonePlanChange(planned, activeMilestonePlan(2, 2, []milestoneBatch{skipped}, nil), "PLAN"); err == nil {
+	if err := validateMilestonePlanChange(planned, activeMilestonePlan(2, 2, []milestoneBatch{skipped}, nil), "PLAN", catalog); err == nil {
 		t.Fatal("illegal PLANNED-to-IMPLEMENTING transition unexpectedly passed")
 	}
 
@@ -432,30 +629,30 @@ func TestMilestonePlanFreezeTransitionsAndParallelSafety(t *testing.T) {
 	right := testMilestoneBatch("M0-B002", 2)
 	right.ParallelSafe, right.DependencyIndependent, right.ParallelScopeKeys = true, true, []string{"apps/creator-studio"}
 	parallel := activeMilestonePlan(1, 3, []milestoneBatch{left, right}, nil)
-	if err := validateMilestonePlan(parallel); err != nil {
+	if err := validateMilestonePlan(parallel, catalog); err != nil {
 		t.Fatalf("valid parallel-safe plan failed: %v", err)
 	}
 	right.ParallelScopeKeys = []string{"apps/web-player"}
-	if err := validateMilestonePlan(activeMilestonePlan(1, 3, []milestoneBatch{left, right}, nil)); err == nil {
+	if err := validateMilestonePlan(activeMilestonePlan(1, 3, []milestoneBatch{left, right}, nil), catalog); err == nil {
 		t.Fatal("overlapping parallel scopes unexpectedly passed")
 	}
 	unsafe := testMilestoneBatch("M0-B001", 1)
 	unsafe.ParallelSafe = true
-	if err := validateMilestonePlan(activeMilestonePlan(1, 2, []milestoneBatch{unsafe}, nil)); err == nil {
+	if err := validateMilestonePlan(activeMilestonePlan(1, 2, []milestoneBatch{unsafe}, nil), catalog); err == nil {
 		t.Fatal("parallel_safe without evidence unexpectedly passed")
 	}
 }
 
 func emptyMilestonePlan() milestonePlan {
 	return milestonePlan{
-		SchemaVersion: 1, PlanID: "M0-MILESTONE-PLAN", PlanVersion: 0, Milestone: "M0", Status: "NOT_GENERATED",
+		SchemaVersion: milestonePlanSchemaVersion, PlanID: "M0-MILESTONE-PLAN", PlanVersion: 0, Milestone: "M0", Status: "NOT_GENERATED",
 		ModifiableOnlyInMode: "PLAN", NextBatchSequence: 1, Batches: []milestoneBatch{}, Tombstones: []batchTombstone{},
 	}
 }
 
 func activeMilestonePlan(version, next int, batches []milestoneBatch, tombstones []batchTombstone) milestonePlan {
 	return milestonePlan{
-		SchemaVersion: 1, PlanID: "M0-MILESTONE-PLAN", PlanVersion: version, Milestone: "M0", Status: "ACTIVE",
+		SchemaVersion: milestonePlanSchemaVersion, PlanID: "M0-MILESTONE-PLAN", PlanVersion: version, Milestone: "M0", Status: "ACTIVE",
 		ModifiableOnlyInMode: "PLAN", NextBatchSequence: next, Batches: batches, Tombstones: tombstones,
 	}
 }
