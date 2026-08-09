@@ -251,6 +251,54 @@ func TestPackageCommandFailsClosed(t *testing.T) {
 			},
 		},
 		{
+			name: "blank display name",
+			args: func(t *testing.T) []string {
+				manifest := mutateCLIInput(t, "package.toml", `display_name = "Hidden Cards Fixture"`, `display_name = " "`)
+				return []string{"package", "validate", "--manifest", manifest, "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
+			name: "unsafe entrypoint",
+			args: func(t *testing.T) []string {
+				manifest := mutateCLIInput(t, "package.toml", `entrypoint = "lua/main.lua"`, `entrypoint = "../escape.lua"`)
+				return []string{"package", "validate", "--manifest", manifest, "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
+			name: "inverted Host API range",
+			args: func(t *testing.T) []string {
+				manifest := mutateCLIInput(t, "package.toml", "min_minor = 0", "min_minor = 3")
+				return []string{"package", "validate", "--manifest", manifest, "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
+			name: "duplicate dependency package identity",
+			args: func(t *testing.T) []string {
+				manifest := mutateCLIInput(t, "package.toml", `features = ["standard-deck"]`, `features = ["standard-deck"]
+
+[[dependencies]]
+package_id = "example.shared/card-library"
+version = "3.0.0"
+optional = true
+features = []`)
+				return []string{"package", "validate", "--manifest", manifest, "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
+			name: "blank provenance source",
+			args: func(t *testing.T) []string {
+				manifest := mutateCLIInput(t, "package.toml", `source = "https://example.invalid/hidden-cards"`, `source = " "`)
+				return []string{"package", "validate", "--manifest", manifest, "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
+			name: "blank rights author",
+			args: func(t *testing.T) []string {
+				manifest := mutateCLIInput(t, "package.toml", `authors = ["Example Studio"]`, `authors = [" "]`)
+				return []string{"package", "validate", "--manifest", manifest, "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
 			name: "unknown subcommand",
 			args: func(*testing.T) []string {
 				return []string{"package", "install"}

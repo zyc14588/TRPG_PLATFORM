@@ -19,6 +19,9 @@
     "content_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "build_provenance": { "$ref": "manifest-v1.schema.json#/$defs/build" },
     "rights": { "$ref": "manifest-v1.schema.json#/$defs/rights" },
-    "dependency_lock": { "$ref": "lock-v1.schema.json" }
+    "dependency_lock": {
+      "$comment": "Artifact-to-lock identity equality is enforced by the canonical conformance layer.",
+      "$ref": "lock-v1.schema.json"
+    }
   }
 }

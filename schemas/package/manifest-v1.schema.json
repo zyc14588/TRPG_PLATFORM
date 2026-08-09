@@ -21,14 +21,19 @@
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
+    "nonBlankString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "[^\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]"
+    },
     "build": {
       "type": "object",
       "additionalProperties": false,
       "required": ["source", "revision", "builder"],
       "properties": {
-        "source": { "type": "string", "minLength": 1 },
-        "revision": { "type": "string", "minLength": 1 },
-        "builder": { "type": "string", "minLength": 1 }
+        "source": { "$ref": "#/$defs/nonBlankString" },
+        "revision": { "$ref": "#/$defs/nonBlankString" },
+        "builder": { "$ref": "#/$defs/nonBlankString" }
       }
     },
     "rights": {
@@ -40,11 +45,11 @@
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1 }
+          "items": { "$ref": "#/$defs/nonBlankString" }
         },
-        "source": { "type": "string", "minLength": 1 },
-        "license_expression": { "type": "string", "minLength": 1 },
-        "statement": { "type": "string", "minLength": 1 }
+        "source": { "$ref": "#/$defs/nonBlankString" },
+        "license_expression": { "$ref": "#/$defs/nonBlankString" },
+        "statement": { "$ref": "#/$defs/nonBlankString" }
       },
       "anyOf": [
         { "required": ["license_expression"] },
@@ -72,7 +77,7 @@
             "required": ["name", "fallback"],
             "properties": {
               "name": { "$ref": "#/$defs/capabilityName" },
-              "fallback": { "type": "string", "minLength": 1 }
+              "fallback": { "$ref": "#/$defs/nonBlankString" }
             }
           }
         }
@@ -204,9 +209,9 @@
           "enum": ["game-system", "content", "assets", "ui-extension", "library"]
         },
         "version": { "$ref": "#/$defs/semver" },
-        "display_name": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "entrypoint": { "type": "string", "minLength": 1 },
-        "lua_profile": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,127}$" },
+        "display_name": { "$ref": "#/$defs/nonBlankString", "maxLength": 200 },
+        "entrypoint": { "$ref": "#/$defs/nonBlankString" },
+        "lua_profile": { "$ref": "#/$defs/nonBlankString" },
         "host_api": { "$ref": "#/$defs/hostApi" },
         "build": { "$ref": "#/$defs/build" },
         "rights": { "$ref": "#/$defs/rights" },
@@ -250,7 +255,7 @@
         "artifact_type": { "const": "bundle" },
         "bundle_id": { "$ref": "#/$defs/packageId" },
         "version": { "$ref": "#/$defs/semver" },
-        "display_name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "display_name": { "$ref": "#/$defs/nonBlankString", "maxLength": 200 },
         "build": { "$ref": "#/$defs/build" },
         "rights": { "$ref": "#/$defs/rights" },
         "artifacts": {

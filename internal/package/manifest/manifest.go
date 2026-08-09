@@ -377,37 +377,54 @@ func validRelativeEntrypoint(value string) bool {
 }
 
 func bundleFromRaw(raw rawBundle) (Bundle, error) {
-	id, err := model.ParsePackageID(raw.BundleID)
+	artifacts := make([]BundleArtifact, 0, len(raw.Artifacts))
+	for _, rawArtifact := range raw.Artifacts {
+		artifacts = append(artifacts, BundleArtifact{
+			PackageID: model.PackageID(rawArtifact.PackageID), Version: model.Version(rawArtifact.Version), ContentHash: model.ContentHash(rawArtifact.ContentHash),
+		})
+	}
+	return NormalizeBundle(Bundle{
+		SchemaVersion: raw.SchemaVersion, BundleID: model.PackageID(raw.BundleID), Version: model.Version(raw.Version), DisplayName: raw.DisplayName,
+		Build:     model.BuildProvenance{Source: raw.Build.Source, Revision: raw.Build.Revision, Builder: raw.Build.Builder},
+		Rights:    model.Rights{Authors: raw.Rights.Authors, Source: raw.Rights.Source, LicenseExpression: raw.Rights.LicenseExpression, Statement: raw.Rights.Statement},
+		Artifacts: artifacts,
+	})
+}
+
+// NormalizeBundle validates a directly constructed distribution container and
+// returns the same canonical representation used by TOML parsing.
+func NormalizeBundle(value Bundle) (Bundle, error) {
+	if value.SchemaVersion != SchemaVersion {
+		return Bundle{}, fmt.Errorf("unsupported manifest schema_version %d", value.SchemaVersion)
+	}
+	id, err := model.ParsePackageID(value.BundleID.String())
 	if err != nil {
 		return Bundle{}, fmt.Errorf("bundle_id: %w", err)
 	}
-	version, err := model.ParseVersion(raw.Version)
+	version, err := model.ParseVersion(value.Version.String())
 	if err != nil {
 		return Bundle{}, err
 	}
-	build, err := model.NormalizeBuildProvenance(model.BuildProvenance{Source: raw.Build.Source, Revision: raw.Build.Revision, Builder: raw.Build.Builder})
+	build, err := model.NormalizeBuildProvenance(value.Build)
 	if err != nil {
 		return Bundle{}, err
 	}
-	rights, err := model.NormalizeRights(model.Rights{
-		Authors: raw.Rights.Authors, Source: raw.Rights.Source,
-		LicenseExpression: raw.Rights.LicenseExpression, Statement: raw.Rights.Statement,
-	})
+	rights, err := model.NormalizeRights(value.Rights)
 	if err != nil {
 		return Bundle{}, err
 	}
-	artifacts := make([]BundleArtifact, 0, len(raw.Artifacts))
-	seen := make(map[string]struct{}, len(raw.Artifacts))
-	for _, rawArtifact := range raw.Artifacts {
-		packageID, parseErr := model.ParsePackageID(rawArtifact.PackageID)
+	artifacts := make([]BundleArtifact, 0, len(value.Artifacts))
+	seen := make(map[string]struct{}, len(value.Artifacts))
+	for _, artifact := range value.Artifacts {
+		packageID, parseErr := model.ParsePackageID(artifact.PackageID.String())
 		if parseErr != nil {
 			return Bundle{}, parseErr
 		}
-		artifactVersion, parseErr := model.ParseVersion(rawArtifact.Version)
+		artifactVersion, parseErr := model.ParseVersion(artifact.Version.String())
 		if parseErr != nil {
 			return Bundle{}, parseErr
 		}
-		contentHash, parseErr := model.ParseContentHash(rawArtifact.ContentHash)
+		contentHash, parseErr := model.ParseContentHash(artifact.ContentHash.String())
 		if parseErr != nil {
 			return Bundle{}, parseErr
 		}
@@ -430,7 +447,7 @@ func bundleFromRaw(raw rawBundle) (Bundle, error) {
 		}
 		return artifacts[i].ContentHash < artifacts[j].ContentHash
 	})
-	displayName := strings.TrimSpace(raw.DisplayName)
+	displayName := strings.TrimSpace(value.DisplayName)
 	if displayName == "" || len(displayName) > 200 || !utf8.ValidString(displayName) {
 		return Bundle{}, fmt.Errorf("display_name must be non-empty UTF-8 of at most 200 bytes")
 	}
