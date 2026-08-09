@@ -86,6 +86,7 @@ func TestArtifactIdentityChangesWithProvenanceRightsAndLock(t *testing.T) {
 	}
 	library, _ := lock.Package(libraryID)
 	library.Features = []string{"extended-deck", "standard-deck"}
+	pkg.Dependencies[0].Features = []string{"extended-deck", "standard-deck"}
 	changedLock, err := dependency.BuildExactLock(lock.Root().String(), []dependency.LockedPackage{root, library})
 	if err != nil {
 		t.Fatal(err)

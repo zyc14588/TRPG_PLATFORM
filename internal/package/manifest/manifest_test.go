@@ -81,6 +81,8 @@ func TestManifestFailsClosed(t *testing.T) {
 		{name: "unknown field", data: base + "\nunknown = true\n"},
 		{name: "bundle runtime package kind", data: strings.Replace(base, `package_kind = "game-system"`, `package_kind = "bundle"`, 1)},
 		{name: "unsupported schema", data: strings.Replace(base, "schema_version = 1", "schema_version = 2", 1)},
+		{name: "unknown required capability", data: strings.Replace(base, `"host.event"`, `"host.unknown"`, 1)},
+		{name: "unknown optional capability", data: strings.Replace(base, `name = "host.log"`, `name = "host.network"`, 1)},
 		{name: "missing rights", data: strings.Replace(base, `license_expression = "LicenseRef-Example-Private"`, `license_expression = ""`, 1)},
 		{name: "missing optional fallback", data: strings.Replace(base, `fallback = "continue without package log records"`, `fallback = ""`, 1)},
 		{name: "partial runtime", data: strings.Replace(base, `lua_profile = "platform-lua-5.5-p1"`, `lua_profile = ""`, 1)},

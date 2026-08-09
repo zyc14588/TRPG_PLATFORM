@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/capability"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/dependency"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/manifest"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/model"
@@ -38,6 +40,11 @@ func runPackageValidate(args []string, stdout, stderr io.Writer) int {
 	flags.SetOutput(stderr)
 	manifestPath := flags.String("manifest", "", "path to the versioned TOML manifest")
 	lockPath := flags.String("lock", "", "path to the exact dependency lock (required for package artifacts)")
+	resolveCapabilities := flags.Bool("resolve-capabilities", false, "validate required capabilities against explicit trust and execution grants")
+	var trustGrants stringListFlag
+	var contextGrants stringListFlag
+	flags.Var(&trustGrants, "trust-grant", "capability allowed by the selected trust policy (repeatable)")
+	flags.Var(&contextGrants, "context-grant", "capability allowed by the execution context (repeatable)")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -49,11 +56,19 @@ func runPackageValidate(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return reportPackageError(stderr, err)
 	}
+	if !*resolveCapabilities && (len(trustGrants) > 0 || len(contextGrants) > 0) {
+		return reportPackageError(stderr, errors.New("capability grants require --resolve-capabilities"))
+	}
 	result := validationResult{SchemaVersion: 1, Valid: true, ArtifactType: document.ArtifactType}
 	switch document.ArtifactType {
 	case model.ArtifactTypePackage:
 		if *lockPath == "" {
 			return reportPackageError(stderr, errors.New("package artifact validation requires --lock"))
+		}
+		if *resolveCapabilities {
+			if resolveErr := validateCapabilityResolution(document.Package.Capabilities, trustGrants, contextGrants); resolveErr != nil {
+				return reportPackageError(stderr, resolveErr)
+			}
 		}
 		lock, loadErr := loadLock(*lockPath)
 		if loadErr != nil {
@@ -76,6 +91,9 @@ func runPackageValidate(args []string, stdout, stderr io.Writer) int {
 		result.LockDigest = lockDigest
 		result.ArtifactDigest = identity.Digest()
 	case model.ArtifactTypeBundle:
+		if *resolveCapabilities {
+			return reportPackageError(stderr, errors.New("Bundle validation does not resolve runtime capabilities"))
+		}
 		if *lockPath != "" {
 			return reportPackageError(stderr, errors.New("Bundle validation does not accept a runtime dependency lock"))
 		}
@@ -88,6 +106,37 @@ func runPackageValidate(args []string, stdout, stderr io.Writer) int {
 		return reportPackageError(stderr, err)
 	}
 	return 0
+}
+
+type stringListFlag []string
+
+func (values *stringListFlag) String() string {
+	return strings.Join(*values, ",")
+}
+
+func (values *stringListFlag) Set(value string) error {
+	*values = append(*values, value)
+	return nil
+}
+
+func validateCapabilityResolution(declaration capability.Declaration, trustValues, contextValues []string) error {
+	policy, err := capability.NewTrustPolicy(map[capability.TrustLevel][]string{
+		capability.TrustOfficial:          trustValues,
+		capability.TrustSigned:            {},
+		capability.TrustPrivateUnverified: {},
+		capability.TrustDevelopment:       {},
+	})
+	if err != nil {
+		return fmt.Errorf("validate trust grants: %w", err)
+	}
+	context, err := capability.NewGrantSet(contextValues)
+	if err != nil {
+		return fmt.Errorf("validate execution-context grants: %w", err)
+	}
+	if _, err := capability.Resolve(declaration, capability.TrustOfficial, policy, context); err != nil {
+		return fmt.Errorf("resolve manifest capabilities: %w", err)
+	}
+	return nil
 }
 
 func runPackageBuild(args []string, stdout, stderr io.Writer) int {

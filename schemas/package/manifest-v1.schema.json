@@ -52,9 +52,7 @@
       ]
     },
     "capabilityName": {
-      "type": "string",
-      "maxLength": 128,
-      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+      "enum": ["host.event", "host.log", "host.state"]
     },
     "capabilities": {
       "type": "object",
@@ -67,6 +65,7 @@
         },
         "optional": {
           "type": "array",
+          "uniqueItems": true,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -77,7 +76,93 @@
             }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "properties": {
+            "optional": {
+              "contains": {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "const": "host.event" } }
+              },
+              "minContains": 0,
+              "maxContains": 1
+            }
+          }
+        },
+        {
+          "not": {
+            "required": ["required", "optional"],
+            "properties": {
+              "required": { "contains": { "const": "host.event" } },
+              "optional": {
+                "contains": {
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": { "name": { "const": "host.event" } }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "optional": {
+              "contains": {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "const": "host.log" } }
+              },
+              "minContains": 0,
+              "maxContains": 1
+            }
+          }
+        },
+        {
+          "not": {
+            "required": ["required", "optional"],
+            "properties": {
+              "required": { "contains": { "const": "host.log" } },
+              "optional": {
+                "contains": {
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": { "name": { "const": "host.log" } }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "optional": {
+              "contains": {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "const": "host.state" } }
+              },
+              "minContains": 0,
+              "maxContains": 1
+            }
+          }
+        },
+        {
+          "not": {
+            "required": ["required", "optional"],
+            "properties": {
+              "required": { "contains": { "const": "host.state" } },
+              "optional": {
+                "contains": {
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": { "name": { "const": "host.state" } }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "hostApi": {
       "type": "object",

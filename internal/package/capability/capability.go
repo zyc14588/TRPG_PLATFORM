@@ -17,11 +17,37 @@ var namePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$`)
 // Name is a declared package capability name such as host.state.
 type Name string
 
+const (
+	HostEvent Name = "host.event"
+	HostLog   Name = "host.log"
+	HostState Name = "host.state"
+)
+
+// registeredNames is the single version-one capability registry. New names
+// require an explicit contract change; syntactically valid strings are not
+// capabilities merely because every grant layer repeats them.
+var registeredNames = []Name{
+	HostEvent,
+	HostLog,
+	HostState,
+}
+
+// RegisteredNames returns the canonical registry in stable order.
+func RegisteredNames() []Name {
+	return append([]Name(nil), registeredNames...)
+}
+
 func ParseName(value string) (Name, error) {
 	if len(value) > 128 || !namePattern.MatchString(value) {
 		return "", fmt.Errorf("capability %q is not a canonical capability name", value)
 	}
-	return Name(value), nil
+	name := Name(value)
+	for _, registered := range registeredNames {
+		if name == registered {
+			return name, nil
+		}
+	}
+	return "", fmt.Errorf("capability %q is not registered", value)
 }
 
 // Optional declares the deterministic fallback used when an optional

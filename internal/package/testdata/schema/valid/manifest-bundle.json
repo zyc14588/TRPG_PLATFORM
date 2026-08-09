@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "artifact_type": "bundle",
+  "bundle_id": "example.distribution/schema-fixture",
+  "version": "1.0.0",
+  "display_name": "Schema Fixture Bundle",
+  "build": {
+    "source": "https://example.invalid/schema-fixture-bundle",
+    "revision": "abcdef0123456789",
+    "builder": "creator-cli/0.1"
+  },
+  "rights": {
+    "authors": ["Example Studio"],
+    "source": "original",
+    "statement": "Private fixture distribution rights"
+  },
+  "artifacts": [
+    {
+      "package_id": "example.rules/schema-fixture",
+      "version": "1.2.3",
+      "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ]
+}

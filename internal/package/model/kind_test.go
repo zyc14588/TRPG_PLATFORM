@@ -21,8 +21,19 @@ func TestPackageKindsDistinguishRuntimePackagesFromBundle(t *testing.T) {
 	if got := model.PackageKinds(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("PackageKinds() = %#v, want %#v", got, want)
 	}
-	if _, err := model.ParsePackageKind("bundle"); err == nil {
-		t.Fatal("ParsePackageKind(bundle) succeeded; Bundle must remain a distribution container")
+	for _, invalid := range []string{
+		"",
+		"bundle",
+		"Game-System",
+		"CONTENT",
+		" content",
+		"content ",
+		"ui_extension",
+		"unknown",
+	} {
+		if _, err := model.ParsePackageKind(invalid); err == nil {
+			t.Errorf("ParsePackageKind(%q) succeeded", invalid)
+		}
 	}
 	if model.PackageKindLibrary.CanStartSession() {
 		t.Fatal("library package can start a Session")

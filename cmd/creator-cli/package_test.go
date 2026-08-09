@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -18,6 +20,34 @@ const (
 
 func packageFixture(name string) string {
 	return filepath.Join("..", "..", "internal", "package", "testdata", name)
+}
+
+func writeCLIInput(t *testing.T, name, contents string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func mutateCLIInput(t *testing.T, fixtureName string, replacements ...string) string {
+	t.Helper()
+	if len(replacements)%2 != 0 {
+		t.Fatal("replacements must be old/new pairs")
+	}
+	data, err := os.ReadFile(packageFixture(fixtureName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents := string(data)
+	for index := 0; index < len(replacements); index += 2 {
+		if !strings.Contains(contents, replacements[index]) {
+			t.Fatalf("fixture %s does not contain %q", fixtureName, replacements[index])
+		}
+		contents = strings.Replace(contents, replacements[index], replacements[index+1], 1)
+	}
+	return writeCLIInput(t, fixtureName, contents)
 }
 
 func TestPackageValidateProducesMachineReadableResult(t *testing.T) {
@@ -93,16 +123,139 @@ func TestBundleValidationNeedsNoRuntimeLock(t *testing.T) {
 	}
 }
 
+func TestPackageValidateCanExplicitlyResolveCapabilities(t *testing.T) {
+	t.Parallel()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exitCode := run(context.Background(), []string{
+		"package", "validate",
+		"--manifest", packageFixture("package.toml"),
+		"--lock", packageFixture("package.lock.json"),
+		"--resolve-capabilities",
+		"--trust-grant", "host.event",
+		"--trust-grant", "host.state",
+		"--context-grant", "host.state",
+		"--context-grant", "host.event",
+	}, &stdout, &stderr)
+	if exitCode != 0 {
+		t.Fatalf("exit = %d, stderr = %s", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `"valid":true`) {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+}
+
 func TestPackageCommandFailsClosed(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		args []string
-		want int
+		args func(*testing.T) []string
 	}{
-		{name: "missing lock", args: []string{"package", "validate", "--manifest", packageFixture("package.toml")}, want: 1},
-		{name: "wrong content hash", args: []string{"package", "build", "--manifest", packageFixture("package.toml"), "--lock", packageFixture("package.lock.json"), "--content-hash", "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}, want: 1},
-		{name: "unknown subcommand", args: []string{"package", "install"}, want: 2},
+		{
+			name: "missing lock",
+			args: func(*testing.T) []string {
+				return []string{"package", "validate", "--manifest", packageFixture("package.toml")}
+			},
+		},
+		{
+			name: "malformed manifest",
+			args: func(t *testing.T) []string {
+				return []string{"package", "validate", "--manifest", writeCLIInput(t, "malformed.toml", "schema_version = ["), "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
+			name: "unsupported package kind",
+			args: func(t *testing.T) []string {
+				manifest := mutateCLIInput(t, "package.toml", `package_kind = "game-system"`, `package_kind = "bundle"`)
+				return []string{"package", "validate", "--manifest", manifest, "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
+			name: "unknown capability",
+			args: func(t *testing.T) []string {
+				manifest := mutateCLIInput(t, "package.toml", `"host.event"`, `"host.unknown"`)
+				return []string{"package", "validate", "--manifest", manifest, "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
+			name: "missing required capability",
+			args: func(*testing.T) []string {
+				return []string{"package", "validate", "--manifest", packageFixture("package.toml"), "--lock", packageFixture("package.lock.json"), "--resolve-capabilities"}
+			},
+		},
+		{
+			name: "unknown trust grant",
+			args: func(*testing.T) []string {
+				return []string{"package", "validate", "--manifest", packageFixture("package.toml"), "--lock", packageFixture("package.lock.json"), "--resolve-capabilities", "--trust-grant", "host.unknown"}
+			},
+		},
+		{
+			name: "unknown execution-context grant",
+			args: func(*testing.T) []string {
+				return []string{"package", "validate", "--manifest", packageFixture("package.toml"), "--lock", packageFixture("package.lock.json"), "--resolve-capabilities", "--context-grant", "host.unknown"}
+			},
+		},
+		{
+			name: "extra undeclared lock Feature",
+			args: func(t *testing.T) []string {
+				lock := mutateCLIInput(t, "package.lock.json", `"features": ["standard-deck"]`, `"features": ["extra-feature", "standard-deck"]`)
+				return []string{"package", "validate", "--manifest", packageFixture("package.toml"), "--lock", lock}
+			},
+		},
+		{
+			name: "missing lock Feature",
+			args: func(t *testing.T) []string {
+				lock := mutateCLIInput(t, "package.lock.json", `"features": ["standard-deck"]`, `"features": []`)
+				return []string{"package", "validate", "--manifest", packageFixture("package.toml"), "--lock", lock}
+			},
+		},
+		{
+			name: "invalid dependency graph",
+			args: func(t *testing.T) []string {
+				lock := mutateCLIInput(t, "package.lock.json", `"dependencies": ["example.shared/card-library"]`, `"dependencies": []`)
+				return []string{"package", "validate", "--manifest", packageFixture("package.toml"), "--lock", lock}
+			},
+		},
+		{
+			name: "direct cycle",
+			args: func(t *testing.T) []string {
+				lock := mutateCLIInput(t, "package.lock.json", `"dependencies": ["example.shared/card-library"]`, `"dependencies": ["example.rules/hidden-cards"]`)
+				return []string{"package", "validate", "--manifest", packageFixture("package.toml"), "--lock", lock}
+			},
+		},
+		{
+			name: "indirect cycle",
+			args: func(t *testing.T) []string {
+				lock := mutateCLIInput(t, "package.lock.json", `"dependencies": []`, `"dependencies": ["example.rules/hidden-cards"]`)
+				return []string{"package", "validate", "--manifest", packageFixture("package.toml"), "--lock", lock}
+			},
+		},
+		{
+			name: "content hash mismatch",
+			args: func(*testing.T) []string {
+				return []string{"package", "build", "--manifest", packageFixture("package.toml"), "--lock", packageFixture("package.lock.json"), "--content-hash", "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}
+			},
+		},
+		{
+			name: "invalid package identity",
+			args: func(t *testing.T) []string {
+				manifest := mutateCLIInput(t, "package.toml", `package_id = "example.rules/hidden-cards"`, `package_id = "Example Rules/hidden-cards"`)
+				return []string{"package", "validate", "--manifest", manifest, "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
+			name: "invalid semantic version",
+			args: func(t *testing.T) []string {
+				manifest := mutateCLIInput(t, "package.toml", `version = "1.2.3"`, `version = "1.2"`)
+				return []string{"package", "validate", "--manifest", manifest, "--lock", packageFixture("package.lock.json")}
+			},
+		},
+		{
+			name: "unknown subcommand",
+			args: func(*testing.T) []string {
+				return []string{"package", "install"}
+			},
+		},
 	}
 	for _, test := range tests {
 		test := test
@@ -110,8 +263,14 @@ func TestPackageCommandFailsClosed(t *testing.T) {
 			t.Parallel()
 			var stdout bytes.Buffer
 			var stderr bytes.Buffer
-			if got := run(context.Background(), test.args, &stdout, &stderr); got != test.want {
-				t.Fatalf("exit = %d, want %d; stderr = %s", got, test.want, stderr.String())
+			if got := run(context.Background(), test.args(t), &stdout, &stderr); got == 0 {
+				t.Fatalf("illegal input exited zero; stdout = %s", stdout.String())
+			}
+			if strings.Contains(stdout.String(), `"valid":true`) {
+				t.Fatalf("illegal input reported valid:true: %s", stdout.String())
+			}
+			if stderr.Len() == 0 {
+				t.Fatal("illegal input failed without a diagnostic")
 			}
 		})
 	}

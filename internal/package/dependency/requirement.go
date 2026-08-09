@@ -4,6 +4,7 @@ package dependency
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/model"
@@ -87,7 +88,7 @@ func ValidateRequirements(lock ExactLock, root model.PackageID, requirements []R
 		if node.Version != requirement.Version {
 			return fmt.Errorf("dependency %q locks version %q, manifest requires %q", dependencyID, node.Version, requirement.Version)
 		}
-		if err := requireFeatures(dependencyID, node.Features, requirement.Features); err != nil {
+		if err := requireExactFeatures(dependencyID, node.Features, requirement.Features); err != nil {
 			return err
 		}
 	}
@@ -99,15 +100,9 @@ func ValidateRequirements(lock ExactLock, root model.PackageID, requirements []R
 	return nil
 }
 
-func requireFeatures(packageID model.PackageID, locked, required []string) error {
-	available := make(map[string]struct{}, len(locked))
-	for _, feature := range locked {
-		available[feature] = struct{}{}
+func requireExactFeatures(packageID model.PackageID, locked, declared []string) error {
+	if slices.Equal(locked, declared) {
+		return nil
 	}
-	for _, feature := range required {
-		if _, exists := available[feature]; !exists {
-			return fmt.Errorf("dependency %q does not enable required feature %q", packageID, feature)
-		}
-	}
-	return nil
+	return fmt.Errorf("dependency %q locked Features %v do not exactly match manifest Features %v", packageID, locked, declared)
 }

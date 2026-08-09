@@ -145,3 +145,11 @@ func TestExactLockJSONRejectsUnknownFields(t *testing.T) {
 		t.Fatal("unknown lock field succeeded")
 	}
 }
+
+func TestExactLockJSONRejectsUnsupportedSchemaVersion(t *testing.T) {
+	t.Parallel()
+	data := []byte(`{"schema_version":2,"root":"example/root","packages":[]}`)
+	if _, err := dependency.ParseExactLock(data); err == nil || !strings.Contains(err.Error(), "unsupported exact lock schema_version") {
+		t.Fatalf("unsupported schema error = %v", err)
+	}
+}
