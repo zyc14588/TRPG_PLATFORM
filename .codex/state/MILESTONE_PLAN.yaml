@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 3
+plan_version: 4
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -8,7 +8,7 @@ next_batch_sequence: 10
 batches:
 - batch_id: M1-B001
   sequence: 1
-  state: FROZEN
+  state: IMPLEMENTING
   objective: Implement the canonical executable package artifact contract, covering package kinds, immutable identity, versioned manifests, narrowed capabilities, and deterministic exact dependency locks.
   non_goals:
   - Installing or activating package artifacts in a workspace.
