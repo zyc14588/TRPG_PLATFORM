@@ -155,11 +155,11 @@ type conformancePackageManifest struct {
 	PackageKind   string                  `json:"package_kind"`
 	Version       string                  `json:"version"`
 	DisplayName   string                  `json:"display_name"`
-	Entrypoint    string                  `json:"entrypoint"`
-	LuaProfile    string                  `json:"lua_profile"`
+	Entrypoint    optionalText            `json:"entrypoint"`
+	LuaProfile    optionalText            `json:"lua_profile"`
 	HostAPI       *HostAPIRange           `json:"host_api"`
 	Build         model.BuildProvenance   `json:"build"`
-	Rights        model.Rights            `json:"rights"`
+	Rights        rawRights               `json:"rights"`
 	Capabilities  conformanceCapabilities `json:"capabilities"`
 	Dependencies  []conformanceDependency `json:"dependencies"`
 }
@@ -183,7 +183,7 @@ type conformanceBundleManifest struct {
 	Version       string                `json:"version"`
 	DisplayName   string                `json:"display_name"`
 	Build         model.BuildProvenance `json:"build"`
-	Rights        model.Rights          `json:"rights"`
+	Rights        rawRights             `json:"rights"`
 	Artifacts     []BundleArtifact      `json:"artifacts"`
 }
 
@@ -202,6 +202,18 @@ func validateCanonicalManifestJSON(data []byte) error {
 		if err := decodeConformanceJSON(data, &raw); err != nil {
 			return fmt.Errorf("decode package manifest: %w", err)
 		}
+		entrypoint, err := raw.Entrypoint.canonical("entrypoint")
+		if err != nil {
+			return err
+		}
+		luaProfile, err := raw.LuaProfile.canonical("lua_profile")
+		if err != nil {
+			return err
+		}
+		rights, err := rightsFromRaw(raw.Rights)
+		if err != nil {
+			return err
+		}
 		declaration, err := capability.NewDeclaration(raw.Capabilities.Required, raw.Capabilities.Optional)
 		if err != nil {
 			return err
@@ -217,8 +229,8 @@ func validateCanonicalManifestJSON(data []byte) error {
 		_, err = NormalizePackage(Package{
 			SchemaVersion: raw.SchemaVersion,
 			PackageID:     model.PackageID(raw.PackageID), PackageKind: model.PackageKind(raw.PackageKind), Version: model.Version(raw.Version),
-			DisplayName: raw.DisplayName, Entrypoint: raw.Entrypoint, LuaProfile: raw.LuaProfile, HostAPI: raw.HostAPI,
-			Build: raw.Build, Rights: raw.Rights, Capabilities: declaration, Dependencies: requirements,
+			DisplayName: raw.DisplayName, Entrypoint: entrypoint, LuaProfile: luaProfile, HostAPI: raw.HostAPI,
+			Build: raw.Build, Rights: rights, Capabilities: declaration, Dependencies: requirements,
 		})
 		return err
 	case model.ArtifactTypeBundle:
@@ -226,9 +238,13 @@ func validateCanonicalManifestJSON(data []byte) error {
 		if err := decodeConformanceJSON(data, &raw); err != nil {
 			return fmt.Errorf("decode bundle manifest: %w", err)
 		}
-		_, err := NormalizeBundle(Bundle{
+		rights, err := rightsFromRaw(raw.Rights)
+		if err != nil {
+			return err
+		}
+		_, err = NormalizeBundle(Bundle{
 			SchemaVersion: raw.SchemaVersion, BundleID: model.PackageID(raw.BundleID), Version: model.Version(raw.Version),
-			DisplayName: raw.DisplayName, Build: raw.Build, Rights: raw.Rights, Artifacts: raw.Artifacts,
+			DisplayName: raw.DisplayName, Build: raw.Build, Rights: rights, Artifacts: raw.Artifacts,
 		})
 		return err
 	default:
@@ -245,7 +261,7 @@ type conformanceArtifactIdentity struct {
 	Version               string                `json:"version"`
 	ContentHash           string                `json:"content_hash"`
 	Build                 model.BuildProvenance `json:"build_provenance"`
-	Rights                model.Rights          `json:"rights"`
+	Rights                rawRights             `json:"rights"`
 	DependencyLock        json.RawMessage       `json:"dependency_lock"`
 }
 
@@ -285,7 +301,7 @@ func validateCanonicalArtifactIdentityJSON(data []byte) error {
 	if _, err := model.NormalizeBuildProvenance(raw.Build); err != nil {
 		return err
 	}
-	if _, err := model.NormalizeRights(raw.Rights); err != nil {
+	if _, err := rightsFromRaw(raw.Rights); err != nil {
 		return err
 	}
 	lock, err := dependency.ParseExactLock(raw.DependencyLock)

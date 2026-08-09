@@ -98,6 +98,49 @@ func TestManifestFailsClosed(t *testing.T) {
 	}
 }
 
+func TestCanonicalEntrypointPathIsPlatformNeutral(t *testing.T) {
+	t.Parallel()
+	document, err := manifest.Parse(fixture(t, "package.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name  string
+		path  string
+		valid bool
+	}{
+		{name: "canonical relative Lua source", path: "lua/main.lua", valid: true},
+		{name: "absolute", path: "/main.lua"},
+		{name: "parent traversal", path: "../main.lua"},
+		{name: "nested parent traversal", path: "a/../../main.lua"},
+		{name: "upper-case Windows drive", path: "C:/escape.lua"},
+		{name: "lower-case Windows drive", path: "c:/escape.lua"},
+		{name: "Windows drive with backslashes", path: `C:\escape.lua`},
+		{name: "slash UNC", path: "//server/share/a.lua"},
+		{name: "backslash UNC", path: `\\server\share\a.lua`},
+		{name: "Windows device", path: `\\?\C:\a.lua`},
+		{name: "Windows local device", path: `\\.\C:\a.lua`},
+		{name: "NUL", path: "lua/\x00.lua"},
+		{name: "C0 control", path: "lua/\x1f.lua"},
+		{name: "C1 control", path: "lua/\u0085.lua"},
+		{name: "leading dot segment", path: "./lua/main.lua"},
+		{name: "empty segment", path: "lua//main.lua"},
+		{name: "cleaning traversal", path: "lua/../main.lua"},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			value := *document.Package
+			value.Entrypoint = test.path
+			_, err := manifest.NormalizePackage(value)
+			if got := err == nil; got != test.valid {
+				t.Fatalf("NormalizePackage entrypoint %q valid=%t, want %t; error=%v", test.path, got, test.valid, err)
+			}
+		})
+	}
+}
+
 func TestPackageSchemasAreVersionedValidJSON(t *testing.T) {
 	t.Parallel()
 	paths, err := filepath.Glob(filepath.Join("..", "..", "..", "schemas", "package", "*.schema.json"))

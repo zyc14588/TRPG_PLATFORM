@@ -284,11 +284,24 @@ func TestManifestSchemaCanonicalParity(t *testing.T) {
 		{name: "Unicode blank display_name", mutate: func(value map[string]any) { value["display_name"] = "\u00a0\u3000" }},
 		{name: "non-space BOM display_name", want: true, mutate: func(value map[string]any) { value["display_name"] = "\ufeff" }},
 		{name: "valid relative entrypoint", want: true},
-		{name: "trimmed valid relative entrypoint", want: true, mutate: func(value map[string]any) { value["entrypoint"] = " lua/main.lua " }},
+		{name: "padded relative entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = " lua/main.lua " }},
 		{name: "parent traversal entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "../escape.lua" }},
+		{name: "nested parent traversal entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "a/../../main.lua" }},
 		{name: "absolute entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "/lua/main.lua" }},
+		{name: "upper-case Windows drive entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "C:/escape.lua" }},
+		{name: "lower-case Windows drive entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "c:/escape.lua" }},
+		{name: "Windows drive backslash entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = `C:\escape.lua` }},
+		{name: "slash UNC entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "//server/share/a.lua" }},
+		{name: "backslash UNC entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = `\\server\share\a.lua` }},
+		{name: "Windows device entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = `\\?\C:\a.lua` }},
+		{name: "Windows local device entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = `\\.\C:\a.lua` }},
+		{name: "NUL entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "lua/\x00.lua" }},
+		{name: "C0 control entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "lua/\x1f.lua" }},
+		{name: "C1 control entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "lua/\u0085.lua" }},
+		{name: "leading dot segment entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "./lua/main.lua" }},
 		{name: "empty entrypoint segment", mutate: func(value map[string]any) { value["entrypoint"] = "lua//main.lua" }},
 		{name: "dot entrypoint segment", mutate: func(value map[string]any) { value["entrypoint"] = "lua/./main.lua" }},
+		{name: "cleaning traversal entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "lua/../main.lua" }},
 		{name: "backslash entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = `lua\main.lua` }},
 		{name: "non-Lua entrypoint", mutate: func(value map[string]any) { value["entrypoint"] = "lua/main.txt" }},
 		{name: "valid Host API range", want: true},
@@ -321,10 +334,51 @@ func TestManifestSchemaCanonicalParity(t *testing.T) {
 		}},
 		{name: "display_name over 200 UTF-8 bytes", mutate: func(value map[string]any) { value["display_name"] = strings.Repeat("界", 67) }},
 		{name: "invalid Lua profile", mutate: func(value map[string]any) { value["lua_profile"] = "Platform Lua" }},
-		{name: "trimmed valid Lua profile", want: true, mutate: func(value map[string]any) { value["lua_profile"] = " platform-lua-5.5-p1 " }},
+		{name: "padded valid Lua profile", mutate: func(value map[string]any) { value["lua_profile"] = " platform-lua-5.5-p1 " }},
 		{name: "blank Lua profile", mutate: func(value map[string]any) { value["lua_profile"] = " " }},
 	}
 	assertCanonicalParity(t, validator, manifest.ManifestSchemaDocument, "manifest-unique-dependencies.json", tests)
+}
+
+func TestOptionalTextPresenceCanonicalParity(t *testing.T) {
+	t.Parallel()
+	validator := compiledPackageSchemas(t)
+	withRuntime := func(value map[string]any) {
+		value["entrypoint"] = "lua/main.lua"
+		value["lua_profile"] = "platform-lua-5.5-p1"
+		value["host_api"] = map[string]any{"major": float64(1), "min_minor": float64(0), "max_minor": float64(2)}
+	}
+	tests := []canonicalParityCase{
+		{name: "entrypoint absent", want: true},
+		{name: "entrypoint explicit empty", mutate: func(value map[string]any) { value["entrypoint"] = "" }},
+		{name: "entrypoint explicit whitespace", mutate: func(value map[string]any) { value["entrypoint"] = " " }},
+		{name: "entrypoint valid canonical value", want: true, mutate: withRuntime},
+		{name: "lua_profile absent", want: true},
+		{name: "lua_profile explicit empty", mutate: func(value map[string]any) { value["lua_profile"] = "" }},
+		{name: "lua_profile explicit whitespace", mutate: func(value map[string]any) { value["lua_profile"] = " " }},
+		{name: "lua_profile valid canonical value", want: true, mutate: withRuntime},
+		{name: "rights statement absent", want: true},
+		{name: "rights statement explicit empty", mutate: func(value map[string]any) { value["rights"].(map[string]any)["statement"] = "" }},
+		{name: "rights statement explicit whitespace", mutate: func(value map[string]any) { value["rights"].(map[string]any)["statement"] = " " }},
+		{name: "rights statement valid canonical value", want: true, mutate: func(value map[string]any) { value["rights"].(map[string]any)["statement"] = "Private rights" }},
+		{name: "license expression absent", want: true, mutate: func(value map[string]any) {
+			rights := value["rights"].(map[string]any)
+			delete(rights, "license_expression")
+			rights["statement"] = "Private rights"
+		}},
+		{name: "license expression explicit empty", mutate: func(value map[string]any) {
+			rights := value["rights"].(map[string]any)
+			rights["license_expression"] = ""
+			rights["statement"] = "Private rights"
+		}},
+		{name: "license expression explicit whitespace", mutate: func(value map[string]any) {
+			rights := value["rights"].(map[string]any)
+			rights["license_expression"] = " "
+			rights["statement"] = "Private rights"
+		}},
+		{name: "license expression valid canonical value", want: true},
+	}
+	assertCanonicalParity(t, validator, manifest.ManifestSchemaDocument, "manifest-package.json", tests)
 }
 
 func TestArtifactIdentitySchemaCanonicalParity(t *testing.T) {
@@ -339,6 +393,26 @@ func TestArtifactIdentitySchemaCanonicalParity(t *testing.T) {
 		{name: "duplicate trimmed rights author", mutate: func(value map[string]any) {
 			value["rights"].(map[string]any)["authors"] = []any{"Example Studio", " Example Studio "}
 		}},
+		{name: "rights statement absent", want: true},
+		{name: "rights statement explicit empty", mutate: func(value map[string]any) { value["rights"].(map[string]any)["statement"] = "" }},
+		{name: "rights statement explicit whitespace", mutate: func(value map[string]any) { value["rights"].(map[string]any)["statement"] = " " }},
+		{name: "rights statement valid canonical value", want: true, mutate: func(value map[string]any) { value["rights"].(map[string]any)["statement"] = "Private rights" }},
+		{name: "license expression absent", want: true, mutate: func(value map[string]any) {
+			rights := value["rights"].(map[string]any)
+			delete(rights, "license_expression")
+			rights["statement"] = "Private rights"
+		}},
+		{name: "license expression explicit empty", mutate: func(value map[string]any) {
+			rights := value["rights"].(map[string]any)
+			rights["license_expression"] = ""
+			rights["statement"] = "Private rights"
+		}},
+		{name: "license expression explicit whitespace", mutate: func(value map[string]any) {
+			rights := value["rights"].(map[string]any)
+			rights["license_expression"] = " "
+			rights["statement"] = "Private rights"
+		}},
+		{name: "license expression valid canonical value", want: true},
 		{name: "empty package ID", mutate: func(value map[string]any) {
 			setIdentityField(value, manifest.ArtifactIdentitySchemaDocument, "package_id", "")
 		}},

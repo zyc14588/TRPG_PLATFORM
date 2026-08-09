@@ -119,6 +119,12 @@ type Rights struct {
 
 // NormalizeRights validates rights metadata and returns stable author order.
 func NormalizeRights(value Rights) (Rights, error) {
+	if value.LicenseExpression != "" && strings.TrimSpace(value.LicenseExpression) == "" {
+		return Rights{}, fmt.Errorf("rights license expression must be nonblank when provided")
+	}
+	if value.Statement != "" && strings.TrimSpace(value.Statement) == "" {
+		return Rights{}, fmt.Errorf("rights statement must be nonblank when provided")
+	}
 	value.Source = strings.TrimSpace(value.Source)
 	value.LicenseExpression = strings.TrimSpace(value.LicenseExpression)
 	value.Statement = strings.TrimSpace(value.Statement)

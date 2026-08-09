@@ -83,4 +83,14 @@ func TestRightsCanonicalizeAuthorsAndRequireDeclaration(t *testing.T) {
 	if _, err := model.NormalizeRights(model.Rights{Authors: []string{"Ada"}, Source: "original"}); err == nil {
 		t.Fatal("rights without license expression or statement succeeded")
 	}
+	if _, err := model.NormalizeRights(model.Rights{
+		Authors: []string{"Ada"}, Source: "original", LicenseExpression: "LicenseRef-Test", Statement: " ",
+	}); err == nil {
+		t.Fatal("explicit whitespace-only rights statement succeeded")
+	}
+	if _, err := model.NormalizeRights(model.Rights{
+		Authors: []string{"Ada"}, Source: "original", LicenseExpression: " ", Statement: "owned",
+	}); err == nil {
+		t.Fatal("explicit whitespace-only license expression succeeded")
+	}
 }

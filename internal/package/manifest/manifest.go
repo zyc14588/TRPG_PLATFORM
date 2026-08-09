@@ -5,11 +5,13 @@
 package manifest
 
 import (
+	"encoding/json"
 	"fmt"
 	"path"
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/BurntSushi/toml"
@@ -93,8 +95,8 @@ type rawPackage struct {
 	PackageKind   string           `toml:"package_kind"`
 	Version       string           `toml:"version"`
 	DisplayName   string           `toml:"display_name"`
-	Entrypoint    string           `toml:"entrypoint"`
-	LuaProfile    string           `toml:"lua_profile"`
+	Entrypoint    optionalText     `toml:"entrypoint"`
+	LuaProfile    optionalText     `toml:"lua_profile"`
 	HostAPI       *rawHostAPIRange `toml:"host_api"`
 	Build         rawBuild         `toml:"build"`
 	Rights        rawRights        `toml:"rights"`
@@ -126,10 +128,47 @@ type rawBuild struct {
 }
 
 type rawRights struct {
-	Authors           []string `toml:"authors"`
-	Source            string   `toml:"source"`
-	LicenseExpression string   `toml:"license_expression"`
-	Statement         string   `toml:"statement"`
+	Authors           []string     `toml:"authors" json:"authors"`
+	Source            string       `toml:"source" json:"source"`
+	LicenseExpression optionalText `toml:"license_expression" json:"license_expression"`
+	Statement         optionalText `toml:"statement" json:"statement"`
+}
+
+// optionalText preserves whether an optional textual field was absent. The
+// zero value means absent; explicitly provided empty or whitespace-only input
+// is rejected before canonical normalization can collapse it to that value.
+type optionalText struct {
+	present bool
+	value   string
+}
+
+func (value *optionalText) UnmarshalText(data []byte) error {
+	value.present = true
+	value.value = string(data)
+	return nil
+}
+
+func (value *optionalText) UnmarshalJSON(data []byte) error {
+	var decoded *string
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	if decoded == nil {
+		return fmt.Errorf("optional text cannot be null")
+	}
+	value.present = true
+	value.value = *decoded
+	return nil
+}
+
+func (value optionalText) canonical(field string) (string, error) {
+	if !value.present {
+		return "", nil
+	}
+	if strings.TrimSpace(value.value) == "" {
+		return "", fmt.Errorf("%s must be nonblank when provided", field)
+	}
+	return value.value, nil
 }
 
 type rawCapabilities struct {
@@ -237,10 +276,15 @@ func packageFromRaw(raw rawPackage) (Package, error) {
 	if err != nil {
 		return Package{}, err
 	}
-	rights, err := model.NormalizeRights(model.Rights{
-		Authors: raw.Rights.Authors, Source: raw.Rights.Source,
-		LicenseExpression: raw.Rights.LicenseExpression, Statement: raw.Rights.Statement,
-	})
+	rights, err := rightsFromRaw(raw.Rights)
+	if err != nil {
+		return Package{}, err
+	}
+	entrypoint, err := raw.Entrypoint.canonical("entrypoint")
+	if err != nil {
+		return Package{}, err
+	}
+	luaProfile, err := raw.LuaProfile.canonical("lua_profile")
 	if err != nil {
 		return Package{}, err
 	}
@@ -269,8 +313,8 @@ func packageFromRaw(raw rawPackage) (Package, error) {
 	}
 	value := Package{
 		SchemaVersion: raw.SchemaVersion, PackageID: id, PackageKind: kind, Version: version,
-		DisplayName: strings.TrimSpace(raw.DisplayName), Entrypoint: strings.TrimSpace(raw.Entrypoint),
-		LuaProfile: strings.TrimSpace(raw.LuaProfile), Build: build, Rights: rights,
+		DisplayName: strings.TrimSpace(raw.DisplayName), Entrypoint: entrypoint,
+		LuaProfile: luaProfile, Build: build, Rights: rights,
 		Capabilities: capabilities, Dependencies: requirements,
 	}
 	if raw.HostAPI != nil {
@@ -281,6 +325,21 @@ func packageFromRaw(raw rawPackage) (Package, error) {
 		value.HostAPI = &hostAPI
 	}
 	return NormalizePackage(value)
+}
+
+func rightsFromRaw(raw rawRights) (model.Rights, error) {
+	licenseExpression, err := raw.LicenseExpression.canonical("rights.license_expression")
+	if err != nil {
+		return model.Rights{}, err
+	}
+	statement, err := raw.Statement.canonical("rights.statement")
+	if err != nil {
+		return model.Rights{}, err
+	}
+	return model.NormalizeRights(model.Rights{
+		Authors: raw.Authors, Source: raw.Source,
+		LicenseExpression: licenseExpression, Statement: statement,
+	})
 }
 
 func normalizeHostAPI(raw rawHostAPIRange) (HostAPIRange, error) {
@@ -348,8 +407,12 @@ func NormalizePackage(value Package) (Package, error) {
 }
 
 func validateRuntime(value *Package) error {
-	value.Entrypoint = strings.TrimSpace(value.Entrypoint)
-	value.LuaProfile = strings.TrimSpace(value.LuaProfile)
+	if value.Entrypoint != "" && strings.TrimSpace(value.Entrypoint) == "" {
+		return fmt.Errorf("entrypoint must be nonblank when provided")
+	}
+	if value.LuaProfile != "" && strings.TrimSpace(value.LuaProfile) == "" {
+		return fmt.Errorf("lua_profile must be nonblank when provided")
+	}
 	runtimeDeclared := value.Entrypoint != "" || value.LuaProfile != "" || value.HostAPI != nil
 	if value.PackageKind == model.PackageKindGameSystem && !runtimeDeclared {
 		return fmt.Errorf("game-system package requires an executable runtime declaration")
@@ -360,7 +423,7 @@ func validateRuntime(value *Package) error {
 	if value.Entrypoint == "" || value.LuaProfile == "" || value.HostAPI == nil {
 		return fmt.Errorf("runtime declaration requires entrypoint, lua_profile, and host_api together")
 	}
-	if !validRelativeEntrypoint(value.Entrypoint) || !strings.HasSuffix(value.Entrypoint, ".lua") {
+	if !validPackageRelativePath(value.Entrypoint) || !strings.HasSuffix(value.Entrypoint, ".lua") {
 		return fmt.Errorf("entrypoint %q must be a canonical relative Lua source path", value.Entrypoint)
 	}
 	if !luaProfilePattern.MatchString(value.LuaProfile) {
@@ -372,8 +435,27 @@ func validateRuntime(value *Package) error {
 	return nil
 }
 
-func validRelativeEntrypoint(value string) bool {
-	return utf8.ValidString(value) && !strings.Contains(value, "\\") && !strings.HasPrefix(value, "/") && path.Clean(value) == value && value != "." && value != ".." && !strings.HasPrefix(value, "../")
+func validPackageRelativePath(value string) bool {
+	if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
+		return false
+	}
+	if strings.Contains(value, "\\") || strings.HasPrefix(value, "/") || hasWindowsDrivePrefix(value) {
+		return false
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return false
+		}
+	}
+	return path.Clean(value) == value && value != "." && value != ".." && !strings.HasPrefix(value, "../")
+}
+
+func hasWindowsDrivePrefix(value string) bool {
+	if len(value) < 2 || value[1] != ':' {
+		return false
+	}
+	first := value[0]
+	return first >= 'A' && first <= 'Z' || first >= 'a' && first <= 'z'
 }
 
 func bundleFromRaw(raw rawBundle) (Bundle, error) {
@@ -383,10 +465,14 @@ func bundleFromRaw(raw rawBundle) (Bundle, error) {
 			PackageID: model.PackageID(rawArtifact.PackageID), Version: model.Version(rawArtifact.Version), ContentHash: model.ContentHash(rawArtifact.ContentHash),
 		})
 	}
+	rights, err := rightsFromRaw(raw.Rights)
+	if err != nil {
+		return Bundle{}, err
+	}
 	return NormalizeBundle(Bundle{
 		SchemaVersion: raw.SchemaVersion, BundleID: model.PackageID(raw.BundleID), Version: model.Version(raw.Version), DisplayName: raw.DisplayName,
 		Build:     model.BuildProvenance{Source: raw.Build.Source, Revision: raw.Build.Revision, Builder: raw.Build.Builder},
-		Rights:    model.Rights{Authors: raw.Rights.Authors, Source: raw.Rights.Source, LicenseExpression: raw.Rights.LicenseExpression, Statement: raw.Rights.Statement},
+		Rights:    rights,
 		Artifacts: artifacts,
 	})
 }
