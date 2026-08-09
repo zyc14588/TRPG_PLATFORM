@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zyc14588/TRPG_PLATFORM/schemas/package/manifest-v1.schema.json",
+  "$comment": "SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0",
+  "title": "TRPG Platform package manifest version 1",
+  "oneOf": [
+    { "$ref": "#/$defs/packageManifest" },
+    { "$ref": "#/$defs/bundleManifest" }
+  ],
+  "$defs": {
+    "packageId": {
+      "type": "string",
+      "maxLength": 255,
+      "pattern": "^[a-z0-9](?:[a-z0-9.-]{0,126}[a-z0-9])?/[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "revision", "builder"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "minLength": 1 },
+        "builder": { "type": "string", "minLength": 1 }
+      }
+    },
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authors", "source"],
+      "properties": {
+        "authors": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "source": { "type": "string", "minLength": 1 },
+        "license_expression": { "type": "string", "minLength": 1 },
+        "statement": { "type": "string", "minLength": 1 }
+      },
+      "anyOf": [
+        { "required": ["license_expression"] },
+        { "required": ["statement"] }
+      ]
+    },
+    "capabilityName": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/capabilityName" }
+        },
+        "optional": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "fallback"],
+            "properties": {
+              "name": { "$ref": "#/$defs/capabilityName" },
+              "fallback": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "hostApi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["major", "min_minor", "max_minor"],
+      "properties": {
+        "major": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+        "min_minor": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "max_minor": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package_id", "version"],
+      "properties": {
+        "package_id": { "$ref": "#/$defs/packageId" },
+        "version": { "$ref": "#/$defs/semver" },
+        "optional": { "type": "boolean" },
+        "features": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" }
+        }
+      }
+    },
+    "packageManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "artifact_type", "package_id", "package_kind", "version",
+        "display_name", "build", "rights", "capabilities"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "artifact_type": { "const": "package" },
+        "package_id": { "$ref": "#/$defs/packageId" },
+        "package_kind": {
+          "enum": ["game-system", "content", "assets", "ui-extension", "library"]
+        },
+        "version": { "$ref": "#/$defs/semver" },
+        "display_name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "entrypoint": { "type": "string", "minLength": 1 },
+        "lua_profile": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,127}$" },
+        "host_api": { "$ref": "#/$defs/hostApi" },
+        "build": { "$ref": "#/$defs/build" },
+        "rights": { "$ref": "#/$defs/rights" },
+        "capabilities": { "$ref": "#/$defs/capabilities" },
+        "dependencies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/dependency" }
+        }
+      },
+      "dependentRequired": {
+        "entrypoint": ["lua_profile", "host_api"],
+        "lua_profile": ["entrypoint", "host_api"],
+        "host_api": ["entrypoint", "lua_profile"]
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "package_kind": { "const": "game-system" } }, "required": ["package_kind"] },
+          "then": { "required": ["entrypoint", "lua_profile", "host_api"] }
+        }
+      ]
+    },
+    "bundleArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package_id", "version", "content_hash"],
+      "properties": {
+        "package_id": { "$ref": "#/$defs/packageId" },
+        "version": { "$ref": "#/$defs/semver" },
+        "content_hash": { "$ref": "#/$defs/contentHash" }
+      }
+    },
+    "bundleManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "artifact_type", "bundle_id", "version", "display_name",
+        "build", "rights", "artifacts"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "artifact_type": { "const": "bundle" },
+        "bundle_id": { "$ref": "#/$defs/packageId" },
+        "version": { "$ref": "#/$defs/semver" },
+        "display_name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "build": { "$ref": "#/$defs/build" },
+        "rights": { "$ref": "#/$defs/rights" },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/bundleArtifact" }
+        }
+      }
+    }
+  }
+}
