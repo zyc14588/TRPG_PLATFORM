@@ -1,9 +1,753 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 0
+plan_version: 2
 milestone: M1
-status: NOT_GENERATED
+status: ACTIVE
 modifiable_only_in_mode: PLAN
-next_batch_sequence: 1
-batches: []
+next_batch_sequence: 10
+batches:
+- batch_id: M1-B001
+  sequence: 1
+  state: PLANNED
+  objective: Implement the canonical executable package artifact contract, covering package kinds, immutable identity, versioned manifests, narrowed capabilities, and deterministic exact dependency locks.
+  non_goals:
+  - Installing or activating package artifacts in a workspace.
+  - Executing Lua or starting a Session.
+  - Building marketplace, trust-revocation, room, or Creator Studio product surfaces.
+  allowed_scope:
+  - internal/package/model/**
+  - internal/package/manifest/**
+  - internal/package/capability/**
+  - internal/package/dependency/**
+  - internal/package/testdata/**
+  - schemas/package/**
+  - cmd/creator-cli/**
+  - go.mod
+  - go.sum
+  forbidden_scope:
+  - internal/package/install/**
+  - internal/package/migration/**
+  - internal/session/**
+  - internal/luaruntime/**
+  - internal/hostapi/**
+  - apps/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  requirements:
+  - REQ-PACKAGE-001
+  - REQ-PACKAGE-002
+  - REQ-PACKAGE-003
+  - REQ-PACKAGE-004
+  machine_contracts:
+  - REQ-PACKAGE-001
+  - REQ-PACKAGE-002
+  - REQ-PACKAGE-003
+  - REQ-PACKAGE-004
+  - TEST-PACKAGE-001
+  - TEST-PACKAGE-002
+  - TEST-PACKAGE-003
+  - TEST-PACKAGE-004
+  - R2-A01
+  - R2-A11
+  - R2-A15
+  - R16-A01
+  - R16-A02
+  - R16-A04
+  - R17-A01
+  - R17-A02
+  - R17-A03
+  - R17-A04
+  - R17-A05
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-PACKAGE-001
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - The versioned TOML manifest and its schema distinguish game-system, content, assets, ui-extension, and library runtime packages from Bundle distribution containers, and library packages cannot start Sessions.
+  - A package_id remains invariant across display metadata or version changes, while the artifact identity deterministically includes semantic version, content hash, build provenance, rights metadata, and the exact dependency lock.
+  - Effective capabilities equal declared capabilities intersected with trust and execution-context grants; missing required capabilities reject the artifact and optional capabilities have tested fallback behavior without runtime escalation.
+  - The lock records exact versions, content hashes, enabled Features, and transitive dependencies; resolution rejects direct and indirect cycles and more than one version of a package_id in one Session graph.
+  - TEST-PACKAGE-001, TEST-PACKAGE-002, TEST-PACKAGE-003, and TEST-PACKAGE-004 each produce a repeatable command, exit code, machine-readable result, and exact candidate SHA.
+  tests:
+  - "TEST-PACKAGE-001 and TEST-PACKAGE-002: go test ./internal/package/... runs package-kind, immutable-identity, manifest-schema, provenance, and deterministic-artifact tests."
+  - "TEST-PACKAGE-003: go test ./internal/package/capability/... exercises grant intersection, required-capability rejection, optional fallback, and no-escalation cases."
+  - "TEST-PACKAGE-004: go test ./internal/package/dependency/... exercises exact/transitive locks, Feature hashing, single-version enforcement, and direct/indirect cycle rejection."
+  - go test ./cmd/creator-cli/... verifies repeatable package build and validation behavior.
+  - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
+  stop_conditions:
+  - Stop if the executable manifest requires a new package kind, public Host API, identity rule, or dependency semantic not present in the active specifications and decisions.
+  - Stop if any implementation path adds marketplace, Room/Lobby, official game, AI, Campaign, or Creator Studio functionality.
+  - Stop if a dependency or source change requires altering the repository license, legal policy, normative governance, V1 scope, or an M1 exit gate.
+  - Stop if any owned requirement lacks its mapped test evidence or if package inputs can bypass capability, rights, schema, or dependency validation.
+  depends_on: []
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+- batch_id: M1-B002
+  sequence: 2
+  state: PLANNED
+  objective: Implement the source-only Lua 5.5 Platform Profile and isolated per-Session VM lifecycle, including safe checkpoint-based reconstruction.
+  non_goals:
+  - Implementing Host Callback mutations, package database access, or Session command processing.
+  - Persisting Coroutine stacks or exposing native modules, raw operating-system access, or production debugging.
+  - Adding AI execution or browser-local models.
+  allowed_scope:
+  - cmd/lua-runner/**
+  - internal/luaruntime/profile/**
+  - internal/luaruntime/vm/**
+  - internal/luaruntime/checkpoint/**
+  - internal/luaruntime/ipc/**
+  - internal/luaruntime/testdata/**
+  - go.mod
+  - go.sum
+  forbidden_scope:
+  - internal/hostapi/**
+  - internal/session/**
+  - internal/package/install/**
+  - internal/package/migration/**
+  - apps/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  requirements:
+  - REQ-LUA-001
+  - REQ-LUA-002
+  machine_contracts:
+  - REQ-LUA-001
+  - REQ-LUA-002
+  - TEST-LUA-001
+  - TEST-LUA-002
+  - R14-A15
+  - R14-A22
+  - R15-A09
+  - R15-A11
+  - R15-A13
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-PACKAGE-001
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - A pinned, license-compatible Lua 5.5 implementation candidate passes conformance tests for the versioned Platform Profile; if no candidate satisfies the active profile without an architecture or license change, the batch stops.
+  - Only UTF-8 source is accepted; bytecode, io, os, debug, native package loading, C modules, dynamic libraries, filesystem, network, process, environment, and raw credential access are rejected in production profile tests.
+  - Concurrent Sessions have distinct long-lived VMs with no shared globals, modules, coroutine state, random state, or capability handles; Session end destroys its VM without affecting another Session.
+  - Checkpoints accept only the specified basic acyclic values and bind state version, package hashes, dependency lock, Lua Profile, and runtime version; fault or memory-pressure reconstruction restores from authoritative state plus a compatible checkpoint.
+  - TEST-LUA-001 and TEST-LUA-002 each produce a repeatable command, exit code, machine-readable result, and exact candidate SHA.
+  tests:
+  - "TEST-LUA-001: go test ./internal/luaruntime/profile/... ./cmd/lua-runner/... exercises Lua 5.5 conformance, source-only loading, dangerous-library denial, and production-debug denial."
+  - "TEST-LUA-002: go test ./internal/luaruntime/vm/... ./internal/luaruntime/checkpoint/... exercises VM isolation, lifecycle destruction, checkpoint validation, contamination handling, and deterministic reconstruction."
+  - A multi-Session race test under go test -race ./internal/luaruntime/... proves state and handle isolation.
+  - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
+  stop_conditions:
+  - Stop if Lua 5.5 support requires weakening the source-only profile, sandbox process boundary, checkpoint restrictions, or production Debug prohibition.
+  - Stop if a runtime candidate has an incompatible or unresolved license, unpinned native/toolchain dependency, or requires changing the repository license policy.
+  - Stop if recovery would depend on opaque VM memory, serialized functions/coroutines/userdata, or facts absent from authoritative state and explicit checkpoints.
+  - Stop if the batch expands into Host API, Session, AI, Room, official-game, or Creator Studio behavior.
+  depends_on:
+  - M1-B001
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+- batch_id: M1-B003
+  sequence: 3
+  state: PLANNED
+  objective: Implement isolated validation and all-or-nothing workspace installation of immutable, content-addressed package artifacts.
+  non_goals:
+  - Implementing package upgrades or Session migration.
+  - Building public marketplace, production revocation operations, or private-room transfer UX.
+  - Building production deployment or backup systems.
+  allowed_scope:
+  - internal/package/install/**
+  - internal/package/store/**
+  - internal/package/testdata/install/**
+  - internal/storage/object/**
+  - internal/storage/postgres/**
+  - cmd/platformd/**
+  - tests/integration/package_install/**
+  - go.mod
+  - go.sum
+  forbidden_scope:
+  - internal/package/migration/**
+  - internal/session/**
+  - internal/hostapi/**
+  - apps/**
+  - cmd/workerd/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  requirements:
+  - REQ-PACKAGE-005
+  machine_contracts:
+  - REQ-PACKAGE-005
+  - TEST-PACKAGE-005
+  - R2-A11
+  - R2-A12
+  - R2-A14
+  - R2-A15
+  - R17-A06
+  - R17-A07
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-PACKAGE-001
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-DATA-001
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - Import stages content outside the active workspace and rejects path traversal, absolute paths, link escape, device files, normalization collisions, bytecode, undeclared binaries, excess size/count/expansion, and malformed TOML or Schema before visibility.
+  - Manifest, dependency lock, rights/signature policy, capabilities, Lua production profile, and migration preflight all pass before one atomic workspace-install transaction exposes metadata and immutable objects.
+  - Any failure or injected database/object-store interruption leaves no visible partial installation, permission grant, or orphaned active metadata; retry is deterministic and idempotent.
+  - Equal content hashes may share physical bytes, while workspace installation, rights, visibility, retention, and authorization remain isolated.
+  - TEST-PACKAGE-005 produces repeatable real-service commands, exit codes, a machine-readable result, and the exact candidate SHA.
+  tests:
+  - "TEST-PACKAGE-005: go test ./internal/package/install/... covers archive/path safety, validation ordering, profile rejection, idempotency, and commit/rollback behavior."
+  - go test -tags=integration ./tests/integration/package_install/... uses isolated PostgreSQL and object storage and injects failures before, during, and after the atomic commit boundary.
+  - Package corpus tests include traversal, symlink, normalization, bytecode, undeclared binary, malformed lock, capability, rights, and compression-limit negatives.
+  - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
+  stop_conditions:
+  - Stop if installation can expose bytes, metadata, or grants before every mandatory validation and production-profile test succeeds.
+  - Stop if physical deduplication would share workspace permissions, rights, retention, or visibility.
+  - Stop if satisfying signature or rights checks requires a public marketplace, formal revocation operations, production deployment, or a license-policy change.
+  - Stop on any archive, schema, dependency, capability, sandbox, tenant, or atomicity bypass without a failing regression fixture.
+  depends_on:
+  - M1-B001
+  - M1-B002
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+- batch_id: M1-B004
+  sequence: 4
+  state: PLANNED
+  objective: Implement the versioned, capability-tokened Host API and command-level MutationWorkspace that atomically commits or rolls back all Lua-visible effects.
+  non_goals:
+  - Implementing the SessionActor, realtime broadcast, or package migration orchestration.
+  - Providing raw SQL, runtime DDL, credentials, Go pointers, arbitrary network/filesystem access, or synchronous model calls.
+  - Implementing the AI gateway or long-running worker product behavior.
+  allowed_scope:
+  - internal/hostapi/**
+  - internal/luaruntime/ipc/**
+  - internal/luaruntime/vm/**
+  - internal/storage/package/**
+  - internal/storage/postgres/**
+  - cmd/lua-runner/**
+  - cmd/platformd/**
+  - tests/integration/hostapi/**
+  - go.mod
+  - go.sum
+  forbidden_scope:
+  - internal/session/actor/**
+  - internal/session/realtime/**
+  - internal/package/migration/**
+  - cmd/workerd/**
+  - apps/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  requirements:
+  - REQ-LUA-003
+  - REQ-LUA-004
+  - REQ-LUA-006
+  machine_contracts:
+  - REQ-LUA-003
+  - REQ-LUA-004
+  - REQ-LUA-006
+  - TEST-LUA-003
+  - TEST-LUA-004
+  - TEST-LUA-006
+  - R14-A19
+  - R15-A01
+  - R15-A02
+  - R15-A04
+  - R15-A05
+  - R15-A06
+  - R15-A07
+  - R15-A14
+  - R15-A15
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-HOST-CALLBACK-001
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-PACKAGE-001
+  - SPEC-DATA-001
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - Version and required-entrypoint negotiation fails closed for an incompatible Host API range, missing callback, missing required capability, invalid Execution Token, wrong Session, or wrong package-module origin.
+  - State patches, package data, events, idempotency results, tasks, Continuations, and Outbox writes remain in one read-your-writes MutationWorkspace and become visible together only after Lua and Go validation plus database commit.
+  - Script error, timeout, capability violation, validation failure, runner failure, or database failure rolls back every staged effect and marks a contaminated VM for reconstruction before another command.
+  - Private packages receive only schema-bound namespaced operations; official or trusted packages receive only reviewed named relational operations; all runtime raw SQL, cross-package/workspace access, and DDL are denied and audited.
+  - Hard CPU/instruction, wall-clock, memory, callback, recursion, patch, row/byte, event, task, and output budgets roll back on excess; production AUDIT-0 cannot be disabled and higher levels redact secrets as specified.
+  - TEST-LUA-003, TEST-LUA-004, and TEST-LUA-006 each produce a repeatable command, exit code, machine-readable result, and exact candidate SHA.
+  tests:
+  - "TEST-LUA-003: go test ./internal/hostapi/... runs successful atomic-commit and failure-injection rollback matrices over every staged effect."
+  - "TEST-LUA-004: go test -tags=integration ./tests/integration/hostapi/... verifies namespaced and named database operations against PostgreSQL and denies raw SQL, DDL, cross-package, and cross-workspace access."
+  - "TEST-LUA-006: go test ./internal/hostapi/... ./internal/luaruntime/... runs budget exhaustion, audit-level, redaction, token binding, and contaminated-VM reconstruction tests."
+  - go test -race ./internal/hostapi/... verifies concurrent Sessions cannot cross capability or workspace boundaries.
+  - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
+  stop_conditions:
+  - Stop if any callback can retain a database connection, Go pointer, credential, unscoped capability handle, or effect outside the MutationWorkspace.
+  - Stop if atomicity would require partial commits or if a failure path can emit an event, task, Outbox item, or client-visible result.
+  - Stop if database capability tiers require raw SQL, runtime DDL, cross-tenant access, or an undocumented public Host API change.
+  - Stop if resource or minimum production audit enforcement can be disabled by a package, trust tier, advanced mode, or self-hosted administrator.
+  depends_on:
+  - M1-B001
+  - M1-B002
+  - M1-B003
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+- batch_id: M1-B005
+  sequence: 5
+  state: PLANNED
+  objective: Implement the minimal authoritative Session command pipeline with one bounded single-writer actor and commit-before-broadcast idempotent delivery.
+  non_goals:
+  - Building Room/Lobby/invitation, account, Campaign, or polished player experience.
+  - Implementing AI seat takeover, official games, or generalized workflow actors.
+  - Completing package upgrade or replay certification.
+  allowed_scope:
+  - internal/session/actor/**
+  - internal/session/command/**
+  - internal/session/persistence/**
+  - internal/session/realtime/**
+  - internal/session/testdata/**
+  - internal/outbox/**
+  - internal/hostapi/**
+  - cmd/platformd/**
+  - tests/integration/session/**
+  - go.mod
+  - go.sum
+  forbidden_scope:
+  - internal/account/**
+  - internal/room/**
+  - internal/lobby/**
+  - internal/campaign/**
+  - internal/ai/**
+  - internal/package/migration/**
+  - cmd/workerd/**
+  - apps/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  requirements:
+  - REQ-SESSION-002
+  - REQ-SESSION-003
+  machine_contracts:
+  - REQ-SESSION-002
+  - REQ-SESSION-003
+  - TEST-SESSION-002
+  - TEST-SESSION-003
+  - R3-A02
+  - R3-A03
+  - R3-A04
+  - R3-A05
+  - R14-A11
+  - R14-A12
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-SESSION-001
+  - SPEC-HOST-CALLBACK-001
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-DATA-001
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - Each active Session has exactly one logical SessionActor and bounded Mailbox; concurrent commands are serialized, saturation returns a stable backpressure error, and panic or failure is isolated from other Sessions.
+  - Every command envelope enforces command_id, session_id, expected_state_version, authenticated fixture identity, seat_id, typed payload, and correlation_id before entering the MutationWorkspace.
+  - Repeating a command_id returns its original committed result without rerunning Lua or duplicating events, database changes, tasks, Continuations, Outbox records, or broadcasts.
+  - Event, state, package-data, idempotency, and Outbox changes commit atomically before Actor memory advances and before a seat-filtered ConnectionHub broadcast; rollback produces no broadcast.
+  - Minimal reconnect uses an event cursor, revalidates the fixture seat, and returns only permitted events or projection; disconnect never silently transfers control.
+  - TEST-SESSION-002 and TEST-SESSION-003 each produce a repeatable command, exit code, machine-readable result, and exact candidate SHA.
+  tests:
+  - "TEST-SESSION-002: go test -race ./internal/session/actor/... exercises single-writer ordering, bounded-mailbox backpressure, panic isolation, activation, sleep, and cleanup across concurrent Sessions."
+  - "TEST-SESSION-003: go test ./internal/session/... ./internal/outbox/... exercises envelope validation, optimistic versioning, duplicate-command results, atomic failure injection, and the no-broadcast-before-commit invariant."
+  - go test -tags=integration ./tests/integration/session/... uses PostgreSQL and a real lua-runner process for commit, rollback, reconnect, and seat-filtered projection scenarios.
+  - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
+  stop_conditions:
+  - Stop if more than one writer can mutate a Session or if Mailbox, retry, or management-command queues can grow without a hard bound.
+  - Stop if any code path broadcasts, advances Actor state, or acknowledges success before the database transaction commits.
+  - Stop if idempotency omits Lua, event, package-data, task, Continuation, Outbox, or response effects.
+  - Stop if minimal identity/seat validation expands into a full account, Room/Lobby/invitation, Campaign, AI-seat, or official-game product.
+  depends_on:
+  - M1-B003
+  - M1-B004
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+- batch_id: M1-B006
+  sequence: 6
+  state: PLANNED
+  objective: Implement authoritative event persistence and deterministic reconstruction of Session state, projections, and Lua VM from snapshots, events, and compatible checkpoints.
+  non_goals:
+  - Building a formal backup product, cross-region recovery, or generalized import/export UX.
+  - Reinvoking AI or external models during replay.
+  - Performing package-version migration.
+  allowed_scope:
+  - internal/eventstore/**
+  - internal/projection/**
+  - internal/session/recovery/**
+  - internal/session/persistence/**
+  - internal/session/testdata/replay/**
+  - internal/luaruntime/checkpoint/**
+  - internal/storage/postgres/**
+  - tests/integration/replay/**
+  - go.mod
+  - go.sum
+  forbidden_scope:
+  - internal/package/migration/**
+  - internal/backup/**
+  - internal/ai/**
+  - cmd/workerd/**
+  - apps/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  requirements:
+  - REQ-DATA-001
+  machine_contracts:
+  - REQ-DATA-001
+  - TEST-DATA-001
+  - R3-A15
+  - R16-A09
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-DATA-001
+  - SPEC-SESSION-001
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-MIGRATION-001
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - Committed events retain immutable IDs, original payloads, schema versions, order, and semantics; new readers use compatible projections or deterministic Upcasters rather than rewriting history.
+  - Snapshots, projections, and Lua checkpoints are treated as rebuildable accelerators and reject package-lock, profile, runtime, schema, or state-version mismatches.
+  - Starting from no derived state and from each supported snapshot/checkpoint boundary yields the same final state hash, event cursor, permitted seat views, and VM-observable authoritative facts.
+  - Replay consumes recorded random, time, accepted external structured actions, and tool results and proves that no AI/model or other external side effect is called again.
+  - Failure during snapshot, projection, checkpoint, or Actor reactivation leaves authoritative history intact and permits a clean retry.
+  - TEST-DATA-001 produces repeatable real-service commands, exit codes, a machine-readable result, and the exact candidate SHA.
+  tests:
+  - "TEST-DATA-001: go test ./internal/eventstore/... ./internal/projection/... ./internal/session/recovery/... exercises immutable history, Upcasters, snapshot/projection rebuilds, checkpoint compatibility, and no-external-call replay."
+  - go test -tags=integration ./tests/integration/replay/... rebuilds from empty derived state and every fixture checkpoint against PostgreSQL plus a real lua-runner process and compares state/event/view hashes.
+  - Failure injection covers corrupt or stale snapshots/checkpoints, missing derived data, restart between commit and broadcast, and repeated activation.
+  - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
+  stop_conditions:
+  - Stop if recovery requires changing a committed event ID, payload, schema version, order, or meaning.
+  - Stop if any correctness-critical fact exists only in Actor or VM memory, an opaque checkpoint, a mutable projection, or an external model.
+  - Stop if replay can invoke AI, network, nondeterministic time/randomness, or any unrecorded external side effect.
+  - Stop if the work expands into formal backup, production disaster recovery, later-milestone import/export, or package migration.
+  depends_on:
+  - M1-B002
+  - M1-B005
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+- batch_id: M1-B007
+  sequence: 7
+  state: PLANNED
+  objective: Implement exact Session package locking and safe-boundary package upgrade with isolated rehearsal, atomic migration, and recovery-point rollback.
+  non_goals:
+  - Providing arbitrary automatic downgrade or a formal backup administration product.
+  - Updating active Sessions outside declared and verified safe boundaries.
+  - Building marketplace rollout, revocation operations, or production deployment orchestration.
+  allowed_scope:
+  - internal/package/migration/**
+  - internal/package/testdata/migration/**
+  - internal/session/migration/**
+  - internal/session/persistence/**
+  - internal/eventstore/**
+  - internal/storage/postgres/**
+  - cmd/platformd/**
+  - tests/integration/migration/**
+  - go.mod
+  - go.sum
+  forbidden_scope:
+  - internal/backup/product/**
+  - internal/marketplace/**
+  - internal/ai/**
+  - cmd/workerd/**
+  - apps/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  requirements:
+  - REQ-PACKAGE-008
+  machine_contracts:
+  - REQ-PACKAGE-008
+  - TEST-PACKAGE-008
+  - R16-A09
+  - R16-A10
+  - R16-A11
+  - R16-A12
+  - R16-A13
+  - R16-A14
+  - R16-A15
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-MIGRATION-001
+  - SPEC-PACKAGE-001
+  - SPEC-SESSION-001
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-HOST-CALLBACK-001
+  - SPEC-DATA-001
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - A Session lock records exact versions, hashes, Features, transitive dependency lock, Lua Profile, Host API, and Schema set for every game-system, content, assets, ui-extension, and library package and never re-resolves ranges at runtime.
+  - Upgrade is denied unless the Session is not started, ended, or at a package-declared and platform-verified safe boundary with no in-flight Lua execution or critical Continuation.
+  - Before mutation, the system creates a minimal M1 recovery point, locks new artifacts, rehearses namespace/relational data, snapshot, checkpoint, and lock migration in isolation, and verifies old-event replay and invariants.
+  - Formal migration switches to the new hash atomically; injected failure leaves the old lock and all old events usable with no partial data, schema, snapshot, or checkpoint changes.
+  - Rollback restores the pre-upgrade database/object manifest, package lock, snapshots, and checkpoints; no general automatic down-migration is claimed, and runtime DDL/raw SQL remain prohibited.
+  - TEST-PACKAGE-008 produces repeatable real-service commands, exit codes, a machine-readable result, and the exact candidate SHA.
+  tests:
+  - "TEST-PACKAGE-008: go test ./internal/package/migration/... ./internal/session/migration/... exercises exact-lock persistence, safe-boundary denial, isolated rehearsal, event compatibility, atomic switch, and recovery-point rollback."
+  - go test -tags=integration ./tests/integration/migration/... uses PostgreSQL, immutable package objects, and real Session/Lua recovery fixtures with failures at every migration phase.
+  - Compatibility tests prove old event IDs/payloads remain unchanged and both pre-upgrade recovery and post-upgrade replay reproduce expected hashes.
+  - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
+  stop_conditions:
+  - Stop if a running Session would re-resolve dependency ranges, auto-load a patch, or contain more than one version of a package_id.
+  - Stop if upgrade can begin outside a verified safe boundary or with in-flight Lua/Continuation work.
+  - Stop if migration rewrites old events, cannot be rehearsed, cannot commit atomically, or lacks a verified pre-upgrade recovery path.
+  - Stop if the solution requires a formal backup product, arbitrary downgrade promise, marketplace/revocation operation, production deployment, or public-contract change.
+  depends_on:
+  - M1-B003
+  - M1-B006
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+- batch_id: M1-B008
+  sequence: 8
+  state: PLANNED
+  objective: Enforce and adversarially verify the non-bypassable M1 security boundary across package import, Lua, Host Callback, Session, data, and migration paths.
+  non_goals:
+  - Building a complete account, Room/Lobby, invitation, or trust/revocation operations system.
+  - Building official games, AI seats, Creator Studio editing, public marketplace, or production security operations.
+  - Changing the active security model, architecture, license, or public contracts.
+  allowed_scope:
+  - internal/security/**
+  - internal/package/**
+  - internal/luaruntime/**
+  - internal/hostapi/**
+  - internal/session/**
+  - internal/eventstore/**
+  - internal/projection/**
+  - internal/storage/**
+  - internal/outbox/**
+  - cmd/platformd/**
+  - cmd/lua-runner/**
+  - tests/security/**
+  - go.mod
+  - go.sum
+  forbidden_scope:
+  - internal/account/product/**
+  - internal/room/**
+  - internal/lobby/**
+  - internal/campaign/**
+  - internal/ai/**
+  - internal/marketplace/**
+  - cmd/workerd/**
+  - apps/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  requirements:
+  - REQ-SEC-001
+  machine_contracts:
+  - REQ-SEC-001
+  - TEST-SEC-001
+  - R2-A11
+  - R2-A12
+  - R2-A13
+  - R2-A14
+  - R2-A15
+  - R3-A02
+  - R3-A03
+  - R3-A04
+  - R3-A05
+  - R3-A06
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-SECURITY-001
+  - SPEC-PACKAGE-001
+  - SPEC-MIGRATION-001
+  - SPEC-SESSION-001
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-HOST-CALLBACK-001
+  - SPEC-DATA-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - Deterministic M1 fixture principals, workspaces, and seats prove server authority, command authorization, tenant ownership, seat membership, and least-view filtering without implementing the complete account or Room product.
+  - Package inputs and every Host Callback fail closed when attempting undeclared or unapproved capability use, trust escalation, cross-package/workspace access, raw SQL/DDL, filesystem/network/process/environment access, or resource-limit evasion.
+  - lua-runner has no public port or database/secret credentials, rejects dangerous libraries and bytecode, validates Execution Tokens and module origin, and cannot access full authoritative or other-seat state through views, logs, errors, or IPC.
+  - Secrets never reach packages, Lua, UI-facing projections, ordinary logs, exports, or audit payloads; stable external errors omit Lua stacks, SQL, private state, and security evidence.
+  - Package import, Mailbox, Lua, callbacks, database results, events, tasks, objects, migration, and audit all retain enforced hard bounds, and no package, trust tier, advanced mode, or self-hosted setting can disable them.
+  - TEST-SEC-001 produces repeatable adversarial commands, exit codes, a machine-readable result, and the exact candidate SHA.
+  tests:
+  - "TEST-SEC-001: go test -tags=security ./tests/security/... runs identity/seat, hidden-view, tenant, sandbox, secret, capability, audit, resource, import, migration, and cross-Session bypass matrices."
+  - go test -race ./internal/package/... ./internal/luaruntime/... ./internal/hostapi/... ./internal/session/... verifies isolation remains intact under concurrency.
+  - Negative fixtures cover malicious packages, archives, callbacks, checkpoints, command envelopes, projections, logs, errors, database operations, and upgrade attempts.
+  - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
+  stop_conditions:
+  - Stop on any path that permits a package, advanced mode, trust tier, or self-hosted administrator to disable identity, seat, hidden-information, tenant, sandbox, secret, resource, event, or audit enforcement.
+  - Stop if security proof requires sending full state to a client/UI/AI and relying on front-end hiding or prompt discipline.
+  - Stop if resolving a boundary requires a complete account/Room/trust operation, M2+ feature, architecture change, license change, or public-contract change.
+  - Stop if any security negative lacks a deterministic regression test or if a secret/private value appears in ordinary output or evidence.
+  depends_on:
+  - M1-B003
+  - M1-B004
+  - M1-B005
+  - M1-B006
+  - M1-B007
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+- batch_id: M1-B009
+  sequence: 9
+  state: PLANNED
+  objective: Deliver the versioned fixture-minimal certification package and repeatable replay, boundary-fuzz, and deployment-smoke evidence for every M1 exit gate.
+  non_goals:
+  - Adding official game, TRPG, Campaign, account, Room/Lobby, AI, marketplace, or Creator Studio functionality.
+  - Repairing core component defects inside the certification batch instead of returning them to their owning batch.
+  - Creating production deployment, backup, scaling, or operations capabilities.
+  allowed_scope:
+  - games/fixture-minimal/**
+  - tests/m1/**
+  - tests/fixture-minimal/**
+  - tests/fuzz/**
+  - tests/smoke/**
+  - deploy/compose.yaml
+  - deploy/docker/Dockerfile
+  - go.mod
+  - go.sum
+  forbidden_scope:
+  - internal/package/**
+  - internal/luaruntime/**
+  - internal/hostapi/**
+  - internal/session/**
+  - internal/eventstore/**
+  - internal/projection/**
+  - internal/storage/**
+  - internal/outbox/**
+  - cmd/**
+  - apps/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  requirements:
+  - REQ-QUALITY-003
+  machine_contracts:
+  - REQ-QUALITY-003
+  - TEST-QUALITY-003
+  - TEST-PACKAGE-001
+  - TEST-PACKAGE-002
+  - TEST-PACKAGE-003
+  - TEST-PACKAGE-004
+  - TEST-PACKAGE-005
+  - TEST-PACKAGE-008
+  - TEST-SESSION-002
+  - TEST-SESSION-003
+  - TEST-LUA-001
+  - TEST-LUA-002
+  - TEST-LUA-003
+  - TEST-LUA-004
+  - TEST-LUA-006
+  - TEST-DATA-001
+  - TEST-SEC-001
+  - R19-A10
+  - R19-A14
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-PACKAGE-001
+  - SPEC-MIGRATION-001
+  - SPEC-SESSION-001
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-HOST-CALLBACK-001
+  - SPEC-DATA-001
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - fixture-minimal is a versioned, rights-declared source-only package with an exact dependency lock and deterministic commands, random inputs, expected events, state hashes, seat views, snapshots, checkpoints, and a safe-boundary migration pair.
+  - A clean environment can install the fixture, start its minimal Session, commit and broadcast commands, stop/restart platformd and lua-runner, reconstruct from history/checkpoint, and replay to identical event, state, and permitted-view hashes without external AI/model calls.
+  - Stable fuzz corpora and bounded fuzz commands cover protocol envelopes, archive/TOML/Schema inputs, Host Callback parameters, event deserialization/Upcasters, and migration entrypoints; full generated Session-state-machine exploration is not introduced.
+  - The compose smoke remains an M1-only test environment with pinned components and proves package install, Session execution, restart/replay, and safe migration; it does not claim production deployment, backup, or scaling readiness.
+  - A machine-readable M1 evidence run maps each of the 16 M1 TEST IDs to its repeatable command, exit code, artifact/result, and exact candidate SHA, with all 16 passing.
+  - TEST-QUALITY-003 produces repeatable commands, exit codes, a machine-readable result, and the exact candidate SHA.
+  tests:
+  - "TEST-QUALITY-003: go test -json -tags=m1_acceptance ./tests/m1/... ./tests/fixture-minimal/... produces machine-readable fixed-replay and complete 16-test M1 exit-gate evidence."
+  - "go test -run='^$' -fuzz='^FuzzProtocolEnvelope$' -fuzztime=30s ./tests/fuzz/protocol runs the bounded protocol-envelope target."
+  - "go test -run='^$' -fuzz='^FuzzPackageArchive$' -fuzztime=30s ./tests/fuzz/package runs the bounded package-archive target."
+  - "go test -run='^$' -fuzz='^FuzzPackageManifestTOML$' -fuzztime=30s ./tests/fuzz/package runs the bounded package-manifest TOML target."
+  - "go test -run='^$' -fuzz='^FuzzPackageSchema$' -fuzztime=30s ./tests/fuzz/package runs the bounded package-schema target."
+  - "go test -run='^$' -fuzz='^FuzzHostCallbackParameters$' -fuzztime=30s ./tests/fuzz/callback runs the bounded Host Callback parameter target."
+  - "go test -run='^$' -fuzz='^FuzzEventDeserialization$' -fuzztime=30s ./tests/fuzz/event runs the bounded event-deserialization target."
+  - "go test -run='^$' -fuzz='^FuzzEventUpcaster$' -fuzztime=30s ./tests/fuzz/event runs the bounded event-Upcaster target."
+  - "go test -run='^$' -fuzz='^FuzzMigrationEntrypoint$' -fuzztime=30s ./tests/fuzz/migration runs the bounded migration-entrypoint target."
+  - Each exact target runs its committed testdata/fuzz/<target> regression corpus first, and every minimized failure is promoted into that target's corpus before the owning defect is closed.
+  - docker compose -f deploy/compose.yaml config validates the pinned M1-only test topology.
+  - "go run ./tests/smoke/m1_lifecycle --compose-file=deploy/compose.yaml --candidate-sha=HEAD --evidence=tests/smoke/.artifacts/m1-lifecycle.json executes tests/smoke/m1_lifecycle/main.go: it resolves HEAD to the exact 40-hex candidate SHA; builds, starts, health-checks, exercises, restarts, replays, safely migrates, and tears down a unique isolated Compose project; atomically writes per-phase JSON machine evidence including the candidate SHA and replay/migration hashes; and exits zero only when every phase, evidence write, and cleanup succeeds. The harness registers cleanup before startup and, on success, any phase failure, or SIGINT/SIGTERM, runs docker compose down --volumes --remove-orphans for that project and verifies no project container, network, or volume remains; cleanup failure forces a nonzero exit."
+  - just check, just build, just test, just ci, go test ./..., go vet ./..., and just license-check pass from a clean tracked tree.
+  stop_conditions:
+  - Stop and return a defect to its owning batch if certification requires changing core package, Lua, Host API, Session, data, migration, or security implementation.
+  - Stop if fixture-minimal adds official game/TRPG/Campaign behavior, AI/model execution, Room/account UX, marketplace/Creator features, or any M2+ capability.
+  - Stop if smoke work becomes production deployment, backup, scaling, monitoring, or operations functionality or introduces an unpinned image/tool.
+  - Stop if any M1 requirement or exit TEST ID lacks exactly one primary owning batch, a falsifiable acceptance criterion, a repeatable command, machine evidence, or the candidate SHA.
+  depends_on:
+  - M1-B007
+  - M1-B008
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
 tombstones: []
