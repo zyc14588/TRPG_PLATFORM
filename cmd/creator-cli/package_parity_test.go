@@ -130,12 +130,18 @@ func TestPackageContractPublicGoCLIParity(t *testing.T) {
 		want  bool
 	}{
 		{name: "canonical relative path", value: "lua/main.lua", want: true},
+		{name: "ordinary repeated dots segment", value: ".../x.lua", want: true},
+		{name: "ordinary embedded dots segment", value: "foo..bar/x.lua", want: true},
 		{name: "absolute path", value: "/main.lua"},
 		{name: "parent traversal", value: "../main.lua"},
 		{name: "nested parent traversal", value: "a/../../main.lua"},
 		{name: "upper-case Windows drive", value: "C:/escape.lua"},
 		{name: "lower-case Windows drive", value: "c:/escape.lua"},
 		{name: "Windows drive backslash", value: `C:\escape.lua`},
+		{name: "embedded Windows drive", value: "a/C:/escape.lua"},
+		{name: "embedded drive-relative", value: "a/z:relative.lua"},
+		{name: "colon before separator", value: "foo:/bar.lua"},
+		{name: "colon inside segment", value: "x:y.lua"},
 		{name: "slash UNC", value: "//server/share/a.lua"},
 		{name: "backslash UNC", value: `\\server\share\a.lua`},
 		{name: "Windows device", value: `\\?\C:\a.lua`},

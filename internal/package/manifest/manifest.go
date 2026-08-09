@@ -7,7 +7,6 @@ package manifest
 import (
 	"encoding/json"
 	"fmt"
-	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -439,23 +438,24 @@ func validPackageRelativePath(value string) bool {
 	if value == "" || !utf8.ValidString(value) || strings.TrimSpace(value) != value {
 		return false
 	}
-	if strings.Contains(value, "\\") || strings.HasPrefix(value, "/") || hasWindowsDrivePrefix(value) {
+	for _, segment := range strings.Split(value, "/") {
+		if !validPackageRelativePathSegment(segment) {
+			return false
+		}
+	}
+	return true
+}
+
+func validPackageRelativePathSegment(segment string) bool {
+	if segment == "" || segment == "." || segment == ".." || strings.ContainsAny(segment, `/\:`) {
 		return false
 	}
-	for _, character := range value {
+	for _, character := range segment {
 		if unicode.IsControl(character) {
 			return false
 		}
 	}
-	return path.Clean(value) == value && value != "." && value != ".." && !strings.HasPrefix(value, "../")
-}
-
-func hasWindowsDrivePrefix(value string) bool {
-	if len(value) < 2 || value[1] != ':' {
-		return false
-	}
-	first := value[0]
-	return first >= 'A' && first <= 'Z' || first >= 'a' && first <= 'z'
+	return true
 }
 
 func bundleFromRaw(raw rawBundle) (Bundle, error) {
