@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+schema_version = 1
+artifact_type = "bundle"
+bundle_id = "example.distribution/hidden-cards"
+version = "1.0.0"
+display_name = "Hidden Cards Distribution"
+
+[build]
+source = "https://example.invalid/hidden-cards-bundle"
+revision = "abcdef0123456789"
+builder = "creator-cli/0.1"
+
+[rights]
+authors = ["Example Studio"]
+source = "original"
+statement = "Private fixture distribution rights"
+
+[[artifacts]]
+package_id = "example.rules/hidden-cards"
+version = "1.2.3"
+content_hash = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+
+[[artifacts]]
+package_id = "example.shared/card-library"
+version = "2.0.0"
+content_hash = "sha256:2222222222222222222222222222222222222222222222222222222222222222"

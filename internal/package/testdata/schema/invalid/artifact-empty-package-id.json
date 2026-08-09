@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "manifest_schema_version": 1,
+  "artifact_type": "package",
+  "package_id": "",
+  "package_kind": "content",
+  "version": "1.2.3",
+  "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "build_provenance": {
+    "source": "https://example.invalid/schema-fixture",
+    "revision": "0123456789abcdef",
+    "builder": "creator-cli/0.1"
+  },
+  "rights": {
+    "authors": ["Example Studio"],
+    "source": "original",
+    "license_expression": "LicenseRef-Example-Private"
+  },
+  "dependency_lock": {
+    "schema_version": 1,
+    "root": "example.rules/schema-fixture",
+    "packages": [
+      {
+        "package_id": "example.rules/schema-fixture",
+        "version": "1.2.3",
+        "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "features": [],
+        "dependencies": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "artifact_type": "package",
+  "package_id": "example.rules/schema-runtime",
+  "package_kind": "game-system",
+  "version": "1.2.3",
+  "display_name": "Schema Runtime Fixture",
+  "entrypoint": "lua/main.lua",
+  "lua_profile": "platform-lua-5.5-p1",
+  "host_api": {
+    "major": 1,
+    "min_minor": 0,
+    "max_minor": 2
+  },
+  "build": {
+    "source": "https://example.invalid/schema-runtime",
+    "revision": "0123456789abcdef",
+    "builder": "creator-cli/0.1"
+  },
+  "rights": {
+    "authors": ["Example Studio"],
+    "source": "original",
+    "license_expression": "LicenseRef-Example-Private"
+  },
+  "capabilities": {
+    "required": ["host.event", "host.state"],
+    "optional": [
+      {
+        "name": "host.log",
+        "fallback": "continue without package log records"
+      }
+    ]
+  },
+  "dependencies": [
+    {
+      "package_id": "example.assets/cards",
+      "version": "1.0.0",
+      "optional": false,
+      "features": ["standard-deck"]
+    },
+    {
+      "package_id": "example.shared/card-library",
+      "version": "2.0.0",
+      "optional": true,
+      "features": []
+    }
+  ]
+}

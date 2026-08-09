@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "artifact_type": "package",
+  "package_id": "example.rules/schema-fixture",
+  "package_kind": "content",
+  "version": "1.2.3-alpha.1+build.7",
+  "display_name": "Schema Fixture",
+  "build": {
+    "source": "https://example.invalid/schema-fixture",
+    "revision": "0123456789abcdef",
+    "builder": "creator-cli/0.1"
+  },
+  "rights": {
+    "authors": ["Example Studio"],
+    "source": "original",
+    "license_expression": "LicenseRef-Example-Private"
+  },
+  "capabilities": {
+    "required": ["host.event", "host.state"],
+    "optional": [
+      {
+        "name": "host.log",
+        "fallback": "continue without package log records"
+      }
+    ]
+  },
+  "dependencies": []
+}

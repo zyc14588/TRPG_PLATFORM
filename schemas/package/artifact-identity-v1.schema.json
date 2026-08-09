@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zyc14588/TRPG_PLATFORM/schemas/package/artifact-identity-v1.schema.json",
+  "$comment": "SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0",
+  "title": "TRPG Platform package artifact identity version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "manifest_schema_version", "artifact_type", "package_id",
+    "package_kind", "version", "content_hash", "build_provenance", "rights", "dependency_lock"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "manifest_schema_version": { "const": 1 },
+    "artifact_type": { "const": "package" },
+    "package_id": { "$ref": "manifest-v1.schema.json#/$defs/packageId" },
+    "package_kind": { "enum": ["game-system", "content", "assets", "ui-extension", "library"] },
+    "version": { "$ref": "manifest-v1.schema.json#/$defs/semver" },
+    "content_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "build_provenance": { "$ref": "manifest-v1.schema.json#/$defs/build" },
+    "rights": { "$ref": "manifest-v1.schema.json#/$defs/rights" },
+    "dependency_lock": {
+      "$comment": "Artifact-to-lock identity equality is enforced by the canonical conformance layer.",
+      "$ref": "lock-v1.schema.json"
+    }
+  }
+}
