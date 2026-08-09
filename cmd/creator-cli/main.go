@@ -18,7 +18,7 @@ func main() {
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "package" {
-		return runPackage(args[1:], stdout, stderr)
+		return runPackage(ctx, args[1:], stdout, stderr)
 	}
 	return baselinecli.Run(ctx, baselinecli.Config{Name: "creator-cli", Version: version}, args, stdout, stderr)
 }

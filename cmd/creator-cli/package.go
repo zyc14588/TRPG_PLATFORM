@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -19,9 +20,9 @@ import (
 
 const maxLockBytes = 8 << 20
 
-func runPackage(args []string, stdout, stderr io.Writer) int {
+func runPackage(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: creator-cli package <validate|build> [options]")
+		fmt.Fprintln(stderr, "usage: creator-cli package <validate|build|evidence> [options]")
 		return 2
 	}
 	switch args[0] {
@@ -29,6 +30,8 @@ func runPackage(args []string, stdout, stderr io.Writer) int {
 		return runPackageValidate(args[1:], stdout, stderr)
 	case "build":
 		return runPackageBuild(args[1:], stdout, stderr)
+	case "evidence":
+		return runPackageEvidence(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown package command %q\n", args[0])
 		return 2
