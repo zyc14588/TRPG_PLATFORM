@@ -6,9 +6,12 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 const testContextCapacity = 131072
@@ -603,6 +606,269 @@ func TestOpenCodeDeepSeekContextProfileEnforcesExplicitBudget(t *testing.T) {
 	unknown := contextProfile{Executor: "unknown", ProfileID: "unknown", Measurement: contextMeasurement}
 	if err := validateContextProfile(unknown); err == nil || !strings.Contains(err.Error(), "PROFILE_REQUIRED") {
 		t.Fatalf("unknown profile did not fail closed: %v", err)
+	}
+}
+
+func TestBoundedNormativeSectionCatalogCoversAuthorityContracts(t *testing.T) {
+	a := testApp(t)
+	catalog, err := a.normativeSectionCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, requirements, _, _, err := a.loadAuthority()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, requirement := range requirements.Requirements {
+		if _, err := resolveNormativeSection(catalog, requirement.OwningSpec); err != nil {
+			t.Errorf("requirement %s owning spec %s is not uniquely cataloged: %v", requirement.ID, requirement.OwningSpec, err)
+		}
+	}
+	plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, batch := range plan.Batches {
+		for _, sectionID := range batch.ReadingMapSections {
+			if _, err := resolveNormativeSection(catalog, sectionID); err != nil {
+				t.Errorf("batch %s frozen Section ID %s is not uniquely cataloged: %v", batch.BatchID, sectionID, err)
+			}
+		}
+	}
+	for _, path := range normativeSpecificationPaths {
+		if err := validateBoundedRoutePath(path); err != nil {
+			t.Errorf("bounded normative inventory contains %q: %v", path, err)
+		}
+	}
+}
+
+func TestFrozenReadingMapSectionsMaterializeAndBind(t *testing.T) {
+	expected := map[string]string{
+		"SPEC-LUA-RUNTIME-001": "docs/20-architecture/LUA_RUNTIME.md",
+		"SPEC-PACKAGE-001":     "docs/30-package-spec/PACKAGE_MODEL.md",
+		"SPEC-SECURITY-001":    "docs/40-security/SECURITY_MODEL.md",
+		"SPEC-QUALITY-001":     "docs/60-quality/TEST_STRATEGY.md",
+	}
+	a := newFrozenRouteFixture(t, []string{
+		"SPEC-LUA-RUNTIME-001", "SPEC-PACKAGE-001", "SPEC-SECURITY-001", "SPEC-QUALITY-001",
+	})
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		t.Run(mode, func(t *testing.T) {
+			routeMap := generateFixtureBatchRoute(t, a, mode)
+			counts := map[string]int{}
+			for _, section := range allReadingMapSections(routeMap) {
+				if path, wanted := expected[section.SectionID]; wanted {
+					counts[section.SectionID]++
+					if section.Path != path {
+						t.Errorf("%s resolved to %s, want %s", section.SectionID, section.Path, path)
+					}
+					if len(section.SHA256) != 64 || len(section.SectionSHA256) != 64 || section.MaterialBytes == 0 {
+						t.Errorf("%s lacks file/Section SHA-256 material binding: %+v", section.SectionID, section)
+					}
+				}
+			}
+			for sectionID := range expected {
+				if counts[sectionID] != 1 {
+					t.Errorf("%s route materialized %s %d times, want exactly once", mode, sectionID, counts[sectionID])
+				}
+			}
+			binding, err := readingMapBindingDigest(routeMap)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if routeMap.RouteBindingSHA256 != binding {
+				t.Fatalf("%s route binding does not cover its materialized sections", mode)
+			}
+			if err := a.checkCodex(context.Background()); err != nil {
+				t.Fatalf("%s fixture route failed codex check: %v", mode, err)
+			}
+		})
+	}
+}
+
+func TestFrozenReadingMapSectionResolutionFailsClosed(t *testing.T) {
+	baseSections := []string{"SPEC-LUA-RUNTIME-001", "SPEC-PACKAGE-001", "SPEC-SECURITY-001", "SPEC-QUALITY-001"}
+	t.Run("missing", func(t *testing.T) {
+		sections := append(append([]string(nil), baseSections...), "SPEC-DOES-NOT-EXIST")
+		a := newFrozenRouteFixture(t, sections)
+		err := a.generateCodexRouteRequest(context.Background(), testCodexRequest("REPAIR", "M1", "M1-B001"))
+		if err == nil || !strings.Contains(err.Error(), "found 0") {
+			t.Fatalf("missing frozen Section ID did not fail route generation: %v", err)
+		}
+	})
+	t.Run("ambiguous", func(t *testing.T) {
+		a := newFrozenRouteFixture(t, baseSections)
+		appendFixtureText(t, a, "docs/60-quality/TEST_STRATEGY.md", "\n<a id=\"SPEC-QUALITY-001\"></a>\nfixture duplicate\n")
+		commitFixturePaths(t, a, "duplicate authoritative Section ID", "docs/60-quality/TEST_STRATEGY.md")
+		err := a.generateCodexRouteRequest(context.Background(), testCodexRequest("REPAIR", "M1", "M1-B001"))
+		if err == nil || !strings.Contains(err.Error(), "found 2") {
+			t.Fatalf("ambiguous frozen Section ID did not fail route generation: %v", err)
+		}
+	})
+}
+
+func TestFrozenReadingMapChangesInvalidateExistingRoute(t *testing.T) {
+	sections := []string{"SPEC-LUA-RUNTIME-001", "SPEC-PACKAGE-001", "SPEC-SECURITY-001", "SPEC-QUALITY-001"}
+	t.Run("supplemental material", func(t *testing.T) {
+		a := newFrozenRouteFixture(t, sections)
+		generateFixtureBatchRoute(t, a, "REPAIR")
+		appendFixtureText(t, a, "docs/40-security/SECURITY_MODEL.md", "\nfixture supplemental material change\n")
+		if err := a.checkCodex(context.Background()); err == nil {
+			t.Fatal("codex check accepted a route after supplemental frozen Section material changed")
+		}
+	})
+	t.Run("frozen contract removal", func(t *testing.T) {
+		a := newFrozenRouteFixture(t, sections)
+		generateFixtureBatchRoute(t, a, "REPAIR")
+		plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan.Batches[0].ReadingMapSections = []string{"SPEC-LUA-RUNTIME-001", "SPEC-PACKAGE-001", "SPEC-QUALITY-001"}
+		plan.Batches[0].FrozenContractSHA256 = mustBatchContractDigest(t, plan.Batches[0])
+		writeFixtureMilestonePlan(t, a, plan)
+		if err := a.checkCodex(context.Background()); err == nil {
+			t.Fatal("codex check accepted an existing route after frozen reading_map_sections removal")
+		}
+	})
+}
+
+func TestCurrentB002FrozenReadingMapExactCoverage(t *testing.T) {
+	a := testApp(t)
+	plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var batch *milestoneBatch
+	for index := range plan.Batches {
+		if plan.Batches[index].BatchID == "M1-B002" {
+			batch = &plan.Batches[index]
+			break
+		}
+	}
+	if batch == nil {
+		t.Fatal("current milestone plan has no M1-B002 frozen contract")
+	}
+	if err := validateMilestoneBatch(*batch); err != nil {
+		t.Fatalf("current M1-B002 frozen contract is invalid: %v", err)
+	}
+	expected := map[string]string{
+		"SPEC-V1-ROADMAP-M1":   "docs/80-roadmap/V1_MILESTONES.md",
+		"SPEC-M1-ALLOWED":      "docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md",
+		"SPEC-M1-FORBIDDEN":    "docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md",
+		"SPEC-M1-EXIT":         "docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md",
+		"SPEC-LUA-RUNTIME-001": "docs/20-architecture/LUA_RUNTIME.md",
+		"SPEC-PACKAGE-001":     "docs/30-package-spec/PACKAGE_MODEL.md",
+		"SPEC-SECURITY-001":    "docs/40-security/SECURITY_MODEL.md",
+		"SPEC-QUALITY-001":     "docs/60-quality/TEST_STRATEGY.md",
+	}
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		paths, err := a.routePaths(testCodexRequest(mode, "M1", "M1-B002"))
+		if err != nil {
+			t.Fatalf("%s current M1-B002 route failed: %v", mode, err)
+		}
+		counts := map[string]int{}
+		resolvedPaths := map[string]string{}
+		for _, group := range [][]routeSpec{paths.always, paths.normative, paths.machine, paths.onDemand} {
+			for _, spec := range group {
+				counts[spec.sectionID]++
+				resolvedPaths[spec.sectionID] = spec.path
+			}
+		}
+		for _, sectionID := range batch.ReadingMapSections {
+			if counts[sectionID] != 1 {
+				t.Errorf("%s current M1-B002 route materialized frozen %s %d times", mode, sectionID, counts[sectionID])
+			}
+		}
+		for sectionID, path := range expected {
+			if counts[sectionID] != 1 || resolvedPaths[sectionID] != path {
+				t.Errorf("%s current M1-B002 route resolved %s as %q with count %d; want %s exactly once", mode, sectionID, resolvedPaths[sectionID], counts[sectionID], path)
+			}
+		}
+	}
+}
+
+func newFrozenRouteFixture(t *testing.T, readingMapSections []string) *App {
+	t.Helper()
+	source := testApp(t)
+	root := filepath.Join(t.TempDir(), "repo")
+	command := exec.Command("git", "clone", "--quiet", "--shared", source.root, root)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("clone route fixture: %v\n%s", err, output)
+	}
+	a := &App{root: root, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	batch := milestoneBatch{
+		BatchID: "M1-B001", Sequence: 1, State: "FROZEN", Objective: "isolated frozen reading-map route fixture",
+		NonGoals: []string{"product implementation"}, Requirements: []string{"REQ-LUA-001"},
+		AllowedScope: []string{"internal/projectctl"}, ForbiddenScope: []string{"apps"},
+		MachineContracts:   []string{"SCHEMA-CODEX-MILESTONE-PLAN-V2"},
+		ReadingMapSections: append([]string(nil), readingMapSections...), Acceptance: []string{"isolated route acceptance"},
+		Tests: []string{"go test ./internal/projectctl"}, StopConditions: []string{"product contract change"}, DependsOn: []string{},
+		ParallelSafe: false, DependencyIndependent: false, ParallelScopeKeys: []string{},
+	}
+	batch.FrozenContractSHA256 = mustBatchContractDigest(t, batch)
+	plan := milestonePlan{
+		SchemaVersion: milestonePlanSchemaVersion, PlanID: "M1-MILESTONE-PLAN", PlanVersion: 1,
+		Milestone: "M1", Status: "ACTIVE", ModifiableOnlyInMode: "PLAN", NextBatchSequence: 2,
+		Batches: []milestoneBatch{batch}, Tombstones: []batchTombstone{},
+	}
+	writeFixtureMilestonePlan(t, a, plan)
+	commitFixturePaths(t, a, "isolated milestone plan", ".codex/state/MILESTONE_PLAN.yaml")
+	return a
+}
+
+func generateFixtureBatchRoute(t *testing.T, a *App, mode string) readingMap {
+	t.Helper()
+	if err := a.generateCodexRouteRequest(context.Background(), testCodexRequest(mode, "M1", "M1-B001")); err != nil {
+		t.Fatalf("generate %s fixture route: %v", mode, err)
+	}
+	routeMap, err := loadYAML[readingMap](a.root, ".codex/runtime/READING_MAP.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return routeMap
+}
+
+func writeFixtureMilestonePlan(t *testing.T, a *App, plan milestonePlan) {
+	t.Helper()
+	data, err := yaml.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(a.root, ".codex", "state", "MILESTONE_PLAN.yaml"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func appendFixtureText(t *testing.T, a *App, relative, text string) {
+	t.Helper()
+	file, err := os.OpenFile(filepath.Join(a.root, filepath.FromSlash(relative)), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString(text); err != nil {
+		file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func commitFixturePaths(t *testing.T, a *App, message string, paths ...string) {
+	t.Helper()
+	runFixtureGit(t, a.root, append([]string{"add", "--"}, paths...)...)
+	runFixtureGit(t, a.root,
+		"-c", "user.name=Codex Fixture", "-c", "user.email=fixture@example.invalid",
+		"commit", "--quiet", "--no-gpg-sign", "-m", message,
+	)
+}
+
+func runFixtureGit(t *testing.T, root string, arguments ...string) {
+	t.Helper()
+	command := exec.Command("git", append([]string{"-C", root}, arguments...)...)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(arguments, " "), err, output)
 	}
 }
 

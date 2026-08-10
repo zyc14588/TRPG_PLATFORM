@@ -3,9 +3,7 @@
 package projectctl
 
 import (
-	"bufio"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,6 +13,44 @@ import (
 )
 
 var roadmapMilestoneAnchorPattern = regexp.MustCompile(`<a id="SPEC-V1-ROADMAP-(M(?:0|[1-9][0-9]*))"></a>`)
+
+// normativeSpecificationPaths is the bounded authoritative inventory used to
+// resolve stable Section IDs. Route generation must never discover normative
+// material by walking docs/**.
+var normativeSpecificationPaths = []string{
+	"docs/00-governance/CHANGE_CONTROL.md",
+	"docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md",
+	"docs/00-governance/DOCUMENT_AUTHORITY.md",
+	"docs/00-governance/IMPLEMENTATION_GOVERNANCE.md",
+	"docs/00-governance/LICENSE_AND_RIGHTS_POLICY.md",
+	"docs/00-governance/V1_SCOPE.md",
+	"docs/10-product/CREATOR_STUDIO.md",
+	"docs/10-product/OFFICIAL_BOARDGAME.md",
+	"docs/10-product/OFFICIAL_TRPG.md",
+	"docs/10-product/PLAYER_EXPERIENCE.md",
+	"docs/10-product/PRODUCT_DEFINITION.md",
+	"docs/20-architecture/AI_ARCHITECTURE.md",
+	"docs/20-architecture/DATA_AND_STORAGE.md",
+	"docs/20-architecture/DEPLOYMENT_ARCHITECTURE.md",
+	"docs/20-architecture/LUA_RUNTIME.md",
+	"docs/20-architecture/SESSION_RUNTIME.md",
+	"docs/20-architecture/SYSTEM_ARCHITECTURE.md",
+	"docs/30-package-spec/DEPENDENCY_SIGNING_TRUST.md",
+	"docs/30-package-spec/HOST_API_AND_CALLBACKS.md",
+	"docs/30-package-spec/MIGRATION_COMPATIBILITY.md",
+	"docs/30-package-spec/PACKAGE_MODEL.md",
+	"docs/40-security/INCIDENT_RESPONSE.md",
+	"docs/40-security/SECURITY_MODEL.md",
+	"docs/40-security/SUPPLY_CHAIN_SECURITY.md",
+	"docs/50-operations/BACKUP_RESTORE_OBSERVABILITY.md",
+	"docs/50-operations/SELF_HOSTING_AND_UPGRADE.md",
+	"docs/60-quality/ACCEPTANCE_POLICY.md",
+	"docs/60-quality/COMPATIBILITY_AND_RELEASE_GATE.md",
+	"docs/60-quality/TEST_STRATEGY.md",
+	"docs/80-roadmap/M0_SCOPE_AND_EXIT_GATE.md",
+	"docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md",
+	"docs/80-roadmap/V1_MILESTONES.md",
+}
 
 type v1MilestoneCatalog struct {
 	ordered []string
@@ -130,7 +166,7 @@ func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
 	if err != nil {
 		return codexRoutePaths{}, err
 	}
-	paths.normative = append(paths.normative, inputs.normative...)
+	paths.normative = appendUniqueRouteSpecs(paths.normative, inputs.normative...)
 	for _, requirement := range inputs.requirements {
 		paths.machine = append(paths.machine, route("docs/90-traceability/REQUIREMENTS.yaml", requirement.ID, "machine-contract"))
 	}
@@ -174,7 +210,7 @@ func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
 			route("docs/60-quality/ACCEPTANCE_POLICY.md", "SPEC-ACCEPTANCE-FINDINGS", "read-on-demand"),
 		}
 	}
-	return paths, nil
+	return deduplicateRoutePaths(paths), nil
 }
 
 func (a *App) loadMilestoneRouteInputs(request codexRouteRequest) (milestoneRouteInputs, error) {
@@ -183,6 +219,7 @@ func (a *App) loadMilestoneRouteInputs(request codexRouteRequest) (milestoneRout
 		return milestoneRouteInputs{}, err
 	}
 	selectedIDs := map[string]bool{"REQ-GOV-002": true, "REQ-GOV-003": true}
+	var frozenReadingSectionIDs []string
 	if request.Mode == "PLAN" {
 		for _, requirement := range requirements.Requirements {
 			if requirement.Milestone == request.Milestone {
@@ -199,6 +236,7 @@ func (a *App) loadMilestoneRouteInputs(request codexRouteRequest) (milestoneRout
 				for _, requirementID := range batch.Requirements {
 					selectedIDs[requirementID] = true
 				}
+				frozenReadingSectionIDs = append(frozenReadingSectionIDs, batch.ReadingMapSections...)
 				break
 			}
 		}
@@ -286,91 +324,153 @@ func (a *App) loadMilestoneRouteInputs(request codexRouteRequest) (milestoneRout
 		return milestoneRouteInputs{}, fmt.Errorf("route source decisions do not exist: %s", strings.Join(missing, ", "))
 	}
 
-	documentPaths, err := a.normativeDocumentIndex()
+	sectionCatalog, err := a.normativeSectionCatalog()
 	if err != nil {
 		return milestoneRouteInputs{}, err
 	}
-	addedOwners := map[string]bool{}
 	for _, requirement := range inputs.requirements {
-		if !ownerIDs[requirement.OwningSpec] || addedOwners[requirement.OwningSpec] {
+		if !ownerIDs[requirement.OwningSpec] {
 			continue
 		}
-		path, ok := documentPaths[requirement.OwningSpec]
-		if !ok {
-			return milestoneRouteInputs{}, fmt.Errorf("owning specification %s has no bounded normative document", requirement.OwningSpec)
+		spec, err := resolveNormativeSection(sectionCatalog, requirement.OwningSpec)
+		if err != nil {
+			return milestoneRouteInputs{}, fmt.Errorf("owning specification %s: %w", requirement.OwningSpec, err)
 		}
-		inputs.normative = append(inputs.normative, route(path, requirement.OwningSpec, "normative-section"))
-		addedOwners[requirement.OwningSpec] = true
+		inputs.normative = appendUniqueRouteSpecs(inputs.normative, spec)
+	}
+	for _, sectionID := range frozenReadingSectionIDs {
+		spec, err := resolveNormativeSection(sectionCatalog, sectionID)
+		if err != nil {
+			return milestoneRouteInputs{}, fmt.Errorf("frozen reading_map_sections entry %s: %w", sectionID, err)
+		}
+		inputs.normative = appendUniqueRouteSpecs(inputs.normative, spec)
 	}
 	return inputs, nil
 }
 
-func (a *App) normativeDocumentIndex() (map[string]string, error) {
-	docsRoot := filepath.Join(a.root, "docs")
-	index := map[string]string{}
-	err := filepath.WalkDir(docsRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			name := entry.Name()
-			if path != docsRoot && (name == "70-decisions" || name == "90-traceability") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if filepath.Ext(path) != ".md" {
-			return nil
-		}
-		documentID, err := readFrontMatterDocumentID(path)
-		if err != nil {
-			return err
-		}
-		if documentID == "" {
-			return nil
-		}
-		relative, err := filepath.Rel(a.root, path)
-		if err != nil {
-			return err
-		}
-		relative = filepath.ToSlash(relative)
-		if previous, exists := index[documentID]; exists {
-			return fmt.Errorf("normative document ID %s is repeated in %s and %s", documentID, previous, relative)
-		}
-		index[documentID] = relative
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("index bounded normative documents: %w", err)
+func appendUniqueRouteSpecs(target []routeSpec, specs ...routeSpec) []routeSpec {
+	seen := make(map[string]bool, len(target)+len(specs))
+	for _, spec := range target {
+		seen[spec.path+"#"+spec.sectionID] = true
 	}
-	return index, nil
+	for _, spec := range specs {
+		key := spec.path + "#" + spec.sectionID
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		target = append(target, spec)
+	}
+	return target
 }
 
-func readFrontMatterDocumentID(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 4096), 64*1024)
-	lineNumber := 0
-	documentID := ""
-	for scanner.Scan() {
-		lineNumber++
-		line := strings.TrimSpace(scanner.Text())
-		if lineNumber == 1 && line != "---" {
-			return "", nil
+func deduplicateRoutePaths(paths codexRoutePaths) codexRoutePaths {
+	seen := map[string]bool{}
+	unique := func(specs []routeSpec) []routeSpec {
+		result := make([]routeSpec, 0, len(specs))
+		for _, spec := range specs {
+			key := spec.path + "#" + spec.sectionID
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			result = append(result, spec)
 		}
-		if lineNumber > 1 && line == "---" {
-			break
+		return result
+	}
+	paths.always = unique(paths.always)
+	paths.normative = unique(paths.normative)
+	paths.machine = unique(paths.machine)
+	paths.onDemand = unique(paths.onDemand)
+	return paths
+}
+
+type normativeSectionCatalog map[string][]string
+
+func (a *App) normativeSectionCatalog() (normativeSectionCatalog, error) {
+	return loadNormativeSectionCatalog(a.root, normativeSpecificationPaths)
+}
+
+func loadNormativeSectionCatalog(root string, paths []string) (normativeSectionCatalog, error) {
+	catalog := normativeSectionCatalog{}
+	for _, relative := range paths {
+		if err := validateBoundedRoutePath(relative); err != nil {
+			return nil, fmt.Errorf("normative Section catalog: %w", err)
 		}
-		if strings.HasPrefix(line, "document_id:") {
-			documentID = strings.Trim(strings.TrimSpace(strings.TrimPrefix(line, "document_id:")), `"'`)
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
+		if err != nil {
+			return nil, fmt.Errorf("read bounded normative document %s: %w", relative, err)
+		}
+		sectionIDs, err := normativeStableSectionIDs(data)
+		if err != nil {
+			return nil, fmt.Errorf("index bounded normative document %s: %w", relative, err)
+		}
+		for _, sectionID := range sectionIDs {
+			catalog[sectionID] = append(catalog[sectionID], relative)
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("read normative front matter %s: %w", path, err)
+	return catalog, nil
+}
+
+func normativeStableSectionIDs(data []byte) ([]string, error) {
+	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return nil, fmt.Errorf("normative document lacks YAML front matter")
 	}
-	return documentID, nil
+	frontMatter := true
+	frontMatterClosed := false
+	rootIDs := 0
+	var sectionIDs []string
+	for index, raw := range lines {
+		line := strings.TrimSpace(raw)
+		if index == 0 {
+			continue
+		}
+		if frontMatter && line == "---" {
+			frontMatter = false
+			frontMatterClosed = true
+			continue
+		}
+		if frontMatter && strings.HasPrefix(line, "document_id:") {
+			sectionID := strings.Trim(strings.TrimSpace(strings.TrimPrefix(line, "document_id:")), `"'`)
+			if sectionID != "" {
+				sectionIDs = append(sectionIDs, sectionID)
+				rootIDs++
+			}
+		}
+		for _, prefix := range []string{"// x-section-id:", "# x-section-id:"} {
+			if strings.HasPrefix(line, prefix) {
+				sectionID := strings.Trim(strings.TrimSpace(strings.TrimPrefix(line, prefix)), `"'`)
+				if sectionID != "" {
+					sectionIDs = append(sectionIDs, sectionID)
+				}
+			}
+		}
+		if strings.HasPrefix(line, `<a id="`) && strings.HasSuffix(line, `"></a>`) {
+			sectionID := strings.TrimSuffix(strings.TrimPrefix(line, `<a id="`), `"></a>`)
+			if sectionID != "" {
+				sectionIDs = append(sectionIDs, sectionID)
+			}
+		}
+	}
+	if !frontMatterClosed {
+		return nil, fmt.Errorf("normative document has unterminated YAML front matter")
+	}
+	if rootIDs == 0 {
+		return nil, fmt.Errorf("normative document has no document_id")
+	}
+	return sectionIDs, nil
+}
+
+func resolveNormativeSection(catalog normativeSectionCatalog, sectionID string) (routeSpec, error) {
+	candidates := catalog[sectionID]
+	if len(candidates) != 1 {
+		locations := append([]string(nil), candidates...)
+		sort.Strings(locations)
+		if len(locations) == 0 {
+			return routeSpec{}, fmt.Errorf("stable Section ID must resolve exactly once in bounded normative catalog, found 0")
+		}
+		return routeSpec{}, fmt.Errorf("stable Section ID must resolve exactly once in bounded normative catalog, found %d in %s", len(locations), strings.Join(locations, ", "))
+	}
+	return route(candidates[0], sectionID, "normative-section"), nil
 }

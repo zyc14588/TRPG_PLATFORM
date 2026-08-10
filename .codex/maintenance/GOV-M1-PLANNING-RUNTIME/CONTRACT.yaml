@@ -184,4 +184,4 @@ bootstrap:
   retirement_evidence:
   - REPAIR GOV-M1-PLANNING-RUNTIME route generated at source commit 9940a9ff18ac4b09d27d982d84a0703d3469c781.
   - projectctl codex check PASS for the bound REPAIR route with codex-default TELEMETRY_ONLY policy.
-status: ACTIVE
+status: READY_FOR_ACCEPTANCE
