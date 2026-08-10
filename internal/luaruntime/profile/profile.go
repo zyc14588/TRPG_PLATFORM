@@ -6,19 +6,17 @@ package profile
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
 	"io"
 	"unicode/utf8"
 
-	"github.com/arnodel/golua/lib/base"
-	"github.com/arnodel/golua/lib/coroutine"
-	"github.com/arnodel/golua/lib/mathlib"
-	"github.com/arnodel/golua/lib/stringlib"
-	"github.com/arnodel/golua/lib/tablelib"
-	"github.com/arnodel/golua/lib/utf8lib"
-	rt "github.com/arnodel/golua/runtime"
+	"github.com/iceisfun/golua/v2/compiler"
+	"github.com/iceisfun/golua/v2/parser"
+	"github.com/iceisfun/golua/v2/stdlib"
+	luavm "github.com/iceisfun/golua/v2/vm"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/profile/identity"
 )
@@ -39,6 +37,14 @@ var (
 	ErrInvalidUTF8           = errors.New("Lua source is not valid UTF-8")
 	ErrBytecode              = errors.New("Lua bytecode is forbidden by the source-only profile")
 	ErrProductionDebugDenied = errors.New("production Lua debugging is forbidden")
+	ErrRuntimeClosed         = errors.New("Lua runtime is closed")
+)
+
+const (
+	// RecoveryAuthoritativeGlobal and RecoveryCheckpointGlobal are the standard
+	// read/write inputs visible while a deterministic restore program runs.
+	RecoveryAuthoritativeGlobal = "__trpg_authoritative_state"
+	RecoveryCheckpointGlobal    = "__trpg_checkpoint_state"
 )
 
 // Spec is an immutable identity for a supported platform profile.
@@ -77,7 +83,7 @@ func ValidateSource(source []byte) error {
 	if !utf8.Valid(source) {
 		return ErrInvalidUTF8
 	}
-	if bytes.HasPrefix(source, []byte("\x1bLua")) || rt.HasMarshalPrefix(source) {
+	if bytes.HasPrefix(source, []byte("\x1bLua")) {
 		return ErrBytecode
 	}
 	return nil
@@ -86,14 +92,13 @@ func ValidateSource(source []byte) error {
 // Runtime owns a production-configured Lua runtime and its library cleanup
 // callbacks. Callers must not share one Runtime between Sessions.
 type Runtime struct {
-	lua      *rt.Runtime
-	cleanups []func()
+	lua *luavm.VM
 }
 
 // Result is an opaque value owned by one production Runtime. It intentionally
 // does not expose the candidate's raw table, function, thread or userdata APIs.
 type Result struct {
-	value rt.Value
+	value luavm.Value
 }
 
 func (r Result) IsNil() bool {
@@ -106,92 +111,123 @@ func (r Result) CheckpointValue() (checkpoint.Value, error) {
 	return checkpoint.FromLua(r.value)
 }
 
+type outputProvider struct {
+	writer io.Writer
+}
+
+func (p outputProvider) Print(_ context.Context, message string) {
+	fmt.Fprintln(p.writer, message)
+}
+
+func (p outputProvider) Warn(_ context.Context, message string) {
+	fmt.Fprintln(p.writer, message)
+}
+
 // NewProductionRuntime constructs a runtime using an explicit library
-// allowlist. Dangerous libraries are never loaded and cannot be enabled by an
-// option or environment variable.
+// allowlist. Dangerous libraries cannot be enabled by an option or environment
+// variable and are removed before any package source can execute.
 func NewProductionRuntime(stdout io.Writer) *Runtime {
 	if stdout == nil {
 		stdout = io.Discard
 	}
-	r := rt.New(stdout)
-	r.SetWarner(rt.NewLogWarner(io.Discard, ""))
-	result := &Runtime{lua: r}
-
-	load := func(name string, loader func(*rt.Runtime) (rt.Value, func())) rt.Value {
-		value, cleanup := loader(r)
-		if cleanup != nil {
-			result.cleanups = append(result.cleanups, cleanup)
-		}
-		if name != "" {
-			r.SetEnv(r.GlobalEnv(), name, value)
-		}
-		return value
-	}
-
-	load("", base.LibLoader.Load)
-	load("coroutine", coroutine.LibLoader.Load)
-	stringValue := load("string", stringlib.LibLoader.Load)
-	load("table", tablelib.LibLoader.Load)
-	load("utf8", utf8lib.LibLoader.Load)
-	load("math", mathlib.LibLoader.Load)
+	r := luavm.New()
+	_ = r.SetPrintProvider(outputProvider{writer: stdout})
+	stdlib.Open(r)
 
 	// The platform accepts code only through its validated host boundary.
-	// Removing all Lua-visible loaders also prevents the runtime's private
-	// marshalled-code format from becoming a bytecode bypass.
-	for _, name := range []string{"load", "loadfile", "dofile"} {
-		r.SetEnv(r.GlobalEnv(), name, rt.NilValue)
+	// Removing all Lua-visible loaders prevents the runtime's binary chunk
+	// format from becoming a bytecode bypass.
+	if stringTable := r.GetGlobal("string").AsTable(); stringTable != nil {
+		_ = stringTable.Set(luavm.NewString("dump"), luavm.Nil)
+	}
+	if mathTable := r.GetGlobal("math").AsTable(); mathTable != nil {
+		// These are compatibility extensions in the selected runtime, not part
+		// of the frozen Lua 5.5 platform math surface.
+		_ = mathTable.Set(luavm.NewString("frexp"), luavm.Nil)
+		_ = mathTable.Set(luavm.NewString("ldexp"), luavm.Nil)
 	}
 
-	// string.dump creates the implementation's private bytecode format.
-	if stringTable, ok := stringValue.TryTable(); ok {
-		r.SetEnv(stringTable, "dump", rt.NilValue)
+	// Package loading, native Go imports, runtime extensions and optional
+	// OS/process/filesystem/debug providers are not part of the platform profile.
+	// Set every corresponding global explicitly to nil so this invariant remains
+	// visible and testable even if the upstream default library set changes.
+	for _, name := range []string{
+		"load", "loadfile", "dofile", "package", "require",
+		"io", "os", "debug", "chan", "time", "exec", "http",
+		"golib", "runtime", "bit32", "glob", "_lastoutput", "_outputlines",
+	} {
+		r.SetGlobal(name, luavm.Nil)
 	}
 
-	// Package loading, native Go imports, OS/process/filesystem access and the
-	// debug library are absent because their loaders are not invoked. Set the
-	// names explicitly to nil so this invariant remains visible and testable.
-	for _, name := range []string{"package", "require", "io", "os", "debug", "golib", "runtime"} {
-		r.SetEnv(r.GlobalEnv(), name, rt.NilValue)
-	}
-	r.SetEnv(r.GlobalEnv(), "_VERSION", rt.StringValue("Lua 5.5"))
-
-	return result
+	return &Runtime{lua: r}
 }
 
 // Compile validates UTF-8/source-only input and compiles it as text. It never
 // calls the candidate's source-or-bytecode loader.
-func (r *Runtime) compile(name string, source []byte) (*rt.Closure, error) {
+func (r *Runtime) compile(name string, source []byte) (*compiler.Proto, error) {
 	if err := ValidateSource(source); err != nil {
 		return nil, err
 	}
 	if name == "" {
 		name = "chunk"
 	}
-	return r.lua.CompileAndLoadLuaChunk(name, source, rt.TableValue(r.lua.GlobalEnv()))
+	block, err := parser.Parse(name, string(source), false)
+	if err != nil {
+		return nil, err
+	}
+	return compiler.Compile(name, block)
 }
 
 // Execute is the only code-loading operation exposed by a production Runtime.
 // It returns a runtime value but never the underlying runtime itself, so callers
 // cannot load additional libraries or select a bytecode-aware loader.
 func (r *Runtime) Execute(name string, source []byte) (Result, error) {
+	if r == nil || r.lua == nil {
+		return Result{}, ErrRuntimeClosed
+	}
 	chunk, err := r.compile(name, source)
 	if err != nil {
 		return Result{}, err
 	}
-	value, err := rt.Call1(r.lua.MainThread(), rt.FunctionValue(chunk))
-	return Result{value: value}, err
+	values, err := r.lua.Run(chunk)
+	if err != nil {
+		return Result{}, err
+	}
+	if len(values) == 0 {
+		return Result{value: luavm.Nil}, nil
+	}
+	return Result{value: values[0]}, nil
+}
+
+// InstallRecoveryInputs deep-copies canonical authoritative and checkpoint
+// values into the fresh runtime. The two values are installed only after both
+// conversions succeed, so a restore program never observes a partial pair.
+func (r *Runtime) InstallRecoveryInputs(authoritative, explicit checkpoint.Value) error {
+	if r == nil || r.lua == nil {
+		return ErrRuntimeClosed
+	}
+	authoritativeLua, err := checkpoint.ToLua(r.lua, authoritative)
+	if err != nil {
+		return fmt.Errorf("authoritative recovery input: %w", err)
+	}
+	checkpointLua, err := checkpoint.ToLua(r.lua, explicit)
+	if err != nil {
+		return fmt.Errorf("checkpoint recovery input: %w", err)
+	}
+	r.lua.SetGlobal(RecoveryAuthoritativeGlobal, authoritativeLua)
+	r.lua.SetGlobal(RecoveryCheckpointGlobal, checkpointLua)
+	return nil
 }
 
 // Close releases library resources and the underlying runtime. A Runtime is
 // owned by its VM, which guarantees this method is called once.
 func (r *Runtime) Close() error {
-	for i := len(r.cleanups) - 1; i >= 0; i-- {
-		r.cleanups[i]()
+	if r.lua == nil {
+		return nil
 	}
-	r.cleanups = nil
-	var closeErr error
-	r.lua.Close(&closeErr)
-	return closeErr
+	err := r.lua.Close(context.Background())
+	r.lua = nil
+	return err
 }
 
 // Candidate records the audited dependency identity in machine-readable Go
@@ -216,13 +252,13 @@ type Dependency struct {
 	Reason   string
 }
 
-//go:embed licenses/Apache-2.0.txt
-var apacheLicenseText string
+//go:embed licenses/MIT.txt
+var runtimeLicenseText string
 
 // RuntimeLicenseText is embedded in lua-runner so binary distributions can
 // reproduce the selected runtime's complete license.
 func RuntimeLicenseText() string {
-	return apacheLicenseText
+	return runtimeLicenseText
 }
 
 // RuntimeCandidate returns the exact Lua 5.5 implementation selected for p1.
@@ -230,20 +266,11 @@ func RuntimeCandidate() Candidate {
 	return Candidate{
 		Module:        RuntimeModule,
 		Version:       RuntimeVersion,
-		Commit:        "1de6171e59db11713ce0e7f9ccbbba95f5ccad15",
-		Upstream:      "https://github.com/arnodel/golua",
-		License:       "Apache-2.0",
-		LicenseSHA256: "abe774ad370d66aebc12a4aaeba3cb978a6e72e6823b0af6e3b56ec0473760ad",
-		Reason:        "pure-Go Lua 5.5 runtime with isolated runtime instances and no native toolchain dependency",
-		ModuleGraph: []Dependency{
-			{
-				Module:   "github.com/arnodel/strftime",
-				Version:  "v0.1.6",
-				Upstream: "https://github.com/arnodel/strftime",
-				License:  "MIT",
-				Linked:   false,
-				Reason:   "declared by the candidate module; not linked into the production lua-runner dependency set",
-			},
-		},
+		Commit:        "5c098c0c2a4301b7b2ee0ccaa12e6fc2ba10a2ad",
+		Upstream:      "https://github.com/iceisfun/golua",
+		License:       "MIT",
+		LicenseSHA256: "a999ae4a02393c1044dd71ce592028984064550f0cceec71f4d1f83da537dd1f",
+		Reason:        "pure-Go Lua 5.5.0 runtime with isolated VM instances, zero module dependencies, and no native toolchain dependency",
+		ModuleGraph:   nil,
 	}
 }

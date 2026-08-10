@@ -8,8 +8,8 @@ package identity
 const (
 	ProductionID    = "platform-lua-5.5-p1"
 	LanguageVersion = "5.5"
-	RuntimeModule   = "github.com/arnodel/golua"
-	RuntimeVersion  = "v0.2.0"
+	RuntimeModule   = "github.com/iceisfun/golua/v2"
+	RuntimeVersion  = "v2.0.5"
 	RuntimeIdentity = RuntimeModule + "@" + RuntimeVersion
 )
 

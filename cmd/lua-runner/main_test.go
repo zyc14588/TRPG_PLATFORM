@@ -19,8 +19,8 @@ func TestProfileCommandReportsSafeProductionDefaults(t *testing.T) {
 	}
 	for _, expected := range []string{
 		`"profile_id":"platform-lua-5.5-p1"`,
-		`"runtime_version":"github.com/arnodel/golua@v0.2.0"`,
-		`"runtime_license":"Apache-2.0"`,
+		`"runtime_version":"github.com/iceisfun/golua/v2@v2.0.5"`,
+		`"runtime_license":"MIT"`,
 		`"source_only":true`,
 		`"production_debug":false`,
 		`"debug"`,
@@ -37,7 +37,7 @@ func TestServeUsesTypedProductionLifecycleProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eval, err := ipc.EncodeRequest("eval", ipc.Eval{SessionID: "runner-session", ChunkName: "probe", Source: "return io == nil and debug == nil and package == nil"})
+	eval, err := ipc.EncodeRequest("eval", ipc.Eval{SessionID: "runner-session", ChunkName: "probe", Source: "return io == nil and debug == nil and package == nil and load == nil and string.dump == nil and bit32 == nil and glob == nil"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestLicensesCommandIncludesPinnedRuntimeLicense(t *testing.T) {
 	if code := run(context.Background(), []string{"licenses"}, strings.NewReader(""), &stdout, &stderr); code != 0 {
 		t.Fatalf("licenses exit=%d stderr=%s", code, stderr.String())
 	}
-	if !strings.HasPrefix(stdout.String(), "github.com/arnodel/golua@v0.2.0\n") || !strings.Contains(stdout.String(), "Apache License") {
+	if !strings.HasPrefix(stdout.String(), "github.com/iceisfun/golua/v2@v2.0.5\n") || !strings.Contains(stdout.String(), "Permission is hereby granted") {
 		t.Fatalf("licenses output is incomplete: %s", stdout.String())
 	}
 }

@@ -18,6 +18,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/profile/identity"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/dependency"
+	packagemodel "github.com/zyc14588/TRPG_PLATFORM/internal/package/model"
 )
 
 const (
@@ -79,14 +81,28 @@ func normalizeBinding(binding Binding) (Binding, error) {
 	if !identity.Supported(binding.LuaProfile, binding.RuntimeVersion) {
 		return Binding{}, fmt.Errorf("%w: unsupported Lua profile/runtime", ErrInvalidBinding)
 	}
+	exactLock, err := dependency.ParseExactLock([]byte(binding.DependencyLock))
+	if err != nil {
+		return Binding{}, fmt.Errorf("%w: dependency lock: %v", ErrInvalidBinding, err)
+	}
+	canonicalLock, err := exactLock.CanonicalJSON()
+	if err != nil {
+		return Binding{}, fmt.Errorf("%w: dependency lock: %v", ErrInvalidBinding, err)
+	}
+	if len(canonicalLock) > MaxStringBytes {
+		return Binding{}, fmt.Errorf("%w: canonical dependency lock is oversized", ErrInvalidBinding)
+	}
 
 	result := binding
+	result.DependencyLock = string(canonicalLock)
 	result.PackageHashes = append([]PackageHash(nil), binding.PackageHashes...)
 	seen := make(map[string]struct{}, len(result.PackageHashes))
 	for i, item := range result.PackageHashes {
-		if item.PackageID == "" || !utf8.ValidString(item.PackageID) || len(item.PackageID) > 512 || len(item.SHA256) != sha256.Size*2 {
+		packageID, err := packagemodel.ParsePackageID(item.PackageID)
+		if err != nil || len(item.SHA256) != sha256.Size*2 {
 			return Binding{}, fmt.Errorf("%w: package hash %d", ErrInvalidBinding, i)
 		}
+		item.PackageID = packageID.String()
 		if item.SHA256 != strings.ToLower(item.SHA256) {
 			return Binding{}, fmt.Errorf("%w: package hash %d is not canonical", ErrInvalidBinding, i)
 		}
@@ -97,6 +113,7 @@ func normalizeBinding(binding Binding) (Binding, error) {
 			return Binding{}, fmt.Errorf("%w: duplicate package %q", ErrInvalidBinding, item.PackageID)
 		}
 		seen[item.PackageID] = struct{}{}
+		result.PackageHashes[i] = item
 	}
 	sort.Slice(result.PackageHashes, func(i, j int) bool { return result.PackageHashes[i].PackageID < result.PackageHashes[j].PackageID })
 	return result, nil

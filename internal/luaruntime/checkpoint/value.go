@@ -10,7 +10,7 @@ import (
 	"sort"
 	"unicode/utf8"
 
-	rt "github.com/arnodel/golua/runtime"
+	luavm "github.com/iceisfun/golua/v2/vm"
 )
 
 const (
@@ -183,8 +183,11 @@ func (w *valueWalker) normalize(value Value, depth int) (Value, error) {
 		result := Value{Type: TypeTable, Table: make([]Field, len(value.Table))}
 		keys := make(map[string]struct{}, len(value.Table))
 		for i, field := range value.Table {
-			if field.Key == "" || !utf8.ValidString(field.Key) || len(field.Key) > MaxStringBytes {
+			if !utf8.ValidString(field.Key) {
 				return Value{}, fmt.Errorf("table key %d: %w", i, ErrInvalidValue)
+			}
+			if len(field.Key) > MaxStringBytes {
+				return Value{}, fmt.Errorf("table key %d: %w", i, ErrLimit)
 			}
 			if _, exists := keys[field.Key]; exists {
 				return Value{}, fmt.Errorf("duplicate table key %q: %w", field.Key, ErrInvalidValue)
@@ -288,7 +291,7 @@ func (w *valueWalker) fromGo(input any, depth int) (Value, error) {
 			out.Table = append(out.Table, Field{Key: key, Value: item})
 		}
 		return Normalize(out)
-	case rt.Value:
+	case luavm.Value:
 		// Compensate for the count performed above before delegating.
 		w.nodes--
 		return w.fromLua(value, depth)
@@ -305,39 +308,39 @@ func finiteFloat(value float64) (Value, error) {
 }
 
 // FromLua copies a supported Lua value into checkpoint-safe data.
-func FromLua(value rt.Value) (Value, error) {
+func FromLua(value luavm.Value) (Value, error) {
 	return newValueWalker().fromLua(value, 0)
 }
 
-func (w *valueWalker) fromLua(value rt.Value, depth int) (Value, error) {
+func (w *valueWalker) fromLua(value luavm.Value, depth int) (Value, error) {
 	if err := w.count(depth); err != nil {
 		return Value{}, err
 	}
-	switch value.Type() {
-	case rt.NilType:
+	switch {
+	case value.IsNil():
 		return Nil(), nil
-	case rt.BoolType:
+	case value.IsBool():
 		return Bool(value.AsBool()), nil
-	case rt.IntType:
+	case value.IsInt():
 		return Int(value.AsInt()), nil
-	case rt.FloatType:
+	case value.IsFloat():
 		return finiteFloat(value.AsFloat())
-	case rt.StringType:
+	case value.IsString():
 		return w.fromGo(value.AsString(), depth)
-	case rt.TableType:
-		return w.fromLuaTable(value.AsTable(), depth)
-	case rt.FunctionType, rt.CodeType:
-		return Value{}, fmt.Errorf("%w: Lua function", ErrUnsupportedValue)
-	case rt.ThreadType:
+	case value.Type() == "thread":
 		return Value{}, fmt.Errorf("%w: Lua coroutine", ErrUnsupportedValue)
-	case rt.UserDataType:
+	case value.IsTable():
+		return w.fromLuaTable(value.AsTable(), depth)
+	case value.IsFunction(), value.IsNativeFunc():
+		return Value{}, fmt.Errorf("%w: Lua function", ErrUnsupportedValue)
+	case value.IsUserdata(), value.IsLightUserdata():
 		return Value{}, fmt.Errorf("%w: Lua userdata/native handle", ErrUnsupportedValue)
 	default:
-		return Value{}, fmt.Errorf("%w: Lua %s", ErrUnsupportedValue, value.TypeName())
+		return Value{}, fmt.Errorf("%w: Lua %s", ErrUnsupportedValue, value.Type())
 	}
 }
 
-func (w *valueWalker) fromLuaTable(table *rt.Table, depth int) (Value, error) {
+func (w *valueWalker) fromLuaTable(table luavm.LuaTable, depth int) (Value, error) {
 	if table.Metatable() != nil {
 		return Value{}, ErrMetatable
 	}
@@ -349,10 +352,10 @@ func (w *valueWalker) fromLuaTable(table *rt.Table, depth int) (Value, error) {
 
 	arrayValues := make(map[int64]Value)
 	fields := make([]Field, 0)
-	var key rt.Value
+	key := luavm.Nil
 	for {
-		next, raw, ok := table.Next(key)
-		if !ok {
+		next, raw, err := table.Next(key)
+		if err != nil {
 			return Value{}, ErrInvalidValue
 		}
 		if next.IsNil() {
@@ -362,13 +365,13 @@ func (w *valueWalker) fromLuaTable(table *rt.Table, depth int) (Value, error) {
 		if err != nil {
 			return Value{}, err
 		}
-		switch next.Type() {
-		case rt.IntType:
+		switch {
+		case next.IsInt():
 			if len(fields) != 0 || next.AsInt() < 1 {
 				return Value{}, ErrInvalidValue
 			}
 			arrayValues[next.AsInt()] = item
-		case rt.StringType:
+		case next.IsString():
 			if len(arrayValues) != 0 {
 				return Value{}, ErrInvalidValue
 			}
@@ -394,47 +397,54 @@ func (w *valueWalker) fromLuaTable(table *rt.Table, depth int) (Value, error) {
 }
 
 // ToLua reconstructs a fresh Lua value with no shared table identity.
-func ToLua(runtime *rt.Runtime, input Value) (rt.Value, error) {
+func ToLua(runtime *luavm.VM, input Value) (luavm.Value, error) {
+	if runtime == nil {
+		return luavm.Nil, ErrInvalidValue
+	}
 	value, err := Normalize(input)
 	if err != nil {
-		return rt.NilValue, err
+		return luavm.Nil, err
 	}
-	return toLua(runtime, value)
+	return toLua(value)
 }
 
-func toLua(runtime *rt.Runtime, value Value) (rt.Value, error) {
+func toLua(value Value) (luavm.Value, error) {
 	switch value.Type {
 	case TypeNil:
-		return rt.NilValue, nil
+		return luavm.Nil, nil
 	case TypeBool:
-		return rt.BoolValue(value.Boolean), nil
+		return luavm.NewBool(value.Boolean), nil
 	case TypeInt:
-		return rt.IntValue(value.Integer), nil
+		return luavm.NewInt(value.Integer), nil
 	case TypeFloat:
-		return rt.FloatValue(value.Float), nil
+		return luavm.NewFloat(value.Float), nil
 	case TypeString:
-		return rt.StringValue(value.String), nil
+		return luavm.NewString(value.String), nil
 	case TypeArray:
-		table := rt.NewTableWithCapacity(len(value.Array), 0)
+		table := luavm.NewTableWithSize(len(value.Array), 0)
 		for i := range value.Array {
-			item, err := toLua(runtime, value.Array[i])
+			item, err := toLua(value.Array[i])
 			if err != nil {
-				return rt.NilValue, err
+				return luavm.Nil, err
 			}
-			runtime.SetTable(table, rt.IntValue(int64(i+1)), item)
+			if err := table.Set(luavm.NewInt(int64(i+1)), item); err != nil {
+				return luavm.Nil, err
+			}
 		}
-		return rt.TableValue(table), nil
+		return luavm.NewTable(table), nil
 	case TypeTable:
-		table := rt.NewTableWithCapacity(0, len(value.Table))
+		table := luavm.NewTableWithSize(0, len(value.Table))
 		for _, field := range value.Table {
-			item, err := toLua(runtime, field.Value)
+			item, err := toLua(field.Value)
 			if err != nil {
-				return rt.NilValue, err
+				return luavm.Nil, err
 			}
-			runtime.SetTable(table, rt.StringValue(field.Key), item)
+			if err := table.Set(luavm.NewString(field.Key), item); err != nil {
+				return luavm.Nil, err
+			}
 		}
-		return rt.TableValue(table), nil
+		return luavm.NewTable(table), nil
 	default:
-		return rt.NilValue, ErrInvalidValue
+		return luavm.Nil, ErrInvalidValue
 	}
 }

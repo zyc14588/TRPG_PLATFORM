@@ -95,7 +95,7 @@ func writeProfile(stdout, stderr io.Writer) int {
 		SourceOnly:           true,
 		ProductionDebug:      false,
 		Allowed:              []string{"basic-restricted", "coroutine", "math", "string-restricted", "table", "utf8"},
-		Denied:               []string{"bytecode", "debug", "dofile", "dynamic-libraries", "environment", "filesystem", "golib", "io", "load", "loadfile", "native-modules", "network", "os", "package", "process", "raw-credentials", "require", "string.dump"},
+		Denied:               []string{"_lastoutput", "_outputlines", "bit32", "bytecode", "chan", "debug", "dofile", "dynamic-libraries", "environment", "exec", "filesystem", "glob", "golib", "http", "io", "load", "loadfile", "math.frexp", "math.ldexp", "native-modules", "network", "os", "package", "process", "raw-credentials", "require", "string.dump", "time"},
 	}
 	encoder := json.NewEncoder(stdout)
 	encoder.SetEscapeHTML(false)
