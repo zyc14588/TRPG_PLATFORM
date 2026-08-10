@@ -96,6 +96,62 @@ return _VERSION .. ":" .. tostring(answer + add(1, 1))
 	}
 }
 
+// TestLua55ReferenceDivergences pins parser and library behavior that differs
+// across nominally Lua-5.5-compatible runtimes.  These are semantic probes;
+// _VERSION is deliberately not part of their evidence.
+func TestLua55ReferenceDivergences(t *testing.T) {
+	tests := []struct {
+		name      string
+		source    string
+		wantError bool
+	}{
+		{
+			name:      "math random rejects three arguments",
+			source:    "return math.random(1, 2, 3)",
+			wantError: true,
+		},
+		{
+			name: "goto cannot skip global star declaration",
+			source: `goto continue
+global *
+::continue::
+return 42`,
+			wantError: true,
+		},
+		{
+			name: "same label is legal when inner declaration comes first",
+			source: `if true then
+  goto repeated
+  ::repeated::
+end
+::repeated::
+return 42`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewProductionRuntime(io.Discard)
+			defer r.Close()
+
+			result, err := r.Execute(tt.name, []byte(tt.source))
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("nonconforming Lua 5.5 source succeeded")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("conforming Lua 5.5 source failed: %v", err)
+			}
+			value, err := result.CheckpointValue()
+			if err != nil || value.Type != checkpoint.TypeInt || value.Integer != 42 {
+				t.Fatalf("result = %#v err=%v, want integer 42", value, err)
+			}
+		})
+	}
+}
+
 func TestLua55ProfileConformanceNegatives(t *testing.T) {
 	tests := []struct {
 		name   string
