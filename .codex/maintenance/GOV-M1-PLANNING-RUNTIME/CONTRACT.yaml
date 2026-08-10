@@ -4,8 +4,17 @@ maintenance_id: GOV-M1-PLANNING-RUNTIME
 objective:
 - 修复 Milestone Plan lifecycle governance tests，使其验证 NOT_GENERATED、ACTIVE、COMPLETE 状态机不变量而非永久仓库快照。
 - 实现 R25 executor/profile-specific context policy，并保持所有非 context-ratio 治理门禁。
-reason: M1 首次诊断性 PLAN 暴露了 lifecycle snapshot 测试和全局 context ratio gate 会阻断合法规划；治理控制面必须先自修复。
-source_blocker: Diagnostic commit c83e645810d82f2303569dca488c78d1b68e05eb 仅证明首次 PLAN blocker，不得 cherry-pick、push 或视为正式 M1 plan。
+- 修复 milestone batch frozen reading_map_sections 未被 route materialization/binding 强制覆盖的问题；该修复仅作用于治理控制面，不修改任何 milestone product contract。
+reason: >-
+  M1 首次诊断性 PLAN 暴露了 lifecycle snapshot 测试和全局 context ratio gate 会阻断合法规划；治理控制面必须先自修复。
+  项目所有者进一步明确授权在同一 maintenance contract 下修复 ACC-M1-B002-005，使真实 milestone batch 冻结的
+  reading_map_sections 被 route materialization、binding 与 stale detection 强制覆盖，且不得修改 milestone product contract。
+source_blocker: |-
+  historical initial planning-runtime blocker:
+    Diagnostic commit c83e645810d82f2303569dca488c78d1b68e05eb 仅证明首次 PLAN blocker，不得 cherry-pick、push 或视为正式 M1 plan；该 commit 不是 ACC-M1-B002-005 的来源。
+  current ACC-M1-B002-005 blocker:
+    failed candidate: 097b9394bc771d72922bdee2fed94d3a49275046
+    blocked candidate: 34e6ffd28623240e45c8fa367b8d4400ebabe2af
 allowed_scope:
 - path: .codex/maintenance/GOV-M1-PLANNING-RUNTIME/CONTRACT.yaml
   section_id: GOV-M1-PLANNING-RUNTIME
@@ -145,6 +154,8 @@ acceptance:
 - codex/codex-default records context telemetry without applying 55%/70% project gates.
 - opencode/opencode-deepseek-v4-flash requires explicit capacity and enforces soft 0.55/hard 0.70.
 - Milestone Plan tests validate NOT_GENERATED, ACTIVE, COMPLETE and transition invariants without fixed production batch IDs or dependency graphs.
+- IMPLEMENT, ACCEPT, and REPAIR routes for a real milestone batch materialize every frozen reading_map_sections entry exactly once with file/Section SHA-256 and route binding coverage.
+- Missing or ambiguous frozen stable Section IDs fail route generation, and supplemental material or frozen-list changes make an existing route stale or non-canonical.
 - All required repository checks pass and no M1 plan or product implementation is created.
 tests:
 - go test ./internal/projectctl
