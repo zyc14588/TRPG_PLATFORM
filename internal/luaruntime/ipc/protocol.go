@@ -15,6 +15,7 @@ import (
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/profile"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/vm"
 )
 
 const (
@@ -76,13 +77,26 @@ type Checkpoint struct {
 func (Checkpoint) messageType() MessageType { return TypeCheckpoint }
 
 type Reconstruct struct {
-	SessionID     string             `json:"session_id"`
-	Binding       checkpoint.Binding `json:"binding"`
-	Authoritative checkpoint.Value   `json:"authoritative"`
-	Checkpoint    []byte             `json:"checkpoint"`
+	SessionID      string             `json:"session_id"`
+	Binding        checkpoint.Binding `json:"binding"`
+	Authoritative  checkpoint.Value   `json:"authoritative"`
+	Checkpoint     []byte             `json:"checkpoint"`
+	RuntimeProgram Program            `json:"runtime_program"`
+	RestoreProgram Program            `json:"restore_program"`
 }
 
 func (Reconstruct) messageType() MessageType { return TypeReconstruct }
+
+// Program is an explicit source-only reconstruction input. It contains source
+// bytes as JSON text and never a path or implicit package lookup key.
+type Program struct {
+	Name   string `json:"name"`
+	Source string `json:"source"`
+}
+
+func (p Program) reconstructionProgram() vm.ReconstructionProgram {
+	return vm.ReconstructionProgram{Name: p.Name, Source: p.Source}
+}
 
 type Destroy struct {
 	SessionID string `json:"session_id"`
@@ -159,6 +173,12 @@ func validateMessage(message Message) (Message, error) {
 			return nil, err
 		}
 		if _, err := checkpoint.Unmarshal(value.Checkpoint, binding); err != nil {
+			return nil, err
+		}
+		if err := vm.ValidateReconstructionProgram(value.RuntimeProgram.reconstructionProgram()); err != nil {
+			return nil, err
+		}
+		if err := vm.ValidateReconstructionProgram(value.RestoreProgram.reconstructionProgram()); err != nil {
 			return nil, err
 		}
 		value.Binding, value.Authoritative = binding, authoritative
@@ -260,6 +280,9 @@ func DecodeRequest(encoded []byte) (Request, error) {
 }
 
 func strictDecode(encoded []byte, target any) error {
+	if err := validateStrictJSON(encoded); err != nil {
+		return err
+	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {

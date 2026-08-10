@@ -130,7 +130,12 @@ func (s *Server) Handle(ctx context.Context, request Request) Response {
 		return response
 	case Reconstruct:
 		config := vm.Config{SessionID: message.SessionID, ProfileID: message.Binding.LuaProfile, RuntimeVersion: message.Binding.RuntimeVersion, Stdout: io.Discard}
-		replacement, err := vm.Reconstruct(ctx, config, message.Authoritative, message.Checkpoint, message.Binding)
+		input := vm.ReconstructionInput{
+			Authoritative:  message.Authoritative,
+			RuntimeProgram: message.RuntimeProgram.reconstructionProgram(),
+			RestoreProgram: message.RestoreProgram.reconstructionProgram(),
+		}
+		replacement, err := vm.Reconstruct(ctx, config, input, message.Checkpoint, message.Binding)
 		if err != nil {
 			return fail(request.RequestID, errorCode(err))
 		}
