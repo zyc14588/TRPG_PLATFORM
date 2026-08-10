@@ -82,6 +82,8 @@ bootstrap:
   - Add only the inert PROJECTCTL-PLATFORM-CI marker to internal/projectctl/commands.go.
   - Add only the inert PROJECTCTL-PLATFORM-CI-TESTS marker to internal/projectctl/projectctl_test.go.
   retirement_condition: A formal clean-HEAD REPAIR route for GOV-CI-PLATFORM-MATRIX passes projectctl codex check, after which bootstrap authority cannot authorize behavior or test changes.
-  status: AUTHORIZED_ONCE
-  retirement_evidence: []
-status: ACTIVE
+  status: RETIRED
+  retirement_evidence:
+  - Formal REPAIR route generated from signed bootstrap source commit 0b54f9dad6bb305abe24c9e52c8d2b8ee909bec6 and source tree 0b977606bc8997fa87edff42a35224da9f0f40f4 with binding 48a5a4364ebfbac55ef72f03579607de06b87901b591e4de49327aaea6d7b176.
+  - projectctl codex check PASS for GOV-CI-PLATFORM-MATRIX at the bootstrap source commit with 85479 context bytes measured under the codex-default TELEMETRY_ONLY policy.
+status: READY_FOR_ACCEPTANCE

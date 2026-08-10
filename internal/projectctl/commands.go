@@ -389,41 +389,170 @@ func (a *App) checkAll(ctx context.Context) error {
 }
 
 // x-section-id: PROJECTCTL-PLATFORM-CI
-func (a *App) build(ctx context.Context) error {
-	if runtime.GOOS == "darwin" {
-		if err := a.runLogged(ctx, "go", "build", "./cmd/projectctl"); err != nil {
-			return err
+type platformCIProfileName string
+
+const (
+	platformProfileLinuxCore      platformCIProfileName = "linux-core"
+	platformProfileWindowsProduct platformCIProfileName = "windows-product"
+	platformProfileMacOSProduct   platformCIProfileName = "macos-product"
+)
+
+type nativeStudioProfile string
+
+const (
+	nativeStudioLinux   nativeStudioProfile = "linux"
+	nativeStudioWindows nativeStudioProfile = "windows"
+)
+
+type platformCIStepKind string
+
+const (
+	platformStepCommand      platformCIStepKind = "command"
+	platformStepGoFormat     platformCIStepKind = "gofmt"
+	platformStepNativeStudio platformCIStepKind = "native-studio"
+	platformStepCompose      platformCIStepKind = "compose"
+)
+
+type platformCIStep struct {
+	surface      string
+	kind         platformCIStepKind
+	name         string
+	args         []string
+	nativeStudio nativeStudioProfile
+}
+
+type platformCIPlan struct {
+	profile    platformCIProfileName
+	policy     bool
+	buildSteps []platformCIStep
+	testSteps  []platformCIStep
+}
+
+func commandPlatformStep(surface, name string, args ...string) platformCIStep {
+	return platformCIStep{surface: surface, kind: platformStepCommand, name: name, args: args}
+}
+
+func frontendBuildSteps() []platformCIStep {
+	return []platformCIStep{
+		commandPlatformStep("Web Player and Creator Studio frontend typecheck", "pnpm", "-r", "typecheck"),
+		commandPlatformStep("Web Player and Creator Studio frontend build", "pnpm", "-r", "build"),
+	}
+}
+
+func frontendTestStep() platformCIStep {
+	return commandPlatformStep("Web Player and Creator Studio frontend tests", "pnpm", "-r", "test")
+}
+
+func platformCIPlanForGOOS(goos string) (platformCIPlan, error) {
+	plan := platformCIPlan{policy: true}
+	switch goos {
+	case "linux":
+		plan.profile = platformProfileLinuxCore
+		plan.buildSteps = append([]platformCIStep{
+			commandPlatformStep("Linux Core and all Go products", "go", "build", "./..."),
+		}, frontendBuildSteps()...)
+		plan.buildSteps = append(plan.buildSteps,
+			platformCIStep{surface: "Creator Studio native Linux shell", kind: platformStepNativeStudio, nativeStudio: nativeStudioLinux},
+			platformCIStep{surface: "Linux Docker Compose", kind: platformStepCompose},
+		)
+		plan.testSteps = []platformCIStep{
+			{surface: "all Go source formatting", kind: platformStepGoFormat},
+			commandPlatformStep("Linux Core and all Go package tests", "go", "test", "./..."),
+			commandPlatformStep("Linux Core and all Go package vet", "go", "vet", "./..."),
+			frontendTestStep(),
 		}
-	} else if err := a.runLogged(ctx, "go", "build", "./..."); err != nil {
-		return err
+	case "windows":
+		plan.profile = platformProfileWindowsProduct
+		plan.buildSteps = append([]platformCIStep{
+			commandPlatformStep("projectctl Windows build", "go", "build", "./cmd/projectctl"),
+			commandPlatformStep("Creator CLI Windows build", "go", "build", "./cmd/creator-cli"),
+		}, frontendBuildSteps()...)
+		plan.buildSteps = append(plan.buildSteps,
+			platformCIStep{surface: "Creator Studio native Windows shell", kind: platformStepNativeStudio, nativeStudio: nativeStudioWindows},
+		)
+		plan.testSteps = []platformCIStep{
+			{surface: "all Go source formatting", kind: platformStepGoFormat},
+			commandPlatformStep("projectctl package tests", "go", "test", "./internal/projectctl/..."),
+			commandPlatformStep("portable package tests", "go", "test", "./internal/package/..."),
+			commandPlatformStep("projectctl command tests", "go", "test", "./cmd/projectctl/..."),
+			commandPlatformStep("Creator CLI tests", "go", "test", "./cmd/creator-cli/..."),
+			commandPlatformStep("Creator Studio Go shell tests", "go", "test", "./apps/creator-studio/..."),
+			commandPlatformStep("projectctl package vet", "go", "vet", "./internal/projectctl/..."),
+			commandPlatformStep("portable package vet", "go", "vet", "./internal/package/..."),
+			commandPlatformStep("projectctl command vet", "go", "vet", "./cmd/projectctl/..."),
+			commandPlatformStep("Creator CLI vet", "go", "vet", "./cmd/creator-cli/..."),
+			commandPlatformStep("Creator Studio Go shell vet", "go", "vet", "./apps/creator-studio/..."),
+			frontendTestStep(),
+		}
+	case "darwin":
+		plan.profile = platformProfileMacOSProduct
+		plan.buildSteps = append([]platformCIStep{
+			commandPlatformStep("projectctl macOS build", "go", "build", "./cmd/projectctl"),
+		}, frontendBuildSteps()...)
+		plan.testSteps = []platformCIStep{
+			{surface: "all Go source formatting", kind: platformStepGoFormat},
+			commandPlatformStep("projectctl package tests", "go", "test", "./internal/projectctl/..."),
+			commandPlatformStep("projectctl command tests", "go", "test", "./cmd/projectctl/..."),
+			commandPlatformStep("projectctl package vet", "go", "vet", "./internal/projectctl/..."),
+			commandPlatformStep("projectctl command vet", "go", "vet", "./cmd/projectctl/..."),
+			frontendTestStep(),
+		}
+	default:
+		return platformCIPlan{}, fmt.Errorf("unsupported CI platform %q; supported GOOS values are linux, windows, and darwin", goos)
 	}
-	if err := a.runLogged(ctx, "pnpm", "-r", "typecheck"); err != nil {
-		return err
-	}
-	if err := a.runLogged(ctx, "pnpm", "-r", "build"); err != nil {
-		return err
-	}
-	if err := a.buildNativeStudio(ctx); err != nil {
-		return err
-	}
-	if runtime.GOOS == "linux" {
-		if _, err := exec.LookPath("docker"); err != nil {
-			if isCI() {
-				return errors.New("docker is required by the Linux CI profile")
-			}
-			fmt.Fprintln(a.stdout, "[SKIP] Compose validation: docker CLI unavailable")
-		} else if err := a.runLogged(ctx, "docker", "compose", "-f", "deploy/compose.yaml", "config", "--quiet"); err != nil {
-			return err
+	return plan, nil
+}
+
+func currentPlatformCIPlan() (platformCIPlan, error) {
+	return platformCIPlanForGOOS(runtime.GOOS)
+}
+
+func executePlatformSteps(ctx context.Context, steps []platformCIStep, execute func(context.Context, platformCIStep) error) error {
+	for _, step := range steps {
+		if err := execute(ctx, step); err != nil {
+			return fmt.Errorf("%s: %w", step.surface, err)
 		}
 	}
-	fmt.Fprintln(a.stdout, "[PASS] build matrix for current platform")
 	return nil
 }
 
-func (a *App) buildNativeStudio(ctx context.Context) error {
-	if runtime.GOOS == "darwin" {
-		fmt.Fprintln(a.stdout, "[SKIP] native Studio build is outside the macOS M0 CI profile")
-		return nil
+func (a *App) executePlatformStep(ctx context.Context, step platformCIStep) error {
+	switch step.kind {
+	case platformStepCommand:
+		if step.name == "" {
+			return errors.New("platform command has no executable")
+		}
+		return a.runLogged(ctx, step.name, step.args...)
+	case platformStepGoFormat:
+		return a.checkGoFormat(ctx)
+	case platformStepNativeStudio:
+		return a.buildNativeStudio(ctx, step.nativeStudio)
+	case platformStepCompose:
+		return a.validateCompose(ctx)
+	default:
+		return fmt.Errorf("unsupported platform CI step kind %q", step.kind)
+	}
+}
+
+func (a *App) build(ctx context.Context) error {
+	plan, err := currentPlatformCIPlan()
+	if err != nil {
+		return err
+	}
+	return a.buildWithPlan(ctx, plan)
+}
+
+func (a *App) buildWithPlan(ctx context.Context, plan platformCIPlan) error {
+	if err := executePlatformSteps(ctx, plan.buildSteps, a.executePlatformStep); err != nil {
+		return err
+	}
+	fmt.Fprintf(a.stdout, "[PASS] build matrix for %s profile\n", plan.profile)
+	return nil
+}
+
+func (a *App) buildNativeStudio(ctx context.Context, profile nativeStudioProfile) error {
+	if profile != nativeStudioLinux && profile != nativeStudioWindows {
+		return fmt.Errorf("unsupported native Studio profile %q", profile)
 	}
 	temporary, err := os.MkdirTemp("", "trpg-platform-studio-build-*")
 	if err != nil {
@@ -431,12 +560,9 @@ func (a *App) buildNativeStudio(ctx context.Context) error {
 	}
 	defer os.RemoveAll(temporary)
 	output := filepath.Join(temporary, "creator-studio")
-	if runtime.GOOS == "windows" {
+	if profile == nativeStudioWindows {
 		output += ".exe"
 		return a.runLogged(ctx, "go", "build", "-tags", "production", "-o", output, "./apps/creator-studio")
-	}
-	if runtime.GOOS != "linux" {
-		return nil
 	}
 	if !pkgConfigAvailable(ctx, a.root, "gtk+-3.0", "webkit2gtk-4.1") {
 		if isCI() {
@@ -448,6 +574,17 @@ func (a *App) buildNativeStudio(ctx context.Context) error {
 	return a.runLogged(ctx, "go", "build", "-tags", "production,webkit2_41", "-o", output, "./apps/creator-studio")
 }
 
+func (a *App) validateCompose(ctx context.Context) error {
+	if _, err := exec.LookPath("docker"); err != nil {
+		if isCI() {
+			return errors.New("docker is required by the Linux CI profile")
+		}
+		fmt.Fprintln(a.stdout, "[SKIP] Compose validation: docker CLI unavailable")
+		return nil
+	}
+	return a.runLogged(ctx, "docker", "compose", "-f", "deploy/compose.yaml", "config", "--quiet")
+}
+
 func pkgConfigAvailable(ctx context.Context, root string, packages ...string) bool {
 	if _, err := exec.LookPath("pkg-config"); err != nil {
 		return false
@@ -457,7 +594,7 @@ func pkgConfigAvailable(ctx context.Context, root string, packages ...string) bo
 	return command.Run() == nil
 }
 
-func (a *App) test(ctx context.Context) error {
+func (a *App) checkGoFormat(ctx context.Context) error {
 	goFiles, err := a.goSourceFiles()
 	if err != nil {
 		return err
@@ -472,32 +609,41 @@ func (a *App) test(ctx context.Context) error {
 			return fmt.Errorf("Go formatting drift:\n%s", output)
 		}
 	}
-	goTarget := "./..."
-	if runtime.GOOS == "darwin" {
-		goTarget = "./internal/projectctl"
-	}
-	if err := a.runLogged(ctx, "go", "test", goTarget); err != nil {
+	return nil
+}
+
+func (a *App) test(ctx context.Context) error {
+	plan, err := currentPlatformCIPlan()
+	if err != nil {
 		return err
 	}
-	if err := a.runLogged(ctx, "go", "vet", goTarget); err != nil {
+	return a.testWithPlan(ctx, plan)
+}
+
+func (a *App) testWithPlan(ctx context.Context, plan platformCIPlan) error {
+	if err := executePlatformSteps(ctx, plan.testSteps, a.executePlatformStep); err != nil {
 		return err
 	}
-	if err := a.runLogged(ctx, "pnpm", "-r", "test"); err != nil {
-		return err
-	}
-	fmt.Fprintln(a.stdout, "[PASS] tests for current platform")
+	fmt.Fprintf(a.stdout, "[PASS] tests for %s profile\n", plan.profile)
 	return nil
 }
 
 func (a *App) ci(ctx context.Context) error {
+	plan, err := currentPlatformCIPlan()
+	if err != nil {
+		return err
+	}
+	if !plan.policy {
+		return fmt.Errorf("platform CI profile %q does not enforce repository policy", plan.profile)
+	}
 	steps := []struct {
 		name string
 		run  func() error
 	}{
 		{name: "environment", run: func() error { return a.checkEnvironment(ctx) }},
 		{name: "policy", run: func() error { return a.checkAll(ctx) }},
-		{name: "build", run: func() error { return a.build(ctx) }},
-		{name: "test", run: func() error { return a.test(ctx) }},
+		{name: "build", run: func() error { return a.buildWithPlan(ctx, plan) }},
+		{name: "test", run: func() error { return a.testWithPlan(ctx, plan) }},
 	}
 	for _, step := range steps {
 		fmt.Fprintf(a.stdout, "[CI] %s\n", step.name)

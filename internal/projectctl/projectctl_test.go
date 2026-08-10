@@ -1162,3 +1162,268 @@ func mustBatchContractDigest(t *testing.T, batch milestoneBatch) string {
 }
 
 // x-section-id: PROJECTCTL-PLATFORM-CI-TESTS
+func TestPlatformCIProfileResolution(t *testing.T) {
+	tests := []struct {
+		name        string
+		goos        string
+		wantProfile platformCIProfileName
+		wantError   bool
+	}{
+		{name: "linux", goos: "linux", wantProfile: platformProfileLinuxCore},
+		{name: "windows", goos: "windows", wantProfile: platformProfileWindowsProduct},
+		{name: "darwin", goos: "darwin", wantProfile: platformProfileMacOSProduct},
+		{name: "unsupported", goos: "freebsd", wantError: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			plan, err := platformCIPlanForGOOS(test.goos)
+			if test.wantError {
+				if err == nil || !strings.Contains(err.Error(), "unsupported CI platform") {
+					t.Fatalf("platformCIPlanForGOOS(%q) error = %v, want unsupported platform error", test.goos, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.profile != test.wantProfile {
+				t.Fatalf("platformCIPlanForGOOS(%q) profile = %q, want %q", test.goos, plan.profile, test.wantProfile)
+			}
+			if !plan.policy {
+				t.Fatalf("platformCIPlanForGOOS(%q) omitted the repository policy gate", test.goos)
+			}
+		})
+	}
+}
+
+func TestLinuxCorePlanKeepsFullGate(t *testing.T) {
+	plan, err := platformCIPlanForGOOS("linux")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := platformCIPlanText(plan)
+	requirePlanContains(t, text,
+		"command go build ./...",
+		"command go test ./...",
+		"command go vet ./...",
+		"command pnpm -r typecheck",
+		"command pnpm -r build",
+		"command pnpm -r test",
+		"native-studio linux",
+		"compose",
+	)
+}
+
+func TestWindowsProductPlanUsesSupportedAllowlist(t *testing.T) {
+	plan, err := platformCIPlanForGOOS("windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := platformCIPlanText(plan)
+	requirePlanContains(t, text,
+		"command go build ./cmd/projectctl",
+		"command go build ./cmd/creator-cli",
+		"command go test ./internal/projectctl/...",
+		"command go test ./internal/package/...",
+		"command go test ./cmd/projectctl/...",
+		"command go test ./cmd/creator-cli/...",
+		"command go test ./apps/creator-studio/...",
+		"command go vet ./internal/projectctl/...",
+		"command go vet ./internal/package/...",
+		"command go vet ./cmd/creator-cli/...",
+		"command go vet ./apps/creator-studio/...",
+		"command pnpm -r typecheck",
+		"command pnpm -r build",
+		"command pnpm -r test",
+		"native-studio windows",
+	)
+	for _, forbidden := range []string{
+		"command go build ./...",
+		"command go test ./...",
+		"command go vet ./...",
+		"internal/luaruntime",
+		"cmd/lua-runner",
+		"cmd/platformd",
+		"cmd/workerd",
+		"compose",
+	} {
+		if strings.Contains(text, forbidden) {
+			t.Errorf("Windows product plan contains forbidden gate %q:\n%s", forbidden, text)
+		}
+	}
+}
+
+func TestMacOSProductPlanMatchesDeclaredSurface(t *testing.T) {
+	plan, err := platformCIPlanForGOOS("darwin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.policy {
+		t.Fatal("macOS product plan omitted the repository policy gate")
+	}
+	text := platformCIPlanText(plan)
+	requirePlanContains(t, text,
+		"command go build ./cmd/projectctl",
+		"command go test ./internal/projectctl/...",
+		"command go test ./cmd/projectctl/...",
+		"command go vet ./internal/projectctl/...",
+		"command go vet ./cmd/projectctl/...",
+		"command pnpm -r typecheck",
+		"command pnpm -r build",
+		"command pnpm -r test",
+	)
+	for _, forbidden := range []string{
+		"command go build ./...",
+		"command go test ./...",
+		"command go vet ./...",
+		"native-studio",
+		"compose",
+		"creator-cli",
+		"internal/luaruntime",
+		"cmd/lua-runner",
+	} {
+		if strings.Contains(text, forbidden) {
+			t.Errorf("macOS product plan contains out-of-surface gate %q:\n%s", forbidden, text)
+		}
+	}
+}
+
+func TestWindowsProductPlanPropagatesSupportedSurfaceFailures(t *testing.T) {
+	plan, err := platformCIPlanForGOOS("windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := append([]platformCIStep{}, plan.buildSteps...)
+	steps = append(steps, plan.testSteps...)
+	tests := []struct {
+		name  string
+		match func(platformCIStep) bool
+	}{
+		{name: "projectctl", match: func(step platformCIStep) bool { return step.surface == "projectctl Windows build" }},
+		{name: "Creator CLI", match: func(step platformCIStep) bool { return step.surface == "Creator CLI Windows build" }},
+		{name: "Creator Studio", match: func(step platformCIStep) bool { return step.kind == platformStepNativeStudio }},
+		{name: "Web Player", match: func(step platformCIStep) bool { return step.surface == "Web Player and Creator Studio frontend build" }},
+		{name: "portable package tests", match: func(step platformCIStep) bool { return step.surface == "portable package tests" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			matched := false
+			err := executePlatformSteps(context.Background(), steps, func(_ context.Context, step platformCIStep) error {
+				if test.match(step) {
+					matched = true
+					return context.Canceled
+				}
+				return nil
+			})
+			if !matched {
+				t.Fatal("supported surface has no required Windows step")
+			}
+			if err == nil || !strings.Contains(err.Error(), context.Canceled.Error()) {
+				t.Fatalf("supported surface failure was ignored: %v", err)
+			}
+		})
+	}
+}
+
+func TestWindowsProductPlanSkipsLinuxOnlyCoreFixture(t *testing.T) {
+	plan, err := platformCIPlanForGOOS("windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := writePlatformCIFixture(t)
+	if output, err := runFixtureGo(root, "linux", "build", "./..."); err != nil {
+		t.Fatalf("Linux fixture Core build failed: %v\n%s", err, output)
+	}
+	if _, err := runFixtureGo(root, "windows", "build", "./..."); err == nil {
+		t.Fatal("fixture-wide Windows build unexpectedly accepted the Linux-only Core package")
+	}
+
+	steps := append([]platformCIStep{}, plan.buildSteps...)
+	steps = append(steps, plan.testSteps...)
+	for _, step := range steps {
+		switch {
+		case step.kind == platformStepCommand && step.name == "go":
+			args := append([]string{}, step.args...)
+			if len(args) > 0 && args[0] == "test" {
+				args = append([]string{"test", "-exec=true"}, args[1:]...)
+			}
+			if output, err := runFixtureGo(root, "windows", args...); err != nil {
+				t.Fatalf("Windows supported step %q failed because of the isolated Core fixture: %v\n%s", step.surface, err, output)
+			}
+		case step.kind == platformStepNativeStudio:
+			outputPath := filepath.Join(root, "creator-studio.exe")
+			if output, err := runFixtureGo(root, "windows", "build", "-tags", "production", "-o", outputPath, "./apps/creator-studio"); err != nil {
+				t.Fatalf("Windows native Studio fixture build failed: %v\n%s", err, output)
+			}
+		}
+	}
+}
+
+func platformCIPlanText(plan platformCIPlan) string {
+	steps := append([]platformCIStep{}, plan.buildSteps...)
+	steps = append(steps, plan.testSteps...)
+	lines := make([]string, 0, len(steps))
+	for _, step := range steps {
+		line := string(step.kind)
+		if step.name != "" {
+			line += " " + step.name
+		}
+		if len(step.args) != 0 {
+			line += " " + strings.Join(step.args, " ")
+		}
+		if step.nativeStudio != "" {
+			line += " " + string(step.nativeStudio)
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func requirePlanContains(t *testing.T, text string, wanted ...string) {
+	t.Helper()
+	for _, item := range wanted {
+		if !strings.Contains(text, item) {
+			t.Errorf("platform plan omitted %q:\n%s", item, text)
+		}
+	}
+}
+
+func writePlatformCIFixture(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	files := map[string]string{
+		"go.mod":                               "module example.com/platform-ci-fixture\n\ngo 1.26.0\n",
+		"cmd/projectctl/main.go":               "package main\n\nimport _ \"example.com/platform-ci-fixture/internal/projectctl\"\n\nfunc main() {}\n",
+		"internal/projectctl/projectctl.go":    "package projectctl\n\nconst Portable = true\n",
+		"cmd/creator-cli/main.go":              "package main\n\nimport _ \"example.com/platform-ci-fixture/internal/package/model\"\n\nfunc main() {}\n",
+		"internal/package/model/model.go":      "package model\n\nconst Portable = true\n",
+		"apps/creator-studio/main.go":          "package main\n\nfunc main() {}\n",
+		"cmd/lua-runner/main.go":               "package main\n\nimport \"example.com/platform-ci-fixture/internal/luaruntime\"\n\nfunc main() { luaruntime.Run() }\n",
+		"internal/luaruntime/runtime_linux.go": "//go:build linux\n\npackage luaruntime\n\nfunc Run() {}\n",
+	}
+	for relative, content := range files {
+		path := filepath.Join(root, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+func runFixtureGo(root, goos string, args ...string) (string, error) {
+	command := exec.Command("go", args...)
+	command.Dir = root
+	environment := make([]string, 0, len(os.Environ())+4)
+	for _, item := range os.Environ() {
+		if strings.HasPrefix(item, "GOOS=") || strings.HasPrefix(item, "CGO_ENABLED=") || strings.HasPrefix(item, "GOCACHE=") || strings.HasPrefix(item, "GOFLAGS=") {
+			continue
+		}
+		environment = append(environment, item)
+	}
+	command.Env = append(environment, "GOOS="+goos, "CGO_ENABLED=0", "GOCACHE="+filepath.Join(root, ".gocache"), "GOFLAGS=-buildvcs=false")
+	output, err := command.CombinedOutput()
+	return string(output), err
+}
