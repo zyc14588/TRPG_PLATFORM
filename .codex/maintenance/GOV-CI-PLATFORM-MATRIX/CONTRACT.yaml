@@ -1,0 +1,87 @@
+schema_version: 1
+x-section-id: GOV-CI-PLATFORM-MATRIX
+maintenance_id: GOV-CI-PLATFORM-MATRIX
+objective:
+- 使 projectctl build/test/ci 与 ACTIVE 平台兼容矩阵一致。
+- Linux 是完整 Core/server/runtime native gate。
+- Windows 验证正式 Windows product surfaces，而不 native build Linux-only Core。
+- macOS 只验证其声明支持的 product surfaces。
+- 保持 GitHub Actions → Justfile → projectctl 的统一命令事实源。
+reason: |-
+  ACC-GOV-CI-PLATFORM-001 records that projectctl build/test/ci does not enforce the authoritative platform capability matrix and incorrectly treats Windows as a native Core/server build target.
+  Source blocker ACC-M1-B002-007 was reproduced by B002 candidate 4c06cbd68ea7d5eb73e5c900ce0eb2401589568b in CI run 31381659581.
+  This maintenance is implementation alignment with the existing ACTIVE compatibility matrix; it does not change the platform compatibility matrix, V1 scope, public contracts, or exit gates.
+source_blocker: |-
+  On Windows, projectctl currently expands the canonical `just ci` entry into `go build ./...`, which traverses Linux-only Core/runtime packages.
+  B002 candidate 4c06cbd68ea7d5eb73e5c900ce0eb2401589568b deterministically failed in CI 31381659581 at github.com/iceisfun/golua/v2@v2.0.5/vm/process_provider.go because Windows has no syscall process-group fields/functions used by that Linux-only dependency (`unknown field Setpgid`, `undefined syscall.Kill`).
+  The dependency is outside the supported Windows product surface; supported Windows Player, Creator Studio, Creator CLI, projectctl, package, and governance surfaces must remain hard-gated.
+allowed_scope:
+- path: .codex/maintenance/GOV-CI-PLATFORM-MATRIX/CONTRACT.yaml
+  section_id: GOV-CI-PLATFORM-MATRIX
+  kind: machine-contract
+- path: internal/projectctl/commands.go
+  section_id: PROJECTCTL-PLATFORM-CI
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-PLATFORM-CI-TESTS
+  kind: test
+forbidden_scope:
+- .github workflows, including .github/workflows/m0-baseline.yml
+- Justfile and alternate platform-specific CI entry points
+- docs/10-product, docs/20-architecture, docs/60-quality, and docs/70-decisions
+- .codex/state/MILESTONE_PLAN.yaml and all M1-B002 lifecycle or frozen-contract state
+- internal/luaruntime, cmd/lua-runner, apps, and all product or Lua implementation code
+- product compatibility matrix, V1 scope, public contracts, or exit-gate changes
+- Governance ACCEPT, governance PR merge, PR #20 modification, or B002 lifecycle advancement
+normative_references:
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-NONTRIGGERS
+  kind: normative-section
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R5-A04
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R19-A01
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R19-A02
+  kind: machine-contract
+- path: docs/70-decisions/DECISION_REGISTER.yaml
+  section_id: R19-A05
+  kind: machine-contract
+acceptance:
+- projectctl resolves deterministic linux-core, windows-product, and macos-product capability profiles and rejects every unsupported GOOS explicitly.
+- Linux retains or strengthens full-repository go build/test/vet, all frontend typecheck/build/test, native Studio, Compose validation, policy/check/license, and Codex governance gates.
+- Windows uses an audited positive allowlist for supported projectctl, package/governance, Creator CLI, Creator Studio, and Web Player surfaces and never runs repository-wide Go build/test/vet or Linux-only Core/runtime targets.
+- macOS gates projectctl/governance, portable repository policy, and the Web Player without requiring native Studio or Linux Core/runtime builds.
+- The external GitHub Actions → Justfile → projectctl ci command path remains unchanged and .github/workflows/m0-baseline.yml has no diff.
+- An isolated regression proves an unbuildable Linux-only Core dependency does not fail the Windows plan while failures in supported Windows surfaces still fail.
+- ACC-GOV-CI-PLATFORM-001 is repaired pending independent acceptance; ACC-M1-B002-007 remains open pending governance merge, B002 integration, and a correct three-platform PR #20 CI pass.
+tests:
+- go test ./internal/projectctl/... -count=1
+- go test ./... -count=1
+- go vet ./...
+- just check
+- just test
+- just ci
+- git diff --check
+- git diff --exit-code ACTUAL_MAIN_BASE..HEAD -- .github/workflows/m0-baseline.yml
+- projectctl codex route --mode REPAIR --maintenance GOV-CI-PLATFORM-MATRIX
+- projectctl codex check
+stop_conditions:
+- expected main is neither current main nor an ancestor of a provably legitimate current main
+- B002 branch, plan_version 22, or frozen contract would need modification
+- any requirement to change the ACTIVE product compatibility matrix, V1 scope, public contracts, or exit gates
+- any required change outside the explicitly allowed maintenance scope
+- stale route, invalid binding, invalid stable Section ID, schema failure, unsupported profile fallback, or required test failure
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-002
+  authorization: Explicit project-owner authorization in the initiating GOV-CI-PLATFORM-MATRIX task for one-time control-plane bootstrap only.
+  allowed_scope:
+  - Create .codex/maintenance/GOV-CI-PLATFORM-MATRIX/CONTRACT.yaml.
+  - Add only the inert PROJECTCTL-PLATFORM-CI marker to internal/projectctl/commands.go.
+  - Add only the inert PROJECTCTL-PLATFORM-CI-TESTS marker to internal/projectctl/projectctl_test.go.
+  retirement_condition: A formal clean-HEAD REPAIR route for GOV-CI-PLATFORM-MATRIX passes projectctl codex check, after which bootstrap authority cannot authorize behavior or test changes.
+  status: AUTHORIZED_ONCE
+  retirement_evidence: []
+status: ACTIVE

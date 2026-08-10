@@ -388,6 +388,7 @@ func (a *App) checkAll(ctx context.Context) error {
 	return nil
 }
 
+// x-section-id: PROJECTCTL-PLATFORM-CI
 func (a *App) build(ctx context.Context) error {
 	if runtime.GOOS == "darwin" {
 		if err := a.runLogged(ctx, "go", "build", "./cmd/projectctl"); err != nil {

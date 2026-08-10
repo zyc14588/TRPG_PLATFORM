@@ -1160,3 +1160,5 @@ func mustBatchContractDigest(t *testing.T, batch milestoneBatch) string {
 	}
 	return digest
 }
+
+// x-section-id: PROJECTCTL-PLATFORM-CI-TESTS
