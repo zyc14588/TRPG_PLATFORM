@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 24
+plan_version: 25
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -94,7 +94,7 @@ batches:
   frozen_contract_sha256: d1c9b28471150ff2026293f542869c11a13a03b866676b9a254533c9cd1733d6
 - batch_id: M1-B002
   sequence: 2
-  state: VERIFYING
+  state: BLOCKED
   objective: Implement the source-only Lua 5.5 Platform Profile and isolated per-Session VM lifecycle, including safe checkpoint-based reconstruction.
   non_goals:
   - Implementing Host Callback mutations, package database access, or Session command processing.
