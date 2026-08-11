@@ -2,5 +2,123 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/zyc14588/TRPG_PLATFORM/schemas/codex/native-finding-payload-v1.schema.json",
   "x-section-id": "SCHEMA-CODEX-NATIVE-FINDING-PAYLOAD-V1",
-  "type": "object"
+  "type": "object",
+  "required": [
+    "schema_version",
+    "payload_type",
+    "project_id",
+    "milestone",
+    "batch_id",
+    "verdict",
+    "acceptance_candidate_sha",
+    "acceptance_candidate_tree",
+    "blocking_commit_sha",
+    "frozen_contract_sha256",
+    "route_binding_sha256",
+    "finding_set_digest",
+    "evidence_digest",
+    "findings",
+    "evidence",
+    "native_acceptance_identity",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "payload_type": { "const": "native-finding-payload" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "milestone": { "type": "string", "pattern": "^M(0|[1-9][0-9]*)$" },
+    "batch_id": { "type": "string", "pattern": "^M(0|[1-9][0-9]*)-B[0-9]{3,}$" },
+    "verdict": { "enum": ["PASS", "FAIL", "BLOCKED"] },
+    "acceptance_candidate_sha": { "$ref": "#/$defs/sha1" },
+    "acceptance_candidate_tree": { "$ref": "#/$defs/sha1" },
+    "blocking_commit_sha": { "$ref": "#/$defs/sha1" },
+    "frozen_contract_sha256": { "$ref": "#/$defs/sha256" },
+    "route_binding_sha256": { "$ref": "#/$defs/sha256" },
+    "finding_set_digest": { "$ref": "#/$defs/sha256" },
+    "evidence_digest": { "$ref": "#/$defs/sha256" },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidence" }
+    },
+    "native_acceptance_identity": {
+      "type": "string",
+      "pattern": "^native-acceptance:sha256:[0-9a-f]{64}$"
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "sha1": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "nonEmpty": { "type": "string", "minLength": 1 },
+    "evidenceId": { "type": "string", "pattern": "^[A-Z0-9][A-Z0-9._:-]{1,127}$" },
+    "finding": {
+      "type": "object",
+      "required": [
+        "finding_id",
+        "severity",
+        "location",
+        "reproduction",
+        "violated_requirement",
+        "expected",
+        "actual",
+        "repair_boundary",
+        "evidence_refs",
+        "acceptance_candidate_sha",
+        "acceptance_identity",
+        "created_at"
+      ],
+      "properties": {
+        "finding_id": { "type": "string", "pattern": "^ACC-M(0|[1-9][0-9]*)-B[0-9]{3,}-[0-9]{3,}$" },
+        "severity": { "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "P0", "P1", "P2", "P3"] },
+        "location": { "$ref": "#/$defs/nonEmpty" },
+        "reproduction": { "$ref": "#/$defs/nonEmpty" },
+        "violated_requirement": { "$ref": "#/$defs/nonEmpty" },
+        "expected": { "$ref": "#/$defs/nonEmpty" },
+        "actual": { "$ref": "#/$defs/nonEmpty" },
+        "repair_boundary": { "$ref": "#/$defs/nonEmpty" },
+        "evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/evidenceId" }
+        },
+        "acceptance_candidate_sha": { "$ref": "#/$defs/sha1" },
+        "acceptance_identity": {
+          "type": "string",
+          "pattern": "^native-acceptance:sha256:[0-9a-f]{64}$"
+        },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["evidence_id", "kind", "reference", "result"],
+      "properties": {
+        "evidence_id": { "$ref": "#/$defs/evidenceId" },
+        "kind": { "$ref": "#/$defs/nonEmpty" },
+        "reference": { "$ref": "#/$defs/nonEmpty" },
+        "command": { "type": "string" },
+        "exit_code": { "type": "integer" },
+        "result": { "$ref": "#/$defs/nonEmpty" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "verdict": { "const": "PASS" } }, "required": ["verdict"] },
+      "then": { "properties": { "findings": { "maxItems": 0 } } }
+    },
+    {
+      "if": { "properties": { "verdict": { "const": "FAIL" } }, "required": ["verdict"] },
+      "then": { "properties": { "findings": { "minItems": 1 } } }
+    }
+  ],
+  "additionalProperties": false
 }

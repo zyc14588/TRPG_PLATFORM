@@ -103,6 +103,8 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		return a.ci(ctx)
 	case "codex":
 		return a.codexCommand(ctx, args[1:])
+	case "acceptance":
+		return a.codexAcceptanceCommand(ctx, args[1:])
 	case "accept":
 		if err := requireM0(args[1:]); err != nil {
 			return fmt.Errorf("accept: %w", err)
@@ -131,6 +133,7 @@ Usage:
   projectctl codex route --mode IMPLEMENT|ACCEPT|REPAIR --milestone M? --batch M?-B??? [profile options]
   projectctl codex route --mode ACCEPT|REPAIR --maintenance GOV-ID [profile options]
   projectctl codex check
+  projectctl acceptance record|verify --input FILE
   projectctl accept --milestone M0`)
 }
 
