@@ -28,6 +28,8 @@ const (
 	nativeFindingOutputRelative       = ".codex/runtime/NATIVE_FINDING_PAYLOAD.json"
 )
 
+var writeNativeAcceptanceAtomically = atomicWrite
+
 var (
 	nativeFindingIDPattern  = regexp.MustCompile(`^ACC-(M(?:0|[1-9][0-9]*)-B[0-9]{3,})-[0-9]{3,}$`)
 	nativeSeverityPattern   = regexp.MustCompile(`^(CRITICAL|HIGH|MEDIUM|LOW|P[0-3])$`)
@@ -125,10 +127,10 @@ func (a *App) codexAcceptanceCommand(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		if err := validateNativeAcceptancePayload(payload); err != nil {
+		if err := a.verifyNativeAcceptance(ctx, payload); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.stdout, "[PASS] native acceptance payload %s is internally valid\n", payload.NativeAcceptanceIdentity)
+		fmt.Fprintf(a.stdout, "[PASS] native acceptance payload %s is valid and bound to current native ACCEPT authority\n", payload.NativeAcceptanceIdentity)
 		return nil
 	}
 	return usageError("acceptance record|verify --input FILE")
@@ -216,10 +218,80 @@ func (a *App) recordNativeAcceptance(ctx context.Context, inputPath string, now 
 	} else if !errors.Is(readErr, os.ErrNotExist) {
 		return fmt.Errorf("read native acceptance output: %w", readErr)
 	}
-	if err := atomicWrite(outputPath, data, 0o600); err != nil {
+	if err := writeNativeAcceptanceAtomically(outputPath, data, 0o600); err != nil {
 		return fmt.Errorf("persist native acceptance payload: %w", err)
 	}
 	fmt.Fprintf(a.stdout, "[NATIVE ACCEPTANCE] %s -> %s\n", payload.NativeAcceptanceIdentity, nativeFindingOutputRelative)
+	return nil
+}
+
+func (a *App) verifyNativeAcceptance(ctx context.Context, payload nativeAcceptancePayload) error {
+	if err := validateNativeAcceptancePayload(payload); err != nil {
+		return err
+	}
+	if err := a.requireCleanWorktree(ctx); err != nil {
+		return err
+	}
+	if err := a.checkCodex(ctx); err != nil {
+		return fmt.Errorf("native ACCEPT route validation: %w", err)
+	}
+	route, err := loadYAML[readingMap](a.root, ".codex/runtime/READING_MAP.yaml")
+	if err != nil {
+		return err
+	}
+	if route.Mode != "ACCEPT" || route.RouteScope != batchRouteScope || route.Milestone == "" || route.BatchID == "" || route.MaintenanceID != "" {
+		return errors.New("NATIVE_ACCEPTANCE_ROUTE_REQUIRED: a current ACCEPT BATCH route is required")
+	}
+	head, err := a.capture(ctx, "git", "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	head = strings.TrimSpace(head)
+	tree, err := a.capture(ctx, "git", "rev-parse", "HEAD^{tree}")
+	if err != nil {
+		return err
+	}
+	tree = strings.TrimSpace(tree)
+	plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	if err != nil {
+		return err
+	}
+	catalog, err := a.loadV1MilestoneCatalog()
+	if err != nil {
+		return err
+	}
+	if err := validateMilestonePlan(plan, catalog); err != nil {
+		return fmt.Errorf("native acceptance milestone plan: %w", err)
+	}
+	batch, err := nativeAcceptanceBatch(plan, route.Milestone, route.BatchID, "VERIFYING")
+	if err != nil {
+		return err
+	}
+	projectID, err := nativeProjectID(a.root)
+	if err != nil {
+		return err
+	}
+	bindings := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{name: "project_id", got: payload.ProjectID, want: projectID},
+		{name: "milestone", got: payload.Milestone, want: route.Milestone},
+		{name: "batch_id", got: payload.BatchID, want: route.BatchID},
+		{name: "acceptance_candidate_sha", got: payload.AcceptanceCandidateSHA, want: head},
+		{name: "acceptance_candidate_tree", got: payload.AcceptanceCandidateTree, want: tree},
+		{name: "frozen_contract_sha256", got: payload.FrozenContractSHA256, want: batch.FrozenContractSHA256},
+		{name: "route_binding_sha256", got: payload.RouteBindingSHA256, want: route.RouteBindingSHA256},
+	}
+	for _, binding := range bindings {
+		if binding.got != binding.want {
+			return fmt.Errorf("NATIVE_ACCEPTANCE_BINDING_MISMATCH: %s=%s, current native authority requires %s", binding.name, binding.got, binding.want)
+		}
+	}
+	if err := a.validateNativeBlockingCommit(ctx, head, payload.BlockingCommitSHA, route.Milestone, route.BatchID, batch.FrozenContractSHA256, catalog); err != nil {
+		return fmt.Errorf("NATIVE_ACCEPTANCE_BLOCKING_BINDING_INVALID: %w", err)
+	}
 	return nil
 }
 
@@ -275,6 +347,12 @@ func validateNativeAcceptanceInput(input nativeAcceptanceRecordInput, batchID st
 	}
 	if input.Verdict == "FAIL" && len(input.Findings) == 0 {
 		return errors.New("FAIL native acceptance requires at least one finding")
+	}
+	if input.Findings == nil {
+		return errors.New("native acceptance findings must be an array")
+	}
+	if len(input.Evidence) == 0 {
+		return errors.New("native acceptance evidence must be a non-empty array")
 	}
 	evidenceIDs := map[string]bool{}
 	for index, evidence := range input.Evidence {
@@ -420,7 +498,8 @@ func nativeProjectID(root string) (string, error) {
 
 func buildNativeAcceptancePayload(input nativeAcceptanceRecordInput, projectID string, route readingMap, tree, frozenContract string, now time.Time) (nativeAcceptancePayload, error) {
 	createdAt := now.UTC().Format(time.RFC3339Nano)
-	evidence := append([]nativeAcceptanceEvidence(nil), input.Evidence...)
+	evidence := make([]nativeAcceptanceEvidence, len(input.Evidence))
+	copy(evidence, input.Evidence)
 	sort.Slice(evidence, func(i, j int) bool { return evidence[i].EvidenceID < evidence[j].EvidenceID })
 	findings := make([]nativeFindingPayload, 0, len(input.Findings))
 	for _, finding := range input.Findings {
@@ -476,6 +555,12 @@ func validateNativeAcceptancePayload(payload nativeAcceptancePayload) error {
 	if _, err := time.Parse(time.RFC3339Nano, payload.CreatedAt); err != nil {
 		return errors.New("native finding payload created_at is invalid")
 	}
+	if payload.Findings == nil {
+		return errors.New("native finding payload findings must be an array")
+	}
+	if len(payload.Evidence) == 0 {
+		return errors.New("native finding payload evidence must be a non-empty array")
+	}
 	evidenceIDs := map[string]bool{}
 	for index, evidence := range payload.Evidence {
 		if index > 0 && payload.Evidence[index-1].EvidenceID >= evidence.EvidenceID {
@@ -506,7 +591,8 @@ func validateNativeAcceptancePayload(payload nativeAcceptancePayload) error {
 	if payload.Verdict == "PASS" && len(payload.Findings) != 0 || payload.Verdict == "FAIL" && len(payload.Findings) == 0 {
 		return errors.New("native finding payload verdict/finding cardinality mismatch")
 	}
-	findingsForDigest := append([]nativeFindingPayload(nil), payload.Findings...)
+	findingsForDigest := make([]nativeFindingPayload, len(payload.Findings))
+	copy(findingsForDigest, payload.Findings)
 	for index := range findingsForDigest {
 		findingsForDigest[index].AcceptanceIdentity = ""
 	}
