@@ -72,6 +72,8 @@ bootstrap:
   - Create .codex/maintenance/GOV-ACCEPTANCE-FINDING-PAYLOAD/CONTRACT.yaml.
   - Add only inert stable Section markers for native acceptance production code, tests, and schema.
   retirement_condition: A formal clean-HEAD REPAIR route for GOV-ACCEPTANCE-FINDING-PAYLOAD passes projectctl codex check, after which bootstrap authority cannot authorize behavior or test changes.
-  status: AUTHORIZED_ONCE
-  retirement_evidence: []
+  status: RETIRED
+  retirement_evidence:
+  - Formal REPAIR route generated from signed bootstrap source commit 85a9d519a0ddd5e43511f71c3a80ff0ce38e302d and source tree 642970fccab9cf173aafcfe809959bb65b055fbc.
+  - projectctl codex check PASS for GOV-ACCEPTANCE-FINDING-PAYLOAD with route binding b0dfcad74aae4e2fe0aba5c096f188f6fee55471e1f992bff1fa86311ea3b10a and 72692 context bytes under TELEMETRY_ONLY policy.
 status: ACTIVE
