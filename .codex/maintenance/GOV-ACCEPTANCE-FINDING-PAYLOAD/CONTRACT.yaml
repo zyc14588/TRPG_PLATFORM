@@ -1,0 +1,77 @@
+schema_version: 1
+x-section-id: GOV-ACCEPTANCE-FINDING-PAYLOAD
+maintenance_id: GOV-ACCEPTANCE-FINDING-PAYLOAD
+objective:
+- Add a project-native, machine-consumable acceptance finding payload with complete repair fields and deterministic identity digests.
+- Bind every payload to an exact ACCEPT route, candidate commit, blocking commit, batch frozen contract, and recorded evidence.
+- Persist the validated payload atomically without changing milestone lifecycle or product implementation.
+reason: |-
+  Takeover Cutover Validation found that the current M1-B002 R1 re-acceptance retained only stable IDs ACC-M1-B002-008 and ACC-M1-B002-009. The project has no native command or durable artifact schema for severity, location, reproduction, violated requirement, expected, actual, repair boundary, evidence refs, exact candidate, or acceptance identity. The missing control-plane capability makes native REPAIR context unrecoverable without rerunning independent ACCEPT.
+source_blocker: |-
+  Failed VERIFYING candidate: 3a1e45b464ac66f4d3592e0574a27810205a6073.
+  Blocking lifecycle commit: 27bc3b7ecf870a27348516ff950526c4fea5f0ed.
+  Frozen M1-B002 contract: 5dbcccd9ddda20bbcbdcbff473fb9197b83bb087a10f1ee802ed8ad547d74677.
+  PR #20 records the two open IDs but has no issue comments, reviews, review comments, commit comments, or tracked payload from which the required fields can be recovered. Independent ACCEPT must be rerun; fields must not be guessed.
+allowed_scope:
+- path: .codex/maintenance/GOV-ACCEPTANCE-FINDING-PAYLOAD/CONTRACT.yaml
+  section_id: GOV-ACCEPTANCE-FINDING-PAYLOAD
+  kind: machine-contract
+- path: internal/projectctl/codex_acceptance.go
+  section_id: PROJECTCTL-CODEX-NATIVE-ACCEPTANCE
+  kind: production-code
+- path: internal/projectctl/codex_acceptance_test.go
+  section_id: PROJECTCTL-CODEX-NATIVE-ACCEPTANCE-TESTS
+  kind: test
+- path: internal/projectctl/projectctl.go
+  section_id: PROJECTCTL-CODEX-CLI
+  kind: production-code
+- path: schemas/codex/native-finding-payload-v1.schema.json
+  section_id: SCHEMA-CODEX-NATIVE-FINDING-PAYLOAD-V1
+  kind: machine-contract
+forbidden_scope:
+- .codex/state/MILESTONE_PLAN.yaml, M1-B002 lifecycle transitions, or frozen contract changes
+- cmd/lua-runner, internal/luaruntime, apps, deploy, package, Session, Host API, or any product/business implementation
+- alteration, suppression, invention, or repair of ACC-M1-B002-008 or ACC-M1-B002-009 facts
+- acceptance verdict generation without an exact valid native ACCEPT route and independently supplied evidence
+- PR #20 modification, push, merge, remote write, or M1-B002 REPAIR
+- V1 scope, public contract, licensing, security policy, or exit-gate changes
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MODES
+  kind: normative-section
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-NONTRIGGERS
+  kind: normative-section
+acceptance:
+- The native recorder refuses to run unless the current tracked tree is clean and .codex/runtime/READING_MAP.yaml is a current, valid ACCEPT BATCH route whose source commit equals HEAD.
+- The recorder derives candidate SHA, route binding, milestone, batch, frozen contract, repository identity material, and created_at instead of accepting caller overrides.
+- Every FAIL finding requires a stable ID, severity, location, reproduction, violated requirement, expected, actual, repair boundary, and non-empty evidence refs; missing or partial payloads fail closed.
+- Candidate, blocking commit, frozen contract, finding set digest, and native acceptance identity are deterministically cross-validated and emitted in canonical JSON.
+- Candidate mismatch, blocking ancestry/state mismatch, route staleness, duplicate finding IDs, invalid severity, empty evidence, and digest tampering are rejected by negative tests.
+- Output is atomically persisted only after full validation; invalid input leaves no output artifact.
+- The implementation is generic and contains no M1-B002, PR #20, or ACC-008/009 special case.
+- All required repository and governance checks pass without product or milestone-plan changes.
+tests:
+- env GOCACHE=/tmp/cutover-go-build go test ./internal/projectctl/... -count=1
+- env GOCACHE=/tmp/cutover-go-build go test ./... -count=1
+- env GOCACHE=/tmp/cutover-go-build go vet ./...
+- just check
+- git diff --check
+- projectctl codex route --mode REPAIR --maintenance GOV-ACCEPTANCE-FINDING-PAYLOAD
+- projectctl codex route --mode ACCEPT --maintenance GOV-ACCEPTANCE-FINDING-PAYLOAD
+- projectctl codex check
+stop_conditions:
+- any required field cannot be derived from native route, repository state, independent ACCEPT evidence, or an authoritative clock
+- exact candidate or blocking lifecycle identity cannot be proven locally
+- implementation would need to edit product code, milestone state, the acceptance findings themselves, or remote state
+- route, contract, stable Section ID, schema, atomic persistence, or required negative test cannot pass fail closed
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-003
+  authorization: Explicit project-owner authorization in CODEX_LOOP_CUTOVER_REMEDIATION_REPAIR_CONTEXT_AND_NATIVE_MODE_ZH to repair native finding persistence through a formal GOV-* governance-maintenance route.
+  allowed_scope:
+  - Create .codex/maintenance/GOV-ACCEPTANCE-FINDING-PAYLOAD/CONTRACT.yaml.
+  - Add only inert stable Section markers for native acceptance production code, tests, and schema.
+  retirement_condition: A formal clean-HEAD REPAIR route for GOV-ACCEPTANCE-FINDING-PAYLOAD passes projectctl codex check, after which bootstrap authority cannot authorize behavior or test changes.
+  status: AUTHORIZED_ONCE
+  retirement_evidence: []
+status: ACTIVE
