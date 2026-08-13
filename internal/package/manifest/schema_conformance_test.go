@@ -18,8 +18,10 @@ import (
 
 var packageSchemaFiles = []string{
 	"manifest-v1.schema.json",
+	"manifest-v2.schema.json",
 	"lock-v1.schema.json",
 	"artifact-identity-v1.schema.json",
+	"artifact-identity-v2.schema.json",
 }
 
 func compiledPackageSchemas(t *testing.T) *manifest.SchemaConformance {
@@ -33,10 +35,14 @@ func compiledPackageSchemas(t *testing.T) *manifest.SchemaConformance {
 		switch filename {
 		case string(manifest.ManifestSchemaDocument):
 			resources.Manifest = data
+		case string(manifest.ManifestV2SchemaDocument):
+			resources.ManifestV2 = data
 		case string(manifest.LockSchemaDocument):
 			resources.Lock = data
 		case string(manifest.ArtifactIdentitySchemaDocument):
 			resources.ArtifactIdentity = data
+		case string(manifest.ArtifactIdentityV2SchemaDocument):
+			resources.ArtifactIdentityV2 = data
 		default:
 			t.Fatalf("unknown package schema %q", filename)
 		}

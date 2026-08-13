@@ -3,7 +3,9 @@
 package manifest_test
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,7 +82,7 @@ func TestManifestFailsClosed(t *testing.T) {
 	}{
 		{name: "unknown field", data: base + "\nunknown = true\n"},
 		{name: "bundle runtime package kind", data: strings.Replace(base, `package_kind = "game-system"`, `package_kind = "bundle"`, 1)},
-		{name: "unsupported schema", data: strings.Replace(base, "schema_version = 1", "schema_version = 2", 1)},
+		{name: "unsupported schema", data: strings.Replace(base, "schema_version = 1", "schema_version = 3", 1)},
 		{name: "unknown required capability", data: strings.Replace(base, `"host.event"`, `"host.unknown"`, 1)},
 		{name: "unknown optional capability", data: strings.Replace(base, `name = "host.log"`, `name = "host.network"`, 1)},
 		{name: "missing rights", data: strings.Replace(base, `license_expression = "LicenseRef-Example-Private"`, `license_expression = ""`, 1)},
@@ -147,8 +149,8 @@ func TestPackageSchemasAreVersionedValidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(paths) != 3 {
-		t.Fatalf("schema count = %d, want 3", len(paths))
+	if len(paths) != 5 {
+		t.Fatalf("schema count = %d, want 5", len(paths))
 	}
 	for _, path := range paths {
 		path := path
@@ -169,6 +171,53 @@ func TestPackageSchemasAreVersionedValidJSON(t *testing.T) {
 				assertSchemaSeparatesPackageAndBundle(t, schema)
 			}
 		})
+	}
+}
+
+func TestManifestV2ExtensionCanonicalRoundtrip(t *testing.T) {
+	t.Parallel()
+	schema := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}`)
+	digest := sha256.Sum256(schema)
+	base := strings.Replace(string(fixture(t, "package.toml")), "schema_version = 1", "schema_version = 2", 1)
+	base = strings.Replace(base, `display_name = "Hidden Cards Example"`, "display_name = \"Probe \\\"quoted\\\"\\nline\"", 1)
+	base += fmt.Sprintf(`
+
+[[extensions]]
+namespace = "third.party.probe"
+required = false
+contract_version = 1
+schema_path = "extensions/third.party.probe/value.schema.json"
+schema_sha256 = "sha256:%x"
+payload_path = "extensions/third.party.probe/value.json"
+host_api_major = 1
+host_api_min_minor = 0
+host_api_max_minor = 0
+`, digest)
+	document, err := manifest.Parse([]byte(base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Package.SchemaVersion != 2 || len(document.Package.Extensions) != 1 {
+		t.Fatalf("package = %#v", document.Package)
+	}
+	canonical, err := manifest.CanonicalTOML(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := manifest.Parse(canonical)
+	if err != nil {
+		t.Fatalf("canonical parse: %v\n%s", err, canonical)
+	}
+	canonicalAgain, err := manifest.CanonicalTOML(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(canonicalAgain) != string(canonical) {
+		t.Fatal("canonical TOML is not idempotent")
+	}
+	missingRequired := strings.Replace(string(canonical), "required = false\n", "", 1)
+	if _, err := manifest.Parse([]byte(missingRequired)); err == nil {
+		t.Fatal("extension with omitted required accepted")
 	}
 }
 

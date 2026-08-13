@@ -13,6 +13,7 @@ import (
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/capability"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/dependency"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/extension"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/model"
 )
 
@@ -23,8 +24,10 @@ type SchemaDocument string
 
 const (
 	ManifestSchemaDocument         SchemaDocument = "manifest-v1.schema.json"
+	ManifestV2SchemaDocument       SchemaDocument = "manifest-v2.schema.json"
 	LockSchemaDocument             SchemaDocument = "lock-v1.schema.json"
 	ArtifactIdentitySchemaDocument SchemaDocument = "artifact-identity-v1.schema.json"
+	ArtifactIdentityV2SchemaDocument SchemaDocument = "artifact-identity-v2.schema.json"
 )
 
 // SchemaResources supplies the tracked public schemas without copying them
@@ -32,8 +35,10 @@ const (
 // immutable source.
 type SchemaResources struct {
 	Manifest         []byte
+	ManifestV2       []byte
 	Lock             []byte
 	ArtifactIdentity []byte
+	ArtifactIdentityV2 []byte
 }
 
 // SchemaConformance validates the public package contract in two explicit
@@ -53,8 +58,28 @@ func NewSchemaConformance(resources SchemaResources) (*SchemaConformance, error)
 		data     []byte
 	}{
 		{document: ManifestSchemaDocument, data: resources.Manifest},
-		{document: LockSchemaDocument, data: resources.Lock},
-		{document: ArtifactIdentitySchemaDocument, data: resources.ArtifactIdentity},
+	}
+	if len(resources.ManifestV2) != 0 {
+		inputs = append(inputs, struct {
+			document SchemaDocument
+			data     []byte
+		}{document: ManifestV2SchemaDocument, data: resources.ManifestV2})
+	}
+	inputs = append(inputs,
+		struct {
+			document SchemaDocument
+			data     []byte
+		}{document: LockSchemaDocument, data: resources.Lock},
+		struct {
+			document SchemaDocument
+			data     []byte
+		}{document: ArtifactIdentitySchemaDocument, data: resources.ArtifactIdentity},
+	)
+	if len(resources.ArtifactIdentityV2) != 0 {
+		inputs = append(inputs, struct {
+			document SchemaDocument
+			data     []byte
+		}{document: ArtifactIdentityV2SchemaDocument, data: resources.ArtifactIdentityV2})
 	}
 	for _, input := range inputs {
 		if len(input.data) == 0 {
@@ -108,7 +133,7 @@ func (validator *SchemaConformance) ValidateCanonical(document SchemaDocument, d
 		return fmt.Errorf("%s instance is not valid UTF-8", document)
 	}
 	switch document {
-	case ManifestSchemaDocument:
+	case ManifestSchemaDocument, ManifestV2SchemaDocument:
 		if len(data) > MaxManifestBytes {
 			return fmt.Errorf("manifest exceeds %d bytes", MaxManifestBytes)
 		}
@@ -118,7 +143,7 @@ func (validator *SchemaConformance) ValidateCanonical(document SchemaDocument, d
 			return fmt.Errorf("canonical exact lock: %w", err)
 		}
 		return nil
-	case ArtifactIdentitySchemaDocument:
+	case ArtifactIdentitySchemaDocument, ArtifactIdentityV2SchemaDocument:
 		return validateCanonicalArtifactIdentityJSON(data)
 	default:
 		return fmt.Errorf("unknown package schema document %q", document)
@@ -162,6 +187,7 @@ type conformancePackageManifest struct {
 	Rights        rawRights               `json:"rights"`
 	Capabilities  conformanceCapabilities `json:"capabilities"`
 	Dependencies  []conformanceDependency `json:"dependencies"`
+	Extensions    []extension.Descriptor  `json:"extensions"`
 }
 
 type conformanceCapabilities struct {
@@ -230,7 +256,7 @@ func validateCanonicalManifestJSON(data []byte) error {
 			SchemaVersion: raw.SchemaVersion,
 			PackageID:     model.PackageID(raw.PackageID), PackageKind: model.PackageKind(raw.PackageKind), Version: model.Version(raw.Version),
 			DisplayName: raw.DisplayName, Entrypoint: entrypoint, LuaProfile: luaProfile, HostAPI: raw.HostAPI,
-			Build: raw.Build, Rights: rights, Capabilities: declaration, Dependencies: requirements,
+			Build: raw.Build, Rights: rights, Capabilities: declaration, Dependencies: requirements, Extensions: raw.Extensions,
 		})
 		return err
 	case model.ArtifactTypeBundle:
@@ -270,10 +296,11 @@ func validateCanonicalArtifactIdentityJSON(data []byte) error {
 	if err := decodeConformanceJSON(data, &raw); err != nil {
 		return fmt.Errorf("decode artifact identity: %w", err)
 	}
-	if raw.SchemaVersion != ArtifactIdentitySchemaVersion {
+	if raw.SchemaVersion != ArtifactIdentitySchemaVersion && raw.SchemaVersion != ArtifactIdentityV2SchemaVersion {
 		return fmt.Errorf("unsupported artifact identity schema_version %d", raw.SchemaVersion)
 	}
-	if raw.ManifestSchemaVersion != SchemaVersion {
+	if (raw.SchemaVersion == ArtifactIdentitySchemaVersion && raw.ManifestSchemaVersion != SchemaVersion) ||
+		(raw.SchemaVersion == ArtifactIdentityV2SchemaVersion && raw.ManifestSchemaVersion != ExtensionSchemaVersion) {
 		return fmt.Errorf("unsupported manifest schema_version %d", raw.ManifestSchemaVersion)
 	}
 	artifactType, err := model.ParseArtifactType(raw.ArtifactType)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
-// Package manifest parses and validates the version-one TOML package artifact
-// contract. It performs no installation, activation, or runtime execution.
+// Package manifest parses and validates the strict versioned TOML package
+// artifact contract. It performs no installation or runtime execution.
 package manifest
 
 import (
@@ -17,12 +17,14 @@ import (
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/capability"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/dependency"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/extension"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/model"
 )
 
 const (
-	SchemaVersion    = 1
-	MaxManifestBytes = 1 << 20
+	SchemaVersion          = 1
+	ExtensionSchemaVersion = 2
+	MaxManifestBytes       = 1 << 20
 )
 
 var luaProfilePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,127}$`)
@@ -49,6 +51,7 @@ type Package struct {
 	Rights        model.Rights             `json:"rights"`
 	Capabilities  capability.Declaration   `json:"capabilities"`
 	Dependencies  []dependency.Requirement `json:"dependencies"`
+	Extensions    []extension.Descriptor   `json:"extensions,omitempty"`
 }
 
 // BundleArtifact is an exact package reference carried by a distribution
@@ -101,6 +104,19 @@ type rawPackage struct {
 	Rights        rawRights        `toml:"rights"`
 	Capabilities  *rawCapabilities `toml:"capabilities"`
 	Dependencies  []rawDependency  `toml:"dependencies"`
+	Extensions    []rawExtension   `toml:"extensions"`
+}
+
+type rawExtension struct {
+	Namespace       string `toml:"namespace"`
+	Required        *bool  `toml:"required"`
+	ContractVersion *int64 `toml:"contract_version"`
+	SchemaPath      string `toml:"schema_path"`
+	SchemaSHA256    string `toml:"schema_sha256"`
+	PayloadPath     string `toml:"payload_path"`
+	HostAPIMajor    *int64 `toml:"host_api_major"`
+	HostAPIMinMinor *int64 `toml:"host_api_min_minor"`
+	HostAPIMaxMinor *int64 `toml:"host_api_max_minor"`
 }
 
 type rawBundle struct {
@@ -209,7 +225,7 @@ func Parse(data []byte) (Document, error) {
 	if _, err := toml.Decode(string(data), &header); err != nil {
 		return Document{}, fmt.Errorf("decode manifest header: %w", err)
 	}
-	if header.SchemaVersion != SchemaVersion {
+	if header.SchemaVersion != SchemaVersion && header.SchemaVersion != ExtensionSchemaVersion {
 		return Document{}, fmt.Errorf("unsupported manifest schema_version %d", header.SchemaVersion)
 	}
 	artifactType, err := model.ParseArtifactType(header.ArtifactType)
@@ -228,6 +244,9 @@ func Parse(data []byte) (Document, error) {
 		}
 		return Document{ArtifactType: artifactType, Package: &value}, nil
 	case model.ArtifactTypeBundle:
+		if header.SchemaVersion != SchemaVersion {
+			return Document{}, fmt.Errorf("Bundle only supports manifest schema_version %d", SchemaVersion)
+		}
 		var raw rawBundle
 		if err := decodeStrict(data, &raw); err != nil {
 			return Document{}, err
@@ -310,11 +329,32 @@ func packageFromRaw(raw rawPackage) (Package, error) {
 	if err != nil {
 		return Package{}, err
 	}
+	extensions := make([]extension.Descriptor, 0, len(raw.Extensions))
+	for _, item := range raw.Extensions {
+		if item.Required == nil || item.ContractVersion == nil || item.HostAPIMajor == nil || item.HostAPIMinMinor == nil || item.HostAPIMaxMinor == nil {
+			return Package{}, fmt.Errorf("extension %q requires required, contract_version, and complete host API range", item.Namespace)
+		}
+		if *item.ContractVersion <= 0 || *item.ContractVersion > int64(^uint32(0)) || *item.HostAPIMajor <= 0 || *item.HostAPIMajor > int64(^uint32(0)) || *item.HostAPIMinMinor < 0 || *item.HostAPIMinMinor > int64(^uint32(0)) || *item.HostAPIMaxMinor < 0 || *item.HostAPIMaxMinor > int64(^uint32(0)) {
+			return Package{}, fmt.Errorf("extension %q numeric field is outside its supported range", item.Namespace)
+		}
+		extensions = append(extensions, extension.Descriptor{
+			Namespace: item.Namespace, Required: *item.Required, ContractVersion: uint32(*item.ContractVersion),
+			SchemaPath: item.SchemaPath, SchemaSHA256: item.SchemaSHA256, PayloadPath: item.PayloadPath,
+			HostAPIMajor: uint32(*item.HostAPIMajor), HostAPIMinMinor: uint32(*item.HostAPIMinMinor), HostAPIMaxMinor: uint32(*item.HostAPIMaxMinor),
+		})
+	}
+	if raw.SchemaVersion == SchemaVersion && len(extensions) != 0 {
+		return Package{}, fmt.Errorf("manifest schema_version 1 does not support extensions")
+	}
+	extensions, err = extension.NormalizeDescriptors(extensions)
+	if err != nil {
+		return Package{}, err
+	}
 	value := Package{
 		SchemaVersion: raw.SchemaVersion, PackageID: id, PackageKind: kind, Version: version,
 		DisplayName: strings.TrimSpace(raw.DisplayName), Entrypoint: entrypoint,
 		LuaProfile: luaProfile, Build: build, Rights: rights,
-		Capabilities: capabilities, Dependencies: requirements,
+		Capabilities: capabilities, Dependencies: requirements, Extensions: extensions,
 	}
 	if raw.HostAPI != nil {
 		hostAPI, hostErr := normalizeHostAPI(*raw.HostAPI)
@@ -357,7 +397,7 @@ func normalizeHostAPI(raw rawHostAPIRange) (HostAPIRange, error) {
 // NormalizePackage validates directly constructed package values and returns
 // the canonical representation used in artifact identities.
 func NormalizePackage(value Package) (Package, error) {
-	if value.SchemaVersion != SchemaVersion {
+	if value.SchemaVersion != SchemaVersion && value.SchemaVersion != ExtensionSchemaVersion {
 		return Package{}, fmt.Errorf("unsupported manifest schema_version %d", value.SchemaVersion)
 	}
 	id, err := model.ParsePackageID(value.PackageID.String())
@@ -391,7 +431,13 @@ func NormalizePackage(value Package) (Package, error) {
 	if err != nil {
 		return Package{}, err
 	}
-	value.SchemaVersion = SchemaVersion
+	if value.SchemaVersion == SchemaVersion && len(value.Extensions) != 0 {
+		return Package{}, fmt.Errorf("manifest schema_version 1 does not support extensions")
+	}
+	extensions, err := extension.NormalizeDescriptors(value.Extensions)
+	if err != nil {
+		return Package{}, err
+	}
 	value.PackageID = id
 	value.PackageKind = kind
 	value.Version = version
@@ -399,6 +445,7 @@ func NormalizePackage(value Package) (Package, error) {
 	value.Build = build
 	value.Rights = rights
 	value.Dependencies = requirements
+	value.Extensions = extensions
 	if err := validateRuntime(&value); err != nil {
 		return Package{}, err
 	}
