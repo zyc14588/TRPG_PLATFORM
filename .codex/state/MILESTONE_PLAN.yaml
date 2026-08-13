@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 26
+plan_version: 27
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -754,7 +754,7 @@ batches:
   parallel_scope_keys: []
 - batch_id: M1-B010
   sequence: 10
-  state: FROZEN
+  state: IMPLEMENTING
   objective: Implement the generic namespaced JSON Game Package extension contract, Host canonical preservation, and the minimum schema-validated Creator edit roundtrip required for an exact third-party adapter proof.
   non_goals:
   - Implementing formal equipment semantics, equipment Lua/runtime, or any rules-residue-specific platform behavior.

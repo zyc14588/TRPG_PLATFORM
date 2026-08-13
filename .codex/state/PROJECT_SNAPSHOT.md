@@ -17,6 +17,6 @@ V1：官方隐藏信息桌游 + 规则异常 TRPG + Creator Studio + 托管/自�
 
 M0 已独立验收 `PASS`、合并并关闭。当前边界为活动的 `M1` 里程碑计划；`M1-B001` 已完成，`M1-B002` 的冻结合同保持 `BLOCKED` 且不占用活动施工 WIP。
 
-`GOV-R2-INT-010-OWNER-APPROVAL` 已由独立只读上下文验收 `PASS`。`M1-B010` 现以冻结哈希 `452846abd429474fb57aaab1a4247308df5b78ea819601e113bd2a33d2368583` 固定通用 namespaced JSON extension、Host preservation 和最小 schema-validated Creator edit roundtrip；能力仍为 `NOT_IMPLEMENTED / NOT_RUN`。这是 `SERIAL_WIP_HANDOFF`：WIP limit 仍为 1，`M1-B002` 保持 `BLOCKED` 且不得恢复或与 B010 并行。
+`GOV-R2-INT-010-OWNER-APPROVAL` 已由独立只读上下文验收 `PASS`。`M1-B010` 现以冻结哈希 `452846abd429474fb57aaab1a4247308df5b78ea819601e113bd2a33d2368583` 进入 `IMPLEMENTING`，目标限于通用 namespaced JSON extension、Host preservation 和最小 schema-validated Creator edit roundtrip；能力仍为 `NOT_IMPLEMENTED / NOT_RUN`。这是 `SERIAL_WIP_HANDOFF`：WIP limit 仍为 1，`M1-B002` 保持 `BLOCKED` 且不得恢复或与 B010 并行。
 
 状态摘要不覆盖权威规范。
