@@ -4,7 +4,7 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "a767115af691b728c60bd272dce3fc01f2258bc7"
+source_commit: "608157e05e0a5beaba3c87a5f8f6f525e73a1132"
 ---
 
 # 项目摘要
@@ -17,6 +17,6 @@ V1：官方隐藏信息桌游 + 规则异常 TRPG + Creator Studio + 托管/自�
 
 M0 已独立验收 `PASS`、合并并关闭。当前边界为活动的 `M1` 里程碑计划；`M1-B001` 已完成，`M1-B002` 的冻结合同保持 `BLOCKED` 且不占用活动施工 WIP。
 
-项目所有者以 `APPROVED_WITH_CONDITIONS` 批准 `PLATFORM-CHANGE-R2-INT-010-REM-001` 进入独立治理验收，并授权该验收通过后由全新 PLAN 创建、冻结 `M1-B010`。这是 `SERIAL_WIP_HANDOFF`：WIP limit 仍为 1，`M1-B002` 不得恢复或与 B010 并行，B010 是唯一获准进入下一 PLAN 的平台批次。批准本身不授权 IMPLEMENT，也不证明 extension、Creator 或 `R2-INT-010` 已 PASS。
+`GOV-R2-INT-010-OWNER-APPROVAL` 已由独立只读上下文验收 `PASS`。`M1-B010` 现以冻结哈希 `452846abd429474fb57aaab1a4247308df5b78ea819601e113bd2a33d2368583` 固定通用 namespaced JSON extension、Host preservation 和最小 schema-validated Creator edit roundtrip；能力仍为 `NOT_IMPLEMENTED / NOT_RUN`。这是 `SERIAL_WIP_HANDOFF`：WIP limit 仍为 1，`M1-B002` 保持 `BLOCKED` 且不得恢复或与 B010 并行。
 
 状态摘要不覆盖权威规范。

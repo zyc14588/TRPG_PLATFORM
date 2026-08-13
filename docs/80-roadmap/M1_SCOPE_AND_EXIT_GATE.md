@@ -15,6 +15,13 @@ M1 冻结 package identity、manifest、dependency lock 与 Host API 的首个�
 
 本里程碑只落实 `SPEC-V1-ROADMAP-M1` 以及当前标记为 `M1` 的 requirement、test 和 traceability 行，不增加产品范围。
 
+<a id="SPEC-M1-B010-OWNER-EXCEPTION"></a>
+### 1.1 M1-B010 项目所有者窄例外
+
+`OWNER-DECISION-PLATFORM-CHANGE-R2-INT-010-REM-001` 仅为 `M1-B010` 增加以下 M1 范围：通用 Game Package namespaced JSON extension、Host canonical preservation、`SCHEMA_VALIDATED_GENERIC_JSON_EDITOR` 的 import / inspect / edit / validate / export / re-import 最小往返，以及第一方和第三方走同一路径的跨仓库 probe。该例外不移动或完成任何 M6 Creator requirement，不授权完整 Creator Studio、游戏专用编辑器、正式装备语义或 runtime，也不改变 `M1-B002` 的冻结合同。
+
+`M1-B010` 的 Phase K 本地集成目标固定为从 `02dd02447ed07fe6248108365847dccf4023ca00` 建立的 `m1/b010-game-package-extensions`；不得把候选合入或改写 `m1/b002-lua-runtime`。只允许在完整独立验收后 `git merge --ff-only`，默认不 push、不创建 PR。
+
 <a id="SPEC-M1-ALLOWED"></a>
 ## 2. 允许
 
@@ -26,6 +33,7 @@ M1 冻结 package identity、manifest、dependency lock 与 Host API 的首个�
 - 事件权威、snapshot/projection 可重建、固定 replay 与 package/schema/callback/migration 边界 fuzz（`REQ-DATA-001`、`REQ-QUALITY-003`）；
 - package、Session、Lua、Host Callback 不得突破的安全硬边界（`REQ-SEC-001`）；
 - 可重复加载并恢复/重放的 `fixture-minimal`，长期用于兼容、迁移和部署 smoke 验证。
+- 仅限 `M1-B010` 的通用 namespaced JSON extension、Host 无损保存和最小 schema-validated Creator 往返，精确合同见 `SPEC-PACKAGE-EXTENSIONS-M1-B010`。
 
 <a id="SPEC-M1-FORBIDDEN"></a>
 ## 3. 禁止
@@ -33,7 +41,7 @@ M1 冻结 package identity、manifest、dependency lock 与 Host API 的首个�
 - 完整账户系统、正式 Room/Lobby/邀请与玩家房间体验；
 - 完整 AI gateway、模型路由、AI 席位产品能力或 browser-local model；
 - 官方隐藏信息桌游、官方 TRPG 与 Campaign 产品能力；
-- Creator Studio 的实际编辑能力；
+- 除 `SPEC-M1-B010-OWNER-EXCEPTION` 固定的通用 JSON 最小编辑面外，Creator Studio 的实际编辑能力；
 - public marketplace、正式 package 信任/撤销运营面；
 - 正式备份系统、生产部署与后续里程碑的运维能力；
 - 任何不属于当前 M1 requirement/test/traceability 行的 V1 功能。

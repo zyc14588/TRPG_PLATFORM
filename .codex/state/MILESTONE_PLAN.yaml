@@ -1,10 +1,10 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 25
+plan_version: 26
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
-next_batch_sequence: 10
+next_batch_sequence: 11
 batches:
 - batch_id: M1-B001
   sequence: 1
@@ -752,4 +752,115 @@ batches:
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
+- batch_id: M1-B010
+  sequence: 10
+  state: FROZEN
+  objective: Implement the generic namespaced JSON Game Package extension contract, Host canonical preservation, and the minimum schema-validated Creator edit roundtrip required for an exact third-party adapter proof.
+  non_goals:
+  - Implementing formal equipment semantics, equipment Lua/runtime, or any rules-residue-specific platform behavior.
+  - Building the full Creator Studio authoring suite, preview, semantic-diff UX, templates, or game-specific forms.
+  - Changing Lua, Host Callback, Session, database, AI, network, marketplace, deployment, R2 authority, M2-B002, or M2-B009 behavior.
+  - Resuming, repairing, extending, or running M1-B002 in parallel.
+  allowed_scope:
+  - internal/package/manifest/**
+  - internal/package/extension/**
+  - internal/package/packagepath/**
+  - internal/package/jsondocument/**
+  - internal/package/archive/**
+  - internal/package/testdata/**
+  - schemas/package/**
+  - cmd/creator-cli/**
+  - apps/creator-studio/**
+  - tests/integration/package_extensions/**
+  - internal/projectctl/commands.go
+  - internal/projectctl/projectctl_test.go
+  - go.mod
+  - go.sum
+  forbidden_scope:
+  - cmd/lua-runner/**
+  - internal/luaruntime/**
+  - internal/hostapi/**
+  - internal/session/**
+  - internal/storage/**
+  - internal/eventstore/**
+  - internal/projection/**
+  - internal/ai/**
+  - internal/account/**
+  - internal/room/**
+  - internal/lobby/**
+  - internal/campaign/**
+  - internal/marketplace/**
+  - cmd/platformd/**
+  - cmd/workerd/**
+  - deploy/**
+  - games/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  requirements:
+  - REQ-PACKAGE-001
+  - REQ-PACKAGE-002
+  - REQ-PACKAGE-004
+  - REQ-SEC-001
+  - REQ-QUALITY-003
+  machine_contracts:
+  - REQ-PACKAGE-001
+  - REQ-PACKAGE-002
+  - REQ-PACKAGE-004
+  - REQ-SEC-001
+  - REQ-QUALITY-003
+  - TEST-PACKAGE-001
+  - TEST-PACKAGE-002
+  - TEST-PACKAGE-004
+  - TEST-SEC-001
+  - TEST-QUALITY-003
+  - R2-A01
+  - R2-A02
+  - R2-A11
+  - R2-A15
+  - R5-A25
+  - R7-A03
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-M1-B010-OWNER-EXCEPTION
+  - SPEC-PACKAGE-001
+  - SPEC-PACKAGE-EXTENSIONS-M1-B010
+  - SPEC-CREATOR-ROUNDTRIP
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - Manifest schema v1 remains strict and behavior-compatible for packages without extensions; only versioned package manifest v2 accepts the exact generic descriptor fields frozen by SPEC-PACKAGE-EXTENSIONS-M1-B010, and Bundle remains extension-free.
+  - Namespace, descriptor uniqueness, required/optional support, raw-byte schema SHA-256, fragment-only Draft 2020-12 references, portable confined paths, Host API range, size/depth/count/ratio limits, and no-code/no-host-path rules all fail closed without package-ID or official-game privileges.
+  - Host parse/load/export/repack/reload uses one canonical model; supported payloads remain schema-valid and semantically equal, optional unsupported payload/schema bytes remain lossless and read-only, and required unsupported extensions return a stable typed failure.
+  - Canonical JSON, TOML, content-entry framing, outer lock/identity envelope, and fixed-metadata ZIP serialization have a non-self-referential byte domain and produce byte-identical second builds and repacks.
+  - The real Creator Studio binary and Wails UI share a narrow SCHEMA_VALIDATED_GENERIC_JSON_EDITOR service that imports, inspects, edits a JSON value, validates the declared local schema, exports, and re-imports; conflict-token and atomic-write behavior is tested and opaque/read-only-only flows cannot claim edit PASS.
+  - Positive acceptance independently covers old/no-extension, one and multiple third-party namespaces, required supported, optional unknown preservation, parse/load/export/reload equality, canonical serialization, deterministic build, Creator import/export, Creator edit/validate/export/re-import, schema digest, and first/third-party path parity.
+  - Negative acceptance independently covers undeclared payload, duplicate/invalid/reserved namespace, digest mismatch, required missing schema, traversal/absolute/symlink escape, remote ref, required unsupported, core override, size/depth excess, nondeterminism, Creator/Host field loss, extension code, Host path access, and any rules-residue/package-ID/official special case.
+  - The exact cross-repository proof binds one accepted platform commit/tree, one accepted rules-residue commit/tree, and one Creator binary identity; it performs a real JSON edit and deterministic second run with a minimal probe explicitly marked as not formal M2-B002 semantics.
+  tests:
+  - go test ./internal/package/... ./cmd/creator-cli/... ./apps/creator-studio/... ./tests/integration/package_extensions/... -count=1
+  - go test -race ./internal/package/... -count=1
+  - pnpm --dir apps/creator-studio/frontend test -- --run exercises descriptor listing, editable JSON, validation diagnostics, read-only optional handling, typed required failure, field preservation, and import/export UI boundaries.
+  - A focused deterministic archive suite builds and repacks identical inputs twice and compares exact ZIP bytes, content hashes, archive hashes, canonical manifest bytes, and canonical payload bytes.
+  - A focused security suite executes every negative case in SPEC-PACKAGE-EXTENSIONS-M1-B010, including directory and ZIP symlink fixtures, normalization collisions, remote refs, resource limits, code paths, Host path attempts, and rules-residue special-case source scans.
+  - The Creator acceptance build uses go build -trimpath with embedded exact commit/tree, records binary SHA-256 and build command, and invokes that binary for import, inspect, JSON edit, schema validation, export, re-import, and deterministic repack.
+  - just check, just test, go vet ./..., just license-check, git diff --check, and an exact allowed/forbidden-path audit pass from a clean tracked tree.
+  stop_conditions:
+  - Stop if the contract cannot preserve v1 behavior, unsupported optional bytes, Host/Creator fields, or deterministic output without weakening strict schemas or deleting a failing test.
+  - Stop if any schema or payload requires network, filesystem escape, executable code, an unbounded allocation, a package-ID/official/rules-residue special case, or additionalProperties=true as the extension mechanism.
+  - Stop if the Creator proof would be opaque-only, read-only-only, external-editor-only, direct-ZIP mutation, fixture-only, NOT_RUN, or not bound to the exact Creator binary and platform commit/tree.
+  - Stop if implementation requires Lua/runtime, Host Callback, Session, database, AI, network, M1-B002 business changes, formal equipment semantics/runtime, M2-B002, M2-B009, or an R2 authority change.
+  - Stop as REPLAN_REQUIRED_CIRCULAR_DEPENDENCY if INT-010 would require formal B002 equipment schema while B002 remains gated on INT-010.
+  - Stop if M1-B002 leaves BLOCKED, its frozen hash changes, WIP exceeds one, the integration target would be m1/b002-lua-runtime, or any non-fast-forward/rebase/force/push/PR operation is required.
+  depends_on:
+  - M1-B001
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+  frozen_contract_sha256: 452846abd429474fb57aaab1a4247308df5b78ea819601e113bd2a33d2368583
 tombstones: []
