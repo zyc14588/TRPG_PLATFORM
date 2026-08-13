@@ -2,8 +2,12 @@
 document_id: PLATFORM-CHANGE-PROPOSAL-R2-INT-010-REM-001
 document_kind: change-proposal
 authority: proposal-only
-status: PROPOSED
-approval_status: NOT_APPROVED
+status: APPROVED_FOR_PLAN
+approval_status: APPROVED_WITH_CONDITIONS
+owner_decision_id: OWNER-DECISION-PLATFORM-CHANGE-R2-INT-010-REM-001
+approval_record: docs/00-governance/PLATFORM_CHANGE_APPROVAL_R2_INT_010_REM_001.md
+approved_at: '2026-08-13'
+approved_timezone: Australia/Brisbane
 source_commit: "02dd02447ed07fe6248108365847dccf4023ca00"
 source_tree: "dc15acda453948fc78afdc259fea3e543f9e001c"
 ---
@@ -14,7 +18,7 @@ source_tree: "dc15acda453948fc78afdc259fea3e543f9e001c"
 
 `PLATFORM-CHANGE-R2-INT-010-REM-001`
 
-本文件只是一份待裁决提案，不是批准、冻结批次、实现合同或验收证据。它不得被解释为 `R2-INT-010=PASS`，也不得修改或扩张已冻结的 `M1-B002`。
+本文件保存原始提案及其审计来源。项目所有者已于 `2026-08-13`（`Australia/Brisbane`）以 `APPROVED_WITH_CONDITIONS` 裁决，当前状态为 `APPROVED_FOR_PLAN`；权威批准边界见 `PLATFORM_CHANGE_APPROVAL_R2_INT_010_REM_001.md`。该状态只允许独立验收本次治理登记，并在通过后创建、冻结 `M1-B010` PLAN；它不是实现合同、能力证据或 `R2-INT-010=PASS`，也不修改或扩张已冻结的 `M1-B002`。
 
 ## 触发原因
 
@@ -87,9 +91,9 @@ Creator 必须让第一方和第三方包走同一套 import、inspect、edit、
 
 ## 推荐方案与后续合法批次
 
-推荐候选方案 2，但仅在项目所有者正式批准本提案后生效。请求的后续批次 ID 为 `M1-B010`（当前机器计划的下一未分配序号）；其单一目标应为“通用 Game Package namespaced extension + Host preservation + 最小 Creator edit roundtrip”，并在全新 PLAN 中冻结 exact allowed/forbidden paths、版本策略、security limits、Creator edit 形式、测试和回滚。
+项目所有者在附带条件下选择候选方案 2。请求的后续批次 ID 为 `M1-B010`（当前机器计划的下一未分配序号）；其单一目标应为“通用 Game Package namespaced extension + Host preservation + 最小 Creator edit roundtrip”，并在治理登记独立验收通过后的全新 PLAN 中冻结 exact allowed/forbidden paths、版本策略、security limits、Creator edit 形式、测试和回滚。
 
-`M1-B010` 不得在 `M1-B002` 仍占用 WIP 时进入 IMPLEMENT，也不得作为 `GOV-*` maintenance。若项目所有者不批准 M1 范围调整，则合法目标保持 M6，且本 remediation 维持阻塞。
+`M1-B002` 继续保持 `BLOCKED` 且冻结，不再占用活动施工 WIP；不得恢复其 IMPLEMENT，也不得与 `M1-B010` 并行。`M1-B010` 不得作为 `GOV-*` maintenance，且在其 PLAN 被合法创建、冻结并独立验收前不得进入 IMPLEMENT。
 
 ## 最低验收矩阵
 
@@ -101,13 +105,16 @@ Creator 必须让第一方和第三方包走同一套 import、inspect、edit、
 
 批准后的顺序必须是：平台 PLAN → 平台 IMPLEMENT candidate → 独立平台 ACCEPT → rules-residue 最小 adapter candidate → 独立 rules ACCEPT → 固定 commit/tree 对跨仓库 ACCEPT → 新证据登记 → 两仓库分别 `git merge --ff-only`。任一验收失败均丢弃或修复候选分支，不回写已接受历史证据，不 rebase/force/amend 已验收 candidate。
 
-## 未批准时的安全停止状态
+## 裁决历史与批准后的安全边界
 
 ```text
-Result: BLOCKED_PLATFORM_WIP
+previous_status: PROPOSED
+previous_approval_status: NOT_APPROVED
+owner_decision: APPROVED_WITH_CONDITIONS
+current_status: APPROVED_FOR_PLAN
 R2-INT-010: FAIL
 M2-B002: NOT_STARTED
 M2-B002_READY: NO
 ```
 
-精确下一动作：平台项目所有者审议 `PLATFORM-CHANGE-R2-INT-010-REM-001`，明确批准或拒绝 M1 范围调整及请求的 `M1-B010`；在该裁决前不得创建 extension IMPLEMENT worktree。
+精确下一动作：从固定 Owner approval candidate 创建全新只读 `ACCEPT` worktree，以 `GOV-R2-INT-010-OWNER-APPROVAL` target 独立验收提案到批准的追踪、串行 WIP handoff、范围边界和“非能力 PASS”不变量。该验收通过前不得创建 `M1-B010` PLAN；PLAN 通过前不得创建 extension IMPLEMENT worktree。

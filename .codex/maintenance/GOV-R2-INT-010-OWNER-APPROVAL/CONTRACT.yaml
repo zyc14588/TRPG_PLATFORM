@@ -1,0 +1,113 @@
+schema_version: 1
+x-section-id: GOV-R2-INT-010-OWNER-APPROVAL
+maintenance_id: GOV-R2-INT-010-OWNER-APPROVAL
+objective:
+- Independently verify that PLATFORM-CHANGE-R2-INT-010-REM-001 moved from proposal-only status to APPROVED_FOR_PLAN under the exact project-owner conditions.
+- Verify the SERIAL_WIP_HANDOFF keeps M1-B002 BLOCKED with its frozen contract unchanged and authorizes only M1-B010 as the next platform PLAN batch under WIP_LIMIT=1.
+- Verify the approval registers the minimum SCHEMA_VALIDATED_GENERIC_JSON_EDITOR contract while making no implementation, capability PASS, M1-B010 allocation, or R2-INT-010 status claim.
+reason: >-
+  Phase C requires a fresh read-only ACCEPT context bound to the exact Owner approval candidate. The existing governance-maintenance route is the platform-native target for independently accepting governance records without allocating a milestone batch or modifying product code.
+source_blocker: |-
+  Proposal PLATFORM-CHANGE-R2-INT-010-REM-001 at commit a767115af691b728c60bd272dce3fc01f2258bc7 / tree 758f4b241669339e34948c9a4b7f3b318246fd43 was PROPOSED / NOT_APPROVED and could not authorize an M1-B010 PLAN. The 2026-08-13 Australia/Brisbane project-owner decision is APPROVED_WITH_CONDITIONS and must be registered and independently accepted before Phase D.
+allowed_scope:
+- path: .codex/maintenance/GOV-R2-INT-010-OWNER-APPROVAL/CONTRACT.yaml
+  section_id: GOV-R2-INT-010-OWNER-APPROVAL
+  kind: machine-contract
+- path: docs/00-governance/PLATFORM_CHANGE_PROPOSAL_R2_INT_010_REM_001.md
+  section_id: PLATFORM-CHANGE-PROPOSAL-R2-INT-010-REM-001
+  kind: governance-policy
+- path: docs/00-governance/PLATFORM_CHANGE_APPROVAL_R2_INT_010_REM_001.md
+  section_id: PLATFORM-CHANGE-APPROVAL-R2-INT-010-REM-001
+  kind: governance-policy
+- path: docs/00-governance/PLATFORM_CHANGE_APPROVAL_R2_INT_010_REM_001.md
+  section_id: PLATFORM-CHANGE-APPROVAL-DECISION
+  kind: governance-policy
+- path: docs/00-governance/PLATFORM_CHANGE_APPROVAL_R2_INT_010_REM_001.md
+  section_id: PLATFORM-CHANGE-APPROVAL-SCOPE
+  kind: governance-policy
+- path: docs/00-governance/PLATFORM_CHANGE_APPROVAL_R2_INT_010_REM_001.md
+  section_id: PLATFORM-CHANGE-APPROVAL-WIP
+  kind: governance-policy
+- path: docs/00-governance/PLATFORM_CHANGE_APPROVAL_R2_INT_010_REM_001.md
+  section_id: PLATFORM-CHANGE-APPROVAL-CREATOR
+  kind: governance-policy
+- path: docs/00-governance/PLATFORM_CHANGE_APPROVAL_R2_INT_010_REM_001.md
+  section_id: PLATFORM-CHANGE-APPROVAL-ACCEPTANCE
+  kind: governance-policy
+- path: docs/00-governance/PLATFORM_CHANGE_APPROVAL_R2_INT_010_REM_001.md
+  section_id: PLATFORM-CHANGE-APPROVAL-BASELINE
+  kind: governance-policy
+- path: docs/00-governance/PLATFORM_CHANGE_APPROVAL_R2_INT_010_REM_001.md
+  section_id: PLATFORM-CHANGE-APPROVAL-NONPASS
+  kind: governance-policy
+- path: .codex/state/PROJECT_SNAPSHOT.md
+  section_id: CODEX-PROJECT-SNAPSHOT
+  kind: state-summary
+- path: .codex/state/MILESTONE_STATUS.md
+  section_id: CODEX-MILESTONE-STATUS
+  kind: state-summary
+forbidden_scope:
+- allocation, creation, or freezing of M1-B010 in .codex/state/MILESTONE_PLAN.yaml
+- any change to the M1-B002 state, frozen contract, objective, scope, requirements, tests, or implementation
+- package, Host, Creator, Lua, Session, database, AI, network, rules-residue, or other product implementation
+- R2-INT-010 PASS, RESOLVED_ADAPTER, Creator evidence, platform evidence, or cross-repository evidence claims
+- M2-B002, M2-B009, full Creator Studio, equipment semantics, equipment Lua/runtime, or R2 authority changes
+- push, PR, rebase, force push, merge, or other remote/integration mutation
+normative_references:
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-TRIGGERS
+  kind: normative-section
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-PROPOSAL
+  kind: normative-section
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-FROZEN
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MODES
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-BATCH
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-ACCEPT
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+acceptance:
+- The proposal front matter is APPROVED_FOR_PLAN / APPROVED_WITH_CONDITIONS and links to one ACTIVE owner approval record with matching proposal, owner decision, date, timezone, commit, and tree provenance.
+- The registered approved and prohibited scopes exactly preserve the owner boundary and do not authorize M2-B002, M2-B009, full Creator Studio, formal equipment semantics/runtime, R2 changes, or rules-residue-specific platform behavior.
+- M1-B002 remains exactly BLOCKED in MILESTONE_PLAN.yaml with frozen_contract_sha256 5dbcccd9ddda20bbcbdcbff473fb9197b83bb087a10f1ee802ed8ad547d74677; no field of its batch record changes from the proposal candidate.
+- M1-B010 is not allocated or frozen by Phase B; it is the sole authorized next PLAN batch, and no IMPLEMENT/VERIFY batch is active. WIP_LIMIT=1 and parallel execution remains false.
+- The minimum Creator form is SCHEMA_VALIDATED_GENERIC_JSON_EDITOR with supported import/inspect/edit/schema-validate/export/re-import, read-only lossless optional-unknown handling, and typed required-unsupported failure.
+- Approval, proposal, fixture, or NOT_RUN is never represented as implementation evidence, capability PASS, Creator PASS, cross-repository PASS, or R2-INT-010 PASS.
+- The candidate contains governance records and state summaries only, plus generated documentation if any; it contains no product implementation, M1-B010 plan allocation, or M1-B002 business change.
+- projectctl produces a valid ACCEPT GOVERNANCE_MAINTENANCE route bound to the exact candidate commit/tree and all required checks pass from a clean tracked tree.
+tests:
+- go run ./cmd/projectctl codex route --mode ACCEPT --maintenance GOV-R2-INT-010-OWNER-APPROVAL
+- go run ./cmd/projectctl codex check
+- just check
+- just test
+- go vet ./...
+- just license-check
+- git diff --check
+- git diff --name-only a767115af691b728c60bd272dce3fc01f2258bc7..HEAD
+- git diff --exit-code a767115af691b728c60bd272dce3fc01f2258bc7..HEAD -- .codex/state/MILESTONE_PLAN.yaml internal cmd apps schemas/package
+stop_conditions:
+- proposal commit/tree or owner decision scope does not match the registered approval
+- M1-B002 is not BLOCKED, its frozen contract changes, or any attempt is made to resume it
+- M1-B010 must be allocated or frozen before the governance acceptance completes
+- WIP_LIMIT=1 or serial execution cannot be represented without changing the lifecycle schema
+- any product implementation, capability evidence, R2-INT-010 PASS, scope expansion, or unsupported Creator claim appears
+- stale route, invalid binding, invalid stable Section ID, schema failure, or required test failure
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-004
+  authorization: No bootstrap authority was invoked; this contract was created through the valid owner-authorized M1 PLAN route and the field is retained only to satisfy the existing governance-maintenance audit schema.
+  allowed_scope:
+  - No one-time bootstrap mutation was exercised.
+  retirement_condition: Remain retired; any future control-plane bootstrap requires a separate qualifying deadlock and explicit project-owner authorization.
+  status: RETIRED
+  retirement_evidence:
+  - A fresh PLAN M1 route bound to proposal commit a767115af691b728c60bd272dce3fc01f2258bc7 generated and passed routing before this contract was authored; no bootstrap route or authority was used.
+status: READY_FOR_ACCEPTANCE

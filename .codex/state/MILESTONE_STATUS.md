@@ -4,7 +4,7 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "28ddda38e0a426be314ae8af2298672a61e972f9"
+source_commit: "a767115af691b728c60bd272dce3fc01f2258bc7"
 ---
 
 # 里程碑状态
@@ -12,6 +12,13 @@ source_commit: "28ddda38e0a426be314ae8af2298672a61e972f9"
 - Completed milestone: `M0`
 - M0 result: `PASS / MERGED / CLOSED`
 - Current milestone: `M1`
-- M1 status: `PLAN_READY`
-- Active M1 batch: none
-- Known blockers: none; the M1 milestone plan has not yet been generated
+- M1 status: `ACTIVE`
+- Completed M1 batch: `M1-B001`
+- Retained blocked batch: `M1-B002` (`BLOCKED`, frozen contract unchanged, active WIP `false`, resume forbidden)
+- Active IMPLEMENT/VERIFY batch: none
+- Sole authorized next PLAN batch: `M1-B010` (not allocated or frozen in Phase B)
+- WIP handoff: `SERIAL_WIP_HANDOFF`
+- WIP limit: `1`; parallel execution: `false`
+- Owner approval: `PLATFORM-CHANGE-R2-INT-010-REM-001 = APPROVED_WITH_CONDITIONS / APPROVED_FOR_PLAN`
+- Capability status: extension `NOT_IMPLEMENTED`; Creator roundtrip `NOT_RUN`; `R2-INT-010=FAIL`
+- Next gate: independent read-only `ACCEPT` of `GOV-R2-INT-010-OWNER-APPROVAL`
