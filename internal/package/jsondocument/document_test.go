@@ -145,7 +145,7 @@ func TestComplexityDoesNotCopyLargeContainers(t *testing.T) {
 		t.Fatal(err)
 	}
 	metrics := value.Complexity()
-	if metrics.Nodes != 100001 || metrics.ObjectMembers != 0 {
+	if metrics.Nodes != 100001 || metrics.ObjectMembers != 0 || metrics.ArrayElements != 100000 || metrics.MaxArrayWidth != 100000 {
 		t.Fatalf("metrics = %#v", metrics)
 	}
 	allocations := testing.AllocsPerRun(10, func() {

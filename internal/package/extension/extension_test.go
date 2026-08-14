@@ -48,6 +48,34 @@ func TestSupportedDocumentEdit(t *testing.T) {
 	}
 }
 
+func TestHostCanonicalLimitBoundsLoadAndReplacement(t *testing.T) {
+	t.Parallel()
+	schema := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}`)
+	item := descriptor(schema)
+	files := map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(` { "value" : 1 } `)}
+	if _, err := extension.LoadWithCanonicalLimit(item, files, extension.DefaultSupport, len(`{"value":1}`)-1); !extension.IsCode(err, extension.ErrInvalid) {
+		t.Fatalf("bounded load result = %v", err)
+	}
+	document, err := extension.LoadWithCanonicalLimit(item, files, extension.DefaultSupport, len(`{"value":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := document.ValidateReplacementWithCanonicalLimit([]byte(`{"value":2}`), len(`{"value":2}`)-1); !extension.IsCode(err, extension.ErrInvalid) {
+		t.Fatalf("bounded replacement result = %v", err)
+	}
+	if got, err := document.ValidateReplacementWithCanonicalLimit([]byte(`{"value":2}`), len(`{"value":2}`)); err != nil || string(got) != `{"value":2}` {
+		t.Fatalf("boundary replacement = %q, %v", got, err)
+	}
+
+	item.Required = false
+	item.ContractVersion++
+	opaque := []byte(`{"duplicate":1,"duplicate":2}`)
+	readonly, err := extension.LoadWithCanonicalLimit(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: opaque}, extension.DefaultSupport, 0)
+	if err != nil || readonly.Status != extension.ReadOnly || string(readonly.PayloadBytes()) != string(opaque) {
+		t.Fatalf("opaque optional bounded load = %#v, %v", readonly, err)
+	}
+}
+
 func TestOptionalUnknownPreservesRawAndRequiredFails(t *testing.T) {
 	t.Parallel()
 	schema := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema"}`)
@@ -227,6 +255,365 @@ func TestAcyclicExpansionUsesPayloadByteBudget(t *testing.T) {
 	if !extension.IsCode(err, extension.ErrInvalid) || !strings.Contains(err.Error(), "byte evaluation") {
 		t.Fatalf("byte-weighted expansion result = %v", err)
 	}
+}
+
+func TestRegexpSourceAndProgramAreBoundedBeforeCompiler(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		schema func() []byte
+	}{
+		{
+			name: "pattern source",
+			schema: func() []byte {
+				data, _ := json.Marshal(map[string]any{
+					"$schema": "https://json-schema.org/draft/2020-12/schema",
+					"pattern": strings.Repeat("a?", extension.MaxSchemaPatternBytes/2+1),
+				})
+				return data
+			},
+		},
+		{
+			name: "patternProperties source",
+			schema: func() []byte {
+				data, _ := json.Marshal(map[string]any{
+					"$schema": "https://json-schema.org/draft/2020-12/schema",
+					"patternProperties": map[string]any{
+						strings.Repeat("a?", extension.MaxSchemaPatternBytes/2+1): true,
+					},
+				})
+				return data
+			},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			schema := test.schema()
+			item := descriptor(schema)
+			item.Required = false
+			files := map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`"value"`)}
+			document, err := extension.Load(item, files, extension.DefaultSupport)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if document.Status != extension.ReadOnly || !strings.Contains(document.ReadOnlyReason, "byte budget") {
+				t.Fatalf("optional regex status=%s reason=%q", document.Status, document.ReadOnlyReason)
+			}
+			item.Required = true
+			if _, err := extension.Load(item, files, extension.DefaultSupport); !extension.IsCode(err, extension.ErrRequiredUnsupported) {
+				t.Fatalf("required regex result = %v", err)
+			}
+		})
+	}
+}
+
+func TestRegexpAggregateProgramIsBoundedBeforeCompiler(t *testing.T) {
+	t.Parallel()
+	patterns := make(map[string]any)
+	for index := 0; index < 48; index++ {
+		// Each source remains below the per-pattern limit and the collection
+		// remains below the total source-byte limit. Its compiled program is
+		// intentionally larger than the independent instruction budget.
+		pattern := fmt.Sprintf("%02d", index) + strings.Repeat("a?", 449)
+		patterns[pattern] = true
+	}
+	schema, err := json.Marshal(map[string]any{
+		"$schema":           "https://json-schema.org/draft/2020-12/schema",
+		"patternProperties": patterns,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := descriptor(schema)
+	item.Required = false
+	document, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`{}`)}, extension.DefaultSupport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Status != extension.ReadOnly || !strings.Contains(document.ReadOnlyReason, "instruction budget") {
+		t.Fatalf("aggregate regexp status=%s reason=%q", document.Status, document.ReadOnlyReason)
+	}
+}
+
+func TestCompactRepeatProgramIsRejectedBeforeSimplify(t *testing.T) {
+	t.Parallel()
+	for _, literalBytes := range []int{3300, 4086} {
+		literalBytes := literalBytes
+		t.Run(fmt.Sprint(literalBytes), func(t *testing.T) {
+			t.Parallel()
+			schema, err := json.Marshal(map[string]any{
+				"$schema": "https://json-schema.org/draft/2020-12/schema",
+				"pattern": "(?:" + strings.Repeat("a", literalBytes) + "){1000}",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			item := descriptor(schema)
+			item.Required = false
+			document, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`"a"`)}, extension.DefaultSupport)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if document.Status != extension.ReadOnly || (literalBytes == 3300 && !strings.Contains(document.ReadOnlyReason, "instruction budget")) {
+				t.Fatalf("compact repeat status=%s reason=%q", document.Status, document.ReadOnlyReason)
+			}
+		})
+	}
+}
+
+func TestNestedUnboundedRepeatCannotHideExpandedProgram(t *testing.T) {
+	t.Parallel()
+	schema, err := json.Marshal(map[string]any{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"pattern": "(?:(?:" + strings.Repeat("a", 3300) + "){1000}){0,}",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := descriptor(schema)
+	item.Required = false
+	document, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`"a"`)}, extension.DefaultSupport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Status != extension.ReadOnly || !strings.Contains(document.ReadOnlyReason, "instruction budget") {
+		t.Fatalf("nested repeat status=%s reason=%q", document.Status, document.ReadOnlyReason)
+	}
+}
+
+func TestUnicodeRegexpWithinBudgetRemainsSupported(t *testing.T) {
+	t.Parallel()
+	schema := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"string","pattern":"^[\\p{L}_][\\p{L}\\p{N}_-]*$"}`)
+	item := descriptor(schema)
+	if _, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`"规则_7"`)}, extension.DefaultSupport); err != nil {
+		t.Fatalf("bounded Unicode regexp rejected: %v", err)
+	}
+}
+
+func TestUnicodeClassSourceAndRuneTablesAreBoundedBeforeCompile(t *testing.T) {
+	t.Parallel()
+	properties := make(map[string]any, 16)
+	for index := 0; index < 16; index++ {
+		properties[fmt.Sprintf("%02d", index)+strings.Repeat(`\pL`, 1364)] = true
+	}
+	schema, err := json.Marshal(map[string]any{
+		"$schema":           "https://json-schema.org/draft/2020-12/schema",
+		"patternProperties": properties,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := descriptor(schema)
+	item.Required = false
+	document, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`{}`)}, extension.DefaultSupport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Status != extension.ReadOnly || !strings.Contains(document.ReadOnlyReason, "Unicode-class budget") {
+		t.Fatalf("Unicode-class family status=%s reason=%q", document.Status, document.ReadOnlyReason)
+	}
+
+	schema, err = json.Marshal(map[string]any{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"pattern": strings.Repeat(`\pL`, 50),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item = descriptor(schema)
+	item.Required = false
+	document, err = extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`"value"`)}, extension.DefaultSupport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Status != extension.ReadOnly || !strings.Contains(document.ReadOnlyReason, "rune table") {
+		t.Fatalf("rune-table status=%s reason=%q", document.Status, document.ReadOnlyReason)
+	}
+}
+
+func TestRegexpProgramWorkIsWeightedByPayloadBytes(t *testing.T) {
+	t.Parallel()
+	schema := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"string","pattern":"(?:a|A){1000}b"}`)
+	item := descriptor(schema)
+	payload := []byte(`"` + strings.Repeat("a", extension.MaxPayloadBytes-2) + `"`)
+	_, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: payload}, extension.DefaultSupport)
+	if !extension.IsCode(err, extension.ErrInvalid) || !strings.Contains(err.Error(), "regular-expression byte evaluation") {
+		t.Fatalf("regexp program work result = %v", err)
+	}
+
+	small := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"string","pattern":"^a+b$"}`)
+	item = descriptor(small)
+	if _, err := extension.Load(item, map[string][]byte{item.SchemaPath: small, item.PayloadPath: []byte(`"aaab"`)}, extension.DefaultSupport); err != nil {
+		t.Fatalf("small regexp rejected: %v", err)
+	}
+}
+
+func TestUniqueItemsCollisionFamilyIsRejectedBeforeValidation(t *testing.T) {
+	t.Parallel()
+	payload := uniqueHashCollisionFamily(t, 1024)
+	valueSchema := func(unique bool) []byte {
+		data, err := json.Marshal(map[string]any{
+			"$schema":     "https://json-schema.org/draft/2020-12/schema",
+			"type":        "array",
+			"uniqueItems": unique,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	schema := valueSchema(true)
+	item := descriptor(schema)
+	_, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: payload}, extension.DefaultSupport)
+	if !extension.IsCode(err, extension.ErrInvalid) || !strings.Contains(err.Error(), "uniqueItems byte evaluation") {
+		t.Fatalf("uniqueItems collision budget = %v", err)
+	}
+
+	// False is not an assertion and must not consume the unique-items budget.
+	schema = valueSchema(false)
+	item = descriptor(schema)
+	if _, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: payload}, extension.DefaultSupport); err != nil {
+		t.Fatalf("uniqueItems=false was charged: %v", err)
+	}
+}
+
+func TestUniqueItemsTypeFailureUsesSupportSemantics(t *testing.T) {
+	t.Parallel()
+	schema := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","uniqueItems":"yes"}`)
+	item := descriptor(schema)
+	item.Required = false
+	files := map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`[]`)}
+	document, err := extension.Load(item, files, extension.DefaultSupport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Status != extension.ReadOnly || !strings.Contains(document.ReadOnlyReason, "uniqueItems") {
+		t.Fatalf("uniqueItems type status=%s reason=%q", document.Status, document.ReadOnlyReason)
+	}
+	item.Required = true
+	if _, err := extension.Load(item, files, extension.DefaultSupport); !extension.IsCode(err, extension.ErrRequiredUnsupported) {
+		t.Fatalf("required uniqueItems type result = %v", err)
+	}
+}
+
+func TestLegacySchemaDependenciesCannotBypassGraphAudit(t *testing.T) {
+	t.Parallel()
+	schema := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"nested":{"dependencies":{"trigger":{"allOf":[{"$ref":"#/$defs/node"},{"$ref":"#/$defs/node"}]}}}},"$defs":{"node":{"type":"object"}}}`)
+	item := descriptor(schema)
+	item.Required = false
+	files := map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`{}`)}
+	document, err := extension.Load(item, files, extension.DefaultSupport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Status != extension.ReadOnly || !strings.Contains(document.ReadOnlyReason, "legacy dependencies") {
+		t.Fatalf("legacy dependencies status=%s reason=%q", document.Status, document.ReadOnlyReason)
+	}
+	item.Required = true
+	if _, err := extension.Load(item, files, extension.DefaultSupport); !extension.IsCode(err, extension.ErrRequiredUnsupported) {
+		t.Fatalf("required legacy dependencies result = %v", err)
+	}
+}
+
+func TestAssertionDataIsWeightedByDAGReachability(t *testing.T) {
+	t.Parallel()
+	enumeration := make([]any, 100000)
+	for index := range enumeration {
+		enumeration[index] = index
+	}
+	required := make([]string, 50000)
+	for index := range required {
+		required[index] = fmt.Sprintf("required-%05d", index)
+	}
+	dependent := make([]string, 100)
+	for index := range dependent {
+		dependent[index] = fmt.Sprintf("dependent-%03d", index)
+	}
+	tests := []struct {
+		name string
+		leaf map[string]any
+	}{
+		{name: "enum data", leaf: map[string]any{"enum": enumeration}},
+		{name: "required names", leaf: map[string]any{"type": "object", "required": required}},
+		{name: "dependentRequired names", leaf: map[string]any{"type": "object", "dependentRequired": map[string]any{"trigger": dependent}}},
+		{name: "const data", leaf: map[string]any{"const": strings.Repeat("c", 4096)}},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			schema := doublingSchema(t, 12, test.leaf)
+			if len(schema) > extension.MaxSchemaBytes {
+				t.Fatalf("test schema size = %d", len(schema))
+			}
+			item := descriptor(schema)
+			item.Required = false
+			files := map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`{}`)}
+			document, err := extension.Load(item, files, extension.DefaultSupport)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if document.Status != extension.ReadOnly || !strings.Contains(document.ReadOnlyReason, "assertion") {
+				t.Fatalf("assertion status=%s reason=%q", document.Status, document.ReadOnlyReason)
+			}
+			if test.name == "enum data" {
+				item.Required = true
+				if _, err := extension.Load(item, files, extension.DefaultSupport); !extension.IsCode(err, extension.ErrRequiredUnsupported) {
+					t.Fatalf("required assertion result = %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestSmallAssertionsRemainSupported(t *testing.T) {
+	t.Parallel()
+	schema := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["a"],"dependentRequired":{"a":["b"]},"properties":{"a":{"enum":[1,2]},"b":{"const":true}}}`)
+	item := descriptor(schema)
+	if _, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: []byte(`{"a":1,"b":true}`)}, extension.DefaultSupport); err != nil {
+		t.Fatalf("small assertions rejected: %v", err)
+	}
+}
+
+type collisionArray struct {
+	children []*collisionArray
+}
+
+func uniqueHashCollisionFamily(t *testing.T, count int) []byte {
+	t.Helper()
+	values := make([]any, count)
+	for mask := 0; mask < count; mask++ {
+		root := &collisionArray{}
+		first := &collisionArray{}
+		root.children = append(root.children, first)
+		last := first
+		for bit := 0; bit < 10; bit++ {
+			child := &collisionArray{}
+			if mask&(1<<bit) == 0 {
+				root.children = append(root.children, child)
+			} else {
+				last.children = append(last.children, child)
+			}
+			last = child
+		}
+		values[mask] = collisionArrayValue(root)
+	}
+	data, err := json.Marshal(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func collisionArrayValue(node *collisionArray) []any {
+	value := make([]any, 1, 1+len(node.children))
+	value[0] = nil
+	for _, child := range node.children {
+		value = append(value, collisionArrayValue(child))
+	}
+	return value
 }
 
 func TestValidationDiagnosticIsBoundedAndDoesNotEchoPayload(t *testing.T) {

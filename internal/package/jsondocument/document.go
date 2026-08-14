@@ -41,6 +41,9 @@ type Member struct {
 type Metrics struct {
 	Nodes         int
 	ObjectMembers int
+	ArrayElements int
+	MaxArrayWidth int
+	DataBytes     int
 }
 
 // Value is an immutable-by-API JSON tree. Number preserves its exact token.
@@ -61,10 +64,32 @@ func (value Value) Elements() []Value {
 	return append([]Value(nil), value.array...)
 }
 
+func (value Value) ArrayLength() (int, bool) {
+	return len(value.array), value.kind == Array
+}
+
+func (value Value) Element(index int) (Value, bool) {
+	if value.kind != Array || index < 0 || index >= len(value.array) {
+		return Value{}, false
+	}
+	return value.array[index], true
+}
+
 func (value Value) Members() []Member {
 	result := make([]Member, len(value.object))
 	copy(result, value.object)
 	return result
+}
+
+func (value Value) ObjectLength() (int, bool) {
+	return len(value.object), value.kind == Object
+}
+
+func (value Value) MemberAt(index int) (Member, bool) {
+	if value.kind != Object || index < 0 || index >= len(value.object) {
+		return Member{}, false
+	}
+	return value.object[index], true
 }
 
 func (value Value) Lookup(name string) (Value, bool) {
@@ -79,20 +104,35 @@ func (value Value) Lookup(name string) (Value, bool) {
 // Complexity walks private immutable slices directly. Unlike Elements and
 // Members it does not allocate defensive copies of large containers.
 func (value Value) Complexity() Metrics {
-	metrics := Metrics{Nodes: 1}
+	metrics := Metrics{Nodes: 1, DataBytes: 1}
 	switch value.kind {
+	case Number, String:
+		metrics.DataBytes += len(value.text)
 	case Array:
+		metrics.ArrayElements = len(value.array)
+		metrics.MaxArrayWidth = len(value.array)
 		for index := range value.array {
 			child := value.array[index].Complexity()
 			metrics.Nodes += child.Nodes
 			metrics.ObjectMembers += child.ObjectMembers
+			metrics.ArrayElements += child.ArrayElements
+			metrics.DataBytes += child.DataBytes
+			if child.MaxArrayWidth > metrics.MaxArrayWidth {
+				metrics.MaxArrayWidth = child.MaxArrayWidth
+			}
 		}
 	case Object:
 		metrics.ObjectMembers += len(value.object)
 		for index := range value.object {
+			metrics.DataBytes += len(value.object[index].Name) + 1
 			child := value.object[index].Value.Complexity()
 			metrics.Nodes += child.Nodes
 			metrics.ObjectMembers += child.ObjectMembers
+			metrics.ArrayElements += child.ArrayElements
+			metrics.DataBytes += child.DataBytes
+			if child.MaxArrayWidth > metrics.MaxArrayWidth {
+				metrics.MaxArrayWidth = child.MaxArrayWidth
+			}
 		}
 	}
 	return metrics

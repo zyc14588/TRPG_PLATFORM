@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"regexp/syntax"
 	"sort"
 	"strings"
 
@@ -31,6 +32,11 @@ const (
 	MaxSchemaLocationBytes   = 1024
 	MaxSchemaExpansion       = 8192
 	MaxSchemaPatterns        = 256
+	MaxSchemaPatternBytes    = 4096
+	MaxSchemaPatternBytesAll = 64 << 10
+	MaxSchemaRegexpProgram   = 32 << 10
+	MaxSchemaUnicodeClasses  = 64
+	MaxSchemaRegexpRuneBytes = 256 << 10
 	MaxSchemaValidationSteps = 64 << 10
 	MaxSchemaValidationWork  = 8 << 20
 )
@@ -215,9 +221,22 @@ func (document Document) PayloadValue() (jsondocument.Value, bool) {
 // schemas, unknown versions/dialects, and incompatible Host ranges are
 // preserved read-only. Digest mismatch and invalid referenced content fail.
 func Load(descriptor Descriptor, files map[string][]byte, support Support) (Document, error) {
+	return LoadWithCanonicalLimit(descriptor, files, support, MaxPayloadBytes)
+}
+
+// LoadWithCanonicalLimit applies an additional Host aggregate limit to the
+// supported payload's canonical representation. Unsupported optional payloads
+// remain opaque and are never parsed or canonicalized.
+func LoadWithCanonicalLimit(descriptor Descriptor, files map[string][]byte, support Support, canonicalLimit int) (Document, error) {
 	value, err := NormalizeDescriptor(descriptor)
 	if err != nil {
 		return Document{}, err
+	}
+	if canonicalLimit < 0 {
+		return Document{}, contractError(ErrInvalid, value.Namespace, "canonical payload limit must be non-negative")
+	}
+	if canonicalLimit > MaxPayloadBytes {
+		canonicalLimit = MaxPayloadBytes
 	}
 	payload, payloadExists := files[value.PayloadPath]
 	if !payloadExists {
@@ -274,7 +293,7 @@ func Load(descriptor Descriptor, files map[string][]byte, support Support) (Docu
 	if err := document.audit.validatePayloadShape(parsedPayload); err != nil {
 		return Document{}, contractError(ErrInvalid, value.Namespace, "schema validation budget: %v", err)
 	}
-	canonical, err := parsedPayload.CanonicalLimited(MaxPayloadBytes)
+	canonical, err := parsedPayload.CanonicalLimited(canonicalLimit)
 	if err != nil {
 		return Document{}, contractError(ErrInvalid, value.Namespace, "canonical payload: %v", err)
 	}
@@ -300,8 +319,20 @@ func unsupported(document Document, required bool, _ ErrorCode, reason string) (
 // runs the strict JSON parser before schema validation, and returns canonical
 // bytes suitable for deterministic export.
 func (document Document) ValidateReplacement(data []byte) ([]byte, error) {
+	return document.ValidateReplacementWithCanonicalLimit(data, MaxPayloadBytes)
+}
+
+// ValidateReplacementWithCanonicalLimit validates an edit while also
+// respecting the Host package's remaining aggregate canonical byte budget.
+func (document Document) ValidateReplacementWithCanonicalLimit(data []byte, canonicalLimit int) ([]byte, error) {
 	if document.Status != Supported || document.compiled == nil {
 		return nil, contractError(ErrReadOnly, document.Descriptor.Namespace, "optional unsupported extension is read-only")
+	}
+	if canonicalLimit < 0 {
+		return nil, contractError(ErrInvalid, document.Descriptor.Namespace, "canonical payload limit must be non-negative")
+	}
+	if canonicalLimit > MaxPayloadBytes {
+		canonicalLimit = MaxPayloadBytes
 	}
 	if len(data) > MaxPayloadBytes {
 		return nil, contractError(ErrInvalid, document.Descriptor.Namespace, "payload exceeds %d bytes", MaxPayloadBytes)
@@ -313,7 +344,7 @@ func (document Document) ValidateReplacement(data []byte) ([]byte, error) {
 	if err := document.audit.validatePayloadShape(value); err != nil {
 		return nil, contractError(ErrInvalid, document.Descriptor.Namespace, "schema validation budget: %v", err)
 	}
-	canonical, err := value.CanonicalLimited(MaxPayloadBytes)
+	canonical, err := value.CanonicalLimited(canonicalLimit)
 	if err != nil {
 		return nil, contractError(ErrInvalid, document.Descriptor.Namespace, "canonical payload: %v", err)
 	}
@@ -324,7 +355,7 @@ func (document Document) ValidateReplacement(data []byte) ([]byte, error) {
 }
 
 func (document Document) validateValue(value jsondocument.Value, canonicalBytes int) error {
-	if err := document.audit.validatePayloadBytes(canonicalBytes); err != nil {
+	if err := document.audit.validatePayloadBytes(canonicalBytes, value.Complexity().MaxArrayWidth); err != nil {
 		return contractError(ErrInvalid, document.Descriptor.Namespace, "schema validation budget: %v", err)
 	}
 	if err := document.compiled.Validate(value.Interface()); err != nil {
@@ -341,8 +372,18 @@ type schemaReference struct {
 }
 
 type schemaAudit struct {
-	expansion    int
-	patternCount int
+	expansion            int
+	patternCount         int
+	uniqueCount          int
+	assertionDataWork    int
+	assertionComparisons int
+	regexpWork           int
+}
+
+type assertionCost struct {
+	steps       int
+	dataBytes   int
+	comparisons int
 }
 
 type schemaGraphBuilder struct {
@@ -352,6 +393,13 @@ type schemaGraphBuilder struct {
 	references   []schemaReference
 	edgeCount    int
 	patternCount int
+	patternBytes int
+	regexpInst   int
+	unicodeClass int
+	regexpRunes  int
+	uniqueCount  int
+	assertions   map[string]assertionCost
+	regexpWork   map[string]int
 }
 
 // auditSchema walks only positions that Draft 2020-12 defines as schemas.
@@ -360,9 +408,11 @@ type schemaGraphBuilder struct {
 // and assigned a bounded expansion cost before the third-party compiler runs.
 func auditSchema(value jsondocument.Value) (schemaAudit, error) {
 	builder := schemaGraphBuilder{
-		nodes:   make(map[string]struct{}),
-		edges:   make(map[string][]string),
-		anchors: make(map[string]string),
+		nodes:      make(map[string]struct{}),
+		edges:      make(map[string][]string),
+		anchors:    make(map[string]string),
+		assertions: make(map[string]assertionCost),
+		regexpWork: make(map[string]int),
 	}
 	if err := builder.visitSchema(value, "#"); err != nil {
 		return schemaAudit{}, err
@@ -380,7 +430,27 @@ func auditSchema(value jsondocument.Value) (schemaAudit, error) {
 	if err != nil {
 		return schemaAudit{}, err
 	}
-	return schemaAudit{expansion: expansion, patternCount: builder.patternCount}, nil
+	assertionSteps, ok := boundedAssertionGraphWork(builder.nodes, builder.edges, builder.assertions, MaxSchemaValidationSteps, func(cost assertionCost) int { return cost.steps })
+	if !ok {
+		return schemaAudit{}, fmt.Errorf("%w: schema assertion evaluation exceeds %d steps", errSchemaUnavailable, MaxSchemaValidationSteps)
+	}
+	_ = assertionSteps
+	assertionData, ok := boundedAssertionGraphWork(builder.nodes, builder.edges, builder.assertions, MaxSchemaValidationWork, func(cost assertionCost) int { return cost.dataBytes })
+	if !ok {
+		return schemaAudit{}, fmt.Errorf("%w: schema assertion data exceeds %d work units", errSchemaUnavailable, MaxSchemaValidationWork)
+	}
+	assertionComparisons, ok := boundedAssertionGraphWork(builder.nodes, builder.edges, builder.assertions, MaxSchemaValidationSteps, func(cost assertionCost) int { return cost.comparisons })
+	if !ok {
+		return schemaAudit{}, fmt.Errorf("%w: schema assertion comparisons exceed %d steps", errSchemaUnavailable, MaxSchemaValidationSteps)
+	}
+	regexpWork, ok := boundedReachableGraphWork(builder.nodes, builder.edges, MaxSchemaValidationWork, func(node string) int { return builder.regexpWork[node] })
+	if !ok {
+		return schemaAudit{}, fmt.Errorf("%w: schema regular-expression evaluation exceeds %d work units", errSchemaUnavailable, MaxSchemaValidationWork)
+	}
+	return schemaAudit{
+		expansion: expansion, patternCount: builder.patternCount, uniqueCount: builder.uniqueCount,
+		assertionDataWork: assertionData, assertionComparisons: assertionComparisons, regexpWork: regexpWork,
+	}, nil
 }
 
 func (builder *schemaGraphBuilder) visitSchema(value jsondocument.Value, pointer string) error {
@@ -418,6 +488,13 @@ func (builder *schemaGraphBuilder) visitSchema(value jsondocument.Value, pointer
 			return fmt.Errorf("%s is forbidden", keyword)
 		}
 	}
+	// The pinned validator still compiles the legacy schema-valued form of
+	// dependencies through its Draft 4 compatibility path even for a Draft
+	// 2020-12 resource. M1 uses dependentSchemas instead; rejecting the legacy
+	// keyword prevents an unaudited applicator/ref graph.
+	if _, exists := members["dependencies"]; exists {
+		return fmt.Errorf("%w: legacy dependencies keyword is unavailable", errSchemaUnavailable)
+	}
 	if referenceValue, exists := members["$ref"]; exists {
 		reference, ok := referenceValue.Text()
 		if !ok || !strings.HasPrefix(reference, "#") {
@@ -428,11 +505,30 @@ func (builder *schemaGraphBuilder) visitSchema(value jsondocument.Value, pointer
 		}
 		builder.references = append(builder.references, schemaReference{source: pointer, reference: reference})
 	}
-	if _, exists := members["pattern"]; exists {
-		builder.patternCount++
-		if builder.patternCount > MaxSchemaPatterns {
-			return fmt.Errorf("%w: schema exceeds %d regular-expression assertions", errSchemaUnavailable, MaxSchemaPatterns)
+	if patternValue, exists := members["pattern"]; exists {
+		pattern, ok := patternValue.Text()
+		if !ok {
+			return fmt.Errorf("%w: pattern must be a string", errSchemaUnavailable)
 		}
+		if err := builder.addPattern(pointer, pattern); err != nil {
+			return err
+		}
+	}
+	if uniqueValue, exists := members["uniqueItems"]; exists {
+		unique, ok := uniqueValue.Bool()
+		if !ok {
+			return fmt.Errorf("%w: uniqueItems must be a boolean", errSchemaUnavailable)
+		}
+		if unique {
+			builder.uniqueCount++
+		}
+	}
+	assertions, err := schemaAssertionCost(members)
+	if err != nil {
+		return err
+	}
+	if assertions != (assertionCost{}) {
+		builder.assertions[pointer] = assertions
 	}
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor"} {
 		anchorValue, exists := members[keyword]
@@ -503,13 +599,12 @@ func (builder *schemaGraphBuilder) visitSchema(value jsondocument.Value, pointer
 			return fmt.Errorf("%w: %s must be an object of subschemas", errSchemaUnavailable, keyword)
 		}
 		entries := collection.Members()
-		if keyword == "patternProperties" {
-			builder.patternCount += len(entries)
-			if builder.patternCount > MaxSchemaPatterns {
-				return fmt.Errorf("%w: schema exceeds %d patternProperties", errSchemaUnavailable, MaxSchemaPatterns)
-			}
-		}
 		for _, entry := range entries {
+			if keyword == "patternProperties" {
+				if err := builder.addPattern(pointer, entry.Name); err != nil {
+					return err
+				}
+			}
 			collectionPointer, err := schemaPointerChild(pointer, keyword)
 			if err != nil {
 				return err
@@ -529,6 +624,257 @@ func (builder *schemaGraphBuilder) visitSchema(value jsondocument.Value, pointer
 		}
 	}
 	return nil
+}
+
+func schemaAssertionCost(members map[string]jsondocument.Value) (assertionCost, error) {
+	var cost assertionCost
+	if enumeration, exists := members["enum"]; exists {
+		length, ok := enumeration.ArrayLength()
+		if !ok || length == 0 {
+			return assertionCost{}, fmt.Errorf("%w: enum must be a non-empty array", errSchemaUnavailable)
+		}
+		for index := 0; index < length; index++ {
+			item, _ := enumeration.Element(index)
+			metrics := item.Complexity()
+			cost.steps += metrics.Nodes
+			cost.dataBytes += metrics.DataBytes
+			cost.comparisons++
+		}
+	}
+	if constant, exists := members["const"]; exists {
+		metrics := constant.Complexity()
+		cost.steps += metrics.Nodes
+		cost.dataBytes += metrics.DataBytes
+		cost.comparisons++
+	}
+	if required, exists := members["required"]; exists {
+		length, ok := required.ArrayLength()
+		if !ok {
+			return assertionCost{}, fmt.Errorf("%w: required must be an array of strings", errSchemaUnavailable)
+		}
+		for index := 0; index < length; index++ {
+			nameValue, _ := required.Element(index)
+			name, ok := nameValue.Text()
+			if !ok {
+				return assertionCost{}, fmt.Errorf("%w: required must contain strings", errSchemaUnavailable)
+			}
+			cost.steps++
+			cost.dataBytes += len(name) + 16
+		}
+	}
+	if dependent, exists := members["dependentRequired"]; exists {
+		length, ok := dependent.ObjectLength()
+		if !ok {
+			return assertionCost{}, fmt.Errorf("%w: dependentRequired must be an object", errSchemaUnavailable)
+		}
+		for index := 0; index < length; index++ {
+			member, _ := dependent.MemberAt(index)
+			cost.steps++
+			cost.dataBytes += len(member.Name) + 16
+			requiredLength, ok := member.Value.ArrayLength()
+			if !ok {
+				return assertionCost{}, fmt.Errorf("%w: dependentRequired values must be arrays", errSchemaUnavailable)
+			}
+			for requiredIndex := 0; requiredIndex < requiredLength; requiredIndex++ {
+				nameValue, _ := member.Value.Element(requiredIndex)
+				name, ok := nameValue.Text()
+				if !ok {
+					return assertionCost{}, fmt.Errorf("%w: dependentRequired values must contain strings", errSchemaUnavailable)
+				}
+				cost.steps++
+				cost.dataBytes += len(name) + 16
+			}
+		}
+	}
+	return cost, nil
+}
+
+func (builder *schemaGraphBuilder) addPattern(pointer, pattern string) error {
+	if builder.patternCount >= MaxSchemaPatterns {
+		return fmt.Errorf("%w: schema exceeds %d regular-expression assertions", errSchemaUnavailable, MaxSchemaPatterns)
+	}
+	if len(pattern) > MaxSchemaPatternBytes || builder.patternBytes > MaxSchemaPatternBytesAll-len(pattern) {
+		return fmt.Errorf("%w: schema regular-expression source exceeds its byte budget", errSchemaUnavailable)
+	}
+	unicodeClasses := conservativeUnicodeClassEscapes(pattern)
+	if unicodeClasses > MaxSchemaUnicodeClasses-builder.unicodeClass {
+		return fmt.Errorf("%w: schema regular expression exceeds its Unicode-class budget", errSchemaUnavailable)
+	}
+	parsed, err := syntax.Parse(pattern, syntax.Perl)
+	if err != nil {
+		return fmt.Errorf("%w: schema regular expression is invalid", errSchemaUnavailable)
+	}
+	remainingProgram := MaxSchemaRegexpProgram - builder.regexpInst
+	if remainingProgram <= 2 {
+		return fmt.Errorf("%w: schema regular-expression program exceeds its instruction budget", errSchemaUnavailable)
+	}
+	// A compiled program also owns fail and match instructions outside the
+	// expression AST.
+	if _, ok := regexpProgramUpperBound(parsed, remainingProgram-2); !ok {
+		return fmt.Errorf("%w: schema regular-expression program exceeds its instruction budget", errSchemaUnavailable)
+	}
+	remainingRunes := MaxSchemaRegexpRuneBytes/4 - builder.regexpRunes
+	runeCount, ok := regexpRuneTableUpperBound(parsed, remainingRunes)
+	if !ok {
+		return fmt.Errorf("%w: schema regular-expression rune table exceeds its byte budget", errSchemaUnavailable)
+	}
+	program, err := syntax.Compile(parsed.Simplify())
+	if err != nil {
+		return fmt.Errorf("%w: schema regular expression cannot be compiled", errSchemaUnavailable)
+	}
+	if len(program.Inst) > MaxSchemaRegexpProgram || builder.regexpInst > MaxSchemaRegexpProgram-len(program.Inst) {
+		return fmt.Errorf("%w: schema regular-expression program exceeds its instruction budget", errSchemaUnavailable)
+	}
+	builder.patternCount++
+	builder.patternBytes += len(pattern)
+	builder.regexpInst += len(program.Inst)
+	builder.regexpWork[pointer] += len(program.Inst)
+	builder.unicodeClass += unicodeClasses
+	builder.regexpRunes += runeCount
+	return nil
+}
+
+func conservativeUnicodeClassEscapes(pattern string) int {
+	count := 0
+	for index := 0; index+1 < len(pattern); index++ {
+		if pattern[index] == '\\' && (pattern[index+1] == 'p' || pattern[index+1] == 'P') {
+			count++
+		}
+	}
+	return count
+}
+
+func regexpRuneTableUpperBound(expression *syntax.Regexp, limit int) (int, bool) {
+	if expression == nil || limit < 0 {
+		return 0, false
+	}
+	if expression.Op == syntax.OpCharClass {
+		return boundedRegexpCost(len(expression.Rune), limit)
+	}
+	if expression.Op == syntax.OpRepeat {
+		copies := expression.Max
+		if copies < 0 {
+			copies = expression.Min
+			if copies < 1 {
+				copies = 1
+			}
+		}
+		child, ok := regexpRuneTableUpperBound(expression.Sub[0], limit)
+		if !ok {
+			return limit, false
+		}
+		return boundedRegexpMultiply(child, copies, limit)
+	}
+	total := 0
+	for _, childExpression := range expression.Sub {
+		child, ok := regexpRuneTableUpperBound(childExpression, limit-total)
+		if !ok || child > limit-total {
+			return limit, false
+		}
+		total += child
+	}
+	return total, true
+}
+
+// regexpProgramUpperBound estimates the program emitted after Simplify while
+// the AST still contains compact Repeat nodes. The estimate intentionally
+// overcharges control instructions; its purpose is to reject expansion before
+// Simplify duplicates subtrees or Compile allocates the instruction slice.
+func regexpProgramUpperBound(expression *syntax.Regexp, limit int) (int, bool) {
+	if expression == nil || limit <= 0 {
+		return 0, false
+	}
+	switch expression.Op {
+	case syntax.OpNoMatch, syntax.OpEmptyMatch,
+		syntax.OpCharClass, syntax.OpAnyCharNotNL, syntax.OpAnyChar,
+		syntax.OpBeginLine, syntax.OpEndLine, syntax.OpBeginText, syntax.OpEndText,
+		syntax.OpWordBoundary, syntax.OpNoWordBoundary:
+		return boundedRegexpCost(1, limit)
+	case syntax.OpLiteral:
+		cost := len(expression.Rune)
+		if cost == 0 {
+			cost = 1
+		}
+		return boundedRegexpCost(cost, limit)
+	case syntax.OpCapture:
+		child, ok := regexpProgramUpperBound(expression.Sub[0], limit)
+		if !ok || child > limit-2 {
+			return limit, false
+		}
+		return child + 2, true
+	case syntax.OpConcat, syntax.OpAlternate:
+		cost := 0
+		for _, childExpression := range expression.Sub {
+			child, ok := regexpProgramUpperBound(childExpression, limit-cost)
+			if !ok || child > limit-cost {
+				return limit, false
+			}
+			cost += child
+		}
+		if expression.Op == syntax.OpAlternate {
+			controls := len(expression.Sub) - 1
+			if controls > limit-cost {
+				return limit, false
+			}
+			cost += controls
+		}
+		return boundedRegexpCost(cost, limit)
+	case syntax.OpStar:
+		child, ok := regexpProgramUpperBound(expression.Sub[0], limit)
+		if !ok || child > limit-2 {
+			return limit, false
+		}
+		return child + 2, true
+	case syntax.OpPlus, syntax.OpQuest:
+		child, ok := regexpProgramUpperBound(expression.Sub[0], limit)
+		if !ok || child > limit-1 {
+			return limit, false
+		}
+		return child + 1, true
+	case syntax.OpRepeat:
+		child, ok := regexpProgramUpperBound(expression.Sub[0], limit)
+		if !ok {
+			return limit, false
+		}
+		if expression.Max < 0 {
+			if expression.Min == 0 {
+				if child > limit-2 {
+					return limit, false
+				}
+				return child + 2, true
+			}
+			cost, ok := boundedRegexpMultiply(child, expression.Min, limit)
+			if !ok || cost > limit-1 {
+				return limit, false
+			}
+			return cost + 1, true
+		}
+		cost, ok := boundedRegexpMultiply(child, expression.Max, limit)
+		if !ok {
+			return limit, false
+		}
+		optionalControls := expression.Max - expression.Min
+		if optionalControls > limit-cost {
+			return limit, false
+		}
+		return cost + optionalControls, true
+	default:
+		return limit, false
+	}
+}
+
+func boundedRegexpMultiply(value, factor, limit int) (int, bool) {
+	if value < 0 || factor < 0 || (factor != 0 && value > limit/factor) {
+		return limit, false
+	}
+	return boundedRegexpCost(value*factor, limit)
+}
+
+func boundedRegexpCost(cost, limit int) (int, bool) {
+	if cost < 0 || cost > limit {
+		return limit, false
+	}
+	return cost, true
 }
 
 func (builder *schemaGraphBuilder) addEdge(source, target string) error {
@@ -666,6 +1012,88 @@ func boundedAcyclicExpansion(nodes map[string]struct{}, edges map[string][]strin
 	return maximum, nil
 }
 
+func boundedAssertionGraphWork(
+	nodes map[string]struct{},
+	edges map[string][]string,
+	assertions map[string]assertionCost,
+	limit int,
+	value func(assertionCost) int,
+) (int, bool) {
+	return boundedReachableGraphWork(nodes, edges, limit, func(node string) int { return value(assertions[node]) })
+}
+
+func boundedReachableGraphWork(
+	nodes map[string]struct{},
+	edges map[string][]string,
+	limit int,
+	local func(string) int,
+) (int, bool) {
+	reachable := make(map[string]bool, len(nodes))
+	stack := []string{"#"}
+	for len(stack) != 0 {
+		node := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if reachable[node] {
+			continue
+		}
+		reachable[node] = true
+		stack = append(stack, edges[node]...)
+	}
+	indegree := make(map[string]int, len(reachable))
+	for node := range reachable {
+		indegree[node] = 0
+	}
+	for source := range reachable {
+		for _, target := range edges[source] {
+			if reachable[target] {
+				indegree[target]++
+			}
+		}
+	}
+	queue := make([]string, 0, len(reachable))
+	for node, count := range indegree {
+		if count == 0 {
+			queue = append(queue, node)
+		}
+	}
+	order := make([]string, 0, len(reachable))
+	for head := 0; head < len(queue); head++ {
+		node := queue[head]
+		order = append(order, node)
+		for _, target := range edges[node] {
+			if !reachable[target] {
+				continue
+			}
+			indegree[target]--
+			if indegree[target] == 0 {
+				queue = append(queue, target)
+			}
+		}
+	}
+	if len(order) != len(reachable) {
+		return limit, false
+	}
+	costs := make(map[string]int, len(reachable))
+	for index := len(order) - 1; index >= 0; index-- {
+		node := order[index]
+		cost := local(node)
+		if cost < 0 || cost > limit {
+			return limit, false
+		}
+		for _, target := range edges[node] {
+			if !reachable[target] {
+				continue
+			}
+			if costs[target] > limit-cost {
+				return limit, false
+			}
+			cost += costs[target]
+		}
+		costs[node] = cost
+	}
+	return costs["#"], true
+}
+
 func (audit schemaAudit) validatePayloadShape(value jsondocument.Value) error {
 	metrics := value.Complexity()
 	factor := audit.expansion
@@ -678,10 +1106,16 @@ func (audit schemaAudit) validatePayloadShape(value jsondocument.Value) error {
 	if audit.patternCount != 0 && metrics.ObjectMembers > MaxSchemaValidationSteps/audit.patternCount {
 		return fmt.Errorf("pattern/property evaluation exceeds %d steps", MaxSchemaValidationSteps)
 	}
+	if audit.uniqueCount != 0 {
+		uniqueFactor, ok := boundedProduct(audit.uniqueCount, factor, MaxSchemaValidationSteps)
+		if !ok || metrics.ArrayElements > MaxSchemaValidationSteps/uniqueFactor {
+			return fmt.Errorf("uniqueItems evaluation exceeds %d steps", MaxSchemaValidationSteps)
+		}
+	}
 	return nil
 }
 
-func (audit schemaAudit) validatePayloadBytes(canonicalBytes int) error {
+func (audit schemaAudit) validatePayloadBytes(canonicalBytes, maxArrayWidth int) error {
 	factor := audit.expansion
 	if factor < 1 {
 		factor = 1
@@ -692,7 +1126,46 @@ func (audit schemaAudit) validatePayloadBytes(canonicalBytes int) error {
 	if audit.patternCount != 0 && canonicalBytes > MaxSchemaValidationWork/audit.patternCount {
 		return fmt.Errorf("pattern/property byte evaluation exceeds %d work units", MaxSchemaValidationWork)
 	}
+	if audit.uniqueCount != 0 {
+		uniqueFactor, ok := boundedProduct(audit.uniqueCount, factor, MaxSchemaValidationWork)
+		if !ok {
+			return fmt.Errorf("uniqueItems byte evaluation exceeds %d work units", MaxSchemaValidationWork)
+		}
+		// The pinned validator hashes every item and deep-compares every value
+		// sharing a hash. Its framing does not encode container lengths, so
+		// conservatively charge the widest array against all canonical bytes.
+		// This bounds collision families before compiled.Validate allocates the
+		// hash buckets or performs repeated prefix comparisons.
+		if maxArrayWidth > 0 {
+			uniqueFactor, ok = boundedProduct(uniqueFactor, maxArrayWidth, MaxSchemaValidationWork)
+			if !ok || canonicalBytes > MaxSchemaValidationWork/uniqueFactor {
+				return fmt.Errorf("uniqueItems byte evaluation exceeds %d work units", MaxSchemaValidationWork)
+			}
+		}
+	}
+	if audit.assertionComparisons != 0 {
+		if audit.assertionDataWork > MaxSchemaValidationWork {
+			return fmt.Errorf("schema assertion byte evaluation exceeds %d work units", MaxSchemaValidationWork)
+		}
+		remaining := MaxSchemaValidationWork - audit.assertionDataWork
+		if canonicalBytes > remaining/audit.assertionComparisons {
+			return fmt.Errorf("schema assertion byte evaluation exceeds %d work units", MaxSchemaValidationWork)
+		}
+	}
+	if audit.regexpWork != 0 && canonicalBytes > MaxSchemaValidationWork/audit.regexpWork {
+		return fmt.Errorf("regular-expression byte evaluation exceeds %d work units", MaxSchemaValidationWork)
+	}
 	return nil
+}
+
+func boundedProduct(left, right, maximum int) (int, bool) {
+	if left <= 0 || right <= 0 {
+		return 0, false
+	}
+	if left > maximum/right {
+		return maximum, false
+	}
+	return left * right, true
 }
 
 func boundedValidationDiagnostic(err error) string {
