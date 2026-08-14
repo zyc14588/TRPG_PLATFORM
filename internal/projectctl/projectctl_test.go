@@ -245,6 +245,53 @@ func TestScopeAndLicensePathClassifiers(t *testing.T) {
 	}
 }
 
+func TestFrontendBoundaryContractsKeepWebBaselineAndNarrowCreatorCapability(t *testing.T) {
+	a := testApp(t)
+	if len(frontendBoundaryContracts) != 2 {
+		t.Fatalf("frontend boundary contract count = %d", len(frontendBoundaryContracts))
+	}
+	wanted := map[string][]string{
+		"apps/web-player/src/App.tsx": {
+			"V1 restart baseline", "No playable functionality", "M0 engineering shell only",
+		},
+		"apps/creator-studio/frontend/src/App.tsx": {
+			"Schema-validated generic JSON",
+			"Package-generic JSON by design",
+			"No game-specific forms or templates",
+			"No playable preview or runtime execution",
+		},
+	}
+	for _, contract := range frontendBoundaryContracts {
+		expected, exists := wanted[contract.path]
+		if !exists {
+			t.Fatalf("unexpected frontend boundary path %q", contract.path)
+		}
+		if strings.Join(contract.required, "\x00") != strings.Join(expected, "\x00") {
+			t.Fatalf("%s boundary copy = %q, want %q", contract.path, contract.required, expected)
+		}
+		data, err := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(contract.path)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		problems := &validationErrors{}
+		checkFrontendBoundaryCopy(contract, data, problems)
+		if err := problems.err("frontend boundary"); err != nil {
+			t.Fatal(err)
+		}
+		delete(wanted, contract.path)
+	}
+	if len(wanted) != 0 {
+		t.Fatalf("missing frontend boundary paths: %v", wanted)
+	}
+
+	creator := frontendBoundaryContracts[1]
+	problems := &validationErrors{}
+	checkFrontendBoundaryCopy(creator, []byte("Schema-validated generic JSON"), problems)
+	if err := problems.err("frontend boundary"); err == nil || !strings.Contains(err.Error(), "No game-specific forms or templates") {
+		t.Fatalf("missing Creator boundary marker error = %v", err)
+	}
+}
+
 func TestFinalRuntimeSupplyChainIsComponentFree(t *testing.T) {
 	a := testApp(t)
 	lock, err := a.loadToolchain()

@@ -27,6 +27,27 @@ const (
 	officialLicenseSHA = "ffcca38841adb694b6f380647e15f17c446a4d1656fed51a1e2041d064c94cc8"
 )
 
+type frontendBoundaryContract struct {
+	path     string
+	required []string
+}
+
+var frontendBoundaryContracts = []frontendBoundaryContract{
+	{
+		path:     "apps/web-player/src/App.tsx",
+		required: []string{"V1 restart baseline", "No playable functionality", "M0 engineering shell only"},
+	},
+	{
+		path: "apps/creator-studio/frontend/src/App.tsx",
+		required: []string{
+			"Schema-validated generic JSON",
+			"Package-generic JSON by design",
+			"No game-specific forms or templates",
+			"No playable preview or runtime execution",
+		},
+	},
+}
+
 type toolchainLock struct {
 	SPDXLicenseIdentifier string `json:"spdx_license_identifier"`
 	SchemaVersion         int    `json:"schema_version"`
@@ -900,21 +921,27 @@ func (a *App) checkScope(ctx context.Context) error {
 	if goModules != 1 {
 		problems.add("expected one active go.mod, found %d", goModules)
 	}
-	for _, appPath := range []string{"apps/web-player/src/App.tsx", "apps/creator-studio/frontend/src/App.tsx"} {
-		data, readErr := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(appPath)))
-		if readErr == nil {
-			for _, copyLine := range []string{"V1 restart baseline", "No playable functionality", "M0 engineering shell only"} {
-				if !bytes.Contains(data, []byte(copyLine)) {
-					problems.add("%s is missing required boundary copy %q", appPath, copyLine)
-				}
-			}
+	for _, contract := range frontendBoundaryContracts {
+		data, readErr := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(contract.path)))
+		if readErr != nil {
+			problems.add("read %s boundary copy: %v", contract.path, readErr)
+			continue
 		}
+		checkFrontendBoundaryCopy(contract, data, problems)
 	}
 	if err := problems.err("M0 scope"); err != nil {
 		return err
 	}
 	fmt.Fprintf(a.stdout, "[PASS] M0 scope: %d active repository paths, zero legacy implementation paths\n", len(files))
 	return nil
+}
+
+func checkFrontendBoundaryCopy(contract frontendBoundaryContract, data []byte, problems *validationErrors) {
+	for _, copyLine := range contract.required {
+		if !bytes.Contains(data, []byte(copyLine)) {
+			problems.add("%s is missing required boundary copy %q", contract.path, copyLine)
+		}
+	}
 }
 
 func (a *App) repositoryFiles(ctx context.Context) ([]string, error) {
