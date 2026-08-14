@@ -24,6 +24,7 @@ import (
 
 const (
 	MaxExtensions            = 64
+	MaxNamespaceBytes        = 128
 	MaxSchemaBytes           = 1 << 20
 	MaxPayloadBytes          = 4 << 20
 	SupportedContractVersion = 1
@@ -92,7 +93,7 @@ type Descriptor struct {
 }
 
 func NormalizeDescriptor(value Descriptor) (Descriptor, error) {
-	if len(value.Namespace) > 128 || !namespacePattern.MatchString(value.Namespace) {
+	if len(value.Namespace) > MaxNamespaceBytes || !namespacePattern.MatchString(value.Namespace) {
 		return Descriptor{}, contractError(ErrInvalid, value.Namespace, "namespace is not canonical")
 	}
 	if value.Namespace == "trpg.platform" || strings.HasPrefix(value.Namespace, "trpg.platform.") {

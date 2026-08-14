@@ -748,6 +748,16 @@ func TestRejectsNamespaceDigestAndExternalRefs(t *testing.T) {
 	if _, err := extension.NormalizeDescriptor(reserved); err == nil {
 		t.Fatal("reserved namespace accepted")
 	}
+	overlong := item
+	overlong.Namespace = strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + ".cc"
+	overlong.SchemaPath = "extensions/" + overlong.Namespace + "/value.schema.json"
+	overlong.PayloadPath = "extensions/" + overlong.Namespace + "/value.json"
+	if len(overlong.Namespace) <= extension.MaxNamespaceBytes {
+		t.Fatal("test namespace is not over the exported boundary")
+	}
+	if _, err := extension.NormalizeDescriptor(overlong); err == nil {
+		t.Fatal("overlong namespace accepted")
+	}
 	zeroMajor := descriptor(base)
 	zeroMajor.HostAPIMajor = 0
 	if _, err := extension.NormalizeDescriptor(zeroMajor); err == nil {
