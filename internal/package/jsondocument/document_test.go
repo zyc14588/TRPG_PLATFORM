@@ -28,6 +28,7 @@ func TestCanonicalGoldenVectors(t *testing.T) {
 		`-0`: `0`, `0.000`: `0`, `1e3`: `1000`, `1000e-3`: `1`,
 		`1.2300`: `1.23`, `1e-3`: `0.001`, `-12.50e+2`: `-1250`,
 		`"\u0061\/b\b\f\n\r\t"`: `"a/b\b\f\n\r\t"`,
+		`"\"\\"`:                `"\"\\"`,
 	} {
 		value, err := jsondocument.Parse([]byte(input))
 		if err != nil {
@@ -36,6 +37,124 @@ func TestCanonicalGoldenVectors(t *testing.T) {
 		if got := string(value.Canonical()); got != want {
 			t.Errorf("Canonical(%s) = %s, want %s", input, got, want)
 		}
+	}
+}
+
+func TestCanonicalNumberExponentBoundaries(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		input string
+		want  string
+	}{
+		{input: `1e127`, want: "1" + strings.Repeat("0", 127)},
+		{input: `-1e126`, want: "-1" + strings.Repeat("0", 126)},
+		{input: `1e-126`, want: "0." + strings.Repeat("0", 125) + "1"},
+		{input: `0e308`, want: "0"},
+		{input: `1000000000000000000000000000000000000000000000000000000000000000e-63`, want: "1"},
+	} {
+		value, err := jsondocument.Parse([]byte(test.input))
+		if err != nil {
+			t.Fatalf("Parse(%s): %v", test.input, err)
+		}
+		if got := string(value.Canonical()); got != test.want {
+			t.Fatalf("Canonical(%s) length=%d value=%q, want length=%d value=%q", test.input, len(got), got, len(test.want), test.want)
+		}
+		canonical := value.Canonical()
+		if _, err := jsondocument.Parse(canonical); err != nil {
+			t.Fatalf("canonical re-import %s: %v", test.input, err)
+		}
+	}
+	for _, input := range []string{`1e128`, `-1e127`, `1e-127`, `1e308`, `1e-308`} {
+		if _, err := jsondocument.Parse([]byte(input)); err == nil {
+			t.Fatalf("non-roundtrippable canonical number %s accepted", input)
+		}
+	}
+}
+
+func TestCanonicalLimitedBoundaryAndExponentAmplification(t *testing.T) {
+	value, err := jsondocument.Parse([]byte(`{"a":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := value.CanonicalLimited(len(`{"a":1}`)); err != nil || string(got) != `{"a":1}` {
+		t.Fatalf("exact boundary = %q, %v", got, err)
+	}
+	if _, err := value.CanonicalLimited(len(`{"a":1}`) - 1); err == nil {
+		t.Fatal("over-limit canonical output accepted")
+	}
+
+	expanded, err := jsondocument.Parse([]byte("[" + strings.Repeat("1e127,", 9999) + "1e127]"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := expanded.CanonicalLimited(1024); err == nil {
+		t.Fatal("short exponent amplification passed bounded output")
+	}
+	allocations := testing.AllocsPerRun(5, func() {
+		if _, err := expanded.CanonicalLimited(1024); err == nil {
+			panic("expected bounded-output failure")
+		}
+	})
+	if allocations > 100 {
+		t.Fatalf("bounded exponent emission allocations = %.0f", allocations)
+	}
+}
+
+func TestCanonicalLimitedLargeStringDoesNotAllocatePerRune(t *testing.T) {
+	input := `"` + strings.Repeat("x", 1<<20) + `"`
+	value, err := jsondocument.Parse([]byte(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocations := testing.AllocsPerRun(3, func() {
+		result, err := value.CanonicalLimited(len(input))
+		if err != nil || len(result) != len(input) {
+			panic("large string canonicalization failed")
+		}
+	})
+	if allocations > 100 {
+		t.Fatalf("large string canonical allocations = %.0f", allocations)
+	}
+	if _, err := value.CanonicalLimited(8); err == nil {
+		t.Fatal("large string unexpectedly fit tiny output limit")
+	}
+}
+
+func TestParseExponentLengthCheckDoesNotExpandEveryNumber(t *testing.T) {
+	plain := []byte("[" + strings.Repeat("12345,", 9999) + "12345]")
+	exponents := []byte("[" + strings.Repeat("1e127,", 9999) + "1e127]")
+	plainAllocations := testing.AllocsPerRun(3, func() {
+		if _, err := jsondocument.Parse(plain); err != nil {
+			panic(err)
+		}
+	})
+	exponentAllocations := testing.AllocsPerRun(3, func() {
+		if _, err := jsondocument.Parse(exponents); err != nil {
+			panic(err)
+		}
+	})
+	if exponentAllocations > plainAllocations+100 {
+		t.Fatalf("exponent parse allocations %.0f, plain %.0f", exponentAllocations, plainAllocations)
+	}
+}
+
+func TestComplexityDoesNotCopyLargeContainers(t *testing.T) {
+	input := []byte("[" + strings.Repeat("null,", 99999) + "null]")
+	value, err := jsondocument.Parse(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metrics := value.Complexity()
+	if metrics.Nodes != 100001 || metrics.ObjectMembers != 0 {
+		t.Fatalf("metrics = %#v", metrics)
+	}
+	allocations := testing.AllocsPerRun(10, func() {
+		if value.Complexity().Nodes != 100001 {
+			panic("unexpected complexity")
+		}
+	})
+	if allocations != 0 {
+		t.Fatalf("complexity allocations = %.0f", allocations)
 	}
 }
 

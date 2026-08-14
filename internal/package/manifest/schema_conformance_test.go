@@ -3,6 +3,7 @@
 package manifest_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -97,15 +98,77 @@ func TestDraft202012SchemaConformanceCorpus(t *testing.T) {
 func schemaDocumentForFixture(t *testing.T, fixtureName string) manifest.SchemaDocument {
 	t.Helper()
 	switch {
+	case strings.HasPrefix(fixtureName, "manifest-v2-"):
+		return manifest.ManifestV2SchemaDocument
 	case strings.HasPrefix(fixtureName, "manifest-"):
 		return manifest.ManifestSchemaDocument
 	case strings.HasPrefix(fixtureName, "lock-") || fixtureName == "lock.json":
 		return manifest.LockSchemaDocument
+	case strings.HasPrefix(fixtureName, "artifact-v2-"):
+		return manifest.ArtifactIdentityV2SchemaDocument
 	case strings.HasPrefix(fixtureName, "artifact-"):
 		return manifest.ArtifactIdentitySchemaDocument
 	default:
 		t.Fatalf("fixture %q has no schema mapping", fixtureName)
 		return ""
+	}
+}
+
+func TestManifestConformanceSizeCheckedBeforeJSONParse(t *testing.T) {
+	t.Parallel()
+	oversized := bytes.Repeat([]byte{'{'}, manifest.MaxManifestBytes+1)
+	validator := compiledPackageSchemas(t)
+	for _, document := range []manifest.SchemaDocument{manifest.ManifestSchemaDocument, manifest.ManifestV2SchemaDocument} {
+		if err := validator.ValidateStructure(document, oversized); err == nil || !strings.Contains(err.Error(), "exceeds") {
+			t.Fatalf("ValidateStructure(%s) = %v", document, err)
+		}
+		if err := validator.Validate(document, oversized); err == nil || !strings.Contains(err.Error(), "exceeds") {
+			t.Fatalf("Validate(%s) = %v", document, err)
+		}
+	}
+}
+
+func TestCanonicalLayerRejectsCrossVersionDocuments(t *testing.T) {
+	t.Parallel()
+	validator := compiledPackageSchemas(t)
+	v1 := readCorpusJSONObject(t, "valid", "manifest-package.json")
+	v2 := readCorpusJSONObject(t, "valid", "manifest-v2-extension.json")
+	if err := validator.ValidateCanonical(manifest.ManifestSchemaDocument, marshalJSONObject(t, v2)); err == nil {
+		t.Fatal("v1 canonical layer accepted v2 manifest")
+	}
+	if err := validator.ValidateCanonical(manifest.ManifestV2SchemaDocument, marshalJSONObject(t, v1)); err == nil {
+		t.Fatal("v2 canonical layer accepted v1 manifest")
+	}
+	bundle := readCorpusJSONObject(t, "valid", "manifest-bundle.json")
+	bundle["schema_version"] = float64(2)
+	if err := validator.ValidateCanonical(manifest.ManifestV2SchemaDocument, marshalJSONObject(t, bundle)); err == nil {
+		t.Fatal("v2 canonical layer accepted Bundle")
+	}
+
+	identityV1 := readCorpusJSONObject(t, "valid", "artifact-identity.json")
+	identityV2 := readCorpusJSONObject(t, "valid", "artifact-v2-identity.json")
+	if err := validator.ValidateCanonical(manifest.ArtifactIdentitySchemaDocument, marshalJSONObject(t, identityV2)); err == nil {
+		t.Fatal("artifact v1 canonical layer accepted v2 identity")
+	}
+	if err := validator.ValidateCanonical(manifest.ArtifactIdentityV2SchemaDocument, marshalJSONObject(t, identityV1)); err == nil {
+		t.Fatal("artifact v2 canonical layer accepted v1 identity")
+	}
+}
+
+func TestCanonicalV2DescriptorPresence(t *testing.T) {
+	t.Parallel()
+	validator := compiledPackageSchemas(t)
+	for _, field := range []string{"required", "contract_version", "host_api_major", "host_api_min_minor", "host_api_max_minor"} {
+		field := field
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+			copyValue := readCorpusJSONObject(t, "valid", "manifest-v2-extension.json")
+			copyDescriptor := copyValue["extensions"].([]any)[0].(map[string]any)
+			delete(copyDescriptor, field)
+			if err := validator.ValidateCanonical(manifest.ManifestV2SchemaDocument, marshalJSONObject(t, copyValue)); err == nil {
+				t.Fatalf("missing descriptor field %s accepted", field)
+			}
+		})
 	}
 }
 

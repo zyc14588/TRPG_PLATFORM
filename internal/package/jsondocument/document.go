@@ -6,8 +6,8 @@ package jsondocument
 
 import (
 	"bytes"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,6 +35,12 @@ const (
 type Member struct {
 	Name  string
 	Value Value
+}
+
+// Metrics is a no-allocation summary used by validation budgets.
+type Metrics struct {
+	Nodes         int
+	ObjectMembers int
 }
 
 // Value is an immutable-by-API JSON tree. Number preserves its exact token.
@@ -70,19 +76,54 @@ func (value Value) Lookup(name string) (Value, bool) {
 	return Value{}, false
 }
 
+// Complexity walks private immutable slices directly. Unlike Elements and
+// Members it does not allocate defensive copies of large containers.
+func (value Value) Complexity() Metrics {
+	metrics := Metrics{Nodes: 1}
+	switch value.kind {
+	case Array:
+		for index := range value.array {
+			child := value.array[index].Complexity()
+			metrics.Nodes += child.Nodes
+			metrics.ObjectMembers += child.ObjectMembers
+		}
+	case Object:
+		metrics.ObjectMembers += len(value.object)
+		for index := range value.object {
+			child := value.object[index].Value.Complexity()
+			metrics.Nodes += child.Nodes
+			metrics.ObjectMembers += child.ObjectMembers
+		}
+	}
+	return metrics
+}
+
 // Interface returns the representation expected by the pinned schema
 // validator while retaining exact decimal tokens as json.Number.
 func (value Value) Interface() any {
 	switch value.kind {
-	case Null: return nil
-	case Boolean: return value.boolean
-	case Number: return json.Number(value.text)
-	case String: return value.text
+	case Null:
+		return nil
+	case Boolean:
+		return value.boolean
+	case Number:
+		return json.Number(value.text)
+	case String:
+		return value.text
 	case Array:
-		result := make([]any, len(value.array)); for i := range value.array { result[i] = value.array[i].Interface() }; return result
+		result := make([]any, len(value.array))
+		for i := range value.array {
+			result[i] = value.array[i].Interface()
+		}
+		return result
 	case Object:
-		result := make(map[string]any, len(value.object)); for _, member := range value.object { result[member.Name] = member.Value.Interface() }; return result
-	default: return nil
+		result := make(map[string]any, len(value.object))
+		for _, member := range value.object {
+			result[member.Name] = member.Value.Interface()
+		}
+		return result
+	default:
+		return nil
 	}
 }
 
@@ -98,7 +139,9 @@ func Parse(data []byte) (Value, error) {
 	if !utf8.Valid(data) {
 		return Value{}, fmt.Errorf("JSON document is not valid UTF-8")
 	}
-	parser := parser{data: data}
+	// Own one immutable backing string. Number tokens can then be retained as
+	// zero-allocation substrings without observing later caller mutation.
+	parser := parser{data: string(data)}
 	value, err := parser.value(0)
 	if err != nil {
 		return Value{}, err
@@ -110,46 +153,120 @@ func Parse(data []byte) (Value, error) {
 	return value, nil
 }
 
-// Canonical emits stable JSON: sorted object names, minimal strings and
-// decimal numbers, no whitespace, and unchanged array order.
+// Canonical emits stable JSON for callers that already own a bounded Value.
+// Security boundaries should use CanonicalBounded with their object limit.
 func (value Value) Canonical() []byte {
-	var output bytes.Buffer
+	output := canonicalBuffer{limit: -1}
 	value.appendCanonical(&output)
-	return output.Bytes()
+	return output.data
 }
 
-func (value Value) appendCanonical(output *bytes.Buffer) {
+// CanonicalBounded emits stable JSON without growing the output beyond limit.
+// The size check happens before every append, including exponent expansion.
+func (value Value) CanonicalBounded(limit int) ([]byte, error) {
+	if limit < 0 {
+		return nil, fmt.Errorf("canonical JSON limit must be non-negative")
+	}
+	output := canonicalBuffer{limit: limit}
+	value.appendCanonical(&output)
+	if output.exceeded {
+		return nil, fmt.Errorf("canonical JSON exceeds %d bytes", limit)
+	}
+	return output.data, nil
+}
+
+// CanonicalLimited is the security-boundary spelling used by package schema
+// and payload callers. It is an alias of CanonicalBounded.
+func (value Value) CanonicalLimited(limit int) ([]byte, error) {
+	return value.CanonicalBounded(limit)
+}
+
+type canonicalBuffer struct {
+	data     []byte
+	limit    int
+	exceeded bool
+}
+
+func (output *canonicalBuffer) writeByte(value byte) {
+	if output.exceeded {
+		return
+	}
+	if output.limit >= 0 && len(output.data) >= output.limit {
+		output.exceeded = true
+		return
+	}
+	output.data = append(output.data, value)
+}
+
+func (output *canonicalBuffer) writeString(value string) {
+	if output.exceeded {
+		return
+	}
+	if output.limit >= 0 && len(value) > output.limit-len(output.data) {
+		output.exceeded = true
+		return
+	}
+	output.data = append(output.data, value...)
+}
+
+func (output *canonicalBuffer) writeBytes(value []byte) {
+	if output.exceeded {
+		return
+	}
+	if output.limit >= 0 && len(value) > output.limit-len(output.data) {
+		output.exceeded = true
+		return
+	}
+	output.data = append(output.data, value...)
+}
+
+func (output *canonicalBuffer) writeRune(value rune) {
+	var encoded [utf8.UTFMax]byte
+	length := utf8.EncodeRune(encoded[:], value)
+	output.writeBytes(encoded[:length])
+}
+
+func (value Value) appendCanonical(output *canonicalBuffer) {
+	if output.exceeded {
+		return
+	}
 	switch value.kind {
 	case Null:
-		output.WriteString("null")
+		output.writeString("null")
 	case Boolean:
-		output.WriteString(strconv.FormatBool(value.boolean))
+		output.writeString(strconv.FormatBool(value.boolean))
 	case Number:
-		output.WriteString(canonicalNumber(value.text))
+		output.writeString(canonicalNumber(value.text))
 	case String:
 		appendString(output, value.text)
 	case Array:
-		output.WriteByte('[')
+		output.writeByte('[')
 		for index, child := range value.array {
+			if output.exceeded {
+				break
+			}
 			if index > 0 {
-				output.WriteByte(',')
+				output.writeByte(',')
 			}
 			child.appendCanonical(output)
 		}
-		output.WriteByte(']')
+		output.writeByte(']')
 	case Object:
 		members := value.Members()
 		slicesSortMembers(members)
-		output.WriteByte('{')
+		output.writeByte('{')
 		for index, member := range members {
+			if output.exceeded {
+				break
+			}
 			if index > 0 {
-				output.WriteByte(',')
+				output.writeByte(',')
 			}
 			appendString(output, member.Name)
-			output.WriteByte(':')
+			output.writeByte(':')
 			member.Value.appendCanonical(output)
 		}
-		output.WriteByte('}')
+		output.writeByte('}')
 	}
 }
 
@@ -157,36 +274,41 @@ func slicesSortMembers(values []Member) {
 	sort.Slice(values, func(i, j int) bool { return values[i].Name < values[j].Name })
 }
 
-func appendString(output *bytes.Buffer, value string) {
-	output.WriteByte('"')
+func appendString(output *canonicalBuffer, value string) {
+	output.writeByte('"')
 	for _, character := range value {
+		if output.exceeded {
+			break
+		}
 		switch character {
 		case '"', '\\':
-			output.WriteByte('\\')
-			output.WriteRune(character)
+			output.writeByte('\\')
+			output.writeRune(character)
 		case '\b':
-			output.WriteString(`\b`)
+			output.writeString(`\b`)
 		case '\f':
-			output.WriteString(`\f`)
+			output.writeString(`\f`)
 		case '\n':
-			output.WriteString(`\n`)
+			output.writeString(`\n`)
 		case '\r':
-			output.WriteString(`\r`)
+			output.writeString(`\r`)
 		case '\t':
-			output.WriteString(`\t`)
+			output.writeString(`\t`)
 		default:
 			if character < 0x20 {
-				fmt.Fprintf(output, `\u%04x`, character)
+				const hex = "0123456789abcdef"
+				escaped := [6]byte{'\\', 'u', '0', '0', hex[byte(character)>>4], hex[byte(character)&0x0f]}
+				output.writeBytes(escaped[:])
 			} else {
-				output.WriteRune(character)
+				output.writeRune(character)
 			}
 		}
 	}
-	output.WriteByte('"')
+	output.writeByte('"')
 }
 
 type parser struct {
-	data     []byte
+	data     string
 	position int
 }
 
@@ -275,7 +397,7 @@ func (parser *parser) objectValue(depth int) (Value, error) {
 			return Value{}, err
 		}
 		if _, exists := seen[name]; exists {
-			return Value{}, parser.fail("duplicate object member " + strconv.Quote(name))
+			return Value{}, parser.fail("duplicate object member")
 		}
 		seen[name] = struct{}{}
 		parser.space()
@@ -311,7 +433,7 @@ func (parser *parser) string() (string, error) {
 			return "", parser.fail("unescaped control character in string")
 		}
 		if character != '\\' {
-			runeValue, width := utf8.DecodeRune(parser.data[parser.position:])
+			runeValue, width := utf8.DecodeRuneInString(parser.data[parser.position:])
 			output.WriteRune(runeValue)
 			parser.position += width
 			continue
@@ -469,7 +591,11 @@ func (parser *parser) number() (string, error) {
 	if parser.position-start > MaxNumberBytes {
 		return "", parser.fail("number token exceeds 128 bytes")
 	}
-	return string(parser.data[start:parser.position]), nil
+	token := parser.data[start:parser.position]
+	if canonicalNumberLength(token) > MaxNumberBytes {
+		return "", parser.fail("canonical number token exceeds 128 bytes")
+	}
+	return token, nil
 }
 
 func canonicalNumber(token string) string {
@@ -515,8 +641,73 @@ func canonicalNumber(token string) string {
 	return result
 }
 
+// canonicalNumberLength mirrors canonicalNumber without constructing the
+// exponent-expanded token. Parse uses it to enforce round-trip size without
+// transient amplification for every number in a large document.
+func canonicalNumberLength(token string) int {
+	negative := strings.HasPrefix(token, "-")
+	mantissaStart := 0
+	if negative {
+		mantissaStart = 1
+	}
+	mantissaEnd := len(token)
+	exponent := 0
+	if relative := strings.IndexAny(token[mantissaStart:], "eE"); relative >= 0 {
+		exponentIndex := mantissaStart + relative
+		exponent, _ = strconv.Atoi(token[exponentIndex+1:])
+		mantissaEnd = exponentIndex
+	}
+	dot := -1
+	if relative := strings.IndexByte(token[mantissaStart:mantissaEnd], '.'); relative >= 0 {
+		dot = mantissaStart + relative
+	}
+	integerEnd := mantissaEnd
+	if dot >= 0 {
+		integerEnd = dot
+	}
+	integerLength := integerEnd - mantissaStart
+	fractionStart := mantissaEnd
+	if dot >= 0 {
+		fractionStart = dot + 1
+	}
+	fractionLength := mantissaEnd - fractionStart
+	totalDigits := integerLength + fractionLength
+	digitAt := func(index int) byte {
+		if index < integerLength {
+			return token[mantissaStart+index]
+		}
+		return token[fractionStart+index-integerLength]
+	}
+	leading := 0
+	for leading < totalDigits && digitAt(leading) == '0' {
+		leading++
+	}
+	if leading == totalDigits {
+		return 1
+	}
+	trailing := 0
+	for totalDigits-leading-trailing > 1 && digitAt(totalDigits-trailing-1) == '0' {
+		trailing++
+	}
+	significant := totalDigits - leading - trailing
+	decimal := integerLength + exponent - leading
+	length := significant
+	switch {
+	case decimal <= 0:
+		length += 2 - decimal
+	case decimal >= significant:
+		length = decimal
+	default:
+		length++
+	}
+	if negative {
+		length++
+	}
+	return length
+}
+
 func (parser *parser) literal(value string) bool {
-	if !bytes.HasPrefix(parser.data[parser.position:], []byte(value)) {
+	if !strings.HasPrefix(parser.data[parser.position:], value) {
 		return false
 	}
 	parser.position += len(value)
