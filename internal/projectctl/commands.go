@@ -900,6 +900,7 @@ func (a *App) checkScope(ctx context.Context) error {
 	if goModules != 1 {
 		problems.add("expected one active go.mod, found %d", goModules)
 	}
+	// x-section-id: PROJECTCTL-FRONTEND-BOUNDARY-CONTRACT
 	for _, appPath := range []string{"apps/web-player/src/App.tsx", "apps/creator-studio/frontend/src/App.tsx"} {
 		data, readErr := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(appPath)))
 		if readErr == nil {

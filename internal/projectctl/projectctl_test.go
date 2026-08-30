@@ -121,6 +121,8 @@ func TestMilestoneGateIsExact(t *testing.T) {
 	}
 }
 
+// x-section-id: PROJECTCTL-FRONTEND-BOUNDARY-TESTS
+
 // x-section-id: PROJECTCTL-CODEX-ROUTE-TESTS
 func TestRoutesStayProgressive(t *testing.T) {
 	a := testApp(t)
