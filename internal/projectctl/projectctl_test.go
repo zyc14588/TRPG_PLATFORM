@@ -411,6 +411,45 @@ func TestRouteRequestBindsModeMilestoneAndBatch(t *testing.T) {
 
 // x-section-id: PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE-TESTS
 func TestGovernanceMaintenanceReferenceScopeValidation(t *testing.T) {
+	t.Run("canonical repository paths pass shared shape validation", func(t *testing.T) {
+		for _, reference := range []maintenanceRouteRef{
+			{Path: ".codex/maintenance/GOV-TEST/CONTRACT.yaml", SectionID: "GOV-TEST", Kind: "machine-contract"},
+			{Path: "internal/projectctl/codex_maintenance.go", SectionID: "PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE", Kind: "production-code"},
+			{Path: "docs/00-governance/IMPLEMENTATION_GOVERNANCE.md", SectionID: "SPEC-IMPLEMENTATION-GOV-MAINTENANCE", Kind: "normative-section"},
+			{Path: "docs/30-package-spec/PACKAGE_MODEL.md", SectionID: "SPEC-PACKAGE-EXTENSIONS-M1-B010", Kind: "normative-section"},
+			{Path: "docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md", SectionID: "SPEC-M1-EXIT", Kind: "normative-section"},
+		} {
+			if err := validateMaintenanceReferenceShape(reference); err != nil {
+				t.Errorf("canonical maintenance reference %q failed: %v", reference.Path, err)
+			}
+		}
+	})
+
+	t.Run("embedded traversal dot aliases and backslash aliases are rejected", func(t *testing.T) {
+		for _, path := range []string{
+			"../outside.md",
+			"docs/../REFERENCE.md",
+			"docs/../../outside.md",
+			".codex/../apps/creator-studio/frontend/src/App.tsx",
+			"docs/../internal/package/manifest/manifest.go",
+			"docs/30-package-spec/../../../schemas/package/manifest-v2.schema.json",
+			"docs/a/../../x",
+			"a/b/../c",
+			"a/../../c",
+			"docs/./REFERENCE.md",
+			"docs//REFERENCE.md",
+			"./docs/REFERENCE.md",
+			"docs/a/../REFERENCE.md",
+			`.codex\..\apps\creator-studio\frontend\src\App.tsx`,
+			`docs\..\internal\package\manifest\manifest.go`,
+		} {
+			reference := maintenanceRouteRef{Path: path, SectionID: "SPEC-TEST-PATH", Kind: "normative-section"}
+			if err := validateMaintenanceReferenceShape(reference); err == nil {
+				t.Errorf("non-canonical maintenance reference %q unexpectedly passed", path)
+			}
+		}
+	})
+
 	t.Run("governance allowed scope remains valid", func(t *testing.T) {
 		for _, reference := range []maintenanceRouteRef{
 			{Path: "internal/projectctl/codex_maintenance.go", SectionID: "PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE", Kind: "production-code"},
@@ -440,6 +479,24 @@ func TestGovernanceMaintenanceReferenceScopeValidation(t *testing.T) {
 		}
 		if err := validateMaintenanceAllowedScopeReference(reference); err == nil {
 			t.Fatal("product normative fixture unexpectedly passed writable maintenance scope validation")
+		}
+	})
+
+	t.Run("writable prefix traversal is rejected before scope classification", func(t *testing.T) {
+		reference := maintenanceRouteRef{
+			Path: ".codex/../apps/creator-studio/frontend/src/App.tsx", SectionID: "PROJECTCTL-TEST-TARGET", Kind: "production-code",
+		}
+		if err := validateMaintenanceAllowedScopeReference(reference); err == nil {
+			t.Fatal("writable-prefix traversal unexpectedly passed allowed scope validation")
+		}
+	})
+
+	t.Run("normative prefix traversal is rejected before type classification", func(t *testing.T) {
+		reference := maintenanceRouteRef{
+			Path: "docs/../internal/package/manifest/manifest.go", SectionID: "SPEC-TEST-PRODUCT-CODE", Kind: "normative-section",
+		}
+		if err := validateMaintenanceNormativeReference(reference); err == nil {
+			t.Fatal("normative-prefix traversal unexpectedly passed normative validation")
 		}
 	})
 
@@ -502,6 +559,19 @@ func TestGovernanceMaintenanceReferenceScopeValidation(t *testing.T) {
 			t.Fatalf("duplicate reference identity across categories was not rejected: %v", err)
 		}
 	})
+
+	t.Run("non-canonical duplicate alias is rejected before identity comparison", func(t *testing.T) {
+		contract := referenceScopeTestContract("GOV-TEST-REFERENCE-SCOPE")
+		contract.NormativeReferences = []maintenanceRouteRef{{
+			Path: "docs/00-governance/REFERENCE.md", SectionID: "SECTION", Kind: "normative-section",
+		}}
+		contract.AllowedScope = []maintenanceRouteRef{{
+			Path: "docs/00-governance/./REFERENCE.md", SectionID: "SECTION", Kind: "normative-section",
+		}}
+		if err := validateGovernanceMaintenanceContract(contract, contract.MaintenanceID); err == nil || !strings.Contains(err.Error(), "not canonical") {
+			t.Fatalf("non-canonical duplicate alias was not rejected before identity comparison: %v", err)
+		}
+	})
 }
 
 func TestGovernanceMaintenanceProductNormativeReferenceLoader(t *testing.T) {
@@ -524,6 +594,87 @@ func TestGovernanceMaintenanceProductNormativeReferenceLoader(t *testing.T) {
 			t.Fatalf("loader did not reject a missing product normative Section: %v", err)
 		}
 	})
+}
+
+func TestGovernanceMaintenanceTraversalLoaderValidation(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*governanceMaintenanceContract)
+	}{
+		{
+			name: "writable traversal",
+			mutate: func(contract *governanceMaintenanceContract) {
+				contract.AllowedScope = []maintenanceRouteRef{{Path: ".codex/../apps/x", SectionID: "PROJECTCTL-TEST-TARGET", Kind: "production-code"}}
+			},
+		},
+		{
+			name: "normative traversal",
+			mutate: func(contract *governanceMaintenanceContract) {
+				contract.NormativeReferences = []maintenanceRouteRef{{Path: "docs/../internal/package/x", SectionID: "SPEC-TEST-PRODUCT-NORMATIVE", Kind: "normative-section"}}
+			},
+		},
+		{
+			name: "dot alias",
+			mutate: func(contract *governanceMaintenanceContract) {
+				contract.NormativeReferences = []maintenanceRouteRef{{Path: "docs/30-package-spec/./REFERENCE.md", SectionID: "SPEC-TEST-PRODUCT-NORMATIVE", Kind: "normative-section"}}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			contract := referenceScopeTestContract("GOV-TEST-REFERENCE-SCOPE")
+			test.mutate(&contract)
+			a := referenceScopeContractLoaderFixture(t, contract)
+			if _, err := a.loadGovernanceMaintenanceContract(contract.MaintenanceID); err == nil {
+				t.Fatalf("loader unexpectedly accepted %s", test.name)
+			}
+		})
+	}
+}
+
+func TestGovernanceMaintenanceCanonicalProductNormativeProbe(t *testing.T) {
+	const (
+		maintenanceID = "GOV-TEST-CANONICAL-PRODUCT-NORMATIVE"
+		productPath   = "docs/30-package-spec/PACKAGE_MODEL.md"
+		sectionID     = "SPEC-PACKAGE-EXTENSIONS-M1-B010"
+	)
+	source := testApp(t)
+	productDocument, err := os.ReadFile(filepath.Join(source.root, filepath.FromSlash(productPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sectionMaterial(productDocument, sectionID); err != nil {
+		t.Fatalf("real product normative Section does not materialize: %v", err)
+	}
+
+	contract := referenceScopeTestContract(maintenanceID)
+	contract.NormativeReferences = []maintenanceRouteRef{{Path: productPath, SectionID: sectionID, Kind: "normative-section"}}
+	a := referenceScopeContractLoaderFixture(t, contract)
+	writeReferenceScopeFixtureFile(t, a.root, productPath, productDocument)
+	writeReferenceScopeFixtureFile(t, a.root, "internal/projectctl/TARGET.go", []byte("// x-section-id: PROJECTCTL-TEST-TARGET\npackage fixture\n"))
+	if _, err := a.loadGovernanceMaintenanceContract(maintenanceID); err != nil {
+		t.Fatalf("real product normative prerequisite failed contract loading: %v", err)
+	}
+
+	request := newCodexRouteRequest("REPAIR")
+	request.MaintenanceID = maintenanceID
+	paths, err := a.maintenanceRoutePaths(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundNormative, foundWritable := false, false
+	for _, spec := range paths.normative {
+		foundNormative = foundNormative || (spec.path == productPath && spec.sectionID == sectionID)
+	}
+	for _, spec := range paths.onDemand {
+		foundWritable = foundWritable || (spec.path == productPath && spec.sectionID == sectionID)
+	}
+	if !foundNormative || foundWritable {
+		t.Fatalf("real product prerequisite route category: normative=%v writable=%v", foundNormative, foundWritable)
+	}
+	if err := validateMaintenanceAllowedScopeReference(contract.NormativeReferences[0]); err == nil {
+		t.Fatal("real product normative prerequisite unexpectedly gained write authority")
+	}
 }
 
 func referenceScopeTestContract(maintenanceID string) governanceMaintenanceContract {
@@ -558,18 +709,24 @@ func referenceScopeTestContract(maintenanceID string) governanceMaintenanceContr
 
 func referenceScopeLoaderFixture(t *testing.T, maintenanceID, normativeSectionID string) *App {
 	t.Helper()
-	root := t.TempDir()
 	contract := referenceScopeTestContract(maintenanceID)
 	contract.NormativeReferences = []maintenanceRouteRef{{
 		Path: "docs/30-package-spec/REFERENCE.md", SectionID: normativeSectionID, Kind: "normative-section",
 	}}
+	a := referenceScopeContractLoaderFixture(t, contract)
+	writeReferenceScopeFixtureFile(t, a.root, "docs/30-package-spec/REFERENCE.md", []byte("<a id=\"SPEC-TEST-PRODUCT-NORMATIVE\"></a>\n## Product normative fixture\n"))
+	writeReferenceScopeFixtureFile(t, a.root, "internal/projectctl/TARGET.go", []byte("// x-section-id: PROJECTCTL-TEST-TARGET\npackage fixture\n"))
+	return a
+}
+
+func referenceScopeContractLoaderFixture(t *testing.T, contract governanceMaintenanceContract) *App {
+	t.Helper()
+	root := t.TempDir()
 	data, err := yaml.Marshal(contract)
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeReferenceScopeFixtureFile(t, root, maintenanceContractPath(maintenanceID), data)
-	writeReferenceScopeFixtureFile(t, root, "docs/30-package-spec/REFERENCE.md", []byte("<a id=\"SPEC-TEST-PRODUCT-NORMATIVE\"></a>\n## Product normative fixture\n"))
-	writeReferenceScopeFixtureFile(t, root, "internal/projectctl/TARGET.go", []byte("// x-section-id: PROJECTCTL-TEST-TARGET\npackage fixture\n"))
+	writeReferenceScopeFixtureFile(t, root, maintenanceContractPath(contract.MaintenanceID), data)
 	return &App{root: root, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
 }
 

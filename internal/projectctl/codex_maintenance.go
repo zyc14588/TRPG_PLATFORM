@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -127,8 +128,27 @@ func validateGovernanceMaintenanceContract(contract governanceMaintenanceContrac
 	return nil
 }
 
+func validateMaintenanceReferencePath(value string) error {
+	if err := validateBoundedRoutePath(value); err != nil {
+		return err
+	}
+	if strings.Contains(value, `\`) {
+		return fmt.Errorf("maintenance route reference path must use canonical repository separators: %q", value)
+	}
+	cleaned := path.Clean(value)
+	if cleaned != value || cleaned == "." {
+		return fmt.Errorf("maintenance route reference path is not canonical: %q", value)
+	}
+	for _, component := range strings.Split(value, "/") {
+		if component == ".." || component == "." || component == "" {
+			return fmt.Errorf("maintenance route reference path contains a forbidden path component: %q", value)
+		}
+	}
+	return nil
+}
+
 func validateMaintenanceReferenceShape(reference maintenanceRouteRef) error {
-	if err := validateBoundedRoutePath(reference.Path); err != nil {
+	if err := validateMaintenanceReferencePath(reference.Path); err != nil {
 		return err
 	}
 	if strings.TrimSpace(reference.SectionID) == "" {
