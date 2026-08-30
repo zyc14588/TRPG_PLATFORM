@@ -409,6 +409,7 @@ func TestRouteRequestBindsModeMilestoneAndBatch(t *testing.T) {
 	}
 }
 
+// x-section-id: PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE-TESTS
 func TestGovernanceMaintenanceTargetsAndProgressiveRoute(t *testing.T) {
 	a := testApp(t)
 	catalog := testV1MilestoneCatalog(t, a)

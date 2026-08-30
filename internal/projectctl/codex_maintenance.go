@@ -61,6 +61,7 @@ func rootCause(err error) error {
 	}
 }
 
+// x-section-id: PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE
 func validateGovernanceMaintenanceContract(contract governanceMaintenanceContract, requestedID string) error {
 	if contract.SchemaVersion != maintenanceContractSchemaVersion {
 		return fmt.Errorf("schema_version=%d, want %d", contract.SchemaVersion, maintenanceContractSchemaVersion)
