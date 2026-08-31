@@ -900,22 +900,113 @@ func (a *App) checkScope(ctx context.Context) error {
 	if goModules != 1 {
 		problems.add("expected one active go.mod, found %d", goModules)
 	}
-	// x-section-id: PROJECTCTL-FRONTEND-BOUNDARY-CONTRACT
-	for _, appPath := range []string{"apps/web-player/src/App.tsx", "apps/creator-studio/frontend/src/App.tsx"} {
-		data, readErr := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(appPath)))
-		if readErr == nil {
-			for _, copyLine := range []string{"V1 restart baseline", "No playable functionality", "M0 engineering shell only"} {
-				if !bytes.Contains(data, []byte(copyLine)) {
-					problems.add("%s is missing required boundary copy %q", appPath, copyLine)
-				}
-			}
-		}
+	if err := a.checkFrontendBoundaries(); err != nil {
+		problems.add("%v", err)
 	}
 	if err := problems.err("M0 scope"); err != nil {
 		return err
 	}
 	fmt.Fprintf(a.stdout, "[PASS] M0 scope: %d active repository paths, zero legacy implementation paths\n", len(files))
 	return nil
+}
+
+// x-section-id: PROJECTCTL-FRONTEND-BOUNDARY-CONTRACT
+const (
+	creatorExtensionCapabilitySentinel = "schemas/package/manifest-v2.schema.json"
+	webPlayerFrontendPath              = "apps/web-player/src/App.tsx"
+	creatorFrontendPath                = "apps/creator-studio/frontend/src/App.tsx"
+	frontendM0RestartMarker            = "V1 restart baseline"
+	frontendM0NoPlayableMarker         = "No playable functionality"
+	frontendM0ShellMarker              = "M0 engineering shell only"
+	creatorGenericSchemaMarker         = "Schema-validated generic JSON"
+	creatorGenericPackageMarker        = "Package-generic JSON by design"
+	creatorGenericFormsMarker          = "No game-specific forms or templates"
+	creatorGenericRuntimeMarker        = "No playable preview or runtime execution"
+)
+
+type frontendBoundaryContract struct {
+	path     string
+	required []string
+}
+
+type lstatFunc func(string) (fs.FileInfo, error)
+
+func (a *App) frontendBoundaryContracts() ([]frontendBoundaryContract, error) {
+	return a.frontendBoundaryContractsWithLstat(os.Lstat)
+}
+
+func (a *App) frontendBoundaryContractsWithLstat(lstat lstatFunc) ([]frontendBoundaryContract, error) {
+	contracts := []frontendBoundaryContract{m0FrontendBoundaryContract(webPlayerFrontendPath)}
+	sentinel := filepath.Join(a.root, filepath.FromSlash(creatorExtensionCapabilitySentinel))
+	info, err := lstat(sentinel)
+	switch {
+	case err == nil:
+		if info == nil || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("Creator capability sentinel %s is not a regular file", creatorExtensionCapabilitySentinel)
+		}
+		contracts = append(contracts, genericCreatorBoundaryContract())
+	case errors.Is(err, fs.ErrNotExist):
+		contracts = append(contracts, m0FrontendBoundaryContract(creatorFrontendPath))
+	default:
+		return nil, fmt.Errorf("inspect Creator capability sentinel %s: %w", creatorExtensionCapabilitySentinel, err)
+	}
+	return contracts, nil
+}
+
+func (a *App) checkFrontendBoundaries() error {
+	contracts, err := a.frontendBoundaryContracts()
+	if err != nil {
+		return err
+	}
+	return a.checkFrontendBoundaryCopy(contracts)
+}
+
+func (a *App) checkFrontendBoundariesWithLstat(lstat lstatFunc) error {
+	contracts, err := a.frontendBoundaryContractsWithLstat(lstat)
+	if err != nil {
+		return err
+	}
+	return a.checkFrontendBoundaryCopy(contracts)
+}
+
+func (a *App) checkFrontendBoundaryCopy(contracts []frontendBoundaryContract) error {
+	problems := &validationErrors{}
+	for _, contract := range contracts {
+		data, err := os.ReadFile(filepath.Join(a.root, filepath.FromSlash(contract.path)))
+		if err != nil {
+			problems.add("read frontend boundary %s: %v", contract.path, err)
+			continue
+		}
+		for _, marker := range contract.required {
+			if !bytes.Contains(data, []byte(marker)) {
+				problems.add("%s is missing frontend boundary marker %q", contract.path, marker)
+			}
+		}
+	}
+	return problems.err("frontend boundary copy")
+}
+
+func m0FrontendBoundaryContract(path string) frontendBoundaryContract {
+	return frontendBoundaryContract{
+		path: path,
+		required: []string{
+			frontendM0RestartMarker,
+			frontendM0NoPlayableMarker,
+			frontendM0ShellMarker,
+		},
+	}
+}
+
+func genericCreatorBoundaryContract() frontendBoundaryContract {
+	return frontendBoundaryContract{
+		path: creatorFrontendPath,
+		required: []string{
+			creatorGenericSchemaMarker,
+			creatorGenericPackageMarker,
+			creatorGenericFormsMarker,
+			creatorGenericRuntimeMarker,
+		},
+	}
 }
 
 func (a *App) repositoryFiles(ctx context.Context) ([]string, error) {
