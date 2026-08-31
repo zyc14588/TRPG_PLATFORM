@@ -83,10 +83,27 @@ acceptance:
   publisher, official-game identity, rules-residue identity, environment
   variable, manual flag, or UI text selects the boundary contract.
 - >-
-  Sentinel inspection uses exact-path Lstat semantics and does not follow a
-  symlink: absence selects the Creator baseline, a regular file selects the
-  generic JSON boundary, and a directory, symlink, or other non-regular entry
-  fails closed.
+  Sentinel inspection uses os.Lstat, or a semantically equivalent exact-path
+  stat mechanism that does not follow a symlink. Only an error for which
+  os.IsNotExist(err) is true, or errors.Is(err, fs.ErrNotExist) is true with
+  equivalent semantics and the sentinel is truly absent, selects the Creator
+  baseline; this is the sole error result allowed to select that baseline. No
+  error plus a regular file selects the generic JSON boundary. No error plus a
+  directory, symlink, device, socket, named pipe, or any other non-regular
+  object fails closed, with an Lstat symlink rejected as the symlink object
+  itself and never followed.
+- >-
+  Every non-nil sentinel inspection error that is not true-not-exist fails
+  closed. This explicitly includes errors.Is(err, fs.ErrPermission), EIO or
+  any other read/stat infrastructure or filesystem I/O failure, and every
+  arbitrary or unexpected non-not-exist error. Permission, I/O, and unexpected
+  errors are not absence; the default error branch is failure, never the
+  Creator baseline.
+- >-
+  The repair must not use an err != nil means baseline shorthand, and must not
+  use os.Stat failure as absence: either form conflates true nonexistence with
+  infrastructure failure, while os.Stat can also follow a symlink and thereby
+  fail open.
 - >-
   With the sentinel absent, Creator requires V1 restart baseline, No playable
   functionality, and M0 engineering shell only.
@@ -105,8 +122,9 @@ acceptance:
   Player contract and a Creator contract selected only from fail-closed
   sentinel state; concrete helper and type names remain implementation detail.
 - >-
-  A baseline fixture with no manifest-v2 file and all three Creator M0 markers
-  passes.
+  A baseline fixture in which sentinel inspection deterministically returns
+  true-not-exist, with no manifest-v2 file and all three Creator M0 markers,
+  passes; no other Lstat error may stand in for absence.
 - >-
   A temporary extension-capable fixture with a regular manifest-v2 file and
   all four generic Creator markers passes without modifying tracked Creator UI.
@@ -119,6 +137,19 @@ acceptance:
   A directory sentinel fails, and a symlink sentinel fails wherever the test
   platform supports symlinks; an unsupported test platform is recorded
   explicitly and production behavior never follows the link.
+- >-
+  A sentinel Lstat result with any non-not-exist error makes the frontend
+  boundary check fail. Negative coverage independently and deterministically
+  injects fs.ErrPermission, an arbitrary generic I/O error, and an arbitrary
+  unexpected non-not-exist error, and every case fails rather than selecting
+  the Creator baseline.
+- >-
+  Sentinel-state coverage uses a narrow deterministic test seam, such as a
+  pure state classifier or injectable Lstat function, that can inject
+  true-not-exist, permission, I/O, unexpected error, regular file, directory,
+  symlink, and other non-regular states without changing the public API. Error
+  tests must not depend on chmod 000, root versus non-root execution, host ACL
+  behavior, or CI-specific filesystem permissions.
 - >-
   Production code and tests contain no game, package, publisher, official
   package, R2-INT-010, equipment, or rules-residue special-case selection
@@ -160,8 +191,15 @@ tests:
 - go run ./cmd/projectctl codex check
 - >-
   Run the baseline, extension-positive, old-shell-negative,
-  incomplete-generic, malformed-sentinel, Web Player isolation, and no-game-
-  special-case fixtures against the same production boundary checker.
+  incomplete-generic, malformed-sentinel object-type and stat-error, Web
+  Player isolation, and no-game-special-case fixtures against the same
+  production boundary checker.
+- >-
+  Run deterministic sentinel-state tests proving true-not-exist selects the
+  baseline, a regular file selects generic mode, directory, symlink, and other
+  non-regular objects fail, and fs.ErrPermission, arbitrary generic I/O, and
+  arbitrary unexpected non-not-exist Lstat errors each fail the frontend
+  boundary check.
 - >-
   Run the B011 reconstruction overlay probe with a regular manifest-v2
   sentinel and accepted B010 Creator UI bytes without changing tracked product
