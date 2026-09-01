@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "artifact_type": "package",
+  "package_id": "example.rules/schema-fixture",
+  "package_kind": "content",
+  "version": "1.2.3",
+  "display_name": "Schema Fixture V2",
+  "build": {
+    "source": "https://example.invalid/schema-fixture",
+    "revision": "0123456789abcdef",
+    "builder": "creator-cli/0.1"
+  },
+  "rights": {
+    "authors": ["Example Studio"],
+    "source": "original",
+    "license_expression": "LicenseRef-Example-Private"
+  },
+  "capabilities": {
+    "required": [],
+    "optional": []
+  },
+  "dependencies": [],
+  "extensions": [
+    {
+      "namespace": "third.party.probe",
+      "required": false,
+      "contract_version": 1,
+      "schema_path": "extensions/third.party.probe/value.schema.json",
+      "schema_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "payload_path": "extensions/third.party.probe/value.json",
+      "host_api_major": 1,
+      "host_api_min_minor": 0,
+      "host_api_max_minor": 0
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "manifest_schema_version": 1,
+  "artifact_type": "package",
+  "package_id": "example.rules/schema-fixture",
+  "package_kind": "content",
+  "version": "1.2.3-alpha.1+build.7",
+  "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "build_provenance": {"source": "source", "revision": "revision", "builder": "builder"},
+  "rights": {"authors": ["Example"], "source": "original", "statement": "private"},
+  "dependency_lock": {
+    "schema_version": 1,
+    "root": "example.rules/schema-fixture",
+    "packages": [
+      {
+        "package_id": "example.rules/schema-fixture",
+        "version": "1.2.3-alpha.1+build.7",
+        "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "features": [],
+        "dependencies": []
+      }
+    ]
+  }
+}

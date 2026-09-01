@@ -13,6 +13,7 @@ import (
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/capability"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/dependency"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/extension"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/model"
 )
 
@@ -22,18 +23,22 @@ const packageSchemaBaseID = "https://github.com/zyc14588/TRPG_PLATFORM/schemas/p
 type SchemaDocument string
 
 const (
-	ManifestSchemaDocument         SchemaDocument = "manifest-v1.schema.json"
-	LockSchemaDocument             SchemaDocument = "lock-v1.schema.json"
-	ArtifactIdentitySchemaDocument SchemaDocument = "artifact-identity-v1.schema.json"
+	ManifestSchemaDocument           SchemaDocument = "manifest-v1.schema.json"
+	ManifestV2SchemaDocument         SchemaDocument = "manifest-v2.schema.json"
+	LockSchemaDocument               SchemaDocument = "lock-v1.schema.json"
+	ArtifactIdentitySchemaDocument   SchemaDocument = "artifact-identity-v1.schema.json"
+	ArtifactIdentityV2SchemaDocument SchemaDocument = "artifact-identity-v2.schema.json"
 )
 
 // SchemaResources supplies the tracked public schemas without copying them
 // into the Go package. Callers may read them from disk, an embed.FS, or another
 // immutable source.
 type SchemaResources struct {
-	Manifest         []byte
-	Lock             []byte
-	ArtifactIdentity []byte
+	Manifest           []byte
+	ManifestV2         []byte
+	Lock               []byte
+	ArtifactIdentity   []byte
+	ArtifactIdentityV2 []byte
 }
 
 // SchemaConformance validates the public package contract in two explicit
@@ -53,8 +58,28 @@ func NewSchemaConformance(resources SchemaResources) (*SchemaConformance, error)
 		data     []byte
 	}{
 		{document: ManifestSchemaDocument, data: resources.Manifest},
-		{document: LockSchemaDocument, data: resources.Lock},
-		{document: ArtifactIdentitySchemaDocument, data: resources.ArtifactIdentity},
+	}
+	if len(resources.ManifestV2) != 0 {
+		inputs = append(inputs, struct {
+			document SchemaDocument
+			data     []byte
+		}{document: ManifestV2SchemaDocument, data: resources.ManifestV2})
+	}
+	inputs = append(inputs,
+		struct {
+			document SchemaDocument
+			data     []byte
+		}{document: LockSchemaDocument, data: resources.Lock},
+		struct {
+			document SchemaDocument
+			data     []byte
+		}{document: ArtifactIdentitySchemaDocument, data: resources.ArtifactIdentity},
+	)
+	if len(resources.ArtifactIdentityV2) != 0 {
+		inputs = append(inputs, struct {
+			document SchemaDocument
+			data     []byte
+		}{document: ArtifactIdentityV2SchemaDocument, data: resources.ArtifactIdentityV2})
 	}
 	for _, input := range inputs {
 		if len(input.data) == 0 {
@@ -85,6 +110,9 @@ func (validator *SchemaConformance) ValidateStructure(document SchemaDocument, d
 	if !ok {
 		return fmt.Errorf("unknown package schema document %q", document)
 	}
+	if err := validateConformanceInputSize(document, data); err != nil {
+		return err
+	}
 	if !utf8.Valid(data) {
 		return fmt.Errorf("%s instance is not valid UTF-8", document)
 	}
@@ -104,25 +132,32 @@ func (validator *SchemaConformance) ValidateCanonical(document SchemaDocument, d
 	if _, ok := validator.schema(document); !ok {
 		return fmt.Errorf("unknown package schema document %q", document)
 	}
+	if err := validateConformanceInputSize(document, data); err != nil {
+		return err
+	}
 	if !utf8.Valid(data) {
 		return fmt.Errorf("%s instance is not valid UTF-8", document)
 	}
 	switch document {
-	case ManifestSchemaDocument:
-		if len(data) > MaxManifestBytes {
-			return fmt.Errorf("manifest exceeds %d bytes", MaxManifestBytes)
-		}
-		return validateCanonicalManifestJSON(data)
+	case ManifestSchemaDocument, ManifestV2SchemaDocument:
+		return validateCanonicalManifestJSON(document, data)
 	case LockSchemaDocument:
 		if _, err := dependency.ParseExactLock(data); err != nil {
 			return fmt.Errorf("canonical exact lock: %w", err)
 		}
 		return nil
-	case ArtifactIdentitySchemaDocument:
-		return validateCanonicalArtifactIdentityJSON(data)
+	case ArtifactIdentitySchemaDocument, ArtifactIdentityV2SchemaDocument:
+		return validateCanonicalArtifactIdentityJSON(document, data)
 	default:
 		return fmt.Errorf("unknown package schema document %q", document)
 	}
+}
+
+func validateConformanceInputSize(document SchemaDocument, data []byte) error {
+	if (document == ManifestSchemaDocument || document == ManifestV2SchemaDocument) && len(data) > MaxManifestBytes {
+		return fmt.Errorf("manifest exceeds %d bytes", MaxManifestBytes)
+	}
+	return nil
 }
 
 // Validate applies the complete public schema contract.
@@ -145,7 +180,8 @@ func (validator *SchemaConformance) schema(document SchemaDocument) (*jsonschema
 }
 
 type conformanceManifestHeader struct {
-	ArtifactType string `json:"artifact_type"`
+	SchemaVersion int    `json:"schema_version"`
+	ArtifactType  string `json:"artifact_type"`
 }
 
 type conformancePackageManifest struct {
@@ -162,6 +198,30 @@ type conformancePackageManifest struct {
 	Rights        rawRights               `json:"rights"`
 	Capabilities  conformanceCapabilities `json:"capabilities"`
 	Dependencies  []conformanceDependency `json:"dependencies"`
+	Extensions    []conformanceExtension  `json:"extensions"`
+}
+
+type conformanceExtension struct {
+	Namespace       *string `json:"namespace"`
+	Required        *bool   `json:"required"`
+	ContractVersion *uint32 `json:"contract_version"`
+	SchemaPath      *string `json:"schema_path"`
+	SchemaSHA256    *string `json:"schema_sha256"`
+	PayloadPath     *string `json:"payload_path"`
+	HostAPIMajor    *uint32 `json:"host_api_major"`
+	HostAPIMinMinor *uint32 `json:"host_api_min_minor"`
+	HostAPIMaxMinor *uint32 `json:"host_api_max_minor"`
+}
+
+func (raw conformanceExtension) descriptor() (extension.Descriptor, error) {
+	if raw.Namespace == nil || raw.Required == nil || raw.ContractVersion == nil || raw.SchemaPath == nil || raw.SchemaSHA256 == nil || raw.PayloadPath == nil || raw.HostAPIMajor == nil || raw.HostAPIMinMinor == nil || raw.HostAPIMaxMinor == nil {
+		return extension.Descriptor{}, fmt.Errorf("extension descriptor requires every contract field")
+	}
+	return extension.Descriptor{
+		Namespace: *raw.Namespace, Required: *raw.Required, ContractVersion: *raw.ContractVersion,
+		SchemaPath: *raw.SchemaPath, SchemaSHA256: *raw.SchemaSHA256, PayloadPath: *raw.PayloadPath,
+		HostAPIMajor: *raw.HostAPIMajor, HostAPIMinMinor: *raw.HostAPIMinMinor, HostAPIMaxMinor: *raw.HostAPIMaxMinor,
+	}, nil
 }
 
 type conformanceCapabilities struct {
@@ -187,10 +247,17 @@ type conformanceBundleManifest struct {
 	Artifacts     []BundleArtifact      `json:"artifacts"`
 }
 
-func validateCanonicalManifestJSON(data []byte) error {
+func validateCanonicalManifestJSON(document SchemaDocument, data []byte) error {
 	var header conformanceManifestHeader
 	if err := json.Unmarshal(data, &header); err != nil {
 		return fmt.Errorf("decode manifest header: %w", err)
+	}
+	expectedVersion := SchemaVersion
+	if document == ManifestV2SchemaDocument {
+		expectedVersion = ExtensionSchemaVersion
+	}
+	if header.SchemaVersion != expectedVersion {
+		return fmt.Errorf("%s requires manifest schema_version %d", document, expectedVersion)
 	}
 	artifactType, err := model.ParseArtifactType(header.ArtifactType)
 	if err != nil {
@@ -226,14 +293,25 @@ func validateCanonicalManifestJSON(data []byte) error {
 			}
 			requirements = append(requirements, requirement)
 		}
+		extensions := make([]extension.Descriptor, 0, len(raw.Extensions))
+		for _, item := range raw.Extensions {
+			descriptor, err := item.descriptor()
+			if err != nil {
+				return err
+			}
+			extensions = append(extensions, descriptor)
+		}
 		_, err = NormalizePackage(Package{
 			SchemaVersion: raw.SchemaVersion,
 			PackageID:     model.PackageID(raw.PackageID), PackageKind: model.PackageKind(raw.PackageKind), Version: model.Version(raw.Version),
 			DisplayName: raw.DisplayName, Entrypoint: entrypoint, LuaProfile: luaProfile, HostAPI: raw.HostAPI,
-			Build: raw.Build, Rights: rights, Capabilities: declaration, Dependencies: requirements,
+			Build: raw.Build, Rights: rights, Capabilities: declaration, Dependencies: requirements, Extensions: extensions,
 		})
 		return err
 	case model.ArtifactTypeBundle:
+		if document != ManifestSchemaDocument {
+			return fmt.Errorf("Bundle only supports manifest schema_version %d", SchemaVersion)
+		}
 		var raw conformanceBundleManifest
 		if err := decodeConformanceJSON(data, &raw); err != nil {
 			return fmt.Errorf("decode bundle manifest: %w", err)
@@ -265,16 +343,19 @@ type conformanceArtifactIdentity struct {
 	DependencyLock        json.RawMessage       `json:"dependency_lock"`
 }
 
-func validateCanonicalArtifactIdentityJSON(data []byte) error {
+func validateCanonicalArtifactIdentityJSON(document SchemaDocument, data []byte) error {
 	var raw conformanceArtifactIdentity
 	if err := decodeConformanceJSON(data, &raw); err != nil {
 		return fmt.Errorf("decode artifact identity: %w", err)
 	}
-	if raw.SchemaVersion != ArtifactIdentitySchemaVersion {
-		return fmt.Errorf("unsupported artifact identity schema_version %d", raw.SchemaVersion)
+	expectedIdentityVersion := ArtifactIdentitySchemaVersion
+	expectedManifestVersion := SchemaVersion
+	if document == ArtifactIdentityV2SchemaDocument {
+		expectedIdentityVersion = ArtifactIdentityV2SchemaVersion
+		expectedManifestVersion = ExtensionSchemaVersion
 	}
-	if raw.ManifestSchemaVersion != SchemaVersion {
-		return fmt.Errorf("unsupported manifest schema_version %d", raw.ManifestSchemaVersion)
+	if raw.SchemaVersion != expectedIdentityVersion || raw.ManifestSchemaVersion != expectedManifestVersion {
+		return fmt.Errorf("%s requires schema_version %d and manifest_schema_version %d", document, expectedIdentityVersion, expectedManifestVersion)
 	}
 	artifactType, err := model.ParseArtifactType(raw.ArtifactType)
 	if err != nil {
