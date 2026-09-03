@@ -35,11 +35,11 @@ source_commit: "28ddda38e0a426be314ae8af2298672a61e972f9"
 - B011 platform independent acceptance: `PASS`
 - B011 fresh platform acceptance reissuance: `PASS`
 - B011 fresh cross-repository exact-pair acceptance: `PASS`
-- B011 completion transition independent acceptance: `NOT_RUN`
-- Active verification target: `M1-B011-COMPLETION-INDEPENDENT-ACCEPT`
+- B011 completion transition independent acceptance: `PENDING_RETRY / RETRY_NOT_RUN`
+- Active verification target: `M1-B011-COMPLETION-INDEPENDENT-ACCEPT-RETRY-001`
 - B002 or old B010 product code imported into this lineage: `false`
 - Normative closure provenance: `cde53640e143b7adb9e36d7d8bc4fedb6f0ed401`; `docs/30-package-spec/PACKAGE_MODEL.md` mode/blob `100644 3322861b08979c328d068b1c6040494238cd8186`; `docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md` mode/blob `100644 dee317bded7541582f4b168a52bd85213a462e3b`
-- Next gate: `M1-B011-COMPLETION-INDEPENDENT-ACCEPT`
+- Next gate: `M1-B011-COMPLETION-INDEPENDENT-ACCEPT-RETRY-001`
 
 B002 product code is NOT integrated into this lineage.
 
@@ -49,7 +49,17 @@ No B002 or old B010 product ancestry is present in this clean lineage.
 
 - Product identity: `b82d52571287d9d0ebcfa589fd575125ac578476` / `b9be959f22a8b15080a1035fba0fb46c256edf62`.
 - VERIFYING governance predecessor: `412111c05c087ed066a297304bed728870f03fc8` / `a77015feee62564ec8ec9744391a3b5de83e4217`.
-- Completion governance candidate: this task's future signed commit/tree, resolved after commit; it is not a product candidate or replacement implementation.
+- Completion transition commit: `e99f31ad842ebfda4c51808f50c46be3f2a97cfc`.
+- Completion transition tree: `a15ded87265b2ae30da20baa9810cca056e30798`.
+- Completion transition parent: `412111c05c087ed066a297304bed728870f03fc8`.
+- Post-transition identity projection repair: this summary-only successor is neither product identity nor lifecycle completion transition; its identity is bound externally by the Git object and the next independent acceptance, not embedded in these summaries.
+
+## Completion transition acceptance history
+
+- Prior task/result: `M1-B011-COMPLETION-INDEPENDENT-ACCEPT-001` = `FAIL_M1_B011_COMPLETION_TRANSITION`.
+- Failure: `FAIL_COMPLETION_TARGET_BINDING`.
+- Disposition: `REPAIR_REQUIRED`.
+- Completion acceptance retry: `PENDING_RETRY / NOT_RUN`.
 
 ## Platform acceptance authority
 
@@ -76,6 +86,6 @@ No B002 or old B010 product ancestry is present in this clean lineage.
 
 - Rules remains `M2-B001 = ACCEPTED`, effective `R2-INT-010 = RESOLVED_ADAPTER`, `M2-B002 = NOT_STARTED`, and `M2-B002_READY = NO`.
 - No Rules aggregate M2 PASS, formal M2-B002 PASS, formal M2-B009 PASS, integration, merge, main alignment, push, or PR is claimed.
-- `completion_transition_independent_acceptance = NOT_RUN`; `integration_authorized = false`; `push_authorized = false`; `merge_authorized = false`.
+- `completion_transition_independent_acceptance = PENDING_RETRY / RETRY_NOT_RUN`; `integration_authorized = false`; `push_authorized = false`; `merge_authorized = false`.
 
-`M1-B002` 的 `BLOCKED` 状态是对 independently established historical evidence 的治理投影，保持 inactive / not resumed。`M1-B010` 是 historical semantic predecessor；其完成状态只投影已接受历史事实，旧 integration 已由 `M1-B011` clean reconstruction 取代。当前 product identity 继续绑定已接受的 B011 lineage-clean reconstructed capability；本次 transition 仅创建 `M1-B011 = COMPLETED` governance candidate，不代表该 completion transition 已被独立接受、合并或集成。
+`M1-B002` 的 `BLOCKED` 状态是对 independently established historical evidence 的治理投影，保持 inactive / not resumed。`M1-B010` 是 historical semantic predecessor；其完成状态只投影已接受历史事实，旧 integration 已由 `M1-B011` clean reconstruction 取代。当前 product identity 继续绑定已接受的 B011 lineage-clean reconstructed capability。原 completion transition `e99f31ad842ebfda4c51808f50c46be3f2a97cfc` 维持 `M1-B011 = COMPLETED`；本 post-transition identity projection repair 只修复摘要投影，不改变 lifecycle state，也不代表该 completion transition 已被独立接受、合并或集成。
