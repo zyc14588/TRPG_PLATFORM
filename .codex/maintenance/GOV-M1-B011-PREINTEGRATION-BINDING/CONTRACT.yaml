@@ -1,0 +1,92 @@
+schema_version: 1
+x-section-id: GOV-M1-B011-PREINTEGRATION-BINDING
+maintenance_id: GOV-M1-B011-PREINTEGRATION-BINDING
+objective:
+- Rebind the current preintegration governance projection to the accepted Rules candidate without changing product identity, milestone lifecycle, or historical evidence.
+reason: >-
+  The accepted recovery PLAN-003 requires a Platform governance rebind after
+  Rules remote integration acceptance. The current summaries still present
+  Rules 00e015 and its historical cross-pair as current, and leave the already
+  accepted completion retry pending. A new exact pair and completion reaccept
+  are required before any Platform transport or staging work.
+source_blocker: |-
+  ACC-M1-B011-PREINTEGRATION-BINDING-001: stale current Rules and cross-pair projections.
+  Task: M1-B011-PLATFORM-PREINTEGRATION-GOVERNANCE-REBIND.
+  Accepted governance predecessor: 967aa4f628a521265e82eeb746bad629f23d5358.
+  Predecessor tree: cac9af0744e0acf8a08cc937990a242ceb12b96c.
+  Product: b82d52571287d9d0ebcfa589fd575125ac578476 / b9be959f22a8b15080a1035fba0fb46c256edf62.
+  Rules candidate: 6caf57cdc1127e84546459766949e0da664bb2f9 / ec6cb5e7fdc0c93f09862fcf032dbb61393293a1.
+  Rules candidate acceptance root: 27d8cf103dd0ce6740330df74c813c9872133a484243d06c264ac5903f1348d5.
+  Rules remote integration acceptance root: 5ca14d526359972dec8b345e3c537e5d9d5b751695277302cc4d7bd935e0d9d3.
+  Rules remote integration acceptance archive: a0ed5564e60ea072ed0210c87da0a1fc0545ab158292d157ea2e2e06b83568da.
+  Recovery PLAN-003 root: 2fc1d3ba75e457a329f46a4ebf9292801424598b6480dd81048fa460bdf8f995.
+  Recovery PLAN-003 acceptance root: 008abc6ae98d9d0820c4bd5eb94f21fbcf3f4056994d85f294f762d7e297f47f.
+  Historical completion retry acceptance root: 9091af0acf5a48177ca7fea8708aa87a7c07a77ac0f861ee46d25f30ad865b46.
+  Expected Platform main: 36e0009e779564ad44799f54f9ccc1c74ac412a8.
+allowed_scope:
+- path: .codex/maintenance/GOV-M1-B011-PREINTEGRATION-BINDING/CONTRACT.yaml
+  section_id: GOV-M1-B011-PREINTEGRATION-BINDING
+  kind: machine-contract
+- path: .codex/state/PROJECT_SNAPSHOT.md
+  section_id: CODEX-PROJECT-SNAPSHOT
+  kind: state-summary
+- path: .codex/state/MILESTONE_STATUS.md
+  section_id: CODEX-MILESTONE-STATUS
+  kind: state-summary
+forbidden_scope:
+- Any product, test, schema, dependency, public-contract, V1-scope, licence or release-gate change.
+- Any MILESTONE_PLAN.yaml, frozen batch, batch allocation, lifecycle transition, historical archive, Rules repository or remote write.
+- Any contract mutation after PLAN registration; the REPAIR may modify only the two declared state summaries.
+- Any integration receipt, acceptance receipt, integrated=true marker, or integration completion commit. Remote outcomes remain external durable audit evidence.
+- Any claim that historical cross-pair or completion acceptance accepts the new Rules and Platform governance tuple.
+- Any change to B002 blocked status or import of B002, old B010, or rejected PLAN product ancestry.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-ACCEPT
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-BRANCH
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-EVIDENCE
+  kind: normative-section
+acceptance:
+- The registration changes only this contract, and the following REPAIR changes exactly the two declared summaries with this contract byte-identical.
+- Product paths and MILESTONE_PLAN.yaml remain byte-identical to 967aa4f628a521265e82eeb746bad629f23d5358; M1 stays plan_version 25, next_batch_sequence 12, and B011 COMPLETED.
+- Both summaries bind Rules 6caf57cdc1127e84546459766949e0da664bb2f9 and tree ec6cb5e7fdc0c93f09862fcf032dbb61393293a1 to candidate acceptance root 27d8cf103dd0ce6740330df74c813c9872133a484243d06c264ac5903f1348d5.
+- The Rules remote acceptance archive is independently hash-verified as a prerequisite; this maintenance does not write a remote integration receipt.
+- Product b82d5257 and the Platform acceptance root 865a244e234dadb0f919fd42645b44ee74129c1e01b81d4736615bbe0659ea40 remain valid and unchanged.
+- Historical cross-pair root b154784d312babb7dc83b76f03f88c7ed879c5895d0dee8ea15b58f5573ea88d and its exact tuple remain recorded as historical, superseded for current integration.
+- Historical completion retry at governance head 967aa4f628a521265e82eeb746bad629f23d5358 is recorded as PASS with root 9091af0acf5a48177ca7fea8708aa87a7c07a77ac0f861ee46d25f30ad865b46; fresh completion reaccept stays REQUIRED_NOT_RUN.
+- The new governance candidate identity is bound externally to its signed Git commit and tree, avoiding self-referential hashes inside its own summary.
+- Both summaries select M1-B011-PLATFORM-PREINTEGRATION-GOVERNANCE-REBIND-INDEPENDENT-ACCEPT as the next gate. Fresh cross-pair, completion reaccept, transport and staging remain pending.
+- The candidate must pass an independent read-only ACCEPT before the next graph gate; implementation self-checks do not constitute that acceptance.
+tests:
+- go run ./cmd/projectctl codex route --mode REPAIR --maintenance GOV-M1-B011-PREINTEGRATION-BINDING
+- go run ./cmd/projectctl codex check
+- go run ./cmd/projectctl check
+- go run ./cmd/projectctl license check
+- go test ./... -count=1
+- go vet ./...
+- git diff --check
+- Compare every path outside the exact three-path scope with 967aa4f628a521265e82eeb746bad629f23d5358 and require no difference.
+- Verify commit signatures and the byte hashes of predecessor, product, frozen plan, and Rules acceptance evidence.
+- Generate a fresh ACCEPT maintenance route at the fixed candidate and run codex check in a separate clean checkout.
+stop_conditions:
+- A required archive hash, predecessor identity, product tree, Rules accepted identity or remote main binding differs.
+- The route is stale, a Section ID cannot be materialized, or a required command fails.
+- A fourth path, product mutation, completed lifecycle change or historical evidence rewrite becomes necessary.
+- Independent acceptance, fresh cross-pair, completion reaccept, transport or staging would be claimed before execution.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-008
+  authorization: No external bootstrap is used; native M1 PLAN registration follows the accepted recovery graph and the user's continuation instruction.
+  allowed_scope:
+  - No bootstrap mutation is authorized or exercised.
+  retirement_condition: Remain retired; native routing is available.
+  status: RETIRED
+  retirement_evidence:
+  - Native PLAN at 967aa4f628a521265e82eeb746bad629f23d5358 passed codex check with binding 25e56191188a4e69d64e6f043240b4716f6210dd91626cf4f52734a5ba0a316d.
+status: ACTIVE
