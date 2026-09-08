@@ -6,6 +6,7 @@ toolchain go1.26.5
 
 require (
 	github.com/BurntSushi/toml v1.4.0
+	github.com/iceisfun/golua/v2 v2.0.5
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/wailsapp/wails/v2 v2.13.0
 	golang.org/x/sys v0.44.0
