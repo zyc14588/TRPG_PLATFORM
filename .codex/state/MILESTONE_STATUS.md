@@ -9,6 +9,30 @@ source_commit: "28ddda38e0a426be314ae8af2298672a61e972f9"
 
 # 里程碑状态
 
+## 当前治理候选状态：M1-B002 continuation
+
+- Current milestone/plan candidate: `M1 / ACTIVE / plan_version 26 / next_batch_sequence 12`。
+- Candidate batch transition: `M1-B002 BLOCKED -> IMPLEMENTING`，沿原生 PLAN 状态转换；原 frozen contract `5dbcccd9ddda20bbcbdcbff473fb9197b83bb087a10f1ee802ed8ad547d74677` 完全不变。
+- Accepted authority before this candidate: `b67298de2861643e61794ace51b71891d6417320` / tree `4c4d3e613c48dcd829192da7e2eddcc9fd1b1d11`，plan v25，B002 仍 BLOCKED；候选尚未生效，不证明施工开始。
+- B011 product baseline/acceptance: 上述精确 main SHA/tree；`PASS_M1_B011_PLATFORM_REMOTE_INTEGRATION_ACCEPTED`；原 B011 COMPLETED、generic extension、Creator 往返及平台职责全部保持。下方旧 preintegration gate 是历史阶段，已由外部实际 main 验收回执接续。
+- Implementation kind: `FIRST_IMPLEMENTATION_ON_ACCEPTED_B011_LINEAGE`；Lua 源码未建立，历史候选未整合。
+- Candidate native next business mode/role after acceptance: `IMPLEMENT / builder`，batch/task target `M1-B002`；this work: `PLAN / planner`。仅解析路由，不启动业务角色。
+- B002 findings: `ACC-M1-B002-008`、`ACC-M1-B002-009` 均 `OPEN_HISTORICAL`，owner B002；未来 actual candidate 独立验收必须验证并给出处置，不因 state transition 关闭。
+- B002 original source history: `27bc3b7ecf870a27348516ff950526c4fea5f0ed` 保留；旧 controller c1 的 immutable REPAIR envelope 不被重绑。当前接续不从旧 controller 恢复业务、不重开主机治理。
+- B001/B010/B011: `COMPLETED`；B003—B009: `PLANNED`；B012: `UNALLOCATED`；dependencies/tombstones/IDs 原样；WIP=1。
+- Contract inheritance, actual B011 interfaces, EXISTING/PLANNED_NEW paths, future tests and platform matrix: `.codex/state/PROJECT_SNAPSHOT.md` 的本次 continuation 部分（原生 always-read 绑定），以及原 frozen plan 条目。
+- Governance candidate SHA/tree: 由本候选 Git object 和独立验收外部固定，不自引用。Effective implementation baseline: `NOT_EFFECTIVE_PENDING_ACCEPTANCE`，由后续被接收 authority 及 fresh route 精确绑定。
+- Governance candidate acceptance: `REQUIRED`；owner/human reception: `REQUIRED_NOT_PERFORMED`；`IMPLEMENTATION_AUTHORIZED=NO`。
+- Next exact gate: 独立 ACCEPT 本 state-only B002 continuation governance candidate，之后等待原生要求的 owner/human 接收；本轮不执行业务或远端集成。
+- Business implementation tests: `NOT_RUN`；business full suite: `NOT_RUN_NO_BUSINESS_CANDIDATE`；Builder started: `NO`；remote writes: `NONE`。
+
+此处 IMPLEMENTING 仅是尚待接收候选的目标 lifecycle state，不能冒充主线已恢复施工、runtime 已实现或旧 findings 已关闭。
+
+## 历史 B011 preintegration 状态（原文保留）
+
+以下原文记录旧阶段身份及 gate；“当前/下一”仅适用于历史快照，不撤销上面的 B011 已验收主线事实。
+
+
 - Completed milestone: `M0`
 - M0 result: `PASS / MERGED / CLOSED`
 - Current milestone: `M1`
