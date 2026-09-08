@@ -1,0 +1,232 @@
+schema_version: 1
+x-section-id: GOV-M1-B011-CREATOR-BOUNDARY-GATE
+maintenance_id: GOV-M1-B011-CREATOR-BOUNDARY-GATE
+objective:
+- >-
+  Repair the repository frontend boundary gate so the Web Player remains
+  permanently constrained by its M0 engineering-shell boundary while
+  Creator Studio transitions fail-closed from the accepted M0 shell
+  boundary to the accepted schema-validated generic JSON boundary whenever
+  the generic manifest-v2 package-extension capability is present.
+reason: >-
+  The current projectctl frontend copy gate applies the M0 engineering-shell
+  boundary to both frontends. That remains correct for Web Player and for the
+  baseline Creator, but it rejects the accepted M1-B010 generic Creator
+  boundary once the manifest-v2 package-extension capability is present.
+  The gate must select the Creator contract from an independent, exact,
+  fail-closed capability sentinel without changing product code or milestone
+  state.
+source_blocker: |-
+  classification: STALE_FRONTEND_BOUNDARY_GOVERNANCE
+  original blocked task: M1-B011-LINEAGE-CLEAN-RECONSTRUCTION-IMPLEMENT-001
+  result: BLOCKED_SCOPE_PREREQUISITE
+  clean governance authority: f5d5b8d7558d1c3fd2c41f7d7e5688e2abb53c73
+  clean governance tree: 59f0fd74a5da399f9a8a0388ca047a4a3b42358a
+  accepted reference-scope repair: ACC-GOV-REF-SCOPE-001 CLOSED
+  current gate: internal/projectctl/commands.go requires V1 restart baseline, No playable functionality, and M0 engineering shell only in both frontends.
+  accepted Creator boundary: Schema-validated generic JSON; Package-generic JSON by design; No game-specific forms or templates; No playable preview or runtime execution.
+  historical semantic-equivalence evidence: /tmp/M1-B011-LINEAGE-CLEAN-RECONSTRUCTION-IMPLEMENT-001-semantic-equivalence.json
+  historical old delta files: 62
+  historical byte-equal product files: 59
+  historical compatibility adaptation: go.mod
+  historical dependency hygiene: PASS
+  historical determinism: PASS
+  historical focused tests: PASS
+  This evidence is not M1-B011 ACCEPT.
+allowed_scope:
+- path: .codex/maintenance/GOV-M1-B011-CREATOR-BOUNDARY-GATE/CONTRACT.yaml
+  section_id: GOV-M1-B011-CREATOR-BOUNDARY-GATE
+  kind: machine-contract
+- path: internal/projectctl/commands.go
+  section_id: PROJECTCTL-FRONTEND-BOUNDARY-CONTRACT
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-FRONTEND-BOUNDARY-TESTS
+  kind: test
+forbidden_scope:
+- Any fourth allowed path or any mutation outside the three exact allowed_scope references.
+- Any product change under apps, schemas/package, internal/package, or cmd/creator-cli.
+- Any go.mod, go.sum, .codex/state, M1 plan, batch lifecycle, or frozen-contract change.
+- Any Creator or Web Player copy change made to accommodate the stale gate.
+- Any manifest-v2 schema change made only to trigger or evade boundary selection.
+- Any removal of Creator generic capability or change to the M1-B011 frozen scope.
+- Any commit, merge, cherry-pick, reset, restoration, or mutation of either preserved failed worktree.
+- Any REPAIR implementation, functional commands.go change, functional projectctl_test.go change, or B011 product continuation during PLAN registration.
+- Any package-specific, publisher-specific, official-game-specific, rules-residue-specific, or game-specific frontend boundary branch.
+normative_references:
+- path: docs/30-package-spec/PACKAGE_MODEL.md
+  section_id: SPEC-PACKAGE-EXTENSIONS-M1-B010
+  kind: normative-section
+- path: docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md
+  section_id: SPEC-M1-B010-OWNER-EXCEPTION
+  kind: normative-section
+- path: docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md
+  section_id: SPEC-M1-ALLOWED
+  kind: normative-section
+- path: docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md
+  section_id: SPEC-M1-FORBIDDEN
+  kind: normative-section
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+acceptance:
+- >-
+  The repair implements CAPABILITY_COUPLED_FRONTEND_BOUNDARY and never a
+  permanent M0-or-generic either/or acceptance rule.
+- >-
+  Web Player always requires V1 restart baseline, No playable functionality,
+  and M0 engineering shell only, whether the capability sentinel is absent or
+  present.
+- >-
+  The sole capability sentinel is the exact repository path
+  schemas/package/manifest-v2.schema.json; no batch ID, package ID,
+  publisher, official-game identity, rules-residue identity, environment
+  variable, manual flag, or UI text selects the boundary contract.
+- >-
+  Sentinel inspection uses os.Lstat, or a semantically equivalent exact-path
+  stat mechanism that does not follow a symlink. Only an error for which
+  os.IsNotExist(err) is true, or errors.Is(err, fs.ErrNotExist) is true with
+  equivalent semantics and the sentinel is truly absent, selects the Creator
+  baseline; this is the sole error result allowed to select that baseline. No
+  error plus a regular file selects the generic JSON boundary. No error plus a
+  directory, symlink, device, socket, named pipe, or any other non-regular
+  object fails closed, with an Lstat symlink rejected as the symlink object
+  itself and never followed.
+- >-
+  Every non-nil sentinel inspection error that is not true-not-exist fails
+  closed. This explicitly includes errors.Is(err, fs.ErrPermission), EIO or
+  any other read/stat infrastructure or filesystem I/O failure, and every
+  arbitrary or unexpected non-not-exist error. Permission, I/O, and unexpected
+  errors are not absence; the default error branch is failure, never the
+  Creator baseline.
+- >-
+  The repair must not use an err != nil means baseline shorthand, and must not
+  use os.Stat failure as absence: either form conflates true nonexistence with
+  infrastructure failure, while os.Stat can also follow a symlink and thereby
+  fail open.
+- >-
+  With the sentinel absent, Creator requires V1 restart baseline, No playable
+  functionality, and M0 engineering shell only.
+- >-
+  With the sentinel present as a regular file, Creator requires all four
+  markers: Schema-validated generic JSON; Package-generic JSON by design; No
+  game-specific forms or templates; No playable preview or runtime execution.
+- >-
+  Missing any one of the four generic Creator markers fails; Creator UI bytes
+  cannot choose the gate mode by containing a generic marker.
+- >-
+  The Web Player contract is isolated from the Creator transition, and
+  deleting any Web Player M0 marker fails in both sentinel states.
+- >-
+  The implementation keeps boundary-copy validation generic, with a fixed Web
+  Player contract and a Creator contract selected only from fail-closed
+  sentinel state; concrete helper and type names remain implementation detail.
+- >-
+  A baseline fixture in which sentinel inspection deterministically returns
+  true-not-exist, with no manifest-v2 file and all three Creator M0 markers,
+  passes; no other Lstat error may stand in for absence.
+- >-
+  A temporary extension-capable fixture with a regular manifest-v2 file and
+  all four generic Creator markers passes without modifying tracked Creator UI.
+- >-
+  A regular manifest-v2 file with only the old Creator M0 markers fails.
+- >-
+  Table-driven negative coverage removes each of the four generic markers in
+  turn and every case fails.
+- >-
+  A directory sentinel fails, and a symlink sentinel fails wherever the test
+  platform supports symlinks; an unsupported test platform is recorded
+  explicitly and production behavior never follows the link.
+- >-
+  A sentinel Lstat result with any non-not-exist error makes the frontend
+  boundary check fail. Negative coverage independently and deterministically
+  injects fs.ErrPermission, an arbitrary generic I/O error, and an arbitrary
+  unexpected non-not-exist error, and every case fails rather than selecting
+  the Creator baseline.
+- >-
+  Sentinel-state coverage uses a narrow deterministic test seam, such as a
+  pure state classifier or injectable Lstat function, that can inject
+  true-not-exist, permission, I/O, unexpected error, regular file, directory,
+  symlink, and other non-regular states without changing the public API. Error
+  tests must not depend on chmod 000, root versus non-root execution, host ACL
+  behavior, or CI-specific filesystem permissions.
+- >-
+  Production code and tests contain no game, package, publisher, official
+  package, R2-INT-010, equipment, or rules-residue special-case selection
+  condition.
+- >-
+  The repair candidate itself has no tracked manifest-v2 sentinel, so its
+  baseline Creator remains valid and just check passes.
+- >-
+  A /tmp or overlay reconstruction probe presents a regular manifest-v2
+  sentinel together with the accepted B010 Creator UI bytes to the same
+  boundary check and passes, proving the recorded B011 blocker can be removed.
+- >-
+  Sentinel removal plus UI reversion may return this single boundary gate to
+  baseline, so M1-B011 frozen product tests, schema tests, extension integration
+  tests, and independent ACCEPT remain responsible for detecting capability
+  loss.
+- >-
+  This maintenance neither replaces B011 product acceptance nor claims the
+  sentinel is a complete capability security root.
+- >-
+  The four product normative references materialize only as
+  NormativeReferences, never ReadOnDemand or AllowedScope, and grant no product
+  write authority.
+- >-
+  M1 remains plan_version 23, M1-B002 remains BLOCKED, M1-B010 remains
+  COMPLETED, and M1-B011 remains IMPLEMENTING with frozen contract
+  fa7d260c4f77f164b6ae7f1582eb87b20a1f2b4cf59b37a799027e17bfe876a3.
+tests:
+- go test ./internal/projectctl/... -count=1
+- go test ./... -count=1
+- go vet ./...
+- just check
+- just test
+- just license-check
+- git diff --check
+- git diff --exit-code -- .codex/state
+- go run ./cmd/projectctl codex route --mode ACCEPT --maintenance GOV-M1-B011-CREATOR-BOUNDARY-GATE
+- go run ./cmd/projectctl codex route --mode REPAIR --maintenance GOV-M1-B011-CREATOR-BOUNDARY-GATE
+- go run ./cmd/projectctl codex check
+- >-
+  Run the baseline, extension-positive, old-shell-negative,
+  incomplete-generic, malformed-sentinel object-type and stat-error, Web
+  Player isolation, and no-game-special-case fixtures against the same
+  production boundary checker.
+- >-
+  Run deterministic sentinel-state tests proving true-not-exist selects the
+  baseline, a regular file selects generic mode, directory, symlink, and other
+  non-regular objects fail, and fs.ErrPermission, arbitrary generic I/O, and
+  arbitrary unexpected non-not-exist Lstat errors each fail the frontend
+  boundary check.
+- >-
+  Run the B011 reconstruction overlay probe with a regular manifest-v2
+  sentinel and accepted B010 Creator UI bytes without changing tracked product
+  files.
+stop_conditions:
+- Any mandated normative Section is absent, duplicated, changed incompatibly, or fails exact materialization.
+- The accepted reference-scope validator no longer keeps product normative references read-only.
+- origin/main, the f5d5b8d7 source commit/tree, plan_version, M1-B011 state, or its frozen contract differs from the registered authority.
+- The repair requires a fourth path, a product path, a milestone-state change, or a public-contract, V1-scope, or exit-gate change.
+- The proposed selection is permanent either/or, UI-controlled, package-specific, game-specific, or not fail-closed for malformed sentinel entries.
+- Any PLAN registration change is functional rather than the contract plus two inert stable Section markers.
+- Either preserved failed worktree is modified or reused as commit, merge, cherry-pick, or reset authority.
+- Any required route, schema, binding, lineage, diff-scope, signature, test, vet, check, or license gate fails.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-007
+  authorization: >-
+    No external bootstrap authority was invoked. The clean lineage
+    supports native PLAN and governance-maintenance ACCEPT/REPAIR
+    routing, and the accepted reference-scope repair permits exact
+    bounded product normative Sections as read-only authority.
+  allowed_scope:
+  - No one-time bootstrap mutation was exercised.
+  retirement_condition: >-
+    Remain retired. Any future external bootstrap requires a distinct
+    qualifying control-plane self-routing deadlock and explicit project
+    owner authorization.
+  status: RETIRED
+  retirement_evidence:
+  - Reference-scope governance repair accepted at f5d5b8d7558d1c3fd2c41f7d7e5688e2abb53c73.
+status: READY_FOR_ACCEPTANCE

@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "artifact_type": "package",
+  "package_id": "example.rules/schema-fixture",
+  "package_kind": "content",
+  "version": "1.2.3",
+  "display_name": "Missing Descriptor Presence",
+  "build": {"source": "source", "revision": "revision", "builder": "builder"},
+  "rights": {"authors": ["Example"], "source": "original", "statement": "private"},
+  "capabilities": {"required": [], "optional": []},
+  "extensions": [
+    {
+      "namespace": "third.party.probe",
+      "contract_version": 1,
+      "schema_path": "extensions/third.party.probe/value.schema.json",
+      "schema_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "payload_path": "extensions/third.party.probe/value.json",
+      "host_api_major": 1,
+      "host_api_min_minor": 0,
+      "host_api_max_minor": 0
+    }
+  ]
+}

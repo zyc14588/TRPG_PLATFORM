@@ -12,7 +12,10 @@ import (
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/model"
 )
 
-const ArtifactIdentitySchemaVersion = 1
+const (
+	ArtifactIdentitySchemaVersion   = 1
+	ArtifactIdentityV2SchemaVersion = 2
+)
 
 // ArtifactIdentity is an opaque canonical identity document and its digest.
 // Callers receive copies so the identity cannot be changed after construction.
@@ -66,8 +69,12 @@ func BuildArtifactIdentity(pkg Package, contentHash model.ContentHash, lock depe
 	if err != nil {
 		return ArtifactIdentity{}, err
 	}
+	identityVersion := ArtifactIdentitySchemaVersion
+	if normalized.SchemaVersion == ExtensionSchemaVersion {
+		identityVersion = ArtifactIdentityV2SchemaVersion
+	}
 	document := artifactIdentityDocument{
-		SchemaVersion: ArtifactIdentitySchemaVersion, ManifestSchemaVersion: normalized.SchemaVersion,
+		SchemaVersion: identityVersion, ManifestSchemaVersion: normalized.SchemaVersion,
 		ArtifactType: model.ArtifactTypePackage, PackageID: normalized.PackageID, PackageKind: normalized.PackageKind,
 		Version: normalized.Version, ContentHash: hash, Build: normalized.Build, Rights: normalized.Rights,
 		DependencyLock: json.RawMessage(lockJSON),

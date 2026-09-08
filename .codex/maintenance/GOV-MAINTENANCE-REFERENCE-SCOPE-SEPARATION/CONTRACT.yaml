@@ -1,0 +1,100 @@
+schema_version: 1
+x-section-id: GOV-MAINTENANCE-REFERENCE-SCOPE-SEPARATION
+maintenance_id: GOV-MAINTENANCE-REFERENCE-SCOPE-SEPARATION
+objective:
+- >-
+  Separate governance-maintenance writable scope validation from bounded
+  read-only normative-reference validation, so a maintenance contract may
+  read an exact stable Section from a product normative document without
+  gaining permission to modify that product path.
+reason: >-
+  validateGovernanceMaintenanceContract currently sends NormativeReferences
+  and AllowedScope through the same governance-only path whitelist even though
+  maintenanceRoutePaths already places them in paths.normative and
+  paths.onDemand respectively. The validator must align with those existing
+  route semantics without changing route scope, binding, progressive
+  disclosure, or maintenance write boundaries.
+source_blocker: |-
+  classification: NORMATIVE_REFERENCE_WRITABLE_SCOPE_CONFLATION
+  source commit: 43e7b94f1ebca9734d937439021a5efb4d680ae5
+  source tree: 7a925d8a024d8ce6dbdb96c8aff9ca1445ac24e2
+  validateGovernanceMaintenanceContract currently validates the concatenation of NormativeReferences and AllowedScope with validateMaintenanceRouteRef.
+  validateMaintenanceRouteRef combines bounded-path, stable Section ID, known-kind, and governance-only writable-path checks.
+  This rejects an exact read-only docs/30-package-spec/PACKAGE_MODEL.md normative-section reference even though maintenanceRoutePaths already keeps NormativeReferences separate from AllowedScope.
+  Product reconstruction blocker evidence remains preserved in /home/zyc14588/worktrees/TRPG_PLATFORM_M1_B011_IMPLEMENT.
+  Creator-boundary maintenance registration blocker evidence remains preserved in /home/zyc14588/worktrees/TRPG_PLATFORM_M1_B011_BOUNDARY_GATE_PLAN.
+allowed_scope:
+- path: .codex/maintenance/GOV-MAINTENANCE-REFERENCE-SCOPE-SEPARATION/CONTRACT.yaml
+  section_id: GOV-MAINTENANCE-REFERENCE-SCOPE-SEPARATION
+  kind: machine-contract
+- path: internal/projectctl/codex_maintenance.go
+  section_id: PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE-TESTS
+  kind: test
+forbidden_scope:
+- .codex/state/MILESTONE_PLAN.yaml and any M1 batch lifecycle or frozen-contract mutation
+- any change to the existing governance-maintenance AllowedScope path whitelist
+- product or business code, including apps, internal/package, internal/session, internal/luaruntime, cmd/lua-runner, and schemas/package
+- product normative documents as maintenance repair targets or writable scope
+- route scope, route binding, progressive disclosure, or maintenance write-boundary changes
+- Creator boundary repair, M1-B011 product reconstruction, or any validator functional change during this PLAN registration
+- modification, reset, restore, or commit of either preserved failed worktree
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-ROUTE
+  kind: normative-section
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-MAINTENANCE
+  kind: normative-section
+acceptance:
+- NormativeReferences and AllowedScope retain shared bounded-path, non-empty stable Section ID, known-kind, and duplicate path-and-Section identity validation.
+- AllowedScope retains its exact existing whitelist of Justfile, .codex, docs/00-governance, docs/70-decisions, internal/projectctl, cmd/projectctl, and schemas/codex paths.
+- An exact bounded docs path with kind normative-section and a valid stable Section is accepted in NormativeReferences, including docs/30-package-spec/PACKAGE_MODEL.md#SPEC-PACKAGE-EXTENSIONS-M1-B010.
+- Existing governance normative references continue to pass unchanged.
+- A product normative document in AllowedScope is rejected and never becomes a repair target or writable authority merely because it appears in NormativeReferences.
+- apps, internal/package, internal/session, internal/luaruntime, cmd/lua-runner, and schemas/package paths remain rejected in NormativeReferences.
+- Wildcard, absolute, parent-traversal, .git, unbounded docs, missing Section ID, duplicate Section identity, and unknown-kind references remain rejected.
+- A product docs reference with production-code, machine-contract, or any non-normative-section kind is rejected unless the path already belongs to the existing governance whitelist.
+- maintenanceRoutePaths continues to place NormativeReferences only in paths.normative and AllowedScope only in paths.onDemand.
+- Existing GOV-M1-PLANNING-RUNTIME, GOV-CI-PLATFORM-MATRIX, and every other clean-lineage maintenance contract continue to load and route successfully.
+- M1 remains plan_version 23, M1-B002 remains BLOCKED, M1-B010 remains COMPLETED, and M1-B011 remains IMPLEMENTING with frozen contract fa7d260c4f77f164b6ae7f1582eb87b20a1f2b4cf59b37a799027e17bfe876a3.
+- All required repository checks pass with no product change and no milestone-plan change.
+tests:
+- go test ./internal/projectctl/... -count=1
+- go test ./... -count=1
+- go vet ./...
+- just check
+- just test
+- just license-check
+- git diff --check
+- projectctl codex route --mode REPAIR --maintenance GOV-MAINTENANCE-REFERENCE-SCOPE-SEPARATION
+- projectctl codex route --mode ACCEPT --maintenance GOV-MAINTENANCE-REFERENCE-SCOPE-SEPARATION
+- projectctl codex check
+stop_conditions:
+- source commit, source tree, origin/main, plan_version, M1-B011 state, or frozen contract differs from the registered clean lineage
+- any required change outside the three allowed_scope references
+- any requirement to relax AllowedScope, disclose product code, or grant writable product authority
+- any route placement, binding, progressive-disclosure, public-contract, V1-scope, or exit-gate change
+- any functional validator or test behavior change during PLAN registration
+- stale route, invalid binding, invalid stable Section ID, schema failure, or required test failure
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-006
+  authorization: >-
+    No external bootstrap was used. Clean lineage already supports native
+    PLAN and governance-maintenance ACCEPT/REPAIR routing. This contract
+    is registered through the native M1 PLAN route to repair a validator
+    classification defect.
+  allowed_scope:
+  - No one-time bootstrap mutation was exercised.
+  retirement_condition: >-
+    Remain retired; a future bootstrap requires a new qualifying
+    self-routing deadlock and explicit owner authorization.
+  status: RETIRED
+  retirement_evidence:
+  - Native PLAN M1/MILESTONE route at source commit 43e7b94f1ebca9734d937439021a5efb4d680ae5 and source tree 7a925d8a024d8ce6dbdb96c8aff9ca1445ac24e2 passed projectctl codex check with binding 46f40916ff74ff7e5ff575f7d8ee58577b84f0cde13e1387d3f2727ce5be279b.
+status: READY_FOR_ACCEPTANCE

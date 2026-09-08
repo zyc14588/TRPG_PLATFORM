@@ -1,6 +1,6 @@
 {
   "name": "@trpg-platform/creator-studio-frontend",
-  "version": "0.0.0-m0",
+  "version": "0.1.0-m1",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",

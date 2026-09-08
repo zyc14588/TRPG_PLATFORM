@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -61,6 +62,7 @@ func rootCause(err error) error {
 	}
 }
 
+// x-section-id: PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE
 func validateGovernanceMaintenanceContract(contract governanceMaintenanceContract, requestedID string) error {
 	if contract.SchemaVersion != maintenanceContractSchemaVersion {
 		return fmt.Errorf("schema_version=%d, want %d", contract.SchemaVersion, maintenanceContractSchemaVersion)
@@ -82,15 +84,29 @@ func validateGovernanceMaintenanceContract(contract governanceMaintenanceContrac
 		return errors.New("scope, normative references, acceptance, tests, and stop conditions must be non-empty")
 	}
 	seen := map[string]bool{}
-	for _, reference := range append(append([]maintenanceRouteRef(nil), contract.NormativeReferences...), contract.AllowedScope...) {
-		if err := validateMaintenanceRouteRef(reference); err != nil {
-			return err
-		}
+	recordReference := func(reference maintenanceRouteRef) error {
 		key := reference.Path + "#" + reference.SectionID
 		if seen[key] {
 			return fmt.Errorf("maintenance contract repeats route reference %s", key)
 		}
 		seen[key] = true
+		return nil
+	}
+	for _, reference := range contract.NormativeReferences {
+		if err := validateMaintenanceNormativeReference(reference); err != nil {
+			return err
+		}
+		if err := recordReference(reference); err != nil {
+			return err
+		}
+	}
+	for _, reference := range contract.AllowedScope {
+		if err := validateMaintenanceAllowedScopeReference(reference); err != nil {
+			return err
+		}
+		if err := recordReference(reference); err != nil {
+			return err
+		}
 	}
 	bootstrap := contract.Bootstrap
 	if !maintenanceBootPattern.MatchString(bootstrap.BootstrapID) || strings.TrimSpace(bootstrap.Authorization) == "" ||
@@ -112,8 +128,27 @@ func validateGovernanceMaintenanceContract(contract governanceMaintenanceContrac
 	return nil
 }
 
-func validateMaintenanceRouteRef(reference maintenanceRouteRef) error {
-	if err := validateBoundedRoutePath(reference.Path); err != nil {
+func validateMaintenanceReferencePath(value string) error {
+	if err := validateBoundedRoutePath(value); err != nil {
+		return err
+	}
+	if strings.Contains(value, `\`) {
+		return fmt.Errorf("maintenance route reference path must use canonical repository separators: %q", value)
+	}
+	cleaned := path.Clean(value)
+	if cleaned != value || cleaned == "." {
+		return fmt.Errorf("maintenance route reference path is not canonical: %q", value)
+	}
+	for _, component := range strings.Split(value, "/") {
+		if component == ".." || component == "." || component == "" {
+			return fmt.Errorf("maintenance route reference path contains a forbidden path component: %q", value)
+		}
+	}
+	return nil
+}
+
+func validateMaintenanceReferenceShape(reference maintenanceRouteRef) error {
+	if err := validateMaintenanceReferencePath(reference.Path); err != nil {
 		return err
 	}
 	if strings.TrimSpace(reference.SectionID) == "" {
@@ -127,16 +162,43 @@ func validateMaintenanceRouteRef(reference maintenanceRouteRef) error {
 	if !allowedKinds[reference.Kind] {
 		return fmt.Errorf("maintenance route reference %s#%s has invalid kind %q", reference.Path, reference.SectionID, reference.Kind)
 	}
-	allowedPath := reference.Path == "Justfile"
+	return nil
+}
+
+func isGovernanceMaintenanceWritablePath(path string) bool {
+	allowedPath := path == "Justfile"
 	for _, prefix := range []string{".codex/", "docs/00-governance/", "docs/70-decisions/", "internal/projectctl/", "cmd/projectctl/", "schemas/codex/"} {
-		if strings.HasPrefix(reference.Path, prefix) {
+		if strings.HasPrefix(path, prefix) {
 			allowedPath = true
 		}
 	}
-	if !allowedPath {
+	return allowedPath
+}
+
+func validateMaintenanceAllowedScopeReference(reference maintenanceRouteRef) error {
+	if err := validateMaintenanceReferenceShape(reference); err != nil {
+		return err
+	}
+	if !isGovernanceMaintenanceWritablePath(reference.Path) {
 		return fmt.Errorf("governance maintenance scope cannot include product path %q", reference.Path)
 	}
 	return nil
+}
+
+func validateMaintenanceNormativeReference(reference maintenanceRouteRef) error {
+	if err := validateMaintenanceReferenceShape(reference); err != nil {
+		return err
+	}
+	if isGovernanceMaintenanceWritablePath(reference.Path) {
+		return nil
+	}
+	if strings.HasPrefix(reference.Path, "docs/") && reference.Kind == "normative-section" {
+		return nil
+	}
+	if strings.HasPrefix(reference.Path, "docs/") {
+		return fmt.Errorf("governance maintenance product documentation reference %q must use kind normative-section", reference.Path)
+	}
+	return fmt.Errorf("governance maintenance normative references cannot include product path %q", reference.Path)
 }
 
 func (a *App) maintenanceRoutePaths(request codexRouteRequest) (codexRoutePaths, error) {

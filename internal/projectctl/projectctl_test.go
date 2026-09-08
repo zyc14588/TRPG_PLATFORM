@@ -5,11 +5,15 @@ package projectctl
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -119,6 +123,289 @@ func TestMilestoneGateIsExact(t *testing.T) {
 			t.Errorf("requireM0(%q) unexpectedly passed", arguments)
 		}
 	}
+}
+
+// x-section-id: PROJECTCTL-FRONTEND-BOUNDARY-TESTS
+
+type frontendBoundaryFileInfo struct {
+	mode fs.FileMode
+}
+
+func (info frontendBoundaryFileInfo) Name() string       { return "capability-sentinel" }
+func (info frontendBoundaryFileInfo) Size() int64        { return 0 }
+func (info frontendBoundaryFileInfo) Mode() fs.FileMode  { return info.mode }
+func (info frontendBoundaryFileInfo) ModTime() time.Time { return time.Time{} }
+func (info frontendBoundaryFileInfo) IsDir() bool        { return info.mode.IsDir() }
+func (info frontendBoundaryFileInfo) Sys() any           { return nil }
+
+type unexpectedCapabilitySentinelError struct{}
+
+func (unexpectedCapabilitySentinelError) Error() string {
+	return "injected unexpected sentinel failure"
+}
+
+func TestFrontendBoundarySelectorBaseline(t *testing.T) {
+	a := &App{root: t.TempDir()}
+	wantSentinel := filepath.Join(a.root, filepath.FromSlash(creatorExtensionCapabilitySentinel))
+	calls := 0
+	contracts, err := a.frontendBoundaryContractsWithLstat(func(path string) (fs.FileInfo, error) {
+		calls++
+		if path != wantSentinel {
+			t.Fatalf("Lstat path = %q, want %q", path, wantSentinel)
+		}
+		return nil, fs.ErrNotExist
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("Lstat calls = %d, want 1", calls)
+	}
+	assertFrontendBoundaryContract(t, contracts, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
+	assertFrontendBoundaryContract(t, contracts, creatorFrontendPath, m0FrontendBoundaryContract(creatorFrontendPath).required)
+}
+
+func TestFrontendBoundarySelectorCapability(t *testing.T) {
+	a := &App{root: t.TempDir()}
+	contracts, err := a.frontendBoundaryContractsWithLstat(func(string) (fs.FileInfo, error) {
+		return frontendBoundaryFileInfo{}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertFrontendBoundaryContract(t, contracts, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
+	assertFrontendBoundaryContract(t, contracts, creatorFrontendPath, genericCreatorBoundaryContract().required)
+}
+
+func TestCapabilitySentinelErrorsFailClosed(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "permission_error", err: fs.ErrPermission},
+		{name: "io_error", err: io.ErrUnexpectedEOF},
+		{name: "unexpected_error", err: unexpectedCapabilitySentinelError{}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			a := &App{root: t.TempDir()}
+			contracts, err := a.frontendBoundaryContractsWithLstat(func(string) (fs.FileInfo, error) {
+				return nil, test.err
+			})
+			if err == nil {
+				t.Fatal("selector unexpectedly accepted a sentinel inspection error")
+			}
+			if contracts != nil {
+				t.Fatalf("selector returned contracts after an inspection error: %#v", contracts)
+			}
+			if !errors.Is(err, test.err) {
+				t.Fatalf("selector error %v does not wrap injected error %v", err, test.err)
+			}
+			if !strings.Contains(err.Error(), "inspect Creator capability sentinel") {
+				t.Fatalf("selector error is not diagnostic: %v", err)
+			}
+		})
+	}
+}
+
+func TestCapabilitySentinelDirectoryFailsClosed(t *testing.T) {
+	a := &App{root: t.TempDir()}
+	sentinel := filepath.Join(a.root, filepath.FromSlash(creatorExtensionCapabilitySentinel))
+	if err := os.MkdirAll(sentinel, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.frontendBoundaryContracts(); err == nil || !strings.Contains(err.Error(), "not a regular file") {
+		t.Fatalf("directory sentinel error = %v, want non-regular failure", err)
+	}
+}
+
+func TestCapabilitySentinelSymlinkFailsClosed(t *testing.T) {
+	a := &App{root: t.TempDir()}
+	sentinel := filepath.Join(a.root, filepath.FromSlash(creatorExtensionCapabilitySentinel))
+	if err := os.MkdirAll(filepath.Dir(sentinel), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(a.root, "regular-target.json")
+	if err := os.WriteFile(target, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, sentinel); err != nil {
+		t.Skipf("symlink fixture is unavailable: %v", err)
+	}
+	if _, err := a.frontendBoundaryContracts(); err == nil || !strings.Contains(err.Error(), "not a regular file") {
+		t.Fatalf("symlink sentinel error = %v, want non-regular failure", err)
+	}
+}
+
+func TestCapabilitySentinelOtherNonRegularFailsClosed(t *testing.T) {
+	a := &App{root: t.TempDir()}
+	contracts, err := a.frontendBoundaryContractsWithLstat(func(string) (fs.FileInfo, error) {
+		return frontendBoundaryFileInfo{mode: fs.ModeNamedPipe}, nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "not a regular file") {
+		t.Fatalf("named-pipe sentinel error = %v, want non-regular failure", err)
+	}
+	if contracts != nil {
+		t.Fatalf("selector returned contracts for a non-regular sentinel: %#v", contracts)
+	}
+}
+
+func TestFrontendBoundaryMarkerCheckBaseline(t *testing.T) {
+	a := newFrontendBoundaryFixture(t)
+	writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
+	writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, m0FrontendBoundaryContract(creatorFrontendPath).required)
+	if err := a.checkFrontendBoundaries(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFrontendBoundaryMarkerCheckCapability(t *testing.T) {
+	a := newFrontendBoundaryFixture(t)
+	writeCapabilitySentinel(t, a.root)
+	writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
+	writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, genericCreatorBoundaryContract().required)
+	if err := a.checkFrontendBoundaries(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCreatorBoundaryRejectsOldShellWithCapability(t *testing.T) {
+	a := newFrontendBoundaryFixture(t)
+	writeCapabilitySentinel(t, a.root)
+	writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
+	writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, m0FrontendBoundaryContract(creatorFrontendPath).required)
+	err := a.checkFrontendBoundaries()
+	if err == nil || !strings.Contains(err.Error(), creatorGenericSchemaMarker) {
+		t.Fatalf("old Creator shell error = %v, want missing generic marker", err)
+	}
+}
+
+func TestCreatorBoundaryRequiresEveryGenericMarker(t *testing.T) {
+	allMarkers := genericCreatorBoundaryContract().required
+	for _, missing := range allMarkers {
+		missing := missing
+		t.Run(missing, func(t *testing.T) {
+			a := newFrontendBoundaryFixture(t)
+			writeCapabilitySentinel(t, a.root)
+			writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
+			writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, withoutFrontendBoundaryMarker(allMarkers, missing))
+			err := a.checkFrontendBoundaries()
+			if err == nil || !strings.Contains(err.Error(), missing) {
+				t.Fatalf("missing marker %q error = %v", missing, err)
+			}
+		})
+	}
+}
+
+func TestFrontendBoundaryWebPlayerIsolation(t *testing.T) {
+	states := []struct {
+		name           string
+		capability     bool
+		creatorMarkers []string
+	}{
+		{name: "baseline", creatorMarkers: m0FrontendBoundaryContract(creatorFrontendPath).required},
+		{name: "capability", capability: true, creatorMarkers: genericCreatorBoundaryContract().required},
+	}
+	webMarkers := m0FrontendBoundaryContract(webPlayerFrontendPath).required
+	for _, state := range states {
+		state := state
+		t.Run(state.name, func(t *testing.T) {
+			for _, missing := range webMarkers {
+				missing := missing
+				t.Run(missing, func(t *testing.T) {
+					a := newFrontendBoundaryFixture(t)
+					if state.capability {
+						writeCapabilitySentinel(t, a.root)
+					}
+					writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, withoutFrontendBoundaryMarker(webMarkers, missing))
+					writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, state.creatorMarkers)
+					err := a.checkFrontendBoundaries()
+					if err == nil || !strings.Contains(err.Error(), webPlayerFrontendPath) || !strings.Contains(err.Error(), missing) {
+						t.Fatalf("missing Web Player marker %q error = %v", missing, err)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestCreatorBoundaryCannotSelfSelectCapability(t *testing.T) {
+	a := newFrontendBoundaryFixture(t)
+	writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
+	writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, genericCreatorBoundaryContract().required)
+	err := a.checkFrontendBoundaries()
+	if err == nil || !strings.Contains(err.Error(), frontendM0RestartMarker) {
+		t.Fatalf("Creator self-selection error = %v, want missing baseline marker", err)
+	}
+}
+
+func TestCapabilitySentinelErrorOverridesValidFrontendCopy(t *testing.T) {
+	a := newFrontendBoundaryFixture(t)
+	writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
+	writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, genericCreatorBoundaryContract().required)
+	err := a.checkFrontendBoundariesWithLstat(func(string) (fs.FileInfo, error) {
+		return nil, fs.ErrPermission
+	})
+	if err == nil || !errors.Is(err, fs.ErrPermission) || !strings.Contains(err.Error(), "inspect Creator capability sentinel") {
+		t.Fatalf("sentinel inspection error = %v, want fail-closed permission failure", err)
+	}
+}
+
+func assertFrontendBoundaryContract(t *testing.T, contracts []frontendBoundaryContract, path string, want []string) {
+	t.Helper()
+	var found []string
+	for _, contract := range contracts {
+		if contract.path != path {
+			continue
+		}
+		if found != nil {
+			t.Fatalf("duplicate frontend boundary contract for %s", path)
+		}
+		found = contract.required
+	}
+	if found == nil {
+		t.Fatalf("missing frontend boundary contract for %s", path)
+	}
+	if strings.Join(found, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("%s markers = %q, want %q", path, found, want)
+	}
+}
+
+func newFrontendBoundaryFixture(t *testing.T) *App {
+	t.Helper()
+	return &App{root: t.TempDir(), stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+}
+
+func writeCapabilitySentinel(t *testing.T, root string) {
+	t.Helper()
+	sentinel := filepath.Join(root, filepath.FromSlash(creatorExtensionCapabilitySentinel))
+	if err := os.MkdirAll(filepath.Dir(sentinel), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sentinel, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFrontendBoundaryFile(t *testing.T, root, relative string, markers []string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(relative))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(markers, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func withoutFrontendBoundaryMarker(markers []string, missing string) []string {
+	result := make([]string, 0, len(markers)-1)
+	for _, marker := range markers {
+		if marker != missing {
+			result = append(result, marker)
+		}
+	}
+	return result
 }
 
 // x-section-id: PROJECTCTL-CODEX-ROUTE-TESTS
@@ -406,6 +693,338 @@ func TestRouteRequestBindsModeMilestoneAndBatch(t *testing.T) {
 		if err := validateBoundedRoutePath(path); err == nil {
 			t.Fatalf("unbounded route path %q unexpectedly passed", path)
 		}
+	}
+}
+
+// x-section-id: PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE-TESTS
+func TestGovernanceMaintenanceReferenceScopeValidation(t *testing.T) {
+	t.Run("canonical repository paths pass shared shape validation", func(t *testing.T) {
+		for _, reference := range []maintenanceRouteRef{
+			{Path: ".codex/maintenance/GOV-TEST/CONTRACT.yaml", SectionID: "GOV-TEST", Kind: "machine-contract"},
+			{Path: "internal/projectctl/codex_maintenance.go", SectionID: "PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE", Kind: "production-code"},
+			{Path: "docs/00-governance/IMPLEMENTATION_GOVERNANCE.md", SectionID: "SPEC-IMPLEMENTATION-GOV-MAINTENANCE", Kind: "normative-section"},
+			{Path: "docs/30-package-spec/PACKAGE_MODEL.md", SectionID: "SPEC-PACKAGE-EXTENSIONS-M1-B010", Kind: "normative-section"},
+			{Path: "docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md", SectionID: "SPEC-M1-EXIT", Kind: "normative-section"},
+		} {
+			if err := validateMaintenanceReferenceShape(reference); err != nil {
+				t.Errorf("canonical maintenance reference %q failed: %v", reference.Path, err)
+			}
+		}
+	})
+
+	t.Run("embedded traversal dot aliases and backslash aliases are rejected", func(t *testing.T) {
+		for _, path := range []string{
+			"../outside.md",
+			"docs/../REFERENCE.md",
+			"docs/../../outside.md",
+			".codex/../apps/creator-studio/frontend/src/App.tsx",
+			"docs/../internal/package/manifest/manifest.go",
+			"docs/30-package-spec/../../../schemas/package/manifest-v2.schema.json",
+			"docs/a/../../x",
+			"a/b/../c",
+			"a/../../c",
+			"docs/./REFERENCE.md",
+			"docs//REFERENCE.md",
+			"./docs/REFERENCE.md",
+			"docs/a/../REFERENCE.md",
+			`.codex\..\apps\creator-studio\frontend\src\App.tsx`,
+			`docs\..\internal\package\manifest\manifest.go`,
+		} {
+			reference := maintenanceRouteRef{Path: path, SectionID: "SPEC-TEST-PATH", Kind: "normative-section"}
+			if err := validateMaintenanceReferenceShape(reference); err == nil {
+				t.Errorf("non-canonical maintenance reference %q unexpectedly passed", path)
+			}
+		}
+	})
+
+	t.Run("governance allowed scope remains valid", func(t *testing.T) {
+		for _, reference := range []maintenanceRouteRef{
+			{Path: "internal/projectctl/codex_maintenance.go", SectionID: "PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE", Kind: "production-code"},
+			{Path: "docs/00-governance/IMPLEMENTATION_GOVERNANCE.md", SectionID: "SPEC-IMPLEMENTATION-GOV-MAINTENANCE", Kind: "normative-section"},
+		} {
+			if err := validateMaintenanceAllowedScopeReference(reference); err != nil {
+				t.Errorf("existing governance scope %s failed: %v", reference.Path, err)
+			}
+		}
+	})
+
+	t.Run("bounded product normative document is read only", func(t *testing.T) {
+		reference := maintenanceRouteRef{
+			Path: "docs/30-package-spec/PACKAGE_MODEL.md", SectionID: "SPEC-TEST-PRODUCT-NORMATIVE", Kind: "normative-section",
+		}
+		if err := validateMaintenanceNormativeReference(reference); err != nil {
+			t.Fatalf("bounded product normative reference failed: %v", err)
+		}
+		if err := validateMaintenanceAllowedScopeReference(reference); err == nil {
+			t.Fatal("product normative document unexpectedly gained writable maintenance scope")
+		}
+	})
+
+	t.Run("product normative fixture is rejected from allowed scope", func(t *testing.T) {
+		reference := maintenanceRouteRef{
+			Path: "docs/30-package-spec/REFERENCE.md", SectionID: "SPEC-TEST-PRODUCT-NORMATIVE", Kind: "normative-section",
+		}
+		if err := validateMaintenanceAllowedScopeReference(reference); err == nil {
+			t.Fatal("product normative fixture unexpectedly passed writable maintenance scope validation")
+		}
+	})
+
+	t.Run("writable prefix traversal is rejected before scope classification", func(t *testing.T) {
+		reference := maintenanceRouteRef{
+			Path: ".codex/../apps/creator-studio/frontend/src/App.tsx", SectionID: "PROJECTCTL-TEST-TARGET", Kind: "production-code",
+		}
+		if err := validateMaintenanceAllowedScopeReference(reference); err == nil {
+			t.Fatal("writable-prefix traversal unexpectedly passed allowed scope validation")
+		}
+	})
+
+	t.Run("normative prefix traversal is rejected before type classification", func(t *testing.T) {
+		reference := maintenanceRouteRef{
+			Path: "docs/../internal/package/manifest/manifest.go", SectionID: "SPEC-TEST-PRODUCT-CODE", Kind: "normative-section",
+		}
+		if err := validateMaintenanceNormativeReference(reference); err == nil {
+			t.Fatal("normative-prefix traversal unexpectedly passed normative validation")
+		}
+	})
+
+	t.Run("product code references are rejected", func(t *testing.T) {
+		for _, path := range []string{
+			"apps/creator-studio/frontend/src/App.tsx",
+			"internal/package/manifest/manifest.go",
+			"schemas/package/manifest-v2.schema.json",
+		} {
+			reference := maintenanceRouteRef{Path: path, SectionID: "SPEC-TEST-PRODUCT-CODE", Kind: "normative-section"}
+			if err := validateMaintenanceNormativeReference(reference); err == nil {
+				t.Errorf("product code path %q unexpectedly passed normative validation", path)
+			}
+		}
+	})
+
+	t.Run("product documentation requires normative section kind", func(t *testing.T) {
+		for _, kind := range []string{
+			"governance-entry", "governance-policy", "machine-contract", "state-summary",
+			"production-code", "test", "generated-reference",
+		} {
+			reference := maintenanceRouteRef{Path: "docs/30-package-spec/REFERENCE.md", SectionID: "SPEC-TEST-PRODUCT-NORMATIVE", Kind: kind}
+			if err := validateMaintenanceNormativeReference(reference); err == nil {
+				t.Errorf("product documentation with kind %q unexpectedly passed", kind)
+			}
+		}
+	})
+
+	t.Run("wildcard and unbounded documentation paths are rejected", func(t *testing.T) {
+		for _, path := range []string{
+			"docs/**", "docs/30-package-spec/*", "docs/", "/docs/30-package-spec/REFERENCE.md",
+			"../docs/30-package-spec/REFERENCE.md", ".git/config",
+		} {
+			reference := maintenanceRouteRef{Path: path, SectionID: "SPEC-TEST-PRODUCT-NORMATIVE", Kind: "normative-section"}
+			if err := validateMaintenanceNormativeReference(reference); err == nil {
+				t.Errorf("unbounded documentation path %q unexpectedly passed", path)
+			}
+		}
+	})
+
+	t.Run("missing section and unknown kind are rejected", func(t *testing.T) {
+		missingSection := maintenanceRouteRef{Path: "docs/30-package-spec/REFERENCE.md", Kind: "normative-section"}
+		if err := validateMaintenanceNormativeReference(missingSection); err == nil {
+			t.Fatal("reference without a stable Section ID unexpectedly passed")
+		}
+		unknownKind := maintenanceRouteRef{Path: "internal/projectctl/codex_maintenance.go", SectionID: "PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE", Kind: "unknown"}
+		if err := validateMaintenanceNormativeReference(unknownKind); err == nil {
+			t.Fatal("reference with an unknown kind unexpectedly passed")
+		}
+	})
+
+	t.Run("duplicate identity across categories is rejected", func(t *testing.T) {
+		contract := referenceScopeTestContract("GOV-TEST-REFERENCE-SCOPE")
+		duplicate := maintenanceRouteRef{
+			Path: "internal/projectctl/codex_maintenance.go", SectionID: "PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE", Kind: "production-code",
+		}
+		contract.NormativeReferences = []maintenanceRouteRef{duplicate}
+		contract.AllowedScope = []maintenanceRouteRef{duplicate}
+		if err := validateGovernanceMaintenanceContract(contract, contract.MaintenanceID); err == nil || !strings.Contains(err.Error(), "repeats route reference") {
+			t.Fatalf("duplicate reference identity across categories was not rejected: %v", err)
+		}
+	})
+
+	t.Run("non-canonical duplicate alias is rejected before identity comparison", func(t *testing.T) {
+		contract := referenceScopeTestContract("GOV-TEST-REFERENCE-SCOPE")
+		contract.NormativeReferences = []maintenanceRouteRef{{
+			Path: "docs/00-governance/REFERENCE.md", SectionID: "SECTION", Kind: "normative-section",
+		}}
+		contract.AllowedScope = []maintenanceRouteRef{{
+			Path: "docs/00-governance/./REFERENCE.md", SectionID: "SECTION", Kind: "normative-section",
+		}}
+		if err := validateGovernanceMaintenanceContract(contract, contract.MaintenanceID); err == nil || !strings.Contains(err.Error(), "not canonical") {
+			t.Fatalf("non-canonical duplicate alias was not rejected before identity comparison: %v", err)
+		}
+	})
+}
+
+func TestGovernanceMaintenanceProductNormativeReferenceLoader(t *testing.T) {
+	t.Run("materializes bounded product normative section", func(t *testing.T) {
+		maintenanceID := "GOV-TEST-REFERENCE-SCOPE"
+		a := referenceScopeLoaderFixture(t, maintenanceID, "SPEC-TEST-PRODUCT-NORMATIVE")
+		contract, err := a.loadGovernanceMaintenanceContract(maintenanceID)
+		if err != nil {
+			t.Fatalf("load product normative reference fixture: %v", err)
+		}
+		if len(contract.NormativeReferences) != 1 || contract.NormativeReferences[0].Path != "docs/30-package-spec/REFERENCE.md" {
+			t.Fatalf("loader returned unexpected normative references: %+v", contract.NormativeReferences)
+		}
+	})
+
+	t.Run("rejects missing product normative section", func(t *testing.T) {
+		maintenanceID := "GOV-TEST-REFERENCE-SCOPE-MISSING"
+		a := referenceScopeLoaderFixture(t, maintenanceID, "SPEC-TEST-PRODUCT-NORMATIVE-MISSING")
+		if _, err := a.loadGovernanceMaintenanceContract(maintenanceID); err == nil || !strings.Contains(err.Error(), "SPEC-TEST-PRODUCT-NORMATIVE-MISSING") {
+			t.Fatalf("loader did not reject a missing product normative Section: %v", err)
+		}
+	})
+}
+
+func TestGovernanceMaintenanceTraversalLoaderValidation(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*governanceMaintenanceContract)
+	}{
+		{
+			name: "writable traversal",
+			mutate: func(contract *governanceMaintenanceContract) {
+				contract.AllowedScope = []maintenanceRouteRef{{Path: ".codex/../apps/x", SectionID: "PROJECTCTL-TEST-TARGET", Kind: "production-code"}}
+			},
+		},
+		{
+			name: "normative traversal",
+			mutate: func(contract *governanceMaintenanceContract) {
+				contract.NormativeReferences = []maintenanceRouteRef{{Path: "docs/../internal/package/x", SectionID: "SPEC-TEST-PRODUCT-NORMATIVE", Kind: "normative-section"}}
+			},
+		},
+		{
+			name: "dot alias",
+			mutate: func(contract *governanceMaintenanceContract) {
+				contract.NormativeReferences = []maintenanceRouteRef{{Path: "docs/30-package-spec/./REFERENCE.md", SectionID: "SPEC-TEST-PRODUCT-NORMATIVE", Kind: "normative-section"}}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			contract := referenceScopeTestContract("GOV-TEST-REFERENCE-SCOPE")
+			test.mutate(&contract)
+			a := referenceScopeContractLoaderFixture(t, contract)
+			if _, err := a.loadGovernanceMaintenanceContract(contract.MaintenanceID); err == nil {
+				t.Fatalf("loader unexpectedly accepted %s", test.name)
+			}
+		})
+	}
+}
+
+func TestGovernanceMaintenanceCanonicalProductNormativeProbe(t *testing.T) {
+	const (
+		maintenanceID = "GOV-TEST-CANONICAL-PRODUCT-NORMATIVE"
+		productPath   = "docs/30-package-spec/PACKAGE_MODEL.md"
+		sectionID     = "SPEC-PACKAGE-EXTENSIONS-M1-B010"
+	)
+	source := testApp(t)
+	productDocument, err := os.ReadFile(filepath.Join(source.root, filepath.FromSlash(productPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sectionMaterial(productDocument, sectionID); err != nil {
+		t.Fatalf("real product normative Section does not materialize: %v", err)
+	}
+
+	contract := referenceScopeTestContract(maintenanceID)
+	contract.NormativeReferences = []maintenanceRouteRef{{Path: productPath, SectionID: sectionID, Kind: "normative-section"}}
+	a := referenceScopeContractLoaderFixture(t, contract)
+	writeReferenceScopeFixtureFile(t, a.root, productPath, productDocument)
+	writeReferenceScopeFixtureFile(t, a.root, "internal/projectctl/TARGET.go", []byte("// x-section-id: PROJECTCTL-TEST-TARGET\npackage fixture\n"))
+	if _, err := a.loadGovernanceMaintenanceContract(maintenanceID); err != nil {
+		t.Fatalf("real product normative prerequisite failed contract loading: %v", err)
+	}
+
+	request := newCodexRouteRequest("REPAIR")
+	request.MaintenanceID = maintenanceID
+	paths, err := a.maintenanceRoutePaths(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundNormative, foundWritable := false, false
+	for _, spec := range paths.normative {
+		foundNormative = foundNormative || (spec.path == productPath && spec.sectionID == sectionID)
+	}
+	for _, spec := range paths.onDemand {
+		foundWritable = foundWritable || (spec.path == productPath && spec.sectionID == sectionID)
+	}
+	if !foundNormative || foundWritable {
+		t.Fatalf("real product prerequisite route category: normative=%v writable=%v", foundNormative, foundWritable)
+	}
+	if err := validateMaintenanceAllowedScopeReference(contract.NormativeReferences[0]); err == nil {
+		t.Fatal("real product normative prerequisite unexpectedly gained write authority")
+	}
+}
+
+func referenceScopeTestContract(maintenanceID string) governanceMaintenanceContract {
+	return governanceMaintenanceContract{
+		SchemaVersion: maintenanceContractSchemaVersion,
+		SectionID:     maintenanceID,
+		MaintenanceID: maintenanceID,
+		Objective:     []string{"validate separated maintenance reference scope"},
+		Reason:        "isolated reference-scope test fixture",
+		SourceBlocker: "NORMATIVE_REFERENCE_WRITABLE_SCOPE_CONFLATION",
+		AllowedScope: []maintenanceRouteRef{{
+			Path: "internal/projectctl/TARGET.go", SectionID: "PROJECTCTL-TEST-TARGET", Kind: "production-code",
+		}},
+		ForbiddenScope: []string{"product implementation"},
+		NormativeReferences: []maintenanceRouteRef{{
+			Path: "docs/00-governance/IMPLEMENTATION_GOVERNANCE.md", SectionID: "SPEC-IMPLEMENTATION-GOV-MAINTENANCE", Kind: "normative-section",
+		}},
+		Acceptance:     []string{"reference validation remains bounded"},
+		Tests:          []string{"go test ./internal/projectctl/..."},
+		StopConditions: []string{"writable scope expansion"},
+		Bootstrap: maintenanceBootstrap{
+			BootstrapID:         "GOVERNANCE-MAINTENANCE-BOOTSTRAP-999",
+			Authorization:       "isolated fixture only",
+			AllowedScope:        []string{"no repository mutation"},
+			RetirementCondition: "fixture completes",
+			Status:              "RETIRED",
+			RetirementEvidence:  []string{"fixture uses native loader"},
+		},
+		Status: "ACTIVE",
+	}
+}
+
+func referenceScopeLoaderFixture(t *testing.T, maintenanceID, normativeSectionID string) *App {
+	t.Helper()
+	contract := referenceScopeTestContract(maintenanceID)
+	contract.NormativeReferences = []maintenanceRouteRef{{
+		Path: "docs/30-package-spec/REFERENCE.md", SectionID: normativeSectionID, Kind: "normative-section",
+	}}
+	a := referenceScopeContractLoaderFixture(t, contract)
+	writeReferenceScopeFixtureFile(t, a.root, "docs/30-package-spec/REFERENCE.md", []byte("<a id=\"SPEC-TEST-PRODUCT-NORMATIVE\"></a>\n## Product normative fixture\n"))
+	writeReferenceScopeFixtureFile(t, a.root, "internal/projectctl/TARGET.go", []byte("// x-section-id: PROJECTCTL-TEST-TARGET\npackage fixture\n"))
+	return a
+}
+
+func referenceScopeContractLoaderFixture(t *testing.T, contract governanceMaintenanceContract) *App {
+	t.Helper()
+	root := t.TempDir()
+	data, err := yaml.Marshal(contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeReferenceScopeFixtureFile(t, root, maintenanceContractPath(contract.MaintenanceID), data)
+	return &App{root: root, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+}
+
+func writeReferenceScopeFixtureFile(t *testing.T, root, relative string, data []byte) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(relative))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
