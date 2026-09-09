@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
+	"weak"
 
 	"github.com/iceisfun/golua/v2/compiler"
 	"github.com/iceisfun/golua/v2/parser"
@@ -111,6 +112,7 @@ type Engine struct {
 	limits      Limits
 	modules     map[string][]byte
 	loaded      map[string]lua.Value
+	shapes      map[weak.Pointer[lua.Table]]*checkpointShape
 	loading     map[string]bool
 	depthBase   map[*lua.VM]int
 	active      atomic.Pointer[invocation]
@@ -128,7 +130,7 @@ func New(config Config) (*Engine, error) {
 	if err := config.Limits.Validate(); err != nil {
 		return nil, err
 	}
-	e := &Engine{limits: config.Limits, modules: map[string][]byte{}, loaded: map[string]lua.Value{}, loading: map[string]bool{}, depthBase: map[*lua.VM]int{}}
+	e := &Engine{limits: config.Limits, modules: map[string][]byte{}, loaded: map[string]lua.Value{}, shapes: map[weak.Pointer[lua.Table]]*checkpointShape{}, loading: map[string]bool{}, depthBase: map[*lua.VM]int{}}
 	if len(config.Modules) > 256 {
 		return nil, Fail(ErrConfiguration)
 	}
@@ -351,12 +353,13 @@ func (e *Engine) Execute(ctx context.Context, source []byte) (result Result, err
 	if runErr != nil {
 		return result, Fail(ErrScript)
 	}
+	e.reconcileCheckpointShapes()
 	if len(values) > checkpoint.MaxNodes {
 		return result, Fail(ErrValue)
 	}
 	nodes, bytes := 0, 0
 	for _, v := range values {
-		value, convertErr := fromLua(v, map[lua.LuaTable]bool{}, 0, &nodes, &bytes)
+		value, convertErr := e.fromLua(v, map[lua.LuaTable]bool{}, 0, &nodes, &bytes)
 		if convertErr != nil {
 			return result, Fail(ErrValue)
 		}
@@ -383,6 +386,7 @@ func (e *Engine) Close() {
 	e.runtime = nil
 	e.modules = nil
 	e.loaded = nil
+	e.shapes = nil
 	e.depthBase = nil
 	e.output = nil
 }
@@ -402,8 +406,9 @@ func (e *Engine) SetState(state, saved checkpoint.Value) error {
 	if e.poisoned {
 		return Fail(ErrPoisoned)
 	}
-	e.runtime.SetGlobal("state", toLua(state))
-	e.runtime.SetGlobal("checkpoint", toLua(saved))
+	e.reconcileCheckpointShapes()
+	e.runtime.SetGlobal("state", e.toLua(state))
+	e.runtime.SetGlobal("checkpoint", e.toLua(saved))
 	return nil
 }
 
@@ -560,7 +565,7 @@ func stablePairs(v *lua.VM) int {
 	return 3
 }
 
-func fromLua(v lua.Value, seen map[lua.LuaTable]bool, depth int, nodes, bytes *int) (checkpoint.Value, error) {
+func (e *Engine) fromLua(v lua.Value, seen map[lua.LuaTable]bool, depth int, nodes, bytes *int) (checkpoint.Value, error) {
 	*nodes++
 	if depth > checkpoint.MaxDepth || *nodes > checkpoint.MaxNodes {
 		return checkpoint.Value{}, checkpoint.ErrRejected
@@ -591,6 +596,23 @@ func fromLua(v lua.Value, seen map[lua.LuaTable]bool, depth int, nodes, bytes *i
 		defer delete(seen, table)
 		object := map[string]checkpoint.Value{}
 		array := map[int64]checkpoint.Value{}
+		emptyArray := false
+		if concrete, ok := table.(*lua.Table); ok && e.shapes[weak.Make(concrete)] != nil {
+			shape := e.shapes[weak.Make(concrete)]
+			emptyArray = shape.array
+			for k := range shape.nilKeys {
+				value, err := e.fromLua(lua.Nil, seen, depth+1, nodes, bytes)
+				if err != nil {
+					return out, err
+				}
+				if k.IsString() {
+					*bytes += len(k.AsString())
+					object[k.AsString()] = value
+				} else {
+					array[k.AsInt()] = value
+				}
+			}
+		}
 		key := lua.Nil
 		for {
 			k, x, err := table.Next(key)
@@ -601,7 +623,7 @@ func fromLua(v lua.Value, seen map[lua.LuaTable]bool, depth int, nodes, bytes *i
 				break
 			}
 			key = k
-			value, err := fromLua(x, seen, depth+1, nodes, bytes)
+			value, err := e.fromLua(x, seen, depth+1, nodes, bytes)
 			if err != nil {
 				return out, err
 			}
@@ -614,7 +636,7 @@ func fromLua(v lua.Value, seen map[lua.LuaTable]bool, depth int, nodes, bytes *i
 				return out, checkpoint.ErrRejected
 			}
 		}
-		if len(array) > 0 {
+		if len(array) > 0 || (emptyArray && len(object) == 0) {
 			if len(object) > 0 {
 				return out, checkpoint.ErrRejected
 			}
@@ -642,7 +664,7 @@ func fromLua(v lua.Value, seen map[lua.LuaTable]bool, depth int, nodes, bytes *i
 	return out, nil
 }
 
-func toLua(v checkpoint.Value) lua.Value {
+func (e *Engine) toLua(v checkpoint.Value) lua.Value {
 	switch v.Kind {
 	case "nil":
 		return lua.Nil
@@ -657,15 +679,25 @@ func toLua(v checkpoint.Value) lua.Value {
 	case "string":
 		return lua.NewString(v.String)
 	case "array":
-		t := lua.NewEmptyTable()
+		t, shape := e.checkpointTable(true)
 		for i, x := range v.Array {
-			_ = t.Set(lua.NewInt(int64(i+1)), toLua(x))
+			key := lua.NewInt(int64(i + 1))
+			if x.Kind == "nil" {
+				shape.nilKeys[key] = true
+			} else {
+				_ = t.Set(key, e.toLua(x)) // Validated checkpoint keys cannot fail.
+			}
 		}
 		return lua.NewTable(t)
 	case "table":
-		t := lua.NewEmptyTable()
+		t, shape := e.checkpointTable(false)
 		for k, x := range v.Table {
-			_ = t.Set(lua.NewString(k), toLua(x))
+			key := lua.NewString(k)
+			if x.Kind == "nil" {
+				shape.nilKeys[key] = true
+			} else {
+				_ = t.Set(key, e.toLua(x))
+			}
 		}
 		return lua.NewTable(t)
 	}
