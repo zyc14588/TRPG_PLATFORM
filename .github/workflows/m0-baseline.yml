@@ -17,8 +17,12 @@ permissions:
 
 concurrency:
   group: m0-baseline-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
+env:
+  CI: "true"
+  GOENV: "off"
+  GOFLAGS: ""
 jobs:
   linux:
     name: M0 / Linux
@@ -29,17 +33,19 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: 473c94190b4eb9e203ab4ea823eaf72829960ad9
+          persist-credentials: false
       - name: Install locked Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: .go-version
-          cache: true
+          cache: false
       - name: Install locked pnpm and Node
         uses: pnpm/setup@4700d737c3d7a2e7199f3d42a920f0bf7f34e411 # v2.0.1
         with:
           version: 11.20.0
           runtime: node@24.18.0
-          cache: true
+          cache: false
           install: false
       - name: Install locked Just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
@@ -47,11 +53,22 @@ jobs:
           just-version: 1.58.0
       - name: Install native Studio build prerequisites
         run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
-      - name: Bootstrap locked dependencies
-        run: just bootstrap
-      - name: Run canonical M0 gate
-        run: just ci
+      - name: Record fixed candidate and run canonical M0 gates
+        id: native-evidence
+        shell: bash
+        run: |
+          git show "${GITHUB_SHA}:.github/scripts/m1-b002-native-evidence.mjs" > "$RUNNER_TEMP/m1-b002-native-evidence.mjs"
+          node "$RUNNER_TEMP/m1-b002-native-evidence.mjs"
+      - name: Upload fixed candidate execution evidence
+        if: ${{ always() && steps.native-evidence.outputs.upload_ok == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: m1-b002-native-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/m1-b002-native-evidence/
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload baseline web artifacts
+        if: ${{ success() && steps.native-evidence.outputs.web_upload_ok == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: m0-baseline-Linux-${{ github.sha }}
@@ -71,27 +88,40 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: 473c94190b4eb9e203ab4ea823eaf72829960ad9
+          persist-credentials: false
       - name: Install locked Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: .go-version
-          cache: true
+          cache: false
       - name: Install locked pnpm and Node
         uses: pnpm/setup@4700d737c3d7a2e7199f3d42a920f0bf7f34e411 # v2.0.1
         with:
           version: 11.20.0
           runtime: node@24.18.0
-          cache: true
+          cache: false
           install: false
       - name: Install locked Just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
         with:
           just-version: 1.58.0
-      - name: Bootstrap locked dependencies
-        run: just bootstrap
-      - name: Run canonical M0 gate
-        run: just ci
+      - name: Record fixed candidate and run canonical M0 gates
+        id: native-evidence
+        shell: bash
+        run: |
+          git show "${GITHUB_SHA}:.github/scripts/m1-b002-native-evidence.mjs" > "$RUNNER_TEMP/m1-b002-native-evidence.mjs"
+          node "$RUNNER_TEMP/m1-b002-native-evidence.mjs"
+      - name: Upload fixed candidate execution evidence
+        if: ${{ always() && steps.native-evidence.outputs.upload_ok == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: m1-b002-native-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/m1-b002-native-evidence/
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload baseline web artifacts
+        if: ${{ success() && steps.native-evidence.outputs.web_upload_ok == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: m0-baseline-Windows-${{ github.sha }}
@@ -111,27 +141,40 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: 473c94190b4eb9e203ab4ea823eaf72829960ad9
+          persist-credentials: false
       - name: Install locked Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: .go-version
-          cache: true
+          cache: false
       - name: Install locked pnpm and Node
         uses: pnpm/setup@4700d737c3d7a2e7199f3d42a920f0bf7f34e411 # v2.0.1
         with:
           version: 11.20.0
           runtime: node@24.18.0
-          cache: true
+          cache: false
           install: false
       - name: Install locked Just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
         with:
           just-version: 1.58.0
-      - name: Bootstrap locked dependencies
-        run: just bootstrap
-      - name: Run canonical M0 gate
-        run: just ci
+      - name: Record fixed candidate and run canonical M0 gates
+        id: native-evidence
+        shell: bash
+        run: |
+          git show "${GITHUB_SHA}:.github/scripts/m1-b002-native-evidence.mjs" > "$RUNNER_TEMP/m1-b002-native-evidence.mjs"
+          node "$RUNNER_TEMP/m1-b002-native-evidence.mjs"
+      - name: Upload fixed candidate execution evidence
+        if: ${{ always() && steps.native-evidence.outputs.upload_ok == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: m1-b002-native-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/m1-b002-native-evidence/
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload baseline web artifacts
+        if: ${{ success() && steps.native-evidence.outputs.web_upload_ok == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: m0-baseline-macOS-${{ github.sha }}
