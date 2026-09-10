@@ -4,10 +4,28 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "28ddda38e0a426be314ae8af2298672a61e972f9"
+source_commit: "473c94190b4eb9e203ab4ea823eaf72829960ad9"
 ---
 
 # 里程碑状态
+
+## 当前固定候选治理登记：M1-B002 / VERIFYING
+
+- 本 tree：`M1 / ACTIVE / plan_version 27 / next_batch_sequence 12`；本次合法状态转换为 `M1-B002 IMPLEMENTING -> VERIFYING`。`COMPLETED` 只在后续独立验证的完成登记与本地接收成立后生效。
+- `BUSINESS_TESTED_SHA=473c94190b4eb9e203ab4ea823eaf72829960ad9`；业务 tree `ea87972af11c8c5956c116b58ff946291a0b3bdf`；原冻结合同 `5dbcccd9ddda20bbcbdcbff473fb9197b83bb087a10f1ee802ed8ad547d74677` 不变。接收前 main 固定为 `bb90989a128e6cdf9c64bde1129496d9baed8478` / tree `9f3220edb96c9f373ac170ec75edd08d120cd5a9`。
+- 业务事实：固定候选已实现并通过独立业务验收的 Lua 5.5 source-only profile、隔离 Session VM/IPC、checkpoint 值形状保持与重建；本轮仅登记治理状态及证据引用，没有重新编写业务实现。下方 v26 的“源码未建立”和“尚无业务候选”只属于原历史阶段。
+- 独立业务验收：`PASS`，`REMAINING_REQUIRED_GATES=NONE`；[封存独立 ACCEPT](/home/zyc14588/engineering/m1-b002-010-repair-20260910/native-accept-execution-473c941-20260910/INDEPENDENT_ACCEPTANCE_CONTINUATION.md)，SHA256 `d53c1055d980fd7b3ac2df88552d549d61051acae3593ee7f60707dba2b18419`；[required 平台矩阵](/home/zyc14588/engineering/m1-b002-010-repair-20260910/native-accept-execution-473c941-20260910/REQUIRED_NATIVE_GATE_MATRIX.json)，SHA256 `85dcda9a22e523f974309072bed5db666f39b2df3a2bd4a3bf3405a4ab0c99a2`。原 CI 测试的是固定业务候选；其后的治理 tree 另须独立增量验证，不能声称原 CI 直接测试了治理提交。
+- 010 owner 状态：`CLOSED_BY_OWNER_FOR_VERIFIED_CANDIDATE`；实际读取并核验 [原 owner 关闭事件](/home/zyc14588/engineering/codex-loop-state/owner-closeouts/M1-B002/ACC-M1-B002-010-473c941/FINDING_CLOSEOUT.json)，SHA256 `2505adafa61d1ed9bb402d17d0d6da068731956adc0f2f8f1b8101aa9fb7a969`；原 owner decision SHA256 `9928b218fa397c033fc290fb41445461c36933ad5e79d0123534a79180909fa3`。原事件不重发，原失败报告不改写。
+- 010 机器消费关联：[机器消费准备记录](/home/zyc14588/engineering/codex-loop-state/owner-receptions/M1-B002-473c941-business-acceptance-a1/MACHINE_CLOSEOUT_CONSUMPTION.json)，SHA256 `0921c875c2449f6a45afcf38ba7c82da06006ee4596cff454fcaf6de1f7b539b`。本 always-read 摘要引用并采用该记录已验证的原关闭事件，作为当前精确候选接收前置；该记录发布时尚待 native registration/readback。只有独立治理检查及接收后回读证明本关联，才能报告最终 `MACHINE_CLOSEOUT_CONSUMPTION=PASS`；这不是新增 projectctl 状态枚举或 M1 close CLI 输出。
+- 008/009 历史均保留 `OPEN_HISTORICAL_HIGH`；对本业务 SHA/tree 的继承义务均为 `APPLICABLE / PASS / VERIFIED_CORRECT_FOR_THIS_EXACT_CANDIDATE`，不作全局 CLOSED。完整历史 identity、当前适用性、Windows 两项 skip 与 B011 回归见本次 PROJECT_SNAPSHOT 当前节。
+- Owner 本地接收授权：[APPROVE_WITH_CONDITIONS 授权对象](/home/zyc14588/engineering/codex-loop-state/owner-receptions/M1-B002-473c941-business-acceptance-a1/OWNER_RECEPTION_AUTHORIZATION.json)，SHA256 `6cdce73fe07be2f290473d790feb61767b43eb19986862be119e003e57fb4934`。治理候选精确 SHA/tree 由签名 Git object、独立验收与外置接收回执绑定，避免自引用；候选登记本身不证明 main 已更新。仅在上述条件满足且 main ff-only 接收后，本登记才成为生效本地状态；远端接收另有边界。
+- 其他 batch、dependencies、tombstones、parallel fields 不变：B001/B010/B011 `COMPLETED`，B003—B009 `PLANNED`，B012 `UNALLOCATED`；WIP 上限 1，本 tree 活跃批次仅 B002 VERIFYING。B003/B004 未启动，旧 c1 不恢复。
+- 当前下一 gate：独立验证两步治理增量，再按 owner 授权接收固定业务候选及治理后续。B002 完成后最早依赖满足批次是 B003；B003 仍 PLANNED 且未冻结，先进入原生 PLAN/planner 冻结准备。B004 仍依赖尚未完成的 B003；不因本登记获得施工授权。
+- 本轮业务全套复跑 `NO`；新 CI `NO`；远端写入 `NONE`。外置回执记录实际阶段退出结果；不声称 Git ref 与外置回执跨系统原子。
+
+## 历史 plan v26 与更早状态（以下原文保留）
+
+以下所有“当前”“下一”“未实现”“未接收”均为各自历史阶段的记录，不覆盖上方固定候选事实；原 FAIL/BLOCKED、008/009 与旧治理 gate 不被删除或改写。
 
 ## 当前治理候选状态：M1-B002 continuation
 

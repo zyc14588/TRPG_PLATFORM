@@ -4,10 +4,50 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "28ddda38e0a426be314ae8af2298672a61e972f9"
+source_commit: "473c94190b4eb9e203ab4ea823eaf72829960ad9"
 ---
 
 # 项目摘要
+
+## M1-B002 固定业务候选的治理完成准备
+
+本 tree 是 `PLAN / planner` 的 plan v27 治理登记，B002 从 `IMPLEMENTING` 进入 `VERIFYING`；后续 v28 的 `VERIFYING -> COMPLETED` 必须独立验证并经本次 owner 授权的本地 ff-only 接收。两次 revision 各加一，依据 `internal/projectctl/codex.go:1244` 的 `validateMilestonePlanChange` 与 `:1345` 的 `validBatchStateTransition`。未分配新 task/cycle，未修改冻结目标、scope、tests 或门禁；M1 本身仍 ACTIVE。
+
+业务验收固定为 commit `473c94190b4eb9e203ab4ea823eaf72829960ad9` / tree `ea87972af11c8c5956c116b58ff946291a0b3bdf`；合同 `5dbcccd9ddda20bbcbdcbff473fb9197b83bb087a10f1ee802ed8ad547d74677`。候选已有实际 Lua runtime/profile/VM/checkpoint/IPC 和 runner evidence 代码，checkpoint 修复已保持合法值形状并验证销毁后 replacement restore。原 `d0055c712aa2d9048e35c014f015582adb272496` FAIL 与固定候选原环境 BLOCKED 均保留。本次治理提交不改变业务文件内容、类型或模式，也不重新实现 checkpoint。
+
+### 接收证据及机器消费
+
+- [独立业务 ACCEPT continuation](/home/zyc14588/engineering/m1-b002-010-repair-20260910/native-accept-execution-473c941-20260910/INDEPENDENT_ACCEPTANCE_CONTINUATION.md)，SHA256 `d53c1055d980fd7b3ac2df88552d549d61051acae3593ee7f60707dba2b18419`；[封存执行结论](/home/zyc14588/engineering/m1-b002-010-repair-20260910/native-accept-execution-473c941-20260910/FINAL_RESULT.json)，SHA256 `78ed66662fddf31214b5db5b3a5eec09dea9f1c22e1fd372dd9f7a5593b6e064`：`INDEPENDENT_ACCEPTANCE_RESULT=PASS`、`REMAINING_REQUIRED_GATES=NONE`。
+- [required 平台矩阵](/home/zyc14588/engineering/m1-b002-010-repair-20260910/native-accept-execution-473c941-20260910/REQUIRED_NATIVE_GATE_MATRIX.json)，SHA256 `85dcda9a22e523f974309072bed5db666f39b2df3a2bd4a3bf3405a4ab0c99a2`：Linux amd64 承担完整 Core/Lua；Windows amd64 承担 portable package/Creator/projectctl 与前端；macOS arm64 承担 projectctl 与前端。GitHub Actions run `34435123523` / attempt `1`，driver `c8e11cea76b322bd0624c2451e5baa6278ac9b33`；实际 tested source 固定为上述业务 SHA/tree，driver 不是 tested candidate。
+- [Windows 独立裁定](/home/zyc14588/engineering/m1-b002-010-repair-20260910/native-accept-execution-473c941-20260910/review/WINDOWS_REQUIRED_NATIVE_ACCEPTANCE.json)，SHA256 `61e0c50d5f2f569aa769791c9f6586d37ab2c1448db10f9eb4440e1eadc9a5af`：`TestImportProjectRejectsSymlinksSpecialFilesAndPortableCollisions/special_socket` 因 Windows runner 无法 bind Unix socket（invalid argument），`/case-folded_parent` 因文件系统大小写不敏感；两者始终 `SKIPPED_NOT_PASSED`，未计入 631 PASS、0 FAIL；required command/stage 均执行。对应 gate `m0-baseline/windows:ci`、`continuation/windows:test-observability`。本次 owner 仅接受此精确候选的两个已披露条件，不构成未来豁免或已执行断言。macOS 106/106 PASS；各平台 Web Player 1、Creator 前端 8 PASS，来源计数不合并。
+- [ACC-M1-B002-010 原 owner 关闭事件](/home/zyc14588/engineering/codex-loop-state/owner-closeouts/M1-B002/ACC-M1-B002-010-473c941/FINDING_CLOSEOUT.json)，SHA256 `2505adafa61d1ed9bb402d17d0d6da068731956adc0f2f8f1b8101aa9fb7a969`；[原 owner decision](/home/zyc14588/engineering/codex-loop-state/owner-closeouts/M1-B002/ACC-M1-B002-010-473c941/OWNER_DECISION.md)，SHA256 `9928b218fa397c033fc290fb41445461c36933ad5e79d0123534a79180909fa3`。原事件绑定精确 candidate/contract，状态 `CLOSED_BY_OWNER_FOR_VERIFIED_CANDIDATE`；不以它单独证明 B002 完成。
+- [010 机器消费记录](/home/zyc14588/engineering/codex-loop-state/owner-receptions/M1-B002-473c941-business-acceptance-a1/MACHINE_CLOSEOUT_CONSUMPTION.json)，SHA256 `0921c875c2449f6a45afcf38ba7c82da06006ee4596cff454fcaf6de1f7b539b`：读取完整文件并核验摘要、candidate/tree/contract 及接收判定 predicates 后，本原生 always-read 状态摘要登记其稳定引用，并实际采用该已验证关闭事件作为本候选接收前置。本准备记录自身的 `PREPARED_PENDING_NATIVE_REGISTRATION_AND_READBACK` 是发布时事实；独立治理验收及最终 main 回读须验证本登记关系并在外置回执报告结果。没有重发 owner 010 事件，没有修改旧 Controller ledger，没有新原生枚举或 validator 例外。
+- [本次 owner 本地接收授权](/home/zyc14588/engineering/codex-loop-state/owner-receptions/M1-B002-473c941-business-acceptance-a1/OWNER_RECEPTION_AUTHORIZATION.json)，SHA256 `6cdce73fe07be2f290473d790feb61767b43eb19986862be119e003e57fb4934`：只接收固定业务候选和满足条件的独立治理增量。最终治理 SHA/tree、实际 main SHA/tree、每阶段退出结果及消费回读由外置本地回执绑定。本治理候选未被独立验收/接收之前不冒充已生效 main；接收后原业务验收与无业务变化的独立治理验证共同构成证据，不将原 CI 测试身份替换为治理 tree。
+
+### 008/009 历史与当前候选义务
+
+[008/009 原始 native finding payload](/home/zyc14588/engineering/codex-loop-state/native-acceptance/trpg-platform/M1-B002/native-acceptance-d1dcdb91ab2ba70fd7d3093d1dc9d8d20f9b548dc02468b65b1d5cdb65ac1d75.json)，SHA256 `ebe8b6a5a05b402dbff9f5f37197baedaac18edd81d1d0d4dd055d81fbe065e9`：原候选 `3a1e45b464ac66f4d3592e0574a27810205a6073` / tree `bce928aa7d3f8ff9e4c67947659f68a335e1684d`，blocking commit `27bc3b7ecf870a27348516ff950526c4fea5f0ed`；acceptance identity `native-acceptance:sha256:d1dcdb91ab2ba70fd7d3093d1dc9d8d20f9b548dc02468b65b1d5cdb65ac1d75`，finding-set digest `cf4a102beb92e6b63c4b78bc8d39c53cc329289a2e123d1be07764a2d2fbd9cd`。两个 HIGH 历史记录仍 OPEN_HISTORICAL，不删除、不改成“从未失败”、不批量 CLOSED。
+
+[当前候选 008/009 与 B011 独立回归裁定](/home/zyc14588/engineering/m1-b002-010-repair-20260910/native-accept-execution-473c941-20260910/review/REUSED_FINDING_AND_B011_DISPOSITION.json)，SHA256 `d0c848f66443373ebe2252e1de830c6898dbc659d5389d069cccd058e6c4cd8c`：
+
+| Finding | 对固定候选的适用性与实际满足情况 | 历史处理 |
+| --- | --- | --- |
+| ACC-M1-B002-008 | APPLICABLE；真实 IPC 在部分修改后值转换失败，后续操作被 VM_POISONED 拒绝，destroy/reap 后从权威值重建；PASS / VERIFIED_CORRECT_FOR_THIS_EXACT_CANDIDATE | OPEN_HISTORICAL_HIGH 保留，无全局关闭 |
+| ACC-M1-B002-009 | APPLICABLE；正常 evidence 证明 TEST-LUA-001/002 实际执行；继承及持久 GOFLAGS=-run=^$ 均退出 1、suites NOT_RUN；PASS / VERIFIED_CORRECT_FOR_THIS_EXACT_CANDIDATE | OPEN_HISTORICAL_HIGH 保留，无全局关闭 |
+
+当前判定依据 `docs/60-quality/ACCEPTANCE_POLICY.md` 的 `SPEC-ACCEPTANCE-RESULT`、`SPEC-ACCEPTANCE-FINDINGS` 与 `SPEC-ACCEPTANCE-EVIDENCE`：当前义务、精确候选和有效证据须满足，原失败记录不删除；这些规则未要求将历史 008/009 全局 owner CLOSED 才能接收新的已验证候选。v26 已要求未来实际候选独立给出 disposition，本次以上关联履行该要求，未隐藏历史 HIGH。
+
+B011 当前候选回归 PASS：真实 `TestB011PackageInputsAndRejections` 与 Creator binary edit/validate/export/reimport/repeat，重复输出 hash `35de290d80f307b19548595c6e26b160b34cda012e1dd0343aa88c522a0810cc`；generic extension 和 Creator 往返保持。[完整封存索引](/home/zyc14588/engineering/m1-b002-010-repair-20260910/native-accept-execution-473c941-20260910/UPDATED_EXPORT_INDEX.json)，SHA256 `c83d91ce6f936a0a2ce355d0638e1e6861c5a9a63405462bf925ad5d503b7115` 保留原 25 项 frozen exports、前轮 140 项、本轮原生补验 391 项，以及原 FAIL/BLOCKED。业务证据复用，不重跑业务全套或 CI。
+
+### 下游边界
+
+依赖保持 B002←B001、B003←B001/B002、B004←B001/B002/B003；所有其他 dependencies、tombstones、IDs、parallel fields 不变，`next_batch_sequence=12`，B012 未分配。B003/B004 均仍 PLANNED、未启动；B002 完成接收后活跃批次为 0，WIP 上限仍为 1。按完成依赖及最小 sequence，下一 eligible batch 是 B003；它尚无 frozen_contract_sha256，须先通过 PLAN/planner 准备与接收合法冻结状态，才有 IMPLEMENT/builder 施工前置。`projectctl codex route` 只校验原生 target 和当前来源，不能把可生成 IMPLEMENT 阅读图当成冻结或启动证明。
+
+仅在本地接收后的实际 SHA/tree 上生成 fresh route/check 与 B003 接续交接；不复用旧 epoch/envelope 或 c1，不开始包安装或 Host API。远端 CI 分支、历史失败候选和封存证据保留；本轮不执行远端接收。
+
+## 历史 plan v26 与更早摘要（以下原文保留）
+
+以下原文中“当前”“下一 gate”“源码未建立”“未集成”等仅指各自历史阶段；上方精确候选与本次治理登记给出新的来源关联，历史内容不改写。
 
 ## M1-B002 在已验收 B011 上的生命周期接续候选
 
