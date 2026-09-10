@@ -9,9 +9,9 @@ source_commit: "473c94190b4eb9e203ab4ea823eaf72829960ad9"
 
 # 项目摘要
 
-## M1-B002 固定业务候选的治理完成准备
+## M1-B002 固定业务候选的治理完成登记
 
-本 tree 是 `PLAN / planner` 的 plan v27 治理登记，B002 从 `IMPLEMENTING` 进入 `VERIFYING`；后续 v28 的 `VERIFYING -> COMPLETED` 必须独立验证并经本次 owner 授权的本地 ff-only 接收。两次 revision 各加一，依据 `internal/projectctl/codex.go:1244` 的 `validateMilestonePlanChange` 与 `:1345` 的 `validBatchStateTransition`。未分配新 task/cycle，未修改冻结目标、scope、tests 或门禁；M1 本身仍 ACTIVE。
+本 tree 是 `PLAN / planner` 的 plan v28 治理完成登记，B002 从 `VERIFYING` 进入 `COMPLETED`。前一步 v27 `IMPLEMENTING -> VERIFYING` 为 `04f47cbf2b2098e99970facf1a7e4c41bd2775e1` / tree `5da2fdc0172afc206cb84cf5f56cf35f1f6df244`；两步均须独立验证并经本次 owner 授权的本地 ff-only 接收。两次 revision 各加一，依据 `internal/projectctl/codex.go:1244` 的 `validateMilestonePlanChange` 与 `:1345` 的 `validBatchStateTransition`。未分配新 task/cycle，未修改冻结目标、scope、tests 或门禁；M1 本身仍 ACTIVE。
 
 业务验收固定为 commit `473c94190b4eb9e203ab4ea823eaf72829960ad9` / tree `ea87972af11c8c5956c116b58ff946291a0b3bdf`；合同 `5dbcccd9ddda20bbcbdcbff473fb9197b83bb087a10f1ee802ed8ad547d74677`。候选已有实际 Lua runtime/profile/VM/checkpoint/IPC 和 runner evidence 代码，checkpoint 修复已保持合法值形状并验证销毁后 replacement restore。原 `d0055c712aa2d9048e35c014f015582adb272496` FAIL 与固定候选原环境 BLOCKED 均保留。本次治理提交不改变业务文件内容、类型或模式，也不重新实现 checkpoint。
 
