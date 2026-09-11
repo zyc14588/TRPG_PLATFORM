@@ -4,10 +4,23 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "473c94190b4eb9e203ab4ea823eaf72829960ad9"
+source_commit: "4bd29bbb04aa951d91fc743fa075d1c794a780e5"
 ---
 
 # 里程碑状态
+
+## M1-B003 PLAN 冻结候选（未接收）
+
+- `EXISTING_AUTHORITY`：当前 main `4bd29bbb04aa951d91fc743fa075d1c794a780e5` / `ff2b7a9d404379d4c03f35fc941081831fa5ecd7`，M1/v28，B002 COMPLETED，B003 PLANNED/unfrozen。本地回执 SHA256 `c727815a4bf3b2af2abbf7108fce3819321a2fec6b98ca665f7230dc31eda572` 已核验；010 已消费，008/009 历史和原候选 disposition 均保留。
+- 本 tree：`PLANNING_CANDIDATE_AUTHORITY = M1/v29, M1-B003 FROZEN`；拟冻结 digest `59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e`。原 objective/scope/dependencies/acceptance/tests/stop_conditions 不变，只补齐既有规范阅读引用，再按原生规则递增 revision 并冻结。
+- 机器合同唯一入口 `.codex/state/MILESTONE_PLAN.yaml`；接口/测试/平台/环境/接收规范在 `.codex/state/PROJECT_SNAPSHOT.md` 本轮 B003 节，由 fresh route always-read 绑定。外置 Git identity/独立报告/owner receipt 避免提交自引用。
+- 独立治理结果尚由外置精确证据给出，不从本摘要推导 PASS；未正式接收前 main 仍 v28。接收 target 为原 common directory 的 refs/heads/main，before 固定上述 baseline，方式为 owner 批准后的 exact-candidate ff-only；不是 M1 accept CLI。
+- 接收后仅 B003 FROZEN 生效；未来 FROZEN→IMPLEMENTING 和 Builder source 须重新原生 PLAN 绑定并另获启动授权，本轮不释放。B004 仍依赖未完成 B003。B001/B002/B010/B011 COMPLETED，其余状态/墓碑/序号原样；next_batch_sequence=12，WIP=1，active=0，B012 UNALLOCATED。
+- `OWNER_DECISION_REQUIRED=NONE`（范围决策）；最终 owner 精确候选接收批准仍 REQUIRED_NOT_PERFORMED。业务测试 PLANNED_NOT_RUN；无业务修改、旧 c1、CI 或远端写入。
+
+## 历史 v28 及更早状态（原文保留）
+
+以下“当前/本 tree/下一”是原历史阶段表述，不覆盖上方当前已接收 baseline 与本轮未接收候选的区分。
 
 ## 当前固定候选治理登记：M1-B002 / COMPLETED
 
