@@ -4,10 +4,21 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "4bd29bbb04aa951d91fc743fa075d1c794a780e5"
+source_commit: "7c6240e28c1ff4066debedffb43284b979dee260"
 ---
 
 # 里程碑状态
+
+## M1-B003 实现启动治理候选
+
+- 已接收冻结基线：`7c6240e28c1ff4066debedffb43284b979dee260` / `c3a0f11cf2c99d1bfb6ec6d57c95d5016d7c3e8c`，M1/v29、B003 FROZEN；规划回执 SHA256 `f303229da35630a25629fd935b7964ddba115fcefcec6c77902320ba3f925212`。
+- 本 tree：原生 PLAN 的 M1/v30、B003 IMPLEMENTING 候选；冻结合同摘要 `59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e`、14 类字段及 PROJECT_SNAPSHOT 的 19 行测试映射不变。B001/B002/B010/B011 COMPLETED，B004 PLANNED，B012 UNALLOCATED，next_batch_sequence=12；仅 B003 active，WIP=1。
+- 精确激活 SHA/tree、独立治理结果与本地接收生效身份由签名 Git object 和 `/home/zyc14588/engineering/codex-loop-state/owner-receptions/M1-B003-implementation-start-7c6240e-a1/` 的实际证据绑定。接收前仍以已接收 v29/FROZEN 为 main authority；本候选不自报接收 PASS。
+- 接收及读回成功后才移交独立工作区中的全新 IMPLEMENT/builder；原业务范围与禁止目录不变。当前业务候选不存在、业务验收 NOT_RUN_NO_BUSINESS_CANDIDATE；无业务合入、B004、B002 重开、B012、旧 c1 或远端写入授权。
+
+## 历史 v29 规划冻结状态（原文保留）
+
+以下“当前”“本 tree”“未接收”属于原规划冻结阶段；原首轮 FAIL 与 ACC-M1-B003-001 后继处置保留，当前启动投影见上文。
 
 ## M1-B003 PLAN 冻结候选（未接收）
 

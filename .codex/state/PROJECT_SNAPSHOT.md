@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "4bd29bbb04aa951d91fc743fa075d1c794a780e5"
+source_commit: "7c6240e28c1ff4066debedffb43284b979dee260"
 ---
 
 # 项目摘要
+
+## M1-B003 实现启动治理候选
+
+已接收冻结基线为 `7c6240e28c1ff4066debedffb43284b979dee260` / tree `c3a0f11cf2c99d1bfb6ec6d57c95d5016d7c3e8c`，M1/v29、B003 FROZEN；本机规划接收回执 `/home/zyc14588/engineering/codex-loop-state/owner-receptions/M1-B003-plan-freeze-4bd29bbb-a1/ACCEPTANCE_RECEIPT.json` 的 SHA256 为 `f303229da35630a25629fd935b7964ddba115fcefcec6c77902320ba3f925212`。原首轮 FAIL 与 `ACC-M1-B003-001 = CLOSED_FOR_VERIFIED_SUCCESSOR` 的后继处置均保留。
+
+本 tree 仅作已授权 PLAN 生命周期转换：M1/v29→v30、B003 FROZEN→IMPLEMENTING。原生 `validateMilestonePlanChange` 要求 revision 加一；14 类冻结合同字段及摘要 `59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e` 不变，下方 19 行平台/证据矩阵逐字保留。B001/B002 依赖已完成；其他 batch、依赖/并行字段、墓碑与 next_batch_sequence=12 不变，B004 PLANNED、B012 未分配；候选 active batch 仅 B003，WIP 上限 1。
+
+本候选的精确 SHA/tree 由签名 Git object、fresh PLAN route 和独立治理报告固定。owner 本轮授权只允许独立验证通过的最小激活 delta 本地 ff-only 接收；沿用 `trpg-owner-local-batch-acceptance/1` 的 owner-local 惯例，stage 为 `IMPLEMENTATION_START`、scope 为 `B003_GOVERNANCE_IMPLEMENT_ACTIVATION_ONLY`，不是新增原生 schema。实际接收结果、intent、命令退出和生效读回见 `/home/zyc14588/engineering/codex-loop-state/owner-receptions/M1-B003-implementation-start-7c6240e-a1/`；本摘要不预告接收 PASS，也不替代实际 main/ref 与回执。
+
+仅在激活接收与读回完成后，从实际生效 SHA/tree 创建独立 Builder worktree 和全新 IMPLEMENT/builder 上下文，生成 fresh route/check 与 `B003_IMPLEMENTATION_START_BINDING.json`。Builder 仍受原 allowed/forbidden scope 约束，不得修改 `.codex/**`。当前无 B003 业务候选，业务验收 `NOT_RUN_NO_BUSINESS_CANDIDATE`；业务合入、后续生命周期接收、B004、B002 重开、B012、旧 c1 及远端写入均不在本轮授权内。
+
+## 历史 v29 规划冻结投影（原文保留）
+
+以下“本轮”“当前”“未接收”“下一 gate”均指原规划冻结阶段；冻结合同、接口与 19 行测试映射继续适用，当前启动身份以上方实际基线及外置接收读回为准。
 
 ## M1-B003 原生 PLAN / planner 冻结候选（本轮）
 
