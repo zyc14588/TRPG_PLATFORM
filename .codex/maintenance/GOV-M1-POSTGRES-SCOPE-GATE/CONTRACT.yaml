@@ -103,4 +103,4 @@ bootstrap:
   status: RETIRED
   retirement_evidence:
   - Native PLAN M1 route and codex check passed at 58b079fc3a50124622b5dc0d4c6b544130c772f5 before registration.
-status: ACTIVE
+status: READY_FOR_ACCEPTANCE
