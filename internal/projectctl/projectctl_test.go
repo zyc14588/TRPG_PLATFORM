@@ -2046,3 +2046,6 @@ func runFixtureGo(root, goos string, args ...string) (string, error) {
 	output, err := command.CombinedOutput()
 	return string(output), err
 }
+
+// x-section-id: PROJECTCTL-POSTGRES-SCOPE-GATE-TESTS
+// Regression cases for the separately authorized PostgreSQL scope gate.

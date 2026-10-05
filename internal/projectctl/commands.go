@@ -833,6 +833,7 @@ func checkPackageLicenses(root string, problems *validationErrors) error {
 	})
 }
 
+// x-section-id: PROJECTCTL-POSTGRES-SCOPE-GATE
 func (a *App) checkScope(ctx context.Context) error {
 	files, err := a.repositoryFiles(ctx)
 	if err != nil {

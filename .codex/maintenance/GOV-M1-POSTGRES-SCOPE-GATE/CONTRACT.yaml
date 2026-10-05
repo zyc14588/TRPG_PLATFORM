@@ -1,0 +1,106 @@
+schema_version: 1
+x-section-id: GOV-M1-POSTGRES-SCOPE-GATE
+maintenance_id: GOV-M1-POSTGRES-SCOPE-GATE
+objective:
+- Repair the stale M0 integration scan for the explicitly approved M1-B003 PostgreSQL implementation, preserving all remaining repository boundaries.
+reason: >-
+  The exact B003 candidate requires real PostgreSQL atomic publication but the
+  unconditional M0 token scan rejects its approved database/sql and pgx imports.
+  Owner approved the bounded change proposal with the direct reply 允许 on
+  2026-10-06 Australia/Brisbane, including a separate acceptance sub-agent.
+source_blocker: |-
+  classification: STALE_M0_POSTGRES_SCOPE_GATE
+  original task: M1-B003 IMPLEMENT
+  candidate: 58b079fc3a50124622b5dc0d4c6b544130c772f5
+  tree: b98f46f1123ed185a38abc0eff11097cecf6d760
+  frozen B003 contract: 59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e
+  command: just check
+  exit code: 1
+  original log SHA256: b3ba141aef8527e1cb56f491ec8428f633ba618cf295d2062bda0bb429ae0745
+  evidence: /tmp/trpg-m1-b003-20261006/candidate-58b079f-attempt1/check.log
+  proposal: /tmp/trpg-m1-b003-20261006/CHANGE-M1-B003-POSTGRES-SCOPE-GATE.md
+  Seven diagnostics reject database/sql and pgx in cmd/platformd/packages.go,
+  internal/storage/postgres/install.go, and package_install real-service tests.
+  The frozen business allowlist excludes projectctl and forbids .codex writes.
+allowed_scope:
+- path: .codex/maintenance/GOV-M1-POSTGRES-SCOPE-GATE/CONTRACT.yaml
+  section_id: GOV-M1-POSTGRES-SCOPE-GATE
+  kind: machine-contract
+- path: internal/projectctl/commands.go
+  section_id: PROJECTCTL-POSTGRES-SCOPE-GATE
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-POSTGRES-SCOPE-GATE-TESTS
+  kind: test
+forbidden_scope:
+- Any fourth tracked path or unrelated functional change in the two projectctl files.
+- Any business code, dependency, workflow, deployment, license, public API, or product specification change.
+- Any M1 plan, batch allocation, lifecycle, state projection, or frozen-contract mutation.
+- Any gate skip, environment override, alternate check, or obfuscated integration import.
+- Any main merge, remote push, CI dispatch, PR, or B003 business acceptance claim.
+- Any functional repair during PLAN registration; only this contract and inert Section ID markers may be registered there.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/80-roadmap/M0_SCOPE_AND_EXIT_GATE.md
+  section_id: SPEC-M0-FORBIDDEN
+  kind: normative-section
+- path: docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md
+  section_id: SPEC-M1-ALLOWED
+  kind: normative-section
+- path: .codex/state/MILESTONE_PLAN.yaml
+  section_id: M1-B003
+  kind: machine-contract
+acceptance:
+- >-
+  M0 database integration stays denied. Only an M1 ACTIVE or COMPLETE plan with
+  exactly one started, blocked, verifying, or completed M1-B003 batch whose
+  recorded AND recomputed frozen digest equal the owner-approved digest
+  authorizes the narrow PostgreSQL import exception. Missing, malformed,
+  unreadable, stale, duplicate, or changed authority fails closed.
+- >-
+  The only allowed imports are database/sql and github.com/jackc/pgx/v5/stdlib,
+  and the only permitted Go paths are cmd/platformd/packages.go,
+  internal/storage/postgres/**, and tests/integration/package_install/**.
+  Absolute paths, traversal, backslashes, lookalike prefixes, other products,
+  package installers, and other drivers or pgx subpackages do not qualify.
+- >-
+  PostgreSQL integration is detected from parsed Go import declarations,
+  including aliases, blank imports, raw or escaped string literals and import
+  groups. Mentioning an import in a comment or fixture string is not linking
+  that integration. Malformed declarations fail closed. Non-Go source keeps
+  the existing lexical database and driver restrictions.
+- >-
+  Preserve every other forbidden integration and legacy, artifact, secret,
+  single-module, required-path, and frontend-boundary check. Do not alter
+  the B003 frozen contract or any product file to make the check pass.
+- >-
+  Positive and negative regression cases verify accepted paths/imports,
+  exact frozen authority, M0 and unapproved states, modified contracts,
+  path escape and lookalikes, driver variants, aliases and escaped imports,
+  malformed imports, and the remaining forbidden integration tokens.
+- >-
+  A separate read-only ACCEPT sub-agent checks the exact signed governance
+  commits, original failure, bounded diff, unchanged business/state bytes,
+  native routes and checks, and regression evidence before B003 resumes.
+tests:
+- go test -count=1 -json ./internal/projectctl/...
+- go vet ./internal/projectctl/...
+- Fresh PLAN registration and REPAIR source routes pass projectctl codex check.
+- Exact clean governance candidate just check and just license-check pass, with original failure retained.
+- Independent ACCEPT route and diff validation preserve every non-allowlisted path and B003 frozen contract.
+stop_conditions:
+- Stop on any requirement to change product code, B003 frozen scope, M1 plan, dependency, or release platform obligations.
+- Stop if M0 or unapproved PostgreSQL imports can pass through an unconditional or caller-controlled exception.
+- Stop on any gate bypass without a failing regression fixture and owner-approved correction.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-009
+  authorization: No external bootstrap was invoked; native PLAN registration is supported and owner-approved.
+  allowed_scope:
+  - No one-time bootstrap mutation was exercised.
+  retirement_condition: Remain retired; a future qualifying self-routing deadlock requires separate explicit owner authorization.
+  status: RETIRED
+  retirement_evidence:
+  - Native PLAN M1 route and codex check passed at 58b079fc3a50124622b5dc0d4c6b544130c772f5 before registration.
+status: ACTIVE
