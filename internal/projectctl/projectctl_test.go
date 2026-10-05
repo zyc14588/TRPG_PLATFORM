@@ -2126,6 +2126,15 @@ func TestPostgresScopeFrozenAuthorityFailsClosed(t *testing.T) {
 		t.Fatal("B003 is absent")
 	}
 	for name, mutate := range map[string]func(*milestonePlan){
+		"missing-plan-id":       func(p *milestonePlan) { p.PlanID = "" },
+		"wrong-plan-id":         func(p *milestonePlan) { p.PlanID = "M0-MILESTONE-PLAN" },
+		"invalid-write-mode":    func(p *milestonePlan) { p.ModifiableOnlyInMode = "IMPLEMENT" },
+		"zero-plan-version":     func(p *milestonePlan) { p.PlanVersion = 0 },
+		"invalid-next-sequence": func(p *milestonePlan) { p.NextBatchSequence = 0 },
+		"duplicate-non-b003":    func(p *milestonePlan) { p.Batches = append(p.Batches, p.Batches[0]) },
+		"invalid-batch-sequence": func(p *milestonePlan) {
+			p.Batches[index].Sequence = 999
+		},
 		"m0":              func(p *milestonePlan) { p.Milestone = "M0" },
 		"unknown-schema":  func(p *milestonePlan) { p.SchemaVersion = 999 },
 		"inactive-plan":   func(p *milestonePlan) { p.Status = "NOT_GENERATED" },
@@ -2196,6 +2205,28 @@ func TestPostgresScopeAuthorityReadErrors(t *testing.T) {
 	if _, err := a.postgresScopeAuthority(); err == nil {
 		t.Fatal("unreadable authority directory did not fail closed")
 	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	valid, err := yaml.Marshal(postgresScopePlan(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, suffix := range map[string]string{
+		"second-authority":          "\n---\nmilestone: M0\n",
+		"malformed-second-document": "\n---\n[malformed\n",
+		"empty-second-document":     "\n---\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := os.WriteFile(path, append(append([]byte(nil), valid...), []byte(suffix)...), 0600); err != nil {
+				t.Fatal(err)
+			}
+			plan, err := a.postgresScopeAuthority()
+			if err == nil || hasApprovedPostgresScope(plan) {
+				t.Fatal("extra YAML authority did not fail closed", err)
+			}
+		})
+	}
 }
 
 func TestPostgresScopePreservesOtherIntegrationRestrictions(t *testing.T) {
@@ -2224,7 +2255,7 @@ func TestPostgresScopePreservesOtherIntegrationRestrictions(t *testing.T) {
 			}
 		})
 	}
-	for _, source := range []string{"import \"database/sql\"", "package fixture\nimport (\"database/sql\"", "package fixture\nimport database/sql"} {
+	for _, source := range []string{"import \"database/sql\"", "package fixture\nimport (\"database/sql\"", "package fixture\nimport database/sql", "package fixture\nvar _ = 1\nimport \"database/sql\"", "package fixture\nfunc f() {}\nimport (\"database/sql\""} {
 		if problems := integrationScopeProblems("cmd/platformd/packages.go", []byte(source), plan); len(problems) == 0 {
 			t.Fatal("malformed import declarations accepted")
 		}

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -840,15 +841,37 @@ func checkPackageLicenses(root string, problems *validationErrors) error {
 const approvedPostgresContract = "59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e"
 
 func (a *App) postgresScopeAuthority() (milestonePlan, error) {
-	plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	file, err := os.Open(filepath.Join(a.root, ".codex", "state", "MILESTONE_PLAN.yaml"))
 	if errors.Is(err, os.ErrNotExist) {
 		return milestonePlan{}, nil // historical M0 has no PostgreSQL authorization
 	}
-	return plan, err
+	if err != nil {
+		return milestonePlan{}, err
+	}
+	defer file.Close()
+	var plan milestonePlan
+	decoder := yaml.NewDecoder(file)
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&plan); err != nil {
+		return milestonePlan{}, fmt.Errorf("parse PostgreSQL scope authority: %w", err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return milestonePlan{}, errors.New("PostgreSQL scope authority must contain exactly one YAML document")
+		}
+		return milestonePlan{}, fmt.Errorf("trailing PostgreSQL scope authority: %w", err)
+	}
+	return plan, nil
 }
 
 func hasApprovedPostgresScope(plan milestonePlan) bool {
 	if plan.SchemaVersion != milestonePlanSchemaVersion || plan.Milestone != "M1" || (plan.Status != "ACTIVE" && plan.Status != "COMPLETE") {
+		return false
+	}
+	// The owner approved only M1 authority. Reuse the complete native plan
+	// validator for that fixed target instead of accepting a subset of metadata.
+	if err := validateMilestonePlan(plan, v1MilestoneCatalog{known: map[string]bool{"M1": true}}); err != nil {
 		return false
 	}
 	count := 0
@@ -903,7 +926,7 @@ func integrationScopeProblems(relative string, data []byte, plan milestonePlan) 
 	if !goSource {
 		return problems
 	}
-	source, err := parser.ParseFile(token.NewFileSet(), relative, data, parser.ImportsOnly|parser.AllErrors)
+	source, err := parser.ParseFile(token.NewFileSet(), relative, data, parser.AllErrors)
 	if err != nil {
 		return append(problems, fmt.Sprintf("scope imports %s: %v", relative, err))
 	}
