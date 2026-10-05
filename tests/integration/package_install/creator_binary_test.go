@@ -82,7 +82,7 @@ func TestCreatorBinaryEditedArtifactInstallsAndReloads(t *testing.T) {
 	if err = json.Unmarshal(run("identity"), &actual); err != nil {
 		t.Fatal(err)
 	}
-	if actual.Commit != commit || actual.Tree != tree || "sha256:"+actual.Hash != binaryHash || actual.Version != "0.1.0-m1" || actual.Command != recipe {
+	if actual.Commit != commit || actual.Tree != tree || actual.Hash != binaryHash || actual.Version != "0.1.0-m1" || actual.Command != recipe {
 		t.Fatal("Creator identity did not match tested binary", actual)
 	}
 	t.Logf("Creator source=%s tree=%s binary=%s argv=%q", commit, tree, binaryHash, append([]string{"go"}, args...))
@@ -123,8 +123,12 @@ func TestCreatorBinaryEditedArtifactInstallsAndReloads(t *testing.T) {
 		if reply.Error != nil || reply.Identity != actual {
 			t.Fatal("Creator edit/identity failure", string(result))
 		}
-		for _, phase := range reply.Phases {
-			if phase.Status != "ok" {
+		phases := []string{"import", "inspect", "edit", "validate", "export", "reimport"}
+		if len(reply.Phases) != len(phases) {
+			t.Fatal("Creator phase count mismatch", reply.Phases)
+		}
+		for index, phase := range reply.Phases {
+			if phase.Name != phases[index] || phase.Status != "ok" {
 				t.Fatal("Creator phase not successful", phase)
 			}
 		}
