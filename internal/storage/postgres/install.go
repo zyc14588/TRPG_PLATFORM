@@ -277,7 +277,9 @@ func (r *Repository) Resolve(ctx context.Context, workspace, principal, requestI
 	if len(result.Artifacts) == 0 {
 		return store.Result{}, store.ErrConflict
 	}
+	rootFound := false
 	for _, id := range result.Artifacts {
+		rootFound = rootFound || id == result.Root
 		a, e := r.Lookup(ctx, workspace, principal, id)
 		if e != nil {
 			return store.Result{}, e
@@ -285,6 +287,9 @@ func (r *Repository) Resolve(ctx context.Context, workspace, principal, requestI
 		if _, e = store.VerifyArtifact(ctx, r.options.Objects, a, r.options.Support); e != nil {
 			return store.Result{}, e
 		}
+	}
+	if !rootFound {
+		return store.Result{}, object.ErrIntegrity
 	}
 	return result, nil
 }

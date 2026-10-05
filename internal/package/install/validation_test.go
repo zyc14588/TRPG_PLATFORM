@@ -183,6 +183,12 @@ func TestPolicyRequiresActualBoundSignaturesAndIndependentCertification(t *testi
 		t.Fatal(err)
 	}
 	for name, mutate := range map[string]func(*PolicyConfig, *Evidence){
+		"same-key-different-roles": func(c *PolicyConfig, e *Evidence) {
+			k := c.Keys["certifier"]
+			k.Public = pub
+			c.Keys["certifier"] = k
+			e.Certification = sign("certification", "certifier", private)
+		},
 		"unsigned": func(c *PolicyConfig, e *Evidence) { e.Publisher = nil; e.Certification = nil }, "publisher-only": func(c *PolicyConfig, e *Evidence) { e.Certification = nil },
 		"bad-signature": func(c *PolicyConfig, e *Evidence) { e.Publisher.Signature = []byte("claimed-pass") }, "swapped-roles": func(c *PolicyConfig, e *Evidence) { e.Certification = e.Publisher },
 		"revoked": func(c *PolicyConfig, e *Evidence) {

@@ -584,3 +584,58 @@ func TestExactRetryRejectsCorruptCommittedArtifact(t *testing.T) {
 		})
 	}
 }
+
+// ACC-M1-B003-004: exact retry must retain the originally requested graph.
+func TestExactRetryRejectsReboundRequestResult(t *testing.T) {
+	for _, binding := range []string{"root-only", "whole-result"} {
+		t.Run(binding, func(t *testing.T) {
+			e := setup(t)
+			p := packageFixture(t, "assets", "")
+			i := e.installer(t, p, "accept-fixture", nil, install.RuntimeConfig{}, nil, nil)
+			first, err := i.Install(context.Background(), request(t, p, "accept-result-integrity", "a", alice))
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, err := fixtures.Build(fixtures.Files("test.publisher/other", "assets", ""))
+			if err != nil {
+				t.Fatal(err)
+			}
+			j := e.installer(t, other, "accept-fixture", nil, install.RuntimeConfig{}, nil, nil)
+			second, err := j.Install(context.Background(), request(t, other, "accept-other", "a", alice))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if first.Root == second.Root {
+				t.Fatal("precondition: artifacts are not distinct")
+			}
+			if _, err := e.reader(t).Load(context.Background(), alice, "a", first.Root); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := e.reader(t).Load(context.Background(), alice, "a", second.Root); err != nil {
+				t.Fatal(err)
+			}
+			result, err := e.db.Exec(`UPDATE package_install.requests SET root=$1 WHERE workspace=$2 AND request_id=$3`, second.Root, "a", "accept-result-integrity")
+			if err != nil {
+				t.Fatal(err)
+			}
+			count, err := result.RowsAffected()
+			if err != nil || count != 1 {
+				t.Fatalf("corruption precondition: rows=%d error=%v", count, err)
+			}
+			if binding == "whole-result" {
+				changed, err := e.db.Exec(`UPDATE package_install.request_artifacts SET identity=$1,source_archive_hash=(SELECT source_archive_hash FROM package_install.artifacts WHERE workspace=$2 AND identity=$1) WHERE workspace=$2 AND request_id=$3`, second.Root, "a", "accept-result-integrity")
+				if err != nil {
+					t.Fatal(err)
+				}
+				n, err := changed.RowsAffected()
+				if err != nil || n != 1 {
+					t.Fatalf("association fixture: rows=%d err=%v", n, err)
+				}
+			}
+			again, retryErr := i.Install(context.Background(), request(t, p, "accept-result-integrity", "a", alice))
+			if retryErr == nil {
+				t.Fatalf("exact retry accepted rebound request root: first=%s other=%s returned=%s artifacts=%v", first.Root, second.Root, again.Root, again.Artifacts)
+			}
+		})
+	}
+}

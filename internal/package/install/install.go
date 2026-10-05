@@ -107,8 +107,26 @@ func (i *Installer) Install(ctx context.Context, r Request) (store.Result, error
 	}
 	encoded, _ := json.Marshal(fingerprints)
 	fingerprint := object.Hash(encoded)
-	if result, e := o.Repository.Resolve(ctx, r.Workspace, membership.Principal, r.ID, fingerprint); e == nil {
+	// Recovery must return the exact graph requested, even if every artifact in
+	// an inconsistent stored result is independently valid and readable.
+	checkResult := func(result store.Result) (store.Result, error) {
+		if result.Workspace != r.Workspace || result.RequestID != r.ID || result.Fingerprint != fingerprint || result.Root != string(items[0].pkg.ArtifactIdentity().Digest()) || len(result.Artifacts) != len(items) {
+			return zero, store.ErrConflict
+		}
+		expected := map[string]bool{}
+		for _, item := range items {
+			expected[string(item.pkg.ArtifactIdentity().Digest())] = true
+		}
+		for _, id := range result.Artifacts {
+			if !expected[id] {
+				return zero, store.ErrConflict
+			}
+			delete(expected, id)
+		}
 		return result, nil
+	}
+	if result, e := o.Repository.Resolve(ctx, r.Workspace, membership.Principal, r.ID, fingerprint); e == nil {
+		return checkResult(result)
 	} else if !errors.Is(e, store.ErrNotFound) {
 		return zero, e
 	}
@@ -183,9 +201,16 @@ func (i *Installer) Install(ctx context.Context, r Request) (store.Result, error
 		defer cancel()
 		resolved, resolveErr := o.Repository.Resolve(recovery, r.Workspace, membership.Principal, r.ID, fingerprint)
 		if resolveErr == nil {
-			return resolved, nil
+			resolved, resolveErr = checkResult(resolved)
+			if resolveErr == nil {
+				return resolved, nil
+			}
 		}
 		return zero, errors.Join(store.ErrUnknownCommit, resolveErr)
+	}
+	result, err = checkResult(result)
+	if err != nil {
+		return zero, errors.Join(store.ErrUnknownCommit, err)
 	}
 	// Failure of acknowledgement/audit after COMMIT is reported as unknown;
 	// exact-request recovery uses the same authoritative database path.

@@ -3,6 +3,7 @@
 package install
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/json"
 	"errors"
@@ -154,6 +155,9 @@ func (p *Policy) validate(pkg *archive.Package, e Evidence) (Approval, capabilit
 		}
 		if e.Certification != nil {
 			if err = p.verify("certification", pkg, a.Tests, e.Certification); err != nil {
+				return reject()
+			}
+			if bytes.Equal(p.config.Keys[e.Publisher.KeyID].Public, p.config.Keys[e.Certification.KeyID].Public) {
 				return reject()
 			}
 			level = capability.TrustSigned
