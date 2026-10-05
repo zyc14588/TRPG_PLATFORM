@@ -50,7 +50,7 @@ normative_references:
   section_id: SPEC-M1-ALLOWED
   kind: normative-section
 - path: .codex/state/MILESTONE_PLAN.yaml
-  section_id: M1-B003
+  section_id: M1-MILESTONE-PLAN
   kind: machine-contract
 acceptance:
 - >-
