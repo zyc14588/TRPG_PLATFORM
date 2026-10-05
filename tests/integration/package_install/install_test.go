@@ -540,3 +540,47 @@ func TestInstallerProcessCrashLeavesOnlyCompleteCommittedInstall(t *testing.T) {
 		})
 	}
 }
+
+// ACC-M1-B003-002: exact retry and commit recovery must verify the complete
+// committed artifact, as ordinary authorized reads do.
+func TestExactRetryRejectsCorruptCommittedArtifact(t *testing.T) {
+	for _, corruption := range []string{"missing-reference", "rebound-reference", "manifest-mismatch"} {
+		t.Run(corruption, func(t *testing.T) {
+			e := setup(t)
+			p := packageFixture(t, "assets", "")
+			i := e.installer(t, p, "accept-fixture", nil, install.RuntimeConfig{}, nil, nil)
+			first, err := i.Install(context.Background(), request(t, p, "accept-integrity", "a", alice))
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.assertCounts(t, 1, 1, 1)
+			var result sql.Result
+			switch corruption {
+			case "missing-reference":
+				result, err = e.db.Exec(`DELETE FROM package_install.objects WHERE workspace=$1 AND identity=$2 AND path=$3`, "a", first.Root, "content/readme.txt")
+			case "rebound-reference":
+				wrong, putErr := e.objects.Put(context.Background(), []byte("independently valid immutable but unrelated content"))
+				if putErr != nil {
+					t.Fatal(putErr)
+				}
+				result, err = e.db.Exec(`UPDATE package_install.objects SET object_key=$1 WHERE workspace=$2 AND identity=$3 AND path=$4`, wrong, "a", first.Root, "content/readme.txt")
+			case "manifest-mismatch":
+				result, err = e.db.Exec(`UPDATE package_install.artifacts SET manifest=$1 WHERE workspace=$2 AND identity=$3`, []byte("corrupt manifest metadata"), "a", first.Root)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			count, err := result.RowsAffected()
+			if err != nil || count != 1 {
+				t.Fatalf("corruption precondition: rows=%d error=%v", count, err)
+			}
+			if _, err := e.reader(t).Load(context.Background(), alice, "a", first.Root); err == nil {
+				t.Fatal("precondition failed: corrupt artifact unexpectedly readable")
+			}
+			again, retryErr := i.Install(context.Background(), request(t, p, "accept-integrity", "a", alice))
+			if retryErr == nil {
+				t.Fatalf("exact retry reported success for corrupted committed artifact: root=%s artifacts=%v", again.Root, again.Artifacts)
+			}
+		})
+	}
+}

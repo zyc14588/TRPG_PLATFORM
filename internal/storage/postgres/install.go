@@ -282,10 +282,8 @@ func (r *Repository) Resolve(ctx context.Context, workspace, principal, requestI
 		if e != nil {
 			return store.Result{}, e
 		}
-		for _, ref := range a.Objects {
-			if e = r.options.Objects.Verify(ctx, ref.Key); e != nil {
-				return store.Result{}, e
-			}
+		if _, e = store.VerifyArtifact(ctx, r.options.Objects, a, r.options.Support); e != nil {
+			return store.Result{}, e
 		}
 	}
 	return result, nil
