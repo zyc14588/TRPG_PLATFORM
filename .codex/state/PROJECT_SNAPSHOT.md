@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "9236f0f13141283036b7a454d72795c1680dc66e"
+source_commit: "4f96f02c0f0b986c7b1afc3e8857b52942677443"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：Owner 已批准能力登记补充，B012 IMPLEMENTING
+
+Owner 已直接批准 CHANGE-M1-HOST-CAPABILITY-REGISTRY（提案 SHA256 `5d486dd0e47d2d0deebcde066f45816a2197f2ec084598729c86a9bafa35a5e7`）；原文授权 `/home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/m1-host-capability-decision/OWNER_AUTHORIZATION.json` SHA256 `d0fc7adf81855c00c21d23d6c631e7a004c90ac1f64f7268a2e32c7388838214`。本次正常 PLAN activate，v36→v37，B012 IMPLEMENTING；只允许能力登记、Manifest 和 package Schema 一致性小批次，既有七类名补充不授予任何默认权限、不执行 Host 操作、不更换依赖、许可、公开字段或 API 主版本。B004 BLOCKED，冻结合同和前置列表保持，解除阻塞需 B012 精确验收与接收。
+
+B003 Linux 业务独立 PASS 精确来源 cf364dc 保留，完成状态 fbe5532 与阻塞状态 ab9bcd8 分别独立状态投影通过；本机 main 已实际接收 `ab9bcd8c818cb9f3f79f6ac031caa516a4705ca3` / tree `4f5bd74cb86691b528ee0cd0cc58ed8f6659aa42`，固定接收回执 `/tmp/trpg-m1-b003-20261006/main-reception-ab9bcd8/RECEPTION_RECEIPT.json` SHA256 `5d250f3db0279dcfda2edd1fca06997402f911d5107f89d7fc152c0d36ecb70f`。旧 FAIL、Windows/macOS NOT_RUN 及服务清理记录不变，不重标旧测试来源。
+
+M1 ACTIVE；增加真实序号 12 的小批次后有效产品批次为 4/11（36.4%）按数量计，B010 superseded 不重复计数，分母变化来自已批准补充工作。当前 B012 业务 NOT_RUN、此状态未作为业务 PASS；M1 总出口未满足。本轮仅 Linux，新的公共语义或范围决定仍需停止提交 CHANGE。
+
+## 历史能力登记阻塞/此前状态（原文保留）
 
 ## 当前 Linux M1：Owner 已批准能力登记补充，B012 FROZEN
 
