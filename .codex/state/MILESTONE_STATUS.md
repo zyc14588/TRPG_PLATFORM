@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "99e72e71df30d5c723156405744e0ec8867d450f"
+source_commit: "ed65d8d8f09da9f185749a15074e74699ef784a2"
 ---
 
 # 里程碑状态
+
+### Linux M1 最终认证原契约冻结（尚未施工）
+
+M1-B009 从 PLANNED 进入 FROZEN；原14字段逐项不变，固定摘要为 `edf35377a4fc1a9bbb252e177aef3d7b99bc4e52659540fb5ac18a7d5f5f48d1`。仅登记已授权的既定 fixture-minimal、16项M1出口、八个指定30秒Fuzz/提交语料及真实Compose生命周期范围；未实施业务代码，未扩展核心/公共契约/架构/许可或多平台。
+
+M1-B008 仍 IMPLEMENTING，业务候选 `ed65d8d8f09da9f185749a15074e74699ef784a2` 的父实际安全/回归/规范门禁已通过，独立只读 ACCEPT 尚待结论。此前 ACC-M1-B008-001 私密合成标记诊断负例及用户明确批准补修均完整保留，新候选结果不替换旧 FAIL。B009 不能在 B007/B008 依赖均已完成前激活或声明出口完成。
+
+M1 仍 ACTIVE；14批中12批 COMPLETED，Linux 批次计数进度12/14=85.71%。Windows/macOS NOT_RUN，V1 总体完成未声明。此次为正常 PLAN 状态投影，只允许3个状态路径、plan_version +1、其余13批和旧正文tail逐字节保持；原生前后验证及独立状态审计均须保留实际证据。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：迁移闭环完成，启动安全验收
 
