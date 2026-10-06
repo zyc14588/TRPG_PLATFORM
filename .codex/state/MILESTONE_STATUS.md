@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "2b295e1494f1afd25ef0392684116e82dc3c5706"
+source_commit: "47661588aba3ee9375854c2ac884046754e1ff5e"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：事件重放 B006 COMPLETED
+
+正常 PLAN v58→v59 只将 B006 VERIFYING→COMPLETED；冻结合同 `873d928f833d8c19a84c3c5b16151b780ba7bc95ac2838ac3c6f852e4f549e5e`、其他批次、next14 与此前正文保持。业务验收来源是精确签名修复提交 `47661588aba3ee9375854c2ac884046754e1ff5e`（tree `41b03e850eeffcad08b4e38347ec9957b9f2826a`），不是本次三文件状态投影。父与独立 actual362 related、136 race、58 real（B006 34+B005 24），named 0 fail/skip；required check/test/vet/license/ci/build/signature actual0。父33成员清单 SHA256 `cd2834fde7d9afc71019cc75c34b62817daa88e1de6db798f9fc1a493d32231e`。独立 `/home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/m1-b006-linux-progress/independent-repair-4766158/ACCEPTANCE_RECEIPT.json` SHA256 `f7a318690a74fa288c0e47b66bfa15f1038fa2d484cef59225aacaaa4571551f`、79成员 manifest SHA256 `f7efe48ae8bdbbe78dda65f43e4bcd7404872e70ebc771fe1345a612848b1549`：PASS，无未闭合 required finding；原001/002仅对476 CLOSED。
+
+已提交事件、创建种子、原始请求/收据及完整 Go 效果保持不可变。重放验证原事件/Schema/确定性输入，派生状态和检查点仅作经完整不可变前缀核验的加速器。生产 Host 在原 Session 行锁内、任何 SQL 效果前验证256记录、4MiB证据/8MiB读取总量和完整128行/128关系条目/256KiB Row编码上限；累计事实来自不可变效果，与恢复共用 FoldFacts，派生数据缺失也不能绕过。重复命令优先返回原收据；净数量合法的删除再新增可提交，超限拒绝后实际休眠和零派生恢复仍可用。
+
+独立原容量探针1、两合法命名空间累计第129行探针1、恢复/restore回调 caught-write19 named（16目标叶子）及准确拒绝补充1均实际PASS；712个记录runner及4个实际daemon PID已ESRCH，b005/b006其他连接各0。关系quantity在476增加实际签名fixture PostgreSQL/VM证明，使用两把不同的合成publisher/certification key及Policy.SigningBytes，不是生产认证服务；此前2b/354的quantity单元测试资格原文保留。legacy不完整效果仍明确不完整，不认证为可恢复历史。
+
+历史失败不改写：原2b独立FAIL001、1479分层scope检查FAIL、354独立FAIL002（001当时仅对354 CLOSED）均保持；旧256MiB服务disk-full实际34run25pass9fail与首个替换容器min_wal_size初始化失败、dirty开发失败和修复证据全部保留。归档权限比对助手的实际失败单独保留并限定为tar导出权限/exec flags资格，不冒充业务失败或改变Git源blob/mode核验。本次摘要生成字段误读与缺失body导致的partial一文件PLAN改动记录保持，三文件完整投影须另行实际核验后才提交。重启前B006 /tmp首次proof仍明确LOST，旧B004原始FAIL/修复、B013无效harness及上游已完成接收记录继续保留。状态独立验收、本机main接收和精确已拥有97dc容器清理由各自实际回执记录，不把状态投影当作新业务测试或接收证明。
+
+M1 ACTIVE，有效完成9/12（75%，按批次数）；继续B007安全迁移、B008安全检查和B009整体Linux出口。Windows/macOS NOT_RUN，全V1未完成，无新Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：事件重放 B006 VERIFYING
 
