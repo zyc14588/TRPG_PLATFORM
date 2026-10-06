@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 49
+plan_version: 50
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -357,6 +357,8 @@ batches:
   - tests/integration/session/**
   - go.mod
   - go.sum
+  - internal/storage/package/**
+  - internal/storage/postgres/**
   forbidden_scope:
   - internal/account/**
   - internal/room/**
@@ -408,6 +410,8 @@ batches:
     broadcast; rollback produces no broadcast.
   - Minimal reconnect uses an event cursor, revalidates the fixture seat, and returns only permitted events or projection; disconnect never silently
     transfers control.
+  - Trusted PostgreSQL journal reads remain bounded and tenant/graph bound; immutable creation evidence and cursor metadata support recovery,
+    while read-only projection/checkpoint callbacks never commit mutations or increment state versions.
   - TEST-SESSION-002 and TEST-SESSION-003 each produce a repeatable command, exit code, machine-readable result, and exact candidate SHA.
   tests:
   - 'TEST-SESSION-002: go test -race ./internal/session/actor/... exercises single-writer ordering, bounded-mailbox backpressure, panic isolation,
@@ -416,6 +420,8 @@ batches:
     results, atomic failure injection, and the no-broadcast-before-commit invariant.'
   - go test -tags=integration ./tests/integration/session/... uses PostgreSQL and a real lua-runner process for commit, rollback, reconnect, and
     seat-filtered projection scenarios.
+  - Real PostgreSQL command receipts and creation/cursor evidence are read back through storage constructors; read-only callbacks reject all seven
+    effect families and preserve persisted version and command effects.
   - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
   stop_conditions:
   - Stop if more than one writer can mutate a Session or if Mailbox, retry, or management-command queues can grow without a hard bound.
