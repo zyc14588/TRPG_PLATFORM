@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "3a039cdb7f5637add74daae33a1c03bde3c5ad5b"
+source_commit: "1d8daf579f2eab6a90ef4114338f3362cd7b48d9"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：B012 独立业务验收 PASS，完成登记候选
+
+正常 PLAN v38→v39 仅 B012 VERIFYING→COMPLETED，WIP=0；冻结摘要 `2540a4cac12d95789e3650d41567fc0704d0c8641ac91920c34d80df1697fdcd`、其余批次及下一序号13不变。B004 仍 BLOCKED，必须 B012 独立验收和本机接收完成后才解除阻塞。
+
+Owner 批准的能力登记补充独立 PASS：精确业务 `3a039cdb7f5637add74daae33a1c03bde3c5ad5b` / tree `4e12bb843674880eadfd5e5d742237c8e8a38544`，回执 `/tmp/trpg-m1-b012-linux-20261006/independent-b012-3a039cd/ACCEPTANCE_RECEIPT.json` SHA256 `9a1ff305c01dfb35af83c0d7f6ec60a2212a200aea4ca9dbd556941d2a343b55`，39文件清单 SHA256 `9e5c4e92762b7c48562cf906e73d28aa21e0eff629e9229cbbe5ff54592417f7` 已逐条核验，unresolved_required_findings=[]。独立实际核心878 run/pass和外置mixed/Unicode51 run/pass，均0 fail/skip；父完整1159 run/pass和check/test/vet/license/ci actual0绑定3a清洁业务源。只有四允许路径变化、其余289 blobs/modes一致，既有七类名称补全与 Schema 边界保持默认零权限、三层交集和未登记名拒绝；不执行 Host 操作，无依赖/许可/主版本/公开字段或身份规则变化。
+
+原 sandbox socket skip首次记录 NOT_PASS 与预提交 dirty600 保留，不重标；B003 cf业务/ab9本机接收、旧 FAIL、跨平台NOT_RUN、服务清理原哈希不改。本 v39 完成登记候选仍待独立状态投影和本机 main 接收，不能把3a业务测试重标本状态SHA；B012 main在本候选准备时仍PENDING。M1 ACTIVE、有效产品批次5/11（45.5%）按数量计，M1 总出口尚未满足，本轮仅Linux。接收后将正常 PLAN 解除 B004 的本项前置门禁，沿既有冻结合同继续 Host API 与原子事务，不新增公开语义。
+
+## 历史 B012 VERIFYING 及此前状态（原文保留）
 
 ## 当前 Linux M1：B012 精确完整门禁通过，进入 VERIFYING
 
