@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "598606a780bfcc4f03e931da52e7440951c3c88e"
+source_commit: "cf364dcec1d2b61afa12b4a2c79e58e8a338936d"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：B003 完成登记，B004 激活候选
+
+B003 的独立 Linux 验收已 PASS，精确业务候选 `cf364dcec1d2b61afa12b4a2c79e58e8a338936d` / tree `bcf7957356588fcf325c6252e627fb7469e99c63`。回执 `/tmp/trpg-m1-b003-20261006/independent-b003-linux-cf364dc/ACCEPTANCE_RECEIPT.json` SHA256 `1386f3f2c2d50003c6f75f1450a43ffe612113a752f5077caee6624ba666be18`；原 002/004/005 的处置只适用于回执指定后继，原 FAIL 保留；003 和五个 Windows/macOS 行仍延期 NOT_RUN，非平台 PASS。完整新门禁 check/test/vet/license/ci exit 0，受影响 JSON 732 run/pass、真实 PostgreSQL JSON 37 run/pass，均 0 fail/skip；37 条实际 runner 身份/生命周期证据与原生 Creator 六阶段保留。证据索引 SHA256 `d2da1a8f5f5c7e43d83a671e85619976f8e91ec01e5a71029355b737d6825f91`，父封存包 SHA256 `d7771e4888c13145f91f166936d97ad3b37471dc93247892f9c9cc1fe87f6f39`。
+
+目录治理独立 PASS 回执 `/tmp/trpg-m1-b003-20261006/independent-linux-catalog-02ed8ce/ACCEPTANCE_RECEIPT.json` SHA256 `622b7e0ebb97df7e932bbc45cadb9896ff600353ab5a0aa3dec3b8ede62b1b40`；Linux scope 治理 PASS 回执 SHA256 `49f631644c305480aa5fd5a1fee5cd39f423b5e74295570f26e413858990a85a`。该状态提交只在正常 PLAN 将 v32→v33、B003 VERIFYING→COMPLETED、B004 FROZEN→IMPLEMENTING，并更新两摘要；所有业务/依赖字节、冻结合同、其他 batches/墓碑/序号不变。B004 digest `4b7d73a8d566d3097f3afbb45f8271e00d7aead7192992bba59974a717c08e31`，其前置 B001/B002/B003 已完成，WIP=1；本候选尚未独立状态验收或 main 接收，B004 业务仍 NOT_RUN，fresh IMPLEMENT/check 与接收门禁通过后才开始施工。
+
+M1 有效产品批次按完成数量计为 4/10（40%）；B010 为已被 B011 替代的历史实现，不重复计数。本次仅 Linux；M1 总出口尚未满足。下一实现为已冻结 B004 的 Host API、生产 callback 桥接、MutationWorkspace 全 effects 原子事务、分级数据库能力、预算和不可关闭审计，沿既有合同实施，不新增公开语义。新的范围/设计/公共合同/依赖/许可决定仍停止交由 owner。
+
+## 历史 B004 冻结与 B003 验收投影（原文保留）
 
 ## 当前 B004 规划冻结候选（尚未开工）
 

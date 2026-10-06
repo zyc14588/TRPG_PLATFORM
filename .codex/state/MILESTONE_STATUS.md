@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "598606a780bfcc4f03e931da52e7440951c3c88e"
+source_commit: "cf364dcec1d2b61afa12b4a2c79e58e8a338936d"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B003 完成登记，B004 激活候选
+
+- M1 ACTIVE v33；正常 PLAN 仅 B003 VERIFYING→COMPLETED、B004 FROZEN→IMPLEMENTING，冻结摘要/其他 batches/序号不变，WIP=1。有效产品批次 4/10（40%），尚未满足 M1 出口。
+- B003 精确独立 PASS：`cf364dcec1d2b61afa12b4a2c79e58e8a338936d` / `bcf7957356588fcf325c6252e627fb7469e99c63`，回执 SHA256 `1386f3f2c2d50003c6f75f1450a43ffe612113a752f5077caee6624ba666be18`。完整新 Linux 732/37 named run/pass，0 fail/skip；Windows/macOS 延期 NOT_RUN，原 FAIL 与 003 保留。
+- 本状态候选待独立状态验收和 main 本地接收，不冒充已经接收。B004 业务 NOT_RUN；前置与冻结规划核验通过后 fresh IMPLEMENT route/check 才开工。详情及固定证据在 PROJECT_SNAPSHOT 本节。
+
+## 历史 B004 冻结与 B003 验收状态（原文保留）
 
 ## 当前 B004 规划冻结候选（尚未开工）
 
