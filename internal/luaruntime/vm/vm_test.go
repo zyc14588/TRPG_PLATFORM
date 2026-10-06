@@ -155,7 +155,7 @@ func TestSessionIsolationLifecycleAndHandles(t *testing.T) {
 		t.Fatal("token serialized")
 	}
 	old := a.Token()
-	if err := a.Reconstruct(context.Background(), a.state, nil); err != nil {
+	if err := a.Reconstruct(context.Background(), a.runtimeState().state, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.Execute(context.Background(), old, []byte(`return 42`)); profile.Code(err) != profile.ErrCapability {
@@ -179,7 +179,7 @@ func TestACC008IPCContaminationAndReconstruction(t *testing.T) {
 	if _, err := s.Execute(context.Background(), s.Token(), []byte(`return partial+1`)); profile.Code(err) != profile.ErrPoisoned {
 		t.Fatal("008 reproduced", err)
 	}
-	if err := s.Reconstruct(context.Background(), s.state, nil); err != nil {
+	if err := s.Reconstruct(context.Background(), s.runtimeState().state, nil); err != nil {
 		t.Fatal(err)
 	}
 	if before == s.PID() {
@@ -198,10 +198,10 @@ func TestCheckpointReconstructionAndMemoryPressure(t *testing.T) {
 	bad := c
 	bad.Binding.StateVersion++
 	before := s.PID()
-	if err := s.Reconstruct(context.Background(), s.state, &bad); err == nil || s.PID() != before {
+	if err := s.Reconstruct(context.Background(), s.runtimeState().state, &bad); err == nil || s.PID() != before {
 		t.Fatal("incompatible checkpoint replaced VM")
 	}
-	if err := s.Reconstruct(context.Background(), s.state, &c); err != nil {
+	if err := s.Reconstruct(context.Background(), s.runtimeState().state, &c); err != nil {
 		t.Fatal(err)
 	}
 	r := execute(t, s, `return cache`)
@@ -233,7 +233,7 @@ func TestRunnerFaultMemoryAndCancellationIsolation(t *testing.T) {
 			if time.Since(begin) > 3*time.Second {
 				t.Fatal("hard wall bound failed")
 			}
-			if err := s.Reconstruct(context.Background(), s.state, nil); err != nil {
+			if err := s.Reconstruct(context.Background(), s.runtimeState().state, nil); err != nil {
 				t.Fatal(err)
 			}
 			execute(t, s, `return state.counter`)
@@ -246,7 +246,7 @@ func TestRunnerFaultMemoryAndCancellationIsolation(t *testing.T) {
 	if _, err := s.Execute(ctx, s.Token(), []byte(`while true do end`)); err == nil {
 		t.Fatal("cancel ignored")
 	}
-	if err := s.Reconstruct(context.Background(), s.state, nil); err != nil {
+	if err := s.Reconstruct(context.Background(), s.runtimeState().state, nil); err != nil {
 		t.Fatal(err)
 	}
 }

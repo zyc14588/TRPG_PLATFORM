@@ -50,7 +50,7 @@ func TestActualExecutionTokenDiagnosticsPreserveAuthority(t *testing.T) {
 	}
 	defer s.Destroy()
 	token := s.Token()
-	if token.secret == ([32]byte{}) {
+	if token.nonce() == ([32]byte{}) {
 		t.Fatal("actual token prerequisite empty")
 	}
 	invoke := func() {
@@ -67,6 +67,7 @@ func TestActualExecutionTokenDiagnosticsPreserveAuthority(t *testing.T) {
 	}
 	invoke()
 	containers := []any{token, &token, []Token{token}, [1]Token{token}, map[string]Token{"token": token}, struct{ Token Token }{token}}
+	privateRecords := []any{struct{ handle any }{token}, struct{ handle Token }{token}, struct{ handles []any }{[]any{token, &token}}}
 	for _, format := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%X", "%d", "%b", "%o", "%f", "%e", "%g", "%c", "%U", "%t", "%1000000d", "%.1000000x"} {
 		t.Run(format, func(t *testing.T) {
 			values := containers
@@ -80,6 +81,14 @@ func TestActualExecutionTokenDiagnosticsPreserveAuthority(t *testing.T) {
 					t.Fatal("token diagnostic was not bounded and opaque; raw output intentionally omitted")
 				}
 			}
+			if !strings.Contains(format, "1000000") {
+				for _, record := range privateRecords {
+					output := fmt.Sprintf(format, record)
+					if len(output) > 256 || (strings.Contains(output, fmt.Sprintf(format, token.nonce())) || strings.Contains(output, fmt.Sprintf("%v", token.nonce()))) {
+						t.Fatal("private token record exposed capability data; raw output intentionally omitted")
+					}
+				}
+			}
 		})
 	}
 	for _, value := range []any{token, &token} {
@@ -87,7 +96,7 @@ func TestActualExecutionTokenDiagnosticsPreserveAuthority(t *testing.T) {
 			t.Fatal("execution token entered JSON")
 		}
 	}
-	if token.secret != s.Token().secret {
+	if token != s.Token() || token.nonce() != s.Token().nonce() {
 		t.Fatal("diagnostics changed the execution capability")
 	}
 	invoke()
@@ -104,7 +113,7 @@ func TestActualSessionHandleDiagnosticsPreserveAuthorityAndState(t *testing.T) {
 	}
 	defer s.Destroy()
 	token := s.Token()
-	before, err := json.Marshal(s.state.Value)
+	before, err := json.Marshal(s.runtimeState().state.Value)
 	if err != nil || !strings.Contains(string(before), private) {
 		t.Fatal("actual state prerequisite failed", profile.Code(err))
 	}
@@ -125,6 +134,7 @@ func TestActualSessionHandleDiagnosticsPreserveAuthorityAndState(t *testing.T) {
 	// use that copy to execute a VM; here it is only formatted, like a logger.
 	value := reflect.ValueOf(s).Elem().Interface()
 	containers := []any{s, value, []*Session{s}, [1]*Session{s}, map[string]*Session{"session": s}, struct{ Session *Session }{s}, []any{value}, map[string]any{"session": value}, struct{ Session any }{value}}
+	privateRecords := []any{struct{ handle any }{s}, struct{ handle any }{value}, struct{ handle Session }{*s}, struct{ handles []any }{[]any{s, value}}}
 	for _, format := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%X", "%d", "%b", "%o", "%f", "%e", "%g", "%c", "%U", "%t", "%1000000d", "%.1000000x"} {
 		t.Run(format, func(t *testing.T) {
 			values := containers
@@ -137,10 +147,18 @@ func TestActualSessionHandleDiagnosticsPreserveAuthorityAndState(t *testing.T) {
 					t.Fatal("session handle diagnostic exposed private data; raw output intentionally omitted")
 				}
 			}
+			if !strings.Contains(format, "1000000") {
+				for _, record := range privateRecords {
+					output := fmt.Sprintf(format, record)
+					if len(output) > 256 || strings.Contains(output, private) || (strings.Contains(output, fmt.Sprintf(format, token.nonce())) || strings.Contains(output, fmt.Sprintf("%v", token.nonce()))) {
+						t.Fatal("private session record exposed authoritative data; raw output intentionally omitted")
+					}
+				}
+			}
 		})
 	}
-	after, err := json.Marshal(s.state.Value)
-	if err != nil || string(before) != string(after) || token.secret != s.Token().secret {
+	after, err := json.Marshal(s.runtimeState().state.Value)
+	if err != nil || string(before) != string(after) || token != s.Token() || token.nonce() != s.Token().nonce() {
 		t.Fatal("session diagnostics changed authoritative state or execution capability")
 	}
 	invoke()

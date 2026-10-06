@@ -25,7 +25,36 @@ type State struct {
 
 // Token is an opaque execution capability bound to a single VM generation. It
 // never enters Lua, IPC payloads, checkpoints or ordinary log output.
-type Token struct{ secret [32]byte }
+type Token struct{ capability **tokenCapability }
+
+// Double indirection keeps fmt's invalid-verb fallback from dereferencing the
+// private backing object. The nonce is immutable after publication; no public
+// field or accessor exposes it, and no unsafe pointer or global registry is used.
+type tokenCapability struct{ secret [32]byte }
+
+func newExecutionToken() (Token, error) {
+	data := &tokenCapability{}
+	if _, err := rand.Read(data.secret[:]); err != nil {
+		return Token{}, err
+	}
+	return Token{capability: &data}, nil
+}
+
+func (token Token) nonce() [32]byte {
+	if token.capability == nil || *token.capability == nil {
+		return [32]byte{}
+	}
+	return (**token.capability).secret
+}
+
+func (token Token) matches(other Token) bool {
+	if token.capability == nil || other.capability == nil ||
+		*token.capability == nil || *other.capability == nil {
+		return false
+	}
+	one, two := token.nonce(), other.nonce()
+	return subtle.ConstantTimeCompare(one[:], two[:]) == 1
+}
 
 func (Token) MarshalJSON() ([]byte, error) { return nil, profile.Fail(profile.ErrValue) }
 func (Token) String() string               { return "<execution-token>" }
@@ -52,6 +81,13 @@ type Options struct {
 }
 type Session struct {
 	sessionDiagnostics
+	runtime **sessionRuntime
+}
+
+// The pointer target is itself a pointer, so even fmt's error fallback cannot
+// expand the backing runtime. Public handle copies share this immutable pointer
+// and the same lock; they never copy private state, credentials, or a mutex.
+type sessionRuntime struct {
 	mu        sync.Mutex
 	client    *ipc.Client
 	runner    string
@@ -67,8 +103,12 @@ type Session struct {
 	modules   map[string]ModuleIdentity
 }
 
+// runtimeState is private to this package. The factory sets runtime once and
+// keeps its pointee for the full handle lifetime, including VM reconstruction.
+func (s *Session) runtimeState() *sessionRuntime { return *s.runtime }
+
 // sessionDiagnostics has no runtime fields. Promoting its value method protects
-// both Session and *Session diagnostics while the VM locking stays unchanged.
+// both Session and *Session diagnostics.
 type sessionDiagnostics struct{}
 
 func (sessionDiagnostics) Format(out fmt.State, _ rune) {
@@ -79,7 +119,8 @@ func New(ctx context.Context, options Options) (*Session, error) {
 	if options.Audit == nil {
 		return nil, profile.Fail(profile.ErrConfiguration)
 	}
-	s := &Session{runner: options.Runner, audit: options.Audit}
+	data := &sessionRuntime{runner: options.Runner, audit: options.Audit}
+	s := &Session{runtime: &data}
 	reject := func(err error) (*Session, error) {
 		if auditErr := s.record("initialization-denied", err); auditErr != nil {
 			return nil, auditErr
@@ -94,15 +135,16 @@ func New(ctx context.Context, options Options) (*Session, error) {
 	if err != nil {
 		return reject(err)
 	}
-	s.config, s.entry, s.binding, s.state = config, entry, sealed.Binding, State{Version: options.State.Version, Value: sealed.State}
-	s.modules, err = hostModuleIdentities(options)
+	s.runtimeState().config, s.runtimeState().entry, s.runtimeState().binding, s.runtimeState().state = config, entry, sealed.Binding, State{Version: options.State.Version, Value: sealed.State}
+	s.runtimeState().modules, err = hostModuleIdentities(options)
 	if err != nil {
 		return reject(err)
 	}
-	if _, err := rand.Read(s.token.secret[:]); err != nil {
+	s.runtimeState().token, err = newExecutionToken()
+	if err != nil {
 		return reject(err)
 	}
-	s.client, err = s.start(ctx, sealed.State, checkpoint.Value{Kind: "nil"})
+	s.runtimeState().client, err = s.start(ctx, sealed.State, checkpoint.Value{Kind: "nil"})
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +152,7 @@ func New(ctx context.Context, options Options) (*Session, error) {
 }
 
 func (s *Session) start(ctx context.Context, state, saved checkpoint.Value) (*ipc.Client, error) {
-	c, err := ipc.Start(ctx, s.runner, s.config)
+	c, err := ipc.Start(ctx, s.runtimeState().runner, s.runtimeState().config)
 	if err != nil {
 		if auditErr := s.record("runner-start", err); auditErr != nil {
 			return nil, auditErr
@@ -118,10 +160,10 @@ func (s *Session) start(ctx context.Context, state, saved checkpoint.Value) (*ip
 		return nil, err
 	}
 	if _, err = c.Call(ctx, ipc.Request{Operation: "state", State: &state, Saved: &saved}); err == nil {
-		if s.config.Host != nil {
+		if s.runtimeState().config.Host != nil {
 			_, err = c.Call(ctx, ipc.Request{Operation: "host-load"})
 		} else {
-			_, err = c.Call(ctx, ipc.Request{Operation: "execute", Source: s.entry})
+			_, err = c.Call(ctx, ipc.Request{Operation: "execute", Source: s.runtimeState().entry})
 		}
 	}
 	if auditErr := s.record("runner-start", err); auditErr != nil {
@@ -134,66 +176,70 @@ func (s *Session) start(ctx context.Context, state, saved checkpoint.Value) (*ip
 	return c, nil
 }
 func (s *Session) record(kind string, err error) error {
-	s.sequence++
-	return s.audit(profile.Audit{Level: "AUDIT-0", Sequence: s.sequence, Kind: kind, Outcome: profile.Code(err)})
+	s.runtimeState().sequence++
+	return s.runtimeState().audit(profile.Audit{Level: "AUDIT-0", Sequence: s.runtimeState().sequence, Kind: kind, Outcome: profile.Code(err)})
 }
-func (s *Session) Token() Token { s.mu.Lock(); defer s.mu.Unlock(); return s.token }
+func (s *Session) Token() Token {
+	s.runtimeState().mu.Lock()
+	defer s.runtimeState().mu.Unlock()
+	return s.runtimeState().token
+}
 func (s *Session) PID() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.client == nil {
+	s.runtimeState().mu.Lock()
+	defer s.runtimeState().mu.Unlock()
+	if s.runtimeState().client == nil {
 		return 0
 	}
-	return s.client.PID()
+	return s.runtimeState().client.PID()
 }
 func (s *Session) check(token Token) error {
-	if s.destroyed {
+	if s.runtimeState().destroyed {
 		return profile.Fail(profile.ErrDestroyed)
 	}
-	if subtle.ConstantTimeCompare(token.secret[:], s.token.secret[:]) != 1 {
+	if !token.matches(s.runtimeState().token) {
 		return profile.Fail(profile.ErrCapability)
 	}
-	if s.poisoned {
+	if s.runtimeState().poisoned {
 		return profile.Fail(profile.ErrPoisoned)
 	}
 	return nil
 }
 func (s *Session) Execute(ctx context.Context, token Token, source []byte) (profile.Result, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.runtimeState().mu.Lock()
+	defer s.runtimeState().mu.Unlock()
 	return s.execute(ctx, token, source)
 }
 func (s *Session) execute(ctx context.Context, token Token, source []byte) (profile.Result, error) {
 	if err := s.check(token); err != nil {
 		if auditErr := s.record("execution-denied", err); auditErr != nil {
-			s.poisoned = true
-			s.client.Kill()
+			s.runtimeState().poisoned = true
+			s.runtimeState().client.Kill()
 			return profile.Result{}, auditErr
 		}
 		return profile.Result{}, err
 	}
 	var response ipc.Response
 	err := profile.ValidateSource(source)
-	if s.config.Host != nil {
+	if s.runtimeState().config.Host != nil {
 		err = profile.Fail(profile.ErrCapability)
 	}
 	if err == nil {
-		response, err = s.client.Call(ctx, ipc.Request{Operation: "execute", Source: append([]byte(nil), source...)})
+		response, err = s.runtimeState().client.Call(ctx, ipc.Request{Operation: "execute", Source: append([]byte(nil), source...)})
 	}
 	if err != nil {
-		s.poisoned = true
+		s.runtimeState().poisoned = true
 	}
 	if auditErr := s.record("execution", err); auditErr != nil {
 		err = auditErr
-		s.poisoned = true
-		s.client.Kill()
+		s.runtimeState().poisoned = true
+		s.runtimeState().client.Kill()
 	}
 	return response.Result, err
 }
 
 func (s *Session) Capture(ctx context.Context, token Token, source []byte) (checkpoint.Checkpoint, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.runtimeState().mu.Lock()
+	defer s.runtimeState().mu.Unlock()
 	return s.capture(ctx, token, source)
 }
 func (s *Session) capture(ctx context.Context, token Token, source []byte) (checkpoint.Checkpoint, error) {
@@ -202,22 +248,22 @@ func (s *Session) capture(ctx context.Context, token Token, source []byte) (chec
 		return checkpoint.Checkpoint{}, err
 	}
 	if len(result.Values) != 1 {
-		s.poisoned = true
+		s.runtimeState().poisoned = true
 		err = profile.Fail(profile.ErrValue)
 		if auditErr := s.record("checkpoint", err); auditErr != nil {
-			s.client.Kill()
+			s.runtimeState().client.Kill()
 			err = auditErr
 		}
 		return checkpoint.Checkpoint{}, err
 	}
-	c, err := checkpoint.Seal(s.binding, result.Values[0])
+	c, err := checkpoint.Seal(s.runtimeState().binding, result.Values[0])
 	if err != nil {
-		s.poisoned = true
+		s.runtimeState().poisoned = true
 	}
 	if auditErr := s.record("checkpoint", err); auditErr != nil {
 		err = auditErr
-		s.poisoned = true
-		s.client.Kill()
+		s.runtimeState().poisoned = true
+		s.runtimeState().client.Kill()
 	}
 	return c, err
 }
@@ -225,9 +271,9 @@ func (s *Session) capture(ctx context.Context, token Token, source []byte) (chec
 // Reconstruct receives authoritative state, never a serialized VM. A supplied
 // checkpoint must match the exact new state version and original package graph.
 func (s *Session) Reconstruct(ctx context.Context, state State, saved *checkpoint.Checkpoint) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.destroyed {
+	s.runtimeState().mu.Lock()
+	defer s.runtimeState().mu.Unlock()
+	if s.runtimeState().destroyed {
 		return profile.Fail(profile.ErrDestroyed)
 	}
 	return s.reconstruct(ctx, state, saved)
@@ -235,15 +281,15 @@ func (s *Session) Reconstruct(ctx context.Context, state State, saved *checkpoin
 func (s *Session) reconstruct(ctx context.Context, state State, saved *checkpoint.Checkpoint) (resultErr error) {
 	defer func() {
 		if err := s.record("reconstruction", resultErr); err != nil {
-			s.poisoned = true
-			s.client.Kill()
+			s.runtimeState().poisoned = true
+			s.runtimeState().client.Kill()
 			resultErr = err
 		}
 	}()
-	if state.Version < s.state.Version {
+	if state.Version < s.runtimeState().state.Version {
 		return checkpoint.ErrRejected
 	}
-	b := s.binding
+	b := s.runtimeState().binding
 	b.StateVersion = state.Version
 	authoritative, err := checkpoint.Seal(b, state.Value)
 	if err != nil {
@@ -261,44 +307,44 @@ func (s *Session) reconstruct(ctx context.Context, state State, saved *checkpoin
 		}
 		value = c.State
 	}
-	var token Token
-	if _, err := rand.Read(token.secret[:]); err != nil {
+	token, err := newExecutionToken()
+	if err != nil {
 		return err
 	}
 	replacement, err := s.start(ctx, authoritative.State, value)
 	if err != nil {
 		return err
 	}
-	s.client.Kill()
-	s.client = replacement
-	s.binding = authoritative.Binding
-	s.state = State{Version: state.Version, Value: authoritative.State}
-	s.token = token
-	s.poisoned = false
+	s.runtimeState().client.Kill()
+	s.runtimeState().client = replacement
+	s.runtimeState().binding = authoritative.Binding
+	s.runtimeState().state = State{Version: state.Version, Value: authoritative.State}
+	s.runtimeState().token = token
+	s.runtimeState().poisoned = false
 	return nil
 }
 
 // RebuildForMemoryPressure first obtains a current checkpoint. A failed capture
 // cannot replace the running VM or turn stale cache data into authoritative facts.
 func (s *Session) RebuildForMemoryPressure(ctx context.Context, token Token, source []byte) (checkpoint.Checkpoint, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.runtimeState().mu.Lock()
+	defer s.runtimeState().mu.Unlock()
 	saved, err := s.capture(ctx, token, source)
 	if err != nil {
 		return saved, err
 	}
-	return saved, s.reconstruct(ctx, s.state, &saved)
+	return saved, s.reconstruct(ctx, s.runtimeState().state, &saved)
 }
 func (s *Session) Destroy() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.destroyed {
+	s.runtimeState().mu.Lock()
+	defer s.runtimeState().mu.Unlock()
+	if s.runtimeState().destroyed {
 		return nil
 	}
-	s.destroyed = true
-	s.token = Token{}
-	if s.client != nil {
-		s.client.Kill()
+	s.runtimeState().destroyed = true
+	s.runtimeState().token = Token{}
+	if s.runtimeState().client != nil {
+		s.runtimeState().client.Kill()
 	}
 	return s.record("destroy", nil)
 }

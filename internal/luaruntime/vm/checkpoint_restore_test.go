@@ -49,7 +49,7 @@ func readRestoreValue(t *testing.T, s *Session, want checkpoint.Value) {
 	if nextErr != nil || len(next.Values) != 1 || next.Values[0].Kind != "integer" || next.Values[0].Number != "42" {
 		t.Errorf("post-restore independent operation: code=%s values=%+v", profile.Code(nextErr), next.Values)
 	}
-	t.Logf("READ=%s FOLLOWUP=%s VM_POISONED=%v", profile.Code(err), profile.Code(nextErr), s.poisoned)
+	t.Logf("READ=%s FOLLOWUP=%s VM_POISONED=%v", profile.Code(err), profile.Code(nextErr), s.runtimeState().poisoned)
 }
 
 // ACC-M1-B002-010: retain all three independent acceptance inputs. The first
@@ -79,7 +79,7 @@ func TestACC010OriginalReconstructionExamples(t *testing.T) {
 			if err != nil {
 				t.Fatal("original accepted input rejected", err)
 			}
-			old, token := s.client, s.Token()
+			old, token := s.runtimeState().client, s.Token()
 			if err := s.Reconstruct(context.Background(), opts.State, &saved); err != nil {
 				t.Fatal("compatible reconstruction rejected", err)
 			}
@@ -138,9 +138,9 @@ func TestACC010AcceptedValuesSurviveWorkerLoss(t *testing.T) {
 				t.Fatal(err)
 			}
 			execute(t, s, `unpersisted=99`)
-			old := s.client
+			old := s.runtimeState().client
 			old.Kill() // Destroy and reap the original process before replacement.
-			if _, err := s.Execute(context.Background(), s.Token(), []byte(`return 7`)); !IsBoundaryFailure(err) || !s.poisoned {
+			if _, err := s.Execute(context.Background(), s.Token(), []byte(`return 7`)); !IsBoundaryFailure(err) || !s.runtimeState().poisoned {
 				t.Fatal("worker loss was not isolated", err)
 			}
 			if err := s.Reconstruct(context.Background(), opts.State, &saved); err != nil {
@@ -195,11 +195,11 @@ func TestACC010InvalidCheckpointPreservesLifecycle(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				old, token, state := s.client, s.Token(), s.state
+				old, token, state := s.runtimeState().client, s.Token(), s.runtimeState().state
 				if err := s.Reconstruct(context.Background(), state, &bad); !errors.Is(err, checkpoint.ErrRejected) {
 					t.Fatal("invalid checkpoint not explicitly rejected", err)
 				}
-				if s.client != old || token != s.Token() || s.poisoned != poisoned || s.state.Version != state.Version {
+				if s.runtimeState().client != old || token != s.Token() || s.runtimeState().poisoned != poisoned || s.runtimeState().state.Version != state.Version {
 					t.Fatal("rejected restore published or changed lifecycle")
 				}
 				if poisoned {
@@ -264,12 +264,12 @@ func TestACC010FailedReplacementIsReaped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old, token := s.client, s.Token()
+	old, token := s.runtimeState().client, s.Token()
 	before = restoreChildPIDs(t)
 	if err := s.Reconstruct(context.Background(), opts.State, &c); profile.Code(err) != profile.ErrScript {
 		t.Fatal("replacement entrypoint failure not returned", err)
 	}
-	if s.client != old || token != s.Token() || s.poisoned {
+	if s.runtimeState().client != old || token != s.Token() || s.runtimeState().poisoned {
 		t.Fatal("partially initialized replacement was published")
 	}
 	if len(failedPIDs) != 1 {
@@ -307,8 +307,8 @@ func TestACC010RestoreIsolationAndMutation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer b.Destroy()
-		old, token := b.client, b.Token()
-		if err := b.Reconstruct(context.Background(), other.State, &saved); !errors.Is(err, checkpoint.ErrRejected) || b.client != old || token != b.Token() {
+		old, token := b.runtimeState().client, b.Token()
+		if err := b.Reconstruct(context.Background(), other.State, &saved); !errors.Is(err, checkpoint.ErrRejected) || b.runtimeState().client != old || token != b.Token() {
 			t.Fatal("cross-session/package checkpoint was published", err)
 		}
 		readRestoreValue(t, b, other.State.Value)
