@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "cb393aaaf051fe6b720f3e2761145888b9fc0905"
+source_commit: "9ec4603d0e226f17668aed5534355a4c92f34742"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：B005 完成登记，等待最终状态验收及接收
+
+正常 PLAN v53→v54，仅 B005 VERIFYING→COMPLETED；冻结14字段摘要 `df022fd1324b5e9cb052cac3017cf0ac0b698c90040116aac31628d754aa1c47`、其他批次、依赖和next14保持。独立精确业务 `cb393aaaf051fe6b720f3e2761145888b9fc0905` / tree `887519c72f295f4412c1223efceb42ae4b2e1e11` PASS，回执 `/tmp/trpg-m1-b005-linux-20261006/independent-business-cb393aa/ACCEPTANCE_RECEIPT.json` SHA256 `3d10eee5beb697eb4913f260785df9295320f13eb54763aa2f763d587bf01b94`；共享73成员清单 `4d08a1daa26ddc4b8273cf4b630ed8a997f04c6728f6749e443d67bf85d691df`逐size/hash核验，无未解决必修项。独立 actual299 related、79 race、24真实PG run/pass，0fail/skip，追加8个真实journal边界均PASS；范围/截断、非法游标/limit、图和租户替换、genesis不变及checkpoint不改权威已独立验证。单写者/背压/故障隔离、完整Envelope/幂等、九SQL真实回滚/无广播、只读效果拒绝、两Seat过滤、实际platformd WebSocket/重启/SIGTERM及worker回收通过。纯Go双替身、official-trust named guard保持unit资格，不冒充服务或安装签名证明。父dirty e1全部失败/预提交记录留存，不重标cb。
+
+独立9ec VERIFYING仅state-only PASS，回执 `/tmp/trpg-m1-b005-linux-20261006/independent-business-cb393aa/STATE_PROJECTION_9EC4603.json` SHA256 `394a9a654e5d273b5914dbfc741971bdd9c37a76e080312f7c59122a7ac7cfb9`，0状态问题；329非state blob/mode、冻结/其他批次/next14与旧摘要正文保留。三计划投影48成员证据保持。此完成候选尚待最终state-only验收；本机main仍cf559ed，B005接收PENDING。独立验收者已释放自有PG32773，release SHA256 `83c74bf6ad471b8147726884b72f7afcaf89fe21a9d6829770841418d53451d5`，实际其他连接0；实际接收后才按精确ID/标签/镜像清理并归档。
+
+M1 ACTIVE，有效完成8/12（66.7%，按批次数量）；B006–B009与整体Linux出口尚待。仅Linux，Windows/macOS NOT_RUN。B013已实际main接收与归档、B004原始FAIL/修复以及B013无效补充harness均保留。无新Owner决策、公共格式、依赖或许可变更。重放/迁移认证留B006/B007，不作为B005完成内容。
+
+## 历史 B005 VERIFYING 及此前状态（保留）
 
 ## 当前 Linux M1：B005 精确业务检查通过，等待独立 ACCEPT
 
