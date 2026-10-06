@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "2ded7f258cebec73b70e09c2c76b2c459b2b0a54"
+source_commit: "45acd0daf26001527facd095abda104b9cd14b45"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：M1-B008 独立验收通过
+
+正常 PLAN v74→v75 仅将 M1-B008 VERIFYING→COMPLETED；冻结合同 de3b3774294e2f056c04362e996ef40b4c39251c6a63a996fa2cdc2b774c63c6、全部14字段、其余批次和next15保持。M1保持ACTIVE。
+
+精确干净签名业务候选 45acd0daf26001527facd095abda104b9cd14b45/tree4dc2e57a699e4e9833ae93d2fd334b25a49c2922 已取得独立只读ACCEPT PASS，无未解决必需发现。父实际用例：original-and-tracked-diagnostic-probes=52 PASS; related-unit-json=1459 PASS; related-race-json=1408 PASS; hostapi-postgres-regression=48 PASS; session-postgres-regression=24 PASS; replay-postgres-regression=34 PASS; migration-postgres-regression=45 PASS; security-matrix-json=21 PASS；所有named fail/skip0，canonical门禁全部exit0。独立回执SHA256 b819db2e74692398c928ab68f6808a83531a70e52aec0d6da6e42f7f11ad8076 与证据清单SHA256 bf3d15ca2417f28da9cb2cf3872b89d2b6a55291a77916bee5afec2368e49986（124成员）已由父逐个核对尺寸与hash。原始独立结果及补充测试细节以封存回执为准。
+
+所有历史失败、环境限制、草稿与证据助手错误保持原文及原日志，资格不变；状态投影只记录已有业务PASS，不冒充业务复测。本COMPLETED状态还须独立state-only验收、本地主分支接收、仅本任务临时服务清理和最终归档；以上未实际完成前不提前声称。Windows/macOS NOT_RUN，全V1未完成。
+
+原生完成批次 13/14≈92.86%；继续既定剩余Linux M1批次。无Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：安全补修进入独立验收
 
