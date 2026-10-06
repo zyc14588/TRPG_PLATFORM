@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 35
+plan_version: 36
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -1006,7 +1006,7 @@ batches:
 
 - batch_id: M1-B012
   sequence: 12
-  state: PLANNED
+  state: FROZEN
   objective: Implement the Owner-approved additive Host capability declaration registry and matching Manifest Schema constraints for the seven
     existing normative categories, without granting or executing new operations.
   non_goals:
@@ -1088,6 +1088,6 @@ batches:
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
-  frozen_contract_sha256: ''
+  frozen_contract_sha256: 2540a4cac12d95789e3650d41567fc0704d0c8641ac91920c34d80df1697fdcd
 
 tombstones: []
