@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "bce7d4052cb0d8530a851061685bd2692d9c1a83"
+source_commit: "ff66a2dbab01d154920573372f78bf0e34f9c9f6"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：安装图与 Host 组合 B013 PLANNED
+
+正常 PLAN allocate v44→v45；B013 序号13，依赖已完成 B003/B004/B012，沿用既有规范补齐内部组合，不增加公共 Manifest/extension 语义、隐式授权、依赖或许可。本批14字段冻结摘要 `未冻结草案`。只在初始分配时给未开始的 B005 草案补 M1-B013 依赖；所有已冻结批次/已完成合同保持不变。业务尚 NOT_RUN；接下来按有效 IMPLEMENT 路由完成精确安装图 ACL/对象验证、显式三层授权、隔离固定回调认证与同安装 workspace 锁的 Session/data_targets 原子登记。
+
+B004 修复业务51ce9de独立PASS及原d348 FAIL lineage保留；最终ff66a2d独立状态通过并已实际本机 main 接收，回执 `/tmp/trpg-m1-b004-linux-20261006/main-reception-ff66a2d/RECEPTION_RECEIPT.json` SHA256 `b8ab7950586e906ce03c76c81af44104f161b0304f8b5a3270adf54fe5168265`。B004 原输出预算问题仅对51关闭，状态门禁不重标业务来源。M1 ACTIVE，有效已完成6/12（50.0%，按批次数量；分母增加来自内部组合批次，非业务退步）；B013、B005–B009及整体Linux出口仍待。Windows/macOS NOT_RUN；无新的Owner决策等待。
+
+## 历史 B004 完成登记及此前状态（保留）
 
 ## 当前 Linux M1：B004 独立复验通过，完成登记候选
 

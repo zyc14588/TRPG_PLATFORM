@@ -1,10 +1,10 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 44
+plan_version: 45
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
-next_batch_sequence: 13
+next_batch_sequence: 14
 batches:
 - batch_id: M1-B001
   sequence: 1
@@ -339,7 +339,8 @@ batches:
 - batch_id: M1-B005
   sequence: 5
   state: PLANNED
-  objective: Implement the minimal authoritative Session command pipeline with one bounded single-writer actor and commit-before-broadcast idempotent delivery.
+  objective: Implement the minimal authoritative Session command pipeline with one bounded single-writer actor and commit-before-broadcast idempotent
+    delivery.
   non_goals:
   - Building Room/Lobby/invitation, account, Campaign, or polished player experience.
   - Implementing AI seat takeover, official games, or generalized workflow actors.
@@ -397,16 +398,24 @@ batches:
   - SPEC-SECURITY-001
   - SPEC-QUALITY-001
   acceptance:
-  - Each active Session has exactly one logical SessionActor and bounded Mailbox; concurrent commands are serialized, saturation returns a stable backpressure error, and panic or failure is isolated from other Sessions.
-  - Every command envelope enforces command_id, session_id, expected_state_version, authenticated fixture identity, seat_id, typed payload, and correlation_id before entering the MutationWorkspace.
-  - Repeating a command_id returns its original committed result without rerunning Lua or duplicating events, database changes, tasks, Continuations, Outbox records, or broadcasts.
-  - Event, state, package-data, idempotency, and Outbox changes commit atomically before Actor memory advances and before a seat-filtered ConnectionHub broadcast; rollback produces no broadcast.
-  - Minimal reconnect uses an event cursor, revalidates the fixture seat, and returns only permitted events or projection; disconnect never silently transfers control.
+  - Each active Session has exactly one logical SessionActor and bounded Mailbox; concurrent commands are serialized, saturation returns a stable
+    backpressure error, and panic or failure is isolated from other Sessions.
+  - Every command envelope enforces command_id, session_id, expected_state_version, authenticated fixture identity, seat_id, typed payload, and
+    correlation_id before entering the MutationWorkspace.
+  - Repeating a command_id returns its original committed result without rerunning Lua or duplicating events, database changes, tasks, Continuations,
+    Outbox records, or broadcasts.
+  - Event, state, package-data, idempotency, and Outbox changes commit atomically before Actor memory advances and before a seat-filtered ConnectionHub
+    broadcast; rollback produces no broadcast.
+  - Minimal reconnect uses an event cursor, revalidates the fixture seat, and returns only permitted events or projection; disconnect never silently
+    transfers control.
   - TEST-SESSION-002 and TEST-SESSION-003 each produce a repeatable command, exit code, machine-readable result, and exact candidate SHA.
   tests:
-  - "TEST-SESSION-002: go test -race ./internal/session/actor/... exercises single-writer ordering, bounded-mailbox backpressure, panic isolation, activation, sleep, and cleanup across concurrent Sessions."
-  - "TEST-SESSION-003: go test ./internal/session/... ./internal/outbox/... exercises envelope validation, optimistic versioning, duplicate-command results, atomic failure injection, and the no-broadcast-before-commit invariant."
-  - go test -tags=integration ./tests/integration/session/... uses PostgreSQL and a real lua-runner process for commit, rollback, reconnect, and seat-filtered projection scenarios.
+  - 'TEST-SESSION-002: go test -race ./internal/session/actor/... exercises single-writer ordering, bounded-mailbox backpressure, panic isolation,
+    activation, sleep, and cleanup across concurrent Sessions.'
+  - 'TEST-SESSION-003: go test ./internal/session/... ./internal/outbox/... exercises envelope validation, optimistic versioning, duplicate-command
+    results, atomic failure injection, and the no-broadcast-before-commit invariant.'
+  - go test -tags=integration ./tests/integration/session/... uses PostgreSQL and a real lua-runner process for commit, rollback, reconnect, and
+    seat-filtered projection scenarios.
   - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
   stop_conditions:
   - Stop if more than one writer can mutate a Session or if Mailbox, retry, or management-command queues can grow without a hard bound.
@@ -416,6 +425,7 @@ batches:
   depends_on:
   - M1-B003
   - M1-B004
+  - M1-B013
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
@@ -1089,5 +1099,127 @@ batches:
   dependency_independent: false
   parallel_scope_keys: []
   frozen_contract_sha256: 2540a4cac12d95789e3650d41567fc0704d0c8641ac91920c34d80df1697fdcd
+
+- batch_id: M1-B013
+  sequence: 13
+  state: PLANNED
+  objective: Compose verified installed exact package graphs with explicitly authorized Host certification and Session provisioning while retaining
+    the existing public package and Host contracts.
+  non_goals:
+  - Adding public Manifest or extension semantics, implicit grants, arbitrary Host-enabled source evaluation, or operator trust-key services.
+  - Implementing SessionActor, accounts, Rooms, realtime, replay, migration algorithms, official games, or cross-platform acceptance.
+  requirements:
+  - REQ-PACKAGE-003
+  - REQ-PACKAGE-004
+  - REQ-PACKAGE-005
+  - REQ-LUA-003
+  - REQ-LUA-006
+  allowed_scope:
+  - internal/package/install/**
+  - internal/package/store/**
+  - internal/hostapi/**
+  - internal/luaruntime/vm/**
+  - internal/storage/postgres/**
+  - cmd/platformd/**
+  - tests/integration/package_host/**
+  forbidden_scope:
+  - internal/package/manifest/**
+  - internal/package/capability/**
+  - schemas/**
+  - internal/session/actor/**
+  - internal/session/realtime/**
+  - internal/eventstore/**
+  - internal/package/migration/**
+  - internal/account/**
+  - internal/room/**
+  - internal/lobby/**
+  - internal/ai/**
+  - cmd/workerd/**
+  - apps/**
+  - games/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - go.mod
+  - go.sum
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  machine_contracts:
+  - REQ-PACKAGE-003
+  - REQ-PACKAGE-004
+  - REQ-PACKAGE-005
+  - REQ-LUA-003
+  - REQ-LUA-006
+  - TEST-PACKAGE-003
+  - TEST-PACKAGE-004
+  - TEST-PACKAGE-005
+  - TEST-LUA-003
+  - TEST-LUA-006
+  - R14-A19
+  - R15-A01
+  - R15-A02
+  - R15-A04
+  - R15-A05
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-M1-LINUX-ACCEPTANCE-SCOPE
+  - SPEC-PACKAGE-001
+  - SPEC-HOST-CALLBACK-001
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-DATA-001
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - Nil operator Host configuration remains zero-grant and preserves every existing NoHost and strict v1/v2 Manifest/extension fixture. No package
+    identity, publisher, official status, extension payload, or fixture name implicitly enables a capability or selects a privileged runtime path.
+  - Operator-owned policy explicitly resolves each package declaration intersected with authenticated trust and execution context at installation
+    and startup. Required denials and tested optional fallbacks fail closed, and all typed Host test inputs, exact artifact/schema references
+    and context participate in stable certification, policy and validation evidence.
+  - Host certification executes fixed standard callbacks from the verified graph with the actual pinned production runner and a bounded isolated
+    quarantine workspace, validates immutable schemas and callback results, and always joins/reaps workers. Raw trusted source tests retain NoHost
+    execution; quarantine validation never publishes a Session, event, task or Outbox to a runtime database.
+  - Authorized graph load reads every selected installed artifact through actual workspace ACL and immutable object/index verification, then enforces
+    the full exact dependency lock. Missing, extra, substituted, wrong-version/content/features or unauthorized graph nodes reject before startup;
+    an archive.FromFiles shortcut cannot substitute for the installed integration proof.
+  - Explicit Session creation configures and validates the real Host VM and schema-bound service before one database transaction provisions the
+    Session and every graph package data reference under the same workspace serialization lock as installation. Any failure leaves no partial
+    Session or registration, and concurrent fresh installation cannot race affected Session data.
+  - A real Linux PostgreSQL plus real lua-runner integration installs a policy-approved Host graph, reloads exact persisted artifact identities
+    and successfully commits a lifecycle and command through the seven-effect Host workspace. Wrong credentials, workspace, graph, grants, schema
+    or callbacks reject; initial-install migration preflight rejects after affected Session registration without changing committed data.
+  - Actual command exits, named test inventory, runner/profile identity, database ownership/readback, exact clean candidate SHA and immutable
+    original FAIL/repaired PASS lineage accompany acceptance. Existing default grants, frozen B003/B004 contracts, dependencies, license and public
+    formats are unchanged.
+  tests:
+  - 'TEST-PACKAGE-003/TEST-LUA-006: go test -count=1 -json ./internal/package/install/... ./internal/hostapi/... verifies explicit capability
+    intersections, zero defaults, typed Host certification, retained NoHost tests, schema and fixed callback failures, bounded quarantine and
+    worker reaping.'
+  - 'TEST-PACKAGE-004/TEST-PACKAGE-005: go test -count=1 -json ./internal/package/store/... ./cmd/platformd/... verifies authorized exact installed
+    graph composition and explicit creation failure boundaries.'
+  - 'TEST-PACKAGE-005/TEST-LUA-003: go test -count=1 -tags=integration -json ./tests/integration/package_host/... uses actual isolated PostgreSQL
+    and a real runner for install/reload/Host commits, provisioning rollback and affected-state installation race rejection.'
+  - go test -race -count=1 -json ./internal/package/install/... ./internal/package/store/... ./internal/hostapi/... verifies immutable operator
+    policy, graph loading and quarantine isolation.
+  - just check, just test, just ci, go vet ./..., and just license-check pass from a clean tracked tree on Linux.
+  stop_conditions:
+  - Stop for a concrete Owner CHANGE if composition requires new public Manifest/extension fields, undocumented Host operations, implicit grants,
+    dependencies/license changes or a top-level architecture choice.
+  - Stop if Host validation can execute arbitrary source with grants, mutate a runtime service, leak credentials or tokens, or bypass actual required/conditional
+    callback and schema checks.
+  - Stop if graph startup skips installed workspace/object integrity checks or if Session creation and affected-data registrations can partially
+    commit or race installer publication.
+  - Stop if a frozen B003/B004 field or completed evidence needs modification; preserve it and use the current distinct batch or its own registered
+    repair issue.
+  depends_on:
+  - M1-B003
+  - M1-B004
+  - M1-B012
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
 
 tombstones: []
