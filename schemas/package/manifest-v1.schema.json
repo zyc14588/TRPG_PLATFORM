@@ -57,7 +57,7 @@
       ]
     },
     "capabilityName": {
-      "enum": ["host.event", "host.log", "host.state"]
+      "enum": ["host.ai", "host.content", "host.db", "host.event", "host.log", "host.random", "host.rules", "host.state", "host.task", "host.time"]
     },
     "capabilities": {
       "type": "object",
@@ -162,6 +162,335 @@
                   "type": "object",
                   "required": ["name"],
                   "properties": { "name": { "const": "host.state" } }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "optional": {
+              "contains": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "const": "host.ai"
+                  }
+                }
+              },
+              "minContains": 0,
+              "maxContains": 1
+            }
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "required",
+              "optional"
+            ],
+            "properties": {
+              "required": {
+                "contains": {
+                  "const": "host.ai"
+                }
+              },
+              "optional": {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "host.ai"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "optional": {
+              "contains": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "const": "host.content"
+                  }
+                }
+              },
+              "minContains": 0,
+              "maxContains": 1
+            }
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "required",
+              "optional"
+            ],
+            "properties": {
+              "required": {
+                "contains": {
+                  "const": "host.content"
+                }
+              },
+              "optional": {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "host.content"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "optional": {
+              "contains": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "const": "host.db"
+                  }
+                }
+              },
+              "minContains": 0,
+              "maxContains": 1
+            }
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "required",
+              "optional"
+            ],
+            "properties": {
+              "required": {
+                "contains": {
+                  "const": "host.db"
+                }
+              },
+              "optional": {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "host.db"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "optional": {
+              "contains": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "const": "host.random"
+                  }
+                }
+              },
+              "minContains": 0,
+              "maxContains": 1
+            }
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "required",
+              "optional"
+            ],
+            "properties": {
+              "required": {
+                "contains": {
+                  "const": "host.random"
+                }
+              },
+              "optional": {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "host.random"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "optional": {
+              "contains": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "const": "host.rules"
+                  }
+                }
+              },
+              "minContains": 0,
+              "maxContains": 1
+            }
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "required",
+              "optional"
+            ],
+            "properties": {
+              "required": {
+                "contains": {
+                  "const": "host.rules"
+                }
+              },
+              "optional": {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "host.rules"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "optional": {
+              "contains": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "const": "host.task"
+                  }
+                }
+              },
+              "minContains": 0,
+              "maxContains": 1
+            }
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "required",
+              "optional"
+            ],
+            "properties": {
+              "required": {
+                "contains": {
+                  "const": "host.task"
+                }
+              },
+              "optional": {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "host.task"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "optional": {
+              "contains": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "const": "host.time"
+                  }
+                }
+              },
+              "minContains": 0,
+              "maxContains": 1
+            }
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "required",
+              "optional"
+            ],
+            "properties": {
+              "required": {
+                "contains": {
+                  "const": "host.time"
+                }
+              },
+              "optional": {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "host.time"
+                    }
+                  }
                 }
               }
             }
