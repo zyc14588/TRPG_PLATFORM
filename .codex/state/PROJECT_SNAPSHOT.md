@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "cf364dcec1d2b61afa12b4a2c79e58e8a338936d"
+source_commit: "fbe55322fe1d7a063e2f56b0379f39f61d268e09"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：B003 验收通过，B004 因公共能力登记门禁阻塞
+
+正常 PLAN v33→v34 仅将 B004 IMPLEMENTING→BLOCKED，WIP=0；全部冻结字段、合同摘要、其他 batches、墓碑和下一序号 12 不变。B004 只进行了只读准备，业务 NOT_RUN。发现 `internal/package/capability/capability.go` 的闭合 v1 登记只接受 state/event/log，并要求新增名字显式变更合同；现有 Host API 规范另列 random/time/content/db/task/ai/rules，B004 的冻结 DB/task 原子验收需要该上游登记，而 B004 scope 不含 capability/Schema 路径。
+
+CHANGE-M1-HOST-CAPABILITY-REGISTRY 已提出，Owner 决定在本状态候选写入时 PENDING。固定提案 `/home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/m1-host-capability-decision/CHANGE-M1-HOST-CAPABILITY-REGISTRY.md` SHA256 `5d486dd0e47d2d0deebcde066f45816a2197f2ec084598729c86a9bafa35a5e7`，发现基准 `fbe55322fe1d7a063e2f56b0379f39f61d268e09` / tree `5344c73bb3a2e40700f2e577f7b1e327d105a5cc`。推荐批准后正常 PLAN 分配下一真实小批次补齐规范已有七项登记及 Schema/授权一致性，独立验收和接收后再解除 B004 阻塞。未分配 B012，未修改登记、Schema、B001 已完成合同或 B004 冻结依赖，未降低门禁/默认权限；未获决定不施工。来源为自主规划公共合同门禁及 CHANGE_CONTROL 停止协议。
+
+B003 业务独立 Linux PASS 仍绑定 `cf364dcec1d2b61afa12b4a2c79e58e8a338936d` / tree `bcf7957356588fcf325c6252e627fb7469e99c63`，回执 SHA256 `1386f3f2c2d50003c6f75f1450a43ffe612113a752f5077caee6624ba666be18`；732/37 实际 run/pass、0 fail/skip，原 FAIL 与跨平台 NOT_RUN 均保留，不重标业务测试来源。完成/激活状态 `fbe55322fe1d7a063e2f56b0379f39f61d268e09` 的独立状态投影 PASS 回执 `/tmp/trpg-m1-b004-linux-20261006/independent-activation-fbe5532/ACCEPTANCE_RECEIPT.json` SHA256 `e220f1ec4b2d702838c8046eb30179711edbba0cf214b48f0901011bcc5da7ea`，28 文件原哈希已核对；该 PASS 不授予公共合同变更或 B004 施工许可。
+
+B003 自建 PostgreSQL 服务已按原容器 ID/标签/镜像核验、停止、删除并回读不存在；清理回执 SHA256 `3cf769c92d9bd41de69b71eaf4ff230f6c28e9e994520ebb3f133641d7d2d66a`。本 v34 状态候选仍待独立状态复核和本机 main 接收，业务及依赖字节不变。本次仅 Linux，M1 ACTIVE、有效产品批次 4/10（40%）按数量计，M1 总出口未满足；Windows/macOS 延期 NOT_RUN，V1 后续责任保留。
+
+## 历史 B003 完成及 B004 激活状态（原文保留）
 
 ## 当前 Linux M1：B003 完成登记，B004 激活候选
 

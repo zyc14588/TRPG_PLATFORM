@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "cf364dcec1d2b61afa12b4a2c79e58e8a338936d"
+source_commit: "fbe55322fe1d7a063e2f56b0379f39f61d268e09"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B003 验收通过，B004 公共能力登记阻塞
+
+- M1 ACTIVE v34；正常 PLAN 仅 B004 IMPLEMENTING→BLOCKED，WIP=0，冻结字段/摘要及所有其他批次/序号保留。有效产品批次 4/10（40%），M1 出口未满足。
+- B003 独立 Linux 业务 PASS 精确来源 cf364dc；fbe5532 完成状态独立 PASS_FOR_STATE_PROJECTION_ONLY，回执 SHA256 `e220f1ec4b2d702838c8046eb30179711edbba0cf214b48f0901011bcc5da7ea`。业务/依赖字节不变，旧 FAIL 与跨平台 NOT_RUN 保留；自建服务已清理。
+- B004 业务 NOT_RUN；CHANGE-M1-HOST-CAPABILITY-REGISTRY 等待 Owner 决定，未分配新批次、未修改公共登记/Schema/冻结合同。提案与停止原因见 PROJECT_SNAPSHOT 本节。本状态候选待独立状态复核和本机 main 接收。
+
+## 历史 B003 完成及 B004 激活状态（原文保留）
 
 ## 当前 Linux M1：B003 完成登记，B004 激活候选
 
