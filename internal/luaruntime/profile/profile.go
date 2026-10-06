@@ -87,6 +87,7 @@ func (l Limits) Validate() error {
 type Config struct {
 	Limits  Limits            `json:"limits"`
 	Modules map[string][]byte `json:"modules,omitempty"`
+	Host    *HostConfig       `json:"host,omitempty"`
 }
 type Audit struct {
 	Level    string `json:"level"`
@@ -101,9 +102,11 @@ type Result struct {
 }
 
 type invocation struct {
-	ctx    context.Context
-	count  atomic.Int64
-	failed atomic.Bool
+	ctx         context.Context
+	count       atomic.Int64
+	failed      atomic.Bool
+	hostFailure atomic.Pointer[Failure]
+	callbacks   int
 }
 
 type Engine struct {
@@ -124,6 +127,10 @@ type Engine struct {
 	hook        lua.Value
 	life        context.Context
 	cancel      context.CancelFunc
+	host        *HostConfig
+	hostHandler HostHandler
+	callbacks   map[string]lua.Value
+	phase       string
 }
 
 func New(config Config) (*Engine, error) {
@@ -281,6 +288,12 @@ coroutine.wrap=function(f) local c=create(f);return function(...) local r=pack(r
 		e.Close()
 		return nil, Fail(ErrConfiguration)
 	}
+	if config.Host != nil {
+		if err := e.configureHost(*config.Host); err != nil {
+			e.Close()
+			return nil, err
+		}
+	}
 	return e, nil
 }
 
@@ -292,39 +305,66 @@ func ValidateSource(source []byte) error {
 	return nil
 }
 func compile(source []byte) (*compiler.Proto, error) {
+	return compileNamed(source, "=package-source")
+}
+func compileNamed(source []byte, name string) (*compiler.Proto, error) {
 	if err := ValidateSource(source); err != nil {
 		return nil, err
 	}
-	block, err := parser.Parse("=package-source", string(source), false)
+	block, err := parser.Parse(name, string(source), false)
 	if err != nil {
 		return nil, Fail(ErrSource)
 	}
-	p, err := compiler.Compile("=package-source", block)
+	p, err := compiler.Compile(name, block)
 	if err != nil {
 		return nil, Fail(ErrSource)
 	}
 	return p, nil
 }
 
-func (e *Engine) Execute(ctx context.Context, source []byte) (result Result, err error) {
+func (e *Engine) Execute(ctx context.Context, source []byte) (Result, error) {
+	if e.host != nil {
+		return Result{}, Fail(ErrCapability)
+	}
+	return e.run(ctx, "execution", nil, func() ([]lua.Value, error) {
+		p, err := compile(source)
+		if err != nil {
+			return nil, err
+		}
+		return e.runtime.Run(p)
+	})
+}
+
+// run owns one budget across validation and execution. Failures are sticky even
+// when package code catches a callback panic with pcall.
+func (e *Engine) run(ctx context.Context, kind string, handler HostHandler, body func() ([]lua.Value, error)) (result Result, err error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.sequence++
-	result.Audit = Audit{Level: "AUDIT-0", Sequence: e.sequence, Kind: "execution", Outcome: "PASS"}
+	result.Audit = Audit{Level: "AUDIT-0", Sequence: e.sequence, Kind: kind, Outcome: "PASS"}
 	started := false
 	defer func() {
 		if recover() != nil {
 			err = Fail(ErrScript)
 		}
+		if a := e.active.Load(); a != nil {
+			if f := a.hostFailure.Load(); f != nil {
+				err = f
+			} else if a.failed.Load() {
+				err = Fail(ErrBudget)
+			}
+		}
 		if err != nil {
 			result.Values = nil
 			result.Output = nil
 			result.Audit.Outcome = Code(err)
-			if started {
+			if started && Code(err) != ErrSource {
 				e.poisoned = true
 			}
 		}
 		e.active.Store(nil)
+		e.hostHandler = nil
+		e.phase = ""
 	}()
 	if e.destroyed {
 		return result, Fail(ErrDestroyed)
@@ -337,21 +377,18 @@ func (e *Engine) Execute(ctx context.Context, source []byte) (result Result, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(e.limits.WallMillis)*time.Millisecond)
 	defer cancel()
-	proto, err := compile(source)
-	if err != nil {
-		return result, err
-	}
-	active := &invocation{ctx: ctx}
-	e.active.Store(active)
+	a := &invocation{ctx: ctx}
+	e.active.Store(a)
+	e.hostHandler = handler
 	e.output = nil
 	e.outputBytes = 0
 	started = true
-	values, runErr := e.runtime.Run(proto)
-	if active.failed.Load() || ctx.Err() != nil {
+	values, runErr := body()
+	if a.failed.Load() || ctx.Err() != nil {
 		return result, Fail(ErrBudget)
 	}
 	if runErr != nil {
-		return result, Fail(ErrScript)
+		return result, Fail(Code(runErr))
 	}
 	e.reconcileCheckpointShapes()
 	if len(values) > checkpoint.MaxNodes {
@@ -407,7 +444,11 @@ func (e *Engine) SetState(state, saved checkpoint.Value) error {
 		return Fail(ErrPoisoned)
 	}
 	e.reconcileCheckpointShapes()
-	e.runtime.SetGlobal("state", e.toLua(state))
+	if e.host != nil {
+		e.runtime.SetGlobal("state", lua.Nil)
+	} else {
+		e.runtime.SetGlobal("state", e.toLua(state))
+	}
 	e.runtime.SetGlobal("checkpoint", e.toLua(saved))
 	return nil
 }
@@ -431,7 +472,11 @@ func (e *Engine) print(v *lua.VM) int {
 		parts = append(parts, s)
 	}
 	e.outputBytes += n
-	e.output = append(e.output, strings.Join(parts, "\t"))
+	if e.host != nil {
+		e.output = append(e.output, redactHostOutput(parts))
+	} else {
+		e.output = append(e.output, strings.Join(parts, "\t"))
+	}
 	return 0
 }
 
@@ -461,7 +506,7 @@ func (e *Engine) require(v *lua.VM) int {
 	}
 	e.loading[file] = true
 	defer delete(e.loading, file)
-	proto, err := compile(source)
+	proto, err := compileNamed(source, "@"+file)
 	if err != nil {
 		panic(err)
 	}

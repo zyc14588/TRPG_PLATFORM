@@ -32,7 +32,7 @@ func adapt(options Options) (checkpoint.Binding, profile.Config, []byte, error) 
 	if err != nil || !document.CanStartSession() {
 		return reject()
 	}
-	if document.Package.LuaProfile != profile.ID || document.Package.HostAPI == nil {
+	if document.Package.LuaProfile != profile.ID || document.Package.HostAPI == nil || document.Package.HostAPI.Major != profile.HostMajor || document.Package.HostAPI.MinMinor > profile.HostMinor || document.Package.HostAPI.MaxMinor < profile.HostMinor {
 		return reject()
 	}
 	entry, ok := options.Package.Entry(document.Package.Entrypoint)
@@ -71,6 +71,15 @@ func adapt(options Options) (checkpoint.Binding, profile.Config, []byte, error) 
 	if err != nil {
 		return reject()
 	}
+	if options.Host != nil {
+		policy = options.Host.Policy
+		execution = options.Host.Execution
+		limit := options.Host.CallbackLimit
+		if limit == 0 {
+			limit = profile.MaxHostCallbacks
+		}
+		c.Host = &profile.HostConfig{Entry: document.Package.Entrypoint, Required: profile.StandardCallbackNames(), CallbackLimit: limit}
+	}
 	moduleBytes := 0
 	for _, locked := range lock.Packages() {
 		id := string(locked.PackageID)
@@ -85,9 +94,29 @@ func adapt(options Options) (checkpoint.Binding, profile.Config, []byte, error) 
 		if d.Package.LuaProfile != "" && d.Package.LuaProfile != profile.ID {
 			return reject()
 		}
-		resolution, err := capability.Resolve(d.Package.Capabilities, capability.TrustPrivateUnverified, policy, execution)
+		level := capability.TrustPrivateUnverified
+		if options.Host != nil {
+			var ok bool
+			level, ok = options.Host.Trust[id]
+			if !ok {
+				return reject()
+			}
+		}
+		if d.Package.HostAPI != nil && (d.Package.HostAPI.Major != profile.HostMajor || d.Package.HostAPI.MinMinor > profile.HostMinor || d.Package.HostAPI.MaxMinor < profile.HostMinor) {
+			return reject()
+		}
+		resolution, err := capability.Resolve(d.Package.Capabilities, level, policy, execution)
 		if err != nil {
 			return b, c, nil, profile.Fail(profile.ErrCapability)
+		}
+		if options.Host != nil && pkg == options.Package && !resolution.Effective.Contains(capability.HostTask) && !resolution.Effective.Contains(capability.HostAI) {
+			required := []string{}
+			for _, name := range c.Host.Required {
+				if name != "resume_continuation" {
+					required = append(required, name)
+				}
+			}
+			c.Host.Required = required
 		}
 		for _, fallback := range resolution.Fallbacks {
 			proof, ok := options.Fallbacks[id+":"+string(fallback.Name)]
@@ -119,4 +148,38 @@ func adapt(options Options) (checkpoint.Binding, profile.Config, []byte, error) 
 		return reject()
 	}
 	return b, c, entry.Bytes(), nil
+}
+
+func hostModuleIdentities(options Options) (map[string]ModuleIdentity, error) {
+	result := map[string]ModuleIdentity{}
+	if options.Host == nil {
+		return result, nil
+	}
+	packages := append([]*archive.Package{options.Package}, options.Dependencies...)
+	for _, pkg := range packages {
+		d, err := pkg.Manifest()
+		if err != nil || d.Package == nil {
+			return nil, profile.Fail(profile.ErrConfiguration)
+		}
+		id := string(d.Package.PackageID)
+		level, ok := options.Host.Trust[id]
+		if !ok {
+			return nil, profile.Fail(profile.ErrCapability)
+		}
+		resolved, err := capability.Resolve(d.Package.Capabilities, level, options.Host.Policy, options.Host.Execution)
+		if err != nil {
+			return nil, profile.Fail(profile.ErrCapability)
+		}
+		for _, entry := range pkg.Entries() {
+			if !strings.HasSuffix(entry.Path(), ".lua") {
+				continue
+			}
+			name := entry.Path()
+			if pkg != options.Package {
+				name = id + "/" + name
+			}
+			result[name] = ModuleIdentity{PackageID: id, ContentHash: string(pkg.ContentHash()), Trust: level, Capabilities: resolved.Effective}
+		}
+	}
+	return result, nil
 }

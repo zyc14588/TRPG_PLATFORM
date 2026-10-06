@@ -17,14 +17,15 @@ import (
 )
 
 type Client struct {
-	mu     sync.Mutex
-	cmd    *exec.Cmd
-	input  io.WriteCloser
-	output io.ReadCloser
-	done   chan struct{}
-	next   uint64
-	closed bool
-	limits profile.Limits
+	mu            sync.Mutex
+	cmd           *exec.Cmd
+	input         io.WriteCloser
+	output        io.ReadCloser
+	done          chan struct{}
+	next          uint64
+	closed        bool
+	limits        profile.Limits
+	callbackLimit int
 }
 
 func Start(ctx context.Context, executable string, config profile.Config) (*Client, error) {
@@ -59,6 +60,9 @@ func Start(ctx context.Context, executable string, config profile.Config) (*Clie
 	readInput.Close()
 	writeOutput.Close()
 	go func() { _ = cmd.Wait(); close(c.done) }()
+	if config.Host != nil {
+		c.callbackLimit = config.Host.CallbackLimit
+	}
 	if _, err := c.Call(ctx, Request{Operation: "initialize", Config: &config}); err != nil {
 		c.Kill()
 		return nil, err
@@ -69,6 +73,12 @@ func Start(ctx context.Context, executable string, config profile.Config) (*Clie
 func (c *Client) PID() int { return c.cmd.Process.Pid }
 
 func (c *Client) Call(ctx context.Context, request Request) (Response, error) {
+	return c.CallWithHost(ctx, request, nil)
+}
+
+// The trusted handler must be bounded and honor ctx. Cancellation closes pipes,
+// reaps the child and joins this invocation before returning to its workspace.
+func (c *Client) CallWithHost(ctx context.Context, request Request, handler profile.HostHandler) (Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	var response Response
@@ -98,18 +108,64 @@ func (c *Client) Call(ctx context.Context, request Request) (Response, error) {
 			finished <- outcome{err: ErrRunner}
 			return
 		}
-		raw, err := ReadFrame(c.output)
-		if err != nil {
-			finished <- outcome{err: ErrRunner}
-			return
-		}
-		if err := checkpoint.StrictDecode(raw, &out, MaxFrameBytes); err != nil {
-			finished <- outcome{err: ErrProtocol}
-			return
-		}
-		if out.ID != request.ID || out.Version != Version || out.Profile != profile.ID || out.Runtime != profile.RuntimeVersion || out.Result.Audit.Level != "AUDIT-0" || out.Result.Audit.Sequence != request.ID || out.PID != c.PID() {
-			finished <- outcome{err: ErrProtocol}
-			return
+		var callbacks uint64
+		var callbackError error
+		for {
+			raw, err := ReadFrame(c.output)
+			if err != nil {
+				finished <- outcome{err: ErrRunner}
+				return
+			}
+			var tag struct {
+				Kind string `json:"kind"`
+			}
+			if json.Unmarshal(raw, &tag) != nil {
+				finished <- outcome{err: ErrProtocol}
+				return
+			}
+			if tag.Kind != "" {
+				var cb Callback
+				if checkpoint.StrictDecode(raw, &cb, MaxFrameBytes) != nil || cb.Kind != "callback" || cb.Version != Version || cb.ID != request.ID || cb.Sequence != callbacks+1 || cb.Sequence > uint64(c.callbackLimit) || cb.PID != c.PID() || cb.Profile != profile.ID || cb.Runtime != profile.RuntimeVersion || request.Operation != "host-invoke" || handler == nil {
+					finished <- outcome{err: ErrProtocol}
+					return
+				}
+				callbacks++
+				if err := ctx.Err(); err != nil {
+					finished <- outcome{err: err}
+					return
+				}
+				value, callErr := handler(ctx, cb.Call)
+				if callErr == nil {
+					callErr = checkpoint.Validate(value)
+				}
+				if err := ctx.Err(); err != nil {
+					finished <- outcome{err: err}
+					return
+				}
+				reply := CallbackReply{Kind: "callback-reply", Version: Version, ID: request.ID, Sequence: callbacks, Value: value}
+				if callErr != nil {
+					reply.Error = profile.Code(callErr)
+					reply.Value = checkpoint.Value{Kind: "nil"}
+					if callbackError == nil {
+						callbackError = profile.Fail(reply.Error)
+					}
+				}
+				encoded, err := json.Marshal(reply)
+				if err != nil || WriteFrame(c.input, encoded) != nil {
+					finished <- outcome{err: ErrRunner}
+					return
+				}
+				continue
+			}
+			if checkpoint.StrictDecode(raw, &out, MaxFrameBytes) != nil || out.ID != request.ID || out.Version != Version || out.Profile != profile.ID || out.Runtime != profile.RuntimeVersion || out.Result.Audit.Level != "AUDIT-0" || out.Result.Audit.Sequence != request.ID || out.PID != c.PID() {
+				finished <- outcome{err: ErrProtocol}
+				return
+			}
+			if callbackError != nil {
+				finished <- outcome{response: out, err: callbackError}
+				return
+			}
+			break
 		}
 		finished <- outcome{response: out}
 	}()

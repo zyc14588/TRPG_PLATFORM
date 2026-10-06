@@ -17,10 +17,11 @@ import (
 // packageServices is an internal composition seam for the next owning batch.
 // It adds no public endpoint, room selection, or automatic Session startup.
 type packageServices struct {
-	Installer *install.Installer
-	Reader    *store.Reader
-	database  *sql.DB
-	objects   *object.Directory
+	Installer    *install.Installer
+	Reader       *store.Reader
+	HostCommands *postgres.HostRepository
+	database     *sql.DB
+	objects      *object.Directory
 }
 
 func openPackageServices(ctx context.Context, dsn, objectRoot string, options install.Options) (*packageServices, error) {
@@ -58,7 +59,11 @@ func openPackageServices(ctx context.Context, dsn, objectRoot string, options in
 	if err != nil {
 		return fail(err)
 	}
-	return &packageServices{Installer: installer, Reader: reader, database: db, objects: objects}, nil
+	commands, err := postgres.NewHostRepository(postgres.HostOptions{DB: db})
+	if err != nil {
+		return fail(err)
+	}
+	return &packageServices{Installer: installer, Reader: reader, HostCommands: commands, database: db, objects: objects}, nil
 }
 
 func (s *packageServices) Close() error {

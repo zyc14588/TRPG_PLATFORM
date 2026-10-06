@@ -47,7 +47,7 @@ func Serve(ctx context.Context, input io.Reader, output io.Writer) error {
 		response := Response{Version: Version, ID: req.ID, Profile: profile.ID, Runtime: profile.RuntimeVersion, PID: os.Getpid(), Result: profile.Result{Audit: profile.Audit{Level: "AUDIT-0", Sequence: req.ID, Kind: req.Operation, Outcome: "PASS"}}}
 		var operationErr error
 		if req.Operation == "initialize" {
-			if engine != nil || req.Config == nil || len(req.Source) > 0 || req.State != nil || req.Saved != nil {
+			if engine != nil || req.Config == nil || len(req.Source) > 0 || req.State != nil || req.Saved != nil || req.Callback != "" || len(req.Arguments) > 0 {
 				return ErrProtocol
 			}
 			limits = req.Config.Limits
@@ -66,7 +66,50 @@ func Serve(ctx context.Context, input io.Reader, output io.Writer) error {
 				return operationErr
 			}
 			timer := time.AfterFunc(time.Duration(limits.WallMillis)*time.Millisecond, func() { os.Exit(124) })
+			var callbackSequence uint64
+			hostHandler := func(callctx context.Context, call profile.HostCall) (checkpoint.Value, error) {
+				if callctx.Err() != nil {
+					return checkpoint.Value{}, callctx.Err()
+				}
+				callbackSequence++
+				cb := Callback{Kind: "callback", Version: Version, ID: req.ID, Sequence: callbackSequence, PID: os.Getpid(), Profile: profile.ID, Runtime: profile.RuntimeVersion, Call: call}
+				encoded, err := json.Marshal(cb)
+				if err != nil {
+					return checkpoint.Value{}, ErrProtocol
+				}
+				if err = WriteFrame(output, encoded); err != nil {
+					return checkpoint.Value{}, ErrRunner
+				}
+				raw, err := ReadFrame(input)
+				if err != nil {
+					return checkpoint.Value{}, ErrRunner
+				}
+				var reply CallbackReply
+				if checkpoint.StrictDecode(raw, &reply, MaxFrameBytes) != nil || reply.Kind != "callback-reply" || reply.Version != Version || reply.ID != req.ID || reply.Sequence != callbackSequence {
+					return checkpoint.Value{}, ErrProtocol
+				}
+				if reply.Error != "" {
+					return checkpoint.Value{}, profile.Fail(reply.Error)
+				}
+				if checkpoint.Validate(reply.Value) != nil {
+					return checkpoint.Value{}, ErrProtocol
+				}
+				return reply.Value, nil
+			}
+			if req.Operation != "host-invoke" && (req.Callback != "" || len(req.Arguments) > 0) {
+				return ErrProtocol
+			}
 			switch req.Operation {
+			case "host-load":
+				if req.State != nil || req.Saved != nil || len(req.Source) > 0 {
+					return ErrProtocol
+				}
+				response.Result, operationErr = engine.LoadHostEntrypoint(ctx)
+			case "host-invoke":
+				if req.State != nil || req.Saved != nil || len(req.Source) > 0 || req.Callback == "" {
+					return ErrProtocol
+				}
+				response.Result, operationErr = engine.InvokeHost(ctx, req.Callback, req.Arguments, hostHandler)
 			case "execute":
 				if req.State != nil || req.Saved != nil {
 					return ErrProtocol

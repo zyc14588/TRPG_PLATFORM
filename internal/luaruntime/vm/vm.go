@@ -41,6 +41,7 @@ type Options struct {
 	Limits       profile.Limits
 	Audit        AuditSink
 	Fallbacks    map[string]FallbackProof
+	Host         *HostOptions
 }
 type Session struct {
 	mu        sync.Mutex
@@ -55,6 +56,7 @@ type Session struct {
 	poisoned  bool
 	destroyed bool
 	sequence  uint64
+	modules   map[string]ModuleIdentity
 }
 
 func New(ctx context.Context, options Options) (*Session, error) {
@@ -77,6 +79,10 @@ func New(ctx context.Context, options Options) (*Session, error) {
 		return reject(err)
 	}
 	s.config, s.entry, s.binding, s.state = config, entry, sealed.Binding, State{Version: options.State.Version, Value: sealed.State}
+	s.modules, err = hostModuleIdentities(options)
+	if err != nil {
+		return reject(err)
+	}
 	if _, err := rand.Read(s.token.secret[:]); err != nil {
 		return reject(err)
 	}
@@ -96,7 +102,11 @@ func (s *Session) start(ctx context.Context, state, saved checkpoint.Value) (*ip
 		return nil, err
 	}
 	if _, err = c.Call(ctx, ipc.Request{Operation: "state", State: &state, Saved: &saved}); err == nil {
-		_, err = c.Call(ctx, ipc.Request{Operation: "execute", Source: s.entry})
+		if s.config.Host != nil {
+			_, err = c.Call(ctx, ipc.Request{Operation: "host-load"})
+		} else {
+			_, err = c.Call(ctx, ipc.Request{Operation: "execute", Source: s.entry})
+		}
 	}
 	if auditErr := s.record("runner-start", err); auditErr != nil {
 		err = auditErr
@@ -148,6 +158,9 @@ func (s *Session) execute(ctx context.Context, token Token, source []byte) (prof
 	}
 	var response ipc.Response
 	err := profile.ValidateSource(source)
+	if s.config.Host != nil {
+		err = profile.Fail(profile.ErrCapability)
+	}
 	if err == nil {
 		response, err = s.client.Call(ctx, ipc.Request{Operation: "execute", Source: append([]byte(nil), source...)})
 	}

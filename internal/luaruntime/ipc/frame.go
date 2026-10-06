@@ -19,13 +19,15 @@ var ErrProtocol = profile.Fail("IPC_PROTOCOL_REJECTED")
 var ErrRunner = profile.Fail("RUNNER_FAILED")
 
 type Request struct {
-	Version   int               `json:"version"`
-	ID        uint64            `json:"id"`
-	Operation string            `json:"operation"`
-	Config    *profile.Config   `json:"config,omitempty"`
-	Source    []byte            `json:"source,omitempty"`
-	State     *checkpoint.Value `json:"state,omitempty"`
-	Saved     *checkpoint.Value `json:"saved,omitempty"`
+	Version   int                `json:"version"`
+	ID        uint64             `json:"id"`
+	Operation string             `json:"operation"`
+	Config    *profile.Config    `json:"config,omitempty"`
+	Source    []byte             `json:"source,omitempty"`
+	State     *checkpoint.Value  `json:"state,omitempty"`
+	Saved     *checkpoint.Value  `json:"saved,omitempty"`
+	Callback  string             `json:"callback,omitempty"`
+	Arguments []checkpoint.Value `json:"arguments,omitempty"`
 }
 type Response struct {
 	Version int            `json:"version"`
