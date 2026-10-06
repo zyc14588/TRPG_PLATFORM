@@ -1,0 +1,27 @@
+{
+  "package_id": "example.test/migration-library",
+  "role": "library",
+  "version": "1.1.0",
+  "content_hash": "sha256:abbe1c1be95aaad977b72345ea6a5c08a309d0a5cf788ae5ca5aff2413472783",
+  "artifact_hash": "sha256:ce5c7a8ac096619b36d3a4e8046ee3d44b19a503533d9b6813ab2dd6d044574c",
+  "exact_lock": {
+    "schema_version": 1,
+    "root": "example.test/migration-library",
+    "packages": [
+      {
+        "package_id": "example.test/migration-library",
+        "version": "1.1.0",
+        "content_hash": "sha256:abbe1c1be95aaad977b72345ea6a5c08a309d0a5cf788ae5ca5aff2413472783",
+        "features": [
+          "fixture"
+        ],
+        "dependencies": []
+      }
+    ]
+  },
+  "source_files": {
+    "lua/main.lua": "return {version=\"1.1.0\"}",
+    "package.toml": "schema_version=1\nartifact_type=\"package\"\npackage_id=\"example.test/migration-library\"\npackage_kind=\"library\"\nversion=\"1.1.0\"\ndisplay_name=\"Synthetic migration fixture\"\nentrypoint=\"lua/main.lua\"\nlua_profile=\"platform-lua-5.5-p1\"\n[host_api]\nmajor=1\nmin_minor=0\nmax_minor=0\n[build]\nsource=\"fixture-local\"\nrevision=\"migration-v1\"\nbuilder=\"migration-fixture/1\"\n[rights]\nauthors=[\"Synthetic migration fixture\"]\nsource=\"original\"\nlicense_expression=\"PolyForm-Noncommercial-1.0.0\"\n[capabilities]\nrequired=[]\n",
+    "schemas/role.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"string\",\"const\":\"1.1.0\"}"
+  }
+}

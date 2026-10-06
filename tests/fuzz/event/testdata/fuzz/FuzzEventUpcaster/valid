@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"Event\":{\"id\":\"fixed-event\",\"type\":\"example.test/fuzz/change\",\"payload\":{\"kind\":\"table\",\"table\":{\"counter\":{\"kind\":\"integer\",\"number\":\"9007199254740993\"}}},\"schema_version\":1,\"schema_hash\":\"sha256:0b9b6163b67fba0e5bcde53ae1565c5d78a84457c72ddae072ceb71a32582c83\"},\"Target\":2,\"Rules\":[{\"Type\":\"example.test/fuzz/change\",\"From\":1,\"To\":2,\"SchemaHash\":\"sha256:93c798eeb028cdf65aded6cd407070a74cde14aefb82af12f3c44db21b467bda\",\"Rename\":{\"counter\":\"total\"}}]}")

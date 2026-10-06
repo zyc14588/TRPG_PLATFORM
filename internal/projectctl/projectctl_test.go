@@ -1228,6 +1228,7 @@ func TestOpenCodeDeepSeekContextProfileEnforcesExplicitBudget(t *testing.T) {
 	}
 }
 
+// x-section-id: PROJECTCTL-NORMATIVE-CATALOG-TESTS
 func TestBoundedNormativeSectionCatalogCoversAuthorityContracts(t *testing.T) {
 	a := testApp(t)
 	catalog, err := a.normativeSectionCatalog()
@@ -2045,4 +2046,466 @@ func runFixtureGo(root, goos string, args ...string) (string, error) {
 	command.Env = append(environment, "GOOS="+goos, "CGO_ENABLED=0", "GOCACHE="+filepath.Join(root, ".gocache"), "GOFLAGS=-buildvcs=false")
 	output, err := command.CombinedOutput()
 	return string(output), err
+}
+
+// x-section-id: PROJECTCTL-POSTGRES-SCOPE-GATE-TESTS
+func postgresScopePlan(t *testing.T) milestonePlan {
+	t.Helper()
+	plan, err := testApp(t).postgresScopeAuthority()
+	if err != nil || !hasApprovedPostgresScope(plan) {
+		t.Fatalf("accepted frozen PostgreSQL authority missing: %v", err)
+	}
+	return plan
+}
+
+func copyPostgresScopePlan(t *testing.T, plan milestonePlan) milestonePlan {
+	t.Helper()
+	data, err := yaml.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var copy milestonePlan
+	if err := yaml.Unmarshal(data, &copy); err != nil {
+		t.Fatal(err)
+	}
+	return copy
+}
+
+func TestPostgresScopeAllowsOnlyApprovedPathsAndImports(t *testing.T) {
+	plan := postgresScopePlan(t)
+	paths := []string{"cmd/platformd/packages.go", "internal/storage/postgres/install.go", "internal/storage/postgres/nested/backend.go", "tests/integration/package_install/testdata/crash/main.go"}
+	imports := []string{"database/sql", "github.com/jackc/pgx/v5/stdlib"}
+	for _, path := range paths {
+		for _, imported := range imports {
+			for _, alias := range []string{"", "_ ", "adapter ", ". "} {
+				source := []byte("package fixture\nimport " + alias + "\"" + imported + "\"\n")
+				if problems := integrationScopeProblems(path, source, plan); len(problems) != 0 {
+					t.Fatalf("authorized import %s in %s rejected: %v", imported, path, problems)
+				}
+			}
+		}
+	}
+	for name, source := range map[string]string{
+		"grouped": "package fixture\nimport (\n\"database/sql\"\n_ \"github.com/jackc/pgx/v5/stdlib\"\n)\n",
+		"escaped": "package fixture\nimport \"database/\\x73ql\"\n",
+		"raw":     "package fixture\nimport `database/sql`\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if problems := integrationScopeProblems(paths[0], []byte(source), plan); len(problems) != 0 {
+				t.Fatal(problems)
+			}
+			if problems := integrationScopeProblems("cmd/workerd/main.go", []byte(source), plan); len(problems) == 0 {
+				t.Fatal("unapproved path linked a PostgreSQL integration")
+			}
+		})
+	}
+	for _, path := range []string{"cmd/platformd/main.go", "cmd/platformd/packages_test.go", "internal/package/install/db.go", "internal/session/db.go", "apps/creator-studio/db.go", "internal/storage/postgres_evil/db.go", "tests/integration/package_install_evil/db.go", "/internal/storage/postgres/db.go", "../internal/storage/postgres/db.go", "internal/storage/postgres/../other/db.go", "internal/storage/postgres//db.go", "internal\\storage\\postgres\\db.go", "C:/internal/storage/postgres/db.go", "./cmd/platformd/packages.go"} {
+		t.Run(path, func(t *testing.T) {
+			if problems := integrationScopeProblems(path, []byte("package fixture\nimport _ \"database/sql\"\n"), plan); len(problems) == 0 {
+				t.Fatal("unapproved path accepted")
+			}
+		})
+	}
+	for _, imported := range []string{"database/sql/driver", "github.com/jackc/pgx/v5", "github.com/jackc/pgx/v5/pgxpool", "github.com/jackc/pgx/v4/stdlib", "github.com/jackc/pgx/v5/stdlib/extra", "example.com/pgxshim", "github.com/JACKC/PGX/v5/stdlib", "example.com/database/sql"} {
+		t.Run(imported, func(t *testing.T) {
+			if problems := integrationScopeProblems(paths[0], []byte("package fixture\nimport _ \""+imported+"\"\n"), plan); len(problems) == 0 {
+				t.Fatal("unapproved driver import accepted")
+			}
+		})
+	}
+}
+
+func TestPostgresScopeFrozenAuthorityFailsClosed(t *testing.T) {
+	original := postgresScopePlan(t)
+	index := -1
+	for i, batch := range original.Batches {
+		if batch.BatchID == "M1-B003" {
+			index = i
+		}
+	}
+	if index < 0 {
+		t.Fatal("B003 is absent")
+	}
+	for name, mutate := range map[string]func(*milestonePlan){
+		"missing-plan-id":       func(p *milestonePlan) { p.PlanID = "" },
+		"wrong-plan-id":         func(p *milestonePlan) { p.PlanID = "M0-MILESTONE-PLAN" },
+		"invalid-write-mode":    func(p *milestonePlan) { p.ModifiableOnlyInMode = "IMPLEMENT" },
+		"zero-plan-version":     func(p *milestonePlan) { p.PlanVersion = 0 },
+		"invalid-next-sequence": func(p *milestonePlan) { p.NextBatchSequence = 0 },
+		"duplicate-non-b003":    func(p *milestonePlan) { p.Batches = append(p.Batches, p.Batches[0]) },
+		"invalid-batch-sequence": func(p *milestonePlan) {
+			p.Batches[index].Sequence = 999
+		},
+		"m0":              func(p *milestonePlan) { p.Milestone = "M0" },
+		"unknown-schema":  func(p *milestonePlan) { p.SchemaVersion = 999 },
+		"inactive-plan":   func(p *milestonePlan) { p.Status = "NOT_GENERATED" },
+		"missing-batch":   func(p *milestonePlan) { p.Batches[index].BatchID = "M1-B999" },
+		"duplicate-batch": func(p *milestonePlan) { p.Batches = append(p.Batches, p.Batches[index]) },
+		"unfrozen":        func(p *milestonePlan) { p.Batches[index].FrozenContractSHA256 = "" },
+		"stale-digest":    func(p *milestonePlan) { p.Batches[index].FrozenContractSHA256 = strings.Repeat("a", 64) },
+		"changed-objective": func(p *milestonePlan) {
+			p.Batches[index].Objective += " changed"
+		},
+		"changed-scope": func(p *milestonePlan) {
+			p.Batches[index].AllowedScope = append(p.Batches[index].AllowedScope, "apps/**")
+		},
+		"changed-tests": func(p *milestonePlan) { p.Batches[index].Tests = nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			plan := copyPostgresScopePlan(t, original)
+			mutate(&plan)
+			if problems := integrationScopeProblems("cmd/platformd/packages.go", []byte("package fixture\nimport \"database/sql\"\n"), plan); len(problems) == 0 {
+				t.Fatal("invalid authority authorized a database integration")
+			}
+		})
+	}
+	for _, state := range []string{"DRAFT", "PLANNED", "FROZEN", "UNKNOWN"} {
+		plan := copyPostgresScopePlan(t, original)
+		plan.Batches[index].State = state
+		if hasApprovedPostgresScope(plan) {
+			t.Fatalf("unapproved lifecycle %s accepted", state)
+		}
+	}
+	for _, state := range []string{"IMPLEMENTING", "VERIFYING", "BLOCKED", "COMPLETED"} {
+		plan := copyPostgresScopePlan(t, original)
+		plan.Batches[index].State = state
+		if state == "COMPLETED" {
+			plan.Status = "COMPLETE"
+		}
+		if !hasApprovedPostgresScope(plan) {
+			t.Fatalf("authorized immutable lifecycle %s lost scope", state)
+		}
+	}
+}
+
+func TestPostgresScopeAuthorityReadErrors(t *testing.T) {
+	root := t.TempDir()
+	a := &App{root: root}
+	plan, err := a.postgresScopeAuthority()
+	if err != nil || hasApprovedPostgresScope(plan) {
+		t.Fatal("absent M0 authority created PostgreSQL authorization", err)
+	}
+	path := filepath.Join(root, ".codex", "state", "MILESTONE_PLAN.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, data := range []string{"[malformed", "milestone: M1\nunknown_field: true\n"} {
+		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.postgresScopeAuthority(); err == nil {
+			t.Fatal("malformed authority did not fail closed")
+		}
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.postgresScopeAuthority(); err == nil {
+		t.Fatal("unreadable authority directory did not fail closed")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	valid, err := yaml.Marshal(postgresScopePlan(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, suffix := range map[string]string{
+		"second-authority":          "\n---\nmilestone: M0\n",
+		"malformed-second-document": "\n---\n[malformed\n",
+		"empty-second-document":     "\n---\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := os.WriteFile(path, append(append([]byte(nil), valid...), []byte(suffix)...), 0600); err != nil {
+				t.Fatal(err)
+			}
+			plan, err := a.postgresScopeAuthority()
+			if err == nil || hasApprovedPostgresScope(plan) {
+				t.Fatal("extra YAML authority did not fail closed", err)
+			}
+		})
+	}
+}
+
+func TestPostgresScopePreservesOtherIntegrationRestrictions(t *testing.T) {
+	plan := postgresScopePlan(t)
+	tokens := m0IntegrationTokens()
+	if len(tokens) != 9 {
+		t.Fatal("an original forbidden integration was removed")
+	}
+	for index, forbidden := range tokens {
+		t.Run(string(rune('A'+index)), func(t *testing.T) {
+			if forbidden == "database/sql" || forbidden == "pgx" {
+				if problems := integrationScopeProblems("apps/web-player/src/App.tsx", []byte(forbidden), plan); len(problems) == 0 {
+					t.Fatal("non-Go source acquired PostgreSQL scope")
+				}
+				return
+			}
+			if problems := integrationScopeProblems("cmd/platformd/packages.go", []byte("package fixture\n// "+forbidden+"\n"), plan); len(problems) == 0 {
+				t.Fatal("another forbidden integration lost its restriction")
+			}
+			// Decode escaped imports before applying the same original restrictions.
+			const hex = "0123456789abcdef"
+			first := forbidden[0]
+			escaped := "\\x" + string([]byte{hex[first>>4], hex[first&15]}) + forbidden[1:]
+			if problems := integrationScopeProblems("cmd/platformd/packages.go", []byte("package fixture\nimport _ \""+escaped+"\"\n"), plan); len(problems) == 0 {
+				t.Fatal("escaped import evaded another forbidden integration")
+			}
+		})
+	}
+	for _, source := range []string{"import \"database/sql\"", "package fixture\nimport (\"database/sql\"", "package fixture\nimport database/sql", "package fixture\nvar _ = 1\nimport \"database/sql\"", "package fixture\nfunc f() {}\nimport (\"database/sql\""} {
+		if problems := integrationScopeProblems("cmd/platformd/packages.go", []byte(source), plan); len(problems) == 0 {
+			t.Fatal("malformed import declarations accepted")
+		}
+	}
+	// Fixture text is data, not an executable integration or scope selector.
+	source := []byte("package fixture\n// database/sql pgx\nvar fixture = `import \"database/sql\"`\n")
+	if problems := integrationScopeProblems("internal/projectctl/fixture_test.go", source, milestonePlan{}); len(problems) != 0 {
+		t.Fatal("fixture strings unexpectedly linked a database driver", problems)
+	}
+}
+
+// x-section-id: PROJECTCTL-MIGRATION-PATH-SCOPE-GATE-TESTS
+func migrationScopePlan(t *testing.T, fuzz bool) milestonePlan {
+	t.Helper()
+	plan := postgresScopePlan(t)
+	for i := range plan.Batches {
+		if plan.Batches[i].BatchID != "M1-B009" {
+			continue
+		}
+		if !fuzz {
+			// The denial fixture must stay unstarted as the real plan advances.
+			plan.Batches[i].State = "PLANNED"
+			plan.Batches[i].FrozenContractSHA256 = ""
+			continue
+		}
+		digest, err := batchContractDigest(plan.Batches[i])
+		if err != nil || digest != approvedMigrationFuzzContract {
+			t.Fatalf("approved B009 contract changed: %s %v", digest, err)
+		}
+		plan.Batches[i].State = "FROZEN"
+		plan.Batches[i].FrozenContractSHA256 = digest
+	}
+	return plan
+}
+
+func TestMigrationScopeApprovedPathsAndRemainingBoundaries(t *testing.T) {
+	plan := migrationScopePlan(t, true)
+	for _, prefix := range []string{"internal/package/migration/", "internal/package/testdata/migration/", "internal/session/migration/", "tests/integration/migration/", "tests/fuzz/migration/"} {
+		t.Run(prefix, func(t *testing.T) {
+			for _, suffix := range []string{"entry.go", "nested/fixture.json"} {
+				if legacyScopePath(prefix+suffix, plan) {
+					t.Fatal("approved canonical migration path denied")
+				}
+			}
+			for _, suffix := range []string{"Cargo.toml", "nested/file.rs", "legacy/file.go", "migrations/file.go", "nested/migration/file.go"} {
+				if !legacyScopePath(prefix+suffix, plan) {
+					t.Fatalf("original legacy boundary lost for %s", suffix)
+				}
+			}
+		})
+	}
+	for _, path := range []string{"internal/package/migration_evil/migration/file.go", "internal/package/migrationevil/file.go", "internal/package/migrations/file.go", "internal/session/other/migration/file.go", "tests/integration/other/migration/file.go", "tests/fuzz/migrations/file.go", "apps/migration/file.go", "migration/file.go", "internal/package/migration", "internal/package/migration/", "internal/package/migration//file.go", "internal/package/migration/../file.go", "./internal/package/migration/file.go", "../internal/package/migration/file.go", "/internal/package/migration/file.go", "internal\\package\\migration\\file.go", "C:/internal/package/migration/file.go", "internal/Package/Migration/file.go", "source-archive/internal/package/migration/file.go"} {
+		t.Run(path, func(t *testing.T) {
+			if approvedMigrationPath(path, plan) {
+				t.Fatal("noncanonical or unapproved path gained authorization")
+			}
+		})
+	}
+	for _, path := range []string{"legacy/file.go", "source-archive/file.go", "docs/codex/file.md", "internal/old/Cargo.toml", "internal/old/file.rs", "internal/Migrations/file.go", "internal/Migration/file.go"} {
+		if !legacyScopePath(path, plan) {
+			t.Fatalf("original boundary lost for %s", path)
+		}
+	}
+}
+
+func TestMigrationScopeFrozenAuthorityAndConditionalFuzzApproval(t *testing.T) {
+	original := migrationScopePlan(t, true)
+	for batchID, path := range map[string]string{"M1-B007": "internal/session/migration/entry.go", "M1-B009": "tests/fuzz/migration/entry_test.go"} {
+		t.Run(batchID, func(t *testing.T) {
+			index := -1
+			for i, b := range original.Batches {
+				if b.BatchID == batchID {
+					index = i
+				}
+			}
+			if index < 0 {
+				t.Fatal("approved batch absent")
+			}
+			for _, state := range []string{"FROZEN", "IMPLEMENTING", "BLOCKED", "VERIFYING", "COMPLETED"} {
+				t.Run(state, func(t *testing.T) {
+					plan := copyPostgresScopePlan(t, original)
+					plan.Batches[index].State = state
+					if !approvedMigrationPath(path, plan) {
+						t.Fatal("approved frozen lifecycle denied")
+					}
+					plan.Status = "COMPLETE"
+					if !approvedMigrationPath(path, plan) {
+						t.Fatal("completed plan lost immutable scope")
+					}
+				})
+			}
+			for name, mutate := range map[string]func(*milestonePlan){
+				"M0":                 func(p *milestonePlan) { p.Milestone = "M0" },
+				"schema":             func(p *milestonePlan) { p.SchemaVersion = 99 },
+				"plan-id":            func(p *milestonePlan) { p.PlanID = "" },
+				"version":            func(p *milestonePlan) { p.PlanVersion = 0 },
+				"mode":               func(p *milestonePlan) { p.ModifiableOnlyInMode = "IMPLEMENT" },
+				"inactive":           func(p *milestonePlan) { p.Status = "NOT_GENERATED" },
+				"sequence":           func(p *milestonePlan) { p.NextBatchSequence = 0 },
+				"duplicate-other":    func(p *milestonePlan) { p.Batches = append(p.Batches, p.Batches[0]) },
+				"duplicate":          func(p *milestonePlan) { p.Batches = append(p.Batches, p.Batches[index]) },
+				"missing":            func(p *milestonePlan) { p.Batches[index].BatchID = "M1-B999" },
+				"no-recorded-digest": func(p *milestonePlan) { p.Batches[index].FrozenContractSHA256 = "" },
+				"stale-digest":       func(p *milestonePlan) { p.Batches[index].FrozenContractSHA256 = strings.Repeat("a", 64) },
+				"objective":          func(p *milestonePlan) { p.Batches[index].Objective += " changed" },
+				"scope": func(p *milestonePlan) {
+					p.Batches[index].AllowedScope = append(p.Batches[index].AllowedScope, "apps/**")
+				},
+				"tests": func(p *milestonePlan) { p.Batches[index].Tests = nil },
+				"recomputed-substitution": func(p *milestonePlan) {
+					p.Batches[index].Objective += " changed"
+					p.Batches[index].FrozenContractSHA256, _ = batchContractDigest(p.Batches[index])
+				},
+			} {
+				t.Run(name, func(t *testing.T) {
+					plan := copyPostgresScopePlan(t, original)
+					mutate(&plan)
+					if approvedMigrationPath(path, plan) {
+						t.Fatal("invalid authority permitted migration path")
+					}
+				})
+			}
+			for _, state := range []string{"DRAFT", "PLANNED", "UNKNOWN"} {
+				plan := copyPostgresScopePlan(t, original)
+				plan.Batches[index].State = state
+				if approvedMigrationPath(path, plan) {
+					t.Fatalf("unapproved state %s passed", state)
+				}
+			}
+		})
+	}
+	if approvedMigrationPath("tests/fuzz/migration/entry_test.go", migrationScopePlan(t, false)) {
+		t.Fatal("current unstarted B009 gained the conditional exception")
+	}
+	if hasApprovedMigrationScope(original, "M1-B008") || approvedMigrationPath("internal/session/migration/entry.go", milestonePlan{}) {
+		t.Fatal("unapproved or absent authority passed")
+	}
+}
+
+func TestMigrationScopeNativeRepositoryGate(t *testing.T) {
+	source := testApp(t)
+	files, err := source.repositoryFiles(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	for _, relative := range files {
+		raw, err := os.ReadFile(filepath.Join(source.root, relative))
+		if err != nil {
+			t.Fatal(err)
+		}
+		dest := filepath.Join(root, relative)
+		if err := os.MkdirAll(filepath.Dir(dest), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(dest, raw, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if output, err := exec.Command("git", "init", "--quiet", root).CombinedOutput(); err != nil {
+		t.Fatalf("init fixture: %v %s", err, output)
+	}
+	app := &App{root: root, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+	if err := app.checkScope(context.Background()); err != nil {
+		t.Fatalf("valid baseline rejected: %v", err)
+	}
+	planPath := filepath.Join(root, ".codex/state/MILESTONE_PLAN.yaml")
+	original, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe := filepath.Join(root, "internal/session/migration/probe.go")
+	if err := os.MkdirAll(filepath.Dir(probe), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(probe, []byte("package fixture\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.checkScope(context.Background()); err != nil {
+		t.Fatalf("approved B007 path rejected: %v", err)
+	}
+	for name, raw := range map[string][]byte{
+		"absent":             nil,
+		"malformed":          []byte("[malformed"),
+		"unknown-field":      []byte("milestone: M1\nunknown_field: true\n"),
+		"duplicate-document": append(append([]byte(nil), original...), []byte("\n---\nmilestone: M0\n")...),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if raw == nil {
+				if err := os.Remove(planPath); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(planPath, raw, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := app.checkScope(context.Background()); err == nil {
+				t.Fatal("invalid source authority permitted native repository gate")
+			}
+			if err := os.WriteFile(planPath, original, 0600); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	if err := os.Remove(planPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(planPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.checkScope(context.Background()); err == nil {
+		t.Fatal("unreadable authority permitted native gate")
+	}
+	if err := os.Remove(planPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(planPath, original, 0600); err != nil {
+		t.Fatal(err)
+	}
+	unstarted, err := yaml.Marshal(migrationScopePlan(t, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(planPath, unstarted, 0600); err != nil {
+		t.Fatal(err)
+	}
+	fuzz := filepath.Join(root, "tests/fuzz/migration/probe_test.go")
+	if err := os.MkdirAll(filepath.Dir(fuzz), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fuzz, []byte("package fixture\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.checkScope(context.Background()); err == nil {
+		t.Fatal("unstarted fuzz path permitted")
+	}
+	approved, err := yaml.Marshal(migrationScopePlan(t, true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(planPath, approved, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.checkScope(context.Background()); err != nil {
+		t.Fatalf("approved exact frozen fuzz scope rejected: %v", err)
+	}
+	if err := os.WriteFile(fuzz, []byte("package fixture\nimport _ \"database/sql\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.checkScope(context.Background()); err == nil {
+		t.Fatal("migration scope expanded PostgreSQL import scope")
+	}
 }

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"CommAnd_id\":\"0\",\"session_id\":\"0000000\",\"eXpeCted_stAte_version\":0,\"seAt_id\":\"00\",\"tYpe\":\"0\",\"pAYloAd\":{\"kind\":\"00000\",\"tABle\":{}}}")

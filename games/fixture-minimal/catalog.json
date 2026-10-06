@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "license_expression": "PolyForm-Noncommercial-1.0.0",
+  "purpose": "Linux M1 synthetic source-only certification fixture",
+  "versions": [
+    {
+      "version": "1.0.0",
+      "graph_lock_hash": "sha256:d9ad2e0177ddc9e4f7636bcf83e360441e53c2736f3320abb0b91e5a6dceee73",
+      "source_files": [
+        "1.0.0/assets.json",
+        "1.0.0/content.json",
+        "1.0.0/game-system.json",
+        "1.0.0/library.json",
+        "1.0.0/ui-extension.json"
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "graph_lock_hash": "sha256:f30303def0db4f64281452c71b7bb9a25bfc64074da47dfe5d6abd9eb4f433f3",
+      "source_files": [
+        "1.1.0/assets.json",
+        "1.1.0/content.json",
+        "1.1.0/game-system.json",
+        "1.1.0/library.json",
+        "1.1.0/ui-extension.json"
+      ]
+    }
+  ],
+  "source_sha256": {
+    "1.0.0/assets.json": "sha256:d875f3ab903f8db1c49f291a81a7cebde0f5d521f6650267e3b451f15d0f08f2",
+    "1.0.0/content.json": "sha256:6afe6f54038fcf15bca3ef9df99a03b9b0e0f4c5388114857166f98d9d4efebf",
+    "1.0.0/game-system.json": "sha256:afc88dd0afd78c42219ba7892f91f89b4dc81d086da03019590698de15207fbf",
+    "1.0.0/library.json": "sha256:02d495ae5487998e04e5bd2d6070293af737ba6f2a258189b08f8b22173b9013",
+    "1.0.0/ui-extension.json": "sha256:4d9cc850ccd8f2e8302f6df2d7b7e0004c82d6606fc6c5f84689fc29a7358f89",
+    "1.1.0/assets.json": "sha256:089a6915eae366dc2c1efc3f1763c9ef147a00a708bc56bddda3a1b84ecffca5",
+    "1.1.0/content.json": "sha256:3ce100e53491aee3358da3324c90d953a87a4a7b5920a7d0e87c19de53d245de",
+    "1.1.0/game-system.json": "sha256:50090d2b855fc403f3fa3519a45908d8eb93131c6168a8b345c45f6c040efb7c",
+    "1.1.0/library.json": "sha256:4bd47b9e9775fae5dedcdbe0d0788b096694f3e72aa31a51d889491753d5258d",
+    "1.1.0/ui-extension.json": "sha256:2359164a8add2f3aa289ee4d04e02d8deb0cadc831f314b7d405684f33d2019e"
+  }
+}

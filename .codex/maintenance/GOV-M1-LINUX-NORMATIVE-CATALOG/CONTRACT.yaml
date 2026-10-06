@@ -1,0 +1,83 @@
+schema_version: 1
+x-section-id: GOV-M1-LINUX-NORMATIVE-CATALOG
+maintenance_id: GOV-M1-LINUX-NORMATIVE-CATALOG
+objective:
+- Register exactly the independently accepted Linux M1 scope document in the existing bounded normative Section catalog.
+reason: >-
+  The parent froze an unstarted B004 reading reference to the already owner-authorized
+  Linux scope document but omitted its native fixed inventory entry. This necessary
+  internal catalog repair preserves every scope, frozen field, authority and hard gate.
+source_blocker: |-
+  classification: MISSING_APPROVED_M1_LINUX_NORMATIVE_CATALOG_ENTRY
+  candidate: 3b3b417e308083b3040176a7cd1baac33db0c094
+  tree: d9313d0bb11750448d7eee72c48abdf5c33fce95
+  command: just test
+  exit code: 1
+  case: TestBoundedNormativeSectionCatalogCoversAuthorityContracts
+  original log: /tmp/trpg-m1-b003-20261006/candidate-linux-3b3b417-attempt1/test.log
+  log SHA256: bfcd0b16711579fb6312908cd70463d8358a4b7b3e2f93b885b94a4921aedcae
+  original command receipt: /tmp/trpg-m1-b003-20261006/candidate-linux-3b3b417-attempt1/test.json
+  error: B004 frozen Section ID SPEC-M1-LINUX-ACCEPTANCE-SCOPE is not uniquely cataloged, found 0
+  B004 frozen digest: 4b7d73a8d566d3097f3afbb45f8271e00d7aead7192992bba59974a717c08e31
+  B003 frozen digest: 59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e
+  approved scope receipt SHA256: 49f631644c305480aa5fd5a1fee5cd39f423b5e74295570f26e413858990a85a
+  owner authorization: direct completion and Linux scope messages; OWNER-DECISION-M1-LINUX-FIRST-20261006
+  proposal: /tmp/trpg-m1-b003-20261006/linux-normative-catalog/CHANGE-M1-LINUX-NORMATIVE-CATALOG.md
+allowed_scope:
+- path: .codex/maintenance/GOV-M1-LINUX-NORMATIVE-CATALOG/CONTRACT.yaml
+  section_id: GOV-M1-LINUX-NORMATIVE-CATALOG
+  kind: machine-contract
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG-TESTS
+  kind: test
+forbidden_scope:
+- Any fourth tracked path or unrelated code change.
+- Any normative document, M1 plan/state/lifecycle/allocation, frozen contract, business, dependency, workflow, deployment, public API, license or product change.
+- Any dynamic discovery or walk of docs, fallback lookup, environment bypass, uniqueness weakening or skipped gate.
+- Any main or remote mutation, business lifecycle transition, or B003, B004 or M1 business acceptance/completion claim from this maintenance.
+- Any functional repair during PLAN registration; only the contract and inert Section ID markers may be registered there.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-ROUTE
+  kind: normative-section
+- path: docs/00-governance/DOCUMENT_AUTHORITY.md
+  section_id: SPEC-DOCUMENT-AUTHORITY-READING
+  kind: normative-section
+- path: docs/00-governance/M1_LINUX_ACCEPTANCE_SCOPE.md
+  section_id: SPEC-M1-LINUX-ACCEPTANCE-SCOPE
+  kind: normative-section
+- path: .codex/state/MILESTONE_PLAN.yaml
+  section_id: M1-MILESTONE-PLAN
+  kind: machine-contract
+acceptance:
+- The sole functional code delta adds exactly docs/00-governance/M1_LINUX_ACCEPTANCE_SCOPE.md to the existing bounded inventory; no other catalog path, resolver or policy changes.
+- The approved stable Section resolves exactly once to its unchanged normative document and every existing frozen reading reference remains valid.
+- Original zero-resolution failure is retained and the same native failing regression now passes with actual named execution; no waiver or frozen-ref deletion is used.
+- Every non-allowlisted tracked blob/mode, business, dependency, approved scope document, all M1 plan bytes, frozen digests and historical FAIL bytes remain unchanged.
+- Independent read-only ACCEPT verifies exact signed identity, bounded diff, source blocker and all actual checks; governance PASS never means business PASS.
+tests:
+- Fresh native PLAN registration and formal REPAIR routes/checks bind the exact signed candidates.
+- go test -count=1 -json ./internal/projectctl/... has nonzero run/pass and zero fail/skip, including the originally failing native catalog test.
+- go vet ./internal/projectctl/... and clean candidate just check and just license-check pass.
+- A fresh B004 reading route resolves the approved Section through the unchanged exact catalog resolver; B004 remains FROZEN, B003 remains VERIFYING, and this maintenance neither authorizes business start nor changes any lifecycle state.
+- Independent ACCEPT checks three-path scope, unchanged business/plan/frozen/history and fixed bounded catalog semantics.
+stop_conditions:
+- Stop if any new authority or unapproved document, nonbounded discovery, semantics change, business mutation or frozen-field alteration is required.
+- Stop if source failure/evidence or accepted scope authorization cannot be preserved and authenticated.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-011
+  authorization: No external bootstrap is invoked; the owner authorized completing Linux M1 and its accepted scope, and native PLAN registration works at 3b3b417e308083b3040176a7cd1baac33db0c094.
+  allowed_scope:
+  - No external bootstrap mutation; native PLAN registers this contract and inert Section markers only.
+  retirement_condition: Remain retired and use formal REPAIR route/check before functional writes.
+  status: RETIRED
+  retirement_evidence:
+  - Native PLAN M1 route/check passed at 3b3b417e308083b3040176a7cd1baac33db0c094; no external bootstrap execution.
+  - Formal native REPAIR route/check passed at e0a66973b5766ab1c212b9f793a4cb8e6e242d74 before the sole fixed inventory entry; receipts in /tmp/trpg-m1-b003-20261006/linux-normative-catalog/registration-e0a6697/.
+status: READY_FOR_ACCEPTANCE

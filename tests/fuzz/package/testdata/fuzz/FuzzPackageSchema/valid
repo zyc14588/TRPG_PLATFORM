@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"boolean\"}")

@@ -17,6 +17,16 @@ RUN test -n "${BINARY}" && \
       -ldflags="-s -w -buildid=" \
       -o /out/service "./cmd/${BINARY}"
 
+
+# The M1 harness supplies freshly source-built static binaries in its own
+# temporary context. This test target never pulls a runtime base image.
+FROM scratch AS m1-fixture
+COPY rootfs/ /
+USER 65532:65532
+WORKDIR /app
+ENTRYPOINT ["/app/platformd"]
+CMD ["--help"]
+
 FROM scratch
 
 COPY --from=build --chown=65532:65532 /out/service /app/service

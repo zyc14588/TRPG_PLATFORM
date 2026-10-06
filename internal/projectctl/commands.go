@@ -10,6 +10,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/parser"
+	"go/token"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -17,6 +20,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -833,6 +837,194 @@ func checkPackageLicenses(root string, problems *validationErrors) error {
 	})
 }
 
+// x-section-id: PROJECTCTL-POSTGRES-SCOPE-GATE
+const approvedPostgresContract = "59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e"
+
+func (a *App) postgresScopeAuthority() (milestonePlan, error) {
+	file, err := os.Open(filepath.Join(a.root, ".codex", "state", "MILESTONE_PLAN.yaml"))
+	if errors.Is(err, os.ErrNotExist) {
+		return milestonePlan{}, nil // historical M0 has no PostgreSQL authorization
+	}
+	if err != nil {
+		return milestonePlan{}, err
+	}
+	defer file.Close()
+	var plan milestonePlan
+	decoder := yaml.NewDecoder(file)
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&plan); err != nil {
+		return milestonePlan{}, fmt.Errorf("parse PostgreSQL scope authority: %w", err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return milestonePlan{}, errors.New("PostgreSQL scope authority must contain exactly one YAML document")
+		}
+		return milestonePlan{}, fmt.Errorf("trailing PostgreSQL scope authority: %w", err)
+	}
+	return plan, nil
+}
+
+func hasApprovedPostgresScope(plan milestonePlan) bool {
+	if plan.SchemaVersion != milestonePlanSchemaVersion || plan.Milestone != "M1" || (plan.Status != "ACTIVE" && plan.Status != "COMPLETE") {
+		return false
+	}
+	// The owner approved only M1 authority. Reuse the complete native plan
+	// validator for that fixed target instead of accepting a subset of metadata.
+	if err := validateMilestonePlan(plan, v1MilestoneCatalog{known: map[string]bool{"M1": true}}); err != nil {
+		return false
+	}
+	count := 0
+	approved := false
+	for _, batch := range plan.Batches {
+		if batch.BatchID != "M1-B003" {
+			continue
+		}
+		count++
+		if batch.State != "IMPLEMENTING" && batch.State != "VERIFYING" && batch.State != "BLOCKED" && batch.State != "COMPLETED" {
+			continue
+		}
+		digest, err := batchContractDigest(batch)
+		approved = err == nil && digest == approvedPostgresContract && batch.FrozenContractSHA256 == approvedPostgresContract
+	}
+	return count == 1 && approved
+}
+
+func approvedPostgresPath(relative string) bool {
+	if strings.Contains(relative, "\\") || filepath.IsAbs(relative) || filepath.ToSlash(filepath.Clean(relative)) != relative || !strings.HasSuffix(relative, ".go") {
+		return false
+	}
+	return relative == "cmd/platformd/packages.go" || strings.HasPrefix(relative, "internal/storage/postgres/") || strings.HasPrefix(relative, "tests/integration/package_install/")
+}
+
+func m0IntegrationTokens() []string {
+	return []string{
+		"api." + "openai.com",
+		"ol" + "lama",
+		"llama" + ".cpp",
+		"github.com/" + "nats-io",
+		"gopher" + "-lua",
+		"shopify/" + "go-lua",
+		"database/sql",
+		"lib/" + "pq",
+		"pgx",
+	}
+}
+
+func integrationScopeProblems(relative string, data []byte, plan milestonePlan) []string {
+	var problems []string
+	goSource := strings.HasSuffix(relative, ".go")
+	lower := strings.ToLower(string(data))
+	for _, forbidden := range m0IntegrationTokens() {
+		if goSource && (forbidden == "database/sql" || forbidden == "pgx") {
+			continue // Go declarations are parsed below; comments cannot link a driver
+		}
+		if strings.Contains(lower, forbidden) {
+			problems = append(problems, fmt.Sprintf("M0 source %s contains forbidden integration token %q", relative, forbidden))
+		}
+	}
+	if !goSource {
+		return problems
+	}
+	source, err := parser.ParseFile(token.NewFileSet(), relative, data, parser.AllErrors)
+	if err != nil {
+		return append(problems, fmt.Sprintf("scope imports %s: %v", relative, err))
+	}
+	for _, declaration := range source.Imports {
+		path, err := strconv.Unquote(declaration.Path.Value)
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("scope import %s: %v", relative, err))
+			continue
+		}
+		postgresImport := false
+		for _, forbidden := range m0IntegrationTokens() {
+			if !strings.Contains(strings.ToLower(path), forbidden) {
+				continue
+			}
+			if forbidden == "database/sql" || forbidden == "pgx" {
+				postgresImport = true
+			} else {
+				problems = append(problems, fmt.Sprintf("source %s contains forbidden integration import %q", relative, path))
+			}
+		}
+		if !postgresImport {
+			continue
+		}
+		if (path != "database/sql" && path != "github.com/jackc/pgx/v5/stdlib") || !approvedPostgresPath(relative) || !hasApprovedPostgresScope(plan) {
+			problems = append(problems, fmt.Sprintf("source %s contains unauthorized PostgreSQL import %q", relative, path))
+		}
+	}
+	return problems
+}
+
+// x-section-id: PROJECTCTL-MIGRATION-PATH-SCOPE-GATE
+const (
+	approvedMigrationContract     = "3fd98c06a16d5d511f5fda8b5e1d58a7f864bae940f7d87896348574ea227629"
+	approvedMigrationFuzzContract = "edf35377a4fc1a9bbb252e177aef3d7b99bc4e52659540fb5ac18a7d5f5f48d1"
+)
+
+func hasApprovedMigrationScope(plan milestonePlan, batchID string) bool {
+	var approved string
+	switch batchID {
+	case "M1-B007":
+		approved = approvedMigrationContract
+	case "M1-B009":
+		approved = approvedMigrationFuzzContract
+	default:
+		return false
+	}
+	if plan.Milestone != "M1" || (plan.Status != "ACTIVE" && plan.Status != "COMPLETE") {
+		return false
+	}
+	if err := validateMilestonePlan(plan, v1MilestoneCatalog{known: map[string]bool{"M1": true}}); err != nil {
+		return false
+	}
+	count, authorized := 0, false
+	for _, batch := range plan.Batches {
+		if batch.BatchID != batchID {
+			continue
+		}
+		count++
+		switch batch.State {
+		case "FROZEN", "IMPLEMENTING", "BLOCKED", "VERIFYING", "COMPLETED":
+			digest, err := batchContractDigest(batch)
+			authorized = err == nil && digest == approved && batch.FrozenContractSHA256 == approved
+		}
+	}
+	return count == 1 && authorized
+}
+
+func approvedMigrationPath(relative string, plan milestonePlan) bool {
+	if strings.Contains(relative, "\\") || filepath.IsAbs(relative) || filepath.ToSlash(filepath.Clean(relative)) != relative {
+		return false
+	}
+	for _, scope := range []struct{ prefix, batch string }{
+		{"internal/package/migration/", "M1-B007"},
+		{"internal/package/testdata/migration/", "M1-B007"},
+		{"internal/session/migration/", "M1-B007"},
+		{"tests/integration/migration/", "M1-B007"},
+		{"tests/fuzz/migration/", "M1-B009"},
+	} {
+		if !strings.HasPrefix(relative, scope.prefix) {
+			continue
+		}
+		suffix := strings.TrimPrefix(relative, scope.prefix)
+		if suffix == "" || hasPathComponent(suffix, "migration") || hasPathComponent(suffix, "migrations") {
+			return false
+		}
+		return hasApprovedMigrationScope(plan, scope.batch)
+	}
+	return false
+}
+
+func legacyScopePath(relative string, plan milestonePlan) bool {
+	base := filepath.Base(relative)
+	return base == "Cargo.toml" || filepath.Ext(base) == ".rs" ||
+		hasPathComponent(relative, "migrations") || hasPathComponent(relative, "legacy") ||
+		strings.HasPrefix(relative, "source-archive/") || strings.HasPrefix(relative, "docs/codex/") ||
+		(hasPathComponent(relative, "migration") && !approvedMigrationPath(relative, plan))
+}
+
 func (a *App) checkScope(ctx context.Context) error {
 	files, err := a.repositoryFiles(ctx)
 	if err != nil {
@@ -848,6 +1040,10 @@ func (a *App) checkScope(ctx context.Context) error {
 	}
 	present := map[string]bool{}
 	problems := &validationErrors{}
+	postgresAuthority, authorityErr := a.postgresScopeAuthority()
+	if authorityErr != nil {
+		problems.add("PostgreSQL scope authority: %v", authorityErr)
+	}
 	goModules := 0
 	for _, relative := range files {
 		normalized := filepath.ToSlash(relative)
@@ -859,7 +1055,7 @@ func (a *App) checkScope(ctx context.Context) error {
 		if base == "go.mod" {
 			goModules++
 		}
-		if base == "Cargo.toml" || filepath.Ext(base) == ".rs" || hasPathComponent(normalized, "migrations") || hasPathComponent(normalized, "migration") || hasPathComponent(normalized, "legacy") || strings.HasPrefix(normalized, "source-archive/") || strings.HasPrefix(normalized, "docs/codex/") {
+		if legacyScopePath(normalized, postgresAuthority) {
 			problems.add("legacy or out-of-scope path: %s", normalized)
 		}
 		if strings.Contains(normalized, "/dist/") || strings.Contains(normalized, "/node_modules/") || strings.HasPrefix(normalized, "target/") {
@@ -874,21 +1070,8 @@ func (a *App) checkScope(ctx context.Context) error {
 				problems.add("read %s: %v", normalized, readErr)
 				continue
 			}
-			lower := strings.ToLower(string(data))
-			for _, forbidden := range []string{
-				"api." + "openai.com",
-				"ol" + "lama",
-				"llama" + ".cpp",
-				"github.com/" + "nats-io",
-				"gopher" + "-lua",
-				"shopify/" + "go-lua",
-				"database/" + "sql",
-				"lib/" + "pq",
-				"p" + "gx",
-			} {
-				if strings.Contains(lower, forbidden) {
-					problems.add("M0 source %s contains forbidden integration token %q", normalized, forbidden)
-				}
+			for _, problem := range integrationScopeProblems(normalized, data, postgresAuthority) {
+				problems.add("%s", problem)
 			}
 		}
 	}

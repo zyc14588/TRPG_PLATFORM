@@ -18,18 +18,32 @@ var namePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$`)
 type Name string
 
 const (
-	HostEvent Name = "host.event"
-	HostLog   Name = "host.log"
-	HostState Name = "host.state"
+	HostAI      Name = "host.ai"
+	HostContent Name = "host.content"
+	HostDB      Name = "host.db"
+	HostEvent   Name = "host.event"
+	HostLog     Name = "host.log"
+	HostRandom  Name = "host.random"
+	HostRules   Name = "host.rules"
+	HostState   Name = "host.state"
+	HostTask    Name = "host.task"
+	HostTime    Name = "host.time"
 )
 
 // registeredNames is the single version-one capability registry. New names
 // require an explicit contract change; syntactically valid strings are not
 // capabilities merely because every grant layer repeats them.
 var registeredNames = []Name{
+	HostAI,
+	HostContent,
+	HostDB,
 	HostEvent,
 	HostLog,
+	HostRandom,
+	HostRules,
 	HostState,
+	HostTask,
+	HostTime,
 }
 
 // RegisteredNames returns the canonical registry in stable order.

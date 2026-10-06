@@ -1,0 +1,27 @@
+{
+  "package_id": "example.test/migration-ui",
+  "role": "ui-extension",
+  "version": "1.1.0",
+  "content_hash": "sha256:1f9b250112964f8e036c09b23aaf7147c14fbd06a310b4c22a7fb03e1aae8c8d",
+  "artifact_hash": "sha256:025402145540a22019d3f8be1b19ea48d1a02c22ca65efd4ad00b204d30b0648",
+  "exact_lock": {
+    "schema_version": 1,
+    "root": "example.test/migration-ui",
+    "packages": [
+      {
+        "package_id": "example.test/migration-ui",
+        "version": "1.1.0",
+        "content_hash": "sha256:1f9b250112964f8e036c09b23aaf7147c14fbd06a310b4c22a7fb03e1aae8c8d",
+        "features": [
+          "fixture"
+        ],
+        "dependencies": []
+      }
+    ]
+  },
+  "source_files": {
+    "package.toml": "schema_version=1\nartifact_type=\"package\"\npackage_id=\"example.test/migration-ui\"\npackage_kind=\"ui-extension\"\nversion=\"1.1.0\"\ndisplay_name=\"Synthetic migration fixture\"\n[build]\nsource=\"fixture-local\"\nrevision=\"migration-v1\"\nbuilder=\"migration-fixture/1\"\n[rights]\nauthors=[\"Synthetic migration fixture\"]\nsource=\"original\"\nlicense_expression=\"PolyForm-Noncommercial-1.0.0\"\n[capabilities]\nrequired=[]\n",
+    "schemas/role.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"string\",\"const\":\"1.1.0\"}",
+    "ui/readme.txt": "1.1.0"
+  }
+}
