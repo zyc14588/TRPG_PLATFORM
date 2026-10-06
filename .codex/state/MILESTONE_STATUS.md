@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "0218605d024b91f40c9f3653492a31f13afe049e"
+source_commit: "a077b764315b57c78edc49223cef96245a979f1e"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：前置修复完成，恢复迁移批次
+
+正常 PLAN v67→v68 仅将 M1-B007 BLOCKED→IMPLEMENTING，原冻结合同3fd98c06a16d5d511f5fda8b5e1d58a7f864bae940f7d87896348574ea227629与全部14字段保持；其他13批、next15及历史正文保持。原B007在cbb9a36的12 tracked+17 untracked草稿已精确保存，将在当前已验收上游基础上按批准范围恢复，不将旧草稿或原失败视为业务PASS。
+
+Owner已明确批准CHANGE-M1-LINUX-MIGRATION-PREREQUISITES两项上游补齐。治理修复8a33226独立GOVERNANCE_ONLY PASS（239回归、239race、42对抗）；完整图Host修复129620e独立business PASS（237相关、237race、48真实named，0fail/skip），B014完成状态a077b76独立state-only PASS且本地主分支实际接收到a077b764315b57c78edc49223cef96245a979f1e。精确f875测试数据库0连接后已stop/remove并验证不存在，cleanup回执1f1b65fca31633a707a15044c4d883f205c357a81efc4292b39d7542b6b4dafe；B014732成员归档实际创建并逐成员读回，SHA25682490971a63c1162fe67e25c6ef1a017cc93bcd58e8ab7cd68fee6373cde1c4a。
+
+B007继续验证完整精确锁、安全边界、隔离预演、旧事件重放、原子迁移及记录恢复点回退，补齐真实未声明边界、已结束Session、恢复故障和Linux守护进程组合验证。原目录门禁FAIL、Host完整图FAIL、旧buildFAIL与历史PENDING提案原文保留。B008/B009尚未开始；B009既有14字段合同保持，未来迁移fuzz路径例外仍仅受批准的edf35377精确合同约束。
+
+当前14批次11个COMPLETED，按批次数11/14≈78.57%；M1 ACTIVE，Windows/macOS NOT_RUN，全V1未完成。B007尚无业务候选或独立业务验收通过，不提前声称迁移或M1完成；无Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：完整依赖图认证修复独立通过
 
