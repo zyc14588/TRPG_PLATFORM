@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 50
+plan_version: 51
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -338,7 +338,7 @@ batches:
 
 - batch_id: M1-B005
   sequence: 5
-  state: PLANNED
+  state: FROZEN
   objective: Implement the minimal authoritative Session command pipeline with one bounded single-writer actor and commit-before-broadcast idempotent
     delivery.
   non_goals:
@@ -435,6 +435,7 @@ batches:
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
+  frozen_contract_sha256: df022fd1324b5e9cb052cac3017cf0ac0b698c90040116aac31628d754aa1c47
 - batch_id: M1-B006
   sequence: 6
   state: PLANNED

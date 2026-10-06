@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "cf559ed89cac19bae315bb81c65cdb1bc8d6d453"
+source_commit: "49d4b85faf4ef8594abf041c09eea760e660da51"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：SessionActor B005 FROZEN
+
+正常 PLAN freeze v50→v51；B005 未开始草案完善后冻结并激活。沿用有界单写Actor、完整命令信封/幂等、七效果同事务、先提交后广播与席位重连规范。草案新增 trusted storage/package、storage/postgres 范围以实现固定有界游标/创建证据读取，投影/检查点只读不提交，不增加公共协议、依赖、产品或许可；所有已冻结/完成合同、其他批次与 next14 不变。冻结摘要 `df022fd1324b5e9cb052cac3017cf0ac0b698c90040116aac31628d754aa1c47`。业务 NOT_RUN；下一步按新 IMPLEMENT 路由施工。
+
+B013 实际本机 main 接收已 PASS，回执 `/tmp/trpg-m1-b013-linux-20261006/main-reception-cf559ed/RECEPTION_RECEIPT.json` SHA256 `d0ce4491d2b3659d7e245196f2121c6b0fea02200b7ade339cf044e3a09bcb13`；精确814独立业务验收与状态门禁来源保持分列。M1 ACTIVE，有效完成7/12（58.3%，按数量）；B005–B009 与整体 Linux 出口尚待，Windows/macOS NOT_RUN。无新的Owner决策等待。
+
+## 历史 B013 完成登记与此前状态（保留）
 
 ## 当前 Linux M1：SessionActor B005 PLANNED
 
