@@ -28,7 +28,10 @@ type Options struct {
 	// a validation. The transaction is passed to let tests terminate its backend.
 	Fault func(context.Context, string, *sql.Tx) error
 }
-type Repository struct{ options Options }
+type Repository struct {
+	options Options
+	owned   bool
+}
 
 func New(o Options) (*Repository, error) {
 	if o.DB == nil || o.Objects == nil {
@@ -37,7 +40,49 @@ func New(o Options) (*Repository, error) {
 	if o.Support.HostAPIMajor == 0 {
 		o.Support = extension.DefaultSupport
 	}
-	return &Repository{o}, nil
+	return &Repository{options: o}, nil
+}
+
+// OpenInstallationRepository keeps driver/connection handles in the storage
+// layer. Its optional callback can abort or delay a fixed transition only.
+func OpenInstallationRepository(ctx context.Context, dsn string, objects *object.Directory, support extension.Support, fault func(context.Context, string) error) (*Repository, error) {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, err
+	}
+	if err = db.PingContext(ctx); err != nil {
+		db.Close()
+		return nil, err
+	}
+	r, err := New(Options{DB: db, Objects: objects, Support: support, Fault: func(ctx context.Context, point string, _ *sql.Tx) error {
+		if fault != nil {
+			return fault(ctx, point)
+		}
+		return nil
+	}})
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	r.owned = true
+	return r, nil
+}
+func (r *Repository) Close() error {
+	if r.owned {
+		return r.options.DB.Close()
+	}
+	return nil
+}
+
+type InstallationInspection struct{ Artifacts, Grants, Requests, DataTargets int }
+
+func (r *Repository) InspectInstallation(ctx context.Context, workspace string) (InstallationInspection, error) {
+	var v InstallationInspection
+	if !store.ValidID(workspace) {
+		return v, store.ErrDenied
+	}
+	err := r.options.DB.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM package_install.artifacts WHERE workspace=$1),(SELECT count(*) FROM package_install.grants WHERE workspace=$1),(SELECT count(*) FROM package_install.requests WHERE workspace=$1),(SELECT count(*) FROM package_install.data_targets WHERE workspace=$1)`, workspace).Scan(&v.Artifacts, &v.Grants, &v.Requests, &v.DataTargets)
+	return v, err
 }
 func (r *Repository) fault(ctx context.Context, point string, tx *sql.Tx) error {
 	if r.options.Fault != nil {

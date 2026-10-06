@@ -28,6 +28,10 @@ type Execution struct {
 	PID                                                  int
 	Reaped                                               bool
 }
+type runtimePolicy struct {
+	Policy    *Policy
+	Fallbacks map[string]vm.FallbackProof
+}
 
 func runtimeCode(err error) string {
 	if errors.Is(err, ipc.ErrRunner) {
@@ -39,7 +43,13 @@ func runtimeCode(err error) string {
 	return profile.Code(err)
 }
 
-func validateRuntime(ctx context.Context, c RuntimeConfig, items []staged, report func(Execution) error) (string, error) {
+func validateRuntime(ctx context.Context, c RuntimeConfig, items []staged, report func(Execution) error, policies ...runtimePolicy) (string, error) {
+	if len(policies) == 1 && policies[0].Policy != nil && policies[0].Policy.config.Host != nil {
+		h := policies[0].Policy.config.Host
+		if h.RunnerHash != c.SHA256 || h.Limits != c.Limits {
+			return "", ErrPolicy
+		}
+	}
 	var executions []Execution
 	emit := func(e Execution) error { executions = append(executions, e); return report(e) }
 	proofs := map[string]vm.FallbackProof{}
@@ -55,26 +65,15 @@ func validateRuntime(ctx context.Context, c RuntimeConfig, items []staged, repor
 		}
 	}
 	if needsRunner {
-		if !filepath.IsAbs(c.Runner) || c.Limits.Validate() != nil {
-			return "", profile.Fail(profile.ErrConfiguration)
-		}
-		info, err := os.Lstat(c.Runner)
-		if err != nil {
+		if err := verifyRuntime(c); err != nil {
 			return "", err
-		}
-		if !info.Mode().IsRegular() || info.Size() > 128<<20 {
-			return "", profile.Fail(profile.ErrConfiguration)
-		}
-		data, err := os.ReadFile(c.Runner)
-		if err != nil {
-			return "", err
-		}
-		if object.Hash(data) != c.SHA256 {
-			return "", profile.Fail(profile.ErrConfiguration)
 		}
 	}
 	for _, item := range items {
 		d, _ := item.pkg.Manifest()
+		if item.approval.Host != nil && (item.pkg != items[0].pkg || !d.CanStartSession()) {
+			return "", ErrPolicy
+		}
 		id := string(d.Package.PackageID)
 		config := profile.Config{Limits: c.Limits, Modules: map[string][]byte{}}
 		own := []string{}
@@ -142,6 +141,9 @@ func validateRuntime(ctx context.Context, c RuntimeConfig, items []staged, repor
 		}
 		if err == nil {
 			for _, test := range item.approval.Tests {
+				if test.Host != nil {
+					continue
+				} // typed cases execute only fixed verified callbacks below
 				if err = run(test.Name, test.Source); err != nil {
 					break
 				}
@@ -166,35 +168,69 @@ func validateRuntime(ctx context.Context, c RuntimeConfig, items []staged, repor
 		for _, item := range items[1:] {
 			deps = append(deps, item.pkg)
 		}
-		s, err := vm.New(ctx, vm.Options{SessionID: "install-validation", Runner: c.Runner, Package: root.pkg, Dependencies: deps, Limits: c.Limits, State: vm.State{Value: checkpoint.Value{Kind: "nil"}}, Fallbacks: proofs, Audit: func(profile.Audit) error { return nil }})
-		if err != nil {
-			return "", err
-		}
-		pid := s.PID()
-		for _, test := range root.approval.Tests {
-			result, e := s.Execute(ctx, s.Token(), test.Source)
-			if e == nil && (len(result.Values) != 1 || result.Values[0].Kind != "boolean" || !result.Values[0].Boolean) {
-				e = profile.Fail(profile.ErrScript)
+		if root.approval.Host != nil {
+			if len(policies) != 1 || policies[0].Policy == nil {
+				return "", ErrPolicy
 			}
-			if auditErr := emit(Execution{Package: string(document.Package.PackageID), Case: "vm:" + test.Name, Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: c.SHA256, Outcome: runtimeCode(e), PID: pid}); auditErr != nil {
-				e = auditErr
+			if err := validateHostRuntime(ctx, c, items, proofs, policies[0].Policy, emit); err != nil {
+				return "", err
 			}
-			if e != nil {
-				err = e
-				break
+		} else {
+			s, err := vm.New(ctx, vm.Options{SessionID: "install-validation", Runner: c.Runner, Package: root.pkg, Dependencies: deps, Limits: c.Limits, State: vm.State{Value: checkpoint.Value{Kind: "nil"}}, Fallbacks: proofs, Audit: func(profile.Audit) error { return nil }})
+			if err != nil {
+				return "", err
+			}
+			pid := s.PID()
+			for _, test := range root.approval.Tests {
+				result, e := s.Execute(ctx, s.Token(), test.Source)
+				if e == nil && (len(result.Values) != 1 || result.Values[0].Kind != "boolean" || !result.Values[0].Boolean) {
+					e = profile.Fail(profile.ErrScript)
+				}
+				if auditErr := emit(Execution{Package: string(document.Package.PackageID), Case: "vm:" + test.Name, Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: c.SHA256, Outcome: runtimeCode(e), PID: pid}); auditErr != nil {
+					e = auditErr
+				}
+				if e != nil {
+					err = e
+					break
+				}
+			}
+			destroyErr := s.Destroy()
+			if auditErr := emit(Execution{Package: string(document.Package.PackageID), Case: "vm-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: c.SHA256, Outcome: runtimeCode(destroyErr), PID: pid, Reaped: true}); auditErr != nil {
+				return "", auditErr
+			}
+			if err != nil {
+				return "", err
+			}
+			if destroyErr != nil {
+				return "", destroyErr
 			}
 		}
-		destroyErr := s.Destroy()
-		if auditErr := emit(Execution{Package: string(document.Package.PackageID), Case: "vm-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: c.SHA256, Outcome: runtimeCode(destroyErr), PID: pid, Reaped: true}); auditErr != nil {
-			return "", auditErr
-		}
-		if err != nil {
-			return "", err
-		}
-		if destroyErr != nil {
-			return "", destroyErr
+	}
+	if len(policies) == 1 && policies[0].Fallbacks != nil {
+		for key, proof := range proofs {
+			policies[0].Fallbacks[key] = proof
 		}
 	}
 	raw, _ := json.Marshal(executions)
 	return object.Hash(raw), nil
+}
+func verifyRuntime(c RuntimeConfig) error {
+	if !filepath.IsAbs(c.Runner) || c.Limits.Validate() != nil {
+		return profile.Fail(profile.ErrConfiguration)
+	}
+	info, err := os.Lstat(c.Runner)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Size() > 128<<20 {
+		return profile.Fail(profile.ErrConfiguration)
+	}
+	data, err := os.ReadFile(c.Runner)
+	if err != nil {
+		return err
+	}
+	if object.Hash(data) != c.SHA256 {
+		return profile.Fail(profile.ErrConfiguration)
+	}
+	return nil
 }

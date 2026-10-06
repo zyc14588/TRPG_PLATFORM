@@ -130,7 +130,7 @@ func (i *Installer) Install(ctx context.Context, r Request) (store.Result, error
 	} else if !errors.Is(e, store.ErrNotFound) {
 		return zero, e
 	}
-	validation, err := validateRuntime(ctx, o.Runtime, items, o.Execution)
+	validation, err := validateRuntime(ctx, o.Runtime, items, o.Execution, runtimePolicy{Policy: o.Policy})
 	if err != nil {
 		return zero, fmt.Errorf("production-profile: %w", err)
 	}

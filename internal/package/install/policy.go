@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/profile"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/archive"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/capability"
@@ -40,16 +41,19 @@ type Test struct {
 	Name                 string
 	Source               []byte
 	Capability, Behavior string
+	Host                 *HostCase `json:",omitempty"`
 }
 type Approval struct {
 	RightsDigest, Retention, Safety string
 	Tests                           []Test
+	Host                            *HostContract `json:",omitempty"`
 }
 type PolicyConfig struct {
 	Context              string // development, ci, or production; never taken from a package
 	HostMajor, HostMinor uint32
 	Keys                 map[string]Key
 	Artifacts            map[string]Approval // exact artifact identity -> trusted rights/safety
+	Host                 *HostAuthorization  `json:",omitempty"`
 }
 type Policy struct {
 	config PolicyConfig
@@ -69,6 +73,14 @@ func NewPolicy(c PolicyConfig) (*Policy, error) {
 	if err = json.Unmarshal(raw, &owned); err != nil {
 		return nil, err
 	}
+	if owned.Host != nil {
+		if _, _, err = owned.Host.grants(); err != nil {
+			return nil, ErrPolicy
+		}
+		if !checkpoint.IsDigest(owned.Host.RunnerHash) || owned.Host.Limits.Validate() != nil {
+			return nil, ErrPolicy
+		}
+	}
 	for id, k := range owned.Keys {
 		if id == "" || len(k.Public) != ed25519.PublicKeySize || k.NotBefore <= 0 || k.NotAfter <= k.NotBefore {
 			return nil, ErrPolicy
@@ -87,8 +99,11 @@ func NewPolicy(c PolicyConfig) (*Policy, error) {
 			return nil, ErrPolicy
 		}
 		seen := map[string]bool{}
+		if a.Host != nil && (owned.Host == nil || a.Host.validate() != nil) {
+			return nil, ErrPolicy
+		}
 		for _, test := range a.Tests {
-			if test.Name == "" || seen[test.Name] || profile.ValidateSource(test.Source) != nil {
+			if test.Name == "" || seen[test.Name] || (test.Host == nil && profile.ValidateSource(test.Source) != nil) || (test.Host != nil && (a.Host == nil || len(test.Source) != 0 || test.Capability != "" || test.Host.validate() != nil)) {
 				return nil, ErrPolicy
 			}
 			seen[test.Name] = true
@@ -150,11 +165,11 @@ func (p *Policy) validate(pkg *archive.Package, e Evidence) (Approval, capabilit
 			return reject()
 		}
 	} else {
-		if err = p.verify("publisher", pkg, a.Tests, e.Publisher); err != nil {
+		if err = p.verify("publisher", pkg, e.Publisher); err != nil {
 			return reject()
 		}
 		if e.Certification != nil {
-			if err = p.verify("certification", pkg, a.Tests, e.Certification); err != nil {
+			if err = p.verify("certification", pkg, e.Certification); err != nil {
 				return reject()
 			}
 			if bytes.Equal(p.config.Keys[e.Publisher.KeyID].Public, p.config.Keys[e.Certification.KeyID].Public) {
@@ -165,12 +180,11 @@ func (p *Policy) validate(pkg *archive.Package, e Evidence) (Approval, capabilit
 			return reject()
 		}
 	}
-	// B004 does not exist. No trust classification can grant a Host callback.
-	upper, _ := capability.NewTrustPolicy(map[capability.TrustLevel][]string{
-		capability.TrustOfficial: {}, capability.TrustSigned: {}, capability.TrustPrivateUnverified: {}, capability.TrustDevelopment: {},
-	})
-	empty, _ := capability.NewGrantSet(nil)
-	resolved, err := capability.Resolve(d.Package.Capabilities, level, upper, empty)
+	upper, execution, err := p.config.Host.grants()
+	if err != nil {
+		return reject()
+	}
+	resolved, err := capability.Resolve(d.Package.Capabilities, level, upper, execution)
 	if err != nil {
 		return a, resolved, fmt.Errorf("capabilities: %w", err)
 	}
@@ -188,7 +202,7 @@ func (p *Policy) validate(pkg *archive.Package, e Evidence) (Approval, capabilit
 	return a, resolved, nil
 }
 
-func (p *Policy) verify(kind string, pkg *archive.Package, tests []Test, a *Attestation) error {
+func (p *Policy) verify(kind string, pkg *archive.Package, a *Attestation) error {
 	k, ok := p.config.Keys[a.KeyID]
 	if !ok || k.State != "ACTIVE" && k.State != "RETIRED" || a.SignedAt < k.NotBefore || a.SignedAt > k.NotAfter || a.SignedAt > time.Now().Unix() {
 		return ErrPolicy
@@ -204,7 +218,7 @@ func (p *Policy) verify(kind string, pkg *archive.Package, tests []Test, a *Atte
 	if kind == "publisher" && (k.Certification || k.Publisher != publisher) || kind == "certification" && !k.Certification {
 		return ErrPolicy
 	}
-	message, err := SigningBytes(kind, pkg, tests, a.SignedAt)
+	message, err := p.SigningBytes(kind, pkg, a.SignedAt)
 	if err != nil {
 		return err
 	}

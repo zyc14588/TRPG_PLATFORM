@@ -110,21 +110,26 @@ func NewReader(repo Repository, objects *object.Directory, access *Access, suppo
 	return &Reader{repo, objects, access, support}, nil
 }
 func (r *Reader) Load(ctx context.Context, c Credential, workspace, identity string) (*archive.Package, error) {
+	pkg, _, err := r.load(ctx, c, workspace, identity)
+	return pkg, err
+}
+func (r *Reader) load(ctx context.Context, c Credential, workspace, identity string) (*archive.Package, Artifact, error) {
 	if _, err := model.ParseContentHash(identity); err != nil {
-		return nil, ErrDenied
+		return nil, Artifact{}, ErrDenied
 	}
 	m, err := r.access.Authorize(c, workspace, false)
 	if err != nil {
-		return nil, err
+		return nil, Artifact{}, err
 	}
 	a, err := r.repository.Lookup(ctx, workspace, m.Principal, identity)
 	if err != nil {
-		return nil, err
+		return nil, Artifact{}, err
 	}
 	if a.Identity != identity {
-		return nil, object.ErrIntegrity
+		return nil, Artifact{}, object.ErrIntegrity
 	}
-	return VerifyArtifact(ctx, r.objects, a, r.support)
+	pkg, err := VerifyArtifact(ctx, r.objects, a, r.support)
+	return pkg, a, err
 }
 
 // VerifyArtifact binds the complete index to canonical immutable content. It is

@@ -11,6 +11,7 @@ import (
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/install"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/store"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/object"
+	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/postgres"
 )
 
@@ -20,11 +21,17 @@ type packageServices struct {
 	Installer    *install.Installer
 	Reader       *store.Reader
 	HostCommands *postgres.HostRepository
+	Sessions     *install.SessionFactory
 	database     *sql.DB
 	objects      *object.Directory
 }
 
-func openPackageServices(ctx context.Context, dsn, objectRoot string, options install.Options) (*packageServices, error) {
+type sessionValidation struct {
+	Audit    func(data.Audit) error
+	Validate func(context.Context, data.Commit) error
+}
+
+func openPackageServices(ctx context.Context, dsn, objectRoot string, options install.Options, validation ...sessionValidation) (*packageServices, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
@@ -63,7 +70,17 @@ func openPackageServices(ctx context.Context, dsn, objectRoot string, options in
 	if err != nil {
 		return fail(err)
 	}
-	return &packageServices{Installer: installer, Reader: reader, HostCommands: commands, database: db, objects: objects}, nil
+	var sessions *install.SessionFactory
+	if len(validation) > 1 {
+		return fail(install.ErrPolicy)
+	}
+	if len(validation) == 1 {
+		sessions, err = install.NewSessionFactory(install.SessionOptions{Reader: reader, Policy: options.Policy, Repository: commands, Runtime: options.Runtime, Execution: options.Execution, Audit: validation[0].Audit, Validate: validation[0].Validate})
+		if err != nil {
+			return fail(err)
+		}
+	}
+	return &packageServices{Installer: installer, Reader: reader, HostCommands: commands, Sessions: sessions, database: db, objects: objects}, nil
 }
 
 func (s *packageServices) Close() error {
