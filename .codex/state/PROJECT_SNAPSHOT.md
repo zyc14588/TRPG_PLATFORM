@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "45acd0daf26001527facd095abda104b9cd14b45"
+source_commit: "d7de066ddd1053282d8b47dc73822b817333488f"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：启动最后的认证批次 M1-B009
+
+正常 PLAN v75→76 仅将 M1-B009 FROZEN→IMPLEMENTING；原14字段与冻结契约 edf35377a4fc1a9bbb252e177aef3d7b99bc4e52659540fb5ac18a7d5f5f48d1、其他13批和next15保持，M1 ACTIVE。前置 B007/B008 均已完成独立业务及状态验收、本地主线接收、仅任务临时服务清理和逐项读回归档。
+
+B008干净签名业务45acd0daf26001527facd095abda104b9cd14b45获得独立PASS；001/002/003仅对该来源CLOSED，旧失败原文保持。COMPLETED状态d7de066ddd1053282d8b47dc73822b817333488f已获独立state-only PASS并以10个可信签名提交快进本地main，全部接收后检查exit0；仅本任务f9da测试数据库已连接数0后停止/删除并确认缺席。最终归档SHA256 ff79cc5548aac42bd56add21c993abe79eefffa1af11e22331c1d54638b4e8e5，1645成员实际读回一致。
+
+B009按既有冻结契约完成版本化source-only五角色最小样例、确定性命令及重放、8个30秒Fuzz目标与稳定回归corpus、隔离Compose完整生命周期和16个M1出口TEST ID的精确候选机器证据。仅在允许的games/fixture-minimal、tests/m1、tests/fixture-minimal、tests/fuzz、tests/smoke及两部署文件内施工；核心缺陷返回所属批次REPAIR，实际需要Owner决定时停下。本状态不是B009业务通过，独立状态验收及正式IMPLEMENT入口仍须完成。
+
+原生进度13/14≈92.86%；仅Linux，Windows/macOS NOT_RUN，全V1未完成。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：M1-B008 独立验收通过
 
