@@ -6,17 +6,54 @@ package install
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/profile"
-	"github.com/zyc14588/TRPG_PLATFORM/internal/package/archive"
-	"github.com/zyc14588/TRPG_PLATFORM/internal/package/testdata/install"
-	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/object"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/profile"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/vm"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/archive"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/testdata/install"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/object"
 )
+
+func logRuntimeEvidence(t *testing.T, value any) {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("I03_EVIDENCE %s", raw)
+}
+
+func logExecution(t *testing.T, c RuntimeConfig, e Execution) {
+	t.Helper()
+	if e.Profile != profile.ID || e.Runtime != profile.RuntimeVersion || e.RunnerHash != c.SHA256 || e.PID <= 0 {
+		t.Fatal("unbound production execution", e)
+	}
+	logRuntimeEvidence(t, struct {
+		Kind string `json:"kind"`
+		Execution
+	}{"production-execution", e})
+}
+
+func assertReaped(t *testing.T, pid int) {
+	t.Helper()
+	if pid <= 0 {
+		t.Fatal("missing actual runner PID")
+	}
+	if _, err := os.Stat(fmt.Sprintf("/proc/%d", pid)); !os.IsNotExist(err) {
+		t.Fatal("runner survived validation", pid, err)
+	}
+}
 
 func buildRunner(t *testing.T) RuntimeConfig {
 	t.Helper()
@@ -29,7 +66,30 @@ func buildRunner(t *testing.T) RuntimeConfig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return RuntimeConfig{Runner: path, SHA256: object.Hash(raw), Limits: profile.DefaultLimits()}
+	c := RuntimeConfig{Runner: path, SHA256: object.Hash(raw), Limits: profile.DefaultLimits()}
+	identity := func(arg string) string {
+		out, err := exec.Command("git", "rev-parse", arg).Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	status, err := exec.Command("git", "status", "--porcelain").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	logRuntimeEvidence(t, map[string]any{
+		"kind": "runner-build", "argv": cmd.Args, "cwd": cwd,
+		"candidate_commit": identity("HEAD"), "candidate_tree": identity("HEAD^{tree}"),
+		"tracked_clean": len(status) == 0, "runner_sha256": c.SHA256,
+		"profile": profile.ID, "runtime": profile.RuntimeVersion,
+		"goos": runtime.GOOS, "goarch": runtime.GOARCH, "go_version": runtime.Version(),
+	})
+	return c
 }
 
 func scriptPackage(t *testing.T, kind, source string) *archive.Package {
@@ -58,6 +118,7 @@ func TestProductionValidationExecutesAndReapsIsolatedRunners(t *testing.T) {
 			}
 			pids := map[int]bool{}
 			for _, e := range events {
+				logExecution(t, c, e)
 				if e.PID > 0 {
 					pids[e.PID] = pids[e.PID] || e.Reaped
 				}
@@ -69,9 +130,7 @@ func TestProductionValidationExecutesAndReapsIsolatedRunners(t *testing.T) {
 				if !reaped {
 					t.Fatal("no reap evidence", pid)
 				}
-				if _, err = os.Stat(fmt.Sprintf("/proc/%d", pid)); !os.IsNotExist(err) {
-					t.Fatal("runner survived validation", pid, err)
-				}
+				assertReaped(t, pid)
 			}
 		})
 	}
@@ -95,23 +154,117 @@ func TestProductionValidationExecutesAndReapsIsolatedRunners(t *testing.T) {
 			if err == nil {
 				t.Fatal("production failure accepted")
 			}
+			logRuntimeEvidence(t, map[string]any{"kind": "validation-denied", "case": name, "outcome": runtimeCode(err), "execution_events": len(events)})
 			for _, e := range events {
+				logExecution(t, c, e)
 				if e.Reaped {
-					if _, err = os.Stat(fmt.Sprintf("/proc/%d", e.PID)); !os.IsNotExist(err) {
-						t.Fatal("failed runner leaked", err)
-					}
+					assertReaped(t, e.PID)
 				}
 			}
 		})
 	}
-	bad := c
-	bad.SHA256 = "sha256:" + strings.Repeat("0", 64)
-	p := scriptPackage(t, "library", "return true")
-	a := approval(t, p)
-	a.Tests = []Test{{Name: "pass", Source: []byte("return true")}}
-	if _, err := validateRuntime(context.Background(), bad, []staged{{pkg: p, approval: a}}, func(Execution) error { return nil }); err == nil {
-		t.Fatal("unbound runner accepted")
+	t.Run("runner-hash-binding", func(t *testing.T) {
+		bad := c
+		bad.SHA256 = "sha256:" + strings.Repeat("0", 64)
+		p := scriptPackage(t, "library", "return true")
+		a := approval(t, p)
+		a.Tests = []Test{{Name: "pass", Source: []byte("return true")}}
+		if _, err := validateRuntime(context.Background(), bad, []staged{{pkg: p, approval: a}}, func(Execution) error { return nil }); profile.Code(err) != profile.ErrConfiguration {
+			t.Fatal("unbound runner accepted", err)
+		}
+		logRuntimeEvidence(t, map[string]any{"kind": "runner-hash-binding", "actual_sha256": c.SHA256, "rejected_sha256": bad.SHA256})
+	})
+}
+
+func TestProductionRunnerCancellationAndDeadlineReap(t *testing.T) {
+	c := buildRunner(t)
+	for _, mode := range []string{"cancel", "deadline"} {
+		t.Run(mode, func(t *testing.T) {
+			var ctx context.Context
+			var cancel context.CancelFunc
+			want := error(context.Canceled)
+			if mode == "deadline" {
+				ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+				want = context.DeadlineExceeded
+			} else {
+				ctx, cancel = context.WithCancel(context.Background())
+			}
+			defer cancel()
+			p := scriptPackage(t, "library", "return true")
+			a := approval(t, p)
+			a.Tests = []Test{{Name: "after-cancellation", Source: []byte("return true")}}
+			var events []Execution
+			cancelledLiveRunner := false
+			digest, err := validateRuntime(ctx, c, []staged{{pkg: p, approval: a}}, func(e Execution) error {
+				events = append(events, e)
+				if strings.HasPrefix(e.Case, "module:") && e.Outcome == "PASS" {
+					if _, err := os.Stat(fmt.Sprintf("/proc/%d", e.PID)); err != nil {
+						t.Fatal("cancellation did not target a live initialized runner", err)
+					}
+					cancelledLiveRunner = true
+					if mode == "cancel" {
+						cancel()
+					} else {
+						<-ctx.Done()
+					}
+				}
+				return nil
+			})
+			if !cancelledLiveRunner || !errors.Is(err, want) || digest != "" {
+				t.Fatal("cancelled validation was accepted or did not execute the live-runner boundary", cancelledLiveRunner, digest, err)
+			}
+			reaped := false
+			for _, e := range events {
+				logExecution(t, c, e)
+				if e.Reaped {
+					reaped = true
+					assertReaped(t, e.PID)
+				}
+			}
+			if !reaped {
+				t.Fatal("cancelled runner has no terminal reap evidence")
+			}
+			logRuntimeEvidence(t, map[string]any{"kind": "cancelled-validation", "case": mode, "outcome": runtimeCode(err), "boundary": "live initialized runner after module validation, before trusted test", "digest_absent": digest == "", "reaped": reaped})
+		})
 	}
+}
+
+func TestProductionRunnerPoisonsAndReconstructsBeforeReuse(t *testing.T) {
+	c := buildRunner(t)
+	p := scriptPackage(t, "game-system", "cache=1;return true")
+	state := vm.State{Value: checkpoint.Value{Kind: "nil"}}
+	s, err := vm.New(context.Background(), vm.Options{SessionID: "install-poison-proof", Runner: c.Runner, Package: p, Limits: c.Limits, State: state, Audit: func(profile.Audit) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Destroy() })
+	oldPID, oldToken := s.PID(), s.Token()
+	_, scriptErr := s.Execute(context.Background(), oldToken, []byte("cache=99;error('rejected-validation')"))
+	_, poisonErr := s.Execute(context.Background(), oldToken, []byte("return cache"))
+	if profile.Code(scriptErr) != profile.ErrScript || profile.Code(poisonErr) != profile.ErrPoisoned {
+		t.Fatal("contaminated VM was reusable", scriptErr, poisonErr)
+	}
+	if err = s.Reconstruct(context.Background(), state, nil); err != nil {
+		t.Fatal(err)
+	}
+	newPID := s.PID()
+	if newPID == oldPID {
+		t.Fatal("reconstruction reused contaminated runner")
+	}
+	assertReaped(t, oldPID)
+	_, staleErr := s.Execute(context.Background(), oldToken, []byte("return true"))
+	if profile.Code(staleErr) != profile.ErrCapability {
+		t.Fatal("previous VM token survived reconstruction", staleErr)
+	}
+	result, err := s.Execute(context.Background(), s.Token(), []byte("return cache==1"))
+	if err != nil || len(result.Values) != 1 || result.Values[0].Kind != "boolean" || !result.Values[0].Boolean {
+		t.Fatal("replacement did not restore fresh authoritative lifecycle", result, err)
+	}
+	if err := s.Destroy(); err != nil {
+		t.Fatal(err)
+	}
+	assertReaped(t, newPID)
+	logRuntimeEvidence(t, map[string]any{"kind": "poisoned-vm-reconstruction", "runner_sha256": c.SHA256, "profile": profile.ID, "runtime": profile.RuntimeVersion, "old_pid": oldPID, "new_pid": newPID, "script_outcome": profile.Code(scriptErr), "followup_outcome": profile.Code(poisonErr), "old_token_outcome": profile.Code(staleErr), "replacement_outcome": "PASS", "old_and_new_reaped": true})
 }
 
 func TestRuntimeDoesNotGrantUndeclaredParentModulesToDependency(t *testing.T) {
