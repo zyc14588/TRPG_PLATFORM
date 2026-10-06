@@ -958,6 +958,73 @@ func integrationScopeProblems(relative string, data []byte, plan milestonePlan) 
 }
 
 // x-section-id: PROJECTCTL-MIGRATION-PATH-SCOPE-GATE
+const (
+	approvedMigrationContract     = "3fd98c06a16d5d511f5fda8b5e1d58a7f864bae940f7d87896348574ea227629"
+	approvedMigrationFuzzContract = "edf35377a4fc1a9bbb252e177aef3d7b99bc4e52659540fb5ac18a7d5f5f48d1"
+)
+
+func hasApprovedMigrationScope(plan milestonePlan, batchID string) bool {
+	var approved string
+	switch batchID {
+	case "M1-B007":
+		approved = approvedMigrationContract
+	case "M1-B009":
+		approved = approvedMigrationFuzzContract
+	default:
+		return false
+	}
+	if plan.Milestone != "M1" || (plan.Status != "ACTIVE" && plan.Status != "COMPLETE") {
+		return false
+	}
+	if err := validateMilestonePlan(plan, v1MilestoneCatalog{known: map[string]bool{"M1": true}}); err != nil {
+		return false
+	}
+	count, authorized := 0, false
+	for _, batch := range plan.Batches {
+		if batch.BatchID != batchID {
+			continue
+		}
+		count++
+		switch batch.State {
+		case "FROZEN", "IMPLEMENTING", "BLOCKED", "VERIFYING", "COMPLETED":
+			digest, err := batchContractDigest(batch)
+			authorized = err == nil && digest == approved && batch.FrozenContractSHA256 == approved
+		}
+	}
+	return count == 1 && authorized
+}
+
+func approvedMigrationPath(relative string, plan milestonePlan) bool {
+	if strings.Contains(relative, "\\") || filepath.IsAbs(relative) || filepath.ToSlash(filepath.Clean(relative)) != relative {
+		return false
+	}
+	for _, scope := range []struct{ prefix, batch string }{
+		{"internal/package/migration/", "M1-B007"},
+		{"internal/package/testdata/migration/", "M1-B007"},
+		{"internal/session/migration/", "M1-B007"},
+		{"tests/integration/migration/", "M1-B007"},
+		{"tests/fuzz/migration/", "M1-B009"},
+	} {
+		if !strings.HasPrefix(relative, scope.prefix) {
+			continue
+		}
+		suffix := strings.TrimPrefix(relative, scope.prefix)
+		if suffix == "" || hasPathComponent(suffix, "migration") || hasPathComponent(suffix, "migrations") {
+			return false
+		}
+		return hasApprovedMigrationScope(plan, scope.batch)
+	}
+	return false
+}
+
+func legacyScopePath(relative string, plan milestonePlan) bool {
+	base := filepath.Base(relative)
+	return base == "Cargo.toml" || filepath.Ext(base) == ".rs" ||
+		hasPathComponent(relative, "migrations") || hasPathComponent(relative, "legacy") ||
+		strings.HasPrefix(relative, "source-archive/") || strings.HasPrefix(relative, "docs/codex/") ||
+		(hasPathComponent(relative, "migration") && !approvedMigrationPath(relative, plan))
+}
+
 func (a *App) checkScope(ctx context.Context) error {
 	files, err := a.repositoryFiles(ctx)
 	if err != nil {
@@ -988,7 +1055,7 @@ func (a *App) checkScope(ctx context.Context) error {
 		if base == "go.mod" {
 			goModules++
 		}
-		if base == "Cargo.toml" || filepath.Ext(base) == ".rs" || hasPathComponent(normalized, "migrations") || hasPathComponent(normalized, "migration") || hasPathComponent(normalized, "legacy") || strings.HasPrefix(normalized, "source-archive/") || strings.HasPrefix(normalized, "docs/codex/") {
+		if legacyScopePath(normalized, postgresAuthority) {
 			problems.add("legacy or out-of-scope path: %s", normalized)
 		}
 		if strings.Contains(normalized, "/dist/") || strings.Contains(normalized, "/node_modules/") || strings.HasPrefix(normalized, "target/") {
