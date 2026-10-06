@@ -6,9 +6,8 @@ package replay_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -20,76 +19,16 @@ import (
 	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/postgres"
 )
 
-// The dense event fixture can exceed the ordinary operator inspection's
-// 32 MiB JSON/hex readback budget before reaching 4 MiB of actual evidence.
-// This test-only fixed SQL reader streams at most 64 MiB into digests; it never
-// returns payloads, writes data, or changes the production inspection budget.
-func capacityInspection(t *testing.T, b data.Binding) postgres.RecoveryInspection {
+// Dense valid events can exceed the ordinary 32 MiB operator readback budget
+// before reaching 4 MiB of replay evidence. Use the fixed capacity readback
+// seam; the package and test receive no SQL, connection, or configurable bound.
+func capacityInspection(t *testing.T, e *environment, b data.Binding) postgres.RecoveryInspection {
 	t.Helper()
-	db, err := sql.Open("pgx", dsn)
+	got, err := e.host.InspectRecoveryCapacity(context.Background(), b)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
-	immutable, derived := sha256.New(), sha256.New()
-	size := 0
-	queries := []string{
-		`SELECT jsonb_build_array(graph_hash,version,event_sequence,schema_hash) FROM host_command.sessions WHERE workspace=$1 AND session=$2`,
-		`SELECT to_jsonb(t) FROM host_command.creation t WHERE workspace=$1 AND session=$2`,
-		`SELECT to_jsonb(t) FROM host_command.installed_graphs t WHERE workspace=$1 AND session=$2`,
-		`SELECT to_jsonb(t) FROM host_command.replay_effects t WHERE workspace=$1 AND session=$2 ORDER BY version`,
-		`SELECT to_jsonb(t) FROM host_command.requests t WHERE workspace=$1 AND session=$2 ORDER BY command_id`,
-		`SELECT to_jsonb(t) FROM host_command.events t WHERE workspace=$1 AND session=$2 ORDER BY sequence`,
-		`SELECT to_jsonb(t) FROM host_command.patches t WHERE workspace=$1 AND session=$2 ORDER BY command_id,ordinal`,
-		`SELECT to_jsonb(t) FROM host_command.tasks t WHERE workspace=$1 AND session=$2 ORDER BY id`,
-		`SELECT to_jsonb(t) FROM host_command.continuations t WHERE workspace=$1 AND session=$2 ORDER BY id`,
-		`SELECT to_jsonb(t) FROM host_command.outbox t WHERE workspace=$1 AND session=$2 ORDER BY id`,
-		`SELECT to_jsonb(t) FROM host_command.audit t WHERE workspace=$1 AND session=$2 ORDER BY command_id,ordinal`,
-		`SELECT to_jsonb(t) FROM host_command.endings t WHERE workspace=$1 AND session=$2`,
-		`SELECT to_jsonb(t) FROM package_install.data_targets t WHERE workspace=$1 AND state_reference='host-session:'||$2 ORDER BY package_id`,
-		`SELECT state FROM host_command.sessions WHERE workspace=$1 AND session=$2`,
-		`SELECT to_jsonb(t) FROM host_command.documents t WHERE workspace=$1 AND session=$2 ORDER BY package_id,namespace,key`,
-		`SELECT to_jsonb(t) FROM host_command.quantity t WHERE workspace=$1 AND session=$2 ORDER BY package_id,key`,
-		`SELECT to_jsonb(t) FROM host_command.checkpoints t WHERE workspace=$1 AND session=$2`,
-		`SELECT to_jsonb(t) FROM host_command.projection_caches t WHERE workspace=$1 AND session=$2`,
-	}
-	for i, query := range queries {
-		digest := immutable
-		if i >= 13 {
-			digest = derived
-		}
-		fmt.Fprintf(digest, "%d:%s\n", i, query)
-		rows, err := db.QueryContext(context.Background(), query+" LIMIT $3", b.Workspace, b.Session, eventstore.MaxRecords*257+1)
-		if err != nil {
-			t.Fatal(err)
-		}
-		count := 0
-		for rows.Next() {
-			var raw []byte
-			if err := rows.Scan(&raw); err != nil {
-				rows.Close()
-				t.Fatal(err)
-			}
-			count++
-			size += len(raw)
-			if count > eventstore.MaxRecords*257 || size > 64<<20 {
-				rows.Close()
-				t.Fatal("test readback budget exceeded before capacity proof")
-			}
-			fmt.Fprintf(digest, "%d:", len(raw))
-			digest.Write(raw)
-		}
-		err = rows.Err()
-		rows.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	var records int
-	if err = db.QueryRowContext(context.Background(), `SELECT count(*) FROM host_command.replay_effects WHERE workspace=$1 AND session=$2`, b.Workspace, b.Session).Scan(&records); err != nil {
-		t.Fatal(err)
-	}
-	return postgres.RecoveryInspection{ImmutableHash: fmt.Sprintf("sha256:%x", immutable.Sum(nil)), DerivedHash: fmt.Sprintf("sha256:%x", derived.Sum(nil)), Records: records}
+	return got
 }
 
 func TestRealCommandCapacityPreservesLastRecoverableHistory(t *testing.T) {
@@ -114,10 +53,13 @@ func TestRealCommandCapacityPreservesLastRecoverableHistory(t *testing.T) {
 			var rejected bool
 			var cursor uint64
 			for k := 1; k <= eventstore.MaxRecords+1; k++ {
-				before := capacityInspection(t, b)
+				before := capacityInspection(t, e, b)
 				got, err := r.registry.Submit(context.Background(), r.gm, envelope(b, fmt.Sprintf("capacity-command-%d", k), "increment", uint64(k)))
 				if err != nil {
-					if capacityInspection(t, b) != before || !reflect.DeepEqual(got, data.Receipt{}) {
+					if !errors.Is(err, data.ErrDenied) {
+						t.Fatal("command failed before the intended capacity rejection", err)
+					}
+					if capacityInspection(t, e, b) != before || !reflect.DeepEqual(got, data.Receipt{}) {
 						t.Fatal("capacity rejection changed committed facts or returned a receipt")
 					}
 					rejected = true
@@ -147,9 +89,9 @@ func TestRealCommandCapacityPreservesLastRecoverableHistory(t *testing.T) {
 			if bytes > eventstore.MaxHistoryBytes || (boundary == "bytes" && bytes < eventstore.MaxHistoryBytes-eventstore.MaxRecordBytes) {
 				t.Fatal("byte capacity fixture failed to reach the intended history boundary")
 			}
-			before := capacityInspection(t, b)
+			before := capacityInspection(t, e, b)
 			duplicate, err := r.registry.Submit(context.Background(), r.gm, envelope(b, "capacity-command-1", "increment", 1))
-			if err != nil || !duplicate.Replayed || duplicate.Version != 2 || capacityInspection(t, b) != before {
+			if err != nil || !duplicate.Replayed || duplicate.Version != 2 || capacityInspection(t, e, b) != before {
 				t.Fatal("original duplicate receipt did not resolve at capacity", err)
 			}
 			if err = r.registry.Sleep(context.Background(), r.gm); err != nil {
@@ -166,7 +108,7 @@ func TestRealCommandCapacityPreservesLastRecoverableHistory(t *testing.T) {
 				t.Fatal("last accepted state cannot reactivate from immutable history", err)
 			}
 			assertVMFacts(t, installed, int64(committed+1))
-			if report.Image.Version != h.Version || report.Image.Cursor != h.Cursor || capacityInspection(t, b).ImmutableHash != before.ImmutableHash {
+			if report.Image.Version != h.Version || report.Image.Cursor != h.Cursor || capacityInspection(t, e, b).ImmutableHash != before.ImmutableHash {
 				t.Fatal("capacity recovery changed original history, intent, version, or cursor")
 			}
 			if err = installed.Close(); err != nil {

@@ -95,6 +95,18 @@ type RecoveryInspection struct {
 // separately from rebuildable state/data/caches. All statements and ordering
 // are fixed and bounded. No private payload is emitted into the evidence log.
 func (r *HostRepository) InspectRecovery(ctx context.Context, b data.Binding) (RecoveryInspection, error) {
+	return r.inspectRecovery(ctx, b, 32<<20)
+}
+
+// InspectRecoveryCapacity is a fixed operator-only readback for dense capacity
+// fixtures. JSON bytea hex, receipts, events and audit bytes can together exceed
+// the ordinary inspection bound while replay evidence still fits 4 MiB. This
+// exposes neither SQL nor a configurable production limit, and writes nothing.
+func (r *HostRepository) InspectRecoveryCapacity(ctx context.Context, b data.Binding) (RecoveryInspection, error) {
+	return r.inspectRecovery(ctx, b, 64<<20)
+}
+
+func (r *HostRepository) inspectRecovery(ctx context.Context, b data.Binding, maxBytes int) (RecoveryInspection, error) {
 	tx, err := r.recoveryOperator(ctx, b)
 	if err != nil {
 		return RecoveryInspection{}, err
@@ -118,7 +130,7 @@ func (r *HostRepository) InspectRecovery(ctx context.Context, b data.Binding) (R
 			}
 			n++
 			size += len(raw)
-			if n > eventstore.MaxRecords*128 || size > 32<<20 {
+			if n > eventstore.MaxRecords*128 || size > maxBytes {
 				return eventstore.ErrHistory
 			}
 			*dst = append(*dst, append(json.RawMessage(nil), raw...))
