@@ -957,6 +957,7 @@ func integrationScopeProblems(relative string, data []byte, plan milestonePlan) 
 	return problems
 }
 
+// x-section-id: PROJECTCTL-MIGRATION-PATH-SCOPE-GATE
 func (a *App) checkScope(ctx context.Context) error {
 	files, err := a.repositoryFiles(ctx)
 	if err != nil {

@@ -2267,3 +2267,5 @@ func TestPostgresScopePreservesOtherIntegrationRestrictions(t *testing.T) {
 		t.Fatal("fixture strings unexpectedly linked a database driver", problems)
 	}
 }
+
+// x-section-id: PROJECTCTL-MIGRATION-PATH-SCOPE-GATE-TESTS

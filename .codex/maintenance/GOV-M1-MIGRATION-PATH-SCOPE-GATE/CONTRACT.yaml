@@ -1,0 +1,93 @@
+schema_version: 1
+x-section-id: GOV-M1-MIGRATION-PATH-SCOPE-GATE
+maintenance_id: GOV-M1-MIGRATION-PATH-SCOPE-GATE
+objective:
+- Recognize only the Owner-approved exact M1-B007 migration directories and conditional
+  M1-B009 migration fuzz directory in the native legacy path gate.
+reason: Owner directly approved CHANGE-M1-LINUX-MIGRATION-PREREQUISITES with 批准 on
+  2026-10-06. The existing M0 gate conflicts with the frozen Linux M1 migration batch.
+  A separate previously authorized read-only acceptance agent verifies the exact signed
+  correction.
+source_blocker: 'Original task: IMPLEMENT M1-B007 at cbb9a36406ebfa236fd24584bd0ccd46c3a054fa.
+  Dirty draft just check actually exited 1 and rejected migration paths; raw log SHA256
+  2fa95c4d378c41e906ce31f3e552d0fe1e14a56e0d32f5f360da5b0c8cf2ed7a. Owner-approved
+  proposal SHA256 c67e4f0ef460786dc73537cdb37419a77277108c7b0c1382a7723981082d50c6.
+  Original draft, failed log, proposal and approval successor are preserved in m1-b007-linux-progress/owner-decision-migration-prerequisites
+  outside the repository. Business scope cannot write projectctl.'
+allowed_scope:
+- path: .codex/maintenance/GOV-M1-MIGRATION-PATH-SCOPE-GATE/CONTRACT.yaml
+  section_id: GOV-M1-MIGRATION-PATH-SCOPE-GATE
+  kind: machine-contract
+- path: internal/projectctl/commands.go
+  section_id: PROJECTCTL-MIGRATION-PATH-SCOPE-GATE
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-MIGRATION-PATH-SCOPE-GATE-TESTS
+  kind: test
+forbidden_scope:
+- Any fourth tracked file or unrelated projectctl change.
+- Any business, dependency, workflow, deployment, license, public API or product specification
+  change.
+- Any M1 plan, batch allocation, state projection, lifecycle or frozen contract mutation.
+- Any environment override, gate bypass, alternate check or unconditional migration
+  exception.
+- Any main merge, remote action or B007 business acceptance claim during this maintenance.
+- PLAN registration permits only this contract and inert Section ID comments; functional
+  repair requires a current REPAIR route.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/80-roadmap/M0_SCOPE_AND_EXIT_GATE.md
+  section_id: SPEC-M0-FORBIDDEN
+  kind: normative-section
+- path: docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md
+  section_id: SPEC-M1-ALLOWED
+  kind: normative-section
+- path: .codex/state/MILESTONE_PLAN.yaml
+  section_id: M1-MILESTONE-PLAN
+  kind: machine-contract
+acceptance:
+- Authority must be a valid native M1 ACTIVE or COMPLETE plan and exactly one authorized
+  batch in FROZEN, IMPLEMENTING, BLOCKED, VERIFYING or COMPLETED; recorded and recomputed
+  frozen digest must both match the Owner-approved exact contract. Missing, malformed,
+  unreadable, stale, duplicate, modified or PLANNED authority fails closed.
+- Only internal/package/migration/**, internal/package/testdata/migration/**, internal/session/migration/**
+  and tests/integration/migration/** qualify under M1-B007 digest 3fd98c06a16d5d511f5fda8b5e1d58a7f864bae940f7d87896348574ea227629.
+- Only tests/fuzz/migration/** qualifies under M1-B009 digest edf35377a4fc1a9bbb252e177aef3d7b99bc4e52659540fb5ac18a7d5f5f48d1
+  after that exact contract is frozen and legitimately started; the current PLANNED
+  batch is denied.
+- M0, absolute paths, traversal, backslashes, empty and lookalike prefixes, other
+  migration or migrations directories, nested legacy and migrations, Rust files, Cargo
+  manifests, source-archive and all other original forbidden paths remain denied.
+- Regressions cover each authorized path and state, digest and native metadata mutations,
+  B009 conditional approval, missing/malformed authority and all residual boundaries.
+  Original failure remains preserved.
+- Independent read-only ACCEPT checks exact signed registration and repair commits,
+  bounded three-file diff, unchanged other Git blobs and native plan, fresh routes/checks
+  and actual regression evidence.
+tests:
+- go test -count=1 -json ./internal/projectctl/...
+- go test -race -count=1 -json ./internal/projectctl/...
+- go vet ./internal/projectctl/...
+- Fresh PLAN registration and REPAIR routes pass projectctl codex check.
+- Exact clean signed correction passes just check and just license-check.
+- Independent ACCEPT verifies unchanged non-allowlisted paths and all frozen contracts.
+stop_conditions:
+- Stop on scope, public contract, security, license or platform changes beyond the
+  approved proposal.
+- Stop on unconditional or caller-controlled migration exceptions.
+- Stop if a modified or unapproved contract can pass or an original boundary is weakened.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-014
+  authorization: No external bootstrap invoked; Owner-approved native PLAN registration
+    is supported.
+  allowed_scope:
+  - No one-time bootstrap mutation exercised.
+  retirement_condition: Remain retired; a qualifying future self-routing deadlock
+    requires separate explicit authorization.
+  status: RETIRED
+  retirement_evidence:
+  - Native PLAN M1 route and codex check passed at cbb9a36406ebfa236fd24584bd0ccd46c3a054fa
+    before inert registration.
+status: ACTIVE
