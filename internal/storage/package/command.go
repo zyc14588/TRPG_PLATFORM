@@ -27,12 +27,22 @@ type Header struct {
 	CommandID       string  `json:"command_id"`
 	Fingerprint     string  `json:"fingerprint"`
 	ExpectedVersion uint64  `json:"expected_version"`
+	ReadOnly        bool    `json:"readonly,omitempty"`
 }
 type Inputs struct {
-	Callback string           `json:"callback"`
-	Time     int64            `json:"time"`
-	Random   []int64          `json:"random"`
-	Command  checkpoint.Value `json:"command"`
+	Callback string            `json:"callback"`
+	Time     int64             `json:"time"`
+	Random   []int64           `json:"random"`
+	Command  checkpoint.Value  `json:"command"`
+	Envelope *EnvelopeMetadata `json:"envelope,omitempty"`
+}
+
+// EnvelopeMetadata is supplied by the authenticated Session pipeline, never
+// by Lua. It participates in the immutable command fingerprint.
+type EnvelopeMetadata struct {
+	Seat        string `json:"seat"`
+	Type        string `json:"type"`
+	Correlation string `json:"correlation"`
 }
 type Row struct {
 	PackageID  string           `json:"package_id"`
@@ -116,6 +126,9 @@ type Receipt struct {
 	Result  checkpoint.Value `json:"result"`
 	Events  []Event          `json:"events"`
 	Inputs  Inputs           `json:"inputs"`
+	Cursor  uint64           `json:"cursor,omitempty"`
+	// Replayed is local delivery metadata; the saved original response is unchanged.
+	Replayed bool `json:"-"`
 }
 type Transaction interface {
 	Snapshot() Snapshot

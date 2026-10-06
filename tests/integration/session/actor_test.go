@@ -1,0 +1,596 @@
+//go:build linux && integration
+
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+package session_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/zyc14588/TRPG_PLATFORM/internal/hostapi"
+	runnerfixture "github.com/zyc14588/TRPG_PLATFORM/internal/hostapi/hostapitest"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/profile"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/archive"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/extension"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/install"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/store"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/session/actor"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/session/command"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/session/persistence"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/session/realtime"
+	fixture "github.com/zyc14588/TRPG_PLATFORM/internal/session/testdata"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/object"
+	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/postgres"
+)
+
+var dsn, runner, runnerHash, runID, daemonBinary string
+var sequence atomic.Uint64
+
+const credential = store.Credential("b005-synthetic-install-credential")
+
+func TestMain(m *testing.M) {
+	dsn = os.Getenv("B005_POSTGRES_DSN")
+	u, err := url.Parse(dsn)
+	if err != nil || u.Scheme != "postgres" || u.Hostname() != "127.0.0.1" || u.Path != "/b005_fixture" {
+		fmt.Fprintln(os.Stderr, "B005 owned local PostgreSQL required; integration NOT_RUN")
+		os.Exit(1)
+	}
+	dir, err := os.MkdirTemp("", "b005-pg-runner-")
+	if err != nil {
+		panic(err)
+	}
+	root, err := filepath.Abs("../../..")
+	if err != nil {
+		panic(err)
+	}
+	runner, err = runnerfixture.BuildRunner(root, dir)
+	if err != nil {
+		panic(err)
+	}
+	raw, err := os.ReadFile(runner)
+	if err != nil {
+		panic(err)
+	}
+	runnerHash = checkpoint.Hash(raw)
+	daemonBinary = filepath.Join(dir, "platformd")
+	build := exec.Command("go", "build", "-trimpath", "-o", daemonBinary, "./cmd/platformd")
+	build.Dir = root
+	if raw, err := build.CombinedOutput(); err != nil {
+		panic(fmt.Sprintf("platformd build %s: %v", raw, err))
+	}
+	daemonRaw, err := os.ReadFile(daemonBinary)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("B005_PRODUCTION_PLATFORMD %s\n", checkpoint.Hash(daemonRaw))
+	runID = fmt.Sprintf("b005-%d", time.Now().UnixNano())
+	fmt.Printf("B005_PRODUCTION_RUNNER %s %s %s\n", runnerHash, profile.ID, profile.RuntimeVersion)
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
+}
+
+type environment struct {
+	pkg        *archive.Package
+	policy     *install.Policy
+	repository *postgres.Repository
+	host       *postgres.HostRepository
+	reader     *store.Reader
+	workspace  string
+	mu         sync.Mutex
+	executions []install.Execution
+	fault      func(context.Context, string) error
+}
+
+func runtime() install.RuntimeConfig {
+	return install.RuntimeConfig{Runner: runner, SHA256: runnerHash, Limits: profile.DefaultLimits()}
+}
+func setup(t *testing.T, source string) *environment {
+	t.Helper()
+	e := &environment{workspace: fmt.Sprintf("%s-%d", runID, sequence.Add(1))}
+	pkg, config, err := fixture.Build(runtime(), source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.pkg = pkg
+	e.policy, err = install.NewPolicy(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storage, stage := t.TempDir(), t.TempDir()
+	for _, p := range []string{storage, stage} {
+		if err = os.Chmod(p, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	objects, err := object.Open(storage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { objects.Close() })
+	e.repository, err = postgres.OpenInstallationRepository(context.Background(), dsn, objects, extension.DefaultSupport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { e.repository.Close() })
+	if err = e.repository.Bootstrap(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err = e.repository.ProvisionWorkspace(context.Background(), e.workspace); err != nil {
+		t.Fatal(err)
+	}
+	e.host, err = postgres.OpenHostRepository(context.Background(), dsn, func(ctx context.Context, point string) error {
+		e.mu.Lock()
+		f := e.fault
+		e.mu.Unlock()
+		if f != nil {
+			return f(ctx, point)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { e.host.Close() })
+	if err = e.host.Bootstrap(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	access, err := store.NewAccess(map[store.Credential][]store.Membership{credential: {{Principal: "operator", Workspace: e.workspace, Read: true, Install: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.reader, err = store.NewReader(e.repository, objects, access, extension.DefaultSupport)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installer, err := install.New(install.Options{StagingRoot: stage, Policy: e.policy, Access: access, Objects: objects, Repository: e.repository, Support: extension.DefaultSupport, Runtime: runtime(), Observe: func(string) error { return nil }, Execution: e.observe})
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported, exportErr := e.pkg.Export()
+	if exportErr != nil {
+		t.Fatal(exportErr)
+	}
+	raw := exported.Bytes()
+	if _, err = installer.Install(context.Background(), install.Request{Credential: credential, Workspace: e.workspace, ID: "install", Root: install.Input{Archive: bytes.NewReader(raw)}}); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+func (e *environment) observe(v install.Execution) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.executions = append(e.executions, v)
+	return nil
+}
+func (e *environment) request(sid string) install.SessionRequest {
+	return install.SessionRequest{Credential: credential, Workspace: e.workspace, Session: sid, Root: string(e.pkg.ArtifactIdentity().Digest())}
+}
+func (e *environment) factory(t *testing.T, host *postgres.HostRepository) *install.SessionFactory {
+	t.Helper()
+	f, err := install.NewSessionFactory(install.SessionOptions{Reader: e.reader, Policy: e.policy, Repository: host, Runtime: runtime(), Execution: e.observe, Audit: func(data.Audit) error { return nil }, Validate: func(context.Context, data.Commit) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+func (e *environment) create(t *testing.T, sid string) data.Binding {
+	t.Helper()
+	s, err := e.factory(t, e.host).Create(context.Background(), e.request(sid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := s.Binding
+	if err = s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+func (e *environment) assertReaped(t *testing.T) {
+	t.Helper()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	pids := map[int]bool{}
+	for _, v := range e.executions {
+		if v.PID > 0 {
+			pids[v.PID] = !v.Reaped
+		}
+		t.Logf("B005_EXECUTION %+v", v)
+	}
+	for pid, alive := range pids {
+		if alive || syscall.Kill(pid, 0) != syscall.ESRCH {
+			t.Fatalf("runner %d not joined/reaped", pid)
+		}
+	}
+}
+func (e *environment) executionCount() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.executions)
+}
+func (e *environment) setFault(f func(context.Context, string) error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.fault = f
+}
+
+type rig struct {
+	registry   *actor.Registry
+	authority  *command.Authority
+	hub        *realtime.Hub
+	gm, player command.Identity
+	binding    data.Binding
+}
+
+func seatToken(sid, seat string) string {
+	return "b005-fixture-" + sid + "-" + seat + "-0123456789abcdef"
+}
+func payload(delta int64) checkpoint.Value {
+	return checkpoint.Object(map[string]checkpoint.Value{"delta": checkpoint.Int(delta)})
+}
+func validate(v checkpoint.Value) error {
+	if v.Kind != "table" || len(v.Table) != 1 || v.Table["delta"].Kind != "integer" {
+		return command.ErrEnvelope
+	}
+	n := v.Table["delta"].Number
+	if n != "1" {
+		return command.ErrEnvelope
+	}
+	return nil
+}
+func newRig(t *testing.T, e *environment, b data.Binding, repo *postgres.HostRepository) *rig {
+	t.Helper()
+	seats := []command.FixtureSeat{}
+	for _, seat := range []string{"gm", "player"} {
+		fields := []string{"counter"}
+		if seat == "gm" {
+			fields = append(fields, "secret")
+		}
+		seats = append(seats, command.FixtureSeat{Credential: seatToken(b.Session, seat), Binding: b, Principal: seat, Seat: seat, Commands: map[string]func(checkpoint.Value) error{"increment": validate, "fail": validate, "end": validate}, Views: command.ViewPolicy{ViewFields: fields, EventFields: map[string][]string{fixture.PackageID + "/change": fields}, ScalarResult: true}})
+	}
+	a, err := command.NewFixtureAuthority(seats)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub, err := realtime.New(realtime.Options{Authority: a, Capacity: 4, PerSession: 4, Queue: 8})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend, err := persistence.New(persistence.Options{Factory: e.factory(t, repo), Repository: repo, Request: func(binding data.Binding) (install.SessionRequest, error) { return e.request(binding.Session), nil }, Time: 1000, Random: []int64{7}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := actor.New(context.Background(), actor.Options{Authority: a, Hub: hub, Backend: backend, MaxSessions: 2, Mailbox: 4, Idle: time.Hour, CommandTimeout: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { r.Close() })
+	gm, err := a.Authenticate(seatToken(b.Session, "gm"), b.Session, "gm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	player, err := a.Authenticate(seatToken(b.Session, "player"), b.Session, "player")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &rig{r, a, hub, gm, player, b}
+}
+func envelope(b data.Binding, id, typ string, version uint64) command.Envelope {
+	return command.Envelope{CommandID: id, SessionID: b.Session, SeatID: "gm", Type: typ, Payload: payload(1), ExpectedStateVersion: version, CorrelationID: "correlation-" + id}
+}
+func noFrame(t *testing.T, c *realtime.Connection) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := c.Next(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("unexpected frame", err)
+	}
+}
+func next(t *testing.T, c *realtime.Connection) realtime.Frame {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	f, err := c.Next(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+func (e *environment) readback(t *testing.T, b data.Binding) postgres.HostInspection {
+	t.Helper()
+	v, err := e.host.Inspect(context.Background(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+func TestRealCommitBarrierSevenEffectsDuplicateAndSeatFiltering(t *testing.T) {
+	e := setup(t, "")
+	b := e.create(t, "session")
+	r := newRig(t, e, b, e.host)
+	gm, err := r.hub.Subscribe(r.gm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	player, err := r.hub.Subscribe(r.player)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	e.setFault(func(ctx context.Context, p string) error {
+		if p == "before-commit" {
+			once.Do(func() { close(entered) })
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		return nil
+	})
+	before := e.readback(t, b)
+	c := envelope(b, "first", "increment", 1)
+	done := make(chan data.Receipt, 1)
+	failed := make(chan error, 1)
+	go func() {
+		receipt, err := r.registry.Submit(context.Background(), r.gm, c)
+		done <- receipt
+		failed <- err
+	}()
+	select {
+	case <-entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("actual SQL commit barrier not reached")
+	}
+	if v := e.readback(t, b); !reflect.DeepEqual(before, v) {
+		t.Fatal("precommit effects visible", v)
+	}
+	noFrame(t, player)
+	close(release)
+	receipt := <-done
+	if err := <-failed; err != nil {
+		t.Fatal(err)
+	}
+	e.setFault(nil)
+	if receipt.Version != 2 || receipt.Cursor != 1 || receipt.Result.Number != "2" {
+		t.Fatal(receipt)
+	}
+	for _, conn := range []*realtime.Connection{gm, player} {
+		f := next(t, conn)
+		raw, _ := json.Marshal(f)
+		has := strings.Contains(string(raw), fixture.PrivateValue)
+		if has != (conn.Identity().Seat() == "gm") || f.Version != 2 || f.Cursor != 1 {
+			t.Fatal("seat filter", string(raw))
+		}
+	}
+	committed := e.readback(t, b)
+	if committed.Version != 2 || committed.Documents != 1 || committed.Patches != 1 || committed.Events != 1 || committed.Requests != 1 || committed.Tasks != 2 || committed.Continuations != 1 || committed.Outbox != 3 {
+		t.Fatal("atomic effects missing", committed)
+	}
+	executions := e.executionCount()
+	again, err := r.registry.Submit(context.Background(), r.gm, c)
+	if err != nil || !again.Replayed || again.Version != receipt.Version || again.Result.Number != receipt.Result.Number || e.executionCount() != executions || !reflect.DeepEqual(committed, e.readback(t, b)) {
+		t.Fatal("idempotency changed effects", again, err)
+	}
+	noFrame(t, player)
+	c.CorrelationID = "substitution"
+	if _, err = r.registry.Submit(context.Background(), r.gm, c); !errors.Is(err, data.ErrConflict) {
+		t.Fatal(err)
+	}
+	creation, err := e.host.ReadCreation(context.Background(), b)
+	if err != nil || creation.Version != 1 || creation.Seed.Table["counter"].Number != "1" {
+		t.Fatal("genesis changed with current state", creation, err)
+	}
+	page, err := e.host.ReadJournal(context.Background(), b, 0, 128)
+	if err != nil || page.Version != 2 || len(page.Events) != 1 || page.Events[0].Event.Payload.Table["counter"].Number != "2" {
+		t.Fatal(page, err)
+	}
+	foreign := b
+	foreign.Workspace += "-other"
+	if _, err = e.host.ReadJournal(context.Background(), foreign, 0, 128); !errors.Is(err, data.ErrNotFound) {
+		t.Fatal("tenant isolation", err)
+	}
+	t.Logf("B005_ATOMIC_EFFECTS %+v", committed)
+	if err = r.registry.Close(); err != nil {
+		t.Fatal(err)
+	}
+	e.assertReaped(t)
+}
+
+func TestRealSQLAbortRollsBackAllEffectsAndBroadcast(t *testing.T) {
+	e := setup(t, "")
+	for _, point := range []string{"after-state", "after-package-data", "after-events", "after-tasks", "after-continuations", "after-outbox", "after-idempotency", "after-audit", "before-commit"} {
+		t.Run(point, func(t *testing.T) {
+			b := e.create(t, "rollback-"+point)
+			repo, err := e.host.WithTransactionAbort(point)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := newRig(t, e, b, repo)
+			conn, err := r.hub.Subscribe(r.player)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := e.readback(t, b)
+			if receipt, err := r.registry.Submit(context.Background(), r.gm, envelope(b, "aborted", "increment", 1)); err == nil || receipt.Version != 0 {
+				t.Fatal("actual SQL abort returned success", receipt, err)
+			}
+			if after := e.readback(t, b); !reflect.DeepEqual(before, after) {
+				t.Fatal("rollback residue", before, after)
+			}
+			noFrame(t, conn)
+			r.registry.Close()
+			t.Logf("B005_ACTUAL_SQL_ABORT %s unchanged %+v", point, before)
+		})
+	}
+	e.assertReaped(t)
+}
+
+func TestRealSleepReadOnlyCheckpointReconnectRevocationAndEnd(t *testing.T) {
+	e := setup(t, "")
+	b := e.create(t, "sleep")
+	r := newRig(t, e, b, e.host)
+	ctx := context.Background()
+	c := envelope(b, "first", "increment", 1)
+	if _, err := r.registry.Submit(ctx, r.gm, c); err != nil {
+		t.Fatal(err)
+	}
+	before := e.readback(t, b)
+	if err := r.registry.Sleep(ctx, r.gm); err != nil {
+		t.Fatal(err)
+	}
+	after := e.readback(t, b)
+	if !reflect.DeepEqual(before, after) {
+		t.Fatal("readonly sleep changed authority", before, after)
+	}
+	cached, err := e.host.ReadCheckpoint(ctx, b)
+	if err != nil || cached.Version != 2 || cached.Cursor != 1 || cached.Value.Table["counter"].Number != "2" || cached.StateSchema != cached.CheckpointSchema {
+		t.Fatal(cached, err)
+	}
+	count := e.executionCount()
+	if receipt, err := r.registry.Submit(ctx, r.gm, c); err != nil || !receipt.Replayed || e.executionCount() != count {
+		t.Fatal("duplicate woke Lua", receipt, err)
+	}
+	conn, err := r.hub.Subscribe(r.player)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame, err := r.registry.Reconnect(ctx, r.player, 0, conn)
+	if err != nil || len(frame.Events) != 1 || frame.Cursor != 1 || frame.Version != 2 {
+		t.Fatal(frame, err)
+	}
+	if _, ok := frame.View.Table["secret"]; ok {
+		t.Fatal("reconnect private state")
+	}
+	_ = next(t, conn)
+	if _, err = r.registry.Reconnect(ctx, r.player, 2, nil); !errors.Is(err, data.ErrConflict) {
+		t.Fatal("future cursor", err)
+	}
+	if err = r.authority.Revoke(seatToken(b.Session, "player")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = r.registry.Reconnect(ctx, r.player, 0, nil); !errors.Is(err, command.ErrDenied) {
+		t.Fatal(err)
+	}
+	end := envelope(b, "end", "end", 2)
+	receipt, err := r.registry.Submit(ctx, r.gm, end)
+	if err != nil || receipt.Version != 3 {
+		t.Fatal(receipt, err)
+	}
+	page, err := e.host.ReadJournal(ctx, b, 0, 128)
+	if err != nil || !page.Ended || page.Cursor != 2 {
+		t.Fatal(page, err)
+	}
+	count = e.executionCount()
+	again, err := r.registry.Submit(ctx, r.gm, end)
+	if err != nil || !again.Replayed || e.executionCount() != count {
+		t.Fatal("end duplicate reactivated", again, err)
+	}
+	if _, err = r.registry.Submit(ctx, r.gm, envelope(b, "after-end", "increment", 3)); !errors.Is(err, actor.ErrEnded) {
+		t.Fatal("ended Session accepted command", err)
+	}
+	r.registry.Close()
+	e.assertReaped(t)
+}
+
+func TestActualLuaFailurePoisonsOnlyItsSessionAndRecovers(t *testing.T) {
+	e := setup(t, "")
+	one := e.create(t, "one")
+	two := e.create(t, "two")
+	a := newRig(t, e, one, e.host)
+	b := newRig(t, e, two, e.host)
+	if receipt, err := a.registry.Submit(context.Background(), a.gm, envelope(one, "failure", "fail", 1)); err == nil || receipt.Version != 0 {
+		t.Fatal(receipt, err)
+	}
+	if v := e.readback(t, one); v.Version != 1 || v.Events+v.Outbox+v.Requests != 0 {
+		t.Fatal("failure committed", v)
+	}
+	if _, err := b.registry.Submit(context.Background(), b.gm, envelope(two, "other", "increment", 1)); err != nil {
+		t.Fatal("failure escaped Session", err)
+	}
+	if _, err := a.registry.Submit(context.Background(), a.gm, envelope(one, "recovered", "increment", 1)); err != nil {
+		t.Fatal("failed Session did not recreate actual VM", err)
+	}
+	a.registry.Close()
+	b.registry.Close()
+	e.assertReaped(t)
+}
+
+func TestActualProjectionCannotCreateAnyMutation(t *testing.T) {
+	e := setup(t, "")
+	b := e.create(t, "readonly")
+	s, err := e.factory(t, e.host).Resume(context.Background(), e.request(b.Session))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := e.readback(t, b)
+	ctx := context.Background()
+	empty := checkpoint.Object(map[string]checkpoint.Value{})
+	for _, cb := range []string{"project_view", "create_checkpoint", "cleanup", "on_safe_migration_boundary"} {
+		r, err := s.Commands.Read(ctx, s.VM.Token(), hostapi.Command{ID: "read-" + cb, Principal: "gm", ExpectedVersion: 1, Callback: cb, Input: empty, Time: 1000})
+		if err != nil || r.Version != 1 || !r.Header.ReadOnly {
+			t.Fatal(cb, r, err)
+		}
+	}
+	if _, err = s.Commands.Read(ctx, s.VM.Token(), hostapi.Command{ID: "forbidden-command", Principal: "gm", ExpectedVersion: 1, Callback: "command", Input: empty}); err == nil {
+		t.Fatal("read accepted mutating callback")
+	}
+	if after := e.readback(t, b); !reflect.DeepEqual(before, after) {
+		t.Fatal("read effects", before, after)
+	}
+	s.Close()
+	e.assertReaped(t)
+}
+
+func TestActualReadCallbacksDenyEveryWriteSurface(t *testing.T) {
+	for name, effect := range map[string]string{
+		"state":        `host.state.put({"counter"},9)`,
+		"event":        `host.event.emit("change",state())`,
+		"db-put":       `host.db.put("docs","one",{score=9})`,
+		"db-delete":    `host.db.delete("docs","one")`,
+		"db-cas":       `host.db.compare_and_set("docs","one",nil,{score=9})`,
+		"task":         `host.task.create({value=9})`,
+		"continuation": `host.task.continuation("synthetic-task",{value=9})`,
+		"ai":           `host.ai.request({value=9})`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			source := strings.Replace(fixture.IncrementSource, "M.project_view=function() return state() end", `M.project_view=function(input) if input.seat_id then `+effect+` end;return state() end`, 1)
+			e := setup(t, source)
+			b := e.create(t, "readonly-"+name)
+			s, err := e.factory(t, e.host).Resume(context.Background(), e.request(b.Session))
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := e.readback(t, b)
+			_, err = s.Commands.Read(context.Background(), s.VM.Token(), hostapi.Command{ID: "forbidden", Principal: "player", ExpectedVersion: 1, Callback: "project_view", Input: checkpoint.Object(map[string]checkpoint.Value{"seat_id": checkpoint.Text("player")})})
+			if err == nil {
+				t.Fatal("readonly callback wrote", name)
+			}
+			if after := e.readback(t, b); !reflect.DeepEqual(before, after) {
+				t.Fatal("readonly residue", name, before, after)
+			}
+			s.Close()
+			e.assertReaped(t)
+			t.Logf("B005_READONLY_WRITE_DENIED %s", name)
+		})
+	}
+}

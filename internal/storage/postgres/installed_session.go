@@ -94,6 +94,14 @@ func (r *HostRepository) ProvisionGraph(ctx context.Context, g *store.Graph, b d
 	if _, err = tx.ExecContext(ctx, `INSERT INTO host_command.installed_graphs(workspace,session,graph_bytes) VALUES($1,$2,$3)`, b.Workspace, b.Session, graph); err != nil {
 		return err
 	}
+	creation := data.Creation{Binding: b, Version: version, SchemaHash: schema, Seed: state, SeedHash: checkpoint.Hash(raw), ArtifactsHash: checkpoint.Hash(graph)}
+	evidence, err := hostJSON(creation)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO host_command.creation(workspace,session,evidence) VALUES($1,$2,$3)`, b.Workspace, b.Session, evidence); err != nil {
+		return err
+	}
 	for _, a := range g.Artifacts() {
 		if _, err = tx.ExecContext(ctx, `INSERT INTO package_install.data_targets(workspace,package_id,state_reference) VALUES($1,$2,$3)`, b.Workspace, a.PackageID, "host-session:"+b.Session); err != nil {
 			return err

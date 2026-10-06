@@ -90,7 +90,10 @@ func (r *HostRepository) Bootstrap(ctx context.Context) error {
 		`CREATE SCHEMA IF NOT EXISTS host_command`,
 		`CREATE TABLE IF NOT EXISTS host_command.sessions(workspace text NOT NULL,session text NOT NULL,graph_hash text NOT NULL,version bigint NOT NULL CHECK(version>0),state jsonb NOT NULL,schema_hash text NOT NULL,event_sequence bigint NOT NULL DEFAULT 0,PRIMARY KEY(workspace,session))`,
 		`CREATE TABLE IF NOT EXISTS host_command.installed_graphs(workspace text NOT NULL,session text NOT NULL,graph_bytes bytea NOT NULL,PRIMARY KEY(workspace,session),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
+		`CREATE TABLE IF NOT EXISTS host_command.creation(workspace text NOT NULL,session text NOT NULL,evidence bytea NOT NULL,PRIMARY KEY(workspace,session),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
+		`CREATE TABLE IF NOT EXISTS host_command.checkpoints(workspace text NOT NULL,session text NOT NULL,cache bytea NOT NULL,PRIMARY KEY(workspace,session),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
 		`CREATE TABLE IF NOT EXISTS host_command.requests(workspace text NOT NULL,session text NOT NULL,command_id text NOT NULL,principal text NOT NULL,fingerprint text NOT NULL,receipt bytea NOT NULL,PRIMARY KEY(workspace,session,command_id),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
+		`CREATE TABLE IF NOT EXISTS host_command.endings(workspace text NOT NULL,session text NOT NULL,command_id text NOT NULL,PRIMARY KEY(workspace,session),FOREIGN KEY(workspace,session,command_id) REFERENCES host_command.requests DEFERRABLE INITIALLY DEFERRED)`,
 		`CREATE TABLE IF NOT EXISTS host_command.patches(workspace text NOT NULL,session text NOT NULL,command_id text NOT NULL,ordinal integer NOT NULL,event_id text NOT NULL,patch bytea NOT NULL,PRIMARY KEY(workspace,session,command_id,ordinal),FOREIGN KEY(workspace,session,command_id) REFERENCES host_command.requests DEFERRABLE INITIALLY DEFERRED)`,
 		`CREATE TABLE IF NOT EXISTS host_command.documents(workspace text NOT NULL,session text NOT NULL,package_id text NOT NULL,namespace text NOT NULL,key text NOT NULL,schema_hash text NOT NULL,value bytea NOT NULL,command_id text NOT NULL,event_id text NOT NULL,PRIMARY KEY(workspace,session,package_id,namespace,key),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
 		`CREATE INDEX IF NOT EXISTS host_command_document_scope ON host_command.documents(workspace,session,package_id,namespace,key)`,
@@ -198,6 +201,15 @@ func (r *HostRepository) Begin(ctx context.Context, h data.Header) (data.Transac
 	if !errors.Is(err, sql.ErrNoRows) {
 		return fail(err)
 	}
+	if !h.ReadOnly {
+		var ended bool
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM host_command.endings WHERE workspace=$1 AND session=$2)`, h.Binding.Workspace, h.Binding.Session).Scan(&ended); err != nil {
+			return fail(err)
+		}
+		if ended {
+			return fail(data.ErrDenied)
+		}
+	}
 	if t.snapshot.Version != h.ExpectedVersion || checkpoint.StrictDecode(state, &t.snapshot.State, checkpoint.MaxBytes*2) != nil || checkpoint.Validate(t.snapshot.State) != nil {
 		return fail(data.ErrConflict)
 	}
@@ -259,7 +271,7 @@ func (t *hostTransaction) Rollback() error {
 }
 func (t *hostTransaction) Commit(ctx context.Context, c data.Commit) (data.Receipt, error) {
 	var zero data.Receipt
-	if t.closed || c.Header != t.header || t.snapshot.Existing != nil || c.SchemaHash != t.snapshot.SchemaHash || checkpoint.Validate(c.State) != nil || checkpoint.Validate(c.Result) != nil || len(c.Events) > 64 || len(c.Rows)+len(c.Quantities) > 128 || len(c.Patches) > 128 || len(c.Tasks) > 32 || len(c.Continuations) > 32 || len(c.Outbox) > 64 || len(c.Audit) > 257 {
+	if t.closed || t.header.ReadOnly || c.Header != t.header || t.snapshot.Existing != nil || c.SchemaHash != t.snapshot.SchemaHash || checkpoint.Validate(c.State) != nil || checkpoint.Validate(c.Result) != nil || len(c.Events) > 64 || len(c.Rows)+len(c.Quantities) > 128 || len(c.Patches) > 128 || len(c.Tasks) > 32 || len(c.Continuations) > 32 || len(c.Outbox) > 64 || len(c.Audit) > 257 {
 		return zero, data.ErrDenied
 	}
 	h := c.Header
@@ -375,13 +387,21 @@ func (t *hostTransaction) Commit(ctx context.Context, c data.Commit) (data.Recei
 			return zero, err
 		}
 	}
-	receipt := data.Receipt{Header: h, Version: version, Result: c.Result, Events: c.Events, Inputs: c.Inputs}
+	receipt := data.Receipt{Header: h, Version: version, Result: c.Result, Events: c.Events, Inputs: c.Inputs, Cursor: t.eventSequence + uint64(len(c.Events))}
 	raw, err := hostJSON(receipt)
 	if err != nil {
 		return zero, err
 	}
 	if _, err = t.tx.ExecContext(ctx, `INSERT INTO host_command.requests(workspace,session,command_id,principal,fingerprint,receipt) VALUES($1,$2,$3,$4,$5,$6)`, w, s, id, h.Principal, h.Fingerprint, raw); err != nil {
 		return zero, err
+	}
+	if c.Inputs.Envelope != nil && c.Inputs.Envelope.Type == "end" && c.Inputs.Callback == "on_session_end" {
+		if len(c.Events) == 0 {
+			return zero, data.ErrDenied
+		}
+		if _, err = t.tx.ExecContext(ctx, `INSERT INTO host_command.endings(workspace,session,command_id) VALUES($1,$2,$3)`, w, s, id); err != nil {
+			return zero, err
+		}
 	}
 	if err = fault("after-idempotency"); err != nil {
 		return zero, err

@@ -40,6 +40,7 @@ type Options struct {
 type Service struct {
 	options Options
 	modules map[string]vm.ModuleIdentity
+	root    string
 }
 type Command struct {
 	Callback        string
@@ -49,6 +50,7 @@ type Command struct {
 	Input           checkpoint.Value
 	Time            int64
 	Random          []int64
+	Envelope        *data.EnvelopeMetadata
 }
 
 func New(o Options) (*Service, error) {
@@ -120,7 +122,14 @@ func New(o Options) (*Service, error) {
 			return bad()
 		}
 	}
-	return &Service{options: o, modules: modules}, nil
+	root := ""
+	for id, p := range o.Packages {
+		lock, err := p.ExactLock().Digest()
+		if err == nil && string(lock) == o.Binding.GraphHash {
+			root = id
+		}
+	}
+	return &Service{options: o, modules: modules, root: root}, nil
 }
 func copyMap[T any](m map[string]T) map[string]T {
 	r := map[string]T{}
@@ -130,6 +139,18 @@ func copyMap[T any](m map[string]T) map[string]T {
 	return r
 }
 func (s *Service) Execute(ctx context.Context, token vm.Token, c Command) (result data.Receipt, err error) {
+	return s.run(ctx, token, c, false)
+}
+
+// Read invokes a standard read callback against a locked snapshot, then rolls
+// the transaction back. It cannot change the version, receipts or effects.
+func (s *Service) Read(ctx context.Context, token vm.Token, c Command) (data.Receipt, error) {
+	if c.Callback != "project_view" && c.Callback != "list_legal_actions" && c.Callback != "create_checkpoint" && c.Callback != "on_safe_migration_boundary" && c.Callback != "cleanup" {
+		return data.Receipt{}, profile.Fail(profile.ErrCapability)
+	}
+	return s.run(ctx, token, c, true)
+}
+func (s *Service) run(ctx context.Context, token vm.Token, c Command, readonly bool) (result data.Receipt, err error) {
 	o := s.options
 	if ctx == nil || !store.ValidID(c.ID) || !store.ValidID(c.Principal) || c.ExpectedVersion == 0 || checkpoint.Validate(c.Input) != nil || len(c.Random) > o.Budget.Callbacks {
 		return result, profile.Fail(profile.ErrConfiguration)
@@ -141,12 +162,15 @@ func (s *Service) Execute(ctx context.Context, token vm.Token, c Command) (resul
 	if callback != "command" && (!profile.IsStandardCallback(callback) || callback == "validate_command" || callback == "execute_command") {
 		return result, profile.Fail(profile.ErrCapability)
 	}
-	inputs := data.Inputs{Callback: callback, Time: c.Time, Random: append([]int64(nil), c.Random...), Command: c.Input}
+	if c.Envelope != nil && (!store.ValidID(c.Envelope.Seat) || !store.ValidID(c.Envelope.Type) || !store.ValidID(c.Envelope.Correlation)) {
+		return result, profile.Fail(profile.ErrConfiguration)
+	}
+	inputs := data.Inputs{Callback: callback, Time: c.Time, Random: append([]int64(nil), c.Random...), Command: c.Input, Envelope: c.Envelope}
 	inputs, e := clone(inputs)
 	if e != nil {
 		return result, e
 	}
-	header := data.Header{Binding: o.Binding, Principal: c.Principal, CommandID: c.ID, ExpectedVersion: c.ExpectedVersion}
+	header := data.Header{Binding: o.Binding, Principal: c.Principal, CommandID: c.ID, ExpectedVersion: c.ExpectedVersion, ReadOnly: readonly}
 	header.Fingerprint = digest(struct {
 		Header data.Header
 		Inputs data.Inputs
@@ -173,10 +197,15 @@ func (s *Service) Execute(ctx context.Context, token vm.Token, c Command) (resul
 		return result, profile.Fail(profile.ErrCapability)
 	}
 	if snapshot.Existing != nil {
+		if readonly {
+			return result, data.ErrConflict
+		}
 		if snapshot.Existing.Header != header {
 			return result, data.ErrConflict
 		}
-		return *snapshot.Existing, nil
+		original := *snapshot.Existing
+		original.Replayed = true
+		return original, nil
 	}
 	if snapshot.Version != c.ExpectedVersion || snapshot.SchemaHash != o.StateSchema.digest || o.StateSchema.Validate(snapshot.State) != nil {
 		return result, data.ErrConflict
@@ -185,7 +214,7 @@ func (s *Service) Execute(ctx context.Context, token vm.Token, c Command) (resul
 	if e != nil {
 		return result, e
 	}
-	w := &workspace{header: header, inputs: inputs, state: state, options: o, modules: s.modules, rows: map[string]data.Row{}, quantities: map[string]data.Quantity{}, changed: map[string]data.Row{}, quantityChanges: map[string]data.Quantity{}}
+	w := &workspace{header: header, inputs: inputs, state: state, options: o, modules: s.modules, readonly: readonly, rows: map[string]data.Row{}, quantities: map[string]data.Quantity{}, changed: map[string]data.Row{}, quantityChanges: map[string]data.Quantity{}}
 	for _, r := range snapshot.Rows {
 		n, ok := o.Namespaces[r.PackageID+"/"+r.Namespace]
 		if !ok || r.SchemaHash != n.Schema.digest || n.Schema.Validate(r.Value) != nil {
@@ -234,8 +263,34 @@ func (s *Service) Execute(ctx context.Context, token vm.Token, c Command) (resul
 		return result, err
 	}
 	effects := len(w.patches) + len(w.changed) + len(w.quantityChanges) + len(w.tasks) + len(w.continuations) + len(w.outbox)
+	if readonly {
+		if effects != 0 || len(w.events) != 0 || digest(w.state) != digest(snapshot.State) {
+			return result, profile.Fail("READ_EFFECT_DENIED")
+		}
+		raw, e := nativeJSON(luaResult.Values[0])
+		if e != nil || len(raw)+luaResult.OutputBytes+w.outputBytes > o.Budget.OutputBytes {
+			return result, profile.Fail(profile.ErrBudget)
+		}
+		a := data.Audit{Workspace: o.Binding.Workspace, Session: o.Binding.Session, CommandID: c.ID, Level: "AUDIT-0", Operation: callback, Phase: "read", ArgumentsHash: header.Fingerprint, ResultHash: digest(luaResult.Values[0]), Outcome: "READ_VALIDATED", StateVersion: snapshot.Version, CallbackCount: w.callbacks}
+		if e := o.Audit(a); e != nil {
+			return result, profile.Fail("AUDIT_FAILED")
+		}
+		return data.Receipt{Header: header, Version: snapshot.Version, Result: luaResult.Values[0], Inputs: inputs}, nil
+	}
 	if effects > 0 && len(w.events) == 0 {
 		return result, profile.Fail("AUTHORITY_EVENT_REQUIRED")
+	}
+	if inputs.Envelope != nil && len(w.events) == 0 {
+		return result, profile.Fail("AUTHORITY_EVENT_REQUIRED")
+	}
+	// A minimal delivery notification joins every live event-producing command's
+	// SQL transaction. It contains no game state or seat secrets.
+	if inputs.Envelope != nil && len(w.events) > 0 {
+		if s.root == "" || len(w.outbox) >= o.Budget.Outbox {
+			return result, profile.Fail(profile.ErrBudget)
+		}
+		id := "notify-" + strings.TrimPrefix(digest(header), "sha256:")[:32]
+		w.outbox = append(w.outbox, data.Intent{ID: id, PackageID: s.root, Kind: "session-notify", Payload: checkpoint.Value{Kind: "table", Table: map[string]checkpoint.Value{"command_id": {Kind: "string", String: c.ID}}}})
 	}
 	eventID := ""
 	if len(w.events) > 0 {
@@ -298,3 +353,11 @@ func (s *Service) Execute(ctx context.Context, token vm.Token, c Command) (resul
 	return result, nil
 }
 func (s *Service) String() string { return fmt.Sprintf("HostService<%s>", s.options.Binding.Session) }
+
+func (s *Service) StateSchemaDigest() string { return s.options.StateSchema.Digest() }
+func (s *Service) CallbackSchemaDigest(name string) string {
+	if schema, ok := s.options.ResultSchemas[name]; ok {
+		return schema.Digest()
+	}
+	return s.options.ResultSchema.Digest()
+}

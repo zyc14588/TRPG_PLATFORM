@@ -22,6 +22,7 @@ type packageServices struct {
 	Reader       *store.Reader
 	HostCommands *postgres.HostRepository
 	Sessions     *install.SessionFactory
+	installation *postgres.Repository
 	database     *sql.DB
 	objects      *object.Directory
 }
@@ -80,7 +81,7 @@ func openPackageServices(ctx context.Context, dsn, objectRoot string, options in
 			return fail(err)
 		}
 	}
-	return &packageServices{Installer: installer, Reader: reader, HostCommands: commands, Sessions: sessions, database: db, objects: objects}, nil
+	return &packageServices{Installer: installer, Reader: reader, HostCommands: commands, Sessions: sessions, installation: repo, database: db, objects: objects}, nil
 }
 
 func (s *packageServices) Close() error {

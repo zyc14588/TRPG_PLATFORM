@@ -51,6 +51,7 @@ type workspace struct {
 	callbacks, rowsUsed, bytesUsed, randomIndex int
 	outputBytes                                 int
 	failure                                     error
+	readonly                                    bool
 }
 
 func rowKey(pkg, namespace, key string) string { return pkg + "\x00" + namespace + "\x00" + key }
@@ -121,7 +122,7 @@ func (w *workspace) call(ctx context.Context, c profile.HostCall) (value checkpo
 		}
 	}
 	write := c.Capability == "host.state" && c.Operation != "get" || c.Capability == "host.event" || c.Capability == "host.task" || c.Capability == "host.ai" || c.Capability == "host.db" && (c.Operation == "put" || c.Operation == "delete" || c.Operation == "compare_and_set")
-	if write && c.Phase != "execute" {
+	if write && (w.readonly || c.Phase != "execute") {
 		return value, w.reject("VALIDATION_EFFECT_DENIED")
 	}
 	if w.options.Fault != nil {
@@ -473,7 +474,7 @@ func (w *workspace) named(m vm.ModuleIdentity, args []checkpoint.Value, phase st
 	switch spec.Plan {
 	case "quantity-get":
 	case "quantity-add":
-		if phase != "execute" {
+		if w.readonly || phase != "execute" {
 			return zero, tables, w.reject("VALIDATION_EFFECT_DENIED")
 		}
 		delta, ok := integer(args[1].Table["delta"])
