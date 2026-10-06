@@ -4,6 +4,7 @@ package vm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -38,6 +39,57 @@ func hostOptions(t *testing.T, pkg *archive.Package) Options {
 }
 func hostManifest() string {
 	return strings.Replace(fixtureManifest, "required = []", "required = [\"host.state\"]", 1)
+}
+
+func TestActualExecutionTokenDiagnosticsPreserveAuthority(t *testing.T) {
+	pkg := fixture(t, 1, hostManifest(), hostCallbacks+`M.execute_command=function() return host.state.get({"counter"}) end;return M`)
+	s, err := New(context.Background(), hostOptions(t, pkg))
+	if err != nil {
+		t.Fatal("actual VM prerequisite failed", profile.Code(err))
+	}
+	defer s.Destroy()
+	token := s.Token()
+	if token.secret == ([32]byte{}) {
+		t.Fatal("actual token prerequisite empty")
+	}
+	invoke := func() {
+		t.Helper()
+		result, err := s.Invoke(context.Background(), token, s.SessionID(), "command", nil, func(_ context.Context, call profile.HostCall) (checkpoint.Value, error) {
+			if call.Module != "lua/main.lua" || call.Line < 1 || call.Capability != "host.state" {
+				t.Fatal("authenticated module boundary not reached")
+			}
+			return checkpoint.Int(42), nil
+		})
+		if err != nil || len(result.Values) != 1 || result.Values[0].Number != "42" {
+			t.Fatal("execution token did not authorize actual callback", profile.Code(err))
+		}
+	}
+	invoke()
+	containers := []any{token, &token, []Token{token}, [1]Token{token}, map[string]Token{"token": token}, struct{ Token Token }{token}}
+	for _, format := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%X", "%d", "%b", "%o", "%f", "%e", "%g", "%c", "%U", "%t", "%1000000d", "%.1000000x"} {
+		t.Run(format, func(t *testing.T) {
+			values := containers
+			if strings.Contains(format, "1000000") {
+				// A composite's public keys have their own fmt width semantics.
+				values = containers[:2]
+			}
+			for _, container := range values {
+				output := fmt.Sprintf(format, container)
+				if !strings.Contains(output, "<execution-token>") || len(output) > 256 {
+					t.Fatal("token diagnostic was not bounded and opaque; raw output intentionally omitted")
+				}
+			}
+		})
+	}
+	for _, value := range []any{token, &token} {
+		if _, err := json.Marshal(value); err == nil {
+			t.Fatal("execution token entered JSON")
+		}
+	}
+	if token.secret != s.Token().secret {
+		t.Fatal("diagnostics changed the execution capability")
+	}
+	invoke()
 }
 
 func TestFullPackageHashCopyCannotChangeVMOrModuleAuthority(t *testing.T) {

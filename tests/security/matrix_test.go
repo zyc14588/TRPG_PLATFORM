@@ -28,7 +28,7 @@ var matrices = []matrix{
 	}},
 	{"secret", false, []target{
 		{"internal/luaruntime/checkpoint", []string{"TestValueDiagnosticsNeverRenderPrivatePayloads", "TestDiagnosticRedactionPreservesExplicitJSONState"}},
-		{"internal/luaruntime/vm", []string{"TestAuthorizedOriginAndOpaqueTokenStayInParent"}},
+		{"internal/luaruntime/vm", []string{"TestAuthorizedOriginAndOpaqueTokenStayInParent", "TestActualExecutionTokenDiagnosticsPreserveAuthority"}},
 		{"internal/hostapi", []string{"TestSevenEffectsAtomicCommitAndIdempotency", "TestAuditControlsCannotDisableOrExposeSecrets"}},
 	}},
 	{"capability", true, []target{

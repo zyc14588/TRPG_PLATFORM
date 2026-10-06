@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
@@ -29,6 +30,12 @@ type Token struct{ secret [32]byte }
 func (Token) MarshalJSON() ([]byte, error) { return nil, profile.Fail(profile.ErrValue) }
 func (Token) String() string               { return "<execution-token>" }
 func (Token) GoString() string             { return "<execution-token>" }
+
+// Format closes numeric and nested diagnostics as well as String/GoString.
+// Ignore the requested width and verb so diagnostics stay bounded and opaque.
+func (Token) Format(out fmt.State, _ rune) {
+	_, _ = out.Write([]byte("<execution-token>"))
+}
 
 type AuditSink func(profile.Audit) error
 

@@ -96,7 +96,7 @@ func TestMain(m *testing.M) {
 		v.Path = "/" + db
 		childEnv = replaceEnv(childEnv, key, v.String())
 	}
-	forbiddenMarkers = []string{"fixture-gm-private-value", "sensitive-fixture-value", "must-not-reach-runner", password}
+	forbiddenMarkers = []string{"fixture-gm-private-value", "sensitive-fixture-value", "must-not-reach-runner", "migration-fixture-gm-private", password}
 	parent := os.Getenv("TRPG_SECURITY_EVIDENCE_DIR")
 	if parent == "" {
 		evidence, err = os.MkdirTemp("", "trpg-security-evidence-")
