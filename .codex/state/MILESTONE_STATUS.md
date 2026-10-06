@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "9a6760e431124b1e3e2a47126822ee1325b39598"
+source_commit: "97bd30377acf41bc7ffa731b428347fa1c2f12d8"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B007安全迁移施工前置
+
+正常PLAN v61→v62只将B007 FROZEN→IMPLEMENTING；合同hash 3fd98c06a16d5d511f5fda8b5e1d58a7f864bae940f7d87896348574ea227629及全部14字段保持，next14、其他批次及此前正文不变。冻结源97bd30377acf41bc7ffa731b428347fa1c2f12d8的37成员清单5a602be647a7ef316dc057b64e23c03e551bb9982f3a7ab58653017bb3174160及实际native1run/pass已封存。此激活只提供施工前置，尚无B007业务PASS；实施必须使用精确签名源的fresh IMPLEMENT路由，完成后另行独立ACCEPT。
+
+B007只实现完整包/依赖锁、安全边界、最小恢复点、真实PostgreSQL隔离迁移预演、原事件兼容恢复、原子切换及此次恢复点回滚。保持事件不可变、三层授权交集、默认零授权、稳定错误、有限资源和runtime DDL/rawSQL禁令。不触及多平台、产品路线、许可、公开能力或备份管理产品。
+
+原生13批次已有10个COMPLETED，按批次数10/13≈76.92%；当前唯一施工批次B007，B008/B009仍PLANNED。依赖B003/B006均已独立验收并本地接收，main当前523e29ced387f581fedc51fc476dea809ac3f025干净；B006精确服务已清理且965成员归档SHA256 b01fbffef1f0d30b131942deb03bf60d846b803ce837ed08d677f41dc0b6ce72。原业务001/002仅476、状态003仅523闭合，所有历史FAIL/环境/助手/LOST资格保持。
+
+M1 ACTIVE，只完成Linux内容；Windows/macOS NOT_RUN，全V1未完成，无新Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：B007安全迁移合同冻结
 
