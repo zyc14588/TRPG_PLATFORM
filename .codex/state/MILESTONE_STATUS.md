@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "242df8fbfe9b54f8f33f11061e73f5c064d66ed8"
+source_commit: "b6b052bfa8baa25b2f7d7819b23683c9d1be56d3"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：完整依赖图认证修复施工前置
+
+正常PLAN v64→v65只将M1-B014 FROZEN→IMPLEMENTING，冻结合同edfd469b5e257551887d06b884d83db27974e64d8635e261c9e8a05fae51dd92及全部14字段不变。冻结源b6b052bfa8baa25b2f7d7819b23683c9d1be56d3、36成员清单5c618e83540c51e3f4ddc04985806c0482a2cf0ffadb9554b4a949e78a1333d0与原生1run/pass已封存；此前追加签名242及其原生状态验证保持。这里只提供施工前置，无B014业务PASS。
+
+Owner已批准CHANGE-M1-LINUX-MIGRATION-PREREQUISITES，两项真实原始FAIL不改写。有限治理路径修复8a33226af5916cd4a18259450eca123415912075已形成239个原生回归及239个race通过，独立验收待实际回执。B014仅认证VM已验证完整不可变包hash绑定的副本，Host验证全部五类包；ModuleBindings继续独占实际脚本来源及能力授权。被动包不获脚本或默认权限，现有三层交集、零授权、公开格式/API、事件、许可与依赖保持。须fresh IMPLEMENT、真实签名安装/PG/生产Runner和负向、原子、并发矩阵，并对精确签名候选独立ACCEPT。
+
+B007保持BLOCKED，原冻结hash3fd98c06a16d5d511f5fda8b5e1d58a7f864bae940f7d87896348574ea227629、其他批次和next15保持；全部迁移草稿完整仓库外保存，上游两项完成后精确恢复并继续B007/B008/B009直到Linux M1。原生14批次10个COMPLETED，按批次数10/14≈71.43%；M1 ACTIVE，Windows/macOS NOT_RUN，全V1未完成，无新Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：完整依赖图认证修复合同冻结
 

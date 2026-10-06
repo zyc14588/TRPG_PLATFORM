@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 64
+plan_version: 65
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -1262,7 +1262,7 @@ batches:
 
 - batch_id: M1-B014
   sequence: 14
-  state: FROZEN
+  state: IMPLEMENTING
   objective: Authenticate the complete immutable verified package graph in Host configuration,
     including passive packages, while retaining script-module origins as the sole
     callback capability authority.
