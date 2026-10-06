@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "51ce9de1a9171f661e759c77f7e33a7ddee611a5"
+source_commit: "bce7d4052cb0d8530a851061685bd2692d9c1a83"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B004 独立复验通过，完成登记候选
+
+正常 PLAN v43→v44 仅 B004 VERIFYING→COMPLETED；冻结摘要 `4b7d73a8d566d3097f3afbb45f8271e00d7aead7192992bba59974a717c08e31`、全部14字段、其他批次与next_batch_sequence=13不变。新精确业务 `51ce9de1a9171f661e759c77f7e33a7ddee611a5` / tree `9854edb1c8e4c5fc92953a32eb2e9055533c936d` 独立PASS，回执 `/tmp/trpg-m1-b004-linux-20261006/independent-repair-business-51ce9de/ACCEPTANCE_RECEIPT.json` SHA256 `0809a90fd46a990faa545ca5c06593f3fb21822d018654c60eb6453ff1d4c4df`，46文件清单 SHA256 `d016d10bcefc04ba227313f22e4a180310959542fecf7b9763595d27dbcfdc93` 已逐项核验，unresolved_required_findings=[]。独立201 related、58 race、32真实PG实际run/pass，0fail/skip；父完整check/test/vet/license/ci/build actual0绑定精确清洁51。
+
+ACC-M1-B004-001仅对新51精确候选关闭：原两required断言bytes未改，仅新clone路径适配；raw2000与raw1010+result19在1024上限下均version0/commits0/BUDGET_EXCEEDED，rollback及污染VM回收断言PASS。新增低/default/打印+日志+结果组合/pcall超限及低额内正例、异常IPC计量、四真实PG回滚证明通过。旧d348 FAIL回执 `0a3e3530600ee377fff9bed30798a62d512bf63600d5e4d31e0b36685c94c86b`、46清单 `55a71a6d21dd37c82824f36095b087f27b87e308f301d76e551bb8dca0c9a2c6` 与所有历史预提交/错误元数据原件保留，不改成PASS。
+
+正常VERIFYING投影bce（并保留859修复激活）独立state-only PASS回执 `/tmp/trpg-m1-b004-linux-20261006/independent-repair-verifying-bce7d40/ACCEPTANCE_RECEIPT.json` SHA256 `1ec6c3b5f0f4fb43cf86eaab87520efe4482f317cd2ffb6cef33c870f54b7352`，44文件清单 `ee45e3c354641fc13f1c6a664b2a71c31f00e32c2c32600638b57004128a8ec9` 已核验，0state问题；state门禁不重标业务测试为bce或本完成候选。本完成登记候选仍待独立最终state投影和本机main接收；接收后按精确owned容器ID清理32771并归档。main在准备时仍c67b019，不把PENDING冒充已接收。
+
+M1 ACTIVE，有效已完成6/11（54.5%，按数量计），总出口尚未满足。B003安装图与Host认证/Session data-target组合已整理为独立未分配B013草案，接收后正常PLAN补齐，继而B005–B009；不改已冻结B003/B004。仅Linux，Windows/macOS NOT_RUN；无新增Owner决策或公开契约变化。
+
+## 历史 B004 再VERIFYING及原始FAIL lineage（保留）
 
 ## 当前 Linux M1：B004 修复精确门禁通过，再次等待独立验收
 

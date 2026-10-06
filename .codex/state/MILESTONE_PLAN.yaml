@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 43
+plan_version: 44
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -247,7 +247,7 @@ batches:
 
 - batch_id: M1-B004
   sequence: 4
-  state: VERIFYING
+  state: COMPLETED
   objective: Implement the versioned, capability-tokened Host API and command-level MutationWorkspace that atomically commits or rolls back all Lua-visible effects.
   non_goals:
   - Implementing the SessionActor, realtime broadcast, or package migration orchestration.
