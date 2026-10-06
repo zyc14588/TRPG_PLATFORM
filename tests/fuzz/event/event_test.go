@@ -4,7 +4,6 @@ package event_test
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/eventstore"
@@ -31,7 +30,7 @@ func FuzzEventDeserialization(f *testing.F) {
 			t.Fatal("decoder accepted invalid authoritative record")
 		}
 		round, err := eventstore.Decode(support.JSON(r))
-		if err != nil || !reflect.DeepEqual(round, r) {
+		if err != nil || !bytes.Equal(support.JSON(round), support.JSON(r)) {
 			t.Fatal("accepted event lost original facts on roundtrip")
 		}
 	})
@@ -55,7 +54,7 @@ func FuzzEventUpcaster(f *testing.F) {
 		if err != nil {
 			return
 		}
-		if !reflect.DeepEqual(out.Original, in.Event) || out.Version != in.Target || checkpoint.Validate(out.Value) != nil {
+		if !bytes.Equal(support.JSON(out.Original), support.JSON(in.Event)) || out.Version != in.Target || checkpoint.Validate(out.Value) != nil {
 			t.Fatal("accepted Upcaster lost original/version/value")
 		}
 	})

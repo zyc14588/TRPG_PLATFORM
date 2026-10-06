@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	minimal "github.com/zyc14588/TRPG_PLATFORM/tests/fixture-minimal"
 	"github.com/zyc14588/TRPG_PLATFORM/tests/fuzz/support"
 	"os"
@@ -36,6 +37,19 @@ func main() {
 			if err := os.WriteFile(filepath.Join(dir, name), []byte(corpus), 0644); err != nil {
 				panic(err)
 			}
+		}
+	}
+	// Authored regression for canonical JSON's empty-collection normalization.
+	// Existing minimized failures are never deleted or regenerated here.
+	empty := support.Upcast()
+	empty.Target = 1
+	empty.Event.Payload = checkpoint.Object(map[string]checkpoint.Value{})
+	for path, raw := range map[string][]byte{
+		"protocol/testdata/fuzz/FuzzProtocolEnvelope/empty-table": []byte(`{"payload":{"kind":"table","table":{}}}`),
+		"event/testdata/fuzz/FuzzEventUpcaster/empty-table":       []byte(fmt.Sprintf(`{"Event":{"ID":"fixed-event","Type":"example.test/fuzz/change","Payload":{"kind":"table","table":{}},"SchemaHash":%q,"SchemaVersion":1},"Target":1,"Rules":[]}`, empty.Event.SchemaHash)),
+	} {
+		if err := os.WriteFile(filepath.Join(minimal.RepoRoot(), "tests/fuzz", path), []byte(fmt.Sprintf("go test fuzz v1\n[]byte(%q)\n", raw)), 0644); err != nil {
+			panic(err)
 		}
 	}
 }

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"Event\":{\"ID\":\"fixed-event\",\"Type\":\"example.test/fuzz/change\",\"Payload\":{\"kind\":\"table\",\"table\":{}},\"SchemaHash\":\"sha256:0b9b6163b67fba0e5bcde53ae1565c5d78a84457c72ddae072ceb71a32582c83\",\"SchemaVersion\":1},\"Target\":1,\"Rules\":[]}")

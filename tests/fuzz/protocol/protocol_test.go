@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
@@ -49,7 +48,9 @@ func FuzzProtocolEnvelope(f *testing.F) {
 			t.Fatal(err)
 		}
 		round, err := command.Decode(canonical)
-		if err != nil || !reflect.DeepEqual(round, e) {
+		// JSON omitempty normalizes empty slices/maps to nil. Compare exact
+		// canonical wire facts, not unobservable Go collection allocation.
+		if err != nil || !bytes.Equal(support.JSON(round), canonical) {
 			t.Fatal("accepted envelope failed canonical roundtrip")
 		}
 		accepted, err := a.Validate(i, e)
