@@ -272,10 +272,7 @@ func (s *Service) Execute(ctx context.Context, token vm.Token, c Command) (resul
 		return result, err
 	}
 	raw, e := nativeJSON(commit.Result)
-	outputBytes := len(raw)
-	for _, line := range luaResult.Output {
-		outputBytes += len(line)
-	}
+	outputBytes := len(raw) + luaResult.OutputBytes + w.outputBytes
 	if e != nil || outputBytes > o.Budget.OutputBytes {
 		return result, profile.Fail(profile.ErrBudget)
 	}

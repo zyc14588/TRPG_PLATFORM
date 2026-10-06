@@ -49,6 +49,7 @@ type workspace struct {
 	tasks, continuations, outbox                []data.Intent
 	audits                                      []data.Audit
 	callbacks, rowsUsed, bytesUsed, randomIndex int
+	outputBytes                                 int
 	failure                                     error
 }
 
@@ -265,6 +266,14 @@ func (w *workspace) call(ctx context.Context, c profile.HostCall) (value checkpo
 	case "host.log":
 		if len(args) != 1 {
 			return value, w.reject(profile.ErrValue)
+		}
+		raw, e := nativeJSON(args[0])
+		if e != nil {
+			return value, w.reject(profile.ErrValue)
+		}
+		w.outputBytes += len(raw)
+		if w.outputBytes > w.options.Budget.OutputBytes {
+			return value, w.reject(profile.ErrBudget)
 		}
 		return value, w.measure(args[0], 0)
 	case "host.rules":

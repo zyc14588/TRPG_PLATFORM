@@ -146,6 +146,28 @@ func TestSevenEffectsCommitReadYourWritesAndRetry(t *testing.T) {
 	b, _ := json.Marshal(x)
 	t.Logf("PG_ATOMIC_COMMIT %s", b)
 }
+
+func TestOriginalOutputBudgetAgainstPostgres(t *testing.T) {
+	for _, c := range []struct{ name, tail string }{
+		{"raw-print", `print(string.rep("a",2000))`},
+		{"print-plus-result", `print(string.rep("a",1010)); if true then return 1234567890123456789 end`},
+		{"raw-host-log", `host.log.write(string.rep("a",2000))`},
+		{"log-plus-print", `host.log.write(string.rep("a",600)); print(string.rep("b",600))`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			service, s, r, o := setup(t, fixture.Source(c.tail), capability.TrustPrivateUnverified, "", nil, func(o *host.Options) { o.Budget.OutputBytes = 1024 })
+			pid := s.PID()
+			result, e := service.Execute(context.Background(), s.Token(), fixture.Command("pg-output-budget"))
+			unchanged(t, r, o, result, e)
+			if profile.Code(e) != profile.ErrBudget {
+				t.Fatal("raw output budget escaped", e)
+			}
+			if _, e := os.Stat(fmt.Sprintf("/proc/%d", pid)); !os.IsNotExist(e) {
+				t.Fatal("over-budget runner not reaped", e)
+			}
+		})
+	}
+}
 func equalJSON(a, b any) bool {
 	x, _ := json.Marshal(a)
 	y, _ := json.Marshal(b)

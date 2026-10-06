@@ -96,9 +96,10 @@ type Audit struct {
 	Kind     string `json:"kind"`
 }
 type Result struct {
-	Values []checkpoint.Value `json:"values"`
-	Output []string           `json:"output"`
-	Audit  Audit              `json:"audit"`
+	Values      []checkpoint.Value `json:"values"`
+	Output      []string           `json:"output"`
+	OutputBytes int                `json:"output_bytes"`
+	Audit       Audit              `json:"audit"`
 }
 
 type invocation struct {
@@ -357,6 +358,7 @@ func (e *Engine) run(ctx context.Context, kind string, handler HostHandler, body
 		if err != nil {
 			result.Values = nil
 			result.Output = nil
+			result.OutputBytes = 0
 			result.Audit.Outcome = Code(err)
 			if started && Code(err) != ErrSource {
 				e.poisoned = true
@@ -403,6 +405,9 @@ func (e *Engine) run(ctx context.Context, kind string, handler HostHandler, body
 		result.Values = append(result.Values, value)
 	}
 	result.Output = append([]string(nil), e.output...)
+	// Keep original output accounting after Host redaction. Digest transport
+	// size cannot stand in for the bytes consumed by print and warn.
+	result.OutputBytes = e.outputBytes
 	return result, nil
 }
 

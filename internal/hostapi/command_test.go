@@ -289,6 +289,41 @@ func TestIndependentHostBudgets(t *testing.T) {
 		})
 	}
 }
+
+// ACC-M1-B004-001: all original output shares the command's lower bound;
+// hashing a log or print must never make an oversized command committable.
+func TestOriginalOutputBudgetRollsBackEveryEffect(t *testing.T) {
+	for _, c := range []struct {
+		name, tail string
+		limit      int
+	}{
+		{"raw-print", `print(string.rep("a",2000))`, 1024},
+		{"print-plus-result", `print(string.rep("a",1010)); if true then return 1234567890123456789 end`, 1024},
+		{"raw-warn", `warn(string.rep("a",2000))`, 1024},
+		{"raw-host-log", `host.log.write(string.rep("a",2000))`, 1024},
+		{"log-plus-print", `host.log.write(string.rep("a",600)); print(string.rep("b",600))`, 1024},
+		{"cumulative-logs", `host.log.write(string.rep("a",600)); host.log.write(string.rep("b",600))`, 1024},
+		{"default-log-ceiling", `host.log.write(string.rep("a",65536))`, 65536},
+		{"caught-log-excess", `pcall(function() host.log.write(string.rep("a",2000)) end)`, 1024},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			service, s, m, _ := setup(t, fixture.Source(c.tail), func(o *host.Options) { o.Budget.OutputBytes = c.limit })
+			r, e := service.Execute(context.Background(), s.Token(), fixture.Command("output-budget"))
+			assertRollback(t, m, r, e)
+			if profile.Code(e) != profile.ErrBudget {
+				t.Fatal("original output budget bypass", e)
+			}
+			assertPoisoned(t, s)
+		})
+	}
+	// Original bytes below the lowered total limit remain valid; large fixed
+	// digest strings must not overcharge an otherwise small print.
+	service, s, m, _ := setup(t, fixture.Source(`print("ok")`), func(o *host.Options) { o.Budget.OutputBytes = 32 })
+	r, e := service.Execute(context.Background(), s.Token(), fixture.Command("output-within-limit"))
+	if e != nil || r.Version != 2 || len(m.commits) != 1 {
+		t.Fatal("bounded redacted output rejected", e, r)
+	}
+}
 func TestActiveCallbackCancellationRollsBackAndReaps(t *testing.T) {
 	entered := make(chan struct{})
 	var once sync.Once

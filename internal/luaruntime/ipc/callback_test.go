@@ -35,6 +35,18 @@ func mockCallbacks() {
 	scenario := string(init.Config.Modules["scenario.lua"])
 	respond := func(id uint64) {
 		r := Response{Version: Version, ID: id, Profile: profile.ID, Runtime: profile.RuntimeVersion, PID: os.Getpid(), Result: profile.Result{Audit: profile.Audit{Level: "AUDIT-0", Sequence: id, Outcome: "PASS"}}}
+		if id != init.ID {
+			switch scenario {
+			case "output-negative":
+				r.Result.OutputBytes = -1
+			case "output-excess":
+				r.Result.OutputBytes = profile.DefaultLimits().OutputBytes + 1
+			case "output-missing":
+				r.Result.Output = []string{"sha256:untrusted"}
+			case "output-unaccounted":
+				r.Result.OutputBytes = 1
+			}
+		}
 		b, _ := json.Marshal(r)
 		WriteFrame(os.Stdout, b)
 	}
@@ -140,6 +152,23 @@ func TestCallbackFailureCannotBecomeChildPASS(t *testing.T) {
 	})
 	if profile.Code(e) != profile.ErrCapability {
 		t.Fatal("child PASS erased Host denial", e)
+	}
+}
+
+func TestUntrustedOutputAccountingCannotLowerCommandCharge(t *testing.T) {
+	for _, name := range []string{"output-negative", "output-excess", "output-missing", "output-unaccounted"} {
+		t.Run(name, func(t *testing.T) {
+			c := mockClient(t, name)
+			_, e := c.CallWithHost(context.Background(), Request{Operation: "host-invoke", Callback: "command"}, func(context.Context, profile.HostCall) (checkpoint.Value, error) { return checkpoint.Int(1), nil })
+			if e != ErrProtocol {
+				t.Fatal("invalid output metric accepted", e)
+			}
+			select {
+			case <-c.done:
+			case <-time.After(time.Second):
+				t.Fatal("untrusted output runner not reaped")
+			}
+		})
 	}
 }
 func TestUnsolicitedCallbackAndCancellationAreJoined(t *testing.T) {

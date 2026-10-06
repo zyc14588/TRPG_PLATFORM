@@ -161,6 +161,10 @@ func (c *Client) CallWithHost(ctx context.Context, request Request, handler prof
 				finished <- outcome{err: ErrProtocol}
 				return
 			}
+			if out.Result.OutputBytes < 0 || out.Result.OutputBytes > c.limits.OutputBytes || (len(out.Result.Output) > 0 && out.Result.OutputBytes < len(out.Result.Output)) || (len(out.Result.Output) == 0 && out.Result.OutputBytes != 0) {
+				finished <- outcome{err: ErrProtocol}
+				return
+			}
 			if callbackError != nil {
 				finished <- outcome{response: out, err: callbackError}
 				return
