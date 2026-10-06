@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 69
+plan_version: 70
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -619,7 +619,7 @@ batches:
   frozen_contract_sha256: 3fd98c06a16d5d511f5fda8b5e1d58a7f864bae940f7d87896348574ea227629
 - batch_id: M1-B008
   sequence: 8
-  state: PLANNED
+  state: FROZEN
   objective: Enforce and adversarially verify the non-bypassable M1 security boundary across package import, Lua, Host Callback, Session, data, and migration paths.
   non_goals:
   - Building a complete account, Room/Lobby, invitation, or trust/revocation operations system.
@@ -709,6 +709,7 @@ batches:
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
+  frozen_contract_sha256: de3b3774294e2f056c04362e996ef40b4c39251c6a63a996fa2cdc2b774c63c6
 - batch_id: M1-B009
   sequence: 9
   state: PLANNED

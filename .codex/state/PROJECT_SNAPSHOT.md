@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "0ac26398ead753666f88091e367c6b41ef97f991"
+source_commit: "4db31608519a6cd4a517ed33213b5990bd3d3c3c"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：冻结既有安全验收范围
+
+正常PLAN仅将既有M1-B008 PLANNED→FROZEN，原14字段合同保持，固定hash de3b3774294e2f056c04362e996ef40b4c39251c6a63a996fa2cdc2b774c63c6；B007仍VERIFYING，独立业务验收进行中。此动作只固定已计划的安全验收范围，不启动B008施工，不改变B007候选、其余批次、next15或任何公共/授权/许可契约。
+
+安全批次按既有TEST-SEC-001确定性验证身份/席位、隐藏视图、租户、Lua沙箱、秘密、能力、审计、资源预算、导入、迁移和跨Session边界，并对package/Lua/HostAPI/Session执行竞态检查。Linux限定继续有效，Windows/macOS NOT_RUN。启动施工前须B007独立业务PASS、正常完成状态接收及临时服务清理完成；不会用状态冻结替代业务证明。
+
+当前14批次11COMPLETED，11/14≈78.57%，M1 ACTIVE。B007已取得父精确候选全部门禁PASS，独立验收仍待；所有原失败/环境/助手计数错误证据保留。B008仅冻结；B009仍PLANNED，原edf35377合同不变。全V1未完成，无Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：安全迁移进入独立验收
 
