@@ -1,10 +1,10 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 34
+plan_version: 35
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
-next_batch_sequence: 12
+next_batch_sequence: 13
 batches:
 - batch_id: M1-B001
   sequence: 1
@@ -1003,5 +1003,91 @@ batches:
   dependency_independent: false
   parallel_scope_keys: []
   frozen_contract_sha256: fa7d260c4f77f164b6ae7f1582eb87b20a1f2b4cf59b37a799027e17bfe876a3
+
+- batch_id: M1-B012
+  sequence: 12
+  state: PLANNED
+  objective: Implement the Owner-approved additive Host capability declaration registry and matching Manifest Schema constraints for the seven
+    existing normative categories, without granting or executing new operations.
+  non_goals:
+  - Executing Host operations or implementing database, tasks, AI, SessionActor, migration, or worker behavior.
+  - Changing manifest fields, schema major versions, package identity, dependency semantics, default trust grants, public operation semantics,
+    V1 scope, Linux exit gates, licenses, or dependencies.
+  allowed_scope:
+  - internal/package/capability/**
+  - internal/package/manifest/**
+  - schemas/package/**
+  forbidden_scope:
+  - internal/hostapi/**
+  - internal/luaruntime/**
+  - internal/package/install/**
+  - internal/package/migration/**
+  - internal/storage/**
+  - internal/session/**
+  - cmd/**
+  - apps/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  - go.mod
+  - go.sum
+  requirements:
+  - REQ-PACKAGE-001
+  - REQ-PACKAGE-003
+  machine_contracts:
+  - REQ-PACKAGE-001
+  - REQ-PACKAGE-003
+  - TEST-PACKAGE-001
+  - TEST-PACKAGE-003
+  - R14-A19
+  - R15-A02
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-M1-LINUX-ACCEPTANCE-SCOPE
+  - SPEC-PACKAGE-001
+  - SPEC-HOST-CALLBACK-CAPABILITY
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - Only host.random, host.time, host.content, host.db, host.task, host.ai, and host.rules are added to the canonical closed registry; it exactly
+    matches the existing ten normative categories and Manifest v1/v2 Schema validation.
+  - Every registered name has equivalent required/optional acceptance, duplicate rejection, required/optional overlap rejection, and mandatory
+    nonblank fallback constraints in Go and v1/v2 Schema.
+  - 'Effective authority remains the declaration, trust policy, and execution-context intersection: removing any layer denies required authority
+    and resolves optional authority only through an explicit fallback; default zero-grant contexts remain zero for every new category.'
+  - Unknown capability names remain rejected at every input and direct-resolution boundary, including when repeated in every raw grant layer;
+    original package identity and canonical three-category fixtures remain unchanged.
+  - The exact reviewed proposal CHANGE-M1-HOST-CAPABILITY-REGISTRY and direct Owner authorization are retained as evidence; no Host operations,
+    implicit grants, runtime changes, dependencies or wider public semantics are introduced.
+  - Clean exact-candidate affected tests and check/test/vet/license/ci pass; separate independent ACCEPT confirms capability security, Schema
+    parity, preserved history and scope before local reception and B004 unblocking.
+  tests:
+  - 'TEST-PACKAGE-001: go test ./internal/package/manifest/... exercises Go/v1/v2 Schema agreement, every category duplicate/overlap/fallback
+    constraint and existing manifest/identity fixtures.'
+  - 'TEST-PACKAGE-003: go test ./internal/package/capability/... verifies every new category with all three grant layers, each missing layer,
+    required rejection, optional fallback, zero grants and unknown names.'
+  - go test ./internal/package/... ./cmd/creator-cli/... preserves package identities, graph resolution, runtime declarations and Creator CLI
+    behavior.
+  - just check, just test, go vet ./..., just license-check, and just ci pass on the exact clean Linux candidate.
+  stop_conditions:
+  - Stop if implementation requires any capability name beyond the seven Owner-approved existing normative categories or a new public field, operation,
+    profile, version, package identity or permission semantic.
+  - Stop if adding a registry name grants default authority, bypasses any grant layer, permits unregistered names or weakens duplicate/fallback
+    validation.
+  - Stop if code executes Host operations, changes frozen B001/B004 contracts or requires paths outside the declared scope.
+  - Stop if dependencies, licensing, V1 scope, milestone exits or cross-platform acceptance need change.
+  depends_on:
+  - M1-B001
+  - M1-B003
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+  frozen_contract_sha256: ''
 
 tombstones: []
