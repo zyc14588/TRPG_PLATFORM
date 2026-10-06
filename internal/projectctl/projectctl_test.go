@@ -1228,6 +1228,7 @@ func TestOpenCodeDeepSeekContextProfileEnforcesExplicitBudget(t *testing.T) {
 	}
 }
 
+// x-section-id: PROJECTCTL-NORMATIVE-CATALOG-TESTS
 func TestBoundedNormativeSectionCatalogCoversAuthorityContracts(t *testing.T) {
 	a := testApp(t)
 	catalog, err := a.normativeSectionCatalog()

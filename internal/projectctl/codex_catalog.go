@@ -14,6 +14,7 @@ import (
 
 var roadmapMilestoneAnchorPattern = regexp.MustCompile(`<a id="SPEC-V1-ROADMAP-(M(?:0|[1-9][0-9]*))"></a>`)
 
+// x-section-id: PROJECTCTL-NORMATIVE-CATALOG
 // normativeSpecificationPaths is the bounded authoritative inventory used to
 // resolve stable Section IDs. Route generation must never discover normative
 // material by walking docs/**.
