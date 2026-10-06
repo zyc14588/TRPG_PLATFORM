@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "510f1aa7a6108cb1553b41f69ed5d46b0c1bccd8"
+source_commit: "814fdf079ddfa2f102ba4dbaf7e7232579df6e8c"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B013 精确业务门禁通过，等待独立验收
+
+正常 PLAN v47→v48 仅 B013 IMPLEMENTING→VERIFYING；14字段冻结摘要 `2b2c92ec6524dacdcd5a6cdd7f697f102c425b31fcfd1b308f77f89103ba41a3`、其他批次、depends_on 与next14不变。精确清洁业务 `814fdf079ddfa2f102ba4dbaf7e7232579df6e8c` / tree `7c2c493d788a1e99aa87c3bead7002e92e30dc5a`，16允许路径。显式三层授权与实际签名绑定 runner哈希/限额、schema/seed/固定回调，nil配置零授权及旧签名/NoHost保持；隔离认证不接触运行库。每个已安装图节点实际ACL/对象/精确lock核验，真实VM/service先配置，然后单PG事务在安装workspace锁下登记Session、精确artifact evidence及全部data_targets；恢复使用权威状态与新Token，必需审计失败关闭。
+
+精确 actual278 related、142 race、20真实PG run/pass，0fail/skip；check/test/vet/license/ci及实际runner/platformd构建全部exit0。31成员清单 `/tmp/trpg-m1-b013-linux-20261006/exact-gates-814fdf0/EVIDENCE_MANIFEST.json` SHA256 `201579b58307b64c9c8793de62312cca72576855fff95cb32eef5bb9a19e67af` 已逐项核验；实际PG覆盖安装→持久化重载→生命周期/七效果→恢复、旧Token/重复创建、权限/图/策略替换、四SQL真实中止、VM/必需审计失败、对象丢失及真实workspace锁安装竞争拒绝。纯Go/memory负例明确仅unit，不冒充服务证明。所有dirty31开发失败/预提交来源保留，状态门禁不重标814业务来源。
+
+独立业务和VERIFYING投影、完成登记及本机main接收仍PENDING，B013不完成。自有PG32772精确ID `210b2ad5419526dc03cc63bbd216d955f031da34ca6f3dc4be16e06208a98395` 保留给独立验收，释放后接收与清理。已独立三计划投影56成员清单 `201d7d10e9bd2ccec2bf0b9e642b3e7b82e71c1531fa0787ec5fa80305e23d97` 保持；B004实际main ff66及d348原FAIL/51修复PASS lineage不变。
+
+M1 ACTIVE，已完成有效6/12按数量计；B013、B005–B009及Linux总出口尚待。仅Linux，Windows/macOS NOT_RUN。无新增Owner决策、公共格式、依赖或许可变更。
+
+## 历史 B013 分配/冻结/激活及此前状态（保留）
 
 ## 当前 Linux M1：安装图与 Host 组合 B013 IMPLEMENTING
 
