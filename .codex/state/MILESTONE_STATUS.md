@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "d7de066ddd1053282d8b47dc73822b817333488f"
+source_commit: "df6ad1de1d7491db2f05c56f10bf90e72fbff72e"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B009 业务候选完成，等待独立验收
+
+正常 PLAN v76→v77 仅将 M1-B009 IMPLEMENTING→VERIFYING，原冻结14字段、其余批次、next15及冻结摘要 edf35377a4fc1a9bbb252e177aef3d7b99bc4e52659540fb5ac18a7d5f5f48d1 保持。M1仍 ACTIVE，完成批次13/14≈92.86%。
+
+精确干净签名候选 df6ad1de1d7491db2f05c56f10bf90e72fbff72e/tree99eccf6a659d47dd1d497f4a5ce2dabb8e0a797c 父门禁23项均exit0；外层M1验收20 named PASS、0 fail/skip，机器16个主TEST ID全部PASS、27条新执行子命令合计3530 named PASS。固定场景三恢复边界一致，59个实际Runner ESRCH；八个规定30s Fuzz及提交语料通过；Compose9阶段及真实失败/SIGINT/SIGTERM三清理回归通过；canonical全部通过；普通日志私密/凭据命中0。498成员清单逐一核对，摘要 c43d4b87781a35c40e174a669b7809d838847499f159d1919ad84c640c828ef8。这里只记录实际父验证，不声称独立业务PASS。
+
+B009业务相对激活358d8b7的55路径都在原允许目录，没有核心实现、公共契约或规范变更。历史VCS构建假设、测试镜像文件权限、Fuzz空集合内部表示误判等实际FAIL保持；最后失败的最小输入77b1d3c050b93b31已经提交回归语料，新候选采用保留全部规范化线缆事实的比较。审计助手的hash前缀错误已修正，原失败记录保留，不重跑已通过业务门禁。草稿只具草稿资格。
+
+下一步独立只读ACCEPT必须针对精确候选及当前状态，实际SQL仅使用本任务临时容器 d7a6ac6f1d491a03335477ee277945e2a094b76787c23b0ec38ed9301fd90594 与六个约定数据库；父将交接零连接租约。独立通过、正常最终COMPLETED/M1 COMPLETE状态验收、可信本地主分支接收、只清理本任务临时资源及最终归档全部实际完成前不得宣告Linux M1完成。Windows/macOS NOT_RUN，全V1未完成，无Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：启动最后的认证批次 M1-B009
 

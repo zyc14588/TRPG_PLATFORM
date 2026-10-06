@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 76
+plan_version: 77
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -712,7 +712,7 @@ batches:
   frozen_contract_sha256: de3b3774294e2f056c04362e996ef40b4c39251c6a63a996fa2cdc2b774c63c6
 - batch_id: M1-B009
   sequence: 9
-  state: IMPLEMENTING
+  state: VERIFYING
   objective: Deliver the versioned fixture-minimal certification package and repeatable replay, boundary-fuzz, and deployment-smoke evidence for every M1 exit gate.
   non_goals:
   - Adding official game, TRPG, Campaign, account, Room/Lobby, AI, marketplace, or Creator Studio functionality.
