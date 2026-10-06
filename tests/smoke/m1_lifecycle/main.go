@@ -641,6 +641,19 @@ func (h *harness) privateOutput(raw []byte) error {
 }
 func (h *harness) cleanup(ctx context.Context) (map[string]any, error) {
 	var errs []error
+	// Preserve actual stopped/failed runtime diagnostics before removal. Only
+	// safe ordinary logs are stored; private data would force a failed run.
+	if id, e := h.serviceID(ctx, "m1-runtime"); e == nil {
+		state, stateErr := h.exec(ctx, []string{"docker", "inspect", id, "--format", "{{json .State}}"}, h.env)
+		logs, logErr := h.exec(ctx, []string{"docker", "logs", id}, h.env)
+		privateErr := h.privateOutput(logs)
+		diagnostic := map[string]any{"candidate": h.sha, "container_id": id, "state": string(state), "ordinary_log_sha256": checkpoint.Hash(logs)}
+		if privateErr == nil {
+			diagnostic["ordinary_log"] = string(logs)
+		}
+		err := evidence.Write(filepath.Join(filepath.Dir(h.artifact), "phases", h.project, "runtime-diagnostic.json"), diagnostic)
+		errs = append(errs, stateErr, logErr, privateErr, err)
+	}
 	_, e := h.composeCmd(ctx, "down", "--volumes", "--remove-orphans", "--timeout", "15")
 	errs = append(errs, e)
 	facts := map[string]any{"down_volumes_remove_orphans": e == nil}
