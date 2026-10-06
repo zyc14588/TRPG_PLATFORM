@@ -154,6 +154,11 @@ func run(ctx context.Context, compose, requested, output string) (err error) {
 			if raw, e := cmd.CombinedOutput(); e != nil {
 				return nil, fmt.Errorf("source-bound static build failed; output_sha256=%s", checkpoint.Hash(raw))
 			}
+			// The operator may use umask 077. COPY places files under image
+			// ownership, so the non-root runtime needs explicit execute access.
+			if e := os.Chmod(path, 0755); e != nil {
+				return nil, e
+			}
 			info, e := buildinfo.ReadFile(path)
 			if e != nil {
 				return nil, e

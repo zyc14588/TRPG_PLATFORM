@@ -208,6 +208,12 @@ func TestM1ExitGate16(t *testing.T) {
 			g.Verdict = "PASS"
 		})
 		p.Gates = append(p.Gates, g)
+		if e := evidence.Write(filepath.Join(dir, s.id+".json"), struct {
+			Candidate string
+			Gate      gate
+		}{sha, g}); e != nil {
+			t.Fatal(e)
+		}
 		write()
 		if !passed {
 			t.FailNow()
