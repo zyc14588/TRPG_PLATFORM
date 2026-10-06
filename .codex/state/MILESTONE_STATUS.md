@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "d348cd58fefbc5039c4070e80fe067f6fb180b54"
+source_commit: "793d3d6fe257ed08b0a38b1f4a535e42195d7119"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B004 独立负例 FAIL，进入契约内修复
+
+正常 PLAN v41→v42 仅 B004 VERIFYING→IMPLEMENTING，冻结摘要 `4b7d73a8d566d3097f3afbb45f8271e00d7aead7192992bba59974a717c08e31` 与全部14字段、其他批次、next_batch_sequence=13 均不变。独立精确业务 `d348cd58fefbc5039c4070e80fe067f6fb180b54` / tree `c4a94701fb89f71e8d4149d23512f8cab75410a3` 出现稳定必修 `ACC-M1-B004-001`：Host mode print 只输出摘要，命令输出上限错误按摘要长度计费，低于 profile 默认64KiB 的命令限额可绕过。独立外置 overlay command `/tmp/trpg-m1-b004-linux-20261006/independent-business-d348cd5/independent-output-budget.json` actual exit1，raw log SHA256 `e4c2db4f622a473ba1001744ddc6d30964ddd6efd818ddd66f6435a443acc05a`；1024上限/raw2000/result1和raw1010/result19均实际version2/commits1/errnil，两叶断言FAIL。Host log同类readback未作断言，不能计为预算PASS。
+
+此前 exact clean相关187、race49、真实PG27与完整门禁PASS保持原来源；它们没有覆盖新增边界，不能替代独立总判定或抹掉FAIL。B004不完成、不接收main。父侧接下来生成有效 REPAIR route，仅在B004允许路径补原始打印、Host日志与最终结果的统一预算及组合越限/回滚/污染VM回收负例；默认64KiB硬上限与脱敏保持，禁止通过扩大上限修复。验收代理已释放本轮自有fixture32771，父仍保留其精确ID用于同批修复验证，之后清理。不新增Owner决策、公共格式或依赖变化；其余M1仍待完成，仅Linux，跨平台NOT_RUN。
+
+## 历史 B004 VERIFYING 及原始门禁证据（保留）
 
 ## 当前 Linux M1：B004 精确门禁通过，等待独立验收
 
