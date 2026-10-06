@@ -79,4 +79,5 @@ bootstrap:
   status: RETIRED
   retirement_evidence:
   - Native PLAN M1 route/check passed at 3b3b417e308083b3040176a7cd1baac33db0c094; no external bootstrap execution.
-status: ACTIVE
+  - Formal native REPAIR route/check passed at e0a66973b5766ab1c212b9f793a4cb8e6e242d74 before the sole fixed inventory entry; receipts in /tmp/trpg-m1-b003-20261006/linux-normative-catalog/registration-e0a6697/.
+status: READY_FOR_ACCEPTANCE
