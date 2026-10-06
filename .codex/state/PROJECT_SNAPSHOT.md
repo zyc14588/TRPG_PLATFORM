@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "b6b052bfa8baa25b2f7d7819b23683c9d1be56d3"
+source_commit: "129620eb94b55be7f4a4f126b2645f5fd92b62d5"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：完整依赖图认证修复待独立验收
+
+正常PLAN v65→v66只将M1-B014 IMPLEMENTING→VERIFYING，冻结合同edfd469b5e257551887d06b884d83db27974e64d8635e261c9e8a05fae51dd92与全部14字段、其他13批次、next15及历史正文保持。精确签名业务候选129620eb94b55be7f4a4f126b2645f5fd92b62d5/tree471dddf51eac8e04f42a71a9f72f0fd6b36a4d04仅修改批准的5个文件：VM完整包hash绑定副本与Host全图认证及相应测试。父237相关、237race、48真实PostgreSQL/生产Runner named用例0fail/skip；clean check/test/ci/build/vet/license/signature/codex actual0，180成员清单bcd492321c33d2681da1f8cb61c269280ef496082a9372c89ef42f3b4ca7d6f1已封存。独立business ACCEPT正在验证，不将父PASS视为独立通过或批次完成。
+
+治理路径修复8a33226af5916cd4a18259450eca123415912075已实际独立PASS（仅治理），239回归+239race+42对抗0fail/skip，无required finding；64成员清单ab3f773ba9cb74cd04ab0b10939001def51ef474e8193922dddd43ffb8c7fa8b与回执10aa150b759e42cf27f8380c02223f36b111c02c8ff1015ff2482583015571ce已由父逐字节核对。原目录FAIL、Host完整图原FAIL及测试辅助buildFAIL保持原资格。
+
+B014五类签名安装图的无Lua content/assets/ui包正常通过隔离验证、已安装对象认证和真实命令提交；ModuleBindings继续独占脚本来源/能力。缺失/多余/替换包、库借用root能力、被动包越权、零默认授权均拒绝，map副本无法改变authority。既有公共格式/API、三层授权交集、依赖许可与平台义务保持。B007继续BLOCKED且原3fd98c...冻结与全部草稿仓库外保存，B014独立通过与完成后恢复B007，随后B008/B009直至Linux M1。
+
+原生14批次10个COMPLETED，按批次数10/14≈71.43%；M1 ACTIVE，Windows/macOS NOT_RUN，全V1未完成。B014精确f875c84b1d070e0eaae4d7fb2e8c3374b84833835dd949eb7a20642323bfa4f1 PostgreSQL服务仍只供独立验收，不声称已清理/main接收。无新Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：完整依赖图认证修复施工前置
 
