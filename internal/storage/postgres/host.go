@@ -11,6 +11,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/eventstore"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/model"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/store"
@@ -99,6 +100,10 @@ func (r *HostRepository) Bootstrap(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS host_command_document_scope ON host_command.documents(workspace,session,package_id,namespace,key)`,
 		`CREATE TABLE IF NOT EXISTS host_command.quantity(workspace text NOT NULL,session text NOT NULL,package_id text NOT NULL,key text NOT NULL,quantity bigint NOT NULL,command_id text NOT NULL,event_id text NOT NULL,PRIMARY KEY(workspace,session,package_id,key),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
 		`CREATE TABLE IF NOT EXISTS host_command.events(workspace text NOT NULL,session text NOT NULL,sequence bigint NOT NULL,version bigint NOT NULL,command_id text NOT NULL,event_id text NOT NULL,event_type text NOT NULL,payload bytea NOT NULL,PRIMARY KEY(workspace,session,sequence),UNIQUE(workspace,session,event_id),FOREIGN KEY(workspace,session,command_id) REFERENCES host_command.requests DEFERRABLE INITIALLY DEFERRED)`,
+		`ALTER TABLE host_command.events ADD COLUMN IF NOT EXISTS schema_version bigint NOT NULL DEFAULT 0`,
+		`ALTER TABLE host_command.events ADD COLUMN IF NOT EXISTS schema_hash text NOT NULL DEFAULT ''`,
+		`CREATE TABLE IF NOT EXISTS host_command.replay_effects(workspace text NOT NULL,session text NOT NULL,version bigint NOT NULL,command_id text NOT NULL,evidence bytea NOT NULL,PRIMARY KEY(workspace,session,version),UNIQUE(workspace,session,command_id),FOREIGN KEY(workspace,session,command_id) REFERENCES host_command.requests DEFERRABLE INITIALLY DEFERRED)`,
+		`CREATE TABLE IF NOT EXISTS host_command.projection_caches(workspace text NOT NULL,session text NOT NULL,cache bytea NOT NULL,PRIMARY KEY(workspace,session),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
 		`CREATE TABLE IF NOT EXISTS host_command.tasks(workspace text NOT NULL,session text NOT NULL,command_id text NOT NULL,id text NOT NULL,package_id text NOT NULL,kind text NOT NULL,payload bytea NOT NULL,PRIMARY KEY(workspace,session,id),FOREIGN KEY(workspace,session,command_id) REFERENCES host_command.requests DEFERRABLE INITIALLY DEFERRED)`,
 		`CREATE TABLE IF NOT EXISTS host_command.continuations(workspace text NOT NULL,session text NOT NULL,command_id text NOT NULL,id text NOT NULL,package_id text NOT NULL,kind text NOT NULL,payload bytea NOT NULL,PRIMARY KEY(workspace,session,id),FOREIGN KEY(workspace,session,command_id) REFERENCES host_command.requests DEFERRABLE INITIALLY DEFERRED)`,
 		`CREATE TABLE IF NOT EXISTS host_command.outbox(workspace text NOT NULL,session text NOT NULL,command_id text NOT NULL,id text NOT NULL,package_id text NOT NULL,kind text NOT NULL,payload bytea NOT NULL,PRIMARY KEY(workspace,session,id),FOREIGN KEY(workspace,session,command_id) REFERENCES host_command.requests DEFERRABLE INITIALLY DEFERRED)`,
@@ -288,6 +293,10 @@ func (t *hostTransaction) Commit(ctx context.Context, c data.Commit) (data.Recei
 	if err != nil {
 		return zero, err
 	}
+	effect, err := eventstore.Record(t.snapshot, c, t.eventSequence)
+	if err != nil {
+		return zero, err
+	}
 	r, err := t.tx.ExecContext(ctx, `UPDATE host_command.sessions SET version=$3,state=$4::jsonb,event_sequence=$5 WHERE workspace=$1 AND session=$2 AND version=$6 AND graph_hash=$7 AND schema_hash=$8`, w, s, int64(version), string(state), int64(t.eventSequence+uint64(len(c.Events))), int64(h.ExpectedVersion), h.Binding.GraphHash, c.SchemaHash)
 	if err != nil {
 		return zero, err
@@ -354,11 +363,21 @@ func (t *hostTransaction) Commit(ctx context.Context, c data.Commit) (data.Recei
 		if err != nil {
 			return zero, err
 		}
-		if _, err = t.tx.ExecContext(ctx, `INSERT INTO host_command.events(workspace,session,sequence,version,command_id,event_id,event_type,payload) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, w, s, int64(t.eventSequence+uint64(i)+1), int64(version), id, e.ID, e.Type, raw); err != nil {
+		if _, err = t.tx.ExecContext(ctx, `INSERT INTO host_command.events(workspace,session,sequence,version,command_id,event_id,event_type,payload,schema_version,schema_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, w, s, int64(t.eventSequence+uint64(i)+1), int64(version), id, e.ID, e.Type, raw, int64(e.SchemaVersion), e.SchemaHash); err != nil {
 			return zero, err
 		}
 	}
 	if err = fault("after-events"); err != nil {
+		return zero, err
+	}
+	evidence, err := hostJSON(effect)
+	if err != nil {
+		return zero, err
+	}
+	if _, err = t.tx.ExecContext(ctx, `INSERT INTO host_command.replay_effects(workspace,session,version,command_id,evidence) VALUES($1,$2,$3,$4,$5)`, w, s, int64(version), id, evidence); err != nil {
+		return zero, err
+	}
+	if err = fault("after-replay-evidence"); err != nil {
 		return zero, err
 	}
 	// Each intent family has a fixed table; no caller-supplied SQL identifier exists.
@@ -495,7 +514,7 @@ func (r *HostRepository) Inspect(ctx context.Context, b data.Binding) (HostInspe
 // fixed point runs a literal PostgreSQL division-by-zero in the live transaction.
 // It can only abort; it exposes no SQL string, table choice, connection or Tx.
 func (r *HostRepository) WithTransactionAbort(point string) (*HostRepository, error) {
-	allowed := map[string]bool{"after-state": true, "after-package-data": true, "after-events": true, "after-tasks": true, "after-continuations": true, "after-outbox": true, "after-idempotency": true, "after-audit": true, "before-commit": true}
+	allowed := map[string]bool{"after-state": true, "after-package-data": true, "after-events": true, "after-replay-evidence": true, "after-tasks": true, "after-continuations": true, "after-outbox": true, "after-idempotency": true, "after-audit": true, "before-commit": true}
 	if !allowed[point] {
 		return nil, data.ErrDenied
 	}

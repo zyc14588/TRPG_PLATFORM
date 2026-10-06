@@ -42,7 +42,7 @@ func (r *HostRepository) ReadJournal(ctx context.Context, b data.Binding, after 
 	if after > page.Cursor {
 		return page, data.ErrConflict
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT sequence,version,command_id,event_id,event_type,payload FROM host_command.events WHERE workspace=$1 AND session=$2 AND sequence>$3 ORDER BY sequence LIMIT $4`, b.Workspace, b.Session, int64(after), limit+1)
+	rows, err := tx.QueryContext(ctx, `SELECT sequence,version,command_id,event_id,event_type,payload,schema_version,schema_hash FROM host_command.events WHERE workspace=$1 AND session=$2 AND sequence>$3 ORDER BY sequence LIMIT $4`, b.Workspace, b.Session, int64(after), limit+1)
 	if err != nil {
 		return page, err
 	}
@@ -51,7 +51,7 @@ func (r *HostRepository) ReadJournal(ctx context.Context, b data.Binding, after 
 	for rows.Next() {
 		var e data.JournalEvent
 		var raw []byte
-		if err = rows.Scan(&e.Sequence, &e.Version, &e.CommandID, &e.Event.ID, &e.Event.Type, &raw); err != nil {
+		if err = rows.Scan(&e.Sequence, &e.Version, &e.CommandID, &e.Event.ID, &e.Event.Type, &raw, &e.Event.SchemaVersion, &e.Event.SchemaHash); err != nil {
 			return page, err
 		}
 		size += len(raw)

@@ -36,16 +36,17 @@ import (
 // Its operator file supplies synthetic credentials and all package permissions.
 // It creates no accounts, rooms, campaigns or automatic seat transfer.
 type fixtureConfig struct {
-	DSN         string `json:"dsn"`
-	Objects     string `json:"objects"`
-	Staging     string `json:"staging"`
-	Runner      string `json:"runner"`
-	RunnerHash  string `json:"runner_hash"`
-	Listen      string `json:"listen"`
-	Workspace   string `json:"workspace"`
-	Session     string `json:"session"`
-	GMToken     string `json:"gm_token"`
-	PlayerToken string `json:"player_token"`
+	DSN           string `json:"dsn"`
+	Objects       string `json:"objects"`
+	Staging       string `json:"staging"`
+	Runner        string `json:"runner"`
+	RunnerHash    string `json:"runner_hash"`
+	Listen        string `json:"listen"`
+	Workspace     string `json:"workspace"`
+	Session       string `json:"session"`
+	GMToken       string `json:"gm_token"`
+	PlayerToken   string `json:"player_token"`
+	CommitBarrier bool   `json:"commit_barrier,omitempty"`
 }
 
 func runFixture(ctx context.Context, args []string, out, errOut io.Writer) int {
@@ -131,7 +132,20 @@ func serveFixture(ctx context.Context, cfg fixtureConfig, out io.Writer) error {
 		_, err = fmt.Fprintf(out, "FIXTURE_EXECUTION %s\n", raw)
 		return err
 	}
-	services, err := openPackageServices(startup, cfg.DSN, cfg.Objects, install.Options{StagingRoot: cfg.Staging, Policy: policy, Access: access, Runtime: runtime, Observe: func(string) error { return nil }, Execution: observe}, sessionValidation{Audit: func(data.Audit) error { return nil }, Validate: func(context.Context, data.Commit) error { return nil }})
+	fault := func(_ context.Context, point string) error {
+		if cfg.CommitBarrier && point == "after-commit" {
+			logMu.Lock()
+			_, err := fmt.Fprintln(out, "FIXTURE_COMMIT_BARRIER")
+			logMu.Unlock()
+			if err != nil {
+				return err
+			}
+			<-ctx.Done()
+			return ctx.Err()
+		}
+		return nil
+	}
+	services, err := openPackageServices(startup, cfg.DSN, cfg.Objects, install.Options{StagingRoot: cfg.Staging, Policy: policy, Access: access, Runtime: runtime, Observe: func(string) error { return nil }, Execution: observe}, sessionValidation{Audit: func(data.Audit) error { return nil }, Validate: func(context.Context, data.Commit) error { return nil }, Fault: fault})
 	if err != nil {
 		return err
 	}
@@ -216,7 +230,7 @@ func serveFixture(ctx context.Context, cfg fixtureConfig, out io.Writer) error {
 			return install.SessionRequest{}, command.ErrDenied
 		}
 		return request, nil
-	}, Time: 1000, Random: []int64{7}})
+	}, Time: 1000, Random: []int64{7}, ToolResults: []checkpoint.Value{checkpoint.Int(7)}})
 	if err != nil {
 		return err
 	}

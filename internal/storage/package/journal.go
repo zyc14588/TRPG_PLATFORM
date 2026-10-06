@@ -32,11 +32,13 @@ type JournalPage struct {
 // CheckpointCache is derived recovery data. Its digest is integrity evidence,
 // not authority to replace the immutable creation/event history.
 type CheckpointCache struct {
-	Binding          Binding          `json:"binding"`
-	Version          uint64           `json:"version"`
-	Cursor           uint64           `json:"cursor"`
-	StateSchema      string           `json:"state_schema"`
-	CheckpointSchema string           `json:"checkpoint_schema"`
-	Value            checkpoint.Value `json:"value"`
-	Hash             string           `json:"hash"`
+	Binding          Binding                     `json:"binding"`
+	Version          uint64                      `json:"version"`
+	Cursor           uint64                      `json:"cursor"`
+	StateSchema      string                      `json:"state_schema"`
+	CheckpointSchema string                      `json:"checkpoint_schema"`
+	Value            checkpoint.Value            `json:"value"`
+	Hash             string                      `json:"hash"`
+	Recovery         *checkpoint.RecoveryBinding `json:"recovery,omitempty"`
+	HistoryHash      string                      `json:"history_hash,omitempty"`
 }

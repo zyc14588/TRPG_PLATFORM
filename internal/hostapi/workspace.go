@@ -163,7 +163,9 @@ func (w *workspace) call(ctx context.Context, c profile.HostCall) (value checkpo
 		if e := assign(&w.state, path, next, c.Operation == "delete"); e != nil {
 			return value, w.reject(profile.ErrValue)
 		}
-		w.patches = append(w.patches, data.Patch{Path: path, BeforeHash: digest(old), AfterHash: digest(next), Module: c.Module, Line: c.Line, CommandID: w.header.CommandID})
+		before, _ := clone(old)
+		after, _ := clone(next)
+		w.patches = append(w.patches, data.Patch{Path: path, BeforeHash: digest(old), AfterHash: digest(next), Module: c.Module, Line: c.Line, CommandID: w.header.CommandID, Before: &before, After: &after, Delete: c.Operation == "delete"})
 		if len(w.patches) > w.options.Budget.Patches {
 			return value, w.reject(profile.ErrBudget)
 		}
@@ -176,7 +178,7 @@ func (w *workspace) call(ctx context.Context, c profile.HostCall) (value checkpo
 		if !ok || schema.Validate(args[1]) != nil {
 			return value, w.reject("SCHEMA_REJECTED")
 		}
-		event := data.Event{ID: w.id("evt", len(w.events)), Type: m.PackageID + "/" + args[0].String, Payload: args[1]}
+		event := data.Event{ID: w.id("evt", len(w.events)), Type: m.PackageID + "/" + args[0].String, Payload: args[1], SchemaVersion: 1, SchemaHash: schema.Digest()}
 		w.events = append(w.events, event)
 		if len(w.events) > w.options.Budget.Events {
 			return value, w.reject(profile.ErrBudget)

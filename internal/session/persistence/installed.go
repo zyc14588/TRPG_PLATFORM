@@ -18,10 +18,12 @@ import (
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/install"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/session/actor"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/session/command"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/session/recovery"
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 )
 
 type Repository interface {
+	recovery.Repository
 	ReadJournal(context.Context, data.Binding, uint64, int) (data.JournalPage, error)
 	ReadCreation(context.Context, data.Binding) (data.Creation, error)
 	LookupCommand(context.Context, data.Binding, string, string) (data.Receipt, error)
@@ -33,10 +35,14 @@ type Options struct {
 	Request    func(data.Binding) (install.SessionRequest, error)
 	// Inputs are operator-selected deterministic fixture inputs, persisted with
 	// the command. They do not trigger an external model or network request.
-	Time   int64
-	Random []int64
+	Time        int64
+	Random      []int64
+	ToolResults []checkpoint.Value
 }
-type Installed struct{ options Options }
+type Installed struct {
+	options  Options
+	recovery *recovery.Service
+}
 type engine struct {
 	owner           *Installed
 	session         *install.InstalledSession
@@ -46,11 +52,24 @@ type engine struct {
 }
 
 func New(o Options) (*Installed, error) {
-	if o.Factory == nil || o.Repository == nil || o.Request == nil || o.Time < 0 || len(o.Random) > 256 {
+	if o.Factory == nil || o.Repository == nil || o.Request == nil || o.Time < 0 || len(o.Random) > 256 || len(o.ToolResults) > 32 {
 		return nil, command.ErrDenied
 	}
 	o.Random = append([]int64(nil), o.Random...)
-	return &Installed{options: o}, nil
+	for _, v := range o.ToolResults {
+		if checkpoint.Validate(v) != nil {
+			return nil, command.ErrDenied
+		}
+	}
+	raw, _ := json.Marshal(o.ToolResults)
+	if err := json.Unmarshal(raw, &o.ToolResults); err != nil {
+		return nil, err
+	}
+	rebuild, err := recovery.New(o.Repository)
+	if err != nil {
+		return nil, err
+	}
+	return &Installed{options: o, recovery: rebuild}, nil
 }
 func Input(e command.Envelope) checkpoint.Value {
 	return checkpoint.Object(map[string]checkpoint.Value{"type": checkpoint.Text(e.Type), "seat_id": checkpoint.Text(e.SeatID), "correlation_id": checkpoint.Text(e.CorrelationID), "payload": e.Payload})
@@ -91,7 +110,7 @@ func (p *Installed) Open(ctx context.Context, b data.Binding) (result actor.Engi
 	if err != nil || r.Workspace != b.Workspace || r.Session != b.Session {
 		return nil, command.ErrDenied
 	}
-	s, err := p.options.Factory.Resume(ctx, r)
+	s, err := p.options.Factory.Recover(ctx, r, p.recovery.Build)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +140,7 @@ func (e *engine) Execute(ctx context.Context, i command.Identity, c command.Enve
 	if c.Type == "end" {
 		callback = "on_session_end"
 	}
-	r, err := e.session.Commands.Execute(ctx, e.session.VM.Token(), hostapi.Command{Callback: callback, ID: c.CommandID, Principal: i.Principal(), ExpectedVersion: c.ExpectedStateVersion, Input: Input(c), Time: e.owner.options.Time, Random: append([]int64(nil), e.owner.options.Random...), Envelope: &data.EnvelopeMetadata{Seat: c.SeatID, Type: c.Type, Correlation: c.CorrelationID}})
+	r, err := e.session.Commands.Execute(ctx, e.session.VM.Token(), hostapi.Command{Callback: callback, ID: c.CommandID, Principal: i.Principal(), ExpectedVersion: c.ExpectedStateVersion, Input: Input(c), Time: e.owner.options.Time, Random: append([]int64(nil), e.owner.options.Random...), ToolResults: e.owner.options.ToolResults, Envelope: &data.EnvelopeMetadata{Seat: c.SeatID, Type: c.Type, Correlation: c.CorrelationID}})
 	if err == nil && !r.Replayed {
 		e.version = r.Version
 		e.cursor = r.Cursor
@@ -154,11 +173,7 @@ func (e *engine) Checkpoint(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	raw, err := json.Marshal(r.Result)
-	if err != nil {
-		return err
-	}
-	return e.owner.options.Repository.SaveCheckpoint(ctx, data.CheckpointCache{Binding: e.session.Binding, Version: e.version, Cursor: e.cursor, StateSchema: e.session.Commands.StateSchemaDigest(), CheckpointSchema: e.session.Commands.CallbackSchemaDigest("create_checkpoint"), Value: r.Result, Hash: checkpoint.Hash(raw)})
+	return e.owner.recovery.Save(ctx, e.session.Recovery, r.Result, e.version, e.cursor)
 }
 func (e *engine) Close() error {
 	e.closeOnce.Do(func() {

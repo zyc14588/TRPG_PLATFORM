@@ -51,6 +51,7 @@ type Command struct {
 	Time            int64
 	Random          []int64
 	Envelope        *data.EnvelopeMetadata
+	ToolResults     []checkpoint.Value
 }
 
 func New(o Options) (*Service, error) {
@@ -145,7 +146,7 @@ func (s *Service) Execute(ctx context.Context, token vm.Token, c Command) (resul
 // Read invokes a standard read callback against a locked snapshot, then rolls
 // the transaction back. It cannot change the version, receipts or effects.
 func (s *Service) Read(ctx context.Context, token vm.Token, c Command) (data.Receipt, error) {
-	if c.Callback != "project_view" && c.Callback != "list_legal_actions" && c.Callback != "create_checkpoint" && c.Callback != "on_safe_migration_boundary" && c.Callback != "cleanup" {
+	if c.Callback != "project_view" && c.Callback != "list_legal_actions" && c.Callback != "create_checkpoint" && c.Callback != "restore_checkpoint" && c.Callback != "on_session_restore" && c.Callback != "on_safe_migration_boundary" && c.Callback != "cleanup" {
 		return data.Receipt{}, profile.Fail(profile.ErrCapability)
 	}
 	return s.run(ctx, token, c, true)
@@ -165,7 +166,15 @@ func (s *Service) run(ctx context.Context, token vm.Token, c Command, readonly b
 	if c.Envelope != nil && (!store.ValidID(c.Envelope.Seat) || !store.ValidID(c.Envelope.Type) || !store.ValidID(c.Envelope.Correlation)) {
 		return result, profile.Fail(profile.ErrConfiguration)
 	}
-	inputs := data.Inputs{Callback: callback, Time: c.Time, Random: append([]int64(nil), c.Random...), Command: c.Input, Envelope: c.Envelope}
+	if len(c.ToolResults) > 32 {
+		return result, profile.Fail(profile.ErrBudget)
+	}
+	for _, v := range c.ToolResults {
+		if o.ResultSchema.Validate(v) != nil {
+			return result, profile.Fail("SCHEMA_REJECTED")
+		}
+	}
+	inputs := data.Inputs{Callback: callback, Time: c.Time, Random: append([]int64(nil), c.Random...), Command: c.Input, Envelope: c.Envelope, ToolResults: c.ToolResults}
 	inputs, e := clone(inputs)
 	if e != nil {
 		return result, e

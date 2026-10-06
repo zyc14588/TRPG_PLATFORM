@@ -35,6 +35,9 @@ type Inputs struct {
 	Random   []int64           `json:"random"`
 	Command  checkpoint.Value  `json:"command"`
 	Envelope *EnvelopeMetadata `json:"envelope,omitempty"`
+	// Accepted structured tool results are supplied by the trusted Go pipeline,
+	// validated against the approved result schema, and never fetched on replay.
+	ToolResults []checkpoint.Value `json:"tool_results,omitempty"`
 }
 
 // EnvelopeMetadata is supplied by the authenticated Session pipeline, never
@@ -59,9 +62,11 @@ type Quantity struct {
 	Value     int64  `json:"value"`
 }
 type Event struct {
-	ID      string           `json:"id"`
-	Type    string           `json:"type"`
-	Payload checkpoint.Value `json:"payload"`
+	ID            string           `json:"id"`
+	Type          string           `json:"type"`
+	Payload       checkpoint.Value `json:"payload"`
+	SchemaVersion uint64           `json:"schema_version,omitempty"`
+	SchemaHash    string           `json:"schema_hash,omitempty"`
 }
 type Intent struct {
 	ID        string           `json:"id"`
@@ -70,13 +75,16 @@ type Intent struct {
 	Payload   checkpoint.Value `json:"payload"`
 }
 type Patch struct {
-	Path       []string `json:"path"`
-	BeforeHash string   `json:"before_hash"`
-	AfterHash  string   `json:"after_hash"`
-	Module     string   `json:"module"`
-	Line       int      `json:"line"`
-	CommandID  string   `json:"command_id"`
-	EventID    string   `json:"event_id"`
+	Path       []string          `json:"path"`
+	BeforeHash string            `json:"before_hash"`
+	AfterHash  string            `json:"after_hash"`
+	Module     string            `json:"module"`
+	Line       int               `json:"line"`
+	CommandID  string            `json:"command_id"`
+	EventID    string            `json:"event_id"`
+	Before     *checkpoint.Value `json:"before,omitempty"`
+	After      *checkpoint.Value `json:"after,omitempty"`
+	Delete     bool              `json:"delete,omitempty"`
 }
 type Audit struct {
 	Workspace     string   `json:"workspace"`

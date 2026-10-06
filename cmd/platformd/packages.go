@@ -30,6 +30,7 @@ type packageServices struct {
 type sessionValidation struct {
 	Audit    func(data.Audit) error
 	Validate func(context.Context, data.Commit) error
+	Fault    func(context.Context, string) error // explicit internal operator fixture only
 }
 
 func openPackageServices(ctx context.Context, dsn, objectRoot string, options install.Options, validation ...sessionValidation) (*packageServices, error) {
@@ -67,7 +68,14 @@ func openPackageServices(ctx context.Context, dsn, objectRoot string, options in
 	if err != nil {
 		return fail(err)
 	}
-	commands, err := postgres.NewHostRepository(postgres.HostOptions{DB: db})
+	if len(validation) > 1 {
+		return fail(install.ErrPolicy)
+	}
+	var fault func(context.Context, string) error
+	if len(validation) == 1 {
+		fault = validation[0].Fault
+	}
+	commands, err := postgres.NewHostRepository(postgres.HostOptions{DB: db, Fault: fault})
 	if err != nil {
 		return fail(err)
 	}

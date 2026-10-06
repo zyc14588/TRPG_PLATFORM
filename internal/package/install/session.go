@@ -37,12 +37,14 @@ type SessionRequest struct {
 	Evidence                 map[string]Evidence // exact artifact identity -> actual attestations
 }
 type InstalledSession struct {
-	VM       *vm.Session
-	Commands *hostapi.Service
-	Graph    *store.Graph
-	Binding  data.Binding
-	observe  func(Execution) error
-	runtime  RuntimeConfig
+	VM               *vm.Session
+	Commands         *hostapi.Service
+	Graph            *store.Graph
+	Binding          data.Binding
+	observe          func(Execution) error
+	runtime          RuntimeConfig
+	RecoveryMetadata checkpoint.RecoveryBinding
+	Recovery         RecoveryContext
 }
 
 func (s *InstalledSession) Close() error {
@@ -61,12 +63,12 @@ func NewSessionFactory(o SessionOptions) (*SessionFactory, error) {
 	return &SessionFactory{options: o}, nil
 }
 func (f *SessionFactory) Create(ctx context.Context, r SessionRequest) (*InstalledSession, error) {
-	return f.open(ctx, r, false)
+	return f.open(ctx, r, false, nil)
 }
 func (f *SessionFactory) Resume(ctx context.Context, r SessionRequest) (*InstalledSession, error) {
-	return f.open(ctx, r, true)
+	return f.open(ctx, r, true, nil)
 }
-func (f *SessionFactory) open(ctx context.Context, r SessionRequest, resume bool) (*InstalledSession, error) {
+func (f *SessionFactory) open(ctx context.Context, r SessionRequest, resume bool, build RecoveryBuilder) (*InstalledSession, error) {
 	owned := map[string]Evidence{}
 	for id, e := range r.Evidence {
 		copyAttestation := func(a *Attestation) *Attestation {
@@ -132,13 +134,24 @@ func (f *SessionFactory) open(ctx context.Context, r SessionRequest, resume bool
 	}
 	lock, _ := g.Root().ExactLock().Digest()
 	binding := data.Binding{Workspace: r.Workspace, Session: r.Session, GraphHash: string(lock)}
+	recovery, err := recoveryContext(g, binding, contract, o.Runtime)
+	if err != nil {
+		return nil, err
+	}
+	var recovered RecoveryResult
 	state := vm.State{Version: 1, Value: contract.State.Seed}
 	if resume {
-		snapshot, err := o.Repository.ReadGraphSession(ctx, g, binding)
+		var snapshot data.Snapshot
+		if build != nil {
+			recovered, err = build(ctx, recovery)
+			snapshot = recovered.Snapshot
+		} else {
+			snapshot, err = o.Repository.ReadGraphSession(ctx, g, binding)
+		}
 		if err != nil {
 			return nil, err
 		}
-		if snapshot.SchemaHash != contract.State.Digest {
+		if snapshot.Binding != binding || snapshot.Version == 0 || snapshot.SchemaHash != contract.State.Digest {
 			return nil, ErrPolicy
 		}
 		state = vm.State{Version: snapshot.Version, Value: snapshot.State}
@@ -181,5 +194,20 @@ func (f *SessionFactory) open(ctx context.Context, r SessionRequest, resume bool
 			return fail(err)
 		}
 	}
-	return &InstalledSession{VM: s, Commands: service, Graph: g, Binding: binding, observe: o.Execution, runtime: o.Runtime}, nil
+	if build != nil {
+		read := func(callback string, input checkpoint.Value) error {
+			_, err := service.Read(ctx, s.Token(), hostapi.Command{Callback: callback, ID: "recovery-" + callback, Principal: "platform", ExpectedVersion: state.Version, Input: input, Time: recovered.Time, Random: append([]int64(nil), recovered.Random...)})
+			return err
+		}
+		if recovered.Checkpoint != nil {
+			if err = read("restore_checkpoint", recovered.Checkpoint.Value); err != nil {
+				return fail(err)
+			}
+		}
+		if err = read("on_session_restore", state.Value); err != nil {
+			return fail(err)
+		}
+	}
+	recovery.Metadata.Session.StateVersion = state.Version
+	return &InstalledSession{VM: s, Commands: service, Graph: g, Binding: binding, observe: o.Execution, runtime: o.Runtime, RecoveryMetadata: recovery.Metadata, Recovery: recovery}, nil
 }
