@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "8a33226af5916cd4a18259450eca123415912075"
+source_commit: "242df8fbfe9b54f8f33f11061e73f5c064d66ed8"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：完整依赖图认证修复合同冻结
+
+正常PLAN v63→v64只将M1-B014 PLANNED→FROZEN，14字段冻结合同hash为edfd469b5e257551887d06b884d83db27974e64d8635e261c9e8a05fae51dd92。Owner批准的CHANGE-M1-LINUX-MIGRATION-PREREQUISITES及原始两个FAIL保持；B007 BLOCKED、其冻结合同3fd98c06a16d5d511f5fda8b5e1d58a7f864bae940f7d87896348574ea227629、其他13批次合同、next15和历史记录不变。新增批次及阻塞状态来自签名242df8fbfe9b54f8f33f11061e73f5c064d66ed8，其原生PLAN转换实际1run/pass与34成员清单124e7f57caa165622c9e9fb4501174f0d17a3b6e7f915b2bedca47de65f8536d已保存；仅状态前置，无业务PASS。
+
+B014仅补齐已有VM完整不可变包hash副本与Host全图认证，实际能力调用仍按真实ModuleBindings授权。五种包角色的被动包不获得假脚本/默认能力，三层交集、零默认授权、公共格式/API、事件、许可、依赖和平台义务保持。实施须正常启动并fresh IMPLEMENT，真实PostgreSQL/生产Runner五类包及原授权/原子/并发回归后对精确签名候选独立ACCEPT；之后恢复B007，继续B008/B009直至Linux M1完成。
+
+原生14批次10个COMPLETED，按批次数10/14≈71.43%；B014尚未实施，治理维护独立验收仍待实际回执，B007草稿完整仓库外保存。M1 ACTIVE，Windows/macOS NOT_RUN，全V1未完成，无新Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：已批准完整依赖图上游修复
 
