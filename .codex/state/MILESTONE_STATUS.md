@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "1d8daf579f2eab6a90ef4114338f3362cd7b48d9"
+source_commit: "c67b019805df04358134b0a77d16a914001ad322"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B012 已完成并本机接收，B004 恢复施工
+
+正常 PLAN v39→v40 仅 B004 BLOCKED→IMPLEMENTING；冻结摘要 `4b7d73a8d566d3097f3afbb45f8271e00d7aead7192992bba59974a717c08e31`、14 个冻结字段、原 depends_on、其他批次及 next_batch_sequence=13 全部不变。Owner 直接批准的 CHANGE-M1-HOST-CAPABILITY-REGISTRY 已完成：B012 独立业务验收绑定 `3a039cdb7f5637add74daae33a1c03bde3c5ad5b`，最终状态 `c67b019805df04358134b0a77d16a914001ad322` 经独立状态投影后已实际 fast-forward 接收至本机 main（清洁）；实际接收回执 `/tmp/trpg-m1-b012-linux-20261006/main-reception-c67b019/RECEPTION_RECEIPT.json` SHA256 `af92ca0a0a226aebb8c2d50b1f37e88ca0e3e2f28404ebf7df8cd011fcf361fb`，三份独立回执均按其精确来源保存。原始 Owner 授权 SHA256 `d0fc7adf81855c00c21d23d6c631e7a004c90ac1f64f7268a2e32c7388838214` 保持不变。
+
+B004 的能力登记前置门禁现已满足，下一步生成有效 IMPLEMENT route 并在既有允许路径内实现版本化 Host API、实际模块来源和 Execution Token 绑定、MutationWorkspace 七类效果单事务提交及失败回滚、命名空间/命名数据库操作、资源预算和强制审计。此状态提交不含 B004 业务实现，不宣称其测试或验收 PASS。B001/B002/B003 前置均 COMPLETED；所有历史 FAIL、socket skip NOT_PASS、Windows/macOS NOT_RUN 与服务清理证据按原来源保留，不重标业务测试为治理 SHA。本轮继续仅 Linux；M1 ACTIVE，已完成有效批次5/11（45.5%，按数量计），总出口尚未满足。
+
+## 历史 B012 完成候选及此前状态（原文保留）
 
 ## 当前 Linux M1：B012 独立业务验收 PASS，完成登记候选
 
