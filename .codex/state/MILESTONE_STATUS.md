@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "47661588aba3ee9375854c2ac884046754e1ff5e"
+source_commit: "d24bf3ac7bdb9ff34e80794d861674289920ba0b"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B006 已完成，进度摘要计数修正
+
+原生计划 v59 共13个批次，B001–B006及B010–B013共10个COMPLETED；B007、B008、B009仍PLANNED，tombstones为空。当前按批次数完成10/13，约76.92%；这不是工作量估算。M1仍ACTIVE，Windows/macOS NOT_RUN，全V1未完成。
+
+独立状态复核指出 d24bf3ac7bdb9ff34e80794d861674289920ba0b 两份新增摘要误写9/12、75%（ACC-M1-B006-003）。本次只纠正派生摘要，不改变原生MILESTONE_PLAN.yaml、v58→v59的B006完成转移、冻结合同、next14、其他批次或业务源。错误摘要在此前状态区保持原文并明确归属于历史，不能作为当前计数。
+
+B006业务来源仍为签名提交47661588aba3ee9375854c2ac884046754e1ff5e，tree 41b03e850eeffcad08b4e38347ec9957b9f2826a。独立业务回执SHA256 f7a318690a74fa288c0e47b66bfa15f1038fa2d484cef59225aacaaa4571551f、79成员清单SHA256 f7efe48ae8bdbbe78dda65f43e4bcd7404872e70ebc771fe1345a612848b1549为PASS；父及独立实际362 related、136 race、58 PostgreSQL用例均无named fail/skip，required门禁实际通过，原001/002仅对476闭合。该业务证据不因本次数值摘要修正而重标来源；d24状态FAIL及此前业务FAIL、助手失败、环境失败和LOST资格全部保留。
+
+本次状态修正的独立验收、本机main接收、精确已拥有97dc容器清理及完整归档仍由各自后续实际回执确认，本文不声称这些动作已发生。继续B007安全迁移、B008安全检查和B009整体Linux出口，无新Owner决策等待。
+
+## 此前状态（保留原文；含已纠正的历史计数）
 
 ## 当前 Linux M1：事件重放 B006 COMPLETED
 
