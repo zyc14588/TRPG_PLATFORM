@@ -1,0 +1,78 @@
+schema_version: 1
+x-section-id: GOV-M1-LINUX-ACCEPTANCE-SCOPE
+maintenance_id: GOV-M1-LINUX-ACCEPTANCE-SCOPE
+objective:
+- Register the directly authorized Linux-only M1 acceptance scope while retaining deferred cross-platform obligations and every Linux hard gate.
+reason: >-
+  The project owner directly authorized continuation with the instruction
+  授权，但本次M1暂时不涉及多平台部分，先完成linux平台内容.
+  The prior native-evidence proposal is narrowed by this newer instruction.
+source_blocker: |-
+  finding: ACC-M1-B003-003 OPEN_REQUIRED_NATIVE_EVIDENCE
+  candidate: df1fa6793317cf26660ee92803e63eaf5e7a254a
+  tree: 5d517c1b949a3e785629bb8563304bded0ed97ac
+  B003 frozen digest: 59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e
+  independent receipt: /tmp/trpg-m1-b003-20261006/independent-b003-df1fa67/ACCEPTANCE_RECEIPT.json
+  receipt SHA256: 8595f592e84eda776a57bf6281ca260612c065b5d20e810dcd203a275d9b6a50
+  owner decision: OWNER-DECISION-M1-LINUX-FIRST-20261006
+  authorization and CHANGE: /home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/m1-linux-first/
+allowed_scope:
+- path: .codex/maintenance/GOV-M1-LINUX-ACCEPTANCE-SCOPE/CONTRACT.yaml
+  section_id: GOV-M1-LINUX-ACCEPTANCE-SCOPE
+  kind: machine-contract
+- path: docs/00-governance/M1_LINUX_ACCEPTANCE_SCOPE.md
+  section_id: SPEC-M1-LINUX-ACCEPTANCE-SCOPE
+  kind: normative-section
+- path: .codex/state/PROJECT_SNAPSHOT.md
+  section_id: CODEX-PROJECT-SNAPSHOT
+  kind: state-summary
+- path: .codex/state/MILESTONE_STATUS.md
+  section_id: CODEX-MILESTONE-STATUS
+  kind: state-summary
+forbidden_scope:
+- Any fifth tracked path, business code, dependency, workflow, public format, product requirement, architecture, license or platform support redesign.
+- Any MILESTONE_PLAN mutation, batch allocation, lifecycle transition or frozen-contract mutation during this governance maintenance.
+- Any weakened Linux functional, recovery, real-service, security, privacy, sandbox, license or canonical CI gate.
+- Any cross-platform PASS, global finding closure, retroactive old evidence mutation, or M1/batch completion claim from this registration.
+- Any main mutation, remote push, CI dispatch, PR or deployment during this maintenance.
+- Any functional scope amendment during PLAN registration; only this contract and an inert normative-document anchor may be registered there.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-PROPOSAL
+  kind: normative-section
+- path: docs/60-quality/COMPATIBILITY_AND_RELEASE_GATE.md
+  section_id: SPEC-RELEASE-GATE-MATRIX
+  kind: normative-section
+- path: docs/60-quality/ACCEPTANCE_POLICY.md
+  section_id: SPEC-ACCEPTANCE-RESULT
+  kind: normative-section
+- path: .codex/state/MILESTONE_PLAN.yaml
+  section_id: M1-MILESTONE-PLAN
+  kind: machine-contract
+acceptance:
+- The normative amendment quotes the direct owner authorization and limits current M1 delivery acceptance to Linux amd64, without deleting V1 Windows/macOS support or RC/Stable compatibility gates.
+- B003 I02/C02/C03/C05/C06 are explicitly deferred by owner for current Linux M1, NOT_RUN and never PASS; original matrices and failure receipts remain byte-preserved.
+- Every Linux functional, real-service, atomicity, workspace isolation, recovery, production-profile, Creator and canonical CI requirement remains required and independently verifiable.
+- Current summaries bind the exact tested business SHA/tree and immutable evidence hashes, distinguish governance-only changes and historical paragraphs, and do not self-declare business acceptance or completion.
+- All non-allowlisted bytes, M1 plan version/state, B003 frozen fields/digest and previously closed findings remain unchanged.
+tests:
+- Fresh native PLAN registration and REPAIR route/check bind the exact signed candidate.
+- just check and just license-check pass; Go projectctl native JSON tests have actual nonzero cases and no failures/skips.
+- Independent ACCEPT verifies the exact four-path diff, direct owner authorization, historical matrix preservation, unchanged business/plan bytes, and immutable original/successor receipts.
+stop_conditions:
+- Stop if the scope amendment deletes or claims completion of any deferred platform obligation or weakens any Linux hard gate.
+- Stop if any business, frozen-contract, plan, workflow, dependency, public-contract or non-allowlisted byte would need mutation.
+- Stop if owner scope or preserved evidence cannot be authenticated against the direct message and exact hashes.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-010
+  authorization: No external bootstrap is invoked; owner approved this scoped Linux M1 amendment and native PLAN registration already routes at df1fa6793317cf26660ee92803e63eaf5e7a254a.
+  allowed_scope:
+  - Native PLAN registration of this contract and inert normative anchor only.
+  retirement_condition: Formal REPAIR route and projectctl codex check must pass before writing the scope amendment.
+  status: RETIRED
+  retirement_evidence:
+  - Native PLAN M1 route and codex check passed at df1fa6793317cf26660ee92803e63eaf5e7a254a; no external bootstrap execution.
+status: ACTIVE
