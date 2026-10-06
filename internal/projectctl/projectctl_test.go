@@ -2272,17 +2272,22 @@ func TestPostgresScopePreservesOtherIntegrationRestrictions(t *testing.T) {
 func migrationScopePlan(t *testing.T, fuzz bool) milestonePlan {
 	t.Helper()
 	plan := postgresScopePlan(t)
-	if fuzz {
-		for i := range plan.Batches {
-			if plan.Batches[i].BatchID == "M1-B009" {
-				digest, err := batchContractDigest(plan.Batches[i])
-				if err != nil || digest != approvedMigrationFuzzContract {
-					t.Fatalf("approved B009 contract changed: %s %v", digest, err)
-				}
-				plan.Batches[i].State = "FROZEN"
-				plan.Batches[i].FrozenContractSHA256 = digest
-			}
+	for i := range plan.Batches {
+		if plan.Batches[i].BatchID != "M1-B009" {
+			continue
 		}
+		if !fuzz {
+			// The denial fixture must stay unstarted as the real plan advances.
+			plan.Batches[i].State = "PLANNED"
+			plan.Batches[i].FrozenContractSHA256 = ""
+			continue
+		}
+		digest, err := batchContractDigest(plan.Batches[i])
+		if err != nil || digest != approvedMigrationFuzzContract {
+			t.Fatalf("approved B009 contract changed: %s %v", digest, err)
+		}
+		plan.Batches[i].State = "FROZEN"
+		plan.Batches[i].FrozenContractSHA256 = digest
 	}
 	return plan
 }
@@ -2468,6 +2473,13 @@ func TestMigrationScopeNativeRepositoryGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(planPath, original, 0600); err != nil {
+		t.Fatal(err)
+	}
+	unstarted, err := yaml.Marshal(migrationScopePlan(t, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(planPath, unstarted, 0600); err != nil {
 		t.Fatal(err)
 	}
 	fuzz := filepath.Join(root, "tests/fuzz/migration/probe_test.go")
