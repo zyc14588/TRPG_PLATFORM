@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "793d3d6fe257ed08b0a38b1f4a535e42195d7119"
+source_commit: "51ce9de1a9171f661e759c77f7e33a7ddee611a5"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：B004 修复精确门禁通过，再次等待独立验收
+
+正常 PLAN v42→v43 仅 B004 IMPLEMENTING→VERIFYING；冻结摘要 `4b7d73a8d566d3097f3afbb45f8271e00d7aead7192992bba59974a717c08e31`、全部14字段、其他批次及next_batch_sequence=13保持不变。新精确业务 `51ce9de1a9171f661e759c77f7e33a7ddee611a5` / tree `9854edb1c8e4c5fc92953a32eb2e9055533c936d` 修复原始print/warn、Host日志与结果的合计预算，仍保持64KiB最大上限、默认零授权与脱敏；仅7允许修复路径，无公共合同/依赖/许可变化。
+
+精确清洁相关201 run/pass、Host race58 run/pass、真实PG32 run/pass，全部0fail/skip；check/test/vet/license/ci/build actual0。新25文件清单 `/tmp/trpg-m1-b004-linux-20261006/repair-exact-gates-51ce9de/EVIDENCE_MANIFEST.json` SHA256 `12487823bbb330b7779587d26b9fcddf54256ab0c430e0c069f26473efd4b814` 已逐项核验。新增低/default/组合/caught日志超限七类效果回滚及子进程回收，真实PG四负例读回所有九表计数0、version1/state1。预提交dirty859之194/32保持原来源。
+
+独立 d348 FAIL 回执 SHA256 `0a3e3530600ee377fff9bed30798a62d512bf63600d5e4d31e0b36685c94c86b`、46成员清单 `55a71a6d21dd37c82824f36095b087f27b87e308f301d76e551bb8dca0c9a2c6` 保留，ACC-M1-B004-001尚待独立以原unchanged负例重新验收后关闭，不能以父PASS抹去。B004不COMPLETED、不接收main。自有fixture32771保留给复验，之后按精确ID清理。安装图组合/B005–B009与总出口仍待，M1 ACTIVE，已完成有效5/11按数量计，跨平台NOT_RUN；无新增Owner决策。
+
+## 历史 B004 独立FAIL、修复激活及此前状态（保留）
 
 ## 当前 Linux M1：B004 独立负例 FAIL，进入契约内修复
 
