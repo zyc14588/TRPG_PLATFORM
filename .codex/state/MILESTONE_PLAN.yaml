@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 70
+plan_version: 71
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -535,7 +535,7 @@ batches:
   frozen_contract_sha256: 873d928f833d8c19a84c3c5b16151b780ba7bc95ac2838ac3c6f852e4f549e5e
 - batch_id: M1-B007
   sequence: 7
-  state: VERIFYING
+  state: COMPLETED
   objective: Implement exact Session package locking and safe-boundary package upgrade with isolated rehearsal, atomic migration, and recovery-point rollback.
   non_goals:
   - Providing arbitrary automatic downgrade or a formal backup administration product.

@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "4db31608519a6cd4a517ed33213b5990bd3d3c3c"
+source_commit: "93577e522da8f6123805bd6bcb8f0a778092c798"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：M1-B007 独立验收通过
+
+正常 PLAN v70→v71 仅将 M1-B007 VERIFYING→COMPLETED；冻结合同 3fd98c06a16d5d511f5fda8b5e1d58a7f864bae940f7d87896348574ea227629、全部14字段、其余批次和next15保持。M1保持ACTIVE。
+
+精确干净签名业务候选 0ac26398ead753666f88091e367c6b41ef97f991/tree5d53ebd5bdc1fefb1e4e3344c6ac977cd231de22 已取得独立只读ACCEPT PASS，无未解决必需发现。父实际用例：related=1413 PASS; race=1413 PASS; migration-postgres=45 PASS; hostapi-postgres-regression=48 PASS; session-postgres-regression=24 PASS; replay-postgres-regression=34 PASS；所有named fail/skip0，canonical门禁全部exit0。独立回执SHA256 bd97a543fa6e0033e520eb5746a3d99031b9298c8982cd9078a54e6b07d991f2 与证据清单SHA256 569843d77033e85e1248f416c8636e25e94627d7cc1f27ce737a20a50e804f96（102成员）已由父逐个核对尺寸与hash。原始独立结果及补充测试细节以封存回执为准。
+
+所有历史失败、环境限制、草稿与证据助手错误保持原文及原日志，资格不变；状态投影只记录已有业务PASS，不冒充业务复测。本COMPLETED状态还须独立state-only验收、本地主分支接收、仅本任务临时服务清理和最终归档；以上未实际完成前不提前声称。Windows/macOS NOT_RUN，全V1未完成。
+
+原生完成批次 12/14≈85.71%；继续既定剩余Linux M1批次。无Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：冻结既有安全验收范围
 
