@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 45
+plan_version: 46
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -1102,7 +1102,7 @@ batches:
 
 - batch_id: M1-B013
   sequence: 13
-  state: PLANNED
+  state: FROZEN
   objective: Compose verified installed exact package graphs with explicitly authorized Host certification and Session provisioning while retaining
     the existing public package and Host contracts.
   non_goals:
@@ -1221,5 +1221,6 @@ batches:
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
+  frozen_contract_sha256: 2b2c92ec6524dacdcd5a6cdd7f697f102c425b31fcfd1b308f77f89103ba41a3
 
 tombstones: []
