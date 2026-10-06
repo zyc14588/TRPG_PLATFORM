@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "92e74e5be1f07830e7ab13cea028ae1d1d725720"
+source_commit: "2b295e1494f1afd25ef0392684116e82dc3c5706"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：事件重放 B006 VERIFYING
+
+正常 PLAN v57→v58 只将 M1-B006 IMPLEMENTING→VERIFYING；冻结合同 `873d928f833d8c19a84c3c5b16151b780ba7bc95ac2838ac3c6f852e4f549e5e`、其他批次、next14 和此前正文保持。精确签名业务候选 `2b295e1494f1afd25ef0392684116e82dc3c5706`（tree `c4ce230b066a177e9ab1cae74040679695068f1d`）的父必验 PASS：362 related、136 race、51 real（B006 27+B005 24），named 0 fail/skip；check/test/vet/license/ci/build actual0。父 29 成员证据清单 `business-2b295e1/EVIDENCE_MANIFEST.json` SHA256 `5b9d79c4c39d2d5f0b71bd3c05ab5239d22e847a1f945cd15ba6dba079bc34bc`，位于持久证据目录 `m1-b006-linux-progress`。独立业务验收尚待，不能把此状态投影或父测试当作独立 PASS。
+
+真实 PostgreSQL 完整效果、确定性输入及事件 Schema 元数据加入原命令事务；重建只读不可变创建种子和事件，删除派生状态后与所有快照边界的状态、游标、许可座位视图及生产 VM 可见文档事实相同。当前完整重建事实匹配的检查点可用，旧版或不兼容/自算哈希伪造缓存忽略；恢复 SQL 失败/实际 VM 检查点恢复失败可重试且不改写事件、请求、任务、Continuation、Outbox、版本或游标。实际 platformd 在 SQL 已提交而广播仍被隔离屏障阻塞时取消请求、SIGTERM 回收，再从零派生状态重启并去重，外部意图未重复。命名 quantity 的重建只作单元测试资格，真实 fixture 验证 declared documents。M1 暂不扩成迁移或正式备份产品。
+
+重启前 B006 `/tmp` 首次 proof 明确 LOST；新的三步 state-only 复验 PASS 109 成员清单 SHA256 `3357fe3dae3dc52db267076ede48985eabd2e9cb32cf30b41b8cac6bae749a2a`，限定补充清单 SHA256 `9aeb893a892a10f341b4ad8d661491342e727acbb1b9732b33fe663c40b1c76d`。新开发五条实际失败日志保持 dirty precommit 资格，不覆盖或充当干净候选验收。B005 main 接收、B004 原始 FAIL/修复及 B013 无效补充 harness 历史限定全部保留。
+
+M1 ACTIVE，有效完成8/12（66.7%，按批次数）；B006 独立验收/完成/main 接收尚待，随后继续 B007–B009 至 Linux M1 出口完成。Windows/macOS NOT_RUN，全 V1 未完成。无新 Owner 决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：事件重放 B006 IMPLEMENTING
 
