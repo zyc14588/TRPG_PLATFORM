@@ -75,4 +75,5 @@ bootstrap:
   status: RETIRED
   retirement_evidence:
   - Native PLAN M1 route and codex check passed at df1fa6793317cf26660ee92803e63eaf5e7a254a; no external bootstrap execution.
-status: ACTIVE
+  - Native PLAN registration/check and formal REPAIR route/check passed at f757c82f7ed927382300df24f87576f875d61a0d before semantic writes; retirement condition satisfied without external bootstrap.
+status: READY_FOR_ACCEPTANCE

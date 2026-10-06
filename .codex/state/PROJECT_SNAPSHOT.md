@@ -4,10 +4,26 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "7c6240e28c1ff4066debedffb43284b979dee260"
+source_commit: "f757c82f7ed927382300df24f87576f875d61a0d"
 ---
 
 # 项目摘要
+
+## 当前 M1 Linux 验收范围登记（治理候选）
+
+Owner 直接指示“授权，但本次M1暂时不涉及多平台部分，先完成linux平台内容”；当前任务是继续完成 Linux M1，遇到新的范围/设计决策再停下。规范入口为 [M1 Linux 验收范围](../../docs/00-governance/M1_LINUX_ACCEPTANCE_SCOPE.md)，`SPEC-M1-LINUX-ACCEPTANCE-SCOPE` / `GOV-M1-LINUX-ACCEPTANCE-SCOPE`。Windows/macOS 本次延期、NOT_RUN，不记录为 PASS；V1 兼容矩阵和后续 RC/Stable 门禁保留。该段须由每个 M1 route 的 always-read 摘要带入。
+
+当前工作线的业务被测身份为 `df1fa6793317cf26660ee92803e63eaf5e7a254a` / tree `5d517c1b949a3e785629bb8563304bded0ed97ac`。Linux 本地 `just check/test/license-check/ci` 与 `go vet ./...` 均 exit 0；affected Go JSON 638 run/pass、真实服务 JSON 37 run/pass、两组均 0 fail/skip（计数包括 named parent/subtests）；前端 Web Player 1/1、Creator 8/8，并有固定候选原生 Creator 的 import/inspect/edit/validate/export/reimport 及通用扩展往返证据。原始证据 index `/tmp/trpg-m1-b003-20261006/candidate-df1fa67-attempt1/EVIDENCE_INDEX.json` SHA256 `f5a35e4745f87463315b9eba15bd6bdc9f6625d345a74e784a596fe2b5861323`；环境读回 SHA256 `da4bfadcddaeb67a0f9601a4f84164a94c1bf65993237ccba5099db3dae42656`。
+
+旧范围下独立后继 receipt `/tmp/trpg-m1-b003-20261006/independent-b003-df1fa67/ACCEPTANCE_RECEIPT.json` SHA256 `8595f592e84eda776a57bf6281ca260612c065b5d20e810dcd203a275d9b6a50`，仍为总体 FAIL / 本地修复 PASS；原首轮 receipt SHA256 `cc43cbfbf30996840881f96cec8d0a8b7b36fe7181855db873f415b72fe311e6` 原文保留。002/004 仅对该精确后继 CLOSED_FOR_VERIFIED_SUCCESSOR；003 原 OPEN_REQUIRED_NATIVE_EVIDENCE 保留，新 Linux 范围处置为 DEFERRED_BY_OWNER_M1_LINUX_ONLY、Windows/macOS NOT_RUN，非全局关闭。19 行原映射仍逐字保留在下方历史规划投影。当前 Linux 必须项为 I01、I03—I08、R01、R02、C01、C04；I02/C02/C03/C05/C06 按 owner 延期；S 行仍是原补充/下游义务。
+
+可持久恢复的原始证据包 `/home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/m1-b003-native-evidence-decision/M1-B003_EVIDENCE.tar.gz` SHA256 `35f5d6e26b6ba6f142507e7d18c6910ac5f42ef935e06d87bb30dbc1abe0cba6`；授权与 CHANGE 在同级 `m1-linux-first/`。若 /tmp 消失，按封存包中的原路径映射恢复并核验哈希，不能重写原 receipt 以制造新鲜执行。
+
+本提交只有四路径治理 scope delta；业务与依赖字节、M1/v30 ACTIVE、B003 IMPLEMENTING、frozen digest `59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e`、其他 batch 和 next_batch_sequence=12 不变。治理 SHA/tree 由签名 Git object 和新 route/独立报告固定，与旧业务被测身份分列。当前尚未有新 Linux 独立业务 PASS，不自报 B003/M1 完成或 main 接收；当前 main authority 仍为 `a353b2da35d20eb162d1eb404ac33fc0a3eacfaf`。
+
+下一 gate：独立验收本治理 scope delta，再独立验证 Linux B003 的完整必须项；通过后正常 PLAN 登记 VERIFYING→COMPLETED，再推进依赖满足的 B004，WIP 上限仍为 1。下方“本轮/当前/无业务候选/无后续授权”等句仅属历史阶段；本节及当前直接 owner 授权给出本次任务范围，不回写原记录。
+
+## 历史 B003 实现启动投影（原文保留）
 
 ## M1-B003 实现启动治理候选
 

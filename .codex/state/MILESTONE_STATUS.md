@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "7c6240e28c1ff4066debedffb43284b979dee260"
+source_commit: "f757c82f7ed927382300df24f87576f875d61a0d"
 ---
 
 # 里程碑状态
+
+## 当前 M1 Linux 范围登记（治理候选）
+
+- Owner 当前授权：完成 Linux amd64 的 M1；Windows/macOS 本次 DEFERRED_BY_OWNER_M1_LINUX_ONLY / NOT_RUN，不能标 PASS。规范补充入口 `docs/00-governance/M1_LINUX_ACCEPTANCE_SCOPE.md`（SPEC-M1-LINUX-ACCEPTANCE-SCOPE）；V1 多平台支持及 RC/Stable 门禁保留。
+- 机器 plan 未变：M1 ACTIVE v30；B003 IMPLEMENTING，原 frozen digest `59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e`；B001/B002/B010/B011 COMPLETED、B004—B009 PLANNED、next_batch_sequence=12、WIP=1。本维护不登记 lifecycle 或完成。
+- 精确业务测试：`df1fa6793317cf26660ee92803e63eaf5e7a254a` / `5d517c1b949a3e785629bb8563304bded0ed97ac`，Linux 638 affected + 37 real-service named run/pass，0 fail/skip；canonical check/test/vet/license/ci exit 0。原证据 index SHA256 `f5a35e4745f87463315b9eba15bd6bdc9f6625d345a74e784a596fe2b5861323`，路径与 Creator/E3、原始日志封存见 PROJECT_SNAPSHOT 当前节。新增治理 tree 未被原业务 CI 直接测试。
+- 原独立 FAIL 保留：后继 receipt SHA256 `8595f592e84eda776a57bf6281ca260612c065b5d20e810dcd203a275d9b6a50`；002/004 仅对上述精确业务后继 CLOSED_FOR_VERIFIED_SUCCESSOR；003 原 OPEN_REQUIRED_NATIVE_EVIDENCE 保留，本次 Linux 平台欠项按 owner 延期，非全局 CLOSED。原 19 行平台矩阵与历史 bytes 保留。
+- 当前独立 Linux 业务验收 PENDING；B003/M1 完成 NOT_CLAIMED，main authority 仍 `a353b2da35d20eb162d1eb404ac33fc0a3eacfaf`。下一 gate 是 scope 治理独立 ACCEPT → Linux B003 独立 ACCEPT → 正常 PLAN lifecycle → B004；下方阶段性授权和无候选陈述均为历史。
+
+## 历史 B003 实现启动状态（原文保留）
 
 ## M1-B003 实现启动治理候选
 
