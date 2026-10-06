@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "ea61d293bf9d55fbb1f7b15ad7e8df2ff23ab78f"
+source_commit: "92e74e5be1f07830e7ab13cea028ae1d1d725720"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：事件重放 B006 IMPLEMENTING
+
+正常 PLAN activate v56→v57；仅未开始 B006 草案细化后冻结、激活。不可变创建种子和已提交事件/完整Go效果与确定性输入作为恢复依据，当前状态/数据投影/检查点只作派生加速器；重放不重复调用外部模型，不改写旧事件、任务、Outbox或幂等结果。范围补充内部数据契约、Host效果记录、已验证安装图的session构造和现有最小platformd组合，保持现有规范、公共包格式、依赖与许可。所有已冻结/完成合同、其他批次与next14保持不变，摘要 `873d928f833d8c19a84c3c5b16151b780ba7bc95ac2838ac3c6f852e4f549e5e`。B006业务NOT_RUN；重放旧证据不完整时失败关闭，禁止拿当前状态充当创建种子。
+
+B005 实际本机main接收PASS，回执 `/tmp/trpg-m1-b005-linux-20261006/main-reception-8ed2f00/RECEPTION_RECEIPT.json` SHA256 `2b1252915300f2f28811f9fd619fa86ff9f9e91e938c7af4650a3dadd2c132e6`；精确cb393aa独立业务与各状态投影来源保持分列。M1 ACTIVE，有效完成8/12（66.7%，按数量）；B006–B009与整体Linux出口尚待。Windows/macOS NOT_RUN。B004原始FAIL/修复和B013补充harness的无效证明记录保持。无新的Owner决策等待。
+
+## 历史 B005 完成接收及此前状态（保留）
 
 ## 当前 Linux M1：事件重放 B006 FROZEN
 
