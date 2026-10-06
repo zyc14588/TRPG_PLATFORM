@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -120,12 +121,15 @@ func TestActualSessionHandleDiagnosticsPreserveAuthorityAndState(t *testing.T) {
 		}
 	}
 	invoke()
-	containers := []any{s, []*Session{s}, [1]*Session{s}, map[string]*Session{"session": s}, struct{ Session *Session }{s}}
+	// A diagnostic framework can box the public handle as a value. It must never
+	// use that copy to execute a VM; here it is only formatted, like a logger.
+	value := reflect.ValueOf(s).Elem().Interface()
+	containers := []any{s, value, []*Session{s}, [1]*Session{s}, map[string]*Session{"session": s}, struct{ Session *Session }{s}, []any{value}, map[string]any{"session": value}, struct{ Session any }{value}}
 	for _, format := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%X", "%d", "%b", "%o", "%f", "%e", "%g", "%c", "%U", "%t", "%1000000d", "%.1000000x"} {
 		t.Run(format, func(t *testing.T) {
 			values := containers
 			if strings.Contains(format, "1000000") {
-				values = containers[:1]
+				values = containers[:2]
 			}
 			for _, container := range values {
 				output := fmt.Sprintf(format, container)

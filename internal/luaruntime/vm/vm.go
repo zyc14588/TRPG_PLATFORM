@@ -51,6 +51,7 @@ type Options struct {
 	Host         *HostOptions
 }
 type Session struct {
+	sessionDiagnostics
 	mu        sync.Mutex
 	client    *ipc.Client
 	runner    string
@@ -66,9 +67,11 @@ type Session struct {
 	modules   map[string]ModuleIdentity
 }
 
-// Format keeps the returned VM handle from recursively exposing its private
-// capability, checkpoint state or runtime configuration in ordinary diagnostics.
-func (*Session) Format(out fmt.State, _ rune) {
+// sessionDiagnostics has no runtime fields. Promoting its value method protects
+// both Session and *Session diagnostics while the VM locking stays unchanged.
+type sessionDiagnostics struct{}
+
+func (sessionDiagnostics) Format(out fmt.State, _ rune) {
 	_, _ = out.Write([]byte("<session-vm:redacted>"))
 }
 
