@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"kind\":\"callback\",\"version\":1,\"id\":1,\"sequence\":1,\"pid\":1,\"profile\":\"platform-lua-5.5-p1\",\"runtime\":\"golua-v2.0.5/p1\",\"call\":{\"module\":\"fixture\",\"line\":1,\"phase\":\"execute\",\"capability\":\"host.db\",\"operation\":\"named\",\"arguments\":[{\"kind\":\"string\",\"string\":\"increase\"},{\"kind\":\"table\",\"table\":{\"delta\":{\"kind\":\"integer\",\"number\":\"7\"},\"key\":{\"kind\":\"string\",\"string\":\"one\"}}}]}}")

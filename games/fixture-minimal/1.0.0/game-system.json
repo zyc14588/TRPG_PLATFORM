@@ -1,0 +1,76 @@
+{
+  "package_id": "example.test/migration",
+  "role": "game-system",
+  "version": "1.0.0",
+  "content_hash": "sha256:194a2068a96f3fe520fd68f13af3619eac984869c0737b44dddb5b86d8ac6ff0",
+  "artifact_hash": "sha256:2bf60da5370c0ec75858e313271df34f86ec0e9cb0f4bb1e95da67a7594d3595",
+  "exact_lock": {
+    "schema_version": 1,
+    "root": "example.test/migration",
+    "packages": [
+      {
+        "package_id": "example.test/migration",
+        "version": "1.0.0",
+        "content_hash": "sha256:194a2068a96f3fe520fd68f13af3619eac984869c0737b44dddb5b86d8ac6ff0",
+        "features": [
+          "fixture"
+        ],
+        "dependencies": [
+          "example.test/migration-assets",
+          "example.test/migration-content",
+          "example.test/migration-ui"
+        ]
+      },
+      {
+        "package_id": "example.test/migration-assets",
+        "version": "1.0.0",
+        "content_hash": "sha256:dd2731499d02386e7e3a589e0bbd530527b71e74c73bd91847bf7ef18d33ab7c",
+        "features": [
+          "fixture"
+        ],
+        "dependencies": []
+      },
+      {
+        "package_id": "example.test/migration-content",
+        "version": "1.0.0",
+        "content_hash": "sha256:9bc5f998cd866087ceca2631327f03bf4993790e801b898a26dcbb1ba1da17cb",
+        "features": [
+          "fixture"
+        ],
+        "dependencies": [
+          "example.test/migration-library"
+        ]
+      },
+      {
+        "package_id": "example.test/migration-library",
+        "version": "1.0.0",
+        "content_hash": "sha256:98a0a611e33621ba4f3a20211e80bcd72978437a9421ecd3f7cf221c3a5bc373",
+        "features": [
+          "fixture"
+        ],
+        "dependencies": []
+      },
+      {
+        "package_id": "example.test/migration-ui",
+        "version": "1.0.0",
+        "content_hash": "sha256:0bdb2b495169f6eab41c230ceea98f641d3009cf3bbe2803a112dfa04a7a1de4",
+        "features": [
+          "fixture"
+        ],
+        "dependencies": []
+      }
+    ]
+  },
+  "source_files": {
+    "lua/main.lua": "local M={}\nlocal function state() return {counter=host.state.get({\"counter\"}),secret=host.state.get({\"secret\"})} end\nfor _,n in ipairs({\"on_session_create\",\"on_session_start\",\"list_legal_actions\",\"resume_continuation\",\"cleanup\"}) do M[n]=function(...) return {} end end\nM.on_session_restore=function(input) assert(input.counter==host.state.get({\"counter\"}));;return {} end\nM.restore_checkpoint=M.on_session_restore\nM.project_view=function(input) local v=state();if input.seat_id==\"player\" then v.secret=\"redacted\" end;return v end\nM.create_checkpoint=state\nM.on_safe_migration_boundary=function() return true end\nM.on_session_end=function() host.event.emit(\"change\",state());return {} end\nM.validate_command=function(command) return command.type==\"increment\" and math.type(command.payload.delta)==\"integer\" and command.payload.delta\u003e=1 and command.payload.delta\u003c=1000 end\nM.execute_command=function(command)\n local next=host.state.get({\"counter\"})+command.payload.delta\n host.state.put({\"counter\"},next);host.db.put(\"docs\",\"one\",{score=next})\n host.db.named(\"increase\",{key=\"one\",delta=command.payload.delta})\n host.event.emit(\"change\",state());;return next\nend\nreturn M",
+    "package.toml": "schema_version=1\nartifact_type=\"package\"\npackage_id=\"example.test/migration\"\npackage_kind=\"game-system\"\nversion=\"1.0.0\"\ndisplay_name=\"Synthetic migration fixture\"\nentrypoint=\"lua/main.lua\"\nlua_profile=\"platform-lua-5.5-p1\"\n[host_api]\nmajor=1\nmin_minor=0\nmax_minor=0\n[build]\nsource=\"fixture-local\"\nrevision=\"migration-v1\"\nbuilder=\"migration-fixture/1\"\n[rights]\nauthors=[\"Synthetic migration fixture\"]\nsource=\"original\"\nlicense_expression=\"PolyForm-Noncommercial-1.0.0\"\n[capabilities]\nrequired=[\"host.state\",\"host.event\",\"host.db\",\"host.task\"]\n\n[[dependencies]]\npackage_id=\"example.test/migration-assets\"\nversion=\"1.0.0\"\noptional=false\nfeatures=[\"fixture\"]\n\n[[dependencies]]\npackage_id=\"example.test/migration-content\"\nversion=\"1.0.0\"\noptional=false\nfeatures=[\"fixture\"]\n\n[[dependencies]]\npackage_id=\"example.test/migration-ui\"\nversion=\"1.0.0\"\noptional=false\nfeatures=[\"fixture\"]\n",
+    "schemas/event.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"counter\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":1000000000},\"secret\":{\"type\":\"string\",\"maxLength\":128}},\"required\":[\"counter\",\"secret\"],\"additionalProperties\":false}",
+    "schemas/intent.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"value\":{\"type\":\"integer\"}},\"required\":[\"value\"],\"additionalProperties\":false}",
+    "schemas/lifecycle.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"additionalProperties\":false}",
+    "schemas/named.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"key\":{\"type\":\"string\"},\"delta\":{\"type\":\"integer\"}},\"required\":[\"key\",\"delta\"],\"additionalProperties\":false}",
+    "schemas/result.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"integer\"}",
+    "schemas/row.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"score\":{\"type\":\"integer\"}},\"required\":[\"score\"],\"additionalProperties\":false}",
+    "schemas/safe.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"boolean\"}",
+    "schemas/state.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"counter\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":1000000000},\"secret\":{\"type\":\"string\",\"maxLength\":128}},\"required\":[\"counter\",\"secret\"],\"additionalProperties\":false}"
+  }
+}

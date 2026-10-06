@@ -1,0 +1,27 @@
+{
+  "package_id": "example.test/migration-assets",
+  "role": "assets",
+  "version": "1.1.0",
+  "content_hash": "sha256:3a286df8afb8ce4361b75c1095fd7e017fb84e27c228cfe6606ec9dbb509cb84",
+  "artifact_hash": "sha256:db1da4146886cab2d421aa33ae4419f21504a67c5168c7c913082c8395428f7c",
+  "exact_lock": {
+    "schema_version": 1,
+    "root": "example.test/migration-assets",
+    "packages": [
+      {
+        "package_id": "example.test/migration-assets",
+        "version": "1.1.0",
+        "content_hash": "sha256:3a286df8afb8ce4361b75c1095fd7e017fb84e27c228cfe6606ec9dbb509cb84",
+        "features": [
+          "fixture"
+        ],
+        "dependencies": []
+      }
+    ]
+  },
+  "source_files": {
+    "assets/readme.txt": "1.1.0",
+    "package.toml": "schema_version=1\nartifact_type=\"package\"\npackage_id=\"example.test/migration-assets\"\npackage_kind=\"assets\"\nversion=\"1.1.0\"\ndisplay_name=\"Synthetic migration fixture\"\n[build]\nsource=\"fixture-local\"\nrevision=\"migration-v1\"\nbuilder=\"migration-fixture/1\"\n[rights]\nauthors=[\"Synthetic migration fixture\"]\nsource=\"original\"\nlicense_expression=\"PolyForm-Noncommercial-1.0.0\"\n[capabilities]\nrequired=[]\n",
+    "schemas/role.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"string\",\"const\":\"1.1.0\"}"
+  }
+}

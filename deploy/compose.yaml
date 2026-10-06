@@ -22,6 +22,54 @@ x-process-shell: &process-shell
     start_period: 2s
 
 services:
+  m1-postgres:
+    profiles: [m1-fixture]
+    image: sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a
+    pull_policy: never
+    restart: "no"
+    cpus: 1
+    mem_limit: 1g
+    pids_limit: 128
+    environment:
+      POSTGRES_USER: fixture_admin
+      POSTGRES_DB: m1_smoke_fixture
+      POSTGRES_PASSWORD: ${TRPG_M1_PG_PASSWORD:-m1-synthetic-unused-config-default}
+    ports: ["127.0.0.1::5432"]
+    tmpfs: ["/var/lib/postgresql:size=512m,mode=1777"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "fixture_admin", "-d", "m1_smoke_fixture"]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+
+  m1-runtime:
+    profiles: [m1-fixture]
+    image: ${TRPG_M1_IMAGE:-trpg-platform/m1-fixture:local}
+    pull_policy: never
+    build:
+      context: ${TRPG_M1_BUILD_CONTEXT:-..}
+      dockerfile: ${TRPG_M1_DOCKERFILE:-deploy/docker/Dockerfile}
+      target: m1-fixture
+      labels:
+        trpg.m1.candidate: ${TRPG_M1_CANDIDATE:-UNBOUND_CONFIG_ONLY}
+        trpg.m1.project: ${TRPG_M1_PROJECT:-UNBOUND_CONFIG_ONLY}
+    user: ${TRPG_M1_UID:-65532}:${TRPG_M1_GID:-65532}
+    network_mode: host
+    restart: "no"
+    init: true
+    read_only: true
+    cpus: 1
+    mem_limit: 512m
+    pids_limit: 128
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    volumes:
+      - type: bind
+        source: ${TRPG_M1_FIXTURE_DIR:-/tmp/trpg-m1-unbound-config-only}
+        target: /fixture
+    command: ["m1-fixture", "--config=/fixture/operator.json"]
+
   platformd:
     <<: *process-shell
     image: trpg-platform/platformd:0.0.0-m0

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"ID\":\"fixture-v1-to-v2\",\"FromLock\":\"sha256:d9ad2e0177ddc9e4f7636bcf83e360441e53c2736f3320abb0b91e5a6dceee73\",\"ToLock\":\"sha256:f30303def0db4f64281452c71b7bb9a25bfc64074da47dfe5d6abd9eb4f433f3\",\"StateFields\":[{\"From\":\"counter\",\"To\":\"total\"}],\"StateDefaults\":null,\"Namespaces\":[{\"PackageID\":\"example.test/migration\",\"From\":\"docs\",\"To\":\"records\",\"Fields\":[{\"From\":\"score\",\"To\":\"value\"}],\"Defaults\":null}]}")

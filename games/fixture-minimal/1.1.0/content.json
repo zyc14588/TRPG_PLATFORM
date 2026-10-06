@@ -1,0 +1,38 @@
+{
+  "package_id": "example.test/migration-content",
+  "role": "content",
+  "version": "1.1.0",
+  "content_hash": "sha256:7aca38b28677b1cf889610ffb139107b023f4a24f6ea0b4541eae21c6e566a64",
+  "artifact_hash": "sha256:eb07a712d53319779e78266707fc2c76d0bfa1c0558e4669f6824b45538928db",
+  "exact_lock": {
+    "schema_version": 1,
+    "root": "example.test/migration-content",
+    "packages": [
+      {
+        "package_id": "example.test/migration-content",
+        "version": "1.1.0",
+        "content_hash": "sha256:7aca38b28677b1cf889610ffb139107b023f4a24f6ea0b4541eae21c6e566a64",
+        "features": [
+          "fixture"
+        ],
+        "dependencies": [
+          "example.test/migration-library"
+        ]
+      },
+      {
+        "package_id": "example.test/migration-library",
+        "version": "1.1.0",
+        "content_hash": "sha256:abbe1c1be95aaad977b72345ea6a5c08a309d0a5cf788ae5ca5aff2413472783",
+        "features": [
+          "fixture"
+        ],
+        "dependencies": []
+      }
+    ]
+  },
+  "source_files": {
+    "content/readme.txt": "1.1.0",
+    "package.toml": "schema_version=1\nartifact_type=\"package\"\npackage_id=\"example.test/migration-content\"\npackage_kind=\"content\"\nversion=\"1.1.0\"\ndisplay_name=\"Synthetic migration fixture\"\n[build]\nsource=\"fixture-local\"\nrevision=\"migration-v1\"\nbuilder=\"migration-fixture/1\"\n[rights]\nauthors=[\"Synthetic migration fixture\"]\nsource=\"original\"\nlicense_expression=\"PolyForm-Noncommercial-1.0.0\"\n[capabilities]\nrequired=[]\n\n[[dependencies]]\npackage_id=\"example.test/migration-library\"\nversion=\"1.1.0\"\noptional=false\nfeatures=[\"fixture\"]\n",
+    "schemas/role.schema.json": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"string\",\"const\":\"1.1.0\"}"
+  }
+}

@@ -1,0 +1,302 @@
+{
+  "format": 1,
+  "license_expression": "PolyForm-Noncommercial-1.0.0",
+  "initial_state": {
+    "kind": "table",
+    "table": {
+      "counter": {
+        "kind": "integer",
+        "number": "1"
+      },
+      "secret": {
+        "kind": "string",
+        "string": "migration-fixture-gm-private"
+      }
+    }
+  },
+  "commands": [
+    {
+      "id": "fixed-7",
+      "delta": 7,
+      "time": 1700000000,
+      "random": [
+        7,
+        17
+      ],
+      "expected_counter": 8,
+      "expected_version": 2,
+      "expected_cursor": 1
+    },
+    {
+      "id": "fixed-3",
+      "delta": 3,
+      "time": 1700000001,
+      "random": [
+        3,
+        19
+      ],
+      "expected_counter": 11,
+      "expected_version": 3,
+      "expected_cursor": 2
+    }
+  ],
+  "expected_states": [
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "1"
+        },
+        "secret": {
+          "kind": "string",
+          "string": "migration-fixture-gm-private"
+        }
+      }
+    },
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "8"
+        },
+        "secret": {
+          "kind": "string",
+          "string": "migration-fixture-gm-private"
+        }
+      }
+    },
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "11"
+        },
+        "secret": {
+          "kind": "string",
+          "string": "migration-fixture-gm-private"
+        }
+      }
+    }
+  ],
+  "expected_state_hashes": [
+    "sha256:dc4965a7851103937ae38c3688f6c9f7d64427262e15aeb9b523252d30cea8d0",
+    "sha256:8b4c4435d13c6f9f25c41dc23c1c4fe50795cfc0c150b01eee868f8e0a094c2e",
+    "sha256:da0c7d84d834f6d41d43aea418c441f47f44f314f6bda4d1281b9417736fefa8"
+  ],
+  "expected_player_views": [
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "1"
+        }
+      }
+    },
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "8"
+        }
+      }
+    },
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "11"
+        }
+      }
+    }
+  ],
+  "expected_player_view_hashes": [
+    "sha256:68785a7fe50132a472420fd5a68c9758460ca02919e6ca95d483749b5af73cb3",
+    "sha256:d0dfd06befe1e98131f46b6eb194e11782428c191176cdf2763bc603e9f72e78",
+    "sha256:3d262cbfd07382e370f395181cec1cd9470851042a736446e683a653075efca5"
+  ],
+  "expected_gm_views": [
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "1"
+        },
+        "secret": {
+          "kind": "string",
+          "string": "migration-fixture-gm-private"
+        }
+      }
+    },
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "8"
+        },
+        "secret": {
+          "kind": "string",
+          "string": "migration-fixture-gm-private"
+        }
+      }
+    },
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "11"
+        },
+        "secret": {
+          "kind": "string",
+          "string": "migration-fixture-gm-private"
+        }
+      }
+    }
+  ],
+  "expected_gm_view_hashes": [
+    "sha256:dc4965a7851103937ae38c3688f6c9f7d64427262e15aeb9b523252d30cea8d0",
+    "sha256:8b4c4435d13c6f9f25c41dc23c1c4fe50795cfc0c150b01eee868f8e0a094c2e",
+    "sha256:da0c7d84d834f6d41d43aea418c441f47f44f314f6bda4d1281b9417736fefa8"
+  ],
+  "expected_event_payloads": [
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "8"
+        },
+        "secret": {
+          "kind": "string",
+          "string": "migration-fixture-gm-private"
+        }
+      }
+    },
+    {
+      "kind": "table",
+      "table": {
+        "counter": {
+          "kind": "integer",
+          "number": "11"
+        },
+        "secret": {
+          "kind": "string",
+          "string": "migration-fixture-gm-private"
+        }
+      }
+    }
+  ],
+  "expected_event_payload_hashes": [
+    "sha256:8b4c4435d13c6f9f25c41dc23c1c4fe50795cfc0c150b01eee868f8e0a094c2e",
+    "sha256:da0c7d84d834f6d41d43aea418c441f47f44f314f6bda4d1281b9417736fefa8"
+  ],
+  "expected_checkpoint_value": {
+    "kind": "table",
+    "table": {
+      "counter": {
+        "kind": "integer",
+        "number": "11"
+      },
+      "secret": {
+        "kind": "string",
+        "string": "migration-fixture-gm-private"
+      }
+    }
+  },
+  "expected_migrated_state": {
+    "kind": "table",
+    "table": {
+      "secret": {
+        "kind": "string",
+        "string": "migration-fixture-gm-private"
+      },
+      "total": {
+        "kind": "integer",
+        "number": "11"
+      }
+    }
+  },
+  "safe_boundary_plan": {
+    "ID": "fixture-v1-to-v2",
+    "FromLock": "sha256:d9ad2e0177ddc9e4f7636bcf83e360441e53c2736f3320abb0b91e5a6dceee73",
+    "ToLock": "sha256:f30303def0db4f64281452c71b7bb9a25bfc64074da47dfe5d6abd9eb4f433f3",
+    "StateFields": [
+      {
+        "From": "counter",
+        "To": "total"
+      }
+    ],
+    "StateDefaults": null,
+    "Namespaces": [
+      {
+        "PackageID": "example.test/migration",
+        "From": "docs",
+        "To": "records",
+        "Fields": [
+          {
+            "From": "score",
+            "To": "value"
+          }
+        ],
+        "Defaults": null
+      }
+    ]
+  },
+  "snapshot_expectations": {
+    "after-fixed-commands": {
+      "binding": {
+        "workspace": "$workspace",
+        "session": "$session",
+        "graph_hash": "sha256:d9ad2e0177ddc9e4f7636bcf83e360441e53c2736f3320abb0b91e5a6dceee73"
+      },
+      "version": 3,
+      "state": {
+        "kind": "table",
+        "table": {
+          "counter": {
+            "kind": "integer",
+            "number": "11"
+          },
+          "secret": {
+            "kind": "string",
+            "string": "migration-fixture-gm-private"
+          }
+        }
+      },
+      "schema_hash": "sha256:e98554de3f09f3e8f1e70ef270334ebf7c84dde22d7221021ce063dbf7208d67",
+      "rows": [
+        {
+          "package_id": "example.test/migration",
+          "namespace": "docs",
+          "key": "one",
+          "schema_hash": "sha256:634e471d4e4261c7c3bc67195063dd1705a6fd4b97b3dbe27d4d300dfb5aa6c3",
+          "value": {
+            "kind": "table",
+            "table": {
+              "score": {
+                "kind": "integer",
+                "number": "11"
+              }
+            }
+          }
+        }
+      ],
+      "quantities": [
+        {
+          "package_id": "example.test/migration",
+          "table": "quantity",
+          "key": "one",
+          "value": 10
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"command_id\":\"fixed\",\"session_id\":\"fixture\",\"expected_state_version\":1,\"seat_id\":\"gm\",\"type\":\"increment\",\"payload\":{\"kind\":\"table\",\"table\":{\"delta\":{\"kind\":\"integer\",\"number\":\"7\"}}},\"correlation_id\":\"fixture\"}")
