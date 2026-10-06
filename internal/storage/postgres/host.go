@@ -297,6 +297,27 @@ func (t *hostTransaction) Commit(ctx context.Context, c data.Commit) (data.Recei
 	if err != nil {
 		return zero, err
 	}
+	evidence, err := hostJSON(effect)
+	if err != nil {
+		return zero, err
+	}
+	receipt := data.Receipt{Header: h, Version: version, Result: c.Result, Events: c.Events, Inputs: c.Inputs, Cursor: t.eventSequence + uint64(len(c.Events))}
+	rawReceipt, err := hostJSON(receipt)
+	if err != nil {
+		return zero, err
+	}
+	// Begin holds the Session row lock shared by commits and recovery. Refuse
+	// an append before any effect when it would make the immutable history
+	// unreadable by the bounded reducer. Duplicate receipts resolve in Begin
+	// before this check, including when the history is already at capacity.
+	var records, evidenceBytes, receiptBytes int64
+	err = t.tx.QueryRowContext(ctx, `SELECT count(*),COALESCE(sum(octet_length(evidence)),0),(SELECT COALESCE(sum(octet_length(receipt)),0) FROM (SELECT receipt FROM host_command.requests WHERE workspace=$1 AND session=$2 ORDER BY command_id LIMIT $3) receipts) FROM (SELECT evidence FROM host_command.replay_effects WHERE workspace=$1 AND session=$2 ORDER BY version LIMIT $3) effects`, w, s, eventstore.MaxRecords+1).Scan(&records, &evidenceBytes, &receiptBytes)
+	if err != nil {
+		return zero, err
+	}
+	if records >= eventstore.MaxRecords || evidenceBytes+int64(len(evidence)) > eventstore.MaxHistoryBytes || evidenceBytes+receiptBytes+int64(len(evidence)+len(rawReceipt)) > eventstore.MaxHistoryBytes*2 {
+		return zero, data.ErrDenied
+	}
 	r, err := t.tx.ExecContext(ctx, `UPDATE host_command.sessions SET version=$3,state=$4::jsonb,event_sequence=$5 WHERE workspace=$1 AND session=$2 AND version=$6 AND graph_hash=$7 AND schema_hash=$8`, w, s, int64(version), string(state), int64(t.eventSequence+uint64(len(c.Events))), int64(h.ExpectedVersion), h.Binding.GraphHash, c.SchemaHash)
 	if err != nil {
 		return zero, err
@@ -370,10 +391,6 @@ func (t *hostTransaction) Commit(ctx context.Context, c data.Commit) (data.Recei
 	if err = fault("after-events"); err != nil {
 		return zero, err
 	}
-	evidence, err := hostJSON(effect)
-	if err != nil {
-		return zero, err
-	}
 	if _, err = t.tx.ExecContext(ctx, `INSERT INTO host_command.replay_effects(workspace,session,version,command_id,evidence) VALUES($1,$2,$3,$4,$5)`, w, s, int64(version), id, evidence); err != nil {
 		return zero, err
 	}
@@ -406,12 +423,7 @@ func (t *hostTransaction) Commit(ctx context.Context, c data.Commit) (data.Recei
 			return zero, err
 		}
 	}
-	receipt := data.Receipt{Header: h, Version: version, Result: c.Result, Events: c.Events, Inputs: c.Inputs, Cursor: t.eventSequence + uint64(len(c.Events))}
-	raw, err := hostJSON(receipt)
-	if err != nil {
-		return zero, err
-	}
-	if _, err = t.tx.ExecContext(ctx, `INSERT INTO host_command.requests(workspace,session,command_id,principal,fingerprint,receipt) VALUES($1,$2,$3,$4,$5,$6)`, w, s, id, h.Principal, h.Fingerprint, raw); err != nil {
+	if _, err = t.tx.ExecContext(ctx, `INSERT INTO host_command.requests(workspace,session,command_id,principal,fingerprint,receipt) VALUES($1,$2,$3,$4,$5,$6)`, w, s, id, h.Principal, h.Fingerprint, rawReceipt); err != nil {
 		return zero, err
 	}
 	if c.Inputs.Envelope != nil && c.Inputs.Envelope.Type == "end" && c.Inputs.Callback == "on_session_end" {
