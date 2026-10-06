@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "df6ad1de1d7491db2f05c56f10bf90e72fbff72e"
+source_commit: "2ab3c8f108c20880cfbf4e5cb81608dfc4b6eda4"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：M1-B009 独立验收通过
+
+正常 PLAN v77→v78 仅将 M1-B009 VERIFYING→COMPLETED；冻结合同 edf35377a4fc1a9bbb252e177aef3d7b99bc4e52659540fb5ac18a7d5f5f48d1、全部14字段、其余批次和next15保持。最终全部批次完成，M1正常ACTIVE→COMPLETE。
+
+精确干净签名业务候选 df6ad1de1d7491db2f05c56f10bf90e72fbff72e/tree99eccf6a659d47dd1d497f4a5ce2dabb8e0a797c 已取得独立只读ACCEPT PASS，无未解决必需发现。父实际用例：source-and-fixed-replay-json=3 PASS; m1-exit-gate-16-json=20 PASS；所有named fail/skip0，canonical门禁全部exit0。独立回执SHA256 c0f3a66a45f4721498e3a6a02074a8afdc75e8738ff5500ca1b6eee2317c61c8 与证据清单SHA256 95551a45eaeb0618e5a6395f85da66ce6cd4af74d4449aa69f745eac00b13f36（226成员）已由父逐个核对尺寸与hash。原始独立结果及补充测试细节以封存回执为准。
+
+所有历史失败、环境限制、草稿与证据助手错误保持原文及原日志，资格不变；状态投影只记录已有业务PASS，不冒充业务复测。本COMPLETED状态还须独立state-only验收、本地主分支接收、仅本任务临时服务清理和最终归档；以上未实际完成前不提前声称。Windows/macOS NOT_RUN，全V1未完成。
+
+原生完成批次 14/14≈100.00%；Linux M1退出门禁的业务验收完成，等待上述状态接收和清理归档闭环。无Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：B009 业务候选完成，等待独立验收
 
