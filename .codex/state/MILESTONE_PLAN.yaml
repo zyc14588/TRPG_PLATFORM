@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 54
+plan_version: 55
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -439,7 +439,8 @@ batches:
 - batch_id: M1-B006
   sequence: 6
   state: PLANNED
-  objective: Implement authoritative event persistence and deterministic reconstruction of Session state, projections, and Lua VM from snapshots, events, and compatible checkpoints.
+  objective: Implement authoritative event persistence and deterministic reconstruction of Session state, projections, and Lua VM from snapshots,
+    events, and compatible checkpoints.
   non_goals:
   - Building a formal backup product, cross-region recovery, or generalized import/export UX.
   - Reinvoking AI or external models during replay.
@@ -455,6 +456,10 @@ batches:
   - tests/integration/replay/**
   - go.mod
   - go.sum
+  - internal/storage/package/**
+  - internal/hostapi/**
+  - internal/package/install/session*.go
+  - cmd/platformd/**
   forbidden_scope:
   - internal/package/migration/**
   - internal/backup/**
@@ -486,17 +491,36 @@ batches:
   - SPEC-SECURITY-001
   - SPEC-QUALITY-001
   acceptance:
-  - Committed events retain immutable IDs, original payloads, schema versions, order, and semantics; new readers use compatible projections or deterministic Upcasters rather than rewriting history.
-  - Snapshots, projections, and Lua checkpoints are treated as rebuildable accelerators and reject package-lock, profile, runtime, schema, or state-version mismatches.
-  - Starting from no derived state and from each supported snapshot/checkpoint boundary yields the same final state hash, event cursor, permitted seat views, and VM-observable authoritative facts.
-  - Replay consumes recorded random, time, accepted external structured actions, and tool results and proves that no AI/model or other external side effect is called again.
+  - Committed events retain immutable IDs, original payloads, schema versions, order, and semantics; new readers use compatible projections or
+    deterministic Upcasters rather than rewriting history.
+  - Snapshots, projections, and Lua checkpoints are treated as rebuildable accelerators and reject package-lock, profile, runtime, schema, or
+    state-version mismatches.
+  - Starting from no derived state and from each supported snapshot/checkpoint boundary yields the same final state hash, event cursor, permitted
+    seat views, and VM-observable authoritative facts.
+  - Replay consumes recorded random, time, accepted external structured actions, and tool results and proves that no AI/model or other external
+    side effect is called again.
   - Failure during snapshot, projection, checkpoint, or Actor reactivation leaves authoritative history intact and permits a clean retry.
   - TEST-DATA-001 produces repeatable real-service commands, exit codes, a machine-readable result, and the exact candidate SHA.
+  - Go-owned complete event effects and deterministic inputs join the original command transaction as bounded immutable journal evidence; a mutable
+    current state or package-data projection is never used as replay genesis.
+  - Verified installed-graph recovery re-authenticates ACL, exact artifacts, policy, runner, state/event schemas and compatible checkpoint metadata
+    before creating a fresh VM; Actor/platformd compose the same recovery path.
+  - Derived state, package-data and checkpoint repair changes no authoritative event, idempotency, task or Outbox record, version or cursor; incomplete
+    legacy evidence fails closed rather than silently trusting a mutable cache.
   tests:
-  - "TEST-DATA-001: go test ./internal/eventstore/... ./internal/projection/... ./internal/session/recovery/... exercises immutable history, Upcasters, snapshot/projection rebuilds, checkpoint compatibility, and no-external-call replay."
-  - go test -tags=integration ./tests/integration/replay/... rebuilds from empty derived state and every fixture checkpoint against PostgreSQL plus a real lua-runner process and compares state/event/view hashes.
-  - Failure injection covers corrupt or stale snapshots/checkpoints, missing derived data, restart between commit and broadcast, and repeated activation.
+  - 'TEST-DATA-001: go test ./internal/eventstore/... ./internal/projection/... ./internal/session/recovery/... exercises immutable history, Upcasters,
+    snapshot/projection rebuilds, checkpoint compatibility, and no-external-call replay.'
+  - go test -tags=integration ./tests/integration/replay/... rebuilds from empty derived state and every fixture checkpoint against PostgreSQL
+    plus a real lua-runner process and compares state/event/view hashes.
+  - Failure injection covers corrupt or stale snapshots/checkpoints, missing derived data, restart between commit and broadcast, and repeated
+    activation.
   - just check, just test, go vet ./..., and just license-check pass from a clean tracked tree.
+  - Real PostgreSQL readback proves immutable complete effects/inputs and schema metadata commit or rollback with the command, and bounded tenant/graph
+    journal reads reject malformed or substituted evidence.
+  - The real installed Lua VM observes matching authoritative state and declared package-data facts after each supported recovery boundary, while
+    stale or corrupt cache/schema/lock/profile/runtime/version and derived-repair SQL failure do not rewrite history.
+  - The minimal actual platformd fixture uses verified recovery on activation/restart; process joins and replay with no external dispatch are
+    observed, separate from unit-only reducers and doubles.
   stop_conditions:
   - Stop if recovery requires changing a committed event ID, payload, schema version, order, or meaning.
   - Stop if any correctness-critical fact exists only in Actor or VM memory, an opaque checkpoint, a mutable projection, or an external model.
