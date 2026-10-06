@@ -63,10 +63,7 @@ func New(o Options) (*Service, error) {
 		return bad()
 	}
 	modules := o.Session.ModuleBindings()
-	hashes := map[string]string{}
-	for _, m := range modules {
-		hashes[m.PackageID] = m.ContentHash
-	}
+	hashes := o.Session.PackageHashes()
 	if len(o.Packages) != len(hashes) {
 		return bad()
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/profile"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/vm"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/archive"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/capability"
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 )
@@ -148,6 +149,37 @@ func assertPoisoned(t *testing.T, s *vm.Session) {
 	_, e := s.Invoke(context.Background(), s.Token(), s.SessionID(), "command", []checkpoint.Value{checkpoint.Object(nil)}, func(context.Context, profile.HostCall) (checkpoint.Value, error) { return checkpoint.Int(0), nil })
 	if profile.Code(e) != profile.ErrPoisoned {
 		t.Fatal("failed workspace did not poison VM", e)
+	}
+}
+
+func TestConfigurationAuthenticatesExactPackageSet(t *testing.T) {
+	_, s, m, original := setup(t, fixture.Source(""), nil)
+	for _, name := range []string{"missing", "extra", "substituted"} {
+		t.Run(name, func(t *testing.T) {
+			o := original
+			o.Packages = make(map[string]*archive.Package)
+			for id, p := range original.Packages {
+				o.Packages[id] = p
+			}
+			switch name {
+			case "missing":
+				delete(o.Packages, fixture.PackageID)
+			case "extra":
+				o.Packages["example.test/extra"] = original.Packages[fixture.PackageID]
+			case "substituted":
+				p, err := fixture.Package("", fixture.Source("local changed_fixture=1"), nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				o.Packages[fixture.PackageID] = p
+			}
+			if _, err := host.New(o); profile.Code(err) != profile.ErrConfiguration {
+				t.Fatal("invalid graph package set accepted", err)
+			}
+		})
+	}
+	if s.StateVersion() != 1 || len(m.commits) != 0 {
+		t.Fatal("configuration rejection mutated runtime")
 	}
 }
 func TestSevenEffectsAtomicCommitAndIdempotency(t *testing.T) {

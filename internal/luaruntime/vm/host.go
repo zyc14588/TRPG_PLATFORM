@@ -39,6 +39,18 @@ func (s *Session) GraphHash() string {
 	defer s.mu.Unlock()
 	return s.binding.DependencyLock
 }
+
+// PackageHashes returns an owned copy of the entire authenticated graph,
+// including packages without Lua. Callback authority remains in ModuleBindings.
+func (s *Session) PackageHashes() map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[string]string, len(s.binding.PackageHashes))
+	for id, hash := range s.binding.PackageHashes {
+		out[id] = hash
+	}
+	return out
+}
 func (s *Session) StateVersion() uint64 { s.mu.Lock(); defer s.mu.Unlock(); return s.state.Version }
 
 // Invoke only enters functions retained from the verified immutable graph.

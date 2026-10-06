@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
@@ -37,6 +38,64 @@ func hostOptions(t *testing.T, pkg *archive.Package) Options {
 }
 func hostManifest() string {
 	return strings.Replace(fixtureManifest, "required = []", "required = [\"host.state\"]", 1)
+}
+
+func TestFullPackageHashCopyCannotChangeVMOrModuleAuthority(t *testing.T) {
+	pkg := fixture(t, 1, hostManifest(), hostCallbacks+`M.execute_command=function() return host.state.get({"counter"}) end;return M`)
+	s, err := New(context.Background(), hostOptions(t, pkg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Destroy()
+	original := s.PackageHashes()
+	if len(original) != 1 || original["example.test/runtime"] != string(pkg.ContentHash()) {
+		t.Fatal("authenticated graph binding absent", original)
+	}
+	copy := s.PackageHashes()
+	delete(copy, "example.test/runtime")
+	copy["example.test/forged"] = "sha256:" + strings.Repeat("a", 64)
+	if current := s.PackageHashes(); len(current) != 1 || current["example.test/runtime"] != original["example.test/runtime"] {
+		t.Fatal("returned map mutated VM authority", current)
+	}
+	if _, ok := s.ModuleIdentity("example.test/forged:lua/main.lua"); ok {
+		t.Fatal("graph copy created a module identity")
+	}
+	result, err := s.Invoke(context.Background(), s.Token(), s.SessionID(), "command", nil, func(_ context.Context, c profile.HostCall) (checkpoint.Value, error) {
+		if c.Module != "lua/main.lua" {
+			t.Fatal("module authority changed", c.Module)
+		}
+		return checkpoint.Int(42), nil
+	})
+	if err != nil || len(result.Values) != 1 || result.Values[0].Number != "42" {
+		t.Fatal("VM was changed by hash copy", result, err)
+	}
+	if err := s.AcceptCommittedState(2, checkpoint.Object(map[string]checkpoint.Value{"counter": checkpoint.Int(42)})); err != nil {
+		t.Fatal(err)
+	}
+	if current := s.PackageHashes(); len(current) != 1 || current["example.test/runtime"] != original["example.test/runtime"] {
+		t.Fatal("commit changed package authority", current)
+	}
+	var readers sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		readers.Add(1)
+		go func() {
+			defer readers.Done()
+			for n := 0; n < 32; n++ {
+				copy := s.PackageHashes()
+				copy["example.test/runtime"] = "changed"
+				delete(copy, "example.test/runtime")
+			}
+		}()
+	}
+	for version := uint64(3); version <= 10; version++ {
+		if err := s.AcceptCommittedState(version, checkpoint.Object(map[string]checkpoint.Value{"counter": checkpoint.Int(42)})); err != nil {
+			t.Fatal(err)
+		}
+	}
+	readers.Wait()
+	if current := s.PackageHashes(); len(current) != 1 || current["example.test/runtime"] != original["example.test/runtime"] {
+		t.Fatal("concurrent readers changed package authority", current)
+	}
 }
 func TestHostVersionAndRequiredEntrypointsFailClosed(t *testing.T) {
 	for _, c := range []struct{ name, text string }{{"major", strings.Replace(hostManifest(), "major = 1", "major = 2", 1)}, {"minor", strings.Replace(strings.Replace(hostManifest(), "min_minor = 0", "min_minor = 1", 1), "max_minor = 0", "max_minor = 1", 1)}} {
