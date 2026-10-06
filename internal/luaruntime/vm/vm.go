@@ -66,6 +66,12 @@ type Session struct {
 	modules   map[string]ModuleIdentity
 }
 
+// Format keeps the returned VM handle from recursively exposing its private
+// capability, checkpoint state or runtime configuration in ordinary diagnostics.
+func (*Session) Format(out fmt.State, _ rune) {
+	_, _ = out.Write([]byte("<session-vm:redacted>"))
+}
+
 func New(ctx context.Context, options Options) (*Session, error) {
 	if options.Audit == nil {
 		return nil, profile.Fail(profile.ErrConfiguration)

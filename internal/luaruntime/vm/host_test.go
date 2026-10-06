@@ -92,6 +92,56 @@ func TestActualExecutionTokenDiagnosticsPreserveAuthority(t *testing.T) {
 	invoke()
 }
 
+func TestActualSessionHandleDiagnosticsPreserveAuthorityAndState(t *testing.T) {
+	const private = "fixture-gm-private-value"
+	pkg := fixture(t, 1, hostManifest(), hostCallbacks+`M.execute_command=function() return host.state.get({"counter"}) end;return M`)
+	o := hostOptions(t, pkg)
+	o.State.Value = checkpoint.Object(map[string]checkpoint.Value{"counter": checkpoint.Int(7), "gm": checkpoint.Text(private)})
+	s, err := New(context.Background(), o)
+	if err != nil {
+		t.Fatal("actual VM prerequisite failed", profile.Code(err))
+	}
+	defer s.Destroy()
+	token := s.Token()
+	before, err := json.Marshal(s.state.Value)
+	if err != nil || !strings.Contains(string(before), private) {
+		t.Fatal("actual state prerequisite failed", profile.Code(err))
+	}
+	invoke := func() {
+		t.Helper()
+		result, err := s.Invoke(context.Background(), token, s.SessionID(), "command", nil, func(_ context.Context, call profile.HostCall) (checkpoint.Value, error) {
+			if call.Module != "lua/main.lua" || call.Line < 1 || call.Capability != "host.state" {
+				t.Fatal("authenticated module boundary not reached")
+			}
+			return checkpoint.Int(42), nil
+		})
+		if err != nil || len(result.Values) != 1 || result.Values[0].Number != "42" {
+			t.Fatal("session diagnostics changed actual callback authority", profile.Code(err))
+		}
+	}
+	invoke()
+	containers := []any{s, []*Session{s}, [1]*Session{s}, map[string]*Session{"session": s}, struct{ Session *Session }{s}}
+	for _, format := range []string{"%v", "%+v", "%#v", "%s", "%q", "%x", "%X", "%d", "%b", "%o", "%f", "%e", "%g", "%c", "%U", "%t", "%1000000d", "%.1000000x"} {
+		t.Run(format, func(t *testing.T) {
+			values := containers
+			if strings.Contains(format, "1000000") {
+				values = containers[:1]
+			}
+			for _, container := range values {
+				output := fmt.Sprintf(format, container)
+				if !strings.Contains(output, "<session-vm:redacted>") || len(output) > 256 || strings.Contains(output, private) {
+					t.Fatal("session handle diagnostic exposed private data; raw output intentionally omitted")
+				}
+			}
+		})
+	}
+	after, err := json.Marshal(s.state.Value)
+	if err != nil || string(before) != string(after) || token.secret != s.Token().secret {
+		t.Fatal("session diagnostics changed authoritative state or execution capability")
+	}
+	invoke()
+}
+
 func TestFullPackageHashCopyCannotChangeVMOrModuleAuthority(t *testing.T) {
 	pkg := fixture(t, 1, hostManifest(), hostCallbacks+`M.execute_command=function() return host.state.get({"counter"}) end;return M`)
 	s, err := New(context.Background(), hostOptions(t, pkg))
