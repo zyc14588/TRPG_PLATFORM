@@ -33,9 +33,13 @@ func TestActualFixedReplayEveryBoundaryAndSafePair(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	dir := t.TempDir()
+	source := filepath.Join(dir, "source")
+	if err = evidence.BuildCheckout(ctx, root, sha, source); err != nil {
+		t.Fatal(err)
+	}
 	runner := filepath.Join(dir, "lua-runner")
-	cmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-o", runner, "./cmd/lua-runner")
-	cmd.Dir = root
+	cmd := exec.CommandContext(ctx, "go", "build", "-buildvcs=true", "-trimpath", "-o", runner, "./cmd/lua-runner")
+	cmd.Dir = source
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatal("source Runner build failed", err, checkpoint.Hash(out))
 	}

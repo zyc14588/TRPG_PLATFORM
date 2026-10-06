@@ -143,10 +143,16 @@ func run(ctx context.Context, compose, requested, output string) (err error) {
 			}
 		}
 		hashes := map[string]any{}
+		source := filepath.Join(h.temp, "source")
+		if e := evidence.BuildCheckout(ctx, root, sha, source); e != nil {
+			return nil, e
+		}
 		for _, name := range []string{"platformd", "lua-runner"} {
 			path := filepath.Join(h.temp, "rootfs/app", name)
-			if _, e := h.exec(ctx, []string{"go", "build", "-trimpath", "-o", path, "./cmd/" + name}, append(h.env, "CGO_ENABLED=0")); e != nil {
-				return nil, e
+			cmd := exec.CommandContext(ctx, "go", "build", "-buildvcs=true", "-trimpath", "-o", path, "./cmd/"+name)
+			cmd.Dir, cmd.Env = source, append(h.env, "CGO_ENABLED=0")
+			if raw, e := cmd.CombinedOutput(); e != nil {
+				return nil, fmt.Errorf("source-bound static build failed; output_sha256=%s", checkpoint.Hash(raw))
 			}
 			info, e := buildinfo.ReadFile(path)
 			if e != nil {
