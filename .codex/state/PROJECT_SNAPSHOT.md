@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "93577e522da8f6123805bd6bcb8f0a778092c798"
+source_commit: "99e72e71df30d5c723156405744e0ec8867d450f"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：迁移闭环完成，启动安全验收
+
+正常PLAN仅将M1-B008 FROZEN→IMPLEMENTING，冻结de3b3774294e2f056c04362e996ef40b4c39251c6a63a996fa2cdc2b774c63c6、全部14字段、其他批次与next15保持，既定上游B003/B004/B005/B006/B007均COMPLETED。B008尚无业务PASS，按原合同实际验证身份/席位、隐藏视图、租户、沙箱、秘密、能力、审计、资源、导入、迁移和跨Session边界；不引入账户/Room等产品或公共契约变化。
+
+B007业务0ac26398ead753666f88091e367c6b41ef97f991独立PASS、4db VERIFYING与99e完成状态分别独立state-onlyPASS，父逐个核验102/45/49成员。父与独立1413相关/1413race/45迁移/48Host/24Session/34replay全namedPASS0fail/skip，另5实际独立补充PASS。正式99e72e71df30d5c723156405744e0ec8867d450f已本地主分支实际接收，5个前向commit签名及freshmain门禁均0；main回执b8478168abbbc33ebe0caf48f79f91a2d896e527550f48fa2259c7be5c55e140。三个fixture库0连接及全部观察进程ESRCH后，精确60b临时容器已stop/remove并验证不存在，cleanup回执5c19df5dd5a9e29238cd4f8d08a5f5f9432e589cd74256407fdf4b2799121ed4。868成员B007归档实际逐个读回，SHA2566a874477b55b594ef106053b1bc7d7e07a5c58563dad93597d23a489d836456e。
+
+所有上游失败、原PENDING提案及后来Owner批准、草稿/夹具/读取/编译/计数/释放助手错误均保留且资格不变。Linux范围的Owner批准继续有效，Windows/macOS NOT_RUN；无远端、许可、依赖、trust或公共授权变化。B009仍PLANNED，既有edf35377合同保持。
+
+原生14批次12COMPLETED，12/14≈85.71%，M1 ACTIVE。安全批次及最终认证须实际完成并独立验收后才宣告LinuxM1退出；全V1未完成，无Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：M1-B007 独立验收通过
 
