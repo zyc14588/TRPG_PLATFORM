@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "814fdf079ddfa2f102ba4dbaf7e7232579df6e8c"
+source_commit: "032f61485eba3128ad2f18a590486ebe7ac67172"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：B013 完成登记，等待最终状态验收及接收
+
+正常 PLAN v48→v49 仅 B013 VERIFYING→COMPLETED；14字段冻结摘要 `2b2c92ec6524dacdcd5a6cdd7f697f102c425b31fcfd1b308f77f89103ba41a3`、其他批次和 next14 保持。独立精确业务 `814fdf079ddfa2f102ba4dbaf7e7232579df6e8c` / tree `7c2c493d788a1e99aa87c3bead7002e92e30dc5a` PASS，回执 `/tmp/trpg-m1-b013-linux-20261006/independent-business-814fdf0/ACCEPTANCE_RECEIPT.json` SHA256 `1308abc9107a7846f9f63f984f4cafda6098b9457b2370fdec5096f61827a37e`；61成员清单 `f3d797c99f3de260446e42084ef16bdf1eecf367d04824a2105a3333842bf867` 已逐字节核验，unresolved_required_findings=[]。独立278 related、142 race、20真实PG actual run/pass，0 named fail/skip；签名绑定、隔离固定回调、运行哈希/限额、精确安装图ACL/对象、同workspace锁原子登记、Resume新Token及必需审计/实际回收均经独立验收。独立路径构建 runner 哈希 `sha256:d1edf6f7ae43629a4195582ad66816d92c7766e726a22a6d1ead494661f42f83`，父精确门禁 runner 为 `sha256:8e84375e92c6ac178b5755b02b2fac552e40e47fe05b3c946005ac89352a53eb`，分别记录，不宣称二进制同一。三次附加跨回调累计限额夹具未到预定边界，保持 INVALID_BOUNDARY_PROOF，不作 source FAIL/PASS；该累计边界仅静态审查和已有资源测试支持，未宣称附加黑盒成功。补充签名绑定负例的有效结果及父dirty31开发失败均保留真实来源。
+
+独立032 VERIFYING投影仅state-only PASS，回执 `/tmp/trpg-m1-b013-linux-20261006/independent-verifying-032f614/ACCEPTANCE_RECEIPT.json` SHA256 `1c4ab1c1edf732fa720cdc4819034c282db9db755befe491b3fcf53d7fa02479`，14成员清单 `b44d365e47e26fd40076ab0cde706359ebee08467ede34f64a029eea2c0f7fe3`已核验，0状态问题；已独立分配/冻结/激活56成员计划证据保持。状态门禁不重标814业务来源。本完成候选仍待最终state-only验收，本机main仍ff66，B013接收PENDING。自有PG32772仅在独立方释放及实际main接收后，按精确ID/labels/image清理并持久归档；B004 d348原FAIL/51修复PASS及实际接收清理保持。
+
+M1 ACTIVE，有效完成7/12（58.3%，按数量）；后续B005–B009和整体Linux出口尚待。仅Linux，Windows/macOS NOT_RUN；没有新的Owner决策、公共格式、依赖或许可变更。
+
+## 历史 B013 VERIFYING 与此前状态（保留）
 
 ## 当前 Linux M1：B013 精确业务门禁通过，等待独立验收
 

@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 48
+plan_version: 49
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -1102,7 +1102,7 @@ batches:
 
 - batch_id: M1-B013
   sequence: 13
-  state: VERIFYING
+  state: COMPLETED
   objective: Compose verified installed exact package graphs with explicitly authorized Host certification and Session provisioning while retaining
     the existing public package and Host contracts.
   non_goals:
