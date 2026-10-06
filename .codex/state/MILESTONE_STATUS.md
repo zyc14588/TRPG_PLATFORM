@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "9fc76428e3f227c3337b32f4edd3e6077d47eb54"
+source_commit: "598606a780bfcc4f03e931da52e7440951c3c88e"
 ---
 
 # 里程碑状态
+
+## 当前 B004 规划冻结候选（尚未开工）
+
+- M1 ACTIVE v32；B004 PLANNED→FROZEN，首个摘要 `4b7d73a8d566d3097f3afbb45f8271e00d7aead7192992bba59974a717c08e31`；新增最小 profile 引擎路径与 Linux scope 阅读绑定，原业务义务/公共语义保持。
+- B003 VERIFYING、独立结论待回读；B004 前置尚未全部释放，冻结不是开工。WIP=1、active 仅 B003；所有其他 batch/冻约/序号保持，B012 未分配。
+- 当前 Linux 必须证据、实际接口、实施步骤、风险与原停止门禁见 PROJECT_SNAPSHOT 本次 B004 节。新产品/公共合同决策 NONE；B003业务PASS与完成接收、B004冻结独立核验之后才激活 IMPLEMENT。
+
+## 历史 B003 验收及 Linux 范围状态（原文保留）
 
 ## 当前 B003 Linux 独立验收中（PLAN 生命周期候选）
 

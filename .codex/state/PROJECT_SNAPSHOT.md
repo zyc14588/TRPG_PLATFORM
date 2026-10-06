@@ -4,10 +4,28 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "9fc76428e3f227c3337b32f4edd3e6077d47eb54"
+source_commit: "598606a780bfcc4f03e931da52e7440951c3c88e"
 ---
 
 # 项目摘要
+
+## 当前 B004 规划冻结候选（尚未开工）
+
+本次正常 PLAN 将 M1/v31→v32、未开始 B004 PLANNED→FROZEN；首个冻结摘要 `4b7d73a8d566d3097f3afbb45f8271e00d7aead7192992bba59974a717c08e31`。B003 仍 VERIFYING，当前业务独立验收待回读，B004 的三个前置依赖和 WIP=1 不变；冻结不释放施工或宣称前置完成。其他 batch、已冻合同、墓碑、序号与业务字节全部保持。
+
+B004 原 objective/requirements/acceptance/tests/non_goals/stop_conditions 和公共 Host API 语义保持。唯一工程路径细化是在未开始合同的 allowed_scope 增加 `internal/luaruntime/profile/**`，并增加 `SPEC-M1-LINUX-ACCEPTANCE-SCOPE` 阅读绑定。实际源码证明：`profile.Engine.runtime` 私有，New 只注册 print/require 等内部函数，没有数据型 Host Callback 注册接缝；`profile.Config` 只有 limits/modules，ipc.Serve 仅 initialize/state/execute/destroy；因此既有双向 IPC 回调义务需要在该引擎加最小内部桥接。固定 golua v2.0.5 的 GetFrameInfo/compiled Proto.Source 可用于 Go 侧校验真实模块来源；生产 Lua 的 debug 库继续禁止，不暴露 VM 指针或凭据，不重开 B002 合同、不削弱其既有 Profile/预算/检查点门禁。
+
+B004 内部闭环：固定包/Host API 主次版本和 required entries/capability 验证 → 每次 command 的 opaque token 绑定 Session/workspace/包/hash/真实 module → 独立 runner 双向 IPC → 有界、只读自有副本的 MutationWorkspace → schema-bound 私有 namespaced get/put/delete/list/CAS 或经过审查的受信 named relational operations → Go 最终校验 → 单 PostgreSQL 事务提交 state/package-data/event/idempotency/task/continuation/outbox → 返回完整已提交结果。任何脚本、callback、预算、取消、验证、runner、DB 或审计失败须丢弃全部 staged effects，并销毁污染 VM；没有提前广播或客户端可见成功。
+
+实施顺序为 callback/binding/budget/audit 数据型合同与单元 corpus、生产引擎桥接及 IPC、workspace/数据库能力分级与真实 PostgreSQL repository、命令级 commit/rollback、受影响回归/真实服务/独立验收。未实现符号统一 PLANNED_NEW：`internal/hostapi/` workspace/execute/policy/audit，`profile` 的数据型 callback 桥接，ipc/vm 适配，`internal/storage/postgres/` command repository，`tests/integration/hostapi/`。现存可复用的是 canonical archive/manifest/capability、checkpoint.Value、profile.Limits/Engine、ipc.Client/Serve 和 vm.Session；不复制旧分支产品代码。
+
+风险与约束：执行令牌不得进入 Lua/日志/checkpoint；模块来源来自 runner 原生受控编译信息，不能取脚本自报字段；限制 callback/recursion/patch/rows/bytes/event/task/output 的硬上限，AUDIT-0 不可关闭；named operation 只接受 operator-reviewed ID/typed inputs，SQL和运行时 DDL 全拒绝；不允许 token/能力句柄跨 Session/module 生效。最终一致性以数据库 commit 为准；unknown acknowledgement 须通过同一 workspace/command identity 回读，不能盲重放 Lua。
+
+必须证据沿冻结合同：TEST-LUA-003 全 effects 的成功原子提交及每个阶段失败回滚；TEST-LUA-004 真实 PostgreSQL 私有 namespace/受信 named ops/SQL-DDL/跨包跨 workspace 否定矩阵；TEST-LUA-006 实际生产 runner 的 token/session/module/预算/审计脱敏/污染重建；hostapi race；全部受影响 Lua/B003/Creator/package 回归和 canonical check/test/vet/license/ci。每组记录精确 candidate SHA/tree、native Linux amd64、实际 argv/cwd/退出/非零 named cases、服务与 runner/binary identity、原始日志哈希。Windows/macOS 按 owner 本次 M1 平台授权延期 NOT_RUN；所有 Linux 必须项保持。
+
+交付物是上述 allowed 路径中的内部合同与实现、真实 integration corpus、签名候选和外置证据/Handoff；后者不等于独立 PASS。关键未批准依赖、公开 Host API/包格式变化、原子性不能保持或任何禁止目录需求仍触发原 stop/CHANGE。当前无新的 owner 产品决策，下一 gate 是独立核验冻结规划和 B003 完成接收；两者通过后正常 PLAN 激活 B004，fresh IMPLEMENT route/check 才开工。
+
+## 历史 B003 验收及 Linux 范围投影（原文保留）
 
 ## 当前 B003 Linux 独立验收中（PLAN 生命周期候选）
 

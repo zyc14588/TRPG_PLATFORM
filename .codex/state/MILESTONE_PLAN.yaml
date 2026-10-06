@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 31
+plan_version: 32
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -247,7 +247,7 @@ batches:
 
 - batch_id: M1-B004
   sequence: 4
-  state: PLANNED
+  state: FROZEN
   objective: Implement the versioned, capability-tokened Host API and command-level MutationWorkspace that atomically commits or rolls back all Lua-visible effects.
   non_goals:
   - Implementing the SessionActor, realtime broadcast, or package migration orchestration.
@@ -257,6 +257,7 @@ batches:
   - internal/hostapi/**
   - internal/luaruntime/ipc/**
   - internal/luaruntime/vm/**
+  - internal/luaruntime/profile/**
   - internal/storage/package/**
   - internal/storage/postgres/**
   - cmd/lua-runner/**
@@ -301,6 +302,7 @@ batches:
   - SPEC-M1-ALLOWED
   - SPEC-M1-FORBIDDEN
   - SPEC-M1-EXIT
+  - SPEC-M1-LINUX-ACCEPTANCE-SCOPE
   - SPEC-HOST-CALLBACK-001
   - SPEC-LUA-RUNTIME-001
   - SPEC-PACKAGE-001
@@ -332,6 +334,8 @@ batches:
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
+  frozen_contract_sha256: 4b7d73a8d566d3097f3afbb45f8271e00d7aead7192992bba59974a717c08e31
+
 - batch_id: M1-B005
   sequence: 5
   state: PLANNED
