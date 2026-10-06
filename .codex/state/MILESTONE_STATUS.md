@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "a077b764315b57c78edc49223cef96245a979f1e"
+source_commit: "0ac26398ead753666f88091e367c6b41ef97f991"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：安全迁移进入独立验收
+
+正常 PLAN 仅将 M1-B007 IMPLEMENTING→VERIFYING，冻结合同3fd98c06a16d5d511f5fda8b5e1d58a7f864bae940f7d87896348574ea227629、全部14字段、其余13批次与next15保持。精确干净签名业务候选0ac26398ead753666f88091e367c6b41ef97f991/tree5d53ebd5bdc1fefb1e4e3344c6ac977cd231de22父必需门禁全部通过；独立只读ACCEPT正在进行，不提前声称业务独立PASS。
+
+父实际1413相关、1413race、45真实迁移、48HostAPI、24Session、34replay named用例全部PASS、named fail/skip0；canonical check/test/ci/build/vet/license/signature/native门禁实际exit0。父215成员证据清单SHA256 1c44515977dd7d2825828ddc0364d8dd83a67330d7c46d037b05f1950b4154c8已逐个核对尺寸与hash。实际来源为本任务临时Linux PostgreSQL、生产Lua Runner与source-built platformd。Windows/macOS NOT_RUN。
+
+完整五角色固定锁、升级前有界恢复点、持有SQL锁的隔离目标VM预演、安全边界/关键Continuation/ACL失败拒绝、九阶段SQL故障回滚与记录点回退均实际验证。升级与回退不改变原事件ID/payload/cursor、原命令回执或raw恢复点事实；daemon停止条件与明确固定版本重启通过真实进程和玩家视图验证。
+
+全部历史FAIL原文和原日志保留：批准前目录/完整图Host失败、草稿读取方式错误、短夹具credential前置失败、未使用import编译失败与封存助手计数错误。旧真实58为Session24+replay34合计，当前单套件计数已按实际日志核对，未修改实现或测试断言以放宽验收。上游治理修复与B014已独立通过、main接收并清理；Owner批准Linux范围与两个前置变更继续有效。
+
+原生14批次11个COMPLETED，11/14≈78.57%；M1 ACTIVE。B007还须独立业务验收、正常COMPLETED状态投影验收、本地主分支接收、仅本任务临时数据库清理和最终归档。之后继续B008与B009直至Linux M1退出；全V1未完成，无Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：前置修复完成，恢复迁移批次
 
