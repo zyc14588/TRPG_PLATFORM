@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "ffb65652d3ea21a93534d8357bc3b6fe7d7f7928"
+source_commit: "cb393aaaf051fe6b720f3e2761145888b9fc0905"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：B005 精确业务检查通过，等待独立 ACCEPT
+
+正常 PLAN v52→v53，仅 B005 IMPLEMENTING→VERIFYING；14字段冻结摘要 `df022fd1324b5e9cb052cac3017cf0ac0b698c90040116aac31628d754aa1c47`、其他批次、依赖与next14不变。精确清洁业务 `cb393aaaf051fe6b720f3e2761145888b9fc0905` / tree `887519c72f295f4412c1223efceb42ae4b2e1e11`，23允许路径。Actor 有界单写者、鉴权完整 Envelope 与重复结果恢复、真实SQL原子通知/提交后过滤广播、只读投影/检查点、不可变创建证据及有界租户/图游标读取已实现。实际 platformd 内部 fixture 提供两种 Seat 的最小 WebSocket，验证重启、撤权与信号回收；未扩展账户/Room/AI 产品。重放认证与迁移仍待 B006/B007。
+
+精确 actual299 related、79 race、24真实PG run/pass，0fail/skip；check/test/vet/license/ci及实际 runner/platformd 构建 exit0。31成员清单 `/tmp/trpg-m1-b005-linux-20261006/business/EVIDENCE_MANIFEST.json` SHA256 `4d528faaf4854a8cb48ef57cddad8effee037bfc859422e63c085d68141c1afa` 已逐项核验；9真实SQL故障点全回滚且无广播，8只读写入攻击拒绝，命令七效果及通知同事务、重复不执行/不广播、真实休眠/重新激活/结束均核验。纯Go Actor double 与显式 official-trust 的 named guard 仅unit，不能冒充安装签名或PG证明。全部 dirty e1 开发失败、原先编译错误与错误 outbox 预期保留。
+
+三计划投影已独立 PASS：revise49d4b85、freezeffb6565、activatee1f9cd2，48成员清单 `658e0503b96e83d17cf5fafa718f887d2cf4fb4317fcc471792d6786227896a7`。B005 独立业务/VERIFYING/完成投影、实际 main接收及服务清理仍PENDING，不能标为完成。自有PG32773 ID `e6a6046068dd020b545864247ec045bd202616333b0000996a54ff49382fb30a` 仅保留给独立验收；父线程已结束业务测试，验收者释放后才进行接收与清理。
+
+M1 ACTIVE，已完成有效7/12按批次数量计；B005–B009及Linux总出口尚待。仅Linux，Windows/macOS NOT_RUN。main目前cf559ed，B013已实际接收及归档；B004原始FAIL/修复、B013无效补充harness记录和历史证据保持。无新增Owner决策、公共格式、依赖或许可变更。
+
+## 历史 B005 计划投影及此前状态（保留）
 
 ## 当前 Linux M1：SessionActor B005 IMPLEMENTING
 
