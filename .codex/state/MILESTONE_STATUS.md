@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "4f96f02c0f0b986c7b1afc3e8857b52942677443"
+source_commit: "3a039cdb7f5637add74daae33a1c03bde3c5ad5b"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B012 精确完整门禁通过，进入 VERIFYING
+
+正常 PLAN v37→v38 仅 B012 IMPLEMENTING→VERIFYING，所有冻结字段/digest、旧 batches/序号不变；B004 仍 BLOCKED 等待 B012 独立验收与本机接收。获批七类闭合能力登记及 Schema 一致性实现仅四路径，业务精确候选 `3a039cdb7f5637add74daae33a1c03bde3c5ad5b` / tree `4e12bb843674880eadfd5e5d742237c8e8a38544`；其余 289 blobs/modes 及依赖、Manifest 字段/身份规则不变，默认 grants 与交集执行代码不改，无 Host 操作实现。
+
+精确清洁 Linux attempt2 的 affected JSON 1159 run/pass、0 fail/skip，check/test/vet/license/ci 各 actual exit0；固定索引 `/tmp/trpg-m1-b012-linux-20261006/full-linux-3a039cd-attempt2/EVIDENCE_MANIFEST.json` SHA256 `6f7f182d1c380c8dfc2108fa0b467375527a172d5b65573af90bbd9930fa32d0`（13文件）。原 attempt1 的 sandbox special_socket skip/计数驱动exit1全部保留，不改成 PASS；attempt2 在自身临时 socket 环境实际执行通过，无新PG服务。预提交600 dirty-c07 cases 与 clean3a完整执行来源分开。
+
+独立 ACCEPT 仍 PENDING；当前状态提交并非业务重跑或 B012 COMPLETED。B003 已本机接收 ab9bcd8，旧 FAIL 与跨平台 NOT_RUN 及清理不变。本轮仅 Linux；M1 ACTIVE、有效产品批次4/11（36.4%）按数量计，M1 出口未满足。
+
+## 历史 B012 激活及此前状态（原文保留）
 
 ## 当前 Linux M1：Owner 已批准能力登记补充，B012 IMPLEMENTING
 
