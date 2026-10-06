@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "c67b019805df04358134b0a77d16a914001ad322"
+source_commit: "d348cd58fefbc5039c4070e80fe067f6fb180b54"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：B004 精确门禁通过，等待独立验收
+
+正常 PLAN v40→v41 仅 B004 IMPLEMENTING→VERIFYING；14 个冻结字段、摘要 `4b7d73a8d566d3097f3afbb45f8271e00d7aead7192992bba59974a717c08e31`、depends_on、其余批次和 next_batch_sequence=13 均不变。业务候选 `d348cd58fefbc5039c4070e80fe067f6fb180b54` / tree `c4a94701fb89f71e8d4149d23512f8cab75410a3`，21 允许路径内实现版本化 Host 入口、实际模块来源/Token 授权、七类效果 MutationWorkspace 与静态 PostgreSQL 单事务；没有修改公共契约、依赖、许可或禁区。
+
+精确清洁 Linux 相关 JSON187 run/pass、Host race49 run/pass、真实 PostgreSQL27 run/pass，全部0 fail/skip；check/test/vet/license/ci/build actual0。证据清单 `/tmp/trpg-m1-b004-linux-20261006/exact-gates-d348cd5/EVIDENCE_MANIFEST.json` SHA256 `1f95ea4e99edac8530bdd6a268f64df500a5f9f8c854158d01bef19677369556`，原始命令/log及逐项 inventory 已核验来源和哈希。数据库九类实际 SQL 错误、七类回滚和主动回调取消/runner 丢失均有读回与进程回收证据。ENVIRONMENT.json 纠正原 GATES 元数据 profile 标签误写，原件未替换。所有预提交 dirty来源、未执行 recorder失误和先前 NOT_PASS 原文保留。
+
+独立 ACCEPT 与状态投影/本机 main 接收仍 PENDING；不把业务测试重标为本状态 SHA。自有临时 PostgreSQL 保留给独立验收，之后按精确 ID 清理。B003 已安装包与 Host 会话启动组合尚待后续正常 PLAN 小批次补齐，B004 不跨越其冻结范围；SessionActor/重放/迁移/总出口仍待 B005–B009。M1 ACTIVE，有效已完成5/11（45.5%，按数量计）；仅 Linux，Windows/macOS NOT_RUN。无新增 Owner 决策。
+
+## 历史 B004 施工激活及此前状态（原文保留）
 
 ## 当前 Linux M1：B012 已完成并本机接收，B004 恢复施工
 
