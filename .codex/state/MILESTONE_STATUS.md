@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "d24bf3ac7bdb9ff34e80794d861674289920ba0b"
+source_commit: "523e29ced387f581fedc51fc476dea809ac3f025"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：B007 安全迁移批次范围准备
+
+本轮正常 PLAN 只细化尚未开始、未冻结的 M1-B007 内部施工范围，增加 internal/storage/package/**、internal/projection/**、internal/session/recovery/**、internal/package/install/session*.go。它们用于现有包安装工厂的历史完整依赖锁校验、不可变迁移效果与多版本重放、派生数据恢复；不增加新的公开能力或变更架构、授权规则、Schema/Host API、许可与出口门禁。objective、requirements、non_goals、机器契约、验收、测试、停止条件、依赖及其他冻结字段保持原文，B007仍PLANNED且无冻结hash，下一步仅经正常PLAN冻结及激活。
+
+原生计划共有13个批次，10个COMPLETED，当前按批次数10/13≈76.92%，B007/B008/B009未完成。B006业务来源47661588aba3ee9375854c2ac884046754e1ff5e独立PASS，完成计数纠正提交523e29ced387f581fedc51fc476dea809ac3f025；状态独立37成员清单ab09f991d59e7dd27c1def999b5dc21b4d60beb633d82eb0c007bf417f222ccb为PASS_FOR_STATE_PROJECTION_ONLY，003仅523闭合。本地main已实际快进至523，接收回执SHA256 e19614e3150d170f57d9952da56b5786c063304b4b860c04e6f3c9f32ed780ac；精确97dc测试容器已移除，清理回执SHA256 f1167d9f2aa63be1aebef42a63e02c15db412a55a174c243c5f498f49c02fbf4。965成员归档M1_B006_LINUX_COMPLETION_RECEPTION_523E29C.tar.gz已实际创建并读回逐成员验证，SHA256 b01fbffef1f0d30b131942deb03bf60d846b803ce837ed08d677f41dc0b6ce72。既有原2b FAIL001、354 FAIL002、d24状态FAIL003及各修复、环境/助手失败和LOST证据保持，历史数据不改写。
+
+M1仍ACTIVE，只推进Linux；Windows/macOS NOT_RUN，全V1未完成。继续B007安全边界、最小恢复点、真实PostgreSQL隔离预演、原子完整锁迁移及对应迁移前恢复点回滚；然后完成B008安全负向用例与B009Linux整体出口，无新增Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：B006 已完成，进度摘要计数修正
 
