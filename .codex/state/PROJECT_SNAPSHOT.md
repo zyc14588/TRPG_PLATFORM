@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "f757c82f7ed927382300df24f87576f875d61a0d"
+source_commit: "9fc76428e3f227c3337b32f4edd3e6077d47eb54"
 ---
 
 # 项目摘要
+
+## 当前 B003 Linux 独立验收中（PLAN 生命周期候选）
+
+本 tree 仅把 M1 plan v30→v31、B003 IMPLEMENTING→VERIFYING，标记已实现业务进入当前独立验收；业务候选 `df1fa6793317cf26660ee92803e63eaf5e7a254a` / `5d517c1b949a3e785629bb8563304bded0ed97ac` 不变。Scope 治理候选 `9fc76428e3f227c3337b32f4edd3e6077d47eb54` / `b82b9d5da5e1ff429c63c2ed26fe43b5889ce0e9` 已通过父 check/license 和 164 named projectctl run/pass（0 fail/skip），独立 scope 与 Linux 业务结论仍 PENDING。本生命周期不是业务 PASS 或 main 接收。
+
+冻结字段/摘要 `59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e`、其他 batches/依赖/墓碑/序号全部不变，B004 仍 PLANNED，active VERIFYING 仅 B003，WIP=1。Owner 授权与 Linux required/延期规则仍由 `SPEC-M1-LINUX-ACCEPTANCE-SCOPE` 补充约束；原 FAIL、003 历史 OPEN、所有原平台矩阵与原始业务证据字节保留。新独立 PASS 和合法完成登记前不释放 B004。
+
+## 历史 Linux 范围登记投影（原文保留）
 
 ## 当前 M1 Linux 验收范围登记（治理候选）
 

@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "f757c82f7ed927382300df24f87576f875d61a0d"
+source_commit: "9fc76428e3f227c3337b32f4edd3e6077d47eb54"
 ---
 
 # 里程碑状态
+
+## 当前 B003 Linux 独立验收中（PLAN 生命周期候选）
+
+- 本 tree：M1 ACTIVE v31，B003 IMPLEMENTING→VERIFYING；scope 与 Linux 业务独立验收 PENDING，不声明 PASS、COMPLETED 或 main 接收。
+- 固定业务 SHA/tree：df1fa6793317cf26660ee92803e63eaf5e7a254a / 5d517c1b949a3e785629bb8563304bded0ed97ac；scope 治理9fc76428e3f227c3337b32f4edd3e6077d47eb54独立结论待回读。原 frozen digest 59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e 保持。
+- 其他 batches、墓碑与 next_batch_sequence=12 不变；B004 PLANNED，WIP=1、仅 B003 VERIFYING。当前 M1 Linux 范围、原平台延期与历史 FAIL 保留；完成 PASS 后才进入正常 PLAN 完成登记。
+
+## 历史 Linux 范围登记状态（原文保留）
 
 ## 当前 M1 Linux 范围登记（治理候选）
 
