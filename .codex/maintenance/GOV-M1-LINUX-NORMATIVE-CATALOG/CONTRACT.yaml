@@ -65,7 +65,7 @@ tests:
 - Fresh native PLAN registration and formal REPAIR routes/checks bind the exact signed candidates.
 - go test -count=1 -json ./internal/projectctl/... has nonzero run/pass and zero fail/skip, including the originally failing native catalog test.
 - go vet ./internal/projectctl/... and clean candidate just check and just license-check pass.
-- A fresh B004 IMPLEMENT route cannot start while B003 is incomplete; its required Section must resolve through the unchanged exact catalog resolver.
+- A fresh B004 reading route resolves the approved Section through the unchanged exact catalog resolver; B004 remains FROZEN, B003 remains VERIFYING, and this maintenance neither authorizes business start nor changes any lifecycle state.
 - Independent ACCEPT checks three-path scope, unchanged business/plan/frozen/history and fixed bounded catalog semantics.
 stop_conditions:
 - Stop if any new authority or unapproved document, nonbounded discovery, semantics change, business mutation or frozen-field alteration is required.
