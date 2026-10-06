@@ -85,6 +85,7 @@ type environment struct {
 	pkg        *archive.Package
 	policy     *install.Policy
 	config     install.PolicyConfig
+	evidence   map[string]install.Evidence
 	objects    *object.Directory
 	repository *postgres.Repository
 	host       *postgres.HostRepository
@@ -99,11 +100,23 @@ func runtime() install.RuntimeConfig {
 	return install.RuntimeConfig{Runner: runner, SHA256: runnerHash, Limits: profile.DefaultLimits()}
 }
 func setup(t *testing.T, source string) *environment {
+	return setupConfigured(t, source, nil)
+}
+
+type fixtureConfiguration func(*archive.Package, install.PolicyConfig) (*archive.Package, install.PolicyConfig, map[string]install.Evidence, error)
+
+func setupConfigured(t *testing.T, source string, configure fixtureConfiguration) *environment {
 	t.Helper()
 	e := &environment{workspace: fmt.Sprintf("%s-%d", runID, sequence.Add(1))}
 	pkg, config, err := fixture.Build(runtime(), source)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if configure != nil {
+		pkg, config, e.evidence, err = configure(pkg, config)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	e.pkg = pkg
 	e.config = config
@@ -167,7 +180,7 @@ func setup(t *testing.T, source string) *environment {
 		t.Fatal(exportErr)
 	}
 	raw := exported.Bytes()
-	if _, err = installer.Install(context.Background(), install.Request{Credential: credential, Workspace: e.workspace, ID: "install", Root: install.Input{Archive: bytes.NewReader(raw)}}); err != nil {
+	if _, err = installer.Install(context.Background(), install.Request{Credential: credential, Workspace: e.workspace, ID: "install", Root: install.Input{Archive: bytes.NewReader(raw), Evidence: e.evidence[string(pkg.ArtifactIdentity().Digest())]}}); err != nil {
 		t.Fatal(err)
 	}
 	return e
@@ -179,7 +192,7 @@ func (e *environment) observe(v install.Execution) error {
 	return nil
 }
 func (e *environment) request(sid string) install.SessionRequest {
-	return install.SessionRequest{Credential: credential, Workspace: e.workspace, Session: sid, Root: string(e.pkg.ArtifactIdentity().Digest())}
+	return install.SessionRequest{Credential: credential, Workspace: e.workspace, Session: sid, Root: string(e.pkg.ArtifactIdentity().Digest()), Evidence: e.evidence}
 }
 func (e *environment) factory(t *testing.T, host *postgres.HostRepository) *install.SessionFactory {
 	t.Helper()
@@ -253,7 +266,7 @@ func validate(v checkpoint.Value) error {
 	}
 	return nil
 }
-func newRig(t *testing.T, e *environment, b data.Binding, repo *postgres.HostRepository) *rig {
+func newRig(t *testing.T, e *environment, b data.Binding, repo *postgres.HostRepository, extraCommands ...string) *rig {
 	t.Helper()
 	seats := []command.FixtureSeat{}
 	for _, seat := range []string{"gm", "player"} {
@@ -261,7 +274,11 @@ func newRig(t *testing.T, e *environment, b data.Binding, repo *postgres.HostRep
 		if seat == "gm" {
 			fields = append(fields, "secret")
 		}
-		seats = append(seats, command.FixtureSeat{Credential: seatToken(b.Session, seat), Binding: b, Principal: seat, Seat: seat, Commands: map[string]func(checkpoint.Value) error{"increment": validate, "fail": validate, "end": validate}, Views: command.ViewPolicy{ViewFields: fields, EventFields: map[string][]string{fixture.PackageID + "/change": fields}, ScalarResult: true}})
+		commands := map[string]func(checkpoint.Value) error{"increment": validate, "fail": validate, "end": validate}
+		for _, name := range extraCommands {
+			commands[name] = validate
+		}
+		seats = append(seats, command.FixtureSeat{Credential: seatToken(b.Session, seat), Binding: b, Principal: seat, Seat: seat, Commands: commands, Views: command.ViewPolicy{ViewFields: fields, EventFields: map[string][]string{fixture.PackageID + "/change": fields}, ScalarResult: true}})
 	}
 	a, err := command.NewFixtureAuthority(seats)
 	if err != nil {

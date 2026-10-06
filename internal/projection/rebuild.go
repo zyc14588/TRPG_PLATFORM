@@ -45,25 +45,37 @@ func Apply(i Image, r data.EffectRecord) (Image, error) {
 	if err != nil {
 		return Image{}, err
 	}
+	rows, quantities, err := FoldFacts(i.Rows, i.Quantities, r.Rows, r.Quantities)
+	if err != nil {
+		return Image{}, err
+	}
+	return Image{Binding: i.Binding, Version: r.Version, Cursor: r.Cursor, StateSchema: i.StateSchema, State: state, Rows: rows, Quantities: quantities, HistoryHash: eventstore.Digest([]string{i.HistoryHash, r.Hash}), Ended: r.Ended}, nil
+}
+
+// FoldFacts applies one atomic set of recorded data changes. Both replay and
+// the original commit use this same whole-Session boundary; namespace budgets
+// and changed-row budgets cannot establish that the next image is recoverable.
+func FoldFacts(previousRows []data.Row, previousQuantities []data.Quantity, changes []data.Row, quantityChanges []data.Quantity) ([]data.Row, []data.Quantity, error) {
 	rows := map[string]data.Row{}
 	qs := map[string]data.Quantity{}
-	for _, v := range i.Rows {
+	for _, v := range previousRows {
 		rows[rowKey(v)] = v
 	}
-	for _, v := range i.Quantities {
+	for _, v := range previousQuantities {
 		qs[quantityKey(v)] = v
 	}
-	for _, v := range r.Rows {
+	for _, v := range changes {
 		if v.Deleted {
 			delete(rows, rowKey(v))
 		} else {
 			rows[rowKey(v)] = eventstore.Copy(v)
 		}
 	}
-	for _, v := range r.Quantities {
+	for _, v := range quantityChanges {
 		qs[quantityKey(v)] = v
 	}
-	out := Image{Binding: i.Binding, Version: r.Version, Cursor: r.Cursor, StateSchema: i.StateSchema, State: state, HistoryHash: eventstore.Digest([]string{i.HistoryHash, r.Hash}), Ended: r.Ended}
+	var outRows []data.Row
+	var outQuantities []data.Quantity
 	keys := make([]string, 0, len(rows))
 	for k := range rows {
 		keys = append(keys, k)
@@ -74,7 +86,7 @@ func Apply(i Image, r data.EffectRecord) (Image, error) {
 		v := rows[k]
 		raw, _ := json.Marshal(v)
 		size += len(raw)
-		out.Rows = append(out.Rows, v)
+		outRows = append(outRows, v)
 	}
 	keys = keys[:0]
 	for k := range qs {
@@ -82,12 +94,12 @@ func Apply(i Image, r data.EffectRecord) (Image, error) {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		out.Quantities = append(out.Quantities, qs[k])
+		outQuantities = append(outQuantities, qs[k])
 	}
-	if len(out.Rows) > 128 || len(out.Quantities) > 128 || size > 256<<10 {
-		return Image{}, eventstore.ErrHistory
+	if len(outRows) > 128 || len(outQuantities) > 128 || size > 256<<10 {
+		return nil, nil, eventstore.ErrHistory
 	}
-	return out, nil
+	return outRows, outQuantities, nil
 }
 func rowKey(v data.Row) string           { return v.PackageID + "/" + v.Namespace + "/" + v.Key }
 func quantityKey(v data.Quantity) string { return v.PackageID + "/" + v.Table + "/" + v.Key }

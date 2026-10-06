@@ -15,6 +15,7 @@ import (
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/model"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/store"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/projection"
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 )
 
@@ -316,6 +317,45 @@ func (t *hostTransaction) Commit(ctx context.Context, c data.Commit) (data.Recei
 		return zero, err
 	}
 	if records >= eventstore.MaxRecords || evidenceBytes+int64(len(evidence)) > eventstore.MaxHistoryBytes || evidenceBytes+receiptBytes+int64(len(evidence)+len(rawReceipt)) > eventstore.MaxHistoryBytes*2 {
+		return zero, data.ErrDenied
+	}
+	// Reduce cumulative data from immutable effects, never from mutable current
+	// tables. A deleted/corrupted derived cache cannot make an overfull history
+	// look small enough to accept another command. Legacy incomplete effects
+	// remain explicitly incomplete; this budget check does not certify replay.
+	var recordedRows []data.Row
+	var recordedQuantities []data.Quantity
+	effects, err := t.tx.QueryContext(ctx, `SELECT evidence FROM host_command.replay_effects WHERE workspace=$1 AND session=$2 ORDER BY version LIMIT $3`, w, s, eventstore.MaxRecords+1)
+	if err != nil {
+		return zero, err
+	}
+	for effects.Next() {
+		var raw []byte
+		var prior data.EffectRecord
+		if err = effects.Scan(&raw); err != nil {
+			break
+		}
+		if checkpoint.StrictDecode(raw, &prior, eventstore.MaxRecordBytes) != nil || (prior.Complete && eventstore.Validate(prior) != nil) {
+			err = data.ErrDenied
+			break
+		}
+		recordedRows, recordedQuantities, err = projection.FoldFacts(recordedRows, recordedQuantities, prior.Rows, prior.Quantities)
+		if err != nil {
+			err = data.ErrDenied
+			break
+		}
+	}
+	if err == nil {
+		err = effects.Err()
+	}
+	closeErr := effects.Close()
+	if err != nil {
+		return zero, err
+	}
+	if closeErr != nil {
+		return zero, closeErr
+	}
+	if _, _, err = projection.FoldFacts(recordedRows, recordedQuantities, effect.Rows, effect.Quantities); err != nil {
 		return zero, data.ErrDenied
 	}
 	r, err := t.tx.ExecContext(ctx, `UPDATE host_command.sessions SET version=$3,state=$4::jsonb,event_sequence=$5 WHERE workspace=$1 AND session=$2 AND version=$6 AND graph_hash=$7 AND schema_hash=$8`, w, s, int64(version), string(state), int64(t.eventSequence+uint64(len(c.Events))), int64(h.ExpectedVersion), h.Binding.GraphHash, c.SchemaHash)

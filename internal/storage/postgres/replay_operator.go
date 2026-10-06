@@ -55,6 +55,26 @@ func (r *HostRepository) DropDerived(ctx context.Context, b data.Binding) error 
 	return tx.Commit()
 }
 
+// DropDerivedData is the fixed operator-only missing-data probe. It leaves
+// state/head/caches and all authoritative records intact, allowing a live VM
+// command to demonstrate that commit capacity does not trust mutable tables.
+func (r *HostRepository) DropDerivedData(ctx context.Context, b data.Binding) error {
+	tx, err := r.recoveryOperator(ctx, b)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, q := range []string{
+		`DELETE FROM host_command.documents WHERE workspace=$1 AND session=$2`,
+		`DELETE FROM host_command.quantity WHERE workspace=$1 AND session=$2`,
+	} {
+		if _, err = tx.ExecContext(ctx, q, b.Workspace, b.Session); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // StageRecoveryCache deliberately does not trust a cache's self-hash or metadata.
 // It allows bounded invalid-cache probes; the authenticated reader must reject
 // them against immutable history. It never changes Session head metadata.
