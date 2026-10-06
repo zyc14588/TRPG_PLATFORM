@@ -88,8 +88,18 @@ func (r *HostRepository) ReadCreation(ctx context.Context, b data.Binding) (data
 	if err != nil {
 		return c, err
 	}
-	if graph != b.GraphHash || checkpoint.StrictDecode(raw, &c, checkpoint.MaxBytes*2) != nil || c.Binding != b || c.Version == 0 || !checkpoint.IsDigest(c.SchemaHash) || !checkpoint.IsDigest(c.ArtifactsHash) || checkpoint.Validate(c.Seed) != nil {
+	if graph != b.GraphHash || checkpoint.StrictDecode(raw, &c, checkpoint.MaxBytes*2) != nil || c.Binding.Workspace != b.Workspace || c.Binding.Session != b.Session || c.Version == 0 || !checkpoint.IsDigest(c.SchemaHash) || !checkpoint.IsDigest(c.ArtifactsHash) || checkpoint.Validate(c.Seed) != nil {
 		return data.Creation{}, data.ErrDenied
+	}
+	if c.Binding.GraphHash != b.GraphHash {
+		var first []byte
+		var lock data.SessionLock
+		if err = r.options.DB.QueryRowContext(ctx, `SELECT origin FROM host_command.session_locks WHERE workspace=$1 AND session=$2`, b.Workspace, b.Session).Scan(&first); err != nil {
+			return c, err
+		}
+		if checkpoint.StrictDecode(first, &lock, 256<<10) != nil || data.ValidateSessionLock(lock) != nil || c.Binding.GraphHash != lock.GraphHash || c.ArtifactsHash != checkpoint.Hash(lock.ArtifactSet) {
+			return c, data.ErrDenied
+		}
 	}
 	seed, _ := hostJSON(c.Seed)
 	if checkpoint.Hash(seed) != c.SeedHash {

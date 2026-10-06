@@ -60,6 +60,9 @@ type Quantity struct {
 	Table     string `json:"table"`
 	Key       string `json:"key"`
 	Value     int64  `json:"value"`
+	// Deleted is restricted to trusted migration effects. Ordinary Host commits
+	// reject it; omission preserves every original quantity encoding.
+	Deleted bool `json:"deleted,omitempty"`
 }
 type Event struct {
 	ID            string           `json:"id"`

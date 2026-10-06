@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/migration"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/store"
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 )
@@ -92,6 +93,17 @@ func (r *HostRepository) ProvisionGraph(ctx context.Context, g *store.Graph, b d
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO host_command.installed_graphs(workspace,session,graph_bytes) VALUES($1,$2,$3)`, b.Workspace, b.Session, graph); err != nil {
+		return err
+	}
+	lock, err := migration.ExactLock(g)
+	if err != nil {
+		return err
+	}
+	lockBytes, err := hostJSON(lock)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO host_command.session_locks(workspace,session,origin,active) VALUES($1,$2,$3,$3)`, b.Workspace, b.Session, lockBytes); err != nil {
 		return err
 	}
 	creation := data.Creation{Binding: b, Version: version, SchemaHash: schema, Seed: state, SeedHash: checkpoint.Hash(raw), ArtifactsHash: checkpoint.Hash(graph)}

@@ -19,5 +19,8 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "m1-fixture" {
 		os.Exit(runFixture(ctx, os.Args[2:], os.Stdout, os.Stderr))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "m1-migration-fixture" {
+		os.Exit(runMigrationFixture(ctx, os.Args[2:], os.Stdout, os.Stderr))
+	}
 	os.Exit(baselinecli.Run(ctx, baselinecli.Config{Name: "platformd", Version: version, AllowServe: true}, os.Args[1:], os.Stdout, os.Stderr))
 }

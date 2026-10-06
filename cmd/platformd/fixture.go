@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -28,7 +27,6 @@ import (
 	"github.com/zyc14588/TRPG_PLATFORM/internal/session/command"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/session/persistence"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/session/realtime"
-	fixture "github.com/zyc14588/TRPG_PLATFORM/internal/session/testdata"
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 )
 
@@ -36,17 +34,18 @@ import (
 // Its operator file supplies synthetic credentials and all package permissions.
 // It creates no accounts, rooms, campaigns or automatic seat transfer.
 type fixtureConfig struct {
-	DSN           string `json:"dsn"`
-	Objects       string `json:"objects"`
-	Staging       string `json:"staging"`
-	Runner        string `json:"runner"`
-	RunnerHash    string `json:"runner_hash"`
-	Listen        string `json:"listen"`
-	Workspace     string `json:"workspace"`
-	Session       string `json:"session"`
-	GMToken       string `json:"gm_token"`
-	PlayerToken   string `json:"player_token"`
-	CommitBarrier bool   `json:"commit_barrier,omitempty"`
+	DSN              string `json:"dsn"`
+	Objects          string `json:"objects"`
+	Staging          string `json:"staging"`
+	Runner           string `json:"runner"`
+	RunnerHash       string `json:"runner_hash"`
+	Listen           string `json:"listen"`
+	Workspace        string `json:"workspace"`
+	Session          string `json:"session"`
+	GMToken          string `json:"gm_token"`
+	PlayerToken      string `json:"player_token"`
+	CommitBarrier    bool   `json:"commit_barrier,omitempty"`
+	MigrationVersion string `json:"migration_version,omitempty"`
 }
 
 func runFixture(ctx context.Context, args []string, out, errOut io.Writer) int {
@@ -56,67 +55,83 @@ func runFixture(ctx context.Context, args []string, out, errOut io.Writer) int {
 	if flags.Parse(args) != nil || flags.NArg() != 0 || *path == "" {
 		return 2
 	}
-	info, err := os.Stat(*path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
-		fmt.Fprintln(errOut, "FIXTURE_CONFIG_REJECTED")
+	cfg, code := readFixtureConfig(*path)
+	if code != "" {
+		fmt.Fprintln(errOut, code)
 		return 1
 	}
-	f, err := os.Open(*path)
-	if err != nil {
-		return 1
-	}
-	raw, err := io.ReadAll(io.LimitReader(f, 64<<10+1))
-	f.Close()
-	var cfg fixtureConfig
-	if err != nil || checkpoint.StrictDecode(raw, &cfg, 64<<10) != nil || !store.ValidID(cfg.Workspace) || !store.ValidID(cfg.Session) || len(cfg.GMToken) < 24 || len(cfg.GMToken) > 256 || len(cfg.PlayerToken) < 24 || len(cfg.PlayerToken) > 256 || cfg.GMToken == cfg.PlayerToken {
-		fmt.Fprintln(errOut, "FIXTURE_CONFIG_REJECTED")
-		return 1
-	}
-	host, _, err := net.SplitHostPort(cfg.Listen)
-	if err != nil || host != "127.0.0.1" {
-		fmt.Fprintln(errOut, "FIXTURE_LOOPBACK_REQUIRED")
-		return 1
-	}
-	for _, p := range []string{cfg.Objects, cfg.Staging, cfg.Runner} {
-		if !filepath.IsAbs(p) {
-			fmt.Fprintln(errOut, "FIXTURE_CONFIG_REJECTED")
-			return 1
-		}
-	}
-	binary, err := os.ReadFile(cfg.Runner)
-	if err != nil || checkpoint.Hash(binary) != cfg.RunnerHash {
-		fmt.Fprintln(errOut, "FIXTURE_RUNNER_REJECTED")
-		return 1
-	}
-	for _, p := range []string{cfg.Objects, cfg.Staging} {
-		if err = os.MkdirAll(p, 0700); err != nil {
-			return 1
-		}
-		s, err := os.Stat(p)
-		if err != nil || !s.IsDir() || s.Mode().Perm()&0077 != 0 {
-			fmt.Fprintln(errOut, "FIXTURE_STORAGE_REJECTED")
-			return 1
-		}
-	}
-	if err = serveFixture(ctx, cfg, out); err != nil {
+	if err := serveFixture(ctx, cfg, out); err != nil {
 		fmt.Fprintln(errOut, "FIXTURE_START_OR_SERVE_FAILED")
 		return 1
 	}
 	return 0
 }
+
+func readFixtureConfig(path string) (fixtureConfig, string) {
+	var cfg fixtureConfig
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+		return cfg, "FIXTURE_CONFIG_REJECTED"
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return cfg, "FIXTURE_CONFIG_REJECTED"
+	}
+	raw, err := io.ReadAll(io.LimitReader(f, 64<<10+1))
+	f.Close()
+	if err != nil || checkpoint.StrictDecode(raw, &cfg, 64<<10) != nil || !store.ValidID(cfg.Workspace) || !store.ValidID(cfg.Session) || len(cfg.GMToken) < 24 || len(cfg.GMToken) > 256 || len(cfg.PlayerToken) < 24 || len(cfg.PlayerToken) > 256 || cfg.GMToken == cfg.PlayerToken {
+		return cfg, "FIXTURE_CONFIG_REJECTED"
+	}
+	if cfg.MigrationVersion != "" && cfg.MigrationVersion != "1.0.0" && cfg.MigrationVersion != "1.1.0" {
+		return cfg, "FIXTURE_CONFIG_REJECTED"
+	}
+	host, _, err := net.SplitHostPort(cfg.Listen)
+	if err != nil || host != "127.0.0.1" {
+		return cfg, "FIXTURE_LOOPBACK_REQUIRED"
+	}
+	for _, p := range []string{cfg.Objects, cfg.Staging, cfg.Runner} {
+		if !filepath.IsAbs(p) {
+			return cfg, "FIXTURE_CONFIG_REJECTED"
+		}
+	}
+	binary, err := os.ReadFile(cfg.Runner)
+	if err != nil || checkpoint.Hash(binary) != cfg.RunnerHash {
+		return cfg, "FIXTURE_RUNNER_REJECTED"
+	}
+	for _, p := range []string{cfg.Objects, cfg.Staging} {
+		if err = os.MkdirAll(p, 0700); err != nil {
+			return cfg, "FIXTURE_STORAGE_REJECTED"
+		}
+		s, err := os.Stat(p)
+		if err != nil || !s.IsDir() || s.Mode().Perm()&0077 != 0 {
+			return cfg, "FIXTURE_STORAGE_REJECTED"
+		}
+	}
+	return cfg, ""
+}
 func serveFixture(ctx context.Context, cfg fixtureConfig, out io.Writer) error {
 	startup, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	runtime := install.RuntimeConfig{Runner: cfg.Runner, SHA256: cfg.RunnerHash, Limits: profile.DefaultLimits()}
-	pkg, config, err := fixture.Build(runtime, "")
+	if cfg.MigrationVersion != "" {
+		if fixtureMigrationGuard == nil {
+			return install.ErrPolicy
+		}
+		guard, err := fixtureMigrationGuard(cfg)
+		if err != nil {
+			return err
+		}
+		defer guard.Close()
+	}
+	selection, err := selectFixturePackages(runtime, cfg)
 	if err != nil {
 		return err
 	}
-	policy, err := install.NewPolicy(config)
+	policy, err := install.NewPolicy(selection.Config)
 	if err != nil {
 		return err
 	}
-	credential := store.Credential("m1-fixture-install-operator-credential")
+	credential := fixtureInstallCredential
 	access, err := store.NewAccess(map[store.Credential][]store.Membership{credential: {{Principal: "operator", Workspace: cfg.Workspace, Read: true, Install: true}}})
 	if err != nil {
 		return err
@@ -160,14 +175,12 @@ func serveFixture(ctx context.Context, cfg fixtureConfig, out io.Writer) error {
 	if err = services.HostCommands.Bootstrap(startup); err != nil {
 		return err
 	}
-	exported, err := pkg.Export()
-	if err != nil {
-		return err
+	for _, request := range selection.Installs {
+		if _, err = services.Installer.Install(startup, request); err != nil {
+			return err
+		}
 	}
-	if _, err = services.Installer.Install(startup, install.Request{Credential: credential, Workspace: cfg.Workspace, ID: "fixture-install", Root: install.Input{Archive: bytes.NewReader(exported.Bytes())}}); err != nil {
-		return err
-	}
-	request := install.SessionRequest{Credential: credential, Workspace: cfg.Workspace, Session: cfg.Session, Root: string(pkg.ArtifactIdentity().Digest())}
+	request := selection.Session
 	existing, err := services.HostCommands.InspectGraphSession(startup, cfg.Workspace, cfg.Session)
 	if err != nil {
 		return err
@@ -183,7 +196,7 @@ func serveFixture(ctx context.Context, cfg fixtureConfig, out io.Writer) error {
 			return err
 		}
 	} else {
-		g, err := services.Reader.LoadGraph(startup, credential, cfg.Workspace, request.Root, nil)
+		g, err := services.Reader.LoadGraph(startup, credential, cfg.Workspace, request.Root, request.Dependencies)
 		if err != nil {
 			return err
 		}
@@ -206,15 +219,17 @@ func serveFixture(ctx context.Context, cfg fixtureConfig, out io.Writer) error {
 	}
 	for _, seat := range []string{"gm", "player"} {
 		token := cfg.PlayerToken
-		fields := []string{"counter"}
+		fields := []string{selection.Field}
 		types := map[string]func(checkpoint.Value) error{"increment": validate}
 		if seat == "gm" {
 			token = cfg.GMToken
 			fields = append(fields, "secret")
 			types["end"] = validate
-			types["fail"] = validate
+			if cfg.MigrationVersion == "" {
+				types["fail"] = validate
+			}
 		}
-		seats = append(seats, command.FixtureSeat{Credential: token, Binding: binding, Principal: seat, Seat: seat, Commands: types, Views: command.ViewPolicy{ViewFields: fields, EventFields: map[string][]string{fixture.PackageID + "/change": fields}, ScalarResult: true}})
+		seats = append(seats, command.FixtureSeat{Credential: token, Binding: binding, Principal: seat, Seat: seat, Commands: types, Views: command.ViewPolicy{ViewFields: fields, EventFields: map[string][]string{selection.EventType: fields}, ScalarResult: true}})
 	}
 	authority, err := command.NewFixtureAuthority(seats)
 	if err != nil {

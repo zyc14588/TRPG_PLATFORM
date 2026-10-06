@@ -10,7 +10,6 @@ import (
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/profile"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/vm"
-	"github.com/zyc14588/TRPG_PLATFORM/internal/package/archive"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/store"
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 )
@@ -35,6 +34,9 @@ type SessionRequest struct {
 	Workspace, Session, Root string
 	Dependencies             []string
 	Evidence                 map[string]Evidence // exact artifact identity -> actual attestations
+	// Historical evidence is partitioned by recorded exact graph hash. Each
+	// epoch still passes the original exact-artifact evidence validation.
+	EpochEvidence map[string]map[string]Evidence
 }
 type InstalledSession struct {
 	VM               *vm.Session
@@ -69,74 +71,18 @@ func (f *SessionFactory) Resume(ctx context.Context, r SessionRequest) (*Install
 	return f.open(ctx, r, true, nil)
 }
 func (f *SessionFactory) open(ctx context.Context, r SessionRequest, resume bool, build RecoveryBuilder) (*InstalledSession, error) {
-	owned := map[string]Evidence{}
-	for id, e := range r.Evidence {
-		copyAttestation := func(a *Attestation) *Attestation {
-			if a == nil {
-				return nil
-			}
-			copy := *a
-			copy.Signature = append([]byte(nil), a.Signature...)
-			return &copy
-		}
-		owned[id] = Evidence{Publisher: copyAttestation(e.Publisher), Certification: copyAttestation(e.Certification)}
-	}
-	r.Evidence = owned
-	o := f.options
-	if !store.ValidID(r.Session) {
-		return nil, ErrPolicy
-	}
-	g, err := o.Reader.LoadGraph(ctx, r.Credential, r.Workspace, r.Root, r.Dependencies)
+	p, err := f.prepare(ctx, r)
 	if err != nil {
 		return nil, err
 	}
-	items := []staged{}
-	for _, pkg := range append([]*archive.Package{g.Root()}, g.Dependencies()...) {
-		id := string(pkg.ArtifactIdentity().Digest())
-		a, _, err := o.Policy.validate(pkg, r.Evidence[id])
+	o := f.options
+	r = p.request
+	g, contract, h, proofs, binding, recovery := p.graph, p.contract, p.host, p.proofs, p.binding, p.recovery
+	if resume && build != nil {
+		recovery, err = f.authenticateEpochs(ctx, r, recovery)
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, staged{pkg: pkg, evidence: r.Evidence[id], approval: a})
-	}
-	if len(r.Evidence) > len(items) {
-		return nil, ErrPolicy
-	}
-	for id := range r.Evidence {
-		found := false
-		for _, item := range items {
-			if id == string(item.pkg.ArtifactIdentity().Digest()) {
-				found = true
-			}
-		}
-		if !found {
-			return nil, ErrPolicy
-		}
-	}
-	for _, a := range g.Artifacts() {
-		if a.PolicyDigest != o.Policy.Digest() {
-			return nil, ErrPolicy
-		}
-	}
-	contract := items[0].approval.Host
-	if contract == nil {
-		return nil, ErrPolicy
-	}
-	proofs := map[string]vm.FallbackProof{}
-	// Startup re-authenticates current operator evidence and reruns the bounded
-	// quarantine suite; fallback proofs therefore describe actual passed work.
-	if _, err = validateRuntime(ctx, o.Runtime, items, o.Execution, runtimePolicy{Policy: o.Policy, Fallbacks: proofs}); err != nil {
-		return nil, err
-	}
-	h, err := o.Policy.hostOptions(items)
-	if err != nil {
-		return nil, err
-	}
-	lock, _ := g.Root().ExactLock().Digest()
-	binding := data.Binding{Workspace: r.Workspace, Session: r.Session, GraphHash: string(lock)}
-	recovery, err := recoveryContext(g, binding, contract, o.Runtime)
-	if err != nil {
-		return nil, err
 	}
 	var recovered RecoveryResult
 	state := vm.State{Version: 1, Value: contract.State.Seed}

@@ -42,8 +42,19 @@ func readReplay(ctx context.Context, tx *sql.Tx, b data.Binding, expected []byte
 	if err != nil {
 		return h, err
 	}
-	if graph != b.GraphHash || !bytes.Equal(artifacts, expected) || checkpoint.StrictDecode(raw, &h.Creation, checkpoint.MaxBytes*2) != nil || h.Creation.Binding != b || h.Creation.SchemaHash != schema || h.Creation.ArtifactsHash != checkpoint.Hash(expected) {
+	if graph != b.GraphHash || !bytes.Equal(artifacts, expected) || checkpoint.StrictDecode(raw, &h.Creation, checkpoint.MaxBytes*2) != nil || h.Creation.Binding.Workspace != b.Workspace || h.Creation.Binding.Session != b.Session {
 		return data.ReplayHistory{}, eventstore.ErrHistory
+	}
+	origin, active, lockErr := readLocks(ctx, tx, b)
+	if lockErr == nil {
+		if h.Creation.Binding.GraphHash != origin.GraphHash || h.Creation.ArtifactsHash != checkpoint.Hash(origin.ArtifactSet) || !bytes.Equal(active.ArtifactSet, expected) {
+			return h, eventstore.ErrHistory
+		}
+		h.OriginLock = &origin
+	} else if !errors.Is(lockErr, data.ErrNotFound) {
+		return h, lockErr
+	} else if h.Creation.Binding != b || h.Creation.SchemaHash != schema || h.Creation.ArtifactsHash != checkpoint.Hash(expected) {
+		return h, eventstore.ErrHistory
 	}
 	if _, err = projection.Genesis(h.Creation); err != nil {
 		return data.ReplayHistory{}, err
@@ -66,6 +77,7 @@ func readReplay(ctx context.Context, tx *sql.Tx, b data.Binding, expected []byte
 		return h, err
 	}
 	size := 0
+	currentBinding, currentSchema := h.Creation.Binding, h.Creation.SchemaHash
 	for rows.Next() {
 		var version uint64
 		var id string
@@ -80,7 +92,7 @@ func readReplay(ctx context.Context, tx *sql.Tx, b data.Binding, expected []byte
 			return h, eventstore.ErrHistory
 		}
 		record, e := eventstore.Decode(evidence)
-		if e != nil || record.Header.Binding != b || record.Version != version || record.Header.CommandID != id || version != h.Creation.Version+uint64(len(h.Records))+1 {
+		if e != nil || record.Header.Binding != currentBinding || record.SchemaHash != currentSchema || record.Version != version || record.Header.CommandID != id || version != h.Creation.Version+uint64(len(h.Records))+1 {
 			rows.Close()
 			return h, eventstore.ErrHistory
 		}
@@ -90,14 +102,27 @@ func readReplay(ctx context.Context, tx *sql.Tx, b data.Binding, expected []byte
 			return h, eventstore.ErrHistory
 		}
 		h.Records = append(h.Records, record)
+		if record.Migration != nil {
+			if h.OriginLock == nil {
+				rows.Close()
+				return h, eventstore.ErrHistory
+			}
+			currentBinding.GraphHash = record.Migration.To.GraphHash
+			currentSchema = record.Migration.After.StateSchema
+		}
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
 		return h, err
 	}
-	if h.Version != h.Creation.Version+uint64(len(h.Records)) {
+	if h.Version != h.Creation.Version+uint64(len(h.Records)) || currentBinding != b || currentSchema != schema {
 		return h, eventstore.ErrHistory
+	}
+	if h.OriginLock != nil {
+		if _, err = historyLocks(h, active); err != nil {
+			return h, err
+		}
 	}
 	// Compare original event bytes/versions/order, not merely a cache digest.
 	rows, err = tx.QueryContext(ctx, `SELECT sequence,version,command_id,event_id,event_type,payload,schema_version,schema_hash FROM host_command.events WHERE workspace=$1 AND session=$2 ORDER BY sequence LIMIT $3`, b.Workspace, b.Session, eventstore.MaxRecords*64+1)
@@ -239,6 +264,9 @@ func provenance(h data.ReplayHistory, pkg, namespace, key string, quantity bool)
 					found = true
 				}
 			}
+		}
+		if found && r.Migration != nil {
+			return r.Header.CommandID, r.Header.CommandID
 		}
 		if found && len(r.Events) > 0 {
 			return r.Header.CommandID, r.Events[0].ID

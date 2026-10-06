@@ -49,7 +49,8 @@ func (s *Service) Reconstruct(ctx context.Context, o install.RecoveryContext) (R
 	if err != nil {
 		return Report{}, fmt.Errorf("%w: immutable-history", err)
 	}
-	if h.Creation.SeedHash != eventstore.Digest(o.Seed) {
+	origin, originErr := o.Origin()
+	if originErr != nil || h.Creation.Binding != origin.Binding || h.Creation.SchemaHash != origin.StateSchema.Digest() || h.Creation.SeedHash != eventstore.Digest(origin.Seed) {
 		return Report{}, fmt.Errorf("%w: bound-seed", eventstore.ErrHistory)
 	}
 	var candidate *projection.Cache
@@ -63,7 +64,7 @@ func (s *Service) Reconstruct(ctx context.Context, o install.RecoveryContext) (R
 	if err != nil {
 		return Report{}, fmt.Errorf("%w: reduction", err)
 	}
-	if o.StateSchema.Validate(i.State) != nil {
+	if o.ValidateSnapshot(data.Snapshot{Binding: i.Binding, Version: i.Version, SchemaHash: i.StateSchema, State: i.State, Rows: i.Rows, Quantities: i.Quantities}) != nil {
 		return Report{}, fmt.Errorf("%w: state-schema", eventstore.ErrHistory)
 	}
 	result := Report{Image: i, SnapshotAccepted: accepted}

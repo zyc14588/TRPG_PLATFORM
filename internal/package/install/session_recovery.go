@@ -5,12 +5,14 @@ package install
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"sort"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/eventstore"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/hostapi"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/profile"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/migration"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/store"
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 )
@@ -18,16 +20,21 @@ import (
 // RecoveryContext is created only after current ACL/object/policy/runtime
 // authentication. Its schemas are bound to the verified installed graph.
 type RecoveryContext struct {
-	Graph            *store.Graph
-	Binding          data.Binding
-	Seed             checkpoint.Value
-	Metadata         checkpoint.RecoveryBinding
-	StateSchema      hostapi.Schema
-	ResultSchema     hostapi.Schema
-	CheckpointSchema hostapi.Schema
-	EventSchemas     map[string]hostapi.Schema
-	Namespaces       map[string]hostapi.Schema
-	IntentSchemas    map[string]hostapi.Schema
+	Graph                *store.Graph
+	Binding              data.Binding
+	Seed                 checkpoint.Value
+	Metadata             checkpoint.RecoveryBinding
+	StateSchema          hostapi.Schema
+	ResultSchema         hostapi.Schema
+	CheckpointSchema     hostapi.Schema
+	EventSchemas         map[string]hostapi.Schema
+	Namespaces           map[string]hostapi.Schema
+	IntentSchemas        map[string]hostapi.Schema
+	Lock                 data.SessionLock
+	Epochs               map[string]RecoveryContext
+	OriginGraphHash      string
+	SafeBoundaryDeclared bool
+	QuantityPackages     map[string]bool
 }
 type RecoveryResult struct {
 	Snapshot   data.Snapshot
@@ -108,11 +115,43 @@ func recoveryContext(g *store.Graph, b data.Binding, h *HostContract, runtime Ru
 	if o.Metadata.Validate() != nil {
 		return o, ErrPolicy
 	}
+	if o.Lock, err = migration.ExactLock(g); err != nil {
+		return o, err
+	}
+	_, o.SafeBoundaryDeclared = h.Results["on_safe_migration_boundary"]
+	o.QuantityPackages = map[string]bool{}
+	for _, n := range h.Named {
+		if n.Plan == "quantity-add" || n.Plan == "quantity-get" {
+			o.QuantityPackages[n.PackageID] = true
+		}
+	}
 	return o, nil
 }
 func (o RecoveryContext) ValidateRecord(r data.EffectRecord) error {
+	if len(o.Epochs) > 0 {
+		source, ok := o.Epochs[r.Header.Binding.GraphHash]
+		if !ok {
+			return eventstore.ErrHistory
+		}
+		source.Epochs = o.Epochs
+		o = source
+	}
 	if eventstore.Validate(r) != nil || r.Header.Binding != o.Binding || r.SchemaHash != o.StateSchema.Digest() {
 		return eventstore.ErrHistory
+	}
+	target := o
+	if r.Migration != nil {
+		var ok bool
+		target, ok = o.Epochs[r.Migration.To.GraphHash]
+		if !ok || !reflect.DeepEqual(o.Lock, r.Migration.From) || !reflect.DeepEqual(target.Lock, r.Migration.To) {
+			return eventstore.ErrHistory
+		}
+		before, after := eventstore.Copy(o.Metadata), eventstore.Copy(target.Metadata)
+		before.Session.StateVersion = r.Header.ExpectedVersion
+		after.Session.StateVersion = r.Version
+		if !reflect.DeepEqual(before, r.Migration.Before) || !reflect.DeepEqual(after, r.Migration.After) {
+			return eventstore.ErrHistory
+		}
 	}
 	for _, v := range r.Inputs.ToolResults {
 		if o.ResultSchema.Validate(v) != nil {
@@ -126,8 +165,21 @@ func (o RecoveryContext) ValidateRecord(r data.EffectRecord) error {
 		}
 	}
 	for _, row := range r.Rows {
-		s, ok := o.Namespaces[row.PackageID+"/"+row.Namespace]
+		context := target
+		if row.Deleted {
+			context = o
+		}
+		s, ok := context.Namespaces[row.PackageID+"/"+row.Namespace]
 		if !ok || row.SchemaHash != s.Digest() || (!row.Deleted && s.Validate(row.Value) != nil) {
+			return eventstore.ErrHistory
+		}
+	}
+	for _, q := range r.Quantities {
+		context := target
+		if q.Deleted {
+			context = o
+		}
+		if r.Migration != nil && !context.QuantityPackages[q.PackageID] {
 			return eventstore.ErrHistory
 		}
 	}
@@ -159,5 +211,30 @@ func (o RecoveryContext) ValidateRecord(r data.EffectRecord) error {
 		}
 	}
 
+	return nil
+}
+
+// ValidateSnapshot checks the entire target image, including unchanged rows.
+// A changed namespace cannot inherit old values merely because patches pass.
+func (o RecoveryContext) ValidateSnapshot(s data.Snapshot) error {
+	if s.Binding != o.Binding || s.SchemaHash != o.StateSchema.Digest() || o.StateSchema.Validate(s.State) != nil || len(s.Rows) > 128 || len(s.Quantities) > 128 {
+		return eventstore.ErrHistory
+	}
+	rows, quantities := map[string]bool{}, map[string]bool{}
+	for _, v := range s.Rows {
+		k := v.PackageID + "/" + v.Namespace + "/" + v.Key
+		schema, ok := o.Namespaces[v.PackageID+"/"+v.Namespace]
+		if rows[k] || !ok || v.Deleted || v.SchemaHash != schema.Digest() || schema.Validate(v.Value) != nil {
+			return eventstore.ErrHistory
+		}
+		rows[k] = true
+	}
+	for _, v := range s.Quantities {
+		k := v.PackageID + "/" + v.Table + "/" + v.Key
+		if quantities[k] || v.Deleted || v.Table != "quantity" || (o.Graph != nil && !o.QuantityPackages[v.PackageID]) {
+			return eventstore.ErrHistory
+		}
+		quantities[k] = true
+	}
 	return nil
 }

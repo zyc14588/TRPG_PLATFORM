@@ -85,6 +85,15 @@ func validate(r data.EffectRecord) error {
 	}
 	eventID := ""
 	seen := map[string]bool{}
+	if r.Migration != nil {
+		m := r.Migration
+		if !store.ValidID(m.PointID) || !checkpoint.IsDigest(m.PointHash) || (m.Direction != "upgrade" && m.Direction != "restore-point") || data.ValidateSessionLock(m.From) != nil || data.ValidateSessionLock(m.To) != nil || m.From.Hash == m.To.Hash || m.Before.Validate() != nil || m.After.Validate() != nil || m.Before.Workspace != h.Binding.Workspace || m.After.Workspace != h.Binding.Workspace || m.Before.Session.SessionID != h.Binding.Session || m.After.Session.SessionID != h.Binding.Session || m.Before.Session.DependencyLock != h.Binding.GraphHash || m.From.GraphHash != h.Binding.GraphHash || m.After.Session.DependencyLock != m.To.GraphHash || m.Before.Session.StateVersion != h.ExpectedVersion || m.After.Session.StateVersion != r.Version || m.Before.StateSchema != r.SchemaHash || m.Before.ArtifactsHash != checkpoint.Hash(m.From.ArtifactSet) || m.After.ArtifactsHash != checkpoint.Hash(m.To.ArtifactSet) || len(r.Events)+len(r.Tasks)+len(r.Continuations)+len(r.Outbox) != 0 || r.Inputs.Callback != "platform-migration" || r.Inputs.Envelope != nil || r.Ended != m.WasEnded {
+			return ErrHistory
+		}
+		// A private transition has a command-ledger identity, not a new public
+		// event type or a repurposed package event. Old event cursors are preserved.
+		eventID = h.CommandID
+	}
 	for _, e := range r.Events {
 		if eventID == "" {
 			eventID = e.ID
@@ -120,7 +129,7 @@ func validate(r data.EffectRecord) error {
 	for _, v := range r.Quantities {
 		k := v.PackageID + "/" + v.Table + "/" + v.Key
 		_, e := model.ParsePackageID(v.PackageID)
-		if e != nil || v.Table != "quantity" || !store.ValidID(v.Key) || quantities[k] {
+		if e != nil || v.Table != "quantity" || !store.ValidID(v.Key) || quantities[k] || (v.Deleted && r.Migration == nil) {
 			return ErrHistory
 		}
 		quantities[k] = true
@@ -135,7 +144,7 @@ func validate(r data.EffectRecord) error {
 			ids[v.ID] = true
 		}
 	}
-	if r.Ended && (eventID == "" || r.Inputs.Envelope == nil || r.Inputs.Envelope.Type != "end" || r.Inputs.Callback != "on_session_end") {
+	if r.Ended && r.Migration == nil && (eventID == "" || r.Inputs.Envelope == nil || r.Inputs.Envelope.Type != "end" || r.Inputs.Callback != "on_session_end") {
 		return ErrHistory
 	}
 	return nil

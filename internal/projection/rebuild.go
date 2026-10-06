@@ -38,7 +38,7 @@ func Genesis(c data.Creation) (Image, error) {
 	return Image{Binding: c.Binding, Version: c.Version, StateSchema: c.SchemaHash, State: eventstore.Copy(c.Seed), HistoryHash: eventstore.Digest(c)}, nil
 }
 func Apply(i Image, r data.EffectRecord) (Image, error) {
-	if eventstore.Validate(r) != nil || i.Ended || r.Header.Binding != i.Binding || r.Header.ExpectedVersion != i.Version || r.BeforeCursor != i.Cursor || r.SchemaHash != i.StateSchema {
+	if eventstore.Validate(r) != nil || (i.Ended && r.Migration == nil) || r.Header.Binding != i.Binding || r.Header.ExpectedVersion != i.Version || r.BeforeCursor != i.Cursor || r.SchemaHash != i.StateSchema {
 		return Image{}, eventstore.ErrHistory
 	}
 	state, err := eventstore.ApplyPatches(i.State, r)
@@ -48,6 +48,13 @@ func Apply(i Image, r data.EffectRecord) (Image, error) {
 	rows, quantities, err := FoldFacts(i.Rows, i.Quantities, r.Rows, r.Quantities)
 	if err != nil {
 		return Image{}, err
+	}
+	if r.Migration != nil {
+		if i.Ended != r.Migration.WasEnded {
+			return Image{}, eventstore.ErrHistory
+		}
+		i.Binding.GraphHash = r.Migration.To.GraphHash
+		i.StateSchema = r.Migration.After.StateSchema
 	}
 	return Image{Binding: i.Binding, Version: r.Version, Cursor: r.Cursor, StateSchema: i.StateSchema, State: state, Rows: rows, Quantities: quantities, HistoryHash: eventstore.Digest([]string{i.HistoryHash, r.Hash}), Ended: r.Ended}, nil
 }
@@ -72,7 +79,11 @@ func FoldFacts(previousRows []data.Row, previousQuantities []data.Quantity, chan
 		}
 	}
 	for _, v := range quantityChanges {
-		qs[quantityKey(v)] = v
+		if v.Deleted {
+			delete(qs, quantityKey(v))
+		} else {
+			qs[quantityKey(v)] = v
+		}
 	}
 	var outRows []data.Row
 	var outQuantities []data.Quantity
@@ -126,7 +137,14 @@ func Compatible(c Cache, m checkpoint.RecoveryBinding, prefix Image) bool {
 // genesis; the original event effects are always validated in order.
 func Rebuild(h data.ReplayHistory, m checkpoint.RecoveryBinding, c *Cache, validate func(data.EffectRecord) error) (Image, bool, error) {
 	i, err := Genesis(h.Creation)
-	if err != nil || m.Validate() != nil || m.Session.SessionID != i.Binding.Session || m.Workspace != i.Binding.Workspace || m.Session.DependencyLock != i.Binding.GraphHash || h.Creation.ArtifactsHash != m.ArtifactsHash || h.Creation.SchemaHash != m.StateSchema {
+	if err != nil || m.Validate() != nil || m.Session.SessionID != i.Binding.Session || m.Workspace != i.Binding.Workspace {
+		return Image{}, false, eventstore.ErrHistory
+	}
+	if h.OriginLock == nil {
+		if m.Session.DependencyLock != i.Binding.GraphHash || h.Creation.ArtifactsHash != m.ArtifactsHash || h.Creation.SchemaHash != m.StateSchema {
+			return Image{}, false, eventstore.ErrHistory
+		}
+	} else if data.ValidateSessionLock(*h.OriginLock) != nil || h.OriginLock.GraphHash != i.Binding.GraphHash || checkpoint.Hash(h.OriginLock.ArtifactSet) != h.Creation.ArtifactsHash {
 		return Image{}, false, eventstore.ErrHistory
 	}
 	accepted := c != nil && Compatible(*c, m, i)
@@ -159,7 +177,7 @@ func Rebuild(h data.ReplayHistory, m checkpoint.RecoveryBinding, c *Cache, valid
 			i = eventstore.Copy(c.Image)
 		}
 	}
-	if i.Version != h.Version || i.Cursor != h.Cursor || i.Ended != h.Ended {
+	if i.Version != h.Version || i.Cursor != h.Cursor || i.Ended != h.Ended || i.Binding.GraphHash != m.Session.DependencyLock || i.StateSchema != m.StateSchema {
 		return Image{}, false, eventstore.ErrHistory
 	}
 	return i, accepted, nil

@@ -104,6 +104,7 @@ func (r *Repository) Bootstrap(ctx context.Context) error {
 		`CREATE SCHEMA IF NOT EXISTS package_install`,
 		`CREATE TABLE IF NOT EXISTS package_install.workspaces (workspace text PRIMARY KEY)`,
 		`CREATE TABLE IF NOT EXISTS package_install.data_targets (workspace text NOT NULL REFERENCES package_install.workspaces, package_id text NOT NULL, state_reference text NOT NULL, PRIMARY KEY (workspace,package_id,state_reference))`,
+		`CREATE TABLE IF NOT EXISTS package_install.history_pins (workspace text NOT NULL REFERENCES package_install.workspaces, session text NOT NULL, identity text NOT NULL, package_id text NOT NULL, PRIMARY KEY(workspace,session,identity))`,
 		`CREATE TABLE IF NOT EXISTS package_install.artifacts (
 		workspace text NOT NULL REFERENCES package_install.workspaces, identity text NOT NULL,
 		package_id text NOT NULL, version text NOT NULL, content_hash text NOT NULL, lock_hash text NOT NULL,
@@ -144,7 +145,7 @@ func (r *Repository) Preflight(ctx context.Context, workspace string, ids []stri
 		return store.ErrDenied
 	}
 	for _, id := range ids {
-		if err := r.options.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM package_install.data_targets WHERE workspace=$1 AND package_id=$2)`, workspace, id).Scan(&exists); err != nil {
+		if err := r.options.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM package_install.data_targets WHERE workspace=$1 AND package_id=$2 UNION ALL SELECT 1 FROM package_install.history_pins WHERE workspace=$1 AND package_id=$2)`, workspace, id).Scan(&exists); err != nil {
 			return err
 		}
 		if exists {
@@ -210,7 +211,7 @@ func (r *Repository) Publish(ctx context.Context, p store.Publication) (store.Re
 	sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].Identity < artifacts[j].Identity })
 	for _, a := range artifacts {
 		var affected bool
-		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM package_install.data_targets WHERE workspace=$1 AND package_id=$2)`, p.Workspace, a.PackageID).Scan(&affected); err != nil {
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM package_install.data_targets WHERE workspace=$1 AND package_id=$2 UNION ALL SELECT 1 FROM package_install.history_pins WHERE workspace=$1 AND package_id=$2)`, p.Workspace, a.PackageID).Scan(&affected); err != nil {
 			return zero, err
 		}
 		if affected {

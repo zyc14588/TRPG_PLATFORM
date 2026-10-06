@@ -92,6 +92,11 @@ func (r *HostRepository) Bootstrap(ctx context.Context) error {
 		`CREATE SCHEMA IF NOT EXISTS host_command`,
 		`CREATE TABLE IF NOT EXISTS host_command.sessions(workspace text NOT NULL,session text NOT NULL,graph_hash text NOT NULL,version bigint NOT NULL CHECK(version>0),state jsonb NOT NULL,schema_hash text NOT NULL,event_sequence bigint NOT NULL DEFAULT 0,PRIMARY KEY(workspace,session))`,
 		`CREATE TABLE IF NOT EXISTS host_command.installed_graphs(workspace text NOT NULL,session text NOT NULL,graph_bytes bytea NOT NULL,PRIMARY KEY(workspace,session),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
+		`CREATE TABLE IF NOT EXISTS host_command.session_locks(workspace text NOT NULL,session text NOT NULL,origin bytea NOT NULL,active bytea NOT NULL,PRIMARY KEY(workspace,session),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
+		`CREATE TABLE IF NOT EXISTS host_command.migration_points(workspace text NOT NULL,session text NOT NULL,point_id text NOT NULL,point bytea NOT NULL,applied_version bigint,restored boolean NOT NULL DEFAULT false,PRIMARY KEY(workspace,session,point_id),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
+		`CREATE TABLE IF NOT EXISTS host_command.migration_stage(workspace text NOT NULL,session text NOT NULL,point_id text NOT NULL,history bytea NOT NULL,state bytea NOT NULL,cache bytea,checkpoint bytea,PRIMARY KEY(workspace,session),FOREIGN KEY(workspace,session,point_id) REFERENCES host_command.migration_points)`,
+		`CREATE TABLE IF NOT EXISTS host_command.migration_documents(workspace text NOT NULL,session text NOT NULL,package_id text NOT NULL,namespace text NOT NULL,key text NOT NULL,schema_hash text NOT NULL,value bytea NOT NULL,command_id text NOT NULL,event_id text NOT NULL,PRIMARY KEY(workspace,session,package_id,namespace,key),FOREIGN KEY(workspace,session) REFERENCES host_command.migration_stage ON DELETE CASCADE)`,
+		`CREATE TABLE IF NOT EXISTS host_command.migration_quantity(workspace text NOT NULL,session text NOT NULL,package_id text NOT NULL,key text NOT NULL,quantity bigint NOT NULL,command_id text NOT NULL,event_id text NOT NULL,PRIMARY KEY(workspace,session,package_id,key),FOREIGN KEY(workspace,session) REFERENCES host_command.migration_stage ON DELETE CASCADE)`,
 		`CREATE TABLE IF NOT EXISTS host_command.creation(workspace text NOT NULL,session text NOT NULL,evidence bytea NOT NULL,PRIMARY KEY(workspace,session),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
 		`CREATE TABLE IF NOT EXISTS host_command.checkpoints(workspace text NOT NULL,session text NOT NULL,cache bytea NOT NULL,PRIMARY KEY(workspace,session),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
 		`CREATE TABLE IF NOT EXISTS host_command.requests(workspace text NOT NULL,session text NOT NULL,command_id text NOT NULL,principal text NOT NULL,fingerprint text NOT NULL,receipt bytea NOT NULL,PRIMARY KEY(workspace,session,command_id),FOREIGN KEY(workspace,session) REFERENCES host_command.sessions)`,
@@ -279,6 +284,11 @@ func (t *hostTransaction) Commit(ctx context.Context, c data.Commit) (data.Recei
 	var zero data.Receipt
 	if t.closed || t.header.ReadOnly || c.Header != t.header || t.snapshot.Existing != nil || c.SchemaHash != t.snapshot.SchemaHash || checkpoint.Validate(c.State) != nil || checkpoint.Validate(c.Result) != nil || len(c.Events) > 64 || len(c.Rows)+len(c.Quantities) > 128 || len(c.Patches) > 128 || len(c.Tasks) > 32 || len(c.Continuations) > 32 || len(c.Outbox) > 64 || len(c.Audit) > 257 {
 		return zero, data.ErrDenied
+	}
+	for _, q := range c.Quantities {
+		if q.Deleted {
+			return zero, data.ErrDenied
+		}
 	}
 	h := c.Header
 	w, s, id := h.Binding.Workspace, h.Binding.Session, h.CommandID
