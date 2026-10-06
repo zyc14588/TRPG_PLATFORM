@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "ed65d8d8f09da9f185749a15074e74699ef784a2"
+source_commit: "2ded7f258cebec73b70e09c2c76b2c459b2b0a54"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：安全补修进入独立验收
+
+正常PLAN仅将M1-B008 IMPLEMENTING→VERIFYING，plan_version73→74；冻结合同de3b3774294e2f056c04362e996ef40b4c39251c6a63a996fa2cdc2b774c63c6及14字段、其余13批与next15保持，M1 ACTIVE。B009仅FROZEN，不能在B008完成前施工。
+
+精确干净签名业务候选2ded7f258cebec73b70e09c2c76b2c459b2b0a54/treecc46b227694d2fac1ecf96dff9a70e38eeb905a5父必需门禁全部实际通过：1459 related、1408 race、48 Host、24 Session、34 replay、45 migration、21 security顶层与11分类实际775子例，named fail/skip0；check/build/test/ci/vet/license/native/signature/privacy各exit0。712成员父清单SHA5ad1ee64bd774bf686ab57874d64330f6902b9b1c3128f6a3fbb3f7a2c75725b已逐个尺寸hash核验。独立只读精确候选ACCEPT正在进行，未宣告其PASS或发现正式闭合。
+
+保留原ACC-M1-B008-001合成私密诊断FAIL19与Owner明确批准，ed65独立FAIL73/002OPEN，以及8154实际Session诊断负例003/完整测试两case失败及partialFAIL78。新的检查不替换旧FAIL。checkpoint.Value、Token与API返回的*Session普通fmt均使用常量有界脱敏；真正授权与状态JSON字节保持。治理测试夹具单文件dd3补修已独立PASS_GOV_ONLY51，原权限门禁/契约/plan不变，只关闭当时完整测试假定失效，不验收B008业务。所有草稿、读取/字段/编译等助手错误原文原日志保留且资格不变。
+
+父实际观察698 Runner与10 daemon全部signal0=ESRCH，四fixture库其他连接0后已释放独占验收租约；仅本任务f9da隔离服务保持运行配置不变，授权独立验收使用。服务清理/本地主分支接收/最终归档须业务和状态分别独立验收后完成，不提前声称。Linux范围持续，Windows/macOS NOT_RUN，V1总体未完成。原生14批12COMPLETED，12/14≈85.71%，无Owner决策等待。
+
+## 此前状态（保留原文）
 
 ### Linux M1 最终认证原契约冻结（尚未施工）
 
