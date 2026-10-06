@@ -1,10 +1,10 @@
 schema_version: 2
 plan_id: M1-MILESTONE-PLAN
-plan_version: 62
+plan_version: 63
 milestone: M1
 status: ACTIVE
 modifiable_only_in_mode: PLAN
-next_batch_sequence: 14
+next_batch_sequence: 15
 batches:
 - batch_id: M1-B001
   sequence: 1
@@ -535,7 +535,7 @@ batches:
   frozen_contract_sha256: 873d928f833d8c19a84c3c5b16151b780ba7bc95ac2838ac3c6f852e4f549e5e
 - batch_id: M1-B007
   sequence: 7
-  state: IMPLEMENTING
+  state: BLOCKED
   objective: Implement exact Session package locking and safe-boundary package upgrade with isolated rehearsal, atomic migration, and recovery-point rollback.
   non_goals:
   - Providing arbitrary automatic downgrade or a formal backup administration product.
@@ -1260,4 +1260,126 @@ batches:
   parallel_scope_keys: []
   frozen_contract_sha256: 2b2c92ec6524dacdcd5a6cdd7f697f102c425b31fcfd1b308f77f89103ba41a3
 
+- batch_id: M1-B014
+  sequence: 14
+  state: PLANNED
+  objective: Authenticate the complete immutable verified package graph in Host configuration,
+    including passive packages, while retaining script-module origins as the sole
+    callback capability authority.
+  non_goals:
+  - Implementing migration orchestration or modifying the frozen B007/B009 contracts.
+  - Adding public Manifest, Host API or capability semantics, grants, dependencies,
+    trust-key services or platform obligations.
+  - Giving passive content, assets or UI packages a synthetic script module, execution
+    token or implicit capability.
+  requirements:
+  - REQ-LUA-003
+  - REQ-LUA-004
+  - REQ-LUA-006
+  - REQ-PACKAGE-005
+  allowed_scope:
+  - internal/hostapi/command.go
+  - internal/hostapi/*_test.go
+  - internal/luaruntime/vm/host.go
+  - internal/luaruntime/vm/*_test.go
+  - tests/integration/hostapi/**
+  forbidden_scope:
+  - internal/projectctl/**
+  - internal/package/**
+  - internal/session/**
+  - internal/eventstore/**
+  - internal/projection/**
+  - internal/storage/**
+  - cmd/**
+  - apps/**
+  - games/**
+  - deploy/**
+  - docs/**
+  - .codex/**
+  - schemas/**
+  - go.mod
+  - go.sum
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  machine_contracts:
+  - REQ-LUA-003
+  - REQ-LUA-004
+  - REQ-LUA-006
+  - REQ-PACKAGE-005
+  - TEST-LUA-003
+  - TEST-LUA-004
+  - TEST-LUA-006
+  - TEST-PACKAGE-005
+  - R14-A19
+  - R15-A01
+  - R15-A02
+  - R15-A04
+  - R15-A05
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M1
+  - SPEC-M1-ALLOWED
+  - SPEC-M1-FORBIDDEN
+  - SPEC-M1-EXIT
+  - SPEC-M1-LINUX-ACCEPTANCE-SCOPE
+  - SPEC-HOST-CALLBACK-001
+  - SPEC-LUA-RUNTIME-001
+  - SPEC-PACKAGE-001
+  - SPEC-DATA-001
+  - SPEC-SECURITY-001
+  - SPEC-QUALITY-001
+  acceptance:
+  - The VM exposes an owned copy of the complete package hash binding already authenticated
+    during exact graph startup. Mutating that returned copy cannot mutate VM, future
+    bindings, execution tokens or module identities; no new trusted input is accepted.
+  - Host configuration checks its entire supplied package set and hashes against that
+    full immutable graph binding, including game-system, library, content, assets
+    and UI-extension packages without scripts. Missing, extra or hash-substituted
+    packages fail closed before execution.
+  - ModuleBindings continues to be the exclusive authority for actual script origin
+    and callback capability checks. Passive packages acquire no script origin, token
+    or grant; forged module/package origins, required capability denials and default
+    zero authorization remain denied under the existing three-way intersection.
+  - An independently owned five-role fixture using actual signed installation, PostgreSQL
+    and the pinned production Lua runner certifies and reloads a graph whose content/assets/UI
+    packages have no Lua, creates a Host Session and commits a real command. Persisted
+    exact graph evidence, schemas, policies and callback results are validated, and
+    every worker is joined/reaped.
+  - Existing Host atomic commit/rollback, isolation, token binding, audit, resource
+    bounds and package installation regressions, including race, remain passing. No
+    public format, API version, event semantics, dependency, license or frozen completed
+    batch evidence is changed.
+  - Acceptance uses actual named tests and exits on a clean exact signed candidate,
+    preserves the original full-graph quarantine CONFIGURATION_REJECTED failure and
+    receives a separate read-only independent ACCEPT before B007 is resumed. Linux
+    only; Windows/macOS remain NOT_RUN.
+  tests:
+  - 'TEST-LUA-003/TEST-LUA-006: go test -count=1 -json ./internal/hostapi/... ./internal/luaruntime/vm/...
+    ./internal/package/install/... verifies full bindings, copied ownership, module
+    origin and zero-grant rejection plus existing Host behavior.'
+  - 'TEST-LUA-004/TEST-PACKAGE-005: go test -count=1 -tags=integration -json ./tests/integration/hostapi/...
+    uses owned real PostgreSQL and the source-built production runner for passive
+    five-role graph installation, authenticated creation, command execution and exact
+    negative cases.'
+  - go test -race -count=1 -json ./internal/hostapi/... ./internal/luaruntime/vm/...
+    ./internal/package/install/... verifies graph binding ownership and capability
+    isolation.
+  - just check, just test, just ci, just build, go vet ./..., and just license-check
+    pass on the clean signed Linux candidate.
+  stop_conditions:
+  - Stop for an Owner CHANGE if a public format, API, capability, security, license,
+    dependency or platform obligation must change beyond the approved prerequisites
+    proposal.
+  - Stop if Host accepts caller-controlled hashes, ignores a graph member, or authenticates
+    a callback origin solely because that package exists in the complete graph.
+  - Stop if an owned binding copy can mutate VM authority or if a passive package
+    acquires script authority or an implicit grant.
+  - Stop if a fourth code area, the frozen B007/B009 fields or a completed batch must
+    be modified; preserve the original evidence.
+  depends_on:
+  - M1-B004
+  - M1-B013
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
 tombstones: []

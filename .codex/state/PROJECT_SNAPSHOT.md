@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "97bd30377acf41bc7ffa731b428347fa1c2f12d8"
+source_commit: "8a33226af5916cd4a18259450eca123415912075"
 ---
 
 # 项目摘要
+
+## 当前 Linux M1：已批准完整依赖图上游修复
+
+Owner已直接回复“批准”CHANGE-M1-LINUX-MIGRATION-PREREQUISITES（提案SHA256 c67e4f0ef460786dc73537cdb37419a77277108c7b0c1382a7723981082d50c6）。本次正常PLAN v62→v63将B007 IMPLEMENTING→BLOCKED，并只追加未启动的M1-B014，next14→15；原13批次全部14字段合同、已有冻结hash及历史记录保持。B007的12个tracked与17个新文件草稿已按字节/校验和保存到仓库外，当前源不含草稿。两个真实原始FAIL均保留：旧M0迁移目录门禁冲突与无脚本的三类包在Host隔离验证被CONFIGURATION_REJECTED拒绝。
+
+有限治理维护GOV-M1-MIGRATION-PATH-SCOPE-GATE已正常登记并形成签名候选8a33226af5916cd4a18259450eca123415912075，239个实际native regression与239个race均无fail/skip；独立ACCEPT待实际回执，不宣称已通过。B014单一目标是认证VM已验证完整不可变包hash图，ModuleBindings继续独占实际脚本来源与能力授权。不得为被动包加假脚本或授予默认能力，不改变公共格式/API、三层授权交集、零默认授权、事件语义、许可、依赖或其他平台。
+
+原生14批次已有10个COMPLETED，按批次数10/14≈71.43%；这是新增批准前置工作的分母变化，不是工作退步。B014仍PLANNED无业务PASS，须正常冻结/启动、真实五类包PostgreSQL与生产Runner测试、签名精确候选和独立ACCEPT；两项上游修复完成后继续原合同B007，再完成B008/B009直至Linux M1。main仍523e29ced387f581fedc51fc476dea809ac3f025干净；M1 ACTIVE，Windows/macOS NOT_RUN，全V1未完成，无新Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：B007安全迁移施工前置
 
