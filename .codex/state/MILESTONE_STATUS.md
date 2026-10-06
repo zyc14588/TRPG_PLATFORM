@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "129620eb94b55be7f4a4f126b2645f5fd92b62d5"
+source_commit: "0218605d024b91f40c9f3653492a31f13afe049e"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M1：完整依赖图认证修复独立通过
+
+正常 PLAN v66→v67 只将 M1-B014 VERIFYING→COMPLETED，冻结合同 edfd469b5e257551887d06b884d83db27974e64d8635e261c9e8a05fae51dd92、全部14字段、其余13批次和 next15 保持。业务精确签名候选 129620eb94b55be7f4a4f126b2645f5fd92b62d5/tree471dddf51eac8e04f42a71a9f72f0fd6b36a4d04 已取得独立只读 ACCEPT PASS，无 unresolved required finding。父与独立均实际通过 237 相关、237 race、48 真实 PostgreSQL/生产 Runner named用例，named fail/skip 为0；canonical check/test/ci/build/vet/license/signature/native门禁实际0。
+
+独立回执 SHA256 d93a7b8b2db05e22aa74046e95994b2eb6ec77ca342a77bfdb1754ec6ceefe44，证据清单 SHA256 d46c837b399744040abac7e364678cd40a5c97003e4bbc0273e71f6393b3bcb7（225成员）已由父逐个核对长度与hash。B014三次启动与021 VERIFYING状态投影另有 state-only 资格，不冒充业务复测。补充 Schema 测试早期夹具前置失败原日志保留为 INVALID_BOUNDARY_PROOF；修正有效Schema后原4项Host断言实际4/4通过。原B007目录门禁FAIL、Host完整图FAIL、历史buildFAIL和批准前PENDING提案原文保留。
+
+VM提供已认证完整5角色包hash副本，Host校验完整不可变图；ModuleBindings仍独占脚本来源与能力。无Lua被动包没有脚本、token或隐式授权；缺失、多余、替换hash、跨包借用能力和默认零授权均拒绝。治理路径门禁8a33226已独立治理PASS；B007原草稿与冻结3fd98c保持，当前仍BLOCKED，完成本批次状态独立验收、本地主分支接收与精确临时服务清理后正常恢复。
+
+原生14批次11个COMPLETED，按批次数11/14≈78.57%；M1 ACTIVE，Windows/macOS NOT_RUN，全V1未完成。此状态仅记录已取得的B014业务独立PASS；COMPLETED状态投影验收、本地主分支接收及f875c84b临时数据库清理仍待实际完成，不提前声称。无Owner决策等待。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：完整依赖图认证修复待独立验收
 
