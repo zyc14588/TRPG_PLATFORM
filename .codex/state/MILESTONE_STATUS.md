@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "0619aa6d60a9d7f57b8dc5dbf9b11d005a87d64e"
+source_commit: "cde9d7213ea9cc3705d56ec3b92c97ce321f27e5"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B001 独立业务验收通过
+
+正常 PLAN v4→v5 仅将 M2-B001 VERIFYING→COMPLETED；原14字段与冻结418233a32e381a337749524f792a2dc9b210145f452366a2d4fcf549686d1328、其余11批、next13及tombstones保持。M2仍ACTIVE，完成批次1/12≈8.33%；全M2出口未满足，两个REQ只取得基础部分证据。
+
+精确候选cde9d7213ea9cc3705d56ec3b92c97ce321f27e5/tree e20de853279d80dc94df6ffd238c76ec7f9b5065独立只读ACCEPT PASS，无未解决必需发现；实现来源0619aa6d60a9d7f57b8dc5dbf9b11d005a87d64e和437个非state blob/mode保持。实际独立76unit、27ownedSQL、103race及补充5命名事件均PASS、0 fail/skip；5事件为一个父项、三叶项及另一项，不称5个独立叶用例。父check/test/LinuxCI/vet和其他必需验证实际exit0，普通日志秘密命中0。
+
+仓库外independent-business-cde9d72的ACCEPTANCE_RECEIPT摘要db1a21b36bd81a97e6fad2326c00454cecd8d5d2c702e3466bacd71362ec4cb7、131成员清单摘要5aabbfdc20c84c1982354f8a15b9c3ca24b7234222408c7ec79320d1391d56ba均由Root逐项尺寸/hash核对。所有历史FAIL/NOT_RUN及验收助手错误资格保留；SQL租约已实际释放、其他连接0。本COMPLETED投影仍待独立state-only接收、本地主线接收、只清理本任务服务和证据封存；不得提前宣称这些动作完成。
+
+下一批B002仍PLANNED，公开认证/API/Cookie/错误格式没有实施或获批。具体CHANGE-M2-AUTH-API-V1草案及26定义Schema在仓库外m2-auth-api-v1-proposal，DRAFT_NOT_APPROVED；当前不释放B002。Linux范围和已有M1完成资格保持，Windows/macOS业务NOT_RUN，全V1未完成。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B001 候选通过父验证，等待独立验收
 
