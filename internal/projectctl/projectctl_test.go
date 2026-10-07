@@ -1394,6 +1394,176 @@ func writePlatformRouteFixture(t *testing.T, a *App, relative string, data []byt
 	}
 }
 
+func TestApprovedRoomNormativeRoutesAndClosedSources(t *testing.T) {
+	valid := []byte("---\ndocument_id: SPEC-PLATFORM-ROOM-API-V1\nstatus: ACTIVE\n---\nApproved private-room contract.\n")
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		t.Run(mode, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-PLATFORM-ROOM-API-V1"})
+			writePlatformRouteFixture(t, a, platformRoomDocumentPath, valid)
+			paths, err := a.routePaths(testCodexRequest(mode, "M1", "M1-B001"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			count := 0
+			for _, section := range paths.normative {
+				if section.sectionID == "SPEC-PLATFORM-ROOM-API-V1" {
+					count++
+					if section.path != platformRoomDocumentPath {
+						t.Fatal("room document resolved outside its approved path")
+					}
+				}
+			}
+			if count != 1 {
+				t.Fatal("room document did not resolve exactly once")
+			}
+		})
+	}
+	for _, name := range []string{"missing", "unapproved-path", "draft", "wrong-identity", "malformed", "duplicate-metadata", "ambiguous", "symlink"} {
+		t.Run(name, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-PLATFORM-ROOM-API-V1"})
+			if err := os.Remove(filepath.Join(a.root, platformRoomDocumentPath)); err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+			data, path := append([]byte(nil), valid...), platformRoomDocumentPath
+			switch name {
+			case "unapproved-path":
+				path = "docs/20-architecture/UNAPPROVED_ROOM_API.md"
+			case "draft":
+				data = bytes.Replace(data, []byte("status: ACTIVE"), []byte("status: DRAFT"), 1)
+			case "wrong-identity":
+				data = bytes.Replace(data, []byte("document_id: SPEC-PLATFORM-ROOM-API-V1"), []byte("document_id: SPEC-UNAPPROVED"), 1)
+			case "malformed":
+				data = []byte("document_id: SPEC-PLATFORM-ROOM-API-V1\n")
+			case "duplicate-metadata":
+				data = bytes.Replace(data, []byte("status: ACTIVE"), []byte("status: DRAFT\nstatus: ACTIVE"), 1)
+			case "ambiguous":
+				data = append(data, []byte("<a id=\"SPEC-PLATFORM-ROOM-API-V1\"></a>\n")...)
+			case "symlink":
+				target := filepath.Join(t.TempDir(), "approved-looking-room.md")
+				if err := os.WriteFile(target, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(target, filepath.Join(a.root, path)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if name != "missing" && name != "symlink" {
+				writePlatformRouteFixture(t, a, path, data)
+			}
+			if _, err := a.routePaths(testCodexRequest("REPAIR", "M1", "M1-B001")); err == nil {
+				t.Fatal("invalid or unapproved room document accepted")
+			}
+		})
+	}
+}
+
+func roomRouteSchemaFixture() map[string]any {
+	return map[string]any{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"$id":     "urn:trpg-platform:platform-room-api:v1", "x-section-id": platformRoomSchemaID,
+		"x-status": "ACTIVE", "$defs": map[string]any{"Request": map[string]any{"type": "object"}},
+	}
+}
+
+func TestApprovedRoomSchemaFrozenRoutes(t *testing.T) {
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		t.Run(mode, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-LUA-RUNTIME-001"})
+			plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan.Batches[0].MachineContracts = append(plan.Batches[0].MachineContracts, platformRoomSchemaID)
+			plan.Batches[0].FrozenContractSHA256 = mustBatchContractDigest(t, plan.Batches[0])
+			writeFixtureMilestonePlan(t, a, plan)
+			data, _ := json.Marshal(roomRouteSchemaFixture())
+			writePlatformRouteFixture(t, a, platformRoomSchemaPath, data)
+			commitFixturePaths(t, a, "approved room Schema fixture", ".codex/state/MILESTONE_PLAN.yaml", platformRoomSchemaPath)
+			routeMap := generateFixtureBatchRoute(t, a, mode)
+			count := 0
+			for _, section := range routeMap.MachineContracts {
+				if section.SectionID == platformRoomSchemaID {
+					count++
+					if section.Path != platformRoomSchemaPath || section.SHA256 == "" || section.SectionSHA256 == "" {
+						t.Fatal("room Schema content/path not bound")
+					}
+				}
+			}
+			if count != 1 {
+				t.Fatal("room Schema not materialized exactly once")
+			}
+			document := roomRouteSchemaFixture()
+			document["$defs"] = map[string]any{"Unused": map[string]any{"$ref": "#/missing"}}
+			data, _ = json.Marshal(document)
+			writePlatformRouteFixture(t, a, platformRoomSchemaPath, data)
+			if err := a.validateCanonicalReadingMap(routeMap); err == nil {
+				t.Fatal("bound room route accepted invalid unused definition")
+			}
+		})
+	}
+}
+
+func TestRequestedRoomSchemaFailsClosedAndRemainsOptional(t *testing.T) {
+	for _, name := range []string{"missing", "malformed-json", "wrong-section", "draft", "wrong-uri", "wrong-draft", "bad-schema", "missing-definitions", "dangling-definition", "external-reference", "external-unused-definition", "unknown-id", "unapproved-path", "symlink"} {
+		t.Run(name, func(t *testing.T) {
+			a := &App{root: t.TempDir()}
+			document := roomRouteSchemaFixture()
+			id, path := platformRoomSchemaID, platformRoomSchemaPath
+			switch name {
+			case "wrong-section":
+				document["x-section-id"] = platformAuthSchemaID
+			case "draft":
+				document["x-status"] = "DRAFT"
+			case "wrong-uri":
+				document["$id"] = "urn:trpg-platform:platform-auth-api:v1"
+			case "wrong-draft":
+				document["$schema"] = "https://unapproved.invalid/schema"
+			case "bad-schema":
+				document["type"] = 123
+			case "missing-definitions":
+				delete(document, "$defs")
+			case "dangling-definition":
+				document["$defs"] = map[string]any{"Unused": map[string]any{"$ref": "#/missing"}}
+			case "external-reference":
+				document["$ref"] = "https://unapproved.invalid/must-not-load.json"
+			case "external-unused-definition":
+				document["$defs"] = map[string]any{"Unused": map[string]any{"$ref": "https://unapproved.invalid/must-not-load.json"}}
+			case "unknown-id":
+				id = "SCHEMA-PLATFORM-ROOM-API-V2"
+			case "unapproved-path":
+				path = "schemas/platform/unapproved-room.schema.json"
+			}
+			data, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if name == "malformed-json" {
+				data = []byte(`{"x-section-id":`)
+			}
+			if name == "symlink" {
+				writePlatformRouteFixture(t, a, "fixture-schema.json", data)
+				if err := os.MkdirAll(filepath.Dir(filepath.Join(a.root, path)), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(filepath.Join(a.root, "fixture-schema.json"), filepath.Join(a.root, path)); err != nil {
+					t.Fatal(err)
+				}
+			} else if name != "missing" {
+				writePlatformRouteFixture(t, a, path, data)
+			}
+			if _, err := a.requestedSchemaRoutes([]string{id}); err == nil {
+				t.Fatal("invalid or unapproved requested room Schema accepted")
+			}
+		})
+	}
+	a := &App{root: t.TempDir()}
+	writePlatformRouteFixture(t, a, platformRoomSchemaPath, []byte("invalid JSON"))
+	routes, err := a.requestedSchemaRoutes([]string{"REQ-PLAYER-001", "TEST-PLAYER-001", "SCHEMA-CODEX-MILESTONE-PLAN-V2"})
+	if err != nil || len(routes) != 1 || routes[0].sectionID != "SCHEMA-CODEX-MILESTONE-PLAN-V2" {
+		t.Fatal("unrequested room Schema affected existing routing", err)
+	}
+}
+
 func TestBoundedNormativeSectionCatalogCoversAuthorityContracts(t *testing.T) {
 	a := testApp(t)
 	catalog, err := a.normativeSectionCatalog()

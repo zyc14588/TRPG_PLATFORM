@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
+	"gopkg.in/yaml.v3"
 )
 
 var roadmapMilestoneAnchorPattern = regexp.MustCompile(`<a id="SPEC-V1-ROADMAP-(M(?:0|[1-9][0-9]*))"></a>`)
@@ -64,6 +65,11 @@ var normativeSpecificationPaths = []string{
 const platformAuthDocumentPath = "docs/20-architecture/PLATFORM_API.md"
 const platformAuthSchemaPath = "schemas/platform/platform-auth-api-v1.schema.json"
 const platformAuthSchemaID = "SCHEMA-PLATFORM-AUTH-API-V1"
+
+// CHANGE-M2-ROOM-API-V1 adds only these Owner-approved room sources.
+const platformRoomDocumentPath = "docs/20-architecture/ROOM_API.md"
+const platformRoomSchemaPath = "schemas/platform/platform-room-api-v1.schema.json"
+const platformRoomSchemaID = "SCHEMA-PLATFORM-ROOM-API-V1"
 
 type routeSchemaLoader struct{}
 
@@ -269,6 +275,11 @@ func (a *App) requestedSchemaRoutes(identifiers []string) ([]routeSpec, error) {
 			if err := a.validatePlatformRouteSchema(); err != nil {
 				return nil, err
 			}
+		case platformRoomSchemaID:
+			spec = route(platformRoomSchemaPath, identifier, "machine-contract")
+			if err := a.validateRoomRouteSchema(); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, fmt.Errorf("requested Schema %s is not in the approved bounded inventory", identifier)
 		}
@@ -315,6 +326,80 @@ func (a *App) validatePlatformRouteSchema() error {
 		if _, err := compiler.Compile(uri + "#/$defs/" + escape.Replace(name)); err != nil {
 			return fmt.Errorf("compile requested platform Schema definition: %w", err)
 		}
+	}
+	return nil
+}
+
+func (a *App) validateRoomRouteSchema() error {
+	path := filepath.Join(a.root, platformRoomSchemaPath)
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return fmt.Errorf("requested room Schema must be a regular file at its approved path: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read requested room Schema: %w", err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		return fmt.Errorf("decode requested room Schema: %w", err)
+	}
+	if document["x-section-id"] != platformRoomSchemaID || document["x-status"] != "ACTIVE" ||
+		document["$id"] != "urn:trpg-platform:platform-room-api:v1" ||
+		document["$schema"] != "https://json-schema.org/draft/2020-12/schema" {
+		return errors.New("requested room Schema identity, ACTIVE status or draft metadata is invalid")
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.DefaultDraft(jsonschema.Draft2020)
+	compiler.AssertFormat()
+	compiler.UseLoader(routeSchemaLoader{})
+	uri := document["$id"].(string)
+	if err := compiler.AddResource(uri, document); err != nil {
+		return fmt.Errorf("register requested room Schema: %w", err)
+	}
+	if _, err := compiler.Compile(uri); err != nil {
+		return fmt.Errorf("compile requested room Schema: %w", err)
+	}
+	definitions, ok := document["$defs"].(map[string]any)
+	if !ok || len(definitions) == 0 {
+		return errors.New("requested room Schema has no executable definitions")
+	}
+	names := make([]string, 0, len(definitions))
+	for name := range definitions {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	escape := strings.NewReplacer("~", "~0", "/", "~1")
+	for _, name := range names {
+		if _, err := compiler.Compile(uri + "#/$defs/" + escape.Replace(name)); err != nil {
+			return fmt.Errorf("compile requested room Schema definition: %w", err)
+		}
+	}
+	return nil
+}
+
+func (a *App) validateRoomRouteDocument() error {
+	data, err := os.ReadFile(filepath.Join(a.root, platformRoomDocumentPath))
+	if err != nil {
+		return fmt.Errorf("read bounded room API document: %w", err)
+	}
+	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	if len(lines) < 3 || lines[0] != "---" {
+		return errors.New("bounded room API document lacks front matter")
+	}
+	end := 1
+	for end < len(lines) && lines[end] != "---" {
+		end++
+	}
+	if end == len(lines) {
+		return errors.New("bounded room API document has unterminated front matter")
+	}
+	var metadata map[string]any
+	if err := yaml.Unmarshal([]byte(strings.Join(lines[1:end], "\n")), &metadata); err != nil {
+		return fmt.Errorf("decode bounded room API document metadata: %w", err)
+	}
+	if metadata["document_id"] != "SPEC-PLATFORM-ROOM-API-V1" || metadata["status"] != "ACTIVE" {
+		return errors.New("bounded room API document requires its approved identity and ACTIVE status")
 	}
 	return nil
 }
@@ -524,6 +609,17 @@ func (a *App) normativeSectionCatalog() (normativeSectionCatalog, error) {
 		paths = append(paths, platformAuthDocumentPath)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read bounded platform API document: %w", err)
+	}
+	if info, err := os.Lstat(filepath.Join(a.root, platformRoomDocumentPath)); err == nil {
+		if !info.Mode().IsRegular() {
+			return nil, errors.New("bounded room API document must be a regular file at its approved path")
+		}
+		if err := a.validateRoomRouteDocument(); err != nil {
+			return nil, err
+		}
+		paths = append(paths, platformRoomDocumentPath)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("read bounded room API document: %w", err)
 	}
 	roadmap, err := a.loadV1MilestoneCatalog()
 	if err != nil {
