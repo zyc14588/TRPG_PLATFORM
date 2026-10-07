@@ -103,7 +103,7 @@ func (l *launchFixture) recomposeLaunch(t *testing.T, configs []launch.Configura
 }
 func (l *launchFixture) caller(a actor, key string) launch.Caller {
 	v := a.StorageValue()
-	return auth.RoomSecret(launch.CallerData{Credential: v.Cookie, CSRF: v.CSRF, IdempotencyKey: key, Network: v.Network})
+	return auth.RoomSecret(launch.CallerData{Credential: v.Cookie, CSRF: v.CSRF, IdempotencyKey: "b004-request-" + key, Network: v.Network})
 }
 func (l *launchFixture) hostRoom(t *testing.T) (string, string) {
 	t.Helper()
