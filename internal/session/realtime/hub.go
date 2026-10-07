@@ -93,7 +93,15 @@ func (c *Connection) Next(ctx context.Context) (Frame, error) {
 	if ctx == nil || c.closed.Load() {
 		return Frame{}, ErrDisconnected
 	}
+	if err := ctx.Err(); err != nil {
+		return Frame{}, err
+	}
 	if c.hub.options.Authority.VerifyContext(ctx, c.identity) != nil {
+		// Canceling this poll does not revoke its native credential. No frame
+		// is delivered; a later poll still checks the current authority.
+		if err := ctx.Err(); err != nil {
+			return Frame{}, err
+		}
 		c.Close()
 		return Frame{}, command.ErrDenied
 	}
@@ -105,6 +113,9 @@ func (c *Connection) Next(ctx context.Context) (Frame, error) {
 			return Frame{}, ErrDisconnected
 		}
 		p, err := c.hub.options.Authority.PolicyContext(ctx, c.identity)
+		if canceled := ctx.Err(); canceled != nil {
+			return Frame{}, canceled
+		}
 		if err != nil {
 			c.Close()
 			return Frame{}, command.ErrDenied
