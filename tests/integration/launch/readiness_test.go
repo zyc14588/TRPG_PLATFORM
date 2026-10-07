@@ -82,7 +82,14 @@ func TestHostRevocationRejectsLaunchAndPreviouslySuccessfulReceipt(t *testing.T)
 	role(true)
 	_, e = l.start(t, l.owner, r, p.StorageValue().Revision, "host-receipt-before-revocation")
 	need(t, e)
-	role(false)
+	_, e = l.do(t, l.owner, "post-launch-role-attempt", l.request(t, "set_role", l.w, r, part, map[string]any{"role": "host", "enabled": false}))
+	want(t, e, auth.ErrConflict)
+	// The public role operation is lobby-only; inject native revocation to
+	// verify that a successful launch receipt still checks current authority.
+	l.sql(t, `UPDATE platform_room.participants SET host=false WHERE workspace_id='`+l.w+`' AND room_id='`+r+`' AND game_id='game' AND id='`+part+`'`)
+	if l.sql(t, `SELECT count(*) FROM platform_room.participants WHERE workspace_id='`+l.w+`' AND room_id='`+r+`' AND id='`+part+`' AND NOT host`) != "1" {
+		t.Fatal("native Host revocation was not applied")
+	}
 	for _, key := range []string{"host-receipt-before-revocation", "host-new-key-after-revocation"} {
 		_, e = l.start(t, l.owner, r, p.StorageValue().Revision, key)
 		want(t, e, auth.ErrDenied)
