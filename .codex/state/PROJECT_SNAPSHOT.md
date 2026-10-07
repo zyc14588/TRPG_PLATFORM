@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "2ab3c8f108c20880cfbf4e5cb81608dfc4b6eda4"
+source_commit: "87687ae59d0a57a919f89aa3a5520dda6b52561b"
 ---
 
 # 项目摘要
+
+## 当前 M2：正式规划基线
+
+Owner 已批准 CHANGE-M2-PLANNING-ENTRY。控制面补修业务来源 7589256fc9f85fcd91e35d4593363ff5af9efe1b 的259项控制面回归全部PASS、0 fail/skip，check/test/Linux CI/vet实际exit0；待验收来源87687ae59d0a57a919f89aa3a5520dda6b52561b经正式ACCEPT入口及证据核对PASS。Bootstrap-015已永久退休。
+
+本次正常PLAN仅将已完成M1推进到紧邻M2 NOT_GENERATED基线，尚无M2批次。已完成M1 v78、14/14、next15全部字节保存于 .codex/state/completed/M1/MILESTONE_PLAN.yaml，来源500d07dac96460f36b6ae2953ae22d4133dea41a。M1的最终本机接收、任务服务清理和归档闭环已实际完成，最终归档SHA256 fbb9a29641311be88d568fea9bd038422de8ee50ee165870cff12bc0c03830f4；原文历史证据与资格保留。
+
+Linux M1已推送远端 codex/m1-linux-complete，PR #24 OPEN；Linux/macOS基线通过，Windows基线因固定Lua依赖编译失败，main尚未合并。M1 Windows/macOS业务验收仍NOT_RUN；本次M2推进不解决该远端合并决策。
+
+下一步按既有13个M2 REQUIRED需求形成平台批次。账户/工作区/私人房间/模型网关/玩家界面缺少正式实现；SessionActor、事件、投影、重连和权限过滤基础可以在新批次内接入。新增公共协议草案须经CHANGE批准后实施，不宣称已获协议批准。M2业务进度尚未开始，全V1未完成。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M1：M1-B009 独立验收通过
 
