@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -60,6 +61,35 @@ func newSessionRuntime(factory *install.SessionFactory, repo persistence.Reposit
 	return &sessionRuntime{factory: factory, repo: repo, request: q, binding: b, authority: a, recovery: rebuild, duplicate: duplicate}, nil
 }
 func (p *sessionRuntime) Resolve(ctx context.Context, i command.Identity, e command.Envelope) (data.Receipt, bool, error) {
+	callback, err := p.authority.CallbackContext(ctx, i, e)
+	if err != nil {
+		return data.Receipt{}, false, err
+	}
+	if callback == "resume_continuation" {
+		r, err := p.repo.LookupCommand(ctx, i.Binding(), i.Principal(), e.CommandID)
+		if errors.Is(err, data.ErrNotFound) {
+			return data.Receipt{}, false, nil
+		}
+		if err != nil {
+			return data.Receipt{}, false, err
+		}
+		meta := data.EnvelopeMetadata{Seat: e.SeatID, Type: e.Type, Correlation: e.CorrelationID}
+		expected, _ := json.Marshal(persistence.Input(e))
+		saved, _ := json.Marshal(r.Inputs.Command)
+		inputs, err := p.authority.InputsContext(ctx, i, e)
+		if err != nil {
+			return data.Receipt{}, false, err
+		}
+		wanted, _ := json.Marshal(inputs.ToolResults)
+		actual, _ := json.Marshal(r.Inputs.ToolResults)
+		random, _ := json.Marshal(inputs.Random)
+		recorded, _ := json.Marshal(r.Inputs.Random)
+		if r.Header.Binding != i.Binding() || r.Header.Principal != i.Principal() || r.Header.CommandID != e.CommandID || r.Header.ExpectedVersion != e.ExpectedStateVersion || r.Version != e.ExpectedStateVersion+1 || r.Header.ReadOnly || r.Inputs.Callback != callback || r.Inputs.Envelope == nil || *r.Inputs.Envelope != meta || string(expected) != string(saved) || string(wanted) != string(actual) || r.Inputs.Time != inputs.Time || string(random) != string(recorded) {
+			return data.Receipt{}, false, data.ErrConflict
+		}
+		r.Replayed = true
+		return r, true, nil
+	}
 	return p.duplicate.Resolve(ctx, i, e)
 }
 func (p *sessionRuntime) Journal(ctx context.Context, b data.Binding, after uint64, limit int) (data.JournalPage, error) {
@@ -109,11 +139,11 @@ func (e *sessionEngine) Execute(ctx context.Context, i command.Identity, c comma
 	if err != nil {
 		return data.Receipt{}, err
 	}
-	callback := "command"
-	if c.Type == "end" {
-		callback = "on_session_end"
+	callback, err := e.owner.authority.CallbackContext(ctx, i, c)
+	if err != nil {
+		return data.Receipt{}, err
 	}
-	r, err := e.session.Commands.Execute(ctx, e.session.VM.Token(), hostapi.Command{Callback: callback, ID: c.CommandID, Principal: i.Principal(), ExpectedVersion: c.ExpectedStateVersion, Input: persistence.Input(c), Time: inputs.Time, Random: inputs.Random, Envelope: &data.EnvelopeMetadata{Seat: c.SeatID, Type: c.Type, Correlation: c.CorrelationID}})
+	r, err := e.session.Commands.Execute(ctx, e.session.VM.Token(), hostapi.Command{Callback: callback, ID: c.CommandID, Principal: i.Principal(), ExpectedVersion: c.ExpectedStateVersion, Input: persistence.Input(c), Time: inputs.Time, Random: inputs.Random, ToolResults: inputs.ToolResults, Envelope: &data.EnvelopeMetadata{Seat: c.SeatID, Type: c.Type, Correlation: c.CorrelationID}})
 	if err == nil && !r.Replayed {
 		e.version = r.Version
 		e.cursor = r.Cursor

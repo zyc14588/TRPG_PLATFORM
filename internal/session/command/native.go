@@ -15,8 +15,9 @@ import (
 // slot, installed graph and approved package policy. No grant is cached here.
 type NativeResolver func(context.Context) (NativeSeat, error)
 type NativeInputs struct {
-	Time   int64
-	Random []int64
+	Time        int64
+	Random      []int64
+	ToolResults []checkpoint.Value
 }
 type NativeInputSource func(context.Context, Envelope) (NativeInputs, error)
 type NativeSeat struct {
@@ -106,6 +107,9 @@ func (a *Authority) resolveCurrent(ctx context.Context, i Identity) (record, err
 		if e != nil || live.seat.Binding != v.binding || live.seat.Principal != v.principal || live.seat.Seat != v.seat {
 			return record{}, ErrDenied
 		}
+		if r.continuation != nil && (len(live.seat.Commands) != 1 || live.seat.Commands["resume-continuation"] == nil || live.inputs == nil || live.recovery || len(live.seat.Views.ViewFields) != 0 || len(live.seat.Views.ResultFields) != 0 || len(live.seat.Views.EventFields) != 0 || live.seat.Views.ScalarResult) {
+			return record{}, ErrDenied
+		}
 		// The resolver executes outside our lock. Closing/revoking the handle while
 		// its database read is in flight must still invalidate that read's result.
 		d.mu.RLock()
@@ -114,6 +118,7 @@ func (a *Authority) resolveCurrent(ctx context.Context, i Identity) (record, err
 		if !exists || latest.disabled || latest.epoch != v.epoch {
 			return record{}, ErrDenied
 		}
+		live.continuation = r.continuation
 		return live, nil
 	}
 	return r, nil
@@ -165,5 +170,15 @@ func (a *Authority) InputsContext(ctx context.Context, i Identity, e Envelope) (
 		}
 	}
 	v.Random = append([]int64(nil), v.Random...)
+	if len(v.ToolResults) > 1 || r.continuation == nil && len(v.ToolResults) != 0 {
+		return NativeInputs{}, ErrDenied
+	}
+	if r.continuation != nil && (len(v.ToolResults) != 1 || !sameNativeValue(v.ToolResults[0], owned.Payload.Table["result"])) {
+		return NativeInputs{}, ErrDenied
+	}
+	v.ToolResults, err = ownNativeValues(v.ToolResults)
+	if err != nil {
+		return NativeInputs{}, ErrDenied
+	}
 	return v, nil
 }

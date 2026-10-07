@@ -45,12 +45,13 @@ type FixtureSeat struct {
 	Views           ViewPolicy
 }
 type record struct {
-	seat     FixtureSeat
-	epoch    uint64
-	disabled bool
-	current  NativeResolver
-	recovery bool
-	inputs   NativeInputSource
+	seat         FixtureSeat
+	epoch        uint64
+	disabled     bool
+	current      NativeResolver
+	recovery     bool
+	inputs       NativeInputSource
+	continuation *Envelope
 }
 type Authority struct{ data **authorityData }
 type authorityData struct {
@@ -242,6 +243,9 @@ func (a *Authority) ValidateContext(ctx context.Context, i Identity, e Envelope)
 	}
 	validate, ok := s.Commands[e.Type]
 	if !ok {
+		return Envelope{}, ErrDenied
+	}
+	if r.continuation != nil && !sameNativeEnvelope(e, *r.continuation) {
 		return Envelope{}, ErrDenied
 	}
 	raw, err := json.Marshal(e)
