@@ -232,7 +232,21 @@ func TestNativeManagementRoleNeverGrantsAnUnseatedObserver(t *testing.T) {
 	}
 	gm := n.connect(t, n.owner, 0)
 	_ = nextNative(t, n, gm)
-	n.call(t, n.owner, "set_role", n.w, n.room, n.hostPart, map[string]any{"role": "host", "enabled": false})
+	// The public role mutation is lobby-only. Change the trusted persisted
+	// entitlement directly to exercise current checks on a running game.
+	need(t, n.r.Transact(n.ctx, func(tx auth.Transaction) error {
+		rt, e := n.store.Bind(tx.Core())
+		if e != nil {
+			return e
+		}
+		part, e := rt.Participant(n.ctx, scopeFor(n), n.hostPart)
+		if e != nil {
+			return e
+		}
+		v := part.StorageValue()
+		v.Host = false
+		return rt.PutParticipant(n.ctx, auth.RoomSecret(v))
+	}))
 	if _, e := gm.CreateRecoveryPoint(n.ctx); e != auth.ErrDenied {
 		t.Fatal("withdrawn host saved recovery point")
 	}
