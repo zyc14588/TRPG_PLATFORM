@@ -1,0 +1,92 @@
+schema_version: 1
+x-section-id: GOV-M2-PLANNING-ENTRY
+maintenance_id: GOV-M2-PLANNING-ENTRY
+objective:
+- Enable a PLAN route for the consecutive next V1 milestone after the current milestone is COMPLETE, without replanning completed records or allowing future implementation.
+- Bind milestone and governance-maintenance routes to the actual current milestone plan Section ID rather than a fixed M1 identity.
+- Allow an initial NOT_GENERATED milestone planning route to derive its scope document from the existing authoritative roadmap; implementation and generated plans still require the dedicated scope and exit gate.
+reason: >-
+  The owner approved CHANGE-M2-PLANNING-ENTRY and requested continued M2 work.
+  The existing plan lifecycle permits a completed milestone to advance to the next NOT_GENERATED baseline,
+  but route validation prevents entering PLAN for that successor and route materialization fixes the M1 plan identity.
+  M2 also has no dedicated scope document yet; initial planning must be possible before creating that document.
+source_blocker: |-
+  source commit: 500d07dac96460f36b6ae2953ae22d4133dea41a
+  PLAN M2 actual exit 1: milestone M2 is outside the current M1 planning boundary.
+  REPAIR GOV-M2-PLANNING-ENTRY actual exit 1: its governance-maintenance contract does not exist.
+allowed_scope:
+- path: .codex/maintenance/GOV-M2-PLANNING-ENTRY/CONTRACT.yaml
+  section_id: GOV-M2-PLANNING-ENTRY
+  kind: machine-contract
+- path: .codex/routes/PLAN.md
+  section_id: CODEX-ROUTE-PLAN
+  kind: governance-policy
+- path: docs/00-governance/CODEX_PROGRESSIVE_DISCLOSURE.md
+  section_id: SPEC-CODEX-PLAN
+  kind: normative-section
+- path: internal/projectctl/codex.go
+  section_id: PROJECTCTL-CODEX-ROUTING
+  kind: production-code
+- path: internal/projectctl/codex.go
+  section_id: PROJECTCTL-MILESTONE-LIFECYCLE
+  kind: production-code
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-CODEX-CATALOG
+  kind: production-code
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG
+  kind: production-code
+- path: internal/projectctl/codex_maintenance.go
+  section_id: PROJECTCTL-CODEX-MAINTENANCE
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-CODEX-ROUTE-TESTS
+  kind: test
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-MILESTONE-LIFECYCLE-TESTS
+  kind: test
+forbidden_scope:
+- Product or business implementation in this governance-maintenance contract.
+- Modification of the completed M1 plan or allocation of M2 batches in REPAIR or ACCEPT mode.
+- Changes to V1 scope, Lua backend identity, licenses, public Host API, CI required checks, or branch protection.
+- Skipping milestones, advancing an incomplete milestone, or enabling IMPLEMENT without a real frozen batch.
+- Changes to any existing frozen batch contract, acceptance threshold, tombstone, or historical result.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/80-roadmap/V1_MILESTONES.md
+  section_id: SPEC-V1-ROADMAP-M2
+  kind: normative-section
+acceptance:
+- A valid COMPLETE M1 plan allows PLAN M2 while preserving the actual M1 plan Section ID in the route until the PLAN-only transition commits the M2 baseline.
+- Same-milestone PLAN on COMPLETE, unfinished-predecessor PLAN, skipped milestones, historical PLAN, and future IMPLEMENT/ACCEPT/REPAIR fail closed.
+- Before a dedicated successor scope exists, only initial PLAN may use the existing roadmap scope and exit; generated milestone plans and all batch routes require dedicated scope and exit sections.
+- Governance-maintenance routes remain valid after M1-to-M2 transition and bind to the current plan metadata and hashes.
+- M2 scope is resolved from a bounded roadmap-derived path after creation, without reading docs/** or changing M0/M1 normative semantics.
+- Existing plan-mode, frozen-contract, monotonic-ID, Section ID, route-binding, signature, context-profile, schema, and clean-tree gates remain enforced.
+- Targeted control-plane regressions and required Linux repository checks pass; no product implementation or M2 batch is created during maintenance.
+tests:
+- go test ./internal/projectctl
+- just check
+- just test
+- just ci
+- go vet ./...
+- projectctl codex route --mode REPAIR --maintenance GOV-M2-PLANNING-ENTRY
+- projectctl codex route --mode ACCEPT --maintenance GOV-M2-PLANNING-ENTRY
+- projectctl codex route --mode PLAN --milestone M2
+- projectctl codex check
+stop_conditions:
+- Any product implementation, V1 expansion, public-contract change, Lua backend change, or license change.
+- Any need to skip a milestone, reopen COMPLETE history, mutate M1 plan in maintenance, or weaken a required acceptance gate.
+- Invalid Section IDs, unbounded references, stale route, failed schema/binding/signature or required tests.
+- Bootstrap mutation outside creation of this contract, or any reuse of Bootstrap after the formal REPAIR route passes codex check.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-015
+  authorization: 'Owner explicitly approved CHANGE-M2-PLANNING-ENTRY: 批准补齐 M2 入口并继续（推荐）.'
+  allowed_scope:
+  - Create .codex/maintenance/GOV-M2-PLANNING-ENTRY/CONTRACT.yaml on codex/m2-planning from 500d07dac96460f36b6ae2953ae22d4133dea41a and bind a clean signed HEAD to its formal REPAIR route.
+  retirement_condition: A clean-HEAD REPAIR route for GOV-M2-PLANNING-ENTRY passes projectctl codex check; all subsequent changes use formal routes.
+  status: AUTHORIZED_ONCE
+  retirement_evidence: []
+status: ACTIVE
