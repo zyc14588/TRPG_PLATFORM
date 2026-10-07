@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "19a1ff3f7a1f727cc57528ff3ded2326b756d140"
+source_commit: "deaccb0d328670eb72f74f8eeaf108429d3f5c8a"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B006 Linux 持久任务与 Continuation 业务已独立验收，等待最终状态接收
+
+正常 PLAN v26→v27 仅将 M2-B006 VERIFYING→COMPLETED；十四字段冻结摘要 ecc2aaa2407c856c67782016d521acaec564f65d5dd3cd8eb3b9263e6e8ab329 保持，其余十一批、next13、tombstones及M1归档保持。当前Linux M2完成 6/12=50%；Windows/macOS业务NOT_RUN，最终13项证明由B012闭环。
+
+B006在22个冻结范围内源码/测试文件中实现已提交Task/Continuation/Outbox的有界持久任务派发、worker授权与租约、Schema结果校验、结果保存、标准resume_continuation系统命令和现有单一Actor回传。来源以同一事务中的完整不可变历史为准；外部处理期间真实独立SQL NOWAIT探针确认权威行未被锁住。租户、Session、图、配置、当前令牌及版本均重新校验，普通玩家不能选择系统回调。多个Continuation保持原顺序，重复完成只返回匹配的原始回执，完成后的崩溃通过相同Actor与历史恢复；取消、过期、撤销、旧版本以及有界重试均有真实PostgreSQL证据。保护性句柄和稳定错误阻止普通日志/JSON暴露原始任务状态、凭据及私密席位值。
+
+清洁签名业务候选19a1ff3f7a1f727cc57528ff3ded2326b756d140实测单元70/70、专用真实PostgreSQL26/26、race96/96、治理315/315，零失败/跳过；just check、just test、go vet ./...及Linux just ci实际退出0。首次数据库20项失败和just check导入边界失败原样保留，已通过正式REPAIR内两文件修复及对应完整必需重跑关闭。沙箱路由写权限失败、外置夹具目录错误及只读诊断失败均保存实际结果，未计业务PASS；无物理数据库夹具的探针明确非零退出、NOT_RUN且零业务用例/跳过。生产证据在仓库外m2-b006-continuation-platform/BUSINESS_PRODUCER_RECEIPT.json。
+
+提供有界workerd内部类型化工厂和platformd现有Coordinator连接；实际生产守护进程启动仍由B011承担，未在本批提前记为已运行。采用获准合成任务处理器、真实已安装Lua和PostgreSQL验证，没有新增公开HTTP/JSON Schema、Host方法、Lua后端、许可证或依赖，也未修改旧批次测试断言。最终三状态文件变化后上述业务检查明确NOT_RERUN，只能按全部527个非状态blob/mode准确一致继承。
+
+业务候选已由Owner授权的只读独立验收代理实际重跑及源码审查，Root完整回读接收通过，未决必需项为空；证据在ROOT_INDEPENDENT_BUSINESS_RECEPTION.json。最终三文件状态接收、本地主线接收、专属资源清理、封存及普通远端推送尚未完成，需全部通过后按Owner“每批次完工提交远端”继续推进B007。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B006 Linux 持久任务与 Continuation 候选等待独立验收
 
