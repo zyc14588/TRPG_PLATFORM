@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 28
+plan_version: 29
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -452,7 +452,7 @@ batches:
   frozen_contract_sha256: ecc2aaa2407c856c67782016d521acaec564f65d5dd3cd8eb3b9263e6e8ab329
 - batch_id: M2-B007
   sequence: 7
-  state: FROZEN
+  state: IMPLEMENTING
   objective: Implement server credential storage and model configuration/capability bindings for platform routing
     and advanced BYOK.
   non_goals:

@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "6c38575cc765a51bdf7cea5d1006ef461e04cd1d"
+source_commit: "0cbdd6fe1c51593251e41c2bb0d2d085bf105688"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B007 Linux 凭据与模型配置实现启动
+
+正常 PLAN v28→v29 仅调整并冻结/启动尚未开始的 M2-B007，FROZEN→IMPLEMENTING；原生十四字段摘要 769eda90cd775639e349e8a50db1efa908f23835ec6fa4e4666d785f5c914434。其余十一批、next13、tombstones及M1归档保持。Linux M2已完成6/12=50%，本批业务NOT_RUN；其他平台业务NOT_RUN，最终出口由B012闭环。
+
+B006准确最终签名源6c38575cc765a51bdf7cea5d1006ef461e04cd1d通过独立业务与最终复核、Root和本地主线接收；530源码、266业务证据、222最终复核证据完整回读。业务候选deaccb0上的单元70/70、真实SQL26/26、并发96/96、治理315/315及私密导出探针3/3实际通过；最终三状态提交527个非状态blob/mode相同并明确按准确身份继承NOT_RERUN，最终治理315/315实际通过。专用容器、两份凭据及两份释放副本已清理。完成档案SHA256 5f1f4ffa8ac270acf4cbadd93bba0f1c8a8418ad3ada881c325bd7d35c8fefff，1441成员全量回读；远端codex/m2-room-platform已普通推送并核对6c38575，回执SHA256 3352049ecade1c59a0eda2eed918f88cb3ff77404b8c23caef123382463ca65d。首次失败、正式范围内REPAIR、NOT_RUN与外置助手修正证据保持。
+
+B007实现服务器凭据隔离、只读文件主密钥加密或一Session临时凭据、工作区/席位模型配置及完整模型认证组合绑定；访客无长期凭据授权，普通日志、提示、导出不包含原始密钥。认证绑定model/endpoint/adapter/prompt template/tool mode/test version及能力等级和游戏要求，配置变更与撤销须当前授权重校验。复用现有RoomAuthority内部身份事务和launch.ModelChecker接缝，默认拒绝未授权endpoint/adapter。实际生产监听与启动由B011负责；模型预算与调用失败完整出口仍由B008/B012负责，本批不提前关闭REQ-AI-003总体出口。
+
+冻结前依据CODEX-AUTONOMOUS-PLANNING与SPEC-CHANGE-CONTROL-NONTRIGGERS完成内部工程安排：加入cmd/platformd/platform_model*.go类型化组合范围，加入已完成B003/B004/B005为依赖，单元与race检查覆盖既有开局/会话接缝和本批真实SQL集成。目标、V1、公开HTTP/JSON Schema、Host API、固定Lua后端、许可及出口验收门禁保持；三状态路径之外的仓库源码本次未修改。
+
+本批实现与业务测试尚未执行；下一步按新鲜正式路由继续。只有实际触发公共契约、架构、许可、固定后端或冻结目录门禁时准备具体CHANGE交Owner决定。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B007 凭据与模型配置契约冻结
 
