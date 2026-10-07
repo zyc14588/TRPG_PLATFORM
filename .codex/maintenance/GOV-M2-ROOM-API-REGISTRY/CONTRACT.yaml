@@ -1,0 +1,81 @@
+schema_version: 1
+x-section-id: GOV-M2-ROOM-API-REGISTRY
+maintenance_id: GOV-M2-ROOM-API-REGISTRY
+objective:
+- Register only the Owner-approved exact ROOM_API.md and SCHEMA-PLATFORM-ROOM-API-V1
+  in the bounded M2 document/schema inventory.
+- Preserve existing authentication/schema registrations and all unknown/missing/unapproved
+  failure behavior.
+reason: After exact CHANGE-M2-ROOM-API-V1 Owner approval, formal B003 routing needs
+  the concrete room specification and Schema. No business implementation is authorized
+  by maintenance.
+source_blocker: Current bounded catalog supports auth Schema only; new room ID/document
+  must be explicitly registered before formal B003 contract adoption and freeze.
+allowed_scope:
+- path: .codex/maintenance/GOV-M2-ROOM-API-REGISTRY/CONTRACT.yaml
+  section_id: GOV-M2-ROOM-API-REGISTRY
+  kind: machine-contract
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG
+  kind: production-code
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-CODEX-CATALOG
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG-TESTS
+  kind: test
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-CODEX-ROUTE-TESTS
+  kind: test
+forbidden_scope:
+- No business source, public contract contents or unstarted/frozen/completed batch
+  changes during maintenance.
+- No arbitrary docs/schema discovery, dependency or import allowlist expansion, altered
+  license/Lua/M1, gate weakening or other-platform implementation.
+- No modification or reactivation of GOVERNANCE-MAINTENANCE-BOOTSTRAP-016 or its sealed
+  evidence.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-TRIGGERS
+  kind: normative-section
+acceptance:
+- Only exact ROOM_API.md path and platform-room-api-v1.schema.json/SCHEMA-PLATFORM-ROOM-API-V1
+  are added; absent optional document is not loaded until present.
+- Unapproved/DRAFT/missing/malformed/unknown schemas fail closed; compile root and
+  every local definition with external loader denied.
+- Existing auth paths, fixed JSON Schema inventory and REQ/TEST semantics remain compatible;
+  no tree discovery.
+- Normal signed candidate, fresh required controls and independent maintenance ACCEPT
+  pass; current B001/B002 and other M2 contracts/state plus M1 archive remain identical.
+tests:
+- go test -count=1 -json ./internal/projectctl
+- just check
+- just test
+- just ci
+- go vet ./...
+- projectctl codex route --mode REPAIR --maintenance GOV-M2-ROOM-API-REGISTRY
+- projectctl codex route --mode ACCEPT --maintenance GOV-M2-ROOM-API-REGISTRY
+- projectctl codex check
+stop_conditions:
+- Stop for mutations outside the exact three files, unapproved public/schema registration,
+  stale binding or failed required gate.
+- No business or public payload implementation in maintenance; no raw credentials/private
+  state in ordinary logs.
+- If an actual formal self-route deadlock requires one-time registration, create only
+  this exact contract under fixed approved scope and retire immediately after formal
+  REPAIR/check0.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-017
+  authorization: DRAFT; activated only by Owner approval of exact CHANGE-M2-ROOM-API-V1
+    and actual formal route missing-contract failure. Prefer normal PLAN registration
+    if legal.
+  allowed_scope:
+  - Create only .codex/maintenance/GOV-M2-ROOM-API-REGISTRY/CONTRACT.yaml from exact
+    clean signed completed B002 reception; no code edit until formal REPAIR and check0.
+  retirement_condition: Permanent retirement before production edits once actual formal
+    REPAIR/check passes.
+  status: DRAFT_OWNER_DECISION_REQUIRED
+status: ACTIVE
