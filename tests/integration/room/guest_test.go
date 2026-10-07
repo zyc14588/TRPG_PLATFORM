@@ -125,7 +125,7 @@ func TestGuestExchangeRollbackAtEachAtomicWrite(t *testing.T) {
 func TestGuestExchangeUnknownCommitRestartAndRevoke(t *testing.T) {
 	var armed atomic.Bool
 	f := newFixture(t, func(_ context.Context, p string) error {
-		if p == "after-commit" && armed.Swap(false) {
+		if p == "after-commit-unknown" && armed.Swap(false) {
 			return auth.ErrUnavailable
 		}
 		return nil

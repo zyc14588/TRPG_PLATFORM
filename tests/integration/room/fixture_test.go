@@ -157,8 +157,8 @@ func public(t *testing.T, out auth.Outcome) map[string]any {
 }
 
 type actorData struct {
-	ID, CSRF string
-	Cookie   auth.BrowserCredential
+	ID, CSRF, Network string
+	Cookie            auth.BrowserCredential
 }
 type actor = auth.Secret[actorData]
 type fixture struct {
@@ -217,10 +217,11 @@ func (f *fixture) account(t *testing.T) actor {
 }
 func (f *fixture) anonymous(t *testing.T) actor {
 	t.Helper()
-	out, e := f.authority.Authentication().Context(f.ctx, auth.BrowserCredential{}, fmt.Sprintf("network_%d", sequence.Add(1)))
+	network := fmt.Sprintf("network_%d", sequence.Add(1))
+	out, e := f.authority.Authentication().Context(f.ctx, auth.BrowserCredential{}, network)
 	need(t, e)
 	csrf, _ := public(t, out)["csrf_token"].(string)
-	return auth.RoomSecret(actorData{Cookie: out.StorageValue().Cookie, CSRF: csrf})
+	return auth.RoomSecret(actorData{Cookie: out.StorageValue().Cookie, CSRF: csrf, Network: network})
 }
 func (f *fixture) request(t *testing.T, action, w, r, id string, fields map[string]any) room.Request {
 	t.Helper()
@@ -239,7 +240,11 @@ func (f *fixture) request(t *testing.T, action, w, r, id string, fields map[stri
 func (f *fixture) do(t *testing.T, a actor, key string, q room.Request) (auth.Outcome, error) {
 	t.Helper()
 	d := a.StorageValue()
-	return f.rooms.Do(f.ctx, d.Cookie, d.CSRF, key, "owned-network", q)
+	network := d.Network
+	if network == "" {
+		network = "owned-network"
+	}
+	return f.rooms.Do(f.ctx, d.Cookie, d.CSRF, key, network, q)
 }
 func (f *fixture) call(t *testing.T, a actor, action, w, r, id string, fields map[string]any) map[string]any {
 	t.Helper()

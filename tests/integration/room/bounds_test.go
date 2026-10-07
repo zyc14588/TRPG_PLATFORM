@@ -176,7 +176,7 @@ func TestDisabledApplicantApprovalAndLaunchedLobbyMutationsDenied(t *testing.T) 
 func TestRoomReceiptUnknownCommitRestartAndDigestConflict(t *testing.T) {
 	var armed bool
 	f := newFixture(t, func(_ context.Context, p string) error {
-		if armed && p == "after-commit" {
+		if armed && p == "after-commit-unknown" {
 			armed = false
 			return auth.ErrUnavailable
 		}
