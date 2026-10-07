@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "4a211e983730a2084dc77c740f653c6244513cc2"
+source_commit: "4d26990f9430acc0c3ddc9ed343d7ece85e483cf"
 ---
 
 # 项目摘要
+
+## 当前 M2：B004 Linux 开局候选等待独立验收
+
+正常 PLAN v17→v18 仅将 M2-B004 IMPLEMENTING→VERIFYING；原生十四字段冻结摘要 b0169aa4fa66a5eadefa8022478f56d06e2a313c067550c725ee5324e64d7bcb 保持，其余十一批、next13、tombstones及M1归档保持。B001/B002/B003已完成，当前完成仍3/12=25%；本次仅Linux，Windows/macOS业务NOT_RUN，最终13项证明仍由B012闭环。
+
+B004增加15个允许范围内源码/测试文件：复用原有认证、房间、精确包校验与SessionActor，在同一房间事务中检查当前主持权限、包授权/信任、内容同意、必需席位、准备及安全边界，绑定独立Session并保存私有幂等结果；任一条件缺失均拒绝且不留下部分Session。并发启动保持一个权威创建与一个Actor恢复。未提前验收后续席位传输、外部模型网关、生产UI或最终混合玩家闭环；模型证明缺失仍拒绝启动，未新增公开HTTP/JSON/Host API或依赖。
+
+Owner批准 CHANGE-M2-B004-CHECKPOINT-SEAL-ALIAS 的两叶子路径范围例外已实施：仅 internal/luaruntime/checkpoint/checkpoint.go 和 checkpoint_test.go 改为从全新对象解码封存字节，避免调用方共享map被写入；规范化字节、哈希、公开接口及校验/限额保持，M1历史归档不改。新引用隔离测试先在旧实现实际失败；补修后检查点8/8和并发封存通过。授权、具体补丁及原竞态证据均保存在仓库外m2-b004-launch-platform/change-checkpoint-seal-alias。
+
+清洁签名生产方候选4d26990f9430acc0c3ddc9ed343d7ece85e483cf实际验证：开局单元24/24、专用真实PostgreSQL30/30、并发54/54，均零失败/跳过；just check、just test、go vet ./...及Linux just ci实际退出0。ACC-M2-B004-001至005及全部原失败保留；缺少专用数据库的探针明确NOT_RUN、非零退出且无业务通过计数。具体生产证据：仓库外m2-b004-launch-platform/BUSINESS_PRODUCER_RECEIPT_4D26990.json。
+
+独立验收、本地主线接收、清理封存尚未执行，B004不记完成。下一步复用Owner已授权的单一只读独立验收代理，准确核对签名源码、合法ACCEPT路由、两文件批准范围及专用数据库；全部接收通过后方可正常转换为完成。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B004 Linux 开局服务实现启动
 
