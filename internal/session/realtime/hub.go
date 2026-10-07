@@ -54,7 +54,10 @@ func New(o Options) (*Hub, error) {
 	return &Hub{options: o, connections: map[uint64]*Connection{}}, nil
 }
 func (h *Hub) Subscribe(i command.Identity) (*Connection, error) {
-	if h.options.Authority.Verify(i) != nil {
+	return h.SubscribeContext(context.Background(), i)
+}
+func (h *Hub) SubscribeContext(ctx context.Context, i command.Identity) (*Connection, error) {
+	if h.options.Authority.VerifyContext(ctx, i) != nil {
 		return nil, command.ErrDenied
 	}
 	h.mu.Lock()
@@ -81,6 +84,7 @@ func (h *Hub) drop(c *Connection) {
 		c.closed.Store(true)
 		delete(h.connections, c.id)
 		close(c.queue)
+		_ = h.options.Authority.ReleaseNative(c.identity)
 	}
 }
 func (c *Connection) Close()                     { c.hub.mu.Lock(); defer c.hub.mu.Unlock(); c.hub.drop(c) }
@@ -89,7 +93,7 @@ func (c *Connection) Next(ctx context.Context) (Frame, error) {
 	if ctx == nil || c.closed.Load() {
 		return Frame{}, ErrDisconnected
 	}
-	if c.hub.options.Authority.Verify(c.identity) != nil {
+	if c.hub.options.Authority.VerifyContext(ctx, c.identity) != nil {
 		c.Close()
 		return Frame{}, command.ErrDenied
 	}
@@ -100,10 +104,13 @@ func (c *Connection) Next(ctx context.Context) (Frame, error) {
 		if !ok || c.closed.Load() {
 			return Frame{}, ErrDisconnected
 		}
-		if c.hub.options.Authority.Verify(c.identity) != nil {
+		p, err := c.hub.options.Authority.PolicyContext(ctx, c.identity)
+		if err != nil {
 			c.Close()
 			return Frame{}, command.ErrDenied
 		}
+		f.View = Filter(f.View, p.ViewFields)
+		f.Events = FilterEvents(f.Events, p)
 		return f, nil
 	}
 }
@@ -165,10 +172,13 @@ func FilterEvents(events []data.JournalEvent, p command.ViewPolicy) []data.Journ
 	return filtered
 }
 func (h *Hub) Enqueue(c *Connection, f Frame) error {
+	return h.EnqueueContext(context.Background(), c, f)
+}
+func (h *Hub) EnqueueContext(ctx context.Context, c *Connection, f Frame) error {
 	if c == nil || c.hub != h || f.Session != c.identity.Binding().Session || len(f.Events) > 128 || checkpoint.Validate(f.View) != nil {
 		return ErrDisconnected
 	}
-	p, err := h.options.Authority.Policy(c.identity)
+	p, err := h.options.Authority.PolicyContext(ctx, c.identity)
 	if err != nil {
 		c.Close()
 		return err
@@ -208,7 +218,7 @@ func (h *Hub) Publish(ctx context.Context, n outbox.Notification, project func(c
 	h.mu.Unlock()
 	var combined error
 	for _, c := range list {
-		if err := h.options.Authority.Verify(c.identity); err != nil {
+		if err := h.options.Authority.VerifyContext(ctx, c.identity); err != nil {
 			c.Close()
 			continue
 		}
@@ -218,7 +228,7 @@ func (h *Hub) Publish(ctx context.Context, n outbox.Notification, project func(c
 			combined = errors.Join(combined, err)
 			continue
 		}
-		if err = h.Enqueue(c, Frame{Kind: "committed", Session: n.Binding.Session, Version: n.Version, Cursor: n.Cursor, View: view, Events: n.Events}); err != nil {
+		if err = h.EnqueueContext(ctx, c, Frame{Kind: "committed", Session: n.Binding.Session, Version: n.Version, Cursor: n.Cursor, View: view, Events: n.Events}); err != nil {
 			combined = errors.Join(combined, err)
 		}
 	}

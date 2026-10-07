@@ -5,9 +5,12 @@
 package command
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"math"
 	"sync"
 
@@ -45,15 +48,17 @@ type record struct {
 	seat     FixtureSeat
 	epoch    uint64
 	disabled bool
+	current  NativeResolver
+	recovery bool
+	inputs   NativeInputSource
 }
-type Authority struct {
+type Authority struct{ data **authorityData }
+type authorityData struct {
 	mu      sync.RWMutex
 	records map[[32]byte]record
 }
-
-// Identity cannot be constructed by a client or Lua. Revocation is rechecked at
-// execution, reconnect and delivery, including for already queued messages.
-type Identity struct {
+type Identity struct{ data **identityData }
+type identityData struct {
 	authority       *Authority
 	key             [32]byte
 	epoch           uint64
@@ -61,14 +66,50 @@ type Identity struct {
 	principal, seat string
 }
 
-func (i Identity) Binding() data.Binding { return i.binding }
-func (i Identity) Principal() string     { return i.principal }
-func (i Identity) Seat() string          { return i.seat }
+func (a *Authority) state() *authorityData {
+	if a == nil || a.data == nil {
+		return nil
+	}
+	return *a.data
+}
+func (i Identity) state() *identityData {
+	if i.data == nil {
+		return nil
+	}
+	return *i.data
+}
+func (Authority) Format(f fmt.State, _ rune)   { _, _ = io.WriteString(f, "<session authority>") }
+func (Authority) MarshalJSON() ([]byte, error) { return nil, ErrDenied }
+func (Identity) Format(f fmt.State, _ rune)    { _, _ = io.WriteString(f, "<session identity>") }
+func (Identity) MarshalJSON() ([]byte, error)  { return nil, ErrDenied }
+func (i Identity) Binding() data.Binding {
+	if i.state() == nil {
+		return data.Binding{}
+	}
+	return i.state().binding
+}
+func (i Identity) Principal() string {
+	if i.state() == nil {
+		return ""
+	}
+	return i.state().principal
+}
+func (i Identity) Seat() string {
+	if i.state() == nil {
+		return ""
+	}
+	return i.state().seat
+}
+func issued(a *Authority, key [32]byte, r record) Identity {
+	v := &identityData{authority: a, key: key, epoch: r.epoch, binding: r.seat.Binding, principal: r.seat.Principal, seat: r.seat.Seat}
+	return Identity{data: &v}
+}
 func NewFixtureAuthority(seats []FixtureSeat) (*Authority, error) {
 	if len(seats) < 1 || len(seats) > 256 {
 		return nil, ErrDenied
 	}
-	a := &Authority{records: map[[32]byte]record{}}
+	d := &authorityData{records: map[[32]byte]record{}}
+	a := &Authority{data: &d}
 	seatsSeen := map[string]bool{}
 	for _, s := range seats {
 		if len(s.Credential) < 24 || len(s.Credential) > 256 || !store.ValidID(s.Binding.Workspace) || !store.ValidID(s.Binding.Session) || !checkpoint.IsDigest(s.Binding.GraphHash) || !store.ValidID(s.Principal) || !store.ValidID(s.Seat) || len(s.Commands) > 32 {
@@ -80,7 +121,7 @@ func NewFixtureAuthority(seats []FixtureSeat) (*Authority, error) {
 		}
 		seatsSeen[seatKey] = true
 		key := sha256.Sum256([]byte(s.Credential))
-		if _, ok := a.records[key]; ok {
+		if _, ok := a.state().records[key]; ok {
 			return nil, ErrDenied
 		}
 		commands := map[string]func(checkpoint.Value) error{}
@@ -97,7 +138,7 @@ func NewFixtureAuthority(seats []FixtureSeat) (*Authority, error) {
 		s.Commands = commands
 		s.Views = views
 		s.Credential = ""
-		a.records[key] = record{seat: s, epoch: 1}
+		a.state().records[key] = record{seat: s, epoch: 1}
 	}
 	return a, nil
 }
@@ -132,52 +173,52 @@ func copyPolicy(p ViewPolicy) (ViewPolicy, error) {
 	return q, nil
 }
 func (a *Authority) Authenticate(credential, session, seat string) (Identity, error) {
-	if a == nil || len(credential) > 256 {
+	if a.state() == nil || len(credential) > 256 {
 		return Identity{}, ErrDenied
 	}
 	key := sha256.Sum256([]byte(credential))
-	a.mu.RLock()
-	r, ok := a.records[key]
-	a.mu.RUnlock()
-	if !ok || r.disabled || r.seat.Binding.Session != session || r.seat.Seat != seat {
+	d := a.state()
+	d.mu.RLock()
+	r, ok := d.records[key]
+	d.mu.RUnlock()
+	if !ok || r.disabled || r.current != nil || r.seat.Binding.Session != session || r.seat.Seat != seat {
 		return Identity{}, ErrDenied
 	}
-	return Identity{authority: a, key: key, epoch: r.epoch, binding: r.seat.Binding, principal: r.seat.Principal, seat: r.seat.Seat}, nil
+	return issued(a, key, r), nil
 }
 func (a *Authority) resolve(i Identity) (FixtureSeat, error) {
-	if a == nil || i.authority != a {
-		return FixtureSeat{}, ErrDenied
-	}
-	a.mu.RLock()
-	r, ok := a.records[i.key]
-	a.mu.RUnlock()
-	if !ok || r.disabled || r.epoch != i.epoch || r.seat.Binding != i.binding || r.seat.Principal != i.principal || r.seat.Seat != i.seat {
-		return FixtureSeat{}, ErrDenied
-	}
-	return r.seat, nil
+	r, e := a.resolveCurrent(context.Background(), i)
+	return r.seat, e
 }
-func (a *Authority) Verify(i Identity) error { _, err := a.resolve(i); return err }
+func (a *Authority) Verify(i Identity) error { return a.VerifyContext(context.Background(), i) }
+func (a *Authority) VerifyContext(ctx context.Context, i Identity) error {
+	_, e := a.resolveCurrent(ctx, i)
+	return e
+}
 func (a *Authority) Policy(i Identity) (ViewPolicy, error) {
-	s, err := a.resolve(i)
-	if err != nil {
-		return ViewPolicy{}, err
+	return a.PolicyContext(context.Background(), i)
+}
+func (a *Authority) PolicyContext(ctx context.Context, i Identity) (ViewPolicy, error) {
+	r, e := a.resolveCurrent(ctx, i)
+	if e != nil {
+		return ViewPolicy{}, e
 	}
-	return copyPolicy(s.Views)
+	return copyPolicy(r.seat.Views)
 }
 func (a *Authority) Revoke(credential string) error {
-	if a == nil || len(credential) > 256 {
+	if a.state() == nil || len(credential) > 256 {
 		return ErrDenied
 	}
 	key := sha256.Sum256([]byte(credential))
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	r, ok := a.records[key]
+	a.state().mu.Lock()
+	defer a.state().mu.Unlock()
+	r, ok := a.state().records[key]
 	if !ok {
 		return ErrDenied
 	}
 	r.disabled = true
 	r.epoch++
-	a.records[key] = r
+	a.state().records[key] = r
 	return nil
 }
 func Decode(raw []byte) (Envelope, error) {
@@ -188,7 +229,11 @@ func Decode(raw []byte) (Envelope, error) {
 	return e, nil
 }
 func (a *Authority) Validate(i Identity, e Envelope) (Envelope, error) {
-	s, err := a.resolve(i)
+	return a.ValidateContext(context.Background(), i, e)
+}
+func (a *Authority) ValidateContext(ctx context.Context, i Identity, e Envelope) (Envelope, error) {
+	r, err := a.resolveCurrent(ctx, i)
+	s := r.seat
 	if err != nil {
 		return Envelope{}, err
 	}

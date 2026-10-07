@@ -12,7 +12,6 @@ import (
 	"github.com/zyc14588/TRPG_PLATFORM/internal/platform/auth"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/session/actor"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/session/command"
-	"github.com/zyc14588/TRPG_PLATFORM/internal/session/persistence"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/session/realtime"
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 	"io"
@@ -35,9 +34,11 @@ type coordinatorData struct {
 	closed  bool
 }
 type activation struct {
-	binding  data.Binding
-	registry *actor.Registry
-	active   bool
+	binding   data.Binding
+	registry  *actor.Registry
+	authority *command.Authority
+	hub       *realtime.Hub
+	active    bool
 }
 type Reservation struct{ data **reservationData }
 type reservationData struct {
@@ -161,7 +162,7 @@ func (c *Coordinator) Activate(ctx context.Context, reserved *Reservation, b dat
 		d.mu.Unlock()
 		return auth.ErrUnavailable
 	}
-	hub, e := realtime.New(realtime.Options{Authority: authority, Capacity: 1, PerSession: 1, Queue: 1})
+	hub, e := realtime.New(realtime.Options{Authority: authority, Capacity: 32, PerSession: 32, Queue: 16})
 	if e != nil {
 		delete(d.entries, bindingKey(b))
 		d.mu.Unlock()
@@ -177,12 +178,7 @@ func (c *Coordinator) Activate(ctx context.Context, reserved *Reservation, b dat
 		d.mu.Unlock()
 		return auth.ErrUnavailable
 	}
-	backend, e := persistence.New(persistence.Options{Factory: factory, Repository: d.storage.RuntimeRepository(), Request: func(wanted data.Binding) (install.SessionRequest, error) {
-		if wanted != b {
-			return install.SessionRequest{}, command.ErrDenied
-		}
-		return q, nil
-	}})
+	backend, e := newSessionRuntime(factory, d.storage.RuntimeRepository(), q, b, authority)
 	if e != nil {
 		hub.Close()
 		delete(d.entries, bindingKey(b))
@@ -197,6 +193,8 @@ func (c *Coordinator) Activate(ctx context.Context, reserved *Reservation, b dat
 		return auth.ErrUnavailable
 	}
 	existing.registry = rg
+	existing.authority = authority
+	existing.hub = hub
 	d.mu.Unlock()
 	// Actual installed graph recovery runs through the existing mailbox. Its
 	// private projection is ignored; an empty view policy permits no fields.

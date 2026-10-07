@@ -69,6 +69,7 @@ type request struct {
 }
 type response struct {
 	receipt data.Receipt
+	point   RecoveryPoint
 	frame   realtime.Frame
 	err     error
 }
@@ -82,7 +83,7 @@ func New(ctx context.Context, o Options) (*Registry, error) {
 }
 func key(b data.Binding) string { return b.Workspace + "/" + b.Session }
 func (r *Registry) dispatch(q request) (response, error) {
-	if q.ctx == nil || r.options.Authority.Verify(q.identity) != nil {
+	if q.ctx == nil || r.options.Authority.VerifyContext(q.ctx, q.identity) != nil {
 		return response{}, command.ErrDenied
 	}
 	if err := q.ctx.Err(); err != nil {
@@ -132,7 +133,7 @@ func (r *Registry) dispatch(q request) (response, error) {
 	}
 }
 func (r *Registry) Submit(ctx context.Context, i command.Identity, e command.Envelope) (data.Receipt, error) {
-	owned, err := r.options.Authority.Validate(i, e)
+	owned, err := r.options.Authority.ValidateContext(ctx, i, e)
 	if err != nil {
 		return data.Receipt{}, err
 	}
@@ -220,14 +221,14 @@ func (e *entry) safely(q request) (answer response, end bool) {
 	stop := context.AfterFunc(r.ctx, cancel)
 	defer cancel()
 	defer stop()
-	if err := r.options.Authority.Verify(q.identity); err != nil {
+	if err := r.options.Authority.VerifyContext(ctx, q.identity); err != nil {
 		return response{err: err}, false
 	}
 	if err := ctx.Err(); err != nil {
 		return response{err: err}, false
 	}
 	if q.kind == "command" {
-		if _, err := r.options.Authority.Validate(q.identity, q.envelope); err != nil {
+		if _, err := r.options.Authority.ValidateContext(ctx, q.identity, q.envelope); err != nil {
 			return response{err: err}, false
 		}
 		saved, found, err := r.options.Backend.Resolve(ctx, q.identity, q.envelope)
@@ -286,17 +287,25 @@ func (e *entry) safely(q request) (answer response, end bool) {
 			_ = e.closeEngine()
 			return response{err: err}, false
 		}
-		policy, err := r.options.Authority.Policy(q.identity)
+		policy, err := r.options.Authority.PolicyContext(ctx, q.identity)
 		if err != nil {
 			return response{err: err}, false
 		}
 		frame := realtime.Frame{Kind: "reconnect", Session: e.binding.Session, Version: page.Version, Cursor: page.Cursor, View: realtime.Filter(view, policy.ViewFields), Events: realtime.FilterEvents(page.Events, policy)}
 		if q.connection != nil {
-			if err = r.options.Hub.Enqueue(q.connection, frame); err != nil {
+			if err = r.options.Hub.EnqueueContext(ctx, q.connection, frame); err != nil {
 				return response{err: err}, false
 			}
 		}
 		return response{frame: frame}, false
+	case "recovery-point":
+		if err := r.options.Authority.CheckRecoveryPoint(ctx, q.identity); err != nil {
+			return response{err: err}, false
+		}
+		point := RecoveryPoint{Version: e.engine.Version(), Cursor: e.engine.Cursor()}
+		err := e.engine.Checkpoint(ctx)
+		closeErr := e.closeEngine()
+		return response{point: point, err: errors.Join(err, closeErr)}, false
 	case "sleep":
 		err := e.engine.Checkpoint(ctx)
 		closeErr := e.closeEngine()
