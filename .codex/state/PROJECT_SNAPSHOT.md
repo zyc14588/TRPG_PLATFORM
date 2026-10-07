@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "a3fcf9225fe8270717c403f7fd1e8c14cb8ae325"
+source_commit: "5ef36cd3936d266a51f62b9501cd053d80fea29b"
 ---
 
 # 项目摘要
+
+## 当前 M2：B002 Linux 认证实现启动
+
+正常 PLAN v7→v8 仅将 M2-B002 FROZEN→IMPLEMENTING；批准的14字段契约由原生 Go 摘要校验并保持，其余11批、next13、tombstones及M1归档保持。B001已完成并清理/封存，当前完成仍1/12≈8.33%，没有认证业务 PASS。
+
+按 Owner 已批准 CHANGE-M2-AUTH-API-V1 实现版本化 Linux HTTPS 接口、局部账户/安全会话、单局访客认领、显式 SQL 原子提交及重试撤权检查；访客兑换在可信房间入场验证器缺席时拒绝。限当前冻结范围，不放宽公共字段或密码参数。最终13项需求仍待B012。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B002 认证契约冻结
 
