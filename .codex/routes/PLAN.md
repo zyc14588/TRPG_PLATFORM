@@ -5,7 +5,7 @@ document_kind: mode-policy
 mode: PLAN
 authority: governance-policy
 status: ACTIVE
-source_commit: "936324365c39d118ac7d5c7401db626f2aad0644"
+source_commit: "7589256fc9f85fcd91e35d4593363ff5af9efe1b"
 ---
 
 # PLAN 模式

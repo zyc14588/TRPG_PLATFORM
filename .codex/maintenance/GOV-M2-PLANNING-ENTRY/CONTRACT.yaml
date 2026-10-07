@@ -121,4 +121,4 @@ bootstrap:
   retirement_evidence:
   - Formal REPAIR GOV-M2-PLANNING-ENTRY route generated at signed commit ab2d0e0cd0bb957befcf2c4bdecb98f2a525d456 with actual exit 0.
   - projectctl codex check passed at that source with actual exit 0; Bootstrap permanently retired before production-code changes.
-status: ACTIVE
+status: READY_FOR_ACCEPTANCE
