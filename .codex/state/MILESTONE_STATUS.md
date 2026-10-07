@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "f4d7a91e8e1ade88fc777152ca656671319da58a"
+source_commit: "0619aa6d60a9d7f57b8dc5dbf9b11d005a87d64e"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B001 候选通过父验证，等待独立验收
+
+正常 PLAN v3→v4 仅将 M2-B001 IMPLEMENTING→VERIFYING；原14字段、冻结418233a32e381a337749524f792a2dc9b210145f452366a2d4fcf549686d1328、其余11批、next13及tombstones保持。完成仍0/12，不提前宣称独立PASS。
+
+干净签名候选0619aa6d60a9d7f57b8dc5dbf9b11d005a87d64e实际通过76单元、27独占PostgreSQL、103竞态用例，named fail/skip均0；check/test/Linux CI/vet全部实际exit0，日志秘密命中0。六个业务路径均在冻结允许范围，完成M1归档逐字节保持。父证据在仓库外m2-b001-platform-core/PARENT_VALIDATION_0619AA6.json；只构成REQ-DATA-002/REQ-PLAYER-003的基础部分证据。
+
+ACC-M2-B001-001默认沙箱回环连接NOT_RUN和002复测夹具重复标识FAIL均保留；001仅恢复已授权本任务数据库执行权限，002仅单文件加入测试进程随机标识，不清库或削弱断言。准确修复来源已实际复测通过，原失败不改写。签名核对所需旧临时允许签名文件仅按已接受的同一公钥/主体恢复，无新增trust。下一步严格独立只读ACCEPT、状态接收与仅本任务服务清理/证据封存。B002公开认证/API契约仍须具体CHANGE批准。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：启动 B001 内部账户与租户基础
 
