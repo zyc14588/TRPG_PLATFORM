@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 27
+plan_version: 28
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -452,9 +452,9 @@ batches:
   frozen_contract_sha256: ecc2aaa2407c856c67782016d521acaec564f65d5dd3cd8eb3b9263e6e8ab329
 - batch_id: M2-B007
   sequence: 7
-  state: PLANNED
-  objective: Implement server credential storage and model configuration/capability bindings for platform routing and advanced
-    BYOK.
+  state: FROZEN
+  objective: Implement server credential storage and model configuration/capability bindings for platform routing
+    and advanced BYOK.
   non_goals:
   - Central licensing/control-plane dependence, browser-local models or unapproved provider credential formats.
   allowed_scope:
@@ -463,6 +463,7 @@ batches:
   - internal/storage/postgres/platform_model*.go
   - internal/platform/httpapi/model*.go
   - tests/integration/model_config/**
+  - cmd/platformd/platform_model*.go
   forbidden_scope:
   - docs/**
   - .codex/**
@@ -489,28 +490,35 @@ batches:
   - SPEC-DEPLOYMENT-001
   - SPEC-SECURITY-001
   acceptance:
-  - BYOK is encrypted by a read-only-file master key or explicitly temporary for one session; guests cannot store long-term
-    credentials and keys are absent from logs/prompts/exports.
-  - Certification binds model, endpoint, adapter, prompt template, tool mode and test version with capability level and game-specific
-    requirements.
-  - Tenant/seat-scoped configuration and credential access reject cross-workspace use, expired temporary credentials and unapproved
-    endpoint/adapter changes.
+  - BYOK is encrypted by a read-only-file master key or explicitly temporary for one session; guests cannot store
+    long-term credentials and keys are absent from logs/prompts/exports.
+  - Certification binds model, endpoint, adapter, prompt template, tool mode and test version with capability level
+    and game-specific requirements.
+  - Tenant/seat-scoped configuration and credential access reject cross-workspace use, expired temporary credentials
+    and unapproved endpoint/adapter changes.
   tests:
-  - go test -count=1 -json ./internal/ai/credential/... ./internal/ai/model/...
+  - go test -count=1 -json ./internal/ai/credential/... ./internal/ai/model/... ./internal/platform/launch/... ./internal/platform/session/...
+    ./cmd/platformd
   - go test -count=1 -tags integration -json ./tests/integration/model_config/...
+  - go test -count=1 -race -tags integration -json ./internal/ai/credential/... ./internal/ai/model/... ./internal/platform/launch/...
+    ./internal/platform/session/... ./cmd/platformd ./tests/integration/model_config/...
   - just check, just test, go vet ./..., and Linux just ci pass on a clean signed candidate.
   stop_conditions:
-  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate unless
-    its concrete CHANGE has been approved.
-  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen binding,
-    or failed required verification.
+  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate
+    unless its concrete CHANGE has been approved.
+  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen
+    binding, or failed required verification.
   - Do not modify another frozen batch, claim an unexecuted integration as PASS, or skip incomplete dependencies.
   depends_on:
   - M2-B001
   - M2-B002
+  - M2-B003
+  - M2-B004
+  - M2-B005
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
+  frozen_contract_sha256: 769eda90cd775639e349e8a50db1efa908f23835ec6fa4e4666d785f5c914434
 - batch_id: M2-B008
   sequence: 8
   state: PLANNED
