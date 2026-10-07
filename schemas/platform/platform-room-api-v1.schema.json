@@ -1,0 +1,795 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trpg-platform:platform-room-api:v1",
+  "x-section-id": "SCHEMA-PLATFORM-ROOM-API-V1",
+  "x-status": "ACTIVE",
+  "$comment": "SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0",
+  "title": "M2 private room and admission API v1",
+  "$defs": {
+    "CreateRoomRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[^\\x00-\\x1F\\x7F]+$",
+          "allOf": [
+            {
+              "pattern": "\\S"
+            }
+          ]
+        },
+        "game_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        }
+      },
+      "required": [
+        "schema_version",
+        "name",
+        "game_id"
+      ],
+      "additionalProperties": false
+    },
+    "CreateInvitationRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "approval_required": {
+          "type": "boolean"
+        },
+        "expires_in_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 604800
+        },
+        "max_uses": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        }
+      },
+      "required": [
+        "schema_version",
+        "approval_required",
+        "expires_in_seconds",
+        "max_uses"
+      ],
+      "additionalProperties": false
+    },
+    "VersionOnlyRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "schema_version"
+      ],
+      "additionalProperties": false
+    },
+    "AccountLinkAdmissionRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "mode": {
+          "const": "account"
+        },
+        "invite_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      },
+      "required": [
+        "schema_version",
+        "mode",
+        "invite_token"
+      ],
+      "additionalProperties": false
+    },
+    "AccountCodeAdmissionRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "mode": {
+          "const": "account"
+        },
+        "room_code": {
+          "type": "string",
+          "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{16}$"
+        }
+      },
+      "required": [
+        "schema_version",
+        "mode",
+        "room_code"
+      ],
+      "additionalProperties": false
+    },
+    "GuestLinkAdmissionRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "mode": {
+          "const": "guest"
+        },
+        "invite_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[^\\x00-\\x1F\\x7F]+$",
+          "allOf": [
+            {
+              "pattern": "\\S"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "mode",
+        "invite_token",
+        "display_name"
+      ],
+      "additionalProperties": false
+    },
+    "GuestCodeAdmissionRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "mode": {
+          "const": "guest"
+        },
+        "room_code": {
+          "type": "string",
+          "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{16}$"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[^\\x00-\\x1F\\x7F]+$",
+          "allOf": [
+            {
+              "pattern": "\\S"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "mode",
+        "room_code",
+        "display_name"
+      ],
+      "additionalProperties": false
+    },
+    "AdmissionRequest": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AccountLinkAdmissionRequest"
+        },
+        {
+          "$ref": "#/$defs/AccountCodeAdmissionRequest"
+        },
+        {
+          "$ref": "#/$defs/GuestLinkAdmissionRequest"
+        },
+        {
+          "$ref": "#/$defs/GuestCodeAdmissionRequest"
+        }
+      ]
+    },
+    "DecisionRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "decision"
+      ],
+      "additionalProperties": false
+    },
+    "SetRoomRoleRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "role": {
+          "enum": [
+            "administrator",
+            "host"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "role",
+        "enabled"
+      ],
+      "additionalProperties": false
+    },
+    "Participant": {
+      "type": "object",
+      "properties": {
+        "participant_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[^\\x00-\\x1F\\x7F]+$",
+          "allOf": [
+            {
+              "pattern": "\\S"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "account",
+            "guest"
+          ]
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "administrator",
+              "host"
+            ]
+          },
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "participant_id",
+        "display_name",
+        "kind",
+        "roles"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "guest"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "roles": {
+                "items": {
+                  "const": "host"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Room": {
+      "type": "object",
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "room_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "game_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[^\\x00-\\x1F\\x7F]+$",
+          "allOf": [
+            {
+              "pattern": "\\S"
+            }
+          ]
+        },
+        "owner_account_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "state": {
+          "enum": [
+            "lobby",
+            "launched",
+            "closed"
+          ]
+        },
+        "caller_roles": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "owner",
+              "administrator",
+              "host"
+            ]
+          },
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Participant"
+          },
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "workspace_id",
+        "room_id",
+        "game_id",
+        "name",
+        "owner_account_id",
+        "state",
+        "caller_roles",
+        "participants"
+      ],
+      "additionalProperties": false
+    },
+    "Invitation": {
+      "type": "object",
+      "properties": {
+        "invitation_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "approval_required": {
+          "type": "boolean"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "max_uses": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "remaining_uses": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "invitation_id",
+        "approval_required",
+        "expires_at",
+        "max_uses",
+        "remaining_uses",
+        "revoked"
+      ],
+      "additionalProperties": false
+    },
+    "IssuedInvitation": {
+      "type": "object",
+      "properties": {
+        "invitation_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "approval_required": {
+          "type": "boolean"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "max_uses": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "remaining_uses": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "revoked": {
+          "type": "boolean"
+        },
+        "invite_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "room_code": {
+          "type": "string",
+          "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{16}$"
+        }
+      },
+      "required": [
+        "invitation_id",
+        "approval_required",
+        "expires_at",
+        "max_uses",
+        "remaining_uses",
+        "revoked",
+        "invite_token",
+        "room_code"
+      ],
+      "additionalProperties": false
+    },
+    "Admission": {
+      "type": "object",
+      "properties": {
+        "admission_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "room_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "game_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "mode": {
+          "enum": [
+            "account",
+            "guest"
+          ]
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "expired"
+          ]
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[^\\x00-\\x1F\\x7F]+$",
+          "allOf": [
+            {
+              "pattern": "\\S"
+            }
+          ]
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "participant_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "admission_id",
+        "workspace_id",
+        "room_id",
+        "game_id",
+        "mode",
+        "status",
+        "display_name",
+        "expires_at",
+        "participant_id"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "approved"
+              },
+              "mode": {
+                "const": "account"
+              }
+            },
+            "required": [
+              "status",
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "participant_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "participant_id": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "GuestAdmissionToken": {
+      "type": "object",
+      "properties": {
+        "admission_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "admission_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "admission_id",
+        "admission_token",
+        "expires_at"
+      ],
+      "additionalProperties": false
+    },
+    "AdmissionQueue": {
+      "type": "object",
+      "properties": {
+        "admissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Admission"
+          },
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "admissions"
+      ],
+      "additionalProperties": false
+    },
+    "Applied": {
+      "type": "object",
+      "properties": {
+        "applied": {
+          "const": true
+        }
+      },
+      "required": [
+        "applied"
+      ],
+      "additionalProperties": false
+    },
+    "RoomResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "$ref": "#/$defs/Room"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "InvitationResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "$ref": "#/$defs/IssuedInvitation"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "AdmissionResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "$ref": "#/$defs/Admission"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "GuestTokenResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "$ref": "#/$defs/GuestAdmissionToken"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "AdmissionQueueResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "$ref": "#/$defs/AdmissionQueue"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "AppliedResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "$ref": "#/$defs/Applied"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "INVALID_REQUEST",
+                "UNAUTHENTICATED",
+                "DENIED",
+                "CONFLICT",
+                "CLAIM_REQUIRED",
+                "RATE_LIMITED",
+                "UNAVAILABLE",
+                "OUTCOME_UNKNOWN"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

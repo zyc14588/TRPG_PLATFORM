@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "5683689b81b023c2c60795fb4b1eb4b4f858a07d"
+source_commit: "da259979d527bddf4e29a06147bf9e542356ea8a"
 ---
 
 # 项目摘要
+
+## 当前 M2：B003 房间契约已批准，准备冻结
+
+Owner 已批准 CHANGE-M2-ROOM-API-V1。正常 PLAN v10→v11 仅采纳未启动 B003 的十四字段契约，仍为 PLANNED；其余十一批、已完成 B001/B002 的冻结摘要、next13、tombstones、M1归档和全部业务源保持。M2仍ACTIVE，完成2/12≈16.67%；B003房间业务和Windows/macOS业务NOT_RUN，最终13项证明仍由B012闭环。
+
+固定房间文档和Schema按批准草案采用，仅调整ACTIVE/草案标题与批准状态注解，并去除重复frontmatter身份的空标题锚点；第1节起语义正文逐字节相同，Schema全部公共字段/定义/端点结构相同。邀请只授予申请入场资格，房间管理、主持及后续席位控制分别授权，不启动Session或授予私密视图。
+
+GOV-M2-ROOM-API-REGISTRY da25997 已独立治理PASS：315/315/0/0，所有要求实际exit0，93证据成员由父尺寸/hash读回，未解决项为空；本地主线五门禁实际0，已释放临时副本清理及753成员封存完成。Bootstrap017已在代码编辑前永久退役，原FAIL/NOT_RUN和阅读/审计辅助失败资格均保留。B002准确7ede9be的业务/完成状态独立接收、主线接收、任务SQL与秘密文件清理和1271成员最终封存已完成。
+
+下一步正常PLAN冻结并激活B003，再通过新鲜IMPLEMENT路由仅在批准的九类新文件范围实施Linux私人房间/邀请/审批、可信同事务访客兑换及真实SQL验证。未提前声明B003业务或M2出口通过。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B002 Linux 认证基础独立验收通过
 
