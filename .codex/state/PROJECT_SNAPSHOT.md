@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "5ef36cd3936d266a51f62b9501cd053d80fea29b"
+source_commit: "3b13b2749a6ea677142fcbf8d4d2ce21d46e5672"
 ---
 
 # 项目摘要
+
+## 当前 M2：B002 候选通过父验证，等待独立验收
+
+正常 PLAN v8→v9 仅将 M2-B002 IMPLEMENTING→VERIFYING；批准的14字段契约由原生 Go 摘要校验并保持，其余11批、next13、tombstones及M1归档保持。B001已完成并清理/封存，当前完成仍1/12≈8.33%，没有认证业务 PASS。
+
+按 Owner 已批准 CHANGE-M2-AUTH-API-V1 实现版本化 Linux HTTPS 接口、局部账户/安全会话、单局访客认领、显式 SQL 原子提交及重试撤权检查；访客兑换在可信房间入场验证器缺席时拒绝。限当前冻结范围，不放宽公共字段或密码参数。最终13项需求仍待B012。
+
+父业务验证实际在3b13b27通过50单元/契约、31独占SQL及81竞态命名事件，0 fail/skip；check/test/Linux CI/vet全部同来源实际exit0，日志秘密命中0。先前d47115f原授权登记测试五行补修已独立治理PASS、94成员尺寸/hash读回；原两次FAIL及后续NOT_RUN保留，003仅补正文读取时限和等价版本幂等规范化，不改公开字段。下一步独立B002业务/状态验收，不提前宣称完成；cmd/platformd本批只供认证组合接缝，实际服务启动仍待B004/B011。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B002 Linux 认证实现启动
 
