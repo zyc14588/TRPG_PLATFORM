@@ -17,6 +17,7 @@ import (
 	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/object"
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/postgres"
+	"os"
 	"sync"
 	"testing"
 )
@@ -44,7 +45,10 @@ func newLaunchFixture(t *testing.T, fault func(context.Context, string) error) *
 	need(t, e)
 	policy, e := install.NewPolicy(pc)
 	need(t, e)
-	objects, e := object.Open(t.TempDir())
+	objectRoot, stagingRoot := t.TempDir(), t.TempDir()
+	need(t, os.Chmod(objectRoot, 0700))
+	need(t, os.Chmod(stagingRoot, 0700))
+	objects, e := object.Open(objectRoot)
 	need(t, e)
 	t.Cleanup(func() { need(t, objects.Close()) })
 	repo, e := postgres.OpenInstallationRepository(f.ctx, dsn, objects, extension.DefaultSupport, nil)
@@ -64,7 +68,7 @@ func newLaunchFixture(t *testing.T, fault func(context.Context, string) error) *
 		}
 		return nil
 	}
-	i, e := install.New(install.Options{StagingRoot: t.TempDir(), Policy: policy, Access: access, Objects: objects, Repository: repo, Runtime: runtime, Support: extension.DefaultSupport, Observe: func(string) error { return nil }, Execution: observe})
+	i, e := install.New(install.Options{StagingRoot: stagingRoot, Policy: policy, Access: access, Objects: objects, Repository: repo, Runtime: runtime, Support: extension.DefaultSupport, Observe: func(string) error { return nil }, Execution: observe})
 	need(t, e)
 	raw, e := archivefixture.Archive(pkg)
 	need(t, e)
