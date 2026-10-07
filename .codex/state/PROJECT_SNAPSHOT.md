@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "4d26990f9430acc0c3ddc9ed343d7ece85e483cf"
+source_commit: "1bf5c2d8393043a08ff649c6698054df74f7f3e2"
 ---
 
 # 项目摘要
+
+## 当前 M2：B004 Linux 开局业务独立验收通过
+
+正常 PLAN v18→v19 仅将 M2-B004 VERIFYING→COMPLETED；原生十四字段冻结摘要 b0169aa4fa66a5eadefa8022478f56d06e2a313c067550c725ee5324e64d7bcb 保持，其余十一批、next13、tombstones及M1归档保持。M2批次状态完成4/12≈33.33%，B005及后续仍PLANNED；本次仅Linux，Windows/macOS业务NOT_RUN，最终13项证明仍由B012闭环。
+
+B004开局门禁、同事务房间至权威Session绑定、私有幂等结果、未知提交恢复及单Actor恢复通过独立验收：精确包授权/信任、当前主持权限、参与者内容同意、席位、准备、安全边界和模型证明均先检查，缺失条件拒绝且无部分Session；并发重试收敛同一创建。独立候选1bf5c2d8393043a08ff649c6698054df74f7f3e2及494个源码成员完整回读匹配。15个新增业务/测试文件在冻结目录内；Owner批准 CHANGE-M2-B004-CHECKPOINT-SEAL-ALIAS 的 checkpoint.go/checkpoint_test.go 两叶子例外等于批准草案字节；除正常三状态文件和该两叶子补修外旧源码保持。公开Doc/Schema、Host API、依赖和许可未改。
+
+独立实测检查点race 8/8、开局单元24/24、专用真实PostgreSQL30/30、开局并发54/54和治理315/315全部实际通过，零失败/跳过；fresh ACCEPT/原生冻结校验、前向签名、独立边界探针、just check/test、go vet ./...和Linux just ci实际0。Root已回读全部独立证据和源码，未决finding及必需检查为空；验收代理已释放副本及数据库租约，资源保留交Root接收清理。原全部失败、NOT_RUN及辅助审计修正证据保留。明确缺fixture非零退出且不计业务通过。
+
+独立业务接收回执：仓库外m2-b004-launch-platform/ROOT_INDEPENDENT_BUSINESS_RECEPTION.json；生产方、Owner授权与独立验收证据均保留。此状态提交随后仍需准确最终签名源复核、本地主线接收、专用数据库/两份凭据/已释放副本清理和档案完整回读；这些后续步骤尚未执行，不提前声称已通过。后续席位传输、生产UI、外部模型网关和最终混合玩家闭环未提前验收；接收清理完成后继续B005正常PLAN。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B004 Linux 开局候选等待独立验收
 
