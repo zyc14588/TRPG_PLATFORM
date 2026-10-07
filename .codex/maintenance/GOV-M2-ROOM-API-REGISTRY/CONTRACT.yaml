@@ -77,5 +77,5 @@ bootstrap:
     clean signed completed B002 reception; no code edit until formal REPAIR and check0.
   retirement_condition: Permanent retirement before production edits once actual formal
     REPAIR/check passes.
-  status: ACTIVE
+  status: AUTHORIZED_ONCE
 status: ACTIVE
