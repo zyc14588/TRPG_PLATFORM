@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -20,6 +19,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -205,13 +205,56 @@ func (f *fixture) register(t *testing.T, name string) auth.Outcome {
 }
 func (f *fixture) countLogin(t *testing.T, name string) int {
 	t.Helper()
-	db, e := sql.Open("pgx", dsn)
-	need(t, e)
-	defer db.Close()
-	var n int
-	e = db.QueryRowContext(f.ctx, `SELECT count(*) FROM platform_auth.credentials WHERE login_name=$1`, name).Scan(&n)
-	need(t, auth.SafeError(e))
+	n := 0
+	need(t, f.r.Transact(f.ctx, func(tx auth.Transaction) error {
+		_, _, e := tx.Credential(f.ctx, name)
+		if e == auth.ErrDenied {
+			return nil
+		}
+		if e != nil {
+			return e
+		}
+		n = 1
+		return nil
+	}))
 	return n
+}
+func (f *fixture) countAccounts(t *testing.T) int {
+	t.Helper()
+	n := 0
+	need(t, f.r.Transact(f.ctx, func(tx auth.Transaction) error { var e error; n, e = tx.AccountCount(f.ctx); return e }))
+	return n
+}
+func (f *fixture) expireSession(t *testing.T, cookie auth.BrowserCredential, absolute bool) {
+	t.Helper()
+	id := os.Getenv("M2B002_CONTAINER_ID")
+	if len(id) != 64 {
+		t.Fatal("owned PostgreSQL identity missing")
+	}
+	for _, r := range id {
+		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f') {
+			t.Fatal("owned PostgreSQL identity invalid")
+		}
+	}
+	raw, e := exec.CommandContext(f.ctx, "docker", "inspect", "--format", "{{json .Config.Labels}}", id).Output()
+	if e != nil {
+		t.Fatal("owned PostgreSQL label check unavailable")
+	}
+	var labels map[string]string
+	if json.Unmarshal(raw, &labels) != nil || labels["codex.task"] != "01a10c5c-1d16-7a91-8c2f-1909e2af4f43" || labels["codex.batch"] != "M2-B002" || labels["codex.run"] != os.Getenv("M2B002_RUN_ID") {
+		t.Fatal("owned PostgreSQL labels mismatch")
+	}
+	// This test-owned fixed SQL contains only a server-generated token hash.
+	// No password, DSN, raw Cookie, scope input or driver diagnostic is printed.
+	field := "last_seen=clock_timestamp()-interval '31 minutes'"
+	if absolute {
+		field = "expires_at=clock_timestamp()-interval '1 second'"
+	}
+	statement := "UPDATE platform_auth.sessions SET " + field + " WHERE token_hash='" + hashed(cookie.StorageValue()) + "'"
+	command := exec.CommandContext(f.ctx, "docker", "exec", id, "psql", "-U", "m2b002", "-d", "m2_b002_fixture", "-v", "ON_ERROR_STOP=1", "-q", "-c", statement)
+	if _, e := command.CombinedOutput(); e != nil {
+		t.Fatal("owned PostgreSQL expiry fixture failed")
+	}
 }
 
 func TestOperatorSeedClosedRegistrationAndConsumedGrant(t *testing.T) {
@@ -275,15 +318,7 @@ func TestSessionRotationExpiryIdleAndRevocation(t *testing.T) {
 			if kind == "revoked" {
 				need(t, f.s.Revoke(f.ctx, raw))
 			} else {
-				db, e := sql.Open("pgx", dsn)
-				need(t, e)
-				statement := `UPDATE platform_auth.sessions SET last_seen=clock_timestamp()-interval '31 minutes' WHERE token_hash=$1`
-				if kind == "absolute" {
-					statement = `UPDATE platform_auth.sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE token_hash=$1`
-				}
-				_, e = db.ExecContext(f.ctx, statement, hashed(raw.StorageValue()))
-				need(t, auth.SafeError(e))
-				need(t, db.Close())
+				f.expireSession(t, raw, kind == "absolute")
 			}
 			_, e = f.s.Context(f.ctx, raw, f.name)
 			want(t, e, auth.ErrUnauthenticated)
@@ -320,6 +355,7 @@ func TestRegistrationRollbackAndRetry(t *testing.T) {
 			})
 			a := f.anonymous(t)
 			request := f.request(t, "register", "", "", map[string]any{"login_name": f.name, "password": password, "display_name": "Player", "registration_token": f.grant})
+			beforeAccounts := f.countAccounts(t)
 			armed.Store(true)
 			out, e := f.mutate(t, a, "rollback-register-key", request)
 			want(t, e, auth.ErrUnavailable)
@@ -329,6 +365,9 @@ func TestRegistrationRollbackAndRetry(t *testing.T) {
 			armed.Store(false)
 			if f.countLogin(t, f.name) != 0 {
 				t.Fatal("credential survived rollback")
+			}
+			if f.countAccounts(t) != beforeAccounts {
+				t.Fatal("orphan account survived rollback")
 			}
 			out, e = f.mutate(t, a, "rollback-register-key", request)
 			need(t, e)
