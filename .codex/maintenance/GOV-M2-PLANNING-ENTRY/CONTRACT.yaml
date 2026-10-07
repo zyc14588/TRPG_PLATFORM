@@ -50,6 +50,9 @@ allowed_scope:
 - path: internal/projectctl/projectctl_test.go
   section_id: PROJECTCTL-NORMATIVE-CATALOG-TESTS
   kind: test
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-MAINTENANCE-REFERENCE-SCOPE-TESTS
+  kind: test
 - path: .codex/state/completed/M1/MILESTONE_PLAN.yaml
   section_id: M1-MILESTONE-PLAN
   kind: machine-contract

@@ -939,6 +939,11 @@ func TestGovernanceMaintenanceCanonicalProductNormativeProbe(t *testing.T) {
 	a := referenceScopeContractLoaderFixture(t, contract)
 	writeReferenceScopeFixtureFile(t, a.root, productPath, productDocument)
 	writeReferenceScopeFixtureFile(t, a.root, "internal/projectctl/TARGET.go", []byte("// x-section-id: PROJECTCTL-TEST-TARGET\npackage fixture\n"))
+	currentPlan, err := os.ReadFile(filepath.Join(source.root, ".codex/state/MILESTONE_PLAN.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeReferenceScopeFixtureFile(t, a.root, ".codex/state/MILESTONE_PLAN.yaml", currentPlan)
 	if _, err := a.loadGovernanceMaintenanceContract(maintenanceID); err != nil {
 		t.Fatalf("real product normative prerequisite failed contract loading: %v", err)
 	}
