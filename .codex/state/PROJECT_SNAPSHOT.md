@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "7874c528d4dd62d2e6556302ebec6e14e51702d6"
+source_commit: "fb558f746a228dca845b4b012fb54d60b80b4b75"
 ---
 
 # 项目摘要
+
+## 当前 M2：B005 Linux 玩家会话候选等待独立验收
+
+正常 PLAN v21→v22 仅将 M2-B005 IMPLEMENTING→VERIFYING；十四字段冻结摘要 2e84bfc2bd8be65225903896c43c56010dfd14b8c91a64622dac9db538f7a077 保持，其余十一批、next13、tombstones及M1归档保持。当前Linux M2完成仍为4/12≈33.33%；本批未计完成，Windows/macOS业务NOT_RUN，最终13项证明由B012闭环。
+
+B005通过21个冻结范围内源码/测试文件，连接真实平台Cookie、当前房间参与者与人工席位到同一权威SessionActor、命令事务和私密实时队列。命令保留版本、完整载荷及幂等检查；每次执行与交付重新检查服务端身份和包策略。恢复游标、私密视图与待处理动作，重连不重复已提交命令，不将断线人工席位自动交AI。恢复点仅返回当前获准的元数据；四种内部导出策略默认拒绝并按当前权限过滤，原始凭据与其他席位私密状态不进入普通输出；邮箱、订阅和导出分页均有界。使用既有Go/Lua、HostAPI、持久化和历史恢复；未新增公开HTTP/JSON Schema或生产UI接口，后续模型网关与最终混合玩家闭环未提前验收。
+
+Owner批准的 CHANGE-M2-B005-LIVE-AUTH-INSPECTION 精确两文件补修保持原草案字节：internal/platform/auth/room.go 和 room_test.go。内部当前权限检查共享原有Cookie/会话寿命、参与者、CSRF和同一事务；用户入口Do限流及幂等回执保持。原批准签名源码2c54c7358e0dc441773756b76ca056f177f847df实测单元37/37、并发37/37；后续两文件blob完全相同，按准确身份继承并标NOT_RERUN。授权、具体补丁和验证保存于仓库外m2-b005-session-platform/change-live-auth-inspection。
+
+清洁签名生产方候选fb558f746a228dca845b4b012fb54d60b80b4b75实测会话单元61/61、专用真实PostgreSQL18/18、并发79/79，均零失败/跳过；just check、just test、go vet ./...及Linux just ci实际退出0。未使用导入编译失败、测试误用大厅改角接口、沙箱拒绝本地监听以及消息请求取消误释放有效连接的全部原失败保留，并由相应必需检查重跑关闭。缺少物理数据库证明的探针明确NOT_RUN、非零退出且无业务通过计数。生产证据为仓库外m2-b005-session-platform/BUSINESS_PRODUCER_RECEIPT.json。
+
+独立验收、本地主线接收、清理封存尚未执行，B005不记完成。下一步复用Owner已授权的单一只读独立验收代理，准确核对签名源码、正式ACCEPT路由、两文件批准范围及专用数据库；全部接收通过后方可转完成，并按Owner要求普通推送到已确认归属的远端分支。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B005 Linux 玩家会话连接实现启动
 
