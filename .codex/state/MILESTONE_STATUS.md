@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "2fc2d21651c871fc2f14a19cec5dad56e980cfc1"
+source_commit: "4a211e983730a2084dc77c740f653c6244513cc2"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B004 Linux 开局服务实现启动
+
+正常 PLAN v16→v17 仅将 M2-B004 FROZEN→IMPLEMENTING；原生十四字段冻结摘要 b0169aa4fa66a5eadefa8022478f56d06e2a313c067550c725ee5324e64d7bcb，其余十一批、next13、tombstones及M1归档保持。当前Linux M2完成3/12=25%；Windows/macOS业务NOT_RUN，最终13项证明由B012闭环。
+
+B003最终签名候选2fc2d21651c871fc2f14a19cec5dad56e980cfc1及479个源码成员已完成精确独立复核与本地主线接收，独立实测91单元/31真实SQL/122并发/4边界探针及315治理检查通过，零失败/跳过；最终状态提交315治理检查新实测通过，业务通过476个非状态blob/mode一致性继承原实测而未声称重跑。专用数据库、两份凭据和两份已释放副本已精确清理，1382成员Linux完成接收档案完整回读通过。档案SHA256 82c1749f2700deb85eceb16453d89e93b7a986ecb4bf856a02d1109fd0a95064，仓库外m2-b003-linux-final/COMPLETION_RECEIPT.json。未执行M2远端操作，原失败及NOT_RUN记录保持。
+
+B004保持既有批次目标、范围、要求、验收和测试：在内部开局服务及允许的存储/组合接缝复用现有认证、房间、包验证与单一有界SessionActor；先验证精确包依赖/信任、参与者内容同意、席位、权限、必需准备、模型能力与安全边界，任一缺失均拒绝且不得留下部分Session。房间至Session绑定以事务和幂等方式完成。生产入口不新增公开JSON或HTTP契约；后续席位、模型网关、UI和最终混合玩家闭环未提前验收，相关缺失仍拒绝启动。
+
+B004业务验证及独立验收尚未执行，不计新增完成批次。下一步仅依对应新鲜正式路由；若出现真实公共契约/架构/范围或验收门禁变更，先保存具体CHANGE草案并等待Owner决定。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B004 开局条件契约冻结
 
