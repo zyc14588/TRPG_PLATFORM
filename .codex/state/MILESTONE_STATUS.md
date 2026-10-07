@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "3bc558f8dfbef9ea764fe633b04df2debbf893fe"
+source_commit: "649ab4b987f59c0b945650afe0f1d7c414d4a8c7"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B003 Linux 房间实现启动
+
+正常 PLAN v12→v13 仅将 M2-B003 FROZEN→IMPLEMENTING；原生十四字段冻结摘要 ac0127370b92f8d23433bec1dd28c7b9f97b5ef13b00f2874a27a2cd7071c854 保持，其余十一批、next13、tombstones及M1归档保持。B001/B002已完成，当前完成仍2/12≈16.67%；本次仅Linux，Windows/macOS业务NOT_RUN，最终13项证明仍由B012闭环。
+
+按已批准 CHANGE-M2-ROOM-API-V1，在九类允许的新文件内实现私人房间、邀请/审批和可信同事务入场；既有B001/B002源及公开认证契约保持。房间管理、主持和后续席位控制分别授权，邀请只授予入场申请资格。真实启动、席位与模型检查仍由后续批次负责。
+
+治理登记da25997已完成独立接收、本地主线接收、临时副本清理与753成员封存。B003业务尚未验收通过；原失败、NOT_RUN及辅助程序更正记录保留。下一步按当前正式路由执行对应阶段，只有真实检查和独立验收通过才记录业务完成。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B003 房间契约冻结
 
