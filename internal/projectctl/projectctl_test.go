@@ -1291,7 +1291,7 @@ func TestApprovedPlatformSchemaFrozenRoutes(t *testing.T) {
 			plan.Batches[0].MachineContracts = append(plan.Batches[0].MachineContracts, platformAuthSchemaID)
 			plan.Batches[0].FrozenContractSHA256 = mustBatchContractDigest(t, plan.Batches[0])
 			writeFixtureMilestonePlan(t, a, plan)
-			data, _ := json.Marshal(platformRouteSchemaFixture())
+			data, _ := json.MarshalIndent(platformRouteSchemaFixture(), "", "  ")
 			writePlatformRouteFixture(t, a, platformAuthSchemaPath, data)
 			commitFixturePaths(t, a, "approved Schema fixture", ".codex/state/MILESTONE_PLAN.yaml", platformAuthSchemaPath)
 			routeMap := generateFixtureBatchRoute(t, a, mode)
@@ -1310,7 +1310,7 @@ func TestApprovedPlatformSchemaFrozenRoutes(t *testing.T) {
 			// The executable schema is part of canonical checking, including unused definitions.
 			document := platformRouteSchemaFixture()
 			document["$defs"] = map[string]any{"Unused": map[string]any{"$ref": "#/missing"}}
-			data, _ = json.Marshal(document)
+			data, _ = json.MarshalIndent(document, "", "  ")
 			writePlatformRouteFixture(t, a, platformAuthSchemaPath, data)
 			if err := a.validateCanonicalReadingMap(routeMap); err == nil {
 				t.Fatal("existing route accepted a broken approved Schema definition")
