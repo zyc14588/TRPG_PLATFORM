@@ -1,0 +1,292 @@
+[
+  {
+    "schema": "CreateRoomRequest",
+    "valid": true,
+    "data": {
+      "schema_version": 1,
+      "name": "私人房间",
+      "game_id": "test-game"
+    }
+  },
+  {
+    "schema": "CreateInvitationRequest",
+    "valid": true,
+    "data": {
+      "schema_version": 1,
+      "approval_required": true,
+      "expires_in_seconds": 3600,
+      "max_uses": 8
+    }
+  },
+  {
+    "schema": "AdmissionRequest",
+    "valid": true,
+    "data": {
+      "schema_version": 1,
+      "mode": "guest",
+      "room_code": "0123456789ABCDEF",
+      "display_name": "受邀玩家"
+    }
+  },
+  {
+    "schema": "AdmissionRequest",
+    "valid": true,
+    "data": {
+      "schema_version": 1.0,
+      "mode": "account",
+      "invite_token": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+  },
+  {
+    "schema": "AdmissionResponse",
+    "valid": true,
+    "data": {
+      "schema_version": 1,
+      "request_id": "q_1",
+      "data": {
+        "admission_id": "a_1",
+        "workspace_id": "w_1",
+        "room_id": "r_1",
+        "game_id": "test-game",
+        "mode": "guest",
+        "status": "pending",
+        "display_name": "受邀玩家",
+        "expires_at": "2026-10-07T12:00:00Z",
+        "participant_id": null
+      }
+    }
+  },
+  {
+    "schema": "GuestTokenResponse",
+    "valid": true,
+    "data": {
+      "schema_version": 1,
+      "request_id": "q_1",
+      "data": {
+        "admission_id": "a_1",
+        "admission_token": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "expires_at": "2026-10-07T12:00:00Z"
+      }
+    }
+  },
+  {
+    "schema": "RoomResponse",
+    "valid": true,
+    "data": {
+      "schema_version": 1,
+      "request_id": "q_1",
+      "data": {
+        "workspace_id": "w_1",
+        "room_id": "r_1",
+        "game_id": "test-game",
+        "name": "私人房间",
+        "owner_account_id": "owner_1",
+        "state": "lobby",
+        "caller_roles": [
+          "owner"
+        ],
+        "participants": []
+      }
+    }
+  },
+  {
+    "schema": "ErrorResponse",
+    "valid": true,
+    "data": {
+      "schema_version": 1,
+      "request_id": "q_1",
+      "error": {
+        "code": "DENIED",
+        "message": "request denied"
+      }
+    }
+  },
+  {
+    "schema": "CreateRoomRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 2,
+      "name": "房间",
+      "game_id": "test-game"
+    }
+  },
+  {
+    "schema": "CreateRoomRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "name": "房间",
+      "game_id": "test-game",
+      "owner_account_id": "chosen"
+    }
+  },
+  {
+    "schema": "CreateRoomRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "name": "\t",
+      "game_id": "test-game"
+    }
+  },
+  {
+    "schema": "CreateRoomRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "name": "房间\n泄露",
+      "game_id": "test-game"
+    }
+  },
+  {
+    "schema": "CreateRoomRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "name": "房间",
+      "game_id": "test-game"
+    }
+  },
+  {
+    "schema": "AdmissionRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "mode": "guest",
+      "room_code": "0123456789abcdef",
+      "display_name": "玩家"
+    }
+  },
+  {
+    "schema": "AdmissionRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "mode": "account",
+      "invite_token": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "workspace_id": "chosen"
+    }
+  },
+  {
+    "schema": "AdmissionRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "mode": "guest",
+      "invite_token": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "room_code": "0123456789ABCDEF",
+      "display_name": "玩家"
+    }
+  },
+  {
+    "schema": "AdmissionRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "mode": "guest",
+      "invite_token": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+  },
+  {
+    "schema": "CreateInvitationRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "approval_required": false,
+      "expires_in_seconds": 604801,
+      "max_uses": 1
+    }
+  },
+  {
+    "schema": "SetRoomRoleRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "role": "owner",
+      "enabled": true
+    }
+  },
+  {
+    "schema": "SetRoomRoleRequest",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "role": "seat_controller",
+      "enabled": true
+    }
+  },
+  {
+    "schema": "AdmissionResponse",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "request_id": "q_1",
+      "data": {
+        "admission_id": "a_1",
+        "workspace_id": "w_1",
+        "room_id": "r_1",
+        "game_id": "test-game",
+        "mode": "guest",
+        "status": "pending",
+        "display_name": "受邀玩家",
+        "expires_at": "2026-10-07T12:00:00Z",
+        "participant_id": "p_1"
+      }
+    }
+  },
+  {
+    "schema": "AdmissionResponse",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "request_id": "q_1",
+      "data": {
+        "admission_id": "a_1",
+        "workspace_id": "w_1",
+        "room_id": "r_1",
+        "game_id": "test-game",
+        "mode": "guest",
+        "status": "pending",
+        "display_name": "受邀玩家",
+        "expires_at": "not-a-date",
+        "participant_id": null
+      }
+    }
+  },
+  {
+    "schema": "ErrorResponse",
+    "valid": false,
+    "data": {
+      "schema_version": 1,
+      "request_id": "q_1",
+      "error": {
+        "code": "SQL_ERROR",
+        "message": "request denied"
+      }
+    }
+  },
+  {
+    "schema": "Participant",
+    "valid": true,
+    "data": {
+      "participant_id": "p_1",
+      "display_name": "访客",
+      "kind": "guest",
+      "roles": [
+        "host"
+      ]
+    }
+  },
+  {
+    "schema": "Participant",
+    "valid": false,
+    "data": {
+      "participant_id": "p_1",
+      "display_name": "访客",
+      "kind": "guest",
+      "roles": [
+        "administrator"
+      ]
+    }
+  }
+]
