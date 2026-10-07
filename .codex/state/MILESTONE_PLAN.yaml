@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 2
+plan_version: 3
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -8,7 +8,7 @@ next_batch_sequence: 13
 batches:
 - batch_id: M2-B001
   sequence: 1
-  state: FROZEN
+  state: IMPLEMENTING
   objective: Implement the internal relational account/workspace foundation and tenant-scoped permissions, including restricted
     single-game guest principals, for later authenticated platform services.
   non_goals:

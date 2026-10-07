@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "a310510f46cb9901e2b105fa8d61d4804f47e9d4"
+source_commit: "f4d7a91e8e1ade88fc777152ca656671319da58a"
 ---
 
 # 项目摘要
+
+## 当前 M2：启动 B001 内部账户与租户基础
+
+正常 PLAN v2→v3 仅将 M2-B001 FROZEN→IMPLEMENTING；原14字段和冻结摘要 418233a32e381a337749524f792a2dc9b210145f452366a2d4fcf549686d1328、其余11批、next13与tombstones保持。依赖为空、WIP=1，Owner继续M2及Linux范围的授权有效。
+
+正式IMPLEMENT须先通过当前批次路由；仅内部账户/工作区/成员/单局访客关系和权限、显式SQL及本批验证。没有业务候选或业务PASS；完成仍0/12。B002新公共认证/API契约需具体CHANGE批准；本激活不替代该决定。已完成M1和所有历史证据资格保持。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B001 内部基础契约冻结
 
