@@ -251,7 +251,7 @@
         "display_name": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 80,
+          "maxLength": 128,
           "pattern": "^[^\\x00-\\x1F\\x7F]+$",
           "allOf": [
             {
@@ -302,6 +302,9 @@
                 "items": {
                   "const": "host"
                 }
+              },
+              "display_name": {
+                "maxLength": 80
               }
             }
           }
@@ -499,7 +502,7 @@
         "display_name": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 80,
+          "maxLength": 128,
           "pattern": "^[^\\x00-\\x1F\\x7F]+$",
           "allOf": [
             {
@@ -563,6 +566,25 @@
             "properties": {
               "participant_id": {
                 "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "guest"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "display_name": {
+                "maxLength": 80
               }
             }
           }
