@@ -37,13 +37,17 @@ func (*platformLaunchSessionRepository) Format(f fmt.State, _ rune) {
 	_, _ = io.WriteString(f, "<launch session repository>")
 }
 func (*platformLaunchSessionRepository) MarshalJSON() ([]byte, error) { return nil, auth.ErrDenied }
-func (r *platformLaunchSessionRepository) Read(ctx context.Context, h data.Header) (data.Snapshot, error) {
-	v, e := r.state().host.Read(ctx, h)
-	return v, launchRuntimeError(e)
-}
-func (r *platformLaunchSessionRepository) Commit(ctx context.Context, c data.Commit) (data.Receipt, error) {
-	v, e := r.state().host.Commit(ctx, c)
-	return v, launchRuntimeError(e)
+func (r *platformLaunchSessionRepository) Begin(ctx context.Context, h data.Header) (data.Transaction, error) {
+	d := r.state()
+	if d == nil || d.core != nil {
+		return nil, data.ErrDenied
+	}
+	tx, e := d.host.Begin(ctx, h)
+	if e != nil {
+		return nil, launchRuntimeError(e)
+	}
+	v := &platformLaunchHostTxData{tx: tx}
+	return &platformLaunchHostTransaction{data: &v}, nil
 }
 func (r *platformLaunchSessionRepository) ReadGraphSession(ctx context.Context, g *store.Graph, b data.Binding) (data.Snapshot, error) {
 	v, e := r.state().host.ReadGraphSession(ctx, g, b)
@@ -128,4 +132,26 @@ func (r *platformLaunchSessionRepository) ProvisionGraph(ctx context.Context, g 
 		}
 	}
 	return auth.SafeError(d.core.inject(ctx, "launch-after-data-targets"))
+}
+
+type platformLaunchHostTransaction struct{ data **platformLaunchHostTxData }
+type platformLaunchHostTxData struct{ tx data.Transaction }
+
+func (t *platformLaunchHostTransaction) state() *platformLaunchHostTxData {
+	if t == nil || t.data == nil {
+		return nil
+	}
+	return *t.data
+}
+func (platformLaunchHostTransaction) Format(f fmt.State, _ rune) {
+	_, _ = io.WriteString(f, "<launch host transaction>")
+}
+func (platformLaunchHostTransaction) MarshalJSON() ([]byte, error) { return nil, auth.ErrDenied }
+func (t *platformLaunchHostTransaction) Snapshot() data.Snapshot   { return t.state().tx.Snapshot() }
+func (t *platformLaunchHostTransaction) Commit(ctx context.Context, c data.Commit) (data.Receipt, error) {
+	v, e := t.state().tx.Commit(ctx, c)
+	return v, launchRuntimeError(e)
+}
+func (t *platformLaunchHostTransaction) Rollback() error {
+	return launchRuntimeError(t.state().tx.Rollback())
 }
