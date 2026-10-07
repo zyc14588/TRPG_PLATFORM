@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "5005114a50d59ad71a758056fddad2236e7309f0"
+source_commit: "9ea7bca9ef962e88aa7cc6cc5f4e3aadb185085f"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B006 外部任务与 Continuation 契约冻结
+
+正常 PLAN v23→v24 仅调整并冻结/启动尚未开始的 M2-B006，PLANNED→FROZEN；原生十四字段摘要 ecc2aaa2407c856c67782016d521acaec564f65d5dd3cd8eb3b9263e6e8ab329。其余十一批、next13、tombstones及M1归档保持。Linux M2已完成5/12≈41.67%，本批业务NOT_RUN；其他平台业务NOT_RUN，最终出口由B012闭环。
+
+B005准确最终签名源9ea7bca9ef962e88aa7cc6cc5f4e3aadb185085f通过独立最终复核、Root和本地主线接收；511源码、277业务证据、225最终复核证据完整回读。业务候选5005114上的单元61/61、真实SQL18/18、并发79/79和额外导出探针3/3通过，最终三状态提交508非状态blob/mode相同并明确按准确身份继承NOT_RERUN；最终治理315/315实际通过。专用容器、两份凭据及两份释放副本已清理。完成档案SHA256 1b1718541160df2288b58d350ec06439af027a74204ecd9a8542c0c1478f56af，1527成员全量回读；远端codex/m2-room-platform已普通推送并核对9ea7bca，回执SHA256 f5d14a0ed6f2d72252ac8505d5c842b7f256d60f6745e266be39442f495fcaa4。此前Owner批准的两文件认证补修、原失败、NOT_RUN和外置助手修正证据保持。
+
+B006复用已提交的Task、Continuation和Outbox记录；workerd在游戏事务外执行受控外部任务，完成结果以当前租户/Session/任务令牌/状态版本验证后的系统命令进入既有单写Actor，并调用既有标准resume_continuation。任务租约、结果保存、重复完成和提交前后崩溃提供有界重试及可重复恢复证据；旧协程栈不持久化，worker不写游戏权威状态，不在Lua或游戏事务等待外部网络。
+
+冻结前依据CODEX-AUTONOMOUS-PLANNING与SPEC-CHANGE-CONTROL-NONTRIGGERS完成内部工程安排：增加command/envelope.go、command/native*.go、launch/session_bridge_runtime.go和launch/continuation*.go四个接缝范围，增加已完成B005为依赖，并将相关内部命令/开局/会话及两daemon组合纳入单元和并发验证。目标、V1、公开HTTP/JSON Schema、Host API、固定Lua后端、许可及出口验收门禁保持；本批不新增公开接口或改变标准Host方法。三状态路径之外的仓库源码本次未修改。
+
+本批实现与业务测试尚未执行；下一步按新鲜正式路由继续。仅在实际触发公共契约、架构、许可、固定后端或冻结目录门禁时准备具体CHANGE交Owner决定。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B005 Linux 玩家会话业务独立验收通过
 

@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 23
+plan_version: 24
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -381,9 +381,9 @@ batches:
   parallel_scope_keys: []
 - batch_id: M2-B006
   sequence: 6
-  state: PLANNED
-  objective: Implement durable external task and Continuation dispatch/completion through workerd and the standard resume_continuation
-    Actor entry.
+  state: FROZEN
+  objective: Implement durable external task and Continuation dispatch/completion through workerd and the standard
+    resume_continuation Actor entry.
   non_goals:
   - Persisting coroutine stacks, arbitrary worker writes to authoritative state, or unapproved Host API changes.
   allowed_scope:
@@ -393,6 +393,10 @@ batches:
   - cmd/workerd/task*.go
   - cmd/platformd/platform*.go
   - tests/integration/continuation/**
+  - internal/session/command/envelope.go
+  - internal/session/command/native*.go
+  - internal/platform/launch/session_bridge_runtime.go
+  - internal/platform/launch/continuation*.go
   forbidden_scope:
   - docs/**
   - .codex/**
@@ -419,28 +423,33 @@ batches:
   - SPEC-HOST-CALLBACK-001
   - SPEC-DATA-001
   acceptance:
-  - Task and continuation creation commit with authoritative effects before dispatch; no network call runs while the game
-    transaction or Lua execution is waiting.
-  - Completion returns as an authenticated system command with tenant/session/token/version validation, exact-once effective
-    application and bounded retry/lease recovery.
-  - Crash before/after commit, duplicate completion, expired/cancelled task and stale state-version cases produce repeatable
-    recovery evidence.
+  - Task and continuation creation commit with authoritative effects before dispatch; no network call runs while
+    the game transaction or Lua execution is waiting.
+  - Completion returns as an authenticated system command with tenant/session/token/version validation, exact-once
+    effective application and bounded retry/lease recovery.
+  - Crash before/after commit, duplicate completion, expired/cancelled task and stale state-version cases produce
+    repeatable recovery evidence.
   tests:
-  - go test -count=1 -json ./internal/task/...
+  - go test -count=1 -json ./internal/task/... ./internal/session/command/... ./internal/platform/launch/... ./internal/platform/session/...
+    ./cmd/workerd ./cmd/platformd
   - go test -count=1 -tags integration -json ./tests/integration/continuation/...
+  - go test -count=1 -race -tags integration -json ./internal/task/... ./internal/session/command/... ./internal/platform/launch/...
+    ./internal/platform/session/... ./cmd/workerd ./cmd/platformd ./tests/integration/continuation/...
   - just check, just test, go vet ./..., and Linux just ci pass on a clean signed candidate.
   stop_conditions:
-  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate unless
-    its concrete CHANGE has been approved.
-  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen binding,
-    or failed required verification.
+  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate
+    unless its concrete CHANGE has been approved.
+  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen
+    binding, or failed required verification.
   - Do not modify another frozen batch, claim an unexecuted integration as PASS, or skip incomplete dependencies.
   depends_on:
   - M2-B001
   - M2-B004
+  - M2-B005
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
+  frozen_contract_sha256: ecc2aaa2407c856c67782016d521acaec564f65d5dd3cd8eb3b9263e6e8ab329
 - batch_id: M2-B007
   sequence: 7
   state: PLANNED
