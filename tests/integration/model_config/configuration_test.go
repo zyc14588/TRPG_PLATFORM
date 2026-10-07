@@ -185,7 +185,7 @@ func TestGuestRevocationAndClaimInvalidateTemporaryAccess(t *testing.T) {
 				}
 				return tx.Core().ClaimGuest(f.ctx, f.scope, g.StorageValue().ID, f.owner.StorageValue().ID)
 			}))
-			want(t, f.store(t, g, seat, "second", credential.Temporary, time.Now().UTC().Truncate(time.Microsecond).Add(time.Minute)), auth.ErrDenied)
+			want(t, f.store(t, g, seat, "second", credential.Temporary, time.Now().UTC().Truncate(time.Microsecond).Add(time.Minute)), auth.ErrUnauthenticated)
 		})
 	}
 }
@@ -254,7 +254,7 @@ func TestAllSixCertificationChangesInvalidateStoredSelection(t *testing.T) {
 				e.URL = c.Tuple.Endpoint
 				es = append(es, model.NewEndpoint(e))
 			case "adapter":
-				c.Tuple.Adapter = "ollama"
+				c.Tuple.Adapter = "unsupported-adapter"
 				e := f.endpoints[0].StorageValue()
 				e.ID = "other-adapter"
 				e.Adapter = c.Tuple.Adapter
@@ -269,6 +269,11 @@ func TestAllSixCertificationChangesInvalidateStoredSelection(t *testing.T) {
 			case "test-version":
 				c.Tuple.TestVersion = "fixture-v2"
 				c.Games[0].TestVersion = "fixture-v2"
+			}
+			if field == "adapter" {
+				_, e := model.New(model.Options{Authority: f.authority, Rooms: f.rt, Launches: f.lt, Storage: f.mt, Vault: f.vault, Endpoints: es, Certifications: []model.Certification{model.NewCertification(c)}, Defaults: map[string]string{f.scope.WorkspaceID: "default-model"}, WorkspaceLimits: map[string]model.Limits{f.scope.WorkspaceID: limits()}})
+				want(t, e, auth.ErrInvalid)
+				return
 			}
 			changed := f.service(t, es, []model.Certification{model.NewCertification(c)})
 			want(t, f.check(t, changed, f.proof()), auth.ErrDenied)

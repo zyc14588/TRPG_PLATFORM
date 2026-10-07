@@ -111,8 +111,8 @@ type vaultData struct {
 	retained bool
 }
 
-func (*Vault) Format(s fmt.State, _ rune)   { _, _ = io.WriteString(s, "<credential vault>") }
-func (*Vault) MarshalJSON() ([]byte, error) { return nil, auth.ErrDenied }
+func (Vault) Format(s fmt.State, _ rune)   { _, _ = io.WriteString(s, "<credential vault>") }
+func (Vault) MarshalJSON() ([]byte, error) { return nil, auth.ErrDenied }
 func (v *Vault) state() *vaultData {
 	if v == nil || v.data == nil {
 		return nil

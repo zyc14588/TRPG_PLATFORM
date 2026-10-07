@@ -45,7 +45,7 @@ func TestCertificationBindsAllSixTupleFields(t *testing.T) {
 		t.Fatal("reviewed compatible tuple denied")
 	}
 	original := digest(c)
-	changes := []func(*Tuple){func(x *Tuple) { x.Model = "fixture:other" }, func(x *Tuple) { x.Endpoint = "https://other.example/v1" }, func(x *Tuple) { x.Adapter = "ollama" }, func(x *Tuple) { x.PromptTemplate = "changed-v2" }, func(x *Tuple) { x.ToolMode = "none" }, func(x *Tuple) { x.TestVersion = "changed-v2" }}
+	changes := []func(*Tuple){func(x *Tuple) { x.Model = "fixture:other" }, func(x *Tuple) { x.Endpoint = "https://other.example/v1" }, func(x *Tuple) { x.Adapter = "unsupported-adapter" }, func(x *Tuple) { x.PromptTemplate = "changed-v2" }, func(x *Tuple) { x.ToolMode = "none" }, func(x *Tuple) { x.TestVersion = "changed-v2" }}
 	for i, change := range changes {
 		t.Run(fmt.Sprintf("field-%d", i), func(t *testing.T) {
 			altered := c

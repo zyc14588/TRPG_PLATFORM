@@ -206,6 +206,9 @@ func (f *fixture) context(t *testing.T, a actorData) actor {
 	return auth.RoomSecret(a)
 }
 func (f *fixture) caller(a actor, key string) model.Caller {
+	if key != "" {
+		key = "m2-" + key
+	}
 	x := a.StorageValue()
 	return auth.RoomSecret(model.CallerData{Credential: x.Cookie, CSRF: x.CSRF, IdempotencyKey: key, Network: "owned-fixture"})
 }

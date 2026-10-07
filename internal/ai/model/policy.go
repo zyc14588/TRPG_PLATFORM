@@ -61,7 +61,7 @@ func canonicalEndpoint(e EndpointData) bool {
 	if !store.ValidID(e.ID) || !models(e.Models) || len(e.URL) > 512 {
 		return false
 	}
-	if e.Adapter != "openai-compatible" && e.Adapter != "ollama" && e.Adapter != "llama.cpp" {
+	if e.Adapter != "openai-compatible" {
 		return false
 	}
 	u, err := url.Parse(e.URL)
