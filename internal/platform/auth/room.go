@@ -195,3 +195,45 @@ func CanonicalRoomFields(fields map[string]any) ([]byte, error) {
 	}
 	return b, nil
 }
+
+// Inspect is a trusted server-only revalidation seam for an already admitted
+// connection. It shares the actual cookie lookup, live identity checks and bound
+// transaction with Do. Internal command/delivery checks must not consume the
+// user-operation admission limiter or mint another encrypted replay receipt.
+// Callers still apply bounded admission at their user-facing entry and serialize
+// game effects through the existing SessionActor. No game effect runs here.
+func (a *RoomAuthority) Inspect(ctx context.Context, cookie BrowserCredential, csrf string, mutation bool, inspect func(context.Context, Transaction, SessionData) error) error {
+	if a.state() == nil || ctx == nil || ctx.Err() != nil || inspect == nil {
+		return ErrUnavailable
+	}
+	if mutation && !tokenID.MatchString(csrf) {
+		return ErrInvalid
+	}
+	s := a.state().service
+	return s.transact(ctx, func(tx Transaction) error {
+		v, e := s.findSession(ctx, tx, cookie)
+		if e != nil {
+			return e
+		}
+		if e = s.live(ctx, tx, v, false, ""); e != nil {
+			return e
+		}
+		if v.Kind != "account" && v.Kind != "guest" {
+			return ErrUnauthenticated
+		}
+		if mutation {
+			if !hmac.Equal([]byte(csrf), []byte(s.csrf(v))) {
+				return ErrDenied
+			}
+			now, e := tx.Core().Now(ctx)
+			if e != nil {
+				return SafeError(e)
+			}
+			v.LastSeen = sessionTime(now)
+			if e = tx.PutSession(ctx, StoredSession(v)); e != nil {
+				return SafeError(e)
+			}
+		}
+		return SafeError(inspect(ctx, tx, v))
+	})
+}
