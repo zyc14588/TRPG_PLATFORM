@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "bbcfeb694f1f42544857b90a3877d4879f510414"
+source_commit: "a310510f46cb9901e2b105fa8d61d4804f47e9d4"
 ---
 
 # 项目摘要
+
+## 当前 M2：B001 内部基础契约冻结
+
+正常 PLAN v1→v2 仅将 M2-B001 PLANNED→FROZEN，原14字段不变，冻结摘要 418233a32e381a337749524f792a2dc9b210145f452366a2d4fcf549686d1328；其余11批仍PLANNED、next13、tombstones=[]，active=0。前置为空，Owner的继续M2授权有效。
+
+B001限定内部账户、工作区、成员和单局访客关系/权限服务及显式SQL；不创建登录协议、Cookie、公共API、房间或AI。缺失公开契约的B002仍需具体CHANGE批准，不能借B001提前实施。下一步单独登记IMPLEMENTING并生成正式批次路由。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：平台侧原生计划 v1
 
