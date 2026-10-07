@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "649ab4b987f59c0b945650afe0f1d7c414d4a8c7"
+source_commit: "9e11ac473c34198901ac2fdfcc771386f7500ef9"
 ---
 
 # 项目摘要
+
+## 当前 M2：B003 Linux 房间候选等待独立验收
+
+正常 PLAN v13→v14 仅将 M2-B003 IMPLEMENTING→VERIFYING；原生十四字段冻结摘要 ac0127370b92f8d23433bec1dd28c7b9f97b5ef13b00f2874a27a2cd7071c854 保持，其余十一批、next13、tombstones及M1归档保持。B001/B002已完成，当前完成仍2/12≈16.67%；本次仅Linux，Windows/macOS业务NOT_RUN，最终13项证明仍由B012闭环。
+
+已批准 CHANGE-M2-ROOM-API-V1 与 CHANGE-M2-ROOM-ACCOUNT-NICKNAME-V1 已落实：私人房间、房间角色、邀请/审批、同事务可信游客入场、幂等结果恢复；账户昵称128、游客名与房间名80。B003增加20个允许范围内文件，原B001/B002业务源保持；公共Doc/Schema与已批准R1提交9a56cd7一致。管理、主持及后续席位控制分别授权；邀请只授予入场资格。真实启动、席位控制和最终模型检查仍由后续批次负责。
+
+清洁签名候选9e11ac473c34198901ac2fdfcc771386f7500ef9生产方验证实际通过：单元/接口91/91、专用真实PostgreSQL31/31、并发122/122，均零跳过；just check、just test、go vet ./...及Linux just ci实际退出0。缺少专用数据库的负向探针明确NOT_RUN并非零退出。ACC-M2-B003-001至004的修复、最初环境与测试准备失败及原断言均保留；具体证据见仓库外m2-b003-room-platform/BUSINESS_PRODUCER_RECEIPT_9E11AC4.json。
+
+独立验收尚未运行，不记录B003完成。下一步复用Owner已授权的单一只读独立验收代理，在准确签名源码、合法ACCEPT路由和独占专用数据库上复核；验收、签名源接收、主线接收及清理封存均通过后方可完成。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B003 Linux 房间实现启动
 
