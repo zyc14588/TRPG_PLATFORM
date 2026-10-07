@@ -1,0 +1,687 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trpg-platform:platform-auth-api:v1",
+  "x-section-id": "SCHEMA-PLATFORM-AUTH-API-V1",
+  "x-status": "ACTIVE",
+  "$comment": "SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0",
+  "title": "M2 platform authentication and workspace API v1",
+  "$defs": {
+    "Scope": {
+      "type": "object",
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "room_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "game_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "room_id",
+        "game_id"
+      ],
+      "additionalProperties": false
+    },
+    "Account": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "account"
+        },
+        "account_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "kind",
+        "account_id",
+        "display_name"
+      ],
+      "additionalProperties": false
+    },
+    "Guest": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "guest"
+        },
+        "participation_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        }
+      },
+      "required": [
+        "kind",
+        "participation_id",
+        "scope"
+      ],
+      "additionalProperties": false
+    },
+    "AnonymousContext": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "const": "anonymous"
+        },
+        "csrf_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "csrf_expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "state",
+        "csrf_token",
+        "csrf_expires_at"
+      ],
+      "additionalProperties": false
+    },
+    "AuthenticatedContext": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "const": "authenticated"
+        },
+        "principal": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Account"
+            },
+            {
+              "$ref": "#/$defs/Guest"
+            }
+          ]
+        },
+        "csrf_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "state",
+        "principal",
+        "csrf_token",
+        "expires_at"
+      ],
+      "additionalProperties": false
+    },
+    "Workspace": {
+      "type": "object",
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "owner_account_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "name",
+        "owner_account_id"
+      ],
+      "additionalProperties": false
+    },
+    "Membership": {
+      "type": "object",
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "account_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "role": {
+          "enum": [
+            "owner",
+            "admin",
+            "member"
+          ]
+        }
+      },
+      "required": [
+        "workspace_id",
+        "account_id",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "RegisterRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "login_name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,31}$"
+        },
+        "password": {
+          "type": "string",
+          "minLength": 15,
+          "maxLength": 128
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "registration_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      },
+      "required": [
+        "schema_version",
+        "login_name",
+        "password",
+        "display_name",
+        "registration_token"
+      ],
+      "additionalProperties": false
+    },
+    "LoginRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "login_name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,31}$"
+        },
+        "password": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "schema_version",
+        "login_name",
+        "password"
+      ],
+      "additionalProperties": false
+    },
+    "LogoutRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "schema_version"
+      ],
+      "additionalProperties": false
+    },
+    "GuestExchangeRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "admission_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      },
+      "required": [
+        "schema_version",
+        "admission_token"
+      ],
+      "additionalProperties": false
+    },
+    "GuestClaimRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schema_version": {
+              "const": 1
+            },
+            "mode": {
+              "const": "existing_account"
+            },
+            "login_name": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{2,31}$"
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "schema_version",
+            "mode",
+            "login_name",
+            "password"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema_version": {
+              "const": 1
+            },
+            "mode": {
+              "const": "new_account"
+            },
+            "login_name": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{2,31}$"
+            },
+            "password": {
+              "type": "string",
+              "minLength": 15,
+              "maxLength": 128
+            },
+            "display_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "schema_version",
+            "mode",
+            "login_name",
+            "password",
+            "display_name"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "CreateWorkspaceRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "schema_version",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "SetMembershipRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "role": {
+          "enum": [
+            "admin",
+            "member"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "RemoveMembershipRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "schema_version"
+      ],
+      "additionalProperties": false
+    },
+    "ContextResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/AnonymousContext"
+            },
+            {
+              "$ref": "#/$defs/AuthenticatedContext"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "AccountContextResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "$ref": "#/$defs/AccountContext"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ClaimResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "context": {
+              "$ref": "#/$defs/AccountContext"
+            },
+            "participation": {
+              "type": "object",
+              "properties": {
+                "participation_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+                },
+                "scope": {
+                  "$ref": "#/$defs/Scope"
+                }
+              },
+              "required": [
+                "participation_id",
+                "scope"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "context",
+            "participation"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "$ref": "#/$defs/Workspace"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "MembershipResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "$ref": "#/$defs/Membership"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "RemovalResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "removed": {
+              "const": true
+            }
+          },
+          "required": [
+            "removed"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "HealthResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "not_ready"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "INVALID_REQUEST",
+                "UNAUTHENTICATED",
+                "DENIED",
+                "CONFLICT",
+                "CLAIM_REQUIRED",
+                "RATE_LIMITED",
+                "UNAVAILABLE",
+                "OUTCOME_UNKNOWN"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "AccountContext": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "const": "authenticated"
+        },
+        "principal": {
+          "$ref": "#/$defs/Account"
+        },
+        "csrf_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "state",
+        "principal",
+        "csrf_token",
+        "expires_at"
+      ],
+      "additionalProperties": false
+    },
+    "GuestContext": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "const": "authenticated"
+        },
+        "principal": {
+          "$ref": "#/$defs/Guest"
+        },
+        "csrf_token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "state",
+        "principal",
+        "csrf_token",
+        "expires_at"
+      ],
+      "additionalProperties": false
+    },
+    "GuestContextResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "data": {
+          "$ref": "#/$defs/GuestContext"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

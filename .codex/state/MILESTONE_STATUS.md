@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "cde9d7213ea9cc3705d56ec3b92c97ce321f27e5"
+source_commit: "0bd10100a13066c9e12503b3f8d3fb942d572e80"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B002 公开认证契约已批准，准备冻结
+
+Owner 对具体 CHANGE-M2-AUTH-API-V1 回复“同意”；原草案保留，正式文档与 Schema 按批准内容登记，Schema 仅改为 ACTIVE 并移除标题草案字样。正常 PLAN v5→v6 仅调整未启动 B002 范围/阅读/验收/验证；B001 冻结及其余十批契约逐字节保持。B002 仍 PLANNED，尚无认证实现或业务 PASS。
+
+B001 完成投影 d5668d6 已经独立接收、本地主线接收、清理本任务 SQL 与密钥文件并封存 722 成员证据；当前 GOV-M2-PLATFORM-API-REGISTRY 0bd1010 独立 PASS、无未解决必需发现、本地主线接收和 198 成员封存完成，限定治理登记，未当作认证实现证明。M2 仍 ACTIVE，完成 1/12≈8.33%，13 个最终需求出口仍由 B012 证明。Windows/macOS 业务 NOT_RUN。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B001 独立业务验收通过
 

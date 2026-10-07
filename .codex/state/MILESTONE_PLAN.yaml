@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 5
+plan_version: 6
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -73,13 +73,13 @@ batches:
 - batch_id: M2-B002
   sequence: 2
   state: PLANNED
-  objective: Define and, after explicit CHANGE approval, implement the versioned authenticated platform API and local account/session
-    boundary needed by the M2 player flow.
+  objective: Implement the Owner-approved CHANGE-M2-AUTH-API-V1 local account/session, guest claim and versioned
+    authenticated HTTP boundary on Linux.
   non_goals:
   - Room/AI/business implementation beyond the approved transport boundary.
   - Unapproved public fields, dependencies, OAuth providers or central account services.
   allowed_scope:
-  - schemas/platform/**
+  - schemas/platform/platform-auth-api-v1.schema.json
   - docs/20-architecture/PLATFORM_API.md
   - internal/platform/auth/**
   - internal/platform/httpapi/**
@@ -87,6 +87,8 @@ batches:
   - tests/contract/platform/**
   - go.mod
   - go.sum
+  - internal/storage/postgres/platform_auth*.go
+  - tests/integration/platform_auth/**
   forbidden_scope:
   - .codex/**
   - legal/**
@@ -103,6 +105,7 @@ batches:
   - TEST-PLAYER-003
   - TEST-DATA-002
   - SCHEMA-CODEX-MILESTONE-PLAN-V2
+  - SCHEMA-PLATFORM-AUTH-API-V1
   reading_map_sections:
   - SPEC-V1-ROADMAP-M2
   - SPEC-M2-ALLOWED
@@ -112,23 +115,40 @@ batches:
   - SPEC-DATA-001
   - SPEC-DEPLOYMENT-001
   - SPEC-SECURITY-001
+  - SPEC-PLATFORM-AUTH-API-V1
   acceptance:
-  - The concrete public API, cookie/session, guest-claim and error-envelope contract is approved before implementation; drafts
-    are marked and cannot be served as accepted public contracts.
+  - The concrete public API, cookie/session, guest-claim and error-envelope contract is approved before implementation;
+    drafts are marked and cannot be served as accepted public contracts.
   - Server-verified local account and guest sessions bind the caller to tenant and game scope; self-hosted authentication
     works without a central control plane.
-  - Token/cookie lifetime, revocation, cross-origin/CSRF defenses, credential hashing and secret-file handling are tested;
-    clients cannot assert management roles or tenant identities.
-  - The versioned HTTP contract has executable request/response validation and compatibility tests; invalid fields and unknown
-    versions fail closed.
+  - Token/cookie lifetime, revocation, cross-origin/CSRF defenses, credential hashing and secret-file handling are
+    tested; clients cannot assert management roles or tenant identities.
+  - The versioned HTTP contract has executable request/response validation and compatibility tests; invalid fields
+    and unknown versions fail closed.
+  - Owner approved the exact proposal by 同意; adopted Schema differs only in activation/title annotations, and the
+    approved HTTPS/cookie/Origin/CSRF/expiry/error fields are implemented without additions.
+  - Owned real PostgreSQL proves atomic grant/account/credential/session/claim/rotation/durable receipts, rollback
+    and explicit unknown-commit recovery; idempotent retries recheck current revocation and cannot restore revoked
+    successors.
+  - Argon2id uses the approved fixed parameters and pinned dependency with bounded hashing/rates; passwords, Cookie,
+    DSN and private participant content never appear in ordinary formatting/logs/exports.
+  - Guest exchange is denied until a trusted later room-admission verifier is supplied; no client scope/role or
+    room/invite implementation substitutes for it. Existing core authorizations are reused without changing B001
+    source.
+  - Only Linux B002 foundation evidence is claimed; all thirteen final M2 requirement proofs remain assigned to
+    the later end-to-end exit gate.
   tests:
   - go test -count=1 -json ./internal/platform/auth/... ./internal/platform/httpapi/... ./tests/contract/platform/...
   - just check, just test, go vet ./..., and Linux just ci pass on a clean signed candidate.
+  - go test -count=1 -json -tags integration ./tests/integration/platform_auth/... on a verified local owned fixture;
+    missing fixture is NOT_RUN and exits nonzero, not SKIP.
+  - go test -count=1 -race -json -tags integration ./internal/platform/auth/... ./internal/platform/httpapi/...
+    ./tests/contract/platform/... ./tests/integration/platform_auth/... on that owned fixture.
   stop_conditions:
-  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate unless
-    its concrete CHANGE has been approved.
-  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen binding,
-    or failed required verification.
+  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate
+    unless its concrete CHANGE has been approved.
+  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen
+    binding, or failed required verification.
   - Do not modify another frozen batch, claim an unexecuted integration as PASS, or skip incomplete dependencies.
   depends_on:
   - M2-B001
