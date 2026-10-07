@@ -77,5 +77,9 @@ bootstrap:
     clean signed completed B002 reception; no code edit until formal REPAIR and check0.
   retirement_condition: Permanent retirement before production edits once actual formal
     REPAIR/check passes.
-  status: AUTHORIZED_ONCE
+  status: RETIRED
+  retirement_evidence:
+  - "Clean signed 13bd20aa4217779e14f02c94b401dfd95340d440 formal REPAIR GOV-M2-ROOM-API-REGISTRY actual0; route record SHA256 52b1c805ec471a12317e138e8e85bda371f089778ab41efff2b1bd73c8ae0aed"
+  - "codex check actual0 before any production edits; check record SHA256 499edc8792c1878f602a57e2a6e97b395641b5e54db7dc074955ccc75fdf9385"
+  - "Owner exact CHANGE approval SHA256 b75e1eb3de10bcf60eba3f5f68ae900ca3fda9cd4626ceb40703c09f66a257cf; Bootstrap017 permanently retired and cannot be reused."
 status: ACTIVE
