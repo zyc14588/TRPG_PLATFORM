@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
-	"github.com/zyc14588/TRPG_PLATFORM/internal/package/install"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/store"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/platform/auth"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/session/actor"
