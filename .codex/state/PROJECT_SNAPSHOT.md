@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "87687ae59d0a57a919f89aa3a5520dda6b52561b"
+source_commit: "bbcfeb694f1f42544857b90a3877d4879f510414"
 ---
 
 # 项目摘要
+
+## 当前 M2：平台侧原生计划 v1
+
+正常 PLAN 已分配 M2-B001—M2-B012，共12个 PLANNED 批次、next13、tombstones=[]、active=0，全部未冻结。13个M2 REQUIRED需求完整覆盖；顺序为账户/租户基础、认证与公共协议、私人房间、启动门禁、同步与导出、持久Continuation、模型/凭据、AI隔离/预算、模型网关、玩家界面、Linux Compose、完整认证。Rules仓库M2-B001的历史资格独立保留，不当作本平台M2-B001的完成。
+
+当前可以先准备无新公共协议的B001内部关系模型与权限基础。B002所需公开API/认证/错误格式在现有schemas中尚不存在，必须提交具体CHANGE草案并获批后实施；本计划只登记该前置，不替代批准。未来发现M0集成门禁仍阻挡正式M2模型协议时须以真实来源提交限定治理补修，不能规避检查。
+
+当前M2完成0/12，业务尚未开始；M1已完成记录、远端PR #24状态及原历史原文继续保留。所有批次默认顺序执行，无并行授权。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：正式规划基线
 
