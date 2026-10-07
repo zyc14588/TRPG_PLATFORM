@@ -77,5 +77,8 @@ bootstrap:
     sign the registration and bind formal REPAIR.
   retirement_condition: Clean signed formal REPAIR GOV-M2-PLATFORM-API-REGISTRY route passes codex check; permanently
     retire before production edits.
-  status: AUTHORIZED_ONCE
+  status: RETIRED
+  retirement_evidence:
+  - Formal signed REPAIR route and codex check passed at39b9d16131f2e5ebc035a30cf948aa959717382c, actual exit0 for
+    both; no production mutation before retirement.
 status: ACTIVE
