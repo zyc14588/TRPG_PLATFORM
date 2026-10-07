@@ -24,6 +24,13 @@ func equalTaskValue(a, b any) bool {
 	y, e := json.Marshal(b)
 	return e == nil && string(x) == string(y)
 }
+
+func equalStoredTaskValue(raw []byte, expected checkpoint.Value) bool {
+	// JSON decoding into an existing table retains absent map keys. Each
+	// independent intent must have a fresh value, never the previous row's map.
+	var saved checkpoint.Value
+	return checkpoint.StrictDecode(raw, &saved, 256<<10) == nil && checkpoint.Validate(saved) == nil && equalTaskValue(saved, expected)
+}
 func projectTask(raw []byte, v task.JobData) (task.JobData, error) {
 	r, e := eventstore.Decode(raw)
 	if e != nil || r.Header.Binding != v.Binding || r.Header.CommandID != v.SourceCommand || r.Migration != nil || r.Ended {
@@ -136,12 +143,11 @@ func (s *PlatformTaskStorage) seed(ctx context.Context, tx *sql.Tx, space string
 		if e != nil {
 			return 0, e
 		}
-		var saved checkpoint.Value
-		if checkpoint.StrictDecode(p.taskRaw, &saved, 256<<10) != nil || !equalTaskValue(saved, payload) {
+		if !equalStoredTaskValue(p.taskRaw, payload) {
 			return 0, task.ErrDenied
 		}
 		wanted := checkpoint.Object(map[string]checkpoint.Value{"task": checkpoint.Text(v.TaskID)})
-		if checkpoint.StrictDecode(p.outboxRaw, &saved, 256<<10) != nil || !equalTaskValue(saved, wanted) {
+		if !equalStoredTaskValue(p.outboxRaw, wanted) {
 			return 0, task.ErrDenied
 		}
 		for _, c := range v.Continuations {
@@ -155,7 +161,7 @@ func (s *PlatformTaskStorage) seed(ctx context.Context, tx *sql.Tx, space string
 				return 0, e
 			}
 			wanted := checkpoint.Object(map[string]checkpoint.Value{"task": checkpoint.Text(v.TaskID), "value": value})
-			if source != v.SourceCommand || pkg != v.PackageID || kind != "continuation" || checkpoint.StrictDecode(raw, &saved, 256<<10) != nil || !equalTaskValue(saved, wanted) {
+			if source != v.SourceCommand || pkg != v.PackageID || kind != "continuation" || !equalStoredTaskValue(raw, wanted) {
 				return 0, task.ErrDenied
 			}
 		}

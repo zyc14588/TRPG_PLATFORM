@@ -6,10 +6,12 @@ package continuation_test
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,7 +19,9 @@ import (
 	"time"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/package/store"
 	platformsession "github.com/zyc14588/TRPG_PLATFORM/internal/platform/session"
+	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/postgres"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/task"
 )
@@ -68,22 +72,8 @@ func newTaskFixture(t *testing.T, lease, lifetime time.Duration) *taskFixture {
 		f.external.Add(1)
 		// An actual separate SQL transaction proves the authoritative row is
 		// unlocked while the external handler runs. No Lua/game Tx is waiting.
-		db, e := sql.Open("pgx", dsn)
-		if e != nil {
-			return task.Value{}, task.ErrUnavailable
-		}
-		defer db.Close()
-		tx, e := db.BeginTx(ctx, nil)
-		if e != nil {
-			return task.Value{}, task.ErrUnavailable
-		}
-		defer tx.Rollback()
-		var one int
-		if e = tx.QueryRowContext(ctx, `SELECT 1 FROM host_command.sessions WHERE workspace=$1 AND session=$2 FOR UPDATE NOWAIT`, b.Binding.Workspace, b.Binding.Session).Scan(&one); e != nil || one != 1 {
-			return task.Value{}, task.ErrBusy
-		}
-		if e = tx.Rollback(); e != nil {
-			return task.Value{}, task.ErrUnavailable
+		if e := externalUnlocked(ctx, b.Binding); e != nil {
+			return task.Value{}, e
 		}
 		return task.NewValue(checkpoint.Int(5))
 	}, Inputs: func(ctx context.Context, _ task.Job) (task.Inputs, error) {
@@ -94,6 +84,19 @@ func newTaskFixture(t *testing.T, lease, lifetime time.Duration) *taskFixture {
 	}}}
 	f.composeTasks(t)
 	return f
+}
+
+func externalUnlocked(ctx context.Context, b data.Binding) error {
+	u, e := url.Parse(dsn)
+	if e != nil || !ownedDatabase(u) || !store.ValidID(b.Workspace) || !store.ValidID(b.Session) {
+		return task.ErrDenied
+	}
+	statement := `BEGIN; SET LOCAL lock_timeout='100ms'; SELECT 1 FROM host_command.sessions WHERE workspace='` + b.Workspace + `' AND session='` + b.Session + `' FOR UPDATE NOWAIT; ROLLBACK;`
+	raw, e := exec.CommandContext(ctx, "docker", "exec", os.Getenv("M2B006_CONTAINER_ID"), "psql", "-U", "m2b006", "-d", "m2_b006_fixture", "-v", "ON_ERROR_STOP=1", "-Atq", "-c", statement).Output()
+	if e != nil || strings.TrimSpace(string(raw)) != "1" {
+		return task.ErrBusy
+	}
+	return nil
 }
 func (f *taskFixture) composeTasks(t *testing.T) {
 	t.Helper()
