@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 19
+plan_version: 20
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -307,7 +307,8 @@ batches:
   parallel_scope_keys: []
 - batch_id: M2-B005
   sequence: 5
-  state: PLANNED
+  state: FROZEN
+  frozen_contract_sha256: 2e84bfc2bd8be65225903896c43c56010dfd14b8c91a64622dac9db538f7a077
   objective: Connect authenticated platform transport to authoritative command, private realtime, reconnect, recovery-point
     and permission-filtered export services.
   non_goals:
@@ -319,6 +320,10 @@ batches:
   - internal/session/actor/**
   - internal/storage/postgres/platform_session*.go
   - tests/integration/platform_session/**
+  - internal/session/command/envelope.go
+  - internal/session/command/native*.go
+  - internal/platform/launch/actor.go
+  - internal/platform/launch/session_bridge*.go
   forbidden_scope:
   - docs/**
   - .codex/**
@@ -358,8 +363,9 @@ batches:
   - Recovery points and exports filter by the current requester entitlement, excluding other-seat secrets, raw tokens and
     keys; queue and mailbox pressure remains bounded.
   tests:
-  - go test -count=1 -json ./internal/platform/session/... ./internal/session/actor/... ./internal/session/realtime/...
+  - go test -count=1 -json ./internal/platform/session/... ./internal/session/command/... ./internal/platform/launch/... ./internal/session/actor/... ./internal/session/realtime/...
   - go test -count=1 -tags integration -json ./tests/integration/platform_session/...
+  - go test -count=1 -race -tags integration -json ./internal/platform/session/... ./internal/session/command/... ./internal/platform/launch/... ./internal/session/actor/... ./internal/session/realtime/... ./tests/integration/platform_session/...
   - just check, just test, go vet ./..., and Linux just ci pass on a clean signed candidate.
   stop_conditions:
   - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate unless
