@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "9e11ac473c34198901ac2fdfcc771386f7500ef9"
+source_commit: "c6b1ec18bd70ab56534bcee993b8e1b703a38d7a"
 ---
 
 # 项目摘要
+
+## 当前 M2：B003 Linux 房间业务独立验收通过
+
+正常 PLAN v14→v15 仅将 M2-B003 VERIFYING→COMPLETED；原生十四字段冻结摘要 ac0127370b92f8d23433bec1dd28c7b9f97b5ef13b00f2874a27a2cd7071c854 保持，其余十一批、next13、tombstones及M1归档保持。M2批次状态完成3/12=25%，B004及后续批次仍PLANNED；本次仅Linux，Windows/macOS业务NOT_RUN，最终13项证明仍由B012闭环。
+
+已批准 CHANGE-M2-ROOM-API-V1 与 CHANGE-M2-ROOM-ACCOUNT-NICKNAME-V1 的私人房间、角色分权、邀请/审批、同事务可信游客入场、幂等恢复及128/80昵称兼容已独立验收。独立候选c6b1ec18bd70ab56534bcee993b8e1b703a38d7a及479个源码成员全部回读匹配，454个旧文件blob/mode保持，20个业务新增文件处于允许范围。既有B001/B002业务源和认证契约保持；当前公共Doc/Schema与批准的R1提交9a56cd7一致。
+
+独立实测单元/接口91/91、专用真实PostgreSQL31/31、并发122/122、projectctl315/315及独立边界探针4/4均通过，零失败/跳过；fresh ACCEPT阅读/检查、七个新增签名的既有信任验签、just check、just test、go vet ./...和Linux just ci实际0。缺fixture负向探针明确NOT_RUN且非零。独立覆盖未知提交后的管理撤权/成员恢复不复权及Unicode128/80边界；Root已回读全部独立证据成员，未决必需finding及未完成必需检查为空。原环境、测试准备和辅助审计失误的失败记录及原断言保持。
+
+独立业务接收回执为仓库外m2-b003-room-platform/ROOT_INDEPENDENT_BUSINESS_RECEPTION.json；生产方与独立验收源码、命令、hash及释放记录均保留。此正常状态提交随后仍需准确签名源复核、本地主线接收、专用数据库/凭据/已释放副本清理与完整封存，不提前声称这些后续步骤已执行。席位与私密视图授权、真实启动、模型及最终玩家闭环仍由后续批次完成；接收清理完成后继续B004正式PLAN。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B003 Linux 房间候选等待独立验收
 
