@@ -81,4 +81,4 @@ bootstrap:
   retirement_evidence:
   - Formal signed REPAIR route and codex check passed at39b9d16131f2e5ebc035a30cf948aa959717382c, actual exit0 for
     both; no production mutation before retirement.
-status: ACTIVE
+status: READY_FOR_ACCEPTANCE
