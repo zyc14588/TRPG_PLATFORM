@@ -1476,7 +1476,7 @@ func TestApprovedRoomSchemaFrozenRoutes(t *testing.T) {
 			plan.Batches[0].MachineContracts = append(plan.Batches[0].MachineContracts, platformRoomSchemaID)
 			plan.Batches[0].FrozenContractSHA256 = mustBatchContractDigest(t, plan.Batches[0])
 			writeFixtureMilestonePlan(t, a, plan)
-			data, _ := json.Marshal(roomRouteSchemaFixture())
+			data, _ := json.MarshalIndent(roomRouteSchemaFixture(), "", "  ")
 			writePlatformRouteFixture(t, a, platformRoomSchemaPath, data)
 			commitFixturePaths(t, a, "approved room Schema fixture", ".codex/state/MILESTONE_PLAN.yaml", platformRoomSchemaPath)
 			routeMap := generateFixtureBatchRoute(t, a, mode)
@@ -1494,7 +1494,7 @@ func TestApprovedRoomSchemaFrozenRoutes(t *testing.T) {
 			}
 			document := roomRouteSchemaFixture()
 			document["$defs"] = map[string]any{"Unused": map[string]any{"$ref": "#/missing"}}
-			data, _ = json.Marshal(document)
+			data, _ = json.MarshalIndent(document, "", "  ")
 			writePlatformRouteFixture(t, a, platformRoomSchemaPath, data)
 			if err := a.validateCanonicalReadingMap(routeMap); err == nil {
 				t.Fatal("bound room route accepted invalid unused definition")
