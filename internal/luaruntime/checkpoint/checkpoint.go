@@ -150,12 +150,14 @@ func Seal(binding Binding, state Value) (Checkpoint, error) {
 	if err != nil || len(raw)+71 > MaxBytes {
 		return Checkpoint{}, ErrRejected
 	}
-	// Decode our canonical bytes to break every caller-owned map/slice alias.
-	if err = json.Unmarshal(raw, &c); err != nil {
+	// Decode into a fresh object: unmarshalling into c would reuse its input
+	// maps and mutate caller-owned state while other sessions read it.
+	var sealed Checkpoint
+	if err = json.Unmarshal(raw, &sealed); err != nil {
 		return Checkpoint{}, err
 	}
-	c.Digest = Hash(raw)
-	return c, nil
+	sealed.Digest = Hash(raw)
+	return sealed, nil
 }
 
 func Encode(c Checkpoint) ([]byte, error) {

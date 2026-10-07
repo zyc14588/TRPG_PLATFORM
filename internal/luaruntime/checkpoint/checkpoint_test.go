@@ -3,7 +3,9 @@
 package checkpoint
 
 import (
+	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -107,5 +109,70 @@ func TestCheckpointUnicodeAndMaximumValidDepth(t *testing.T) {
 	}
 	if _, err := Decode(raw, binding()); err != nil {
 		t.Fatal("valid maximum depth is not round-trippable", err)
+	}
+}
+
+func TestSealOwnsBindingAndNestedStateWithoutChangingCanonicalDigest(t *testing.T) {
+	b := binding()
+	state := Object(map[string]Value{"nested": Array(Object(map[string]Value{"counter": Int(7)}))})
+	canonical, err := json.Marshal(Checkpoint{Binding: b, State: state})
+	if err != nil {
+		t.Fatal("canonical checkpoint encoding failed")
+	}
+	sealed, err := Seal(b, state)
+	if err != nil || sealed.Digest != Hash(canonical) {
+		t.Fatal("seal changed canonical digest semantics")
+	}
+	sealed.Binding.PackageHashes["test/game"] = "sha256:" + strings.Repeat("c", 64)
+	sealed.State.Table["returned-only"] = Bool(true)
+	sealed.State.Table["nested"].Array[0].Table["counter"] = Int(8)
+	unchanged, err := json.Marshal(Checkpoint{Binding: b, State: state})
+	if err != nil || string(unchanged) != string(canonical) {
+		t.Fatal("sealed result aliases caller-owned binding or nested state")
+	}
+	b.PackageHashes["test/game"] = "sha256:" + strings.Repeat("d", 64)
+	state.Table["caller-only"] = Bool(true)
+	state.Table["nested"].Array[0].Table["counter"] = Int(9)
+	if sealed.Binding.PackageHashes["test/game"] != "sha256:"+strings.Repeat("c", 64) || sealed.State.Table["nested"].Array[0].Table["counter"].Number != "8" {
+		t.Fatal("caller mutation changed independently sealed state")
+	}
+	if _, exists := sealed.State.Table["caller-only"]; exists {
+		t.Fatal("caller map mutation entered sealed state")
+	}
+}
+
+func TestConcurrentSealReadsSharedInputsWithoutMutation(t *testing.T) {
+	b := binding()
+	state := Object(map[string]Value{"nested": Array(Object(map[string]Value{"counter": Int(7)}))})
+	canonical, err := json.Marshal(Checkpoint{Binding: b, State: state})
+	if err != nil {
+		t.Fatal("canonical checkpoint encoding failed")
+	}
+	failures := make(chan struct{}, 16)
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	for range 16 {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			for range 32 {
+				sealed, err := Seal(b, state)
+				if err != nil || sealed.Digest != Hash(canonical) {
+					failures <- struct{}{}
+					return
+				}
+			}
+		}()
+	}
+	close(start)
+	workers.Wait()
+	close(failures)
+	if len(failures) != 0 {
+		t.Fatal("concurrent sealing rejected immutable shared inputs")
+	}
+	unchanged, err := json.Marshal(Checkpoint{Binding: b, State: state})
+	if err != nil || string(unchanged) != string(canonical) {
+		t.Fatal("concurrent sealing mutated shared inputs")
 	}
 }
