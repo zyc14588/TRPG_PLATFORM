@@ -1264,6 +1264,11 @@ func TestApprovedPlatformNormativeRouteFailsClosed(t *testing.T) {
 	for _, name := range []string{"missing", "unapproved-path", "malformed", "ambiguous"} {
 		t.Run(name, func(t *testing.T) {
 			a := newFrozenRouteFixture(t, []string{"SPEC-PLATFORM-AUTH-API-V1"})
+			// The fixture may copy an already adopted canonical document. Each
+			// negative must establish its own missing/malformed source explicitly.
+			if err := os.Remove(filepath.Join(a.root, platformAuthDocumentPath)); err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
 			valid := []byte("---\ndocument_id: SPEC-PLATFORM-AUTH-API-V1\n---\nApproved source.\n")
 			switch name {
 			case "unapproved-path":
