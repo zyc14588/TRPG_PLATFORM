@@ -243,5 +243,9 @@ func (s *Service) Decode(action, workspace, account string, body []byte) (Reques
 	if workspace != "" && !wireID.MatchString(workspace) || account != "" && !wireID.MatchString(account) {
 		return Request{}, ErrInvalid
 	}
-	return protect(RequestData{Action: action, WorkspaceID: workspace, AccountID: account, Fields: v.(map[string]any)}), nil
+	fields := v.(map[string]any)
+	// Schema const 1 also accepts equivalent JSON numeric spellings.
+	// Canonicalize only this version number, preserving exact password bytes.
+	fields["schema_version"] = 1
+	return protect(RequestData{Action: action, WorkspaceID: workspace, AccountID: account, Fields: fields}), nil
 }

@@ -223,6 +223,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(w, auth.ErrInvalid)
 		return
 	}
+	// The stdlib HTTPS writer must support a stream read deadline.
+	// Missing transport capability fails closed before accepting a body.
+	if e := http.NewResponseController(w).SetReadDeadline(time.Now().Add(5 * time.Second)); e != nil {
+		fail(w, auth.ErrUnavailable)
+		return
+	}
 	body, e := io.ReadAll(io.LimitReader(r.Body, 16385))
 	if e != nil || len(body) > 16384 {
 		clear(body)

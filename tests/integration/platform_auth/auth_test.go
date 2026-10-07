@@ -5,15 +5,18 @@
 package platform_auth_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -646,5 +649,56 @@ func TestActualTLSCookieOriginCSRFAndNoBodyCredential(t *testing.T) {
 				t.Fatal("password in response")
 			}
 		})
+	}
+}
+
+func TestEquivalentVersionSpellingReplaysSameNormalizedRequest(t *testing.T) {
+	f := newFixture(t, nil)
+	a := f.anonymous(t)
+	fields := map[string]any{"schema_version": 1, "login_name": f.name, "password": password, "display_name": "Player", "registration_token": f.grant}
+	raw, _ := json.Marshal(fields)
+	r, e := f.s.Decode("register", "", "", raw)
+	need(t, e)
+	first, e := f.mutate(t, a, "normalized-version", r)
+	need(t, e)
+	fields["schema_version"] = json.Number("1.0")
+	raw, _ = json.Marshal(fields)
+	defer clear(raw)
+	r, e = f.s.Decode("register", "", "", raw)
+	need(t, e)
+	second, e := f.mutate(t, a, "normalized-version", r)
+	need(t, e)
+	if !bytes.Equal(first.StorageValue().Body, second.StorageValue().Body) || first.StorageValue().Cookie.StorageValue() != second.StorageValue().Cookie.StorageValue() {
+		t.Fatal("equivalent numeric version changed durable result")
+	}
+}
+func TestActualTLSSlowBodyHasBoundedReadDeadline(t *testing.T) {
+	f := newFixture(t, nil)
+	server := httptest.NewUnstartedServer(nil)
+	origin := "https://" + server.Listener.Addr().String()
+	h, e := httpapi.NewHandler(f.s, origin)
+	need(t, e)
+	server.Config.Handler = h
+	server.StartTLS()
+	defer server.Close()
+	config := server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+	connection, e := tls.DialWithDialer(&net.Dialer{Timeout: 2 * time.Second}, "tcp", server.Listener.Addr().String(), config)
+	if e != nil {
+		t.Fatal("owned TLS connection unavailable")
+	}
+	defer connection.Close()
+	_ = connection.SetReadDeadline(time.Now().Add(8 * time.Second))
+	request := "POST /api/v1/auth/login HTTP/1.1\r\nHost: " + server.Listener.Addr().String() + "\r\nOrigin: " + origin + "\r\nContent-Type: application/json\r\nX-CSRF-Token: " + strings.Repeat("A", 43) + "\r\nIdempotency-Key: slow-body-test-key\r\nContent-Length: 100\r\n\r\n{"
+	start := time.Now()
+	if _, e := io.WriteString(connection, request); e != nil {
+		t.Fatal("owned TLS incomplete request unavailable")
+	}
+	response, e := http.ReadResponse(bufio.NewReader(connection), nil)
+	if e != nil {
+		t.Fatal("slow body was not bounded by handler")
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 400 || time.Since(start) > 7*time.Second {
+		t.Fatal("slow body deadline differs")
 	}
 }

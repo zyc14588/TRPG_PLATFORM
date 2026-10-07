@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/platform/auth"
 )
@@ -84,7 +85,7 @@ func TestHTTPSOriginAndWireGuardsRunBeforeStorage(t *testing.T) {
 			r := post(`{"schema_version":1,"login_name":"local_user","password":"private-marker"}`)
 			test.change(r)
 			w := httptest.NewRecorder()
-			h.ServeHTTP(w, r)
+			h.ServeHTTP(boundedRecorder{w}, r)
 			if w.Code != test.status || storage.calls.Load() != 0 {
 				t.Fatalf("guard status=%d storage calls=%d", w.Code, storage.calls.Load())
 			}
@@ -107,12 +108,12 @@ func TestStorageFailureAndReadinessHaveSafeEnvelope(t *testing.T) {
 	h, storage := transport(t)
 	r := post(`{"schema_version":1,"login_name":"local_user","password":"private-marker"}`)
 	w := httptest.NewRecorder()
-	h.ServeHTTP(w, r)
+	h.ServeHTTP(boundedRecorder{w}, r)
 	if w.Code != 503 || storage.calls.Load() != 1 || strings.Contains(w.Body.String(), "private-marker") {
 		t.Fatal("storage failure not bounded")
 	}
 	w = httptest.NewRecorder()
-	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "https://platform.example/healthz", nil))
+	h.ServeHTTP(boundedRecorder{w}, httptest.NewRequest(http.MethodGet, "https://platform.example/healthz", nil))
 	if w.Code != 503 || strings.TrimSpace(w.Body.String()) != `{"schema_version":1,"status":"not_ready"}` {
 		t.Fatal("readiness discloses diagnostics")
 	}
@@ -123,5 +124,18 @@ func TestCookieAttributesAndClearing(t *testing.T) {
 	c := w.Result().Cookies()
 	if len(c) != 1 || !c[0].Secure || !c[0].HttpOnly || c[0].SameSite != http.SameSiteStrictMode || c[0].Path != "/" || c[0].Domain != "" || c[0].MaxAge != -1 {
 		t.Fatal("host cookie attributes differ")
+	}
+}
+
+// Pure transport mocks provide the capability of the real stdlib HTTPS writer.
+type boundedRecorder struct{ *httptest.ResponseRecorder }
+
+func (boundedRecorder) SetReadDeadline(time.Time) error { return nil }
+func TestMissingReadDeadlineCapabilityFailsClosed(t *testing.T) {
+	h, storage := transport(t)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, post(`{"schema_version":1,"login_name":"local_user","password":"private-marker"}`))
+	if w.Code != 503 || storage.calls.Load() != 0 {
+		t.Fatal("unsupported body deadline did not fail closed")
 	}
 }
