@@ -3,6 +3,7 @@
 package projectctl
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 var roadmapMilestoneAnchorPattern = regexp.MustCompile(`<a id="SPEC-V1-ROADMAP-(M(?:0|[1-9][0-9]*))"></a>`)
@@ -53,6 +56,19 @@ var normativeSpecificationPaths = []string{
 	"docs/80-roadmap/M0_SCOPE_AND_EXIT_GATE.md",
 	"docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md",
 	"docs/80-roadmap/V1_MILESTONES.md",
+}
+
+// CHANGE-M2-AUTH-API-V1 approved these exact sources. The optional document
+// permits maintenance before its PLAN adoption; a requested missing ID fails
+// resolution. Neither registry discovers other documents or schema paths.
+const platformAuthDocumentPath = "docs/20-architecture/PLATFORM_API.md"
+const platformAuthSchemaPath = "schemas/platform/platform-auth-api-v1.schema.json"
+const platformAuthSchemaID = "SCHEMA-PLATFORM-AUTH-API-V1"
+
+type routeSchemaLoader struct{}
+
+func (routeSchemaLoader) Load(string) (any, error) {
+	return nil, errors.New("external route schema loading is forbidden")
 }
 
 type v1MilestoneCatalog struct {
@@ -192,6 +208,19 @@ func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
 	for _, decision := range inputs.decisions {
 		paths.machine = append(paths.machine, route("docs/70-decisions/DECISION_REGISTER.yaml", decision.ID, "machine-contract"))
 	}
+	if request.Mode != "PLAN" {
+		for _, batch := range currentPlan.Batches {
+			if batch.BatchID != request.BatchID {
+				continue
+			}
+			schemas, err := a.requestedSchemaRoutes(batch.MachineContracts)
+			if err != nil {
+				return codexRoutePaths{}, err
+			}
+			paths.machine = appendUniqueRouteSpecs(paths.machine, schemas...)
+			break
+		}
+	}
 
 	switch request.Mode {
 	case "PLAN":
@@ -219,6 +248,75 @@ func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
 		}
 	}
 	return deduplicateRoutePaths(paths), nil
+}
+
+// Only Schema identifiers are new here. Existing requirement, test and
+// decision references retain their established authoritative selection.
+func (a *App) requestedSchemaRoutes(identifiers []string) ([]routeSpec, error) {
+	var result []routeSpec
+	for _, identifier := range identifiers {
+		if !strings.HasPrefix(identifier, "SCHEMA-") {
+			continue
+		}
+		var spec routeSpec
+		switch identifier {
+		case "SCHEMA-CODEX-READING-MAP-V4":
+			spec = route("schemas/codex/reading-map-v4.schema.json", identifier, "machine-contract")
+		case "SCHEMA-CODEX-MILESTONE-PLAN-V2":
+			spec = route("schemas/codex/milestone-plan-v2.schema.json", identifier, "machine-contract")
+		case platformAuthSchemaID:
+			spec = route(platformAuthSchemaPath, identifier, "machine-contract")
+			if err := a.validatePlatformRouteSchema(); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("requested Schema %s is not in the approved bounded inventory", identifier)
+		}
+		result = appendUniqueRouteSpecs(result, spec)
+	}
+	return result, nil
+}
+
+func (a *App) validatePlatformRouteSchema() error {
+	data, err := os.ReadFile(filepath.Join(a.root, platformAuthSchemaPath))
+	if err != nil {
+		return fmt.Errorf("read requested platform Schema: %w", err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		return fmt.Errorf("decode requested platform Schema: %w", err)
+	}
+	if document["x-section-id"] != platformAuthSchemaID || document["x-status"] != "ACTIVE" ||
+		document["$id"] != "urn:trpg-platform:platform-auth-api:v1" ||
+		document["$schema"] != "https://json-schema.org/draft/2020-12/schema" {
+		return errors.New("requested platform Schema identity, ACTIVE status or draft metadata is invalid")
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.DefaultDraft(jsonschema.Draft2020)
+	compiler.UseLoader(routeSchemaLoader{})
+	uri := document["$id"].(string)
+	if err := compiler.AddResource(uri, document); err != nil {
+		return fmt.Errorf("register requested platform Schema: %w", err)
+	}
+	if _, err := compiler.Compile(uri); err != nil {
+		return fmt.Errorf("compile requested platform Schema: %w", err)
+	}
+	definitions, ok := document["$defs"].(map[string]any)
+	if !ok || len(definitions) == 0 {
+		return errors.New("requested platform Schema has no executable definitions")
+	}
+	names := make([]string, 0, len(definitions))
+	for name := range definitions {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	escape := strings.NewReplacer("~", "~0", "/", "~1")
+	for _, name := range names {
+		if _, err := compiler.Compile(uri + "#/$defs/" + escape.Replace(name)); err != nil {
+			return fmt.Errorf("compile requested platform Schema definition: %w", err)
+		}
+	}
+	return nil
 }
 
 func (a *App) milestoneScopeSections(request codexRouteRequest, currentPlan milestonePlan) ([]routeSpec, error) {
@@ -422,6 +520,11 @@ type normativeSectionCatalog map[string][]string
 
 func (a *App) normativeSectionCatalog() (normativeSectionCatalog, error) {
 	paths := append([]string(nil), normativeSpecificationPaths...)
+	if _, err := os.Stat(filepath.Join(a.root, platformAuthDocumentPath)); err == nil {
+		paths = append(paths, platformAuthDocumentPath)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("read bounded platform API document: %w", err)
+	}
 	roadmap, err := a.loadV1MilestoneCatalog()
 	if err != nil {
 		return nil, err

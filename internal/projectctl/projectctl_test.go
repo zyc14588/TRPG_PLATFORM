@@ -5,6 +5,7 @@ package projectctl
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
@@ -1234,6 +1235,160 @@ func TestOpenCodeDeepSeekContextProfileEnforcesExplicitBudget(t *testing.T) {
 }
 
 // x-section-id: PROJECTCTL-NORMATIVE-CATALOG-TESTS
+func TestApprovedPlatformNormativeRoute(t *testing.T) {
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		t.Run(mode, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-PLATFORM-AUTH-API-V1"})
+			writePlatformRouteFixture(t, a, platformAuthDocumentPath, []byte("---\ndocument_id: SPEC-PLATFORM-AUTH-API-V1\nstatus: ACTIVE\n---\nApproved authentication contract.\n"))
+			paths, err := a.routePaths(testCodexRequest(mode, "M1", "M1-B001"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			count := 0
+			for _, spec := range paths.normative {
+				if spec.sectionID == "SPEC-PLATFORM-AUTH-API-V1" {
+					count++
+					if spec.path != platformAuthDocumentPath {
+						t.Fatal("approved platform Section resolved outside its exact path")
+					}
+				}
+			}
+			if count != 1 {
+				t.Fatalf("approved platform Section count=%d", count)
+			}
+		})
+	}
+}
+
+func TestApprovedPlatformNormativeRouteFailsClosed(t *testing.T) {
+	for _, name := range []string{"missing", "unapproved-path", "malformed", "ambiguous"} {
+		t.Run(name, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-PLATFORM-AUTH-API-V1"})
+			valid := []byte("---\ndocument_id: SPEC-PLATFORM-AUTH-API-V1\n---\nApproved source.\n")
+			switch name {
+			case "unapproved-path":
+				writePlatformRouteFixture(t, a, "docs/20-architecture/UNAPPROVED_PLATFORM.md", valid)
+			case "malformed":
+				writePlatformRouteFixture(t, a, platformAuthDocumentPath, []byte("document_id: SPEC-PLATFORM-AUTH-API-V1\n"))
+			case "ambiguous":
+				writePlatformRouteFixture(t, a, platformAuthDocumentPath, append(valid, []byte("<a id=\"SPEC-PLATFORM-AUTH-API-V1\"></a>\n")...))
+			}
+			if _, err := a.routePaths(testCodexRequest("IMPLEMENT", "M1", "M1-B001")); err == nil {
+				t.Fatal("missing/unapproved/malformed/ambiguous platform normative source accepted")
+			}
+		})
+	}
+}
+
+func TestApprovedPlatformSchemaFrozenRoutes(t *testing.T) {
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		t.Run(mode, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-LUA-RUNTIME-001"})
+			plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan.Batches[0].MachineContracts = append(plan.Batches[0].MachineContracts, platformAuthSchemaID)
+			plan.Batches[0].FrozenContractSHA256 = mustBatchContractDigest(t, plan.Batches[0])
+			writeFixtureMilestonePlan(t, a, plan)
+			data, _ := json.Marshal(platformRouteSchemaFixture())
+			writePlatformRouteFixture(t, a, platformAuthSchemaPath, data)
+			commitFixturePaths(t, a, "approved Schema fixture", ".codex/state/MILESTONE_PLAN.yaml", platformAuthSchemaPath)
+			routeMap := generateFixtureBatchRoute(t, a, mode)
+			count := 0
+			for _, section := range routeMap.MachineContracts {
+				if section.SectionID == platformAuthSchemaID {
+					count++
+					if section.Path != platformAuthSchemaPath || section.SHA256 == "" || section.SectionSHA256 == "" {
+						t.Fatal("approved Schema path/content was not bound")
+					}
+				}
+			}
+			if count != 1 {
+				t.Fatalf("approved Schema materialized%d times", count)
+			}
+			// The executable schema is part of canonical checking, including unused definitions.
+			document := platformRouteSchemaFixture()
+			document["$defs"] = map[string]any{"Unused": map[string]any{"$ref": "#/missing"}}
+			data, _ = json.Marshal(document)
+			writePlatformRouteFixture(t, a, platformAuthSchemaPath, data)
+			if err := a.validateCanonicalReadingMap(routeMap); err == nil {
+				t.Fatal("existing route accepted a broken approved Schema definition")
+			}
+		})
+	}
+}
+
+func TestRequestedPlatformSchemaFailsClosed(t *testing.T) {
+	for _, name := range []string{"missing", "malformed-json", "wrong-section", "draft", "wrong-draft", "bad-schema", "dangling-definition", "external-reference", "unknown-id", "unapproved-path"} {
+		t.Run(name, func(t *testing.T) {
+			a := &App{root: t.TempDir()}
+			document := platformRouteSchemaFixture()
+			identifier := platformAuthSchemaID
+			path := platformAuthSchemaPath
+			switch name {
+			case "wrong-section":
+				document["x-section-id"] = "SCHEMA-UNAPPROVED"
+			case "draft":
+				document["x-status"] = "DRAFT_NOT_APPROVED"
+			case "wrong-draft":
+				document["$schema"] = "https://unapproved.invalid/schema"
+			case "bad-schema":
+				document["type"] = 123
+			case "dangling-definition":
+				document["$defs"] = map[string]any{"Unused": map[string]any{"$ref": "#/missing"}}
+			case "external-reference":
+				document["$ref"] = "https://unapproved.invalid/must-not-load.json"
+			case "unknown-id":
+				identifier = "SCHEMA-PLATFORM-UNKNOWN"
+			case "unapproved-path":
+				path = "schemas/platform/unapproved-auth.schema.json"
+			}
+			data, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if name == "malformed-json" {
+				data = []byte(`{"x-section-id":`)
+			}
+			if name != "missing" {
+				writePlatformRouteFixture(t, a, path, data)
+			}
+			if _, err := a.requestedSchemaRoutes([]string{identifier}); err == nil {
+				t.Fatal("invalid or unapproved requested Schema accepted")
+			}
+		})
+	}
+}
+
+func TestPlatformSchemaIsNotLoadedWithoutRequest(t *testing.T) {
+	a := &App{root: t.TempDir()}
+	writePlatformRouteFixture(t, a, platformAuthSchemaPath, []byte("invalid JSON"))
+	routes, err := a.requestedSchemaRoutes([]string{"REQ-DATA-002", "TEST-DATA-002", "R3-A02", "SCHEMA-CODEX-MILESTONE-PLAN-V2", "SCHEMA-CODEX-MILESTONE-PLAN-V2"})
+	if err != nil || len(routes) != 1 || routes[0].sectionID != "SCHEMA-CODEX-MILESTONE-PLAN-V2" {
+		t.Fatalf("unrequested platform Schema affected baseline routing: %v", err)
+	}
+}
+
+func platformRouteSchemaFixture() map[string]any {
+	return map[string]any{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"$id":     "urn:trpg-platform:platform-auth-api:v1", "x-section-id": platformAuthSchemaID,
+		"x-status": "ACTIVE", "$defs": map[string]any{"Request": map[string]any{"type": "object"}},
+	}
+}
+
+func writePlatformRouteFixture(t *testing.T, a *App, relative string, data []byte) {
+	t.Helper()
+	path := filepath.Join(a.root, filepath.FromSlash(relative))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBoundedNormativeSectionCatalogCoversAuthorityContracts(t *testing.T) {
 	a := testApp(t)
 	catalog, err := a.normativeSectionCatalog()
