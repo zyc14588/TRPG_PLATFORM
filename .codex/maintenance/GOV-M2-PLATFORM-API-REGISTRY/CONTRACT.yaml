@@ -1,0 +1,81 @@
+schema_version: 1
+x-section-id: GOV-M2-PLATFORM-API-REGISTRY
+maintenance_id: GOV-M2-PLATFORM-API-REGISTRY
+objective:
+- Register only the Owner-approved exact platform API document path and Schema ID for legitimate frozen M2 routes.
+- Bind requested SCHEMA machine contracts from a bounded inventory and reject missing, malformed, unknown or unapproved
+  schemas.
+reason: Owner explicitly agreed to CHANGE-M2-AUTH-API-V1. The approved registry support is limited to two existing
+  control-plane source files and this maintenance contract. Public contract adoption and auth business implementation
+  remain subsequent M2-B002 work.
+source_blocker: At d5668d6, approved PLATFORM_API.md is absent from the bounded normative catalog and requested
+  batch SCHEMA IDs are not routed. Initial formal REPAIR --maintenance GOV-M2-PLATFORM-API-REGISTRY returned actual
+  exit1 because this exact maintenance contract does not exist.
+allowed_scope:
+- path: .codex/maintenance/GOV-M2-PLATFORM-API-REGISTRY/CONTRACT.yaml
+  section_id: GOV-M2-PLATFORM-API-REGISTRY
+  kind: machine-contract
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG
+  kind: production-code
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-CODEX-CATALOG
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG-TESTS
+  kind: test
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-CODEX-ROUTE-TESTS
+  kind: test
+forbidden_scope:
+- No business source, public API contents, database/auth implementation or unstarted/frozen/completed batch changes
+  in maintenance.
+- No docs/** discovery, default capability grant, import allowlist expansion, generic schema path discovery, gate
+  weakening or new third-party dependency.
+- No changes to M1 archives, existing frozen contracts, historical test results, V1, Lua backend, licenses, release/CI/branch-protection
+  or other platform work.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-TRIGGERS
+  kind: normative-section
+acceptance:
+- Only docs/20-architecture/PLATFORM_API.md and schemas/platform/platform-auth-api-v1.schema.json (SCHEMA-PLATFORM-AUTH-API-V1)
+  are added to the bounded supported inventory.
+- Absent optional approved normative document is not loaded until present; requesting its missing Section fails
+  closed. No other product path is discovered or granted.
+- A frozen requested approved Schema is routed and its exact x-section-id and executable local JSON Schema are checked
+  without external loaders; missing, malformed, unknown and unapproved Schema IDs fail closed. Existing non-Schema
+  REQ/TEST/decision routing semantics remain unchanged.
+- Targeted positives and negatives pass; immutable completed M1 archive, B001 frozen digest and all M2 batch/state
+  source bytes remain unchanged.
+- Normal signed clean candidate checks and independent maintenance ACCEPT pass before local reception.
+tests:
+- go test -count=1 -json ./internal/projectctl
+- just check
+- just test
+- just ci
+- go vet ./...
+- projectctl codex route --mode REPAIR --maintenance GOV-M2-PLATFORM-API-REGISTRY
+- projectctl codex route --mode ACCEPT --maintenance GOV-M2-PLATFORM-API-REGISTRY
+- projectctl codex check
+stop_conditions:
+- Stop on any mutation outside these exact three files, unapproved public/source/schema registration, new dependency
+  or failed required gate.
+- Stop on stale route, invalid Section/schema/binding/signature, secret/private log disclosure or frozen/completed
+  record changes.
+- One-time bootstrap must only create this exact contract and cease immediately after formal REPAIR route and codex
+  check pass.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-016
+  authorization: Owner replied 同意 to the concrete CHANGE-M2-AUTH-API-V1 proposal, whose approved registry scope
+    expressly includes this exact contract and two source paths. Approval recorded outside repository in OWNER_APPROVAL.json.
+  allowed_scope:
+  - Create only .codex/maintenance/GOV-M2-PLATFORM-API-REGISTRY/CONTRACT.yaml from clean signed d5668d6 on codex/m2-auth-api-registry;
+    sign the registration and bind formal REPAIR.
+  retirement_condition: Clean signed formal REPAIR GOV-M2-PLATFORM-API-REGISTRY route passes codex check; permanently
+    retire before production edits.
+  status: AUTHORIZED_ONCE
+status: ACTIVE
