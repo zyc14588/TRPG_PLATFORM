@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "be946f909a0ca6c7604bec5f75eaf0154edb7108"
+source_commit: "7874c528d4dd62d2e6556302ebec6e14e51702d6"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B005 Linux 玩家会话连接实现启动
+
+正常 PLAN v20→v21 仅将 M2-B005 FROZEN→IMPLEMENTING；原生十四字段冻结摘要 2e84bfc2bd8be65225903896c43c56010dfd14b8c91a64622dac9db538f7a077，其余十一批、next13、tombstones及M1归档保持。Linux M2已完成4/12≈33.33%，本批业务尚未验收；Windows/macOS业务NOT_RUN，最终13项证明由B012闭环。
+
+B004准确最终签名源be946f909a0ca6c7604bec5f75eaf0154edb7108与494源码成员已通过独立最终复核、本地主线接收及专用数据库、两份凭据、两份释放副本清理。独立实测检查点8/8、开局单元24/24、真实SQL30/30、开局并发54/54、边界探针6/6和治理315/315均零失败/跳过；最终状态提交仅三状态文件变化，491非状态blob/mode一致，业务实测证据按准确身份继承并标NOT_RERUN。完成接收档案SHA256 ae049ba7ca7143f51621faf5c6050c5a90be6fecefb498e381eb2b2c1e417357，1473成员全部完整回读；仓库外m2-b004-linux-final/COMPLETION_RECEIPT.json SHA256 66c8d52600461c44fa9ae458f209bae9a893ebf1523e26d35dd76e06eefd5eba。Owner批准的检查点两文件补修、全部原失败和NOT_RUN保持，B004已按Owner“每批次完工提交至远端”授权，以普通推送发布至github.com/zyc14588/TRPG_PLATFORM的codex/m2-room-platform，准确远端提交be946f909a0ca6c7604bec5f75eaf0154edb7108；远端接收回执仓库外m2-b004-remote-reception-be946f9/REMOTE_RECEPTION.json，SHA256 d8484e3bba3d46f7289e78b233eecfce197cee52c9872de883bdd9a3076b8a92。
+
+B005保持既有目标、需求、机器契约、验收和停止条件；在尚未开始/未冻结时按正式PLAN补齐四个内部认证/会话连接接缝及对应单元和并发验证，防止采用伪玩家身份或创建第二Actor。精确追加范围为internal/session/command/envelope.go、native*.go、internal/platform/launch/actor.go和session_bridge*.go；未改公开HTTP/JSON Schema、Host API、V1、架构或许可，已完成四批契约保持。工程依据CODEX-AUTONOMOUS-PLANNING和SPEC-CHANGE-CONTROL-NONTRIGGERS，范围在冻结前形成并记录于本次唯一十四字段契约。B005连接平台认证到现有权威命令、私密实时消息、断线恢复、恢复点和按当前权限过滤的导出。保留版本与幂等检查，每次交付复核服务端身份与当前可见范围；断线恢复游标、私密视图与待处理动作，不重复已提交命令，不自动将人工席位交AI。当前申请者无权的数据、原始令牌和密钥不进入普通日志与导出；队列和邮箱保持有界。B002和B004依赖已完成，后续模型网关、UI、最终混合玩家闭环未提前验收。
+
+本批源码与业务验证尚未执行，不计新增完成批次；下一步按对应新鲜正式路由继续。若需要变更公开API/Schema、Host API、架构或超出冻结目录，立即停止并准备具体CHANGE交Owner决定。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B005 玩家会话连接契约冻结
 
