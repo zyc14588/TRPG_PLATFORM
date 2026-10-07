@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "3b13b2749a6ea677142fcbf8d4d2ce21d46e5672"
+source_commit: "5683689b81b023c2c60795fb4b1eb4b4f858a07d"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B002 Linux 认证基础独立验收通过
+
+正常 PLAN v9→v10 仅将 M2-B002 VERIFYING→COMPLETED；批准的14字段冻结摘要 f25c45d24b03d97b33ffa73cfd6fa1ae7ab682b57fce587329a7773b8e174d51 由原生 Go 校验并保持，其余11批、next13、tombstones、M1归档和全部业务源字节保持。M2仍ACTIVE，B001/B002已完成2/12≈16.67%；其余十批PLANNED，最终13项需求仍待B012完整闭环证明，Windows/macOS业务NOT_RUN。
+
+Owner批准 CHANGE-M2-AUTH-API-V1 后的账户、HTTPS/Cookie/CSRF、单局访客认领、SQL原子提交与加密幂等回执基础在5683689独立业务PASS；与3b13b27业务字节相同。独立实测50单元/契约、31真实独占SQL、81竞态，0 fail/skip；全仓check/test/Linux CI/vet/license实际exit0，另4项隐私/撤权/取消/字段绑定探针和1项原生状态校验PASS，普通日志秘密命中0。独立回执SHA256 b6e13c740653aa341f37b2cde72855949d0beb5aabfdf148c2febeb5f893e126，344成员已由父逐尺寸/hash读回，未解决必需项及后来必需检查数组为空。
+
+原001/003在准确独立候选闭合；002仍限定d47115f原授权登记夹具五行补修的独立治理PASS。原源FAIL/NOT_RUN、独立只读缓存环境FAIL、外置JSON包装断言及父读回助手错误均保留资格，之后同源实际通过，不重写历史。验证器缺席时访客兑换拒绝；本批组合接缝不代表B004/B011真实服务启动、房间/席位或M2最终出口完成。
+
+当前完成投影等待独立状态接收、本地主线快进、仅本任务数据库/两秘密文件/已释放快照清理与最终封存；没有提前声称这些步骤PASS。下一步B003私人房间/邀请/审批公共契约须具体CHANGE批准后才可实现；草案只保存仓库外，不改变已完成B001/B002契约或源文件。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B002 候选通过父验证，等待独立验收
 
