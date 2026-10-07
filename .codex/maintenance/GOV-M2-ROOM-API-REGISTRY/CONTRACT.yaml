@@ -69,9 +69,7 @@ stop_conditions:
   REPAIR/check0.
 bootstrap:
   bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-017
-  authorization: DRAFT; activated only by Owner approval of exact CHANGE-M2-ROOM-API-V1
-    and actual formal route missing-contract failure. Prefer normal PLAN registration
-    if legal.
+  authorization: "Owner replied 批准 to exact CHANGE-M2-ROOM-API-V1 SHA256 78a1efa165c8c54a8d41cc462fa51d1684f55fb96d6b47b0aa6e75239e355fa5; approval receipt SHA256 b75e1eb3de10bcf60eba3f5f68ae900ca3fda9cd4626ceb40703c09f66a257cf. Its fixed scope explicitly permitted conditional Bootstrap017 after actual missing-contract self-route failure. Bootstrap017 is now permanently RETIRED; only formal maintenance routes remain authorized."
   allowed_scope:
   - Create only .codex/maintenance/GOV-M2-ROOM-API-REGISTRY/CONTRACT.yaml from exact
     clean signed completed B002 reception; no code edit until formal REPAIR and check0.
@@ -82,4 +80,4 @@ bootstrap:
   - "Clean signed 13bd20aa4217779e14f02c94b401dfd95340d440 formal REPAIR GOV-M2-ROOM-API-REGISTRY actual0; route record SHA256 52b1c805ec471a12317e138e8e85bda371f089778ab41efff2b1bd73c8ae0aed"
   - "codex check actual0 before any production edits; check record SHA256 499edc8792c1878f602a57e2a6e97b395641b5e54db7dc074955ccc75fdf9385"
   - "Owner exact CHANGE approval SHA256 b75e1eb3de10bcf60eba3f5f68ae900ca3fda9cd4626ceb40703c09f66a257cf; Bootstrap017 permanently retired and cannot be reused."
-status: ACTIVE
+status: READY_FOR_ACCEPTANCE
