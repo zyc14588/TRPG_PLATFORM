@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 24
+plan_version: 25
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -381,7 +381,7 @@ batches:
   parallel_scope_keys: []
 - batch_id: M2-B006
   sequence: 6
-  state: FROZEN
+  state: IMPLEMENTING
   objective: Implement durable external task and Continuation dispatch/completion through workerd and the standard
     resume_continuation Actor entry.
   non_goals:
