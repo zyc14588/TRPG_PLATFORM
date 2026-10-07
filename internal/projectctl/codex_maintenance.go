@@ -206,6 +206,10 @@ func (a *App) maintenanceRoutePaths(request codexRouteRequest) (codexRoutePaths,
 	if err != nil {
 		return codexRoutePaths{}, err
 	}
+	currentPlan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	if err != nil {
+		return codexRoutePaths{}, err
+	}
 	modeDocumentID := map[string]string{"ACCEPT": "CODEX-ROUTE-ACCEPT", "REPAIR": "CODEX-ROUTE-REPAIR"}[request.Mode]
 	paths := codexRoutePaths{}
 	seen := map[string]bool{}
@@ -240,7 +244,7 @@ func (a *App) maintenanceRoutePaths(request codexRouteRequest) (codexRoutePaths,
 		route("schemas/codex/reading-map-v4.schema.json", "SCHEMA-CODEX-READING-MAP-V4", "machine-contract"),
 		route("schemas/codex/governance-maintenance-contract-v1.schema.json", "SCHEMA-CODEX-GOVERNANCE-MAINTENANCE-V1", "machine-contract"),
 		route("schemas/codex/milestone-plan-v2.schema.json", "SCHEMA-CODEX-MILESTONE-PLAN-V2", "machine-contract"),
-		route(".codex/state/MILESTONE_PLAN.yaml", "M1-MILESTONE-PLAN", "machine-contract"),
+		route(".codex/state/MILESTONE_PLAN.yaml", currentPlan.PlanID, "machine-contract"),
 	)
 	for _, decisionID := range []string{"R25-A01", "R25-A02", "R25-A03", "R25-A04", "R26-A01", "R26-A02", "R26-A03", "R26-A04"} {
 		appendUnique(&paths.machine, route("docs/70-decisions/DECISION_REGISTER.yaml", decisionID, "machine-contract"))

@@ -3,6 +3,7 @@
 package projectctl
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -141,8 +142,15 @@ func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
 	if !ok {
 		return codexRoutePaths{}, fmt.Errorf("invalid Codex mode %q", request.Mode)
 	}
+	currentPlan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	if err != nil {
+		return codexRoutePaths{}, err
+	}
+	scopeSections, err := a.milestoneScopeSections(request, currentPlan)
+	if err != nil {
+		return codexRoutePaths{}, err
+	}
 
-	milestoneScopePath := fmt.Sprintf("docs/80-roadmap/%s_SCOPE_AND_EXIT_GATE.md", request.Milestone)
 	paths := codexRoutePaths{
 		always: []routeSpec{
 			route(".codex/SESSION_START.md", "CODEX-SESSION-START", "governance-entry"),
@@ -157,12 +165,10 @@ func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
 			route("docs/00-governance/IMPLEMENTATION_GOVERNANCE.md", "SPEC-IMPLEMENTATION-GOV-AUTONOMY", "normative-section"),
 			route("docs/00-governance/IMPLEMENTATION_GOVERNANCE.md", "SPEC-IMPLEMENTATION-GOV-BATCH", "normative-section"),
 			route("docs/80-roadmap/V1_MILESTONES.md", "SPEC-V1-ROADMAP-"+request.Milestone, "normative-section"),
-			route(milestoneScopePath, "SPEC-"+request.Milestone+"-ALLOWED", "normative-section"),
-			route(milestoneScopePath, "SPEC-"+request.Milestone+"-FORBIDDEN", "normative-section"),
-			route(milestoneScopePath, "SPEC-"+request.Milestone+"-EXIT", "normative-section"),
 			route(".codex/state/DECISION_DIGEST.md", "CODEX-DECISION-DIGEST", "state-summary"),
 		},
 	}
+	paths.normative = append(paths.normative, scopeSections...)
 
 	inputs, err := a.loadMilestoneRouteInputs(request)
 	if err != nil {
@@ -181,7 +187,7 @@ func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
 	paths.machine = append(paths.machine,
 		route("schemas/codex/reading-map-v4.schema.json", "SCHEMA-CODEX-READING-MAP-V4", "machine-contract"),
 		route("schemas/codex/milestone-plan-v2.schema.json", "SCHEMA-CODEX-MILESTONE-PLAN-V2", "machine-contract"),
-		route(".codex/state/MILESTONE_PLAN.yaml", request.Milestone+"-MILESTONE-PLAN", "machine-contract"),
+		route(".codex/state/MILESTONE_PLAN.yaml", currentPlan.PlanID, "machine-contract"),
 	)
 	for _, decision := range inputs.decisions {
 		paths.machine = append(paths.machine, route("docs/70-decisions/DECISION_REGISTER.yaml", decision.ID, "machine-contract"))
@@ -213,6 +219,31 @@ func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
 		}
 	}
 	return deduplicateRoutePaths(paths), nil
+}
+
+func (a *App) milestoneScopeSections(request codexRouteRequest, currentPlan milestonePlan) ([]routeSpec, error) {
+	relative := fmt.Sprintf("docs/80-roadmap/%s_SCOPE_AND_EXIT_GATE.md", request.Milestone)
+	if _, err := os.Stat(filepath.Join(a.root, filepath.FromSlash(relative))); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("read milestone scope %s: %w", relative, err)
+		}
+		catalog, err := a.loadV1MilestoneCatalog()
+		if err != nil {
+			return nil, err
+		}
+		initialPlan := request.Mode == "PLAN" &&
+			(currentPlan.Milestone == request.Milestone && currentPlan.Status == "NOT_GENERATED" ||
+				completedMilestonePlan(currentPlan) && consecutiveMilestones(currentPlan.Milestone, request.Milestone, catalog))
+		if initialPlan {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("milestone %s requires dedicated scope and exit gate %s", request.Milestone, relative)
+	}
+	return []routeSpec{
+		route(relative, "SPEC-"+request.Milestone+"-ALLOWED", "normative-section"),
+		route(relative, "SPEC-"+request.Milestone+"-FORBIDDEN", "normative-section"),
+		route(relative, "SPEC-"+request.Milestone+"-EXIT", "normative-section"),
+	}, nil
 }
 
 func (a *App) loadMilestoneRouteInputs(request codexRouteRequest) (milestoneRouteInputs, error) {
@@ -390,7 +421,23 @@ func deduplicateRoutePaths(paths codexRoutePaths) codexRoutePaths {
 type normativeSectionCatalog map[string][]string
 
 func (a *App) normativeSectionCatalog() (normativeSectionCatalog, error) {
-	return loadNormativeSectionCatalog(a.root, normativeSpecificationPaths)
+	paths := append([]string(nil), normativeSpecificationPaths...)
+	roadmap, err := a.loadV1MilestoneCatalog()
+	if err != nil {
+		return nil, err
+	}
+	for _, milestone := range roadmap.ordered {
+		relative := fmt.Sprintf("docs/80-roadmap/%s_SCOPE_AND_EXIT_GATE.md", milestone)
+		if contains(paths, relative) {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(a.root, filepath.FromSlash(relative))); err == nil {
+			paths = append(paths, relative)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("read bounded milestone scope %s: %w", relative, err)
+		}
+	}
+	return loadNormativeSectionCatalog(a.root, paths)
 }
 
 func loadNormativeSectionCatalog(root string, paths []string) (normativeSectionCatalog, error) {

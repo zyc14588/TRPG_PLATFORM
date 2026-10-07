@@ -10,6 +10,8 @@ reason: >-
   The existing plan lifecycle permits a completed milestone to advance to the next NOT_GENERATED baseline,
   but route validation prevents entering PLAN for that successor and route materialization fixes the M1 plan identity.
   M2 also has no dedicated scope document yet; initial planning must be possible before creating that document.
+  Regression validation found four historical maintenance references and existing integration gates tied to the current M1 plan path; preserve the exact completed M1 archive and its established scope.
+
 source_blocker: |-
   source commit: 500d07dac96460f36b6ae2953ae22d4133dea41a
   PLAN M2 actual exit 1: milestone M2 is outside the current M1 planning boundary.
@@ -45,6 +47,30 @@ allowed_scope:
 - path: internal/projectctl/projectctl_test.go
   section_id: PROJECTCTL-MILESTONE-LIFECYCLE-TESTS
   kind: test
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG-TESTS
+  kind: test
+- path: .codex/state/completed/M1/MILESTONE_PLAN.yaml
+  section_id: M1-MILESTONE-PLAN
+  kind: machine-contract
+- path: internal/projectctl/commands.go
+  section_id: PROJECTCTL-POSTGRES-SCOPE-GATE
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-POSTGRES-SCOPE-GATE-TESTS
+  kind: test
+- path: .codex/maintenance/GOV-M1-LINUX-ACCEPTANCE-SCOPE/CONTRACT.yaml
+  section_id: GOV-M1-LINUX-ACCEPTANCE-SCOPE
+  kind: machine-contract
+- path: .codex/maintenance/GOV-M1-LINUX-NORMATIVE-CATALOG/CONTRACT.yaml
+  section_id: GOV-M1-LINUX-NORMATIVE-CATALOG
+  kind: machine-contract
+- path: .codex/maintenance/GOV-M1-MIGRATION-PATH-SCOPE-GATE/CONTRACT.yaml
+  section_id: GOV-M1-MIGRATION-PATH-SCOPE-GATE
+  kind: machine-contract
+- path: .codex/maintenance/GOV-M1-POSTGRES-SCOPE-GATE/CONTRACT.yaml
+  section_id: GOV-M1-POSTGRES-SCOPE-GATE
+  kind: machine-contract
 forbidden_scope:
 - Product or business implementation in this governance-maintenance contract.
 - Modification of the completed M1 plan or allocation of M2 batches in REPAIR or ACCEPT mode.
@@ -59,6 +85,7 @@ normative_references:
   section_id: SPEC-V1-ROADMAP-M2
   kind: normative-section
 acceptance:
+- The completed M1 plan archive is byte-identical to the accepted source; historical maintenance references and existing approved PostgreSQL/migration gates use that immutable M1 authority after transition, without granting new paths or imports.
 - A valid COMPLETE M1 plan allows PLAN M2 while preserving the actual M1 plan Section ID in the route until the PLAN-only transition commits the M2 baseline.
 - Same-milestone PLAN on COMPLETE, unfinished-predecessor PLAN, skipped milestones, historical PLAN, and future IMPLEMENT/ACCEPT/REPAIR fail closed.
 - Before a dedicated successor scope exists, only initial PLAN may use the existing roadmap scope and exit; generated milestone plans and all batch routes require dedicated scope and exit sections.
@@ -87,6 +114,8 @@ bootstrap:
   allowed_scope:
   - Create .codex/maintenance/GOV-M2-PLANNING-ENTRY/CONTRACT.yaml on codex/m2-planning from 500d07dac96460f36b6ae2953ae22d4133dea41a and bind a clean signed HEAD to its formal REPAIR route.
   retirement_condition: A clean-HEAD REPAIR route for GOV-M2-PLANNING-ENTRY passes projectctl codex check; all subsequent changes use formal routes.
-  status: AUTHORIZED_ONCE
-  retirement_evidence: []
+  status: RETIRED
+  retirement_evidence:
+  - Formal REPAIR GOV-M2-PLANNING-ENTRY route generated at signed commit ab2d0e0cd0bb957befcf2c4bdecb98f2a525d456 with actual exit 0.
+  - projectctl codex check passed at that source with actual exit 0; Bootstrap permanently retired before production-code changes.
 status: ACTIVE

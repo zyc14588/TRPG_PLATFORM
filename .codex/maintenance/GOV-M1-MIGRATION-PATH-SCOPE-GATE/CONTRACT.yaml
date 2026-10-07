@@ -44,7 +44,7 @@ normative_references:
 - path: docs/80-roadmap/M1_SCOPE_AND_EXIT_GATE.md
   section_id: SPEC-M1-ALLOWED
   kind: normative-section
-- path: .codex/state/MILESTONE_PLAN.yaml
+- path: .codex/state/completed/M1/MILESTONE_PLAN.yaml
   section_id: M1-MILESTONE-PLAN
   kind: machine-contract
 acceptance:

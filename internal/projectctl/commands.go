@@ -841,7 +841,33 @@ func checkPackageLicenses(root string, problems *validationErrors) error {
 const approvedPostgresContract = "59e0456c8ed261f08b1d1211fbdd1436cc50f4e875f36482732fe84e39d5167e"
 
 func (a *App) postgresScopeAuthority() (milestonePlan, error) {
-	file, err := os.Open(filepath.Join(a.root, ".codex", "state", "MILESTONE_PLAN.yaml"))
+	plan, err := readPostgresScopeAuthority(filepath.Join(a.root, ".codex", "state", "MILESTONE_PLAN.yaml"))
+	if err != nil {
+		return milestonePlan{}, err
+	}
+	number, numberErr := milestoneNumber(plan.Milestone)
+	if numberErr != nil || number <= 1 {
+		return plan, nil
+	}
+	catalog, err := a.loadV1MilestoneCatalog()
+	if err != nil {
+		return milestonePlan{}, err
+	}
+	if err := validateMilestonePlan(plan, catalog); err != nil {
+		return milestonePlan{}, fmt.Errorf("current plan for preserved M1 scope: %w", err)
+	}
+	archived, err := readPostgresScopeAuthority(filepath.Join(a.root, ".codex", "state", "completed", "M1", "MILESTONE_PLAN.yaml"))
+	if err != nil {
+		return milestonePlan{}, err
+	}
+	if archived.Milestone != "M1" || !completedMilestonePlan(archived) || !hasApprovedPostgresScope(archived) {
+		return milestonePlan{}, errors.New("completed M1 scope archive is missing or invalid")
+	}
+	return archived, nil
+}
+
+func readPostgresScopeAuthority(path string) (milestonePlan, error) {
+	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return milestonePlan{}, nil // historical M0 has no PostgreSQL authorization
 	}

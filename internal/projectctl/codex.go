@@ -371,6 +371,10 @@ func validateRouteAgainstPlan(request codexRouteRequest, plan milestonePlan, cat
 		return fmt.Errorf("current milestone plan: %w", err)
 	}
 	if request.Milestone != plan.Milestone {
+		if request.Mode == "PLAN" && completedMilestonePlan(plan) &&
+			consecutiveMilestones(plan.Milestone, request.Milestone, catalog) {
+			return nil
+		}
 		return fmt.Errorf("milestone %s is outside the current %s planning boundary", request.Milestone, plan.Milestone)
 	}
 	if request.Mode == "PLAN" {
@@ -388,6 +392,18 @@ func validateRouteAgainstPlan(request codexRouteRequest, plan milestonePlan, cat
 		}
 	}
 	return fmt.Errorf("batch_id %s is not allocated by the current milestone plan", request.BatchID)
+}
+
+func completedMilestonePlan(plan milestonePlan) bool {
+	if plan.Status != "COMPLETE" {
+		return false
+	}
+	for _, batch := range plan.Batches {
+		if batch.State != "COMPLETED" {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *App) hashRouteSections(specs []routeSpec) ([]routeSection, error) {

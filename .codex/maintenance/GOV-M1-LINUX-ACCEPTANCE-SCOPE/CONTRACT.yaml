@@ -49,7 +49,7 @@ normative_references:
 - path: docs/60-quality/ACCEPTANCE_POLICY.md
   section_id: SPEC-ACCEPTANCE-RESULT
   kind: normative-section
-- path: .codex/state/MILESTONE_PLAN.yaml
+- path: .codex/state/completed/M1/MILESTONE_PLAN.yaml
   section_id: M1-MILESTONE-PLAN
   kind: machine-contract
 acceptance:

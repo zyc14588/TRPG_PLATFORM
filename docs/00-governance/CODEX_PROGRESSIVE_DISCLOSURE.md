@@ -30,6 +30,8 @@ Context policy 按 executor/profile 生效。`codex/codex-default` 不启用项�
 
 只有 PLAN 可修改 `MILESTONE_PLAN.yaml`。Codex 可拆分、合并和重排未开始批次，ID 永不复用并保留墓碑。触及 V1、顶层、许可、公共契约或门禁时停止。
 
+当前里程碑全部批次完成且计划为 COMPLETE 后，可进入紧邻下一 V1 里程碑的 PLAN；不得跳级、提前实施或重规划已完成计划。缺少下一里程碑专用范围文档时，仅初始 PLAN 可按现有路线图形成该文档；ACTIVE 计划和批次路由仍须读取其专用范围与出口。当前计划的机器引用始终绑定实际计划标识，切换到下一 NOT_GENERATED 基线仅在 PLAN 执行，并完整保留已完成计划。
+
 <a id="SPEC-CODEX-FREEZE"></a>
 ## 5. 批次冻结
 

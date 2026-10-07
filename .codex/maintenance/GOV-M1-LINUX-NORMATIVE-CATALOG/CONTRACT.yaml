@@ -52,7 +52,7 @@ normative_references:
 - path: docs/00-governance/M1_LINUX_ACCEPTANCE_SCOPE.md
   section_id: SPEC-M1-LINUX-ACCEPTANCE-SCOPE
   kind: normative-section
-- path: .codex/state/MILESTONE_PLAN.yaml
+- path: .codex/state/completed/M1/MILESTONE_PLAN.yaml
   section_id: M1-MILESTONE-PLAN
   kind: machine-contract
 acceptance:

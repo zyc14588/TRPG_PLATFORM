@@ -1359,6 +1359,19 @@ func TestCurrentB002FrozenReadingMapExactCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if plan.Milestone != "M1" {
+		plan, err = loadYAML[milestonePlan](a.root, ".codex/state/completed/M1/MILESTONE_PLAN.yaml")
+		if err != nil || !completedMilestonePlan(plan) {
+			t.Fatalf("accepted M1 plan was not preserved after milestone transition: %v", err)
+		}
+		root := filepath.Join(t.TempDir(), "repo")
+		command := exec.Command("git", "clone", "--quiet", "--shared", a.root, root)
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("clone accepted M1 route fixture: %v\n%s", err, output)
+		}
+		a = &App{root: root, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
+		writeFixtureMilestonePlan(t, a, plan)
+	}
 	var batch *milestoneBatch
 	for index := range plan.Batches {
 		if plan.Batches[index].BatchID == "M1-B002" {
@@ -1493,6 +1506,174 @@ func runFixtureGit(t *testing.T, root string, arguments ...string) {
 }
 
 // x-section-id: PROJECTCTL-MILESTONE-LIFECYCLE-TESTS
+func TestSuccessorPlanRouteRequiresCompletedConsecutivePredecessor(t *testing.T) {
+	catalog := testV1MilestoneCatalog(t, testApp(t))
+	batch := testMilestoneBatch("M1-B001", 1)
+	batch.State = "COMPLETED"
+	batch.FrozenContractSHA256 = mustBatchContractDigest(t, batch)
+	plan := milestonePlan{
+		SchemaVersion: milestonePlanSchemaVersion, PlanID: "M1-MILESTONE-PLAN", PlanVersion: 2,
+		Milestone: "M1", Status: "COMPLETE", ModifiableOnlyInMode: "PLAN", NextBatchSequence: 2,
+		Batches: []milestoneBatch{batch}, Tombstones: []batchTombstone{},
+	}
+	for _, test := range []struct {
+		name, mode, target, status, batchState string
+		allowed                                bool
+	}{
+		{"next-plan", "PLAN", "M2", "COMPLETE", "COMPLETED", true},
+		{"active-predecessor", "PLAN", "M2", "ACTIVE", "COMPLETED", false},
+		{"unfinished-batch", "PLAN", "M2", "COMPLETE", "VERIFYING", false},
+		{"skip", "PLAN", "M3", "COMPLETE", "COMPLETED", false},
+		{"history", "PLAN", "M0", "COMPLETE", "COMPLETED", false},
+		{"replan-complete", "PLAN", "M1", "COMPLETE", "COMPLETED", false},
+		{"future-implementation", "IMPLEMENT", "M2", "COMPLETE", "COMPLETED", false},
+		{"future-acceptance", "ACCEPT", "M2", "COMPLETE", "COMPLETED", false},
+		{"future-repair", "REPAIR", "M2", "COMPLETE", "COMPLETED", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := plan
+			candidate.Status = test.status
+			candidate.Batches = append([]milestoneBatch(nil), plan.Batches...)
+			candidate.Batches[0].State = test.batchState
+			request := testCodexRequest(test.mode, test.target, "")
+			if test.mode != "PLAN" {
+				request.BatchID = test.target + "-B001"
+			}
+			err := validateRouteAgainstPlan(request, candidate, catalog)
+			if (err == nil) != test.allowed {
+				t.Fatalf("allowed=%v, validation error=%v", test.allowed, err)
+			}
+		})
+	}
+}
+
+func TestSuccessorPlanRouteAndMaintenanceBindActualPlan(t *testing.T) {
+	a := newSuccessorPlanningFixture(t)
+	request := testCodexRequest("PLAN", "M2", "")
+	planPath := filepath.Join(a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	before, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.generateCodexRouteRequest(context.Background(), request); err != nil {
+		t.Fatalf("initial successor PLAN failed: %v", err)
+	}
+	if err := a.checkCodex(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	assertPlanningRoutePlanID(t, a, "M1-MILESTONE-PLAN")
+	after, err := os.ReadFile(planPath)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("route generation modified completed predecessor: %v", err)
+	}
+	baseline := milestonePlan{
+		SchemaVersion: milestonePlanSchemaVersion, PlanID: "M2-MILESTONE-PLAN", Milestone: "M2",
+		Status: "NOT_GENERATED", ModifiableOnlyInMode: "PLAN", NextBatchSequence: 1,
+		Batches: []milestoneBatch{}, Tombstones: []batchTombstone{},
+	}
+	writeFixtureMilestonePlan(t, a, baseline)
+	if err := a.enforceMilestonePlanMode(context.Background(), "PLAN"); err != nil {
+		t.Fatalf("consecutive PLAN transition failed: %v", err)
+	}
+	if err := a.enforceMilestonePlanMode(context.Background(), "REPAIR"); err == nil {
+		t.Fatal("maintenance REPAIR changed the milestone plan")
+	}
+	commitFixturePaths(t, a, "next NOT_GENERATED planning baseline", ".codex/state/MILESTONE_PLAN.yaml")
+	if err := a.generateCodexRouteRequest(context.Background(), request); err != nil {
+		t.Fatalf("NOT_GENERATED M2 PLAN failed: %v", err)
+	}
+	assertPlanningRoutePlanID(t, a, "M2-MILESTONE-PLAN")
+	maintenance := newCodexRouteRequest("REPAIR")
+	maintenance.MaintenanceID = "GOV-M2-PLANNING-ENTRY"
+	if err := a.generateCodexRouteRequest(context.Background(), maintenance); err != nil {
+		t.Fatalf("maintenance route failed after milestone transition: %v", err)
+	}
+	assertPlanningRoutePlanID(t, a, "M2-MILESTONE-PLAN")
+	if err := a.checkCodex(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGeneratedMilestoneRequiresDedicatedScopeAndIndexesIt(t *testing.T) {
+	a := newSuccessorPlanningFixture(t)
+	batch := testMilestoneBatch("M2-B001", 1)
+	plan := milestonePlan{
+		SchemaVersion: milestonePlanSchemaVersion, PlanID: "M2-MILESTONE-PLAN", Milestone: "M2",
+		PlanVersion: 1, Status: "ACTIVE", ModifiableOnlyInMode: "PLAN", NextBatchSequence: 2,
+		Batches: []milestoneBatch{batch}, Tombstones: []batchTombstone{},
+	}
+	writeFixtureMilestonePlan(t, a, plan)
+	commitFixturePaths(t, a, "generated M2 scope-gate fixture", ".codex/state/MILESTONE_PLAN.yaml")
+	request := testCodexRequest("PLAN", "M2", "")
+	if err := a.generateCodexRouteRequest(context.Background(), request); err == nil || !strings.Contains(err.Error(), "requires dedicated scope") {
+		t.Fatalf("generated M2 without dedicated exit gate did not fail closed: %v", err)
+	}
+	scope := "---\ndocument_id: SPEC-M2-SCOPE-AND-EXIT\nauthority: normative-spec\nstatus: ACTIVE\n---\n" +
+		"<a id=\"SPEC-M2-ALLOWED\"></a>\n## Fixture allowed scope\n" +
+		"<a id=\"SPEC-M2-FORBIDDEN\"></a>\n## Fixture forbidden scope\n" +
+		"<a id=\"SPEC-M2-EXIT\"></a>\n## Fixture exit gate\n"
+	relative := "docs/80-roadmap/M2_SCOPE_AND_EXIT_GATE.md"
+	writeReferenceScopeFixtureFile(t, a.root, relative, []byte(scope))
+	commitFixturePaths(t, a, "dedicated M2 scope fixture", relative)
+	if err := a.generateCodexRouteRequest(context.Background(), request); err != nil {
+		t.Fatalf("generated M2 with dedicated scope failed: %v", err)
+	}
+	if err := a.checkCodex(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := a.normativeSectionCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"SPEC-M2-ALLOWED", "SPEC-M2-FORBIDDEN", "SPEC-M2-EXIT"} {
+		spec, err := resolveNormativeSection(catalog, id)
+		if err != nil || spec.path != relative {
+			t.Fatalf("bounded M2 scope Section %s was not uniquely indexed: %v", id, err)
+		}
+	}
+}
+
+func newSuccessorPlanningFixture(t *testing.T) *App {
+	t.Helper()
+	a := newFrozenRouteFixture(t, []string{"SPEC-LUA-RUNTIME-001"})
+	plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.PlanVersion++
+	plan.Status, plan.Batches[0].State = "COMPLETE", "COMPLETED"
+	writeFixtureMilestonePlan(t, a, plan)
+	paths := []string{".codex/state/MILESTONE_PLAN.yaml"}
+	relative := "docs/80-roadmap/M2_SCOPE_AND_EXIT_GATE.md"
+	if err := os.Remove(filepath.Join(a.root, filepath.FromSlash(relative))); err == nil {
+		paths = append(paths, relative)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	commitFixturePaths(t, a, "completed predecessor without successor scope", paths...)
+	return a
+}
+
+func assertPlanningRoutePlanID(t *testing.T, a *App, expected string) {
+	t.Helper()
+	route, err := loadYAML[readingMap](a.root, ".codex/runtime/READING_MAP.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, section := range route.MachineContracts {
+		if section.Path == ".codex/state/MILESTONE_PLAN.yaml" {
+			count++
+			if section.SectionID != expected {
+				t.Errorf("current plan reference=%s, want %s", section.SectionID, expected)
+			}
+		}
+	}
+	if count != 1 {
+		t.Errorf("current plan bound %d times, want one", count)
+	}
+}
+
 func TestTrackedMilestonePlanMatchesItsLifecycleState(t *testing.T) {
 	a := testApp(t)
 	catalog := testV1MilestoneCatalog(t, a)
@@ -2049,6 +2230,74 @@ func runFixtureGo(root, goos string, args ...string) (string, error) {
 }
 
 // x-section-id: PROJECTCTL-POSTGRES-SCOPE-GATE-TESTS
+func TestCompletedM1IntegrationScopeSurvivesCurrentPlanTransition(t *testing.T) {
+	source := testApp(t)
+	accepted := postgresScopePlan(t)
+	if !completedMilestonePlan(accepted) {
+		t.Fatal("accepted source must contain the completed M1 plan")
+	}
+	root := t.TempDir()
+	a := &App{root: root}
+	roadmap, err := os.ReadFile(filepath.Join(source.root, "docs/80-roadmap/V1_MILESTONES.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeReferenceScopeFixtureFile(t, root, "docs/80-roadmap/V1_MILESTONES.md", roadmap)
+	baseline := milestonePlan{
+		SchemaVersion: milestonePlanSchemaVersion, PlanID: "M2-MILESTONE-PLAN", Milestone: "M2",
+		Status: "NOT_GENERATED", ModifiableOnlyInMode: "PLAN", NextBatchSequence: 1,
+		Batches: []milestoneBatch{}, Tombstones: []batchTombstone{},
+	}
+	currentBytes, err := yaml.Marshal(baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archiveBytes, err := yaml.Marshal(accepted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentRelative := ".codex/state/MILESTONE_PLAN.yaml"
+	archiveRelative := ".codex/state/completed/M1/MILESTONE_PLAN.yaml"
+	writeReferenceScopeFixtureFile(t, root, currentRelative, currentBytes)
+	writeReferenceScopeFixtureFile(t, root, archiveRelative, archiveBytes)
+	plan, err := a.postgresScopeAuthority()
+	if err != nil || !hasApprovedPostgresScope(plan) || !approvedMigrationPath("internal/session/migration/probe.go", plan) {
+		t.Fatalf("completed M1 integration authority was lost: %v", err)
+	}
+	if problems := integrationScopeProblems("cmd/workerd/main.go", []byte("package fixture\nimport \"database/sql\"\n"), plan); len(problems) == 0 {
+		t.Fatal("archive fallback expanded approved PostgreSQL paths")
+	}
+	for _, test := range []struct {
+		name, relative string
+		data           []byte
+	}{
+		{"missing-archive", archiveRelative, nil},
+		{"malformed-archive", archiveRelative, []byte("[malformed")},
+		{"uncompleted-archive", archiveRelative, bytes.Replace(archiveBytes, []byte("status: COMPLETE"), []byte("status: ACTIVE"), 1)},
+		{"extra-archive-document", archiveRelative, append(append([]byte(nil), archiveBytes...), []byte("\n---\nmilestone: M0\n")...)},
+		{"missing-current", currentRelative, nil},
+		{"malformed-current", currentRelative, []byte("[malformed")},
+		{"extra-current-document", currentRelative, append(append([]byte(nil), currentBytes...), []byte("\n---\nmilestone: M0\n")...)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(root, filepath.FromSlash(test.relative))
+			if test.data == nil {
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				writeReferenceScopeFixtureFile(t, root, test.relative, test.data)
+			}
+			plan, err := a.postgresScopeAuthority()
+			if err == nil && hasApprovedPostgresScope(plan) {
+				t.Fatal("invalid current or archive authority granted PostgreSQL scope")
+			}
+			writeReferenceScopeFixtureFile(t, root, currentRelative, currentBytes)
+			writeReferenceScopeFixtureFile(t, root, archiveRelative, archiveBytes)
+		})
+	}
+}
+
 func postgresScopePlan(t *testing.T) milestonePlan {
 	t.Helper()
 	plan, err := testApp(t).postgresScopeAuthority()
