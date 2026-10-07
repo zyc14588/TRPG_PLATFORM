@@ -6,6 +6,8 @@ package platform_core_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -31,6 +33,14 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, "M2-B001 owned local database required; integration NOT_RUN")
 		os.Exit(1)
 	}
+	// A container lease may serve consecutive or independent verification runs.
+	// Keep their persisted fixtures disjoint without truncating previous evidence.
+	var nonce [16]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		fmt.Fprintln(os.Stderr, "M2-B001 test isolation unavailable; integration NOT_RUN")
+		os.Exit(1)
+	}
+	runID += "-" + hex.EncodeToString(nonce[:])
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	r, err := postgres.OpenPlatformCoreRepository(ctx, dsn, nil)
 	if err == nil {
