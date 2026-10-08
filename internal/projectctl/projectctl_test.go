@@ -2954,6 +2954,42 @@ func TestModelGatewayProviderTextDoesNotGrantClientOrDependencyScope(t *testing.
 	}
 }
 
+func TestModelGatewayProviderSDKImportsStayDeniedAfterDecoding(t *testing.T) {
+	app := testApp(t)
+	current, err := app.modelGatewayScopeAuthority()
+	if err != nil || !hasApprovedModelGatewayScope(current) {
+		t.Fatal("current model authority unavailable", err)
+	}
+	prior, err := app.postgresScopeAuthority()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, imported := range []string{"github.com/openai/openai-go", "github.com/openai/openai-go/v2", "github.com/openai/openai-go/packages/param", "github.com/sashabaranov/go-openai", "github.com/sashabaranov/go-openai/internal/config"} {
+		for _, alias := range []string{"_ ", "sdk ", ". "} {
+			for _, escaped := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/escaped=%t", imported, alias, escaped), func(t *testing.T) {
+					literal := strconv.Quote(imported)
+					if escaped {
+						var encoded strings.Builder
+						encoded.WriteByte('"')
+						for _, b := range []byte(imported) {
+							fmt.Fprintf(&encoded, "\\x%02x", b)
+						}
+						encoded.WriteByte('"')
+						literal = encoded.String()
+					}
+					data := []byte("package fixture\nimport " + alias + literal + "\n")
+					for _, path := range []string{"internal/ai/gateway/sdk_probe.go", "apps/web-player/src/sdk_probe.go"} {
+						if problems := integrationScopeProblems(path, data, prior, current); len(problems) == 0 {
+							t.Fatal("provider SDK import escaped the authority boundary", path, imported, alias, escaped)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
 // x-section-id: PROJECTCTL-MIGRATION-PATH-SCOPE-GATE-TESTS
 func migrationScopePlan(t *testing.T, fuzz bool) milestonePlan {
 	t.Helper()

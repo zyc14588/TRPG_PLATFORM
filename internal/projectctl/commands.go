@@ -991,6 +991,18 @@ func approvedModelProviderToken(relative, forbidden string, current []milestoneP
 	return forbidden == "api."+"openai.com" || forbidden == "ol"+"lama" || forbidden == "llama"+".cpp"
 }
 
+// These SDK module families are not protocol-name text. Match imports after
+// unquoting, so alias and escaped declarations retain the same denied scope.
+func modelProviderSDKImport(imported string) bool {
+	imported = strings.ToLower(imported)
+	for _, family := range []string{"github.com/openai/openai-go", "github.com/sashabaranov/go-openai"} {
+		if imported == family || strings.HasPrefix(imported, family+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 func integrationScopeProblems(relative string, data []byte, plan milestonePlan, current ...milestonePlan) []string {
 	var problems []string
 	goSource := strings.HasSuffix(relative, ".go")
@@ -1018,6 +1030,9 @@ func integrationScopeProblems(relative string, data []byte, plan milestonePlan, 
 		if err != nil {
 			problems = append(problems, fmt.Sprintf("scope import %s: %v", relative, err))
 			continue
+		}
+		if modelProviderSDKImport(path) {
+			problems = append(problems, fmt.Sprintf("source %s contains forbidden model provider SDK import %q", relative, path))
 		}
 		postgresImport := false
 		for _, forbidden := range m0IntegrationTokens() {
