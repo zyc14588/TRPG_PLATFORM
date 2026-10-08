@@ -150,6 +150,8 @@ type sessionTransportData struct {
 	hub        *realtime.Hub
 	connection *realtime.Connection
 	closed     atomic.Bool
+	control    PlayerControl
+	scope      core.Scope
 }
 
 func (SessionTransport) Format(f fmt.State, _ rune) {
@@ -201,7 +203,7 @@ func (s *Service) ConnectSession(ctx context.Context, access SessionAccess, curr
 		_ = authority.ReleaseNative(identity)
 		return nil, e
 	}
-	td := &sessionTransportData{authority: authority, identity: identity, registry: registry, hub: hub, connection: connection}
+	td := &sessionTransportData{authority: authority, identity: identity, registry: registry, hub: hub, connection: connection, control: s.state().player, scope: v.Scope}
 	return &SessionTransport{data: &td}, nil
 }
 func (t *SessionTransport) usable(ctx context.Context) error {
@@ -211,6 +213,17 @@ func (t *SessionTransport) usable(ctx context.Context) error {
 	return t.state().authority.VerifyContext(ctx, t.state().identity)
 }
 func (t *SessionTransport) Submit(ctx context.Context, e command.Envelope) (data.Receipt, error) {
+	if t.state() == nil {
+		return data.Receipt{}, command.ErrDenied
+	}
+	if t.state().control != nil {
+		owned, release, err := t.state().control.BeginMutation(ctx, t.state().scope, t.state().identity.Binding())
+		if err != nil {
+			return data.Receipt{}, err
+		}
+		defer release()
+		ctx = owned
+	}
 	if err := t.usable(ctx); err != nil {
 		return data.Receipt{}, err
 	}
@@ -248,6 +261,17 @@ func (t *SessionTransport) Next(ctx context.Context) (realtime.Frame, error) {
 	return t.state().connection.Next(ctx)
 }
 func (t *SessionTransport) CreateRecoveryPoint(ctx context.Context) (actor.RecoveryPoint, error) {
+	if t.state() == nil {
+		return actor.RecoveryPoint{}, command.ErrDenied
+	}
+	if t.state().control != nil {
+		owned, release, err := t.state().control.BeginMutation(ctx, t.state().scope, t.state().identity.Binding())
+		if err != nil {
+			return actor.RecoveryPoint{}, err
+		}
+		defer release()
+		ctx = owned
+	}
 	if e := t.usable(ctx); e != nil {
 		return actor.RecoveryPoint{}, e
 	}
@@ -261,4 +285,12 @@ func (t *SessionTransport) Close() {
 	d := t.state()
 	d.connection.Close()
 	_ = d.authority.ReleaseNative(d.identity)
+}
+
+// Polling keeps the issued native identity and bounded Actor reads, but has no
+// unsolicited realtime queue. The approved player protocol uses HTTPS pages.
+func (t *SessionTransport) DetachDelivery() {
+	if t.state() != nil && t.state().connection != nil {
+		t.state().connection.Close()
+	}
 }

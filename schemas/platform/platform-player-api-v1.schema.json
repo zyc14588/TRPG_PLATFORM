@@ -1,0 +1,1147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trpg-platform:platform-player-api:v1",
+  "x-section-id": "SCHEMA-PLATFORM-PLAYER-API-V1",
+  "x-status": "ACTIVE",
+  "$comment": "SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0. Adopted under CHANGE-M2-PLAYER-API-V1; implementation pins the canonical payload.",
+  "$defs": {
+    "ID": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    },
+    "Counter": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,18})$",
+      "$comment": "Runtime also rejects values >= 9223372036854775807; decimal strings avoid JavaScript precision loss."
+    },
+    "Digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "Label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[^\\x00-\\x1F\\x7F]+$"
+    },
+    "Value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "nil"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "boolean"
+            },
+            "boolean": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "integer"
+            },
+            "number": {
+              "type": "string",
+              "pattern": "^(0|-?[1-9][0-9]{0,18})$"
+            }
+          },
+          "required": [
+            "kind",
+            "number"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "float"
+            },
+            "number": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          "required": [
+            "kind",
+            "number"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "string"
+            },
+            "string": {
+              "type": "string",
+              "maxLength": 16384
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "array"
+            },
+            "array": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Value"
+              },
+              "maxItems": 8192
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "table"
+            },
+            "table": {
+              "type": "object",
+              "maxProperties": 8192,
+              "propertyNames": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/Value"
+              }
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "$comment": "Apply checkpoint.Validate too: depth32, nodes8192, MaxBytes256KiB, finite canonical numbers, no cap: values/keys. Existing checkpoint representation is retained."
+    },
+    "Slot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ID"
+        },
+        "mode": {
+          "enum": [
+            "human",
+            "ai",
+            "empty"
+          ]
+        },
+        "participant_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "model_selection": {
+          "$ref": "#/$defs/ID"
+        }
+      },
+      "required": [
+        "id",
+        "mode"
+      ],
+      "additionalProperties": false
+    },
+    "Seat": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ID"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "modes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "human",
+              "ai"
+            ]
+          },
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "id",
+        "required",
+        "modes"
+      ],
+      "additionalProperties": false
+    },
+    "Game": {
+      "type": "object",
+      "properties": {
+        "game_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "configuration_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "title": {
+          "$ref": "#/$defs/Label"
+        },
+        "content_tags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Label"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "safety_tags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Label"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "seats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Seat"
+          },
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "game_id",
+        "configuration_id",
+        "title",
+        "content_tags",
+        "safety_tags",
+        "seats"
+      ],
+      "additionalProperties": false
+    },
+    "OwnConsent": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "$ref": "#/$defs/Counter"
+        },
+        "consent": {
+          "type": "boolean"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "safety_confirmed": {
+          "type": "boolean"
+        },
+        "boundaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Label"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "revision",
+        "consent",
+        "ready",
+        "safety_confirmed",
+        "boundaries"
+      ],
+      "additionalProperties": false
+    },
+    "Readiness": {
+      "type": "object",
+      "properties": {
+        "ready": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "not_configured",
+              "required_seat_missing",
+              "consent_required",
+              "participant_not_ready",
+              "safety_confirmation_required",
+              "boundary_conflict",
+              "model_unavailable",
+              "preparation_changed",
+              "service_unavailable"
+            ]
+          },
+          "maxItems": 16
+        }
+      },
+      "required": [
+        "ready",
+        "reasons"
+      ],
+      "additionalProperties": false
+    },
+    "Lobby": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "$ref": "#/$defs/Counter"
+        },
+        "configuration_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ID"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "configuration_hash": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "graph_hash": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "slots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Slot"
+          },
+          "maxItems": 64
+        },
+        "own_consent": {
+          "$ref": "#/$defs/OwnConsent"
+        },
+        "readiness": {
+          "$ref": "#/$defs/Readiness"
+        },
+        "can_manage": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "revision",
+        "configuration_id",
+        "configuration_hash",
+        "graph_hash",
+        "slots",
+        "own_consent",
+        "readiness",
+        "can_manage"
+      ],
+      "additionalProperties": false
+    },
+    "Control": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "$ref": "#/$defs/Counter"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [
+            "none",
+            "safety",
+            "disconnect",
+            "service_unavailable"
+          ]
+        },
+        "own_resume_required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "revision",
+        "paused",
+        "reason",
+        "own_resume_required"
+      ],
+      "additionalProperties": false
+    },
+    "Connection": {
+      "type": "object",
+      "properties": {
+        "connection_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "session_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "seat_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "expires_in_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        },
+        "control": {
+          "$ref": "#/$defs/Control"
+        }
+      },
+      "required": [
+        "connection_id",
+        "session_id",
+        "seat_id",
+        "expires_in_seconds",
+        "control"
+      ],
+      "additionalProperties": false
+    },
+    "Event": {
+      "type": "object",
+      "properties": {
+        "sequence": {
+          "$ref": "#/$defs/Counter"
+        },
+        "version": {
+          "$ref": "#/$defs/Counter"
+        },
+        "command_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "type": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "$ref": "#/$defs/Value"
+        }
+      },
+      "required": [
+        "sequence",
+        "version",
+        "command_id",
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "Snapshot": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "seat_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "state_version": {
+          "$ref": "#/$defs/Counter"
+        },
+        "event_cursor": {
+          "$ref": "#/$defs/Counter"
+        },
+        "view": {
+          "$ref": "#/$defs/Value"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Event"
+          },
+          "maxItems": 128
+        },
+        "more": {
+          "type": "boolean"
+        },
+        "ended": {
+          "type": "boolean"
+        },
+        "control": {
+          "$ref": "#/$defs/Control"
+        }
+      },
+      "required": [
+        "session_id",
+        "seat_id",
+        "state_version",
+        "event_cursor",
+        "view",
+        "events",
+        "more",
+        "ended",
+        "control"
+      ],
+      "additionalProperties": false
+    },
+    "Result": {
+      "type": "object",
+      "properties": {
+        "command_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "state_version": {
+          "$ref": "#/$defs/Counter"
+        },
+        "event_cursor": {
+          "$ref": "#/$defs/Counter"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "result": {
+          "$ref": "#/$defs/Value"
+        },
+        "control": {
+          "$ref": "#/$defs/Control"
+        }
+      },
+      "required": [
+        "command_id",
+        "state_version",
+        "event_cursor",
+        "replayed",
+        "result",
+        "control"
+      ],
+      "additionalProperties": false
+    },
+    "Export": {
+      "type": "object",
+      "properties": {
+        "format_version": {
+          "const": 1
+        },
+        "kind": {
+          "enum": [
+            "public",
+            "personal",
+            "host",
+            "administrator"
+          ]
+        },
+        "session_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "seat_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "state_version": {
+          "$ref": "#/$defs/Counter"
+        },
+        "event_cursor": {
+          "$ref": "#/$defs/Counter"
+        },
+        "next_cursor": {
+          "$ref": "#/$defs/Counter"
+        },
+        "more": {
+          "type": "boolean"
+        },
+        "ended": {
+          "type": "boolean"
+        },
+        "view": {
+          "$ref": "#/$defs/Value"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Event"
+          },
+          "maxItems": 128
+        }
+      },
+      "required": [
+        "format_version",
+        "kind",
+        "session_id",
+        "seat_id",
+        "state_version",
+        "event_cursor",
+        "next_cursor",
+        "more",
+        "ended",
+        "view",
+        "events"
+      ],
+      "additionalProperties": false
+    },
+    "RecoveryPoint": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "state_version": {
+          "$ref": "#/$defs/Counter"
+        },
+        "event_cursor": {
+          "$ref": "#/$defs/Counter"
+        }
+      },
+      "required": [
+        "session_id",
+        "state_version",
+        "event_cursor"
+      ],
+      "additionalProperties": false
+    },
+    "VersionOnlyRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        }
+      },
+      "required": [
+        "schema_version"
+      ],
+      "additionalProperties": false
+    },
+    "ConfigureRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "configuration_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "slots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Slot"
+          },
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "schema_version",
+        "configuration_id",
+        "slots"
+      ],
+      "additionalProperties": false
+    },
+    "AcknowledgeRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "revision": {
+          "$ref": "#/$defs/Counter"
+        },
+        "consent": {
+          "type": "boolean"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "safety_confirmed": {
+          "type": "boolean"
+        },
+        "boundaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Label"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "schema_version",
+        "revision",
+        "consent",
+        "ready",
+        "safety_confirmed",
+        "boundaries"
+      ],
+      "additionalProperties": false
+    },
+    "LaunchRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "revision": {
+          "$ref": "#/$defs/Counter"
+        }
+      },
+      "required": [
+        "schema_version",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "ConnectRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "after_cursor": {
+          "$ref": "#/$defs/Counter"
+        }
+      },
+      "required": [
+        "schema_version",
+        "after_cursor"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "connection_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "after_cursor": {
+          "$ref": "#/$defs/Counter"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        }
+      },
+      "required": [
+        "schema_version",
+        "connection_id",
+        "after_cursor",
+        "limit"
+      ],
+      "additionalProperties": false
+    },
+    "CommandRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "connection_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "command_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "expected_state_version": {
+          "$ref": "#/$defs/Counter"
+        },
+        "type": {
+          "$ref": "#/$defs/ID"
+        },
+        "payload": {
+          "$ref": "#/$defs/Value"
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/ID"
+        }
+      },
+      "required": [
+        "schema_version",
+        "connection_id",
+        "command_id",
+        "expected_state_version",
+        "type",
+        "payload",
+        "correlation_id"
+      ],
+      "additionalProperties": false
+    },
+    "DisconnectRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "connection_id": {
+          "$ref": "#/$defs/ID"
+        }
+      },
+      "required": [
+        "schema_version",
+        "connection_id"
+      ],
+      "additionalProperties": false
+    },
+    "ControlRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "expected_control_revision": {
+          "$ref": "#/$defs/Counter"
+        }
+      },
+      "required": [
+        "schema_version",
+        "expected_control_revision"
+      ],
+      "additionalProperties": false
+    },
+    "ExportRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "kind": {
+          "enum": [
+            "public",
+            "personal",
+            "host",
+            "administrator"
+          ]
+        },
+        "after_cursor": {
+          "$ref": "#/$defs/Counter"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "after_cursor",
+        "limit"
+      ],
+      "additionalProperties": false
+    },
+    "CatalogResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "games": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Game"
+              },
+              "maxItems": 128
+            }
+          },
+          "required": [
+            "games"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "LobbyResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "$ref": "#/$defs/Lobby"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "LaunchResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "session_id": {
+              "$ref": "#/$defs/ID"
+            },
+            "revision": {
+              "$ref": "#/$defs/Counter"
+            }
+          },
+          "required": [
+            "session_id",
+            "revision"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ConnectionResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "$ref": "#/$defs/Connection"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "$ref": "#/$defs/Snapshot"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "CommandResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "$ref": "#/$defs/Result"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ControlResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "$ref": "#/$defs/Control"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ExportResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "$ref": "#/$defs/Export"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "RecoveryPointResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "$ref": "#/$defs/RecoveryPoint"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "AppliedResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "applied": {
+              "const": true
+            }
+          },
+          "required": [
+            "applied"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "INVALID_REQUEST",
+                "UNAUTHENTICATED",
+                "DENIED",
+                "CONFLICT",
+                "CLAIM_REQUIRED",
+                "RATE_LIMITED",
+                "UNAVAILABLE",
+                "OUTCOME_UNKNOWN",
+                "PLAYER_PAUSED",
+                "PLAYER_CONNECTION_EXPIRED"
+              ]
+            },
+            "message": {
+              "enum": [
+                "Invalid request",
+                "Authentication required",
+                "Request denied",
+                "Request conflicts",
+                "Guest claim required",
+                "Request limit reached",
+                "Service unavailable",
+                "Commit outcome unknown",
+                "Game paused",
+                "Reconnect required"
+              ]
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

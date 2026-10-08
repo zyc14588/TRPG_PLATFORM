@@ -125,10 +125,57 @@ func New(o Options) (*Service, error) {
 	d := &serviceData{launch: o.Launch, storage: o.Storage, policies: o.Policies}
 	return &Service{data: &d}, nil
 }
+func (s *Service) UsesLaunch(l *launch.Service) bool {
+	return s.state() != nil && l != nil && s.state().launch == l
+}
+func (c *Connection) CurrentAccess(ctx context.Context) (launch.SessionAccess, error) {
+	a, _, e := c.current(ctx, false)
+	return a, e
+}
+
+// SnapshotPage uses the actual current seat view policy and raw scan cursor,
+// so even pages containing only hidden events make bounded forward progress.
+func (c *Connection) SnapshotPage(ctx context.Context, after uint64, limit int) (Export, error) {
+	if after >= math.MaxInt64 || limit < 1 || limit > 128 {
+		return Export{}, auth.ErrInvalid
+	}
+	a, p, e := c.current(ctx, false)
+	if e != nil {
+		return Export{}, e
+	}
+	v := a.StorageValue()
+	page, e := c.state().owner.state().storage.ReadPage(ctx, v.Scope, v.Binding, after, limit)
+	if e != nil {
+		return Export{}, SafeError(e)
+	}
+	d := page.StorageValue()
+	if d.Binding != v.Binding || d.Version < 1 || d.Version >= math.MaxInt64 || d.Cursor >= math.MaxInt64 || d.NextCursor < after || d.NextCursor > d.Cursor || len(d.Events) > limit {
+		return Export{}, auth.ErrDenied
+	}
+	view := checkpoint.Object(map[string]checkpoint.Value{})
+	if !d.Ended {
+		frame, e := c.state().transport.Snapshot(ctx, after)
+		if e != nil {
+			return Export{}, SafeError(e)
+		}
+		if frame.Version != d.Version || frame.Cursor != d.Cursor {
+			return Export{}, auth.ErrConflict
+		}
+		view = frame.View
+	}
+	a, p, e = c.current(ctx, false)
+	if e != nil {
+		return Export{}, e
+	}
+	v = a.StorageValue()
+	return auth.RoomSecret(ExportData{FormatVersion: 1, Kind: Personal, Scope: v.Scope, Binding: v.Binding, Seat: v.Seat, Version: d.Version, Cursor: d.Cursor, NextCursor: d.NextCursor, More: d.More, Ended: d.Ended, View: realtime.Filter(view, p.View.ViewFields), Events: realtime.FilterEvents(d.Events, p.View)}), nil
+}
 func SafeError(e error) error {
 	switch {
 	case e == nil:
 		return nil
+	case errors.Is(e, launch.ErrPlayerPaused):
+		return launch.ErrPlayerPaused
 	case errors.Is(e, command.ErrDenied), errors.Is(e, data.ErrDenied):
 		return auth.ErrDenied
 	case errors.Is(e, command.ErrEnvelope):
@@ -224,6 +271,14 @@ func (s *Service) Connect(ctx context.Context, caller launch.Caller, w, r string
 		c.Close()
 		return nil, SafeError(e)
 	}
+	return c, nil
+}
+func (s *Service) ConnectPolling(ctx context.Context, caller launch.Caller, w, r string, after uint64) (*Connection, error) {
+	c, e := s.Connect(ctx, caller, w, r, after)
+	if e != nil {
+		return nil, e
+	}
+	c.state().transport.DetachDelivery()
 	return c, nil
 }
 func (c *Connection) Close() {

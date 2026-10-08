@@ -26,6 +26,7 @@ type Options struct {
 	Configurations []Configuration
 	Models         ModelChecker
 	MaxSessions    int
+	PlayerControl  PlayerControl
 }
 type Service struct{ data **serviceData }
 type serviceData struct {
@@ -35,6 +36,7 @@ type serviceData struct {
 	configs   map[string]Configuration
 	models    ModelChecker
 	actors    *Coordinator
+	player    PlayerControl
 }
 
 func (Service) Format(s fmt.State, _ rune)   { _, _ = io.WriteString(s, "<private launch service>") }
@@ -67,7 +69,7 @@ func New(o Options) (*Service, error) {
 	if o.Context == nil || o.Context.Err() != nil || o.Authority == nil || o.Rooms == nil || o.Storage == nil || len(o.Configurations) < 1 || len(o.Configurations) > 128 || o.Storage.RuntimeRepository() == nil || o.Storage.SessionRepository() == nil {
 		return nil, auth.ErrInvalid
 	}
-	d := &serviceData{authority: o.Authority, rooms: o.Rooms, storage: o.Storage, configs: map[string]Configuration{}, models: o.Models}
+	d := &serviceData{authority: o.Authority, rooms: o.Rooms, storage: o.Storage, configs: map[string]Configuration{}, models: o.Models, player: o.PlayerControl}
 	for _, v := range o.Configurations {
 		c := v.StorageValue()
 		if !configuration(c) {

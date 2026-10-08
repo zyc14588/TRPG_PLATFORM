@@ -18,6 +18,14 @@ func (s *Service) SubmitContinuation(ctx context.Context, j task.Job, current co
 	if e != nil || current == nil || s.state() == nil {
 		return data.Receipt{}, task.ErrDenied
 	}
+	if s.state().player != nil {
+		owned, release, err := s.state().player.BeginMutation(ctx, v.Scope, v.Binding)
+		if err != nil {
+			return data.Receipt{}, task.ErrDenied
+		}
+		defer release()
+		ctx = owned
+	}
 	if e = s.liveService(ctx, v.Scope.WorkspaceID, v.Scope.RoomID); e != nil {
 		return data.Receipt{}, task.ErrUnavailable
 	}
