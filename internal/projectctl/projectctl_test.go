@@ -3161,6 +3161,23 @@ func TestMigrationScopeNativeRepositoryGate(t *testing.T) {
 	if err := os.WriteFile(planPath, original, 0600); err != nil {
 		t.Fatal(err)
 	}
+	// The earlier native gates scan the full, unmodified current M2 source.
+	// The following cases deliberately replace its authority with an M1 plan;
+	// isolate only the separately approved M2 model files in this temporary fixture.
+	modelAuthority, err := app.modelGatewayScopeAuthority()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasApprovedModelGatewayScope(modelAuthority) {
+		for _, relative := range files {
+			if !approvedModelGatewayPath(relative, modelAuthority) {
+				continue
+			}
+			if err := os.Remove(filepath.Join(root, relative)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	unstarted, err := yaml.Marshal(migrationScopePlan(t, false))
 	if err != nil {
 		t.Fatal(err)
@@ -3187,6 +3204,20 @@ func TestMigrationScopeNativeRepositoryGate(t *testing.T) {
 	}
 	if err := app.checkScope(context.Background()); err != nil {
 		t.Fatalf("approved exact frozen fuzz scope rejected: %v", err)
+	}
+	// A valid M1 fuzz authority must still reject a model server reference.
+	modelProbe := filepath.Join(root, "internal/ai/gateway/m1_scope_probe.go")
+	if err := os.MkdirAll(filepath.Dir(modelProbe), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(modelProbe, []byte("package fixture\n// "+m0IntegrationTokens()[1]+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.checkScope(context.Background()); err == nil {
+		t.Fatal("M1 fuzz authority granted M2 model integration scope")
+	}
+	if err := os.Remove(modelProbe); err != nil {
+		t.Fatal(err)
 	}
 	if err := os.WriteFile(fuzz, []byte("package fixture\nimport _ \"database/sql\"\n"), 0600); err != nil {
 		t.Fatal(err)
