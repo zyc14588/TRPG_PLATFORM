@@ -4,7 +4,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/install"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/package/store"
@@ -258,6 +258,24 @@ func (t *platformPlayerTransaction) PutLease(ctx context.Context, l player.Lease
 	}
 	return nil
 }
+
+// Closing the actual approved pgx connection removes its session locks.
+// ResetSession then tells database/sql to discard that closed connection.
+func discardPlayerConnection(conn *sql.Conn) {
+	_ = conn.Raw(func(raw any) error {
+		owned, ok := raw.(*stdlib.Conn)
+		if !ok {
+			if closer, ok := raw.(interface{ Close() error }); ok {
+				_ = closer.Close()
+			}
+			return auth.ErrUnavailable
+		}
+		bounded, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = owned.Conn().Close(bounded)
+		return owned.ResetSession(bounded)
+	})
+}
 func (s *PlatformPlayerStorage) ExecutionLock(ctx context.Context, b data.Binding, exclusive bool) (func(), error) {
 	if s.state() == nil || ctx == nil || !validBinding(b) {
 		return nil, auth.ErrDenied
@@ -277,7 +295,7 @@ func (s *PlatformPlayerStorage) ExecutionLock(ctx context.Context, b data.Bindin
 		var got bool
 		e = conn.QueryRowContext(bounded, `SELECT `+lock+`(hashtextextended($1,0))`, key).Scan(&got)
 		if e != nil {
-			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+			discardPlayerConnection(conn)
 			_ = conn.Close()
 			return nil, auth.ErrUnavailable
 		}
@@ -300,7 +318,7 @@ func (s *PlatformPlayerStorage) ExecutionLock(ctx context.Context, b data.Bindin
 			defer cancel()
 			var ok bool
 			if e := conn.QueryRowContext(release, `SELECT `+unlock+`(hashtextextended($1,0))`, key).Scan(&ok); e != nil || !ok {
-				_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+				discardPlayerConnection(conn)
 			}
 			_ = conn.Close()
 		})

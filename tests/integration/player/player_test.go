@@ -12,7 +12,33 @@ import (
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/platform/auth"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/platform/core"
+	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/postgres"
 )
+
+func TestPlayerExecutionFenceRecoversAfterLosingItsOwnedBackend(t *testing.T) {
+	f := newFixture(t, nil)
+	p, e := postgres.NewPlatformPlayerStorage(f.r)
+	need(t, e)
+	b := data.Binding{Workspace: f.w, Session: "owned-execution-release", GraphHash: "sha256:" + strings.Repeat("a", 64)}
+	release, e := p.ExecutionLock(f.ctx, b, true)
+	need(t, e)
+	defer release()
+	key := "platform-player:" + b.Workspace + "/" + b.Session + "/" + b.GraphHash
+	query := `SELECT pid FROM pg_locks WHERE database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND locktype='advisory' AND classid=((hashtextextended('` + key + `',0)>>32)&4294967295)::oid AND objid=(hashtextextended('` + key + `',0)&4294967295)::oid AND granted`
+	pid, e := strconv.Atoi(f.sql(t, query))
+	if e != nil || pid < 1 {
+		t.Fatal("owned execution fence backend missing")
+	}
+	if f.sql(t, "SELECT pg_terminate_backend("+strconv.Itoa(pid)+")") != "t" {
+		t.Fatal("owned backend failure not exercised")
+	}
+	release()
+	// The pool must remain usable and this exact fence must be reacquired.
+	again, e := p.ExecutionLock(f.ctx, b, true)
+	need(t, e)
+	again()
+}
 
 func TestPlayerHTTPSInstalledActorReceiptAndPrivateSeatFiltering(t *testing.T) {
 	n := newPlayerFixture(t, false)
