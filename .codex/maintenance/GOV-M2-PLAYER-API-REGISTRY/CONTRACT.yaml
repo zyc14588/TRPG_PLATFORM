@@ -71,11 +71,26 @@ bootstrap:
     f0ad57a8028b0a483c6903012dbdca5052ea7badcd831852ce0384e8877078e8; approval receipt
     sha256 3d7668786ab23ceadc6a50bfe5e85b22d076b3652d910de28dd687ef67cbc024. Actual
     exact missing-contract REPAIR1 at clean31178c0 sha256 9bf046eb4feb839c9a6d5eee427bba6a050e9fd16b8fd6c0ef6ac346935884b1
-    permits only this contract creation; Bootstrap016/017/018 remain retired.
+    permits only this contract creation; Bootstrap016/017/018 remain retired. Bootstrap019
+    is permanently RETIRED after formal clean signed route/native-reading/check0;
+    only formal maintenance REPAIR/ACCEPT may now operate.
   allowed_scope:
   - Create only .codex/maintenance/GOV-M2-PLAYER-API-REGISTRY/CONTRACT.yaml at the
     current clean signed source before catalog changes.
   retirement_condition: Permanently retire once formal signed REPAIR/native reading/codex
     check0 succeeds, before production code edits.
-  status: AUTHORIZED_ONCE
+  status: RETIRED
+  retirement_evidence:
+  - Clean signed 4c6e9640fccec1b636b5fb2e206858e13d0f6dcc tree daefbfe58a5d64fe3ac9f36c5c31ff02e30d96bf
+    formal REPAIR, native28 exact sections, codex check and signature verification
+    actual0 before any control source edits.
+  - /home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/gov-m2-player-api-registry/bootstrap019-formal-repair-route.json
+    sha256 aab1ab97c51cd93aa7cee878d7a2f13b35384b0b4a8181c9e64f618914ab1540
+  - /home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/gov-m2-player-api-registry/bootstrap019-native-reading.json
+    sha256 aea3a3a7669ce1ec590417dcc3e33e4ca27058da5aee4a17cd53349cdb63f9c7
+  - /home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/gov-m2-player-api-registry/bootstrap019-formal-check.json
+    sha256 eca45fca9946895ff62522273d4038b025e2e1ec9d2636e6b5b07c1c9bd574ec
+  - /home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/gov-m2-player-api-registry/bootstrap019-signature.json
+    sha256 03ef426e3cedb298031a9820c537cf0de23318a751bb1495a71ea363322571a8
+  - Bootstrap019 may never be reused. Bootstrap016/017/018 remain permanently retired.
 status: ACTIVE
