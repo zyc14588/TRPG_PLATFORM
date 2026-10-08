@@ -4,10 +4,26 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "4b08311f5a1fc791fa5a88691dbfcb443c28ef9d"
+source_commit: "8413b7a4adcd8de0715be78dd6f6244308d2972e"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B013 Linux 玩家服务端 API 业务已独立验收，等待最终状态接收与远端提交
+
+正常 PLAN v43→v44 仅将真实 M2-B013 VERIFYING→COMPLETED；十四字段冻结摘要 5d65d5fa4e239f20579ea05637336831c515fc3b93032a56ecabeecdac21f3e2、其余十二批、next14、tombstones 和 M1 状态保持。当前 Linux M2 已完成 10/13≈76.92%；其他平台业务 NOT_RUN。B010 仍须在 B013 本地主线接收、清理、归档和远端提交后启动。
+
+准确业务签名源 4b08311f5a1fc791fa5a88691dbfcb443c28ef9d / tree 7545d2010a78cf32e03438973e3f920c944cf467 在全新、专属且物理归属核验的 PostgreSQL 夹具与生产 Lua runner 上完成实际 HTTPS/Actor/队列/计费/重启/私密视图/租约和暂停链路；B013 集成12/12、竞态12/12，相关旧 launch/platform_session/continuation/model_gateway 原断言集成及竞态均实际退出0、零失败/跳过。完整单元、just check、just test、go vet ./...、Linux just ci 及签名/正式原生 codex check 通过。当前精确命名计数、日志及资源哈希在 BUSINESS_PRODUCER_RECEIPT_R11.json、PRODUCER_SOURCE_MANIFEST_R11.json、REQUIRED_FAILURE_CLOSURE_R11.json；原失败 R1–R10 保留并由当前实际检查关闭，缺夹具 NOT_RUN/诊断不计业务 PASS。
+
+本批仅采用 Owner 已批准15个同源 HTTPS 玩家路由与39个 Schema 定义，Cookie/CSRF/幂等及 workspace/room/当前席位授权保留。默认连接只恢复视图；任一已入场参与者可暂停，必要人工席位须各自明确确认才能恢复，主持不得代签；服务重启保持暂停。外部 AI/通用任务、回退、重试与 Actor mutation 共享持久控制及执行 fence，暂停确认前完成既有提交和取消/静止，确认后不产生新派发、回退、计费或状态改变。短租约与控制/准备修订在 mutation 前复验；分页保持游标进展及当前私密过滤，原导出种类和恢复点权限保留。
+
+Owner 于2026-10-09明确批准 CHANGE-M2-B013-AI-CONTINUATION-RECOVERY 精确两个上游文件：恢复校验兼容已合法提交的 task/ai continuation，追加来源引用/包/Schema/闭合字段回归。原完成断言逐字保留，M1命令/事件/checkpoint字节、权限、SQL、依赖和许可未改；批准回执 SHA256 205940992d5ba2329bebdc2abf9be3671c713bc251e1ae21f0df80ec4baac091。原冻结字段未重写，仅以有审计的 Owner 限定补修接收。B013原业务32路径与另行批准的3文件补修分别归属，全部605源码 blob/mode/完整字节回读。Owner 随后明确批准 CHANGE-M2-B013-OPTIONAL-PLAYER-FIXTURE：仅修复 internal/projectctl/projectctl_test.go 的 absent 文档夹具提交，原路由调用、三用例和断言逐字保留；生产门禁未变。该单文件批准回执 SHA256 5ef2c3a01c00b0eb87e5b6431b846808740112309d8b0418357f0701aac13dcd。完整 just test 对该失败和归档父路径用例均实际通过，所有原失败保留；包串行与独有临时目录属于测试运行隔离，文件稳定性断言未降标。此前 GOV-M2-PLAYER-API-REGISTRY 源830a78b4已独立接收、清理封存并远端提交，维护许可未混入本批代码范围。
+
+测试模型是合成本地 HTTP 服务；未调用付费外部提供者，也未将此计作真实模型资格。玩家浏览器完整界面、生产守护进程和 Compose、最终 M2 出口分别仍由 B010/B011/B012 承担。本批不改多平台范围。
+
+只读独立验收已对准确 VERIFYING 源实际重跑所有必要检查并审查源码，Root全成员回读接收通过，未决必需项为空；回执在ROOT_INDEPENDENT_BUSINESS_RECEPTION.json。最终三状态接收、Main接收、专属资源清理封存与普通远端推送仍须完成后再推进B010。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B013 Linux 玩家服务端 API 等待独立验收
 
