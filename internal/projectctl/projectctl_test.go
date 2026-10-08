@@ -2084,6 +2084,102 @@ func TestPlayerSchemaDuplicateSizeAndUTF8Bounds(t *testing.T) {
 	}
 }
 
+func TestPlayerSchemaAncestorPathsFailClosed(t *testing.T) {
+	valid, err := json.Marshal(playerRouteSchemaFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"schemas", "schemas/platform", "root", "dangling-parent", "parent-as-file"} {
+		t.Run(name, func(t *testing.T) {
+			a := &App{root: t.TempDir()}
+			writePlatformRouteFixture(t, a, platformPlayerSchemaPath, valid)
+			parent := "schemas/platform"
+			if name == "schemas" {
+				parent = "schemas"
+			}
+			expected := "symlink"
+			if name == "root" {
+				alias := filepath.Join(t.TempDir(), "root-alias")
+				if err := os.Symlink(a.root, alias); err != nil {
+					t.Fatal(err)
+				}
+				a.root = alias
+			} else {
+				path := filepath.Join(a.root, parent)
+				outside := filepath.Join(t.TempDir(), "outside")
+				if err := os.Rename(path, outside); err != nil {
+					t.Fatal(err)
+				}
+				if name == "dangling-parent" {
+					outside = filepath.Join(t.TempDir(), "absent")
+				}
+				if name == "parent-as-file" {
+					expected = "directory"
+					if err := os.WriteFile(path, []byte("not a directory"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.Symlink(outside, path); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := a.requestedSchemaRoutes([]string{platformPlayerSchemaID}); err == nil || !strings.Contains(err.Error(), expected) {
+				t.Fatalf("canonical Schema path accepted or wrong failure: %v", err)
+			}
+		})
+	}
+}
+
+func TestPlayerDocumentAncestorPathsFailClosed(t *testing.T) {
+	valid := []byte("---\ndocument_id: SPEC-PLATFORM-PLAYER-API-V1\nstatus: ACTIVE\n---\nApproved player contract.\n")
+	for _, name := range []string{"docs", "docs/20-architecture", "root", "missing-leaf", "dangling-parent", "parent-as-file"} {
+		t.Run(name, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-PLATFORM-PLAYER-API-V1"})
+			writePlatformRouteFixture(t, a, platformPlayerDocumentPath, valid)
+			parent := "docs/20-architecture"
+			if name == "docs" {
+				parent = "docs"
+			}
+			expected := "symlink"
+			if name == "root" {
+				alias := filepath.Join(t.TempDir(), "root-alias")
+				if err := os.Symlink(a.root, alias); err != nil {
+					t.Fatal(err)
+				}
+				a.root = alias
+			} else {
+				if name == "missing-leaf" {
+					if err := os.Remove(filepath.Join(a.root, platformPlayerDocumentPath)); err != nil {
+						t.Fatal(err)
+					}
+				}
+				path := filepath.Join(a.root, parent)
+				outside := filepath.Join(t.TempDir(), "outside")
+				if err := os.Rename(path, outside); err != nil {
+					t.Fatal(err)
+				}
+				if name == "dangling-parent" {
+					outside = filepath.Join(t.TempDir(), "absent")
+				}
+				if name == "parent-as-file" {
+					expected = "directory"
+					if err := os.WriteFile(path, []byte("not a directory"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.Symlink(outside, path); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// Exercise the native batch route and the direct document validator.
+			if _, err := a.routePaths(testCodexRequest("ACCEPT", "M1", "M1-B001")); err == nil || !strings.Contains(err.Error(), expected) {
+				t.Fatalf("canonical document route accepted or wrong failure: %v", err)
+			}
+			if err := a.validatePlayerRouteDocument(); err == nil || !strings.Contains(err.Error(), expected) {
+				t.Fatalf("direct document validation accepted or wrong failure: %v", err)
+			}
+		})
+	}
+}
+
 // x-section-id: PROJECTCTL-MILESTONE-LIFECYCLE-TESTS
 func TestSuccessorPlanRouteRequiresCompletedConsecutivePredecessor(t *testing.T) {
 	catalog := testV1MilestoneCatalog(t, testApp(t))

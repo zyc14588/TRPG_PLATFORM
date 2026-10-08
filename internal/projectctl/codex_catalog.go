@@ -478,11 +478,49 @@ func validatePlayerSchemaKeys(data []byte) error {
 	return nil
 }
 
+// Inspect every component of the two approved player sources before reading.
+// A missing optional leaf is distinct from an ancestor that redirects the source.
+func (a *App) playerSourcePath(relative string) (string, error) {
+	if relative != platformPlayerDocumentPath && relative != platformPlayerSchemaPath {
+		return "", errors.New("player source is outside the approved inventory")
+	}
+	root, err := filepath.Abs(a.root)
+	if err != nil {
+		return "", fmt.Errorf("resolve player source root: %w", err)
+	}
+	canonical, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve player source root: %w", err)
+	}
+	if canonical != root {
+		return "", errors.New("player source root contains a symlink")
+	}
+	path := root
+	parts := strings.Split(relative, "/")
+	for i, part := range parts {
+		path = filepath.Join(path, part)
+		info, err := os.Lstat(path)
+		if err != nil {
+			return "", fmt.Errorf("inspect bounded player source: %w", err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", errors.New("bounded player source contains a symlink")
+		}
+		if i < len(parts)-1 {
+			if !info.IsDir() {
+				return "", errors.New("bounded player source ancestor must be a directory")
+			}
+		} else if !info.Mode().IsRegular() {
+			return "", errors.New("bounded player source must be a regular file")
+		}
+	}
+	return path, nil
+}
+
 func (a *App) validatePlayerRouteSchema() error {
-	path := filepath.Join(a.root, platformPlayerSchemaPath)
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() {
-		return fmt.Errorf("requested player Schema must be a regular file at its approved path: %v", err)
+	path, err := a.playerSourcePath(platformPlayerSchemaPath)
+	if err != nil {
+		return fmt.Errorf("requested player Schema path: %w", err)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -533,7 +571,11 @@ func (a *App) validatePlayerRouteSchema() error {
 }
 
 func (a *App) validatePlayerRouteDocument() error {
-	data, err := os.ReadFile(filepath.Join(a.root, platformPlayerDocumentPath))
+	path, err := a.playerSourcePath(platformPlayerDocumentPath)
+	if err != nil {
+		return fmt.Errorf("bounded player API document path: %w", err)
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read bounded player API document: %w", err)
 	}
@@ -778,10 +820,7 @@ func (a *App) normativeSectionCatalog() (normativeSectionCatalog, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read bounded room API document: %w", err)
 	}
-	if info, err := os.Lstat(filepath.Join(a.root, platformPlayerDocumentPath)); err == nil {
-		if !info.Mode().IsRegular() {
-			return nil, errors.New("bounded player API document must be a regular file at its approved path")
-		}
+	if _, err := a.playerSourcePath(platformPlayerDocumentPath); err == nil {
 		if err := a.validatePlayerRouteDocument(); err != nil {
 			return nil, err
 		}

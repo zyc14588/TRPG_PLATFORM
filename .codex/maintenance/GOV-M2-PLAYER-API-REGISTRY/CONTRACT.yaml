@@ -17,7 +17,12 @@ source_blocker: 'Formal REPAIR GOV-M2-PLAYER-API-REGISTRY actual1 at clean31178c
   skip. New PLAN positive fixture has an untracked adopted-looking document, so clean-tree
   gate correctly stops it. Commit only the temporary active/DRAFT fixture document
   before PLAN and strengthen DRAFT intended-cause assertion; old381 named checks and
-  their assertions remain unchanged.'
+  their assertions remain unchanged. In-scope ACC-GOV-M2-PLAYER-API-REGISTRY-002 at
+  clean signedc1768ccb: independent017 actual1,3 named fail,0 pass,0 skip. Both valid
+  ACTIVE sources were accepted through ancestor-directory symlinks. Preserve the sealed
+  original FAIL; reject every player source path component, including dangling ancestors,
+  root aliases and missing leaves under symlinks. Fresh required and independent ACCEPT
+  must pass.'
 allowed_scope:
 - path: .codex/maintenance/GOV-M2-PLAYER-API-REGISTRY/CONTRACT.yaml
   section_id: GOV-M2-PLAYER-API-REGISTRY
@@ -52,7 +57,9 @@ acceptance:
   and SCHEMA-PLATFORM-PLAYER-API-V1. Missing optional document stays unloaded; requested
   missing Schema fails.
 - Reject DRAFT/wrong identity/missing/malformed/unknown/wrong path/symlink files;
-  compile root and every local definition with external loading denied.
+  compile root and every local definition with external loading denied. Inspect all
+  approved player source ancestors before treating an optional leaf as absent; symlink
+  redirects, root aliases and non-directory ancestors must fail.
 - All prior assertions and current state/576 source outside these three files remain
   exact; clean signed required Linux gates and independent maintenance ACCEPT pass.
 tests:
