@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/platform/auth"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/platform/core"
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/task"
@@ -22,6 +23,9 @@ func scopeFixture() core.Scope {
 }
 func (s *storedJob) Claim(context.Context, task.Worker) (task.Job, error) { return s.job, nil }
 func (s *storedJob) Current(context.Context, task.Worker, task.Job) (task.Job, error) {
+	if s.job.Status() != task.Delivering {
+		return task.Job{}, task.ErrDenied
+	}
 	return s.job, nil
 }
 func (s *storedJob) SaveResult(_ context.Context, _ task.Worker, j task.Job, _ task.Value, _ task.Inputs) (task.Job, error) {
@@ -85,6 +89,11 @@ func TestExecuteMetadataComesFromCanonicalLeaseAndSaveUsesOriginalJob(t *testing
 	if freshRaw.Table["server"].Table["workspace"].String != "owned-workspace" {
 		t.Fatal("metadata handle shared caller map")
 	}
+	v.Payload, _ = task.NewValue(raw)
+	tampered, _ := task.NewJob(v)
+	if _, e := adapter.SaveResult(context.Background(), worker, tampered, input, inputs); e != task.ErrDenied {
+		t.Fatal("changed execution metadata reached canonical save")
+	}
 }
 func TestModelResultRejectsFakeSuccessAndUnknownAuthorityFields(t *testing.T) {
 	for _, v := range []checkpoint.Value{checkpoint.Object(map[string]checkpoint.Value{"mode": checkpoint.Text("proposal"), "status": checkpoint.Text("complete")}), checkpoint.Object(map[string]checkpoint.Value{"mode": checkpoint.Text("proposal"), "status": checkpoint.Text("paused"), "event": checkpoint.Text("forged")}), checkpoint.Object(map[string]checkpoint.Value{"mode": checkpoint.Text("narrative"), "status": checkpoint.Text("complete"), "narrative": checkpoint.Text("")})} {
@@ -94,5 +103,17 @@ func TestModelResultRejectsFakeSuccessAndUnknownAuthorityFields(t *testing.T) {
 	}
 	if ValidateResult(checkpoint.Object(map[string]checkpoint.Value{"mode": checkpoint.Text("proposal"), "status": checkpoint.Text("paused")})) != nil {
 		t.Fatal("honest pause rejected")
+	}
+	value, e := ResultValue(auth.RoomSecret(OutputData{Mode: "narrative", Status: "paused", Narrative: "committed filtered result"}))
+	if e != nil {
+		t.Fatal("narrative template rejected")
+	}
+	raw, e := value.StorageValue()
+	if e != nil || ValidateResult(raw) != nil || raw.Table["narrative"].String != "committed filtered result" {
+		t.Fatal("durable result discarded deterministic template")
+	}
+	raw.Table["mode"] = checkpoint.Text("proposal")
+	if ValidateResult(raw) == nil {
+		t.Fatal("proposal pause admitted narrative authority fields")
 	}
 }

@@ -128,11 +128,21 @@ func (c Commit) Template() (string, error) {
 	if e != nil {
 		return "", e
 	}
-	b, e := json.Marshal(v)
-	if e != nil {
+	return ResultTemplate(v)
+}
+
+// ResultTemplate formats an already committed server seat projection. It
+// grants no authority and accepts no provider-supplied statement of results.
+func ResultTemplate(v checkpoint.Value) (string, error) {
+	if checkpoint.Validate(v) != nil {
 		return "", auth.ErrDenied
 	}
-	return "行动已按规则执行。结果：" + string(b), nil
+	b, e := json.Marshal(v)
+	text := "行动已按规则执行。结果：" + string(b)
+	if e != nil || len(text) > MaxNarrativeBytes {
+		return "", auth.ErrDenied
+	}
+	return text, nil
 }
 
 // AfterCommit may wait only after the caller has completed the authoritative

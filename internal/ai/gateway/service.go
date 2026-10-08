@@ -363,6 +363,14 @@ func (s *Service) Execute(ctx context.Context, caller model.Caller, request Requ
 		}
 	}
 	result := OutputData{Mode: r.Mode, Status: "paused"}
+	if r.Mode == "narrative" {
+		// This view comes from the current committed SQL session and the
+		// current seat filter, before any provider call or unknown-cost pause.
+		result.Narrative, e = action.ResultTemplate(view.View)
+		if e != nil {
+			return Output{}, e
+		}
+	}
 	routeIndex := 0
 	for attempt := 0; attempt < o.MaxCalls; attempt++ {
 		// One primary format retry, then only explicitly bound compatible

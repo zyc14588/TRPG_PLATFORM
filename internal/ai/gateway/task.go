@@ -50,11 +50,9 @@ func (s *TaskStorage) Claim(ctx context.Context, w task.Worker) (task.Job, error
 	if e != nil {
 		return task.Job{}, task.SafeError(e)
 	}
-	current, e := s.state().base.Current(ctx, w, j)
-	if e != nil {
-		return task.Job{}, task.SafeError(e)
-	}
-	v, e := current.StorageValue()
+	// Claim already authenticates and rereads the canonical execution lease.
+	// Current is the existing delivery-only boundary and rejects Running jobs.
+	v, e := j.StorageValue()
 	if e != nil || w.Check(ctx, v.Scope.WorkspaceID) != nil {
 		return task.Job{}, task.ErrDenied
 	}
@@ -70,11 +68,32 @@ func (s *TaskStorage) Claim(ctx context.Context, w task.Worker) (task.Job, error
 	return task.NewJob(v)
 }
 func (s *TaskStorage) SaveResult(ctx context.Context, w task.Worker, j task.Job, result task.Value, inputs task.Inputs) (task.Job, error) {
-	current, e := s.Current(ctx, w, j)
-	if e != nil {
-		return task.Job{}, e
+	if s.state() == nil {
+		return task.Job{}, task.ErrDenied
 	}
-	return s.state().base.SaveResult(ctx, w, current, result, inputs)
+	v, e := j.StorageValue()
+	if e != nil {
+		return task.Job{}, task.ErrDenied
+	}
+	p, e := v.Payload.StorageValue()
+	if e != nil {
+		return task.Job{}, task.ErrDenied
+	}
+	r, input, e := decodeInput(p)
+	if e != nil || r.Scope != v.Scope || r.Binding != v.Binding || r.TaskID != v.TaskID || r.PackageID != v.PackageID || r.ConfigurationID != v.ConfigurationID || r.ConfigurationHash != v.ConfigurationHash || r.OriginPrincipal != v.OriginPrincipal || r.OriginVersion != v.OriginVersion {
+		return task.Job{}, task.ErrDenied
+	}
+	v.Payload, e = task.NewValue(input)
+	if e != nil {
+		return task.Job{}, task.ErrDenied
+	}
+	canonical, e := task.NewJob(v)
+	if e != nil {
+		return task.Job{}, task.ErrDenied
+	}
+	// SaveResult itself checks the current SQL lease and immutable original
+	// source before persisting; execution metadata never replaces that source.
+	return s.state().base.SaveResult(ctx, w, canonical, result, inputs)
 }
 func (s *TaskStorage) Current(ctx context.Context, w task.Worker, j task.Job) (task.Job, error) {
 	if s.state() == nil {
@@ -167,8 +186,13 @@ func ResultValue(output Output) (task.Value, error) {
 		} else {
 			return task.Value{}, task.ErrInvalid
 		}
-	} else if v.Status != "paused" {
-		return task.Value{}, task.ErrInvalid
+	} else {
+		if v.Status != "paused" {
+			return task.Value{}, task.ErrInvalid
+		}
+		if v.Mode == "narrative" && v.Narrative != "" {
+			m["narrative"] = checkpoint.Text(v.Narrative)
+		}
 	}
 	return task.NewValue(checkpoint.Object(m))
 }
@@ -182,6 +206,10 @@ func ValidateResult(v checkpoint.Value) error {
 	}
 	if status.String == "paused" {
 		if len(v.Table) == 2 {
+			return nil
+		}
+		x := v.Table["narrative"]
+		if mode.String == "narrative" && len(v.Table) == 3 && x.Kind == "string" && len(x.String) > 0 && len(x.String) <= 16<<10 {
 			return nil
 		}
 		return task.ErrInvalid

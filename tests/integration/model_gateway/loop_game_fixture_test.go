@@ -52,7 +52,10 @@ M.resume_continuation=function(command)
  assert(command.seat_id=="task-system" and command.type=="resume-continuation")
  local result=command.payload.result
  assert(type(result)=="table")
- if result.status=="paused" then host.event.emit("change",state());return {} end
+ if result.status=="paused" then
+  if result.mode=="narrative" then assert(type(result.narrative)=="string" and #result.narrative>0) end
+  host.event.emit("change",state());return {}
+ end
  assert(result.status=="complete")
  if result.mode=="proposal" then
   local a=result.action
@@ -81,7 +84,9 @@ func loopBuild(runtime install.RuntimeConfig, source string) (*archive.Package, 
 	}
 	stateSchema := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"counter":{"type":"integer","minimum":0,"maximum":1000000000},"secret":{"type":"string","maxLength":128}},"required":["counter","secret"],"additionalProperties":false}`)
 	inputs := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"delta":{"type":"integer","minimum":1,"maximum":1000}},"required":["delta"],"additionalProperties":false}`)
-	pkg, err := base.Package("", source, map[string][]byte{"schemas/state.schema.json": stateSchema, "schemas/event.schema.json": stateSchema, "schemas/command.schema.json": inputs, "schemas/view.schema.json": []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"counter":{"type":"integer"},"secret":{"type":"string","maxLength":128},"pending_action":{"type":"string","maxLength":128}},"required":["counter"],"additionalProperties":false}`), "schemas/ai-intent.schema.json": []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"seat_id":{"type":"string"},"selection":{"type":"string"},"mode":{"type":"string","enum":["proposal","narrative"]}},"required":["seat_id","selection","mode"],"additionalProperties":false}`), "schemas/lifecycle.schema.json": []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":false}`)})
+	// The default also validates recorded external ToolResults. Human command
+	// integer results retain their exact original, separately named Schema.
+	pkg, err := base.Package("", source, map[string][]byte{"schemas/state.schema.json": stateSchema, "schemas/event.schema.json": stateSchema, "schemas/command.schema.json": inputs, "schemas/view.schema.json": []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"counter":{"type":"integer"},"secret":{"type":"string","maxLength":128},"pending_action":{"type":"string","maxLength":128}},"required":["counter"],"additionalProperties":false}`), "schemas/ai-intent.schema.json": []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"seat_id":{"type":"string"},"selection":{"type":"string"},"mode":{"type":"string","enum":["proposal","narrative"]}},"required":["seat_id","selection","mode"],"additionalProperties":false}`), "schemas/lifecycle.schema.json": []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":false}`), "schemas/model-result.schema.json": []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"mode":{"enum":["proposal","narrative"]},"status":{"enum":["complete","paused"]},"action":{"type":"object","properties":{"type":{"const":"increment"},"expected_state_version":{"type":"integer","minimum":1,"maximum":9007199254740991},"payload":{"type":"object","properties":{"delta":{"type":"integer","const":1}},"required":["delta"],"additionalProperties":false}},"required":["type","expected_state_version","payload"],"additionalProperties":false},"narrative":{"type":"string","minLength":1,"maxLength":16384}},"required":["mode","status"],"additionalProperties":false,"oneOf":[{"properties":{"mode":{"const":"proposal"},"status":{"const":"complete"}},"required":["action"],"not":{"required":["narrative"]}},{"properties":{"mode":{"const":"narrative"},"status":{"const":"complete"}},"required":["narrative"],"not":{"required":["action"]}},{"properties":{"status":{"const":"paused"}},"not":{"required":["action"]}}]}`)})
 	if err != nil {
 		return nil, install.PolicyConfig{}, err
 	}
@@ -92,7 +97,7 @@ func loopBuild(runtime install.RuntimeConfig, source string) (*archive.Package, 
 	}
 	state := ref("state", loopState(1))
 	empty := checkpoint.Object(map[string]checkpoint.Value{})
-	result := ref("result", checkpoint.Int(1))
+	result := ref("model-result", checkpoint.Object(map[string]checkpoint.Value{"mode": checkpoint.Text("proposal"), "status": checkpoint.Text("paused")}))
 	row := ref("row", checkpoint.Object(map[string]checkpoint.Value{"score": checkpoint.Int(1)}))
 	intent := ref("intent", checkpoint.Object(map[string]checkpoint.Value{"value": checkpoint.Int(1)}))
 	object := ref("lifecycle", empty)
@@ -114,6 +119,7 @@ func loopBuild(runtime install.RuntimeConfig, source string) (*archive.Package, 
 			counter++
 			input = loopCommandInput("increment", 1)
 			expected = checkpoint.Int(counter)
+			contract.Results[name] = ref("result", checkpoint.Int(1))
 		} else if name == "project_view" || name == "create_checkpoint" {
 			expected = loopState(counter)
 			contract.Results[name] = state

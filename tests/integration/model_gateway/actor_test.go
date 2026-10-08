@@ -5,6 +5,7 @@ package model_gateway_test
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -89,6 +90,21 @@ func TestNarrativeFailureKeepsNativeEventAndFilteredDeterministicTemplate(t *tes
 	need(t, e)
 	if f.counterValue(t) != "3" || f.version(t) != "4" {
 		t.Fatal("narrative failure rolled back accepted event")
+	}
+	// The actual durable narrative result must carry the filtered template;
+	// a separate helper call cannot stand in for worker/Actor integration.
+	resultRaw := sqlCapture(t, "SELECT encode(body,'hex') FROM platform_task.jobs WHERE workspace='"+f.scope.WorkspaceID+"' AND convert_from(body,'UTF8')::jsonb->'payload'->'table'->'mode'->>'string'='narrative'")
+	resultBody, e := hex.DecodeString(strings.TrimSpace(string(resultRaw)))
+	need(t, e)
+	defer clear(resultBody)
+	job, e := task.DecodeStored(resultBody)
+	need(t, e)
+	jobData, e := job.StorageValue()
+	need(t, e)
+	durableResult, e := jobData.Result.StorageValue()
+	need(t, e)
+	if durableResult.Table["status"].String != "paused" || !strings.Contains(durableResult.Table["narrative"].String, `"number":"3"`) || strings.Contains(durableResult.Table["narrative"].String, loopPrivateValue) {
+		t.Fatal("durable narrative pause lost filtered committed template")
 	}
 	text, used, e := action.AfterCommit(context.Background(), committed, func(context.Context, action.Commit) (string, error) { return "", task.ErrFailed })
 	need(t, e)
