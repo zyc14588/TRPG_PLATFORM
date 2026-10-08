@@ -1,0 +1,84 @@
+schema_version: 1
+x-section-id: GOV-M2-MODEL-GATEWAY-SCOPE
+maintenance_id: GOV-M2-MODEL-GATEWAY-SCOPE
+objective:
+- Recognize only the exact Owner-approved frozen M2-B009 server model gateway authority in the existing
+  source integration gate.
+- Permit existing provider protocol names only in approved canonical server/gateway test Go paths; retain
+  all client, dependency and fixed-backend prohibitions.
+reason: Current signed Linux B009 business tests pass, but the old M0 token gate rejects legitimate compatible
+  server names and never receives the current M2 frozen authority. Owner CHANGE-M2-MODEL-GATEWAY-SCOPE
+  approval is required before applying this draft.
+source_blocker: 'f9e41fa35d1dd63085f0e14265db3175932ba73f: governance actual1 (311 named tests,310 pass,1
+  fail); TestMigrationScopeNativeRepositoryGate rejects server adapter names. Formal REPAIR GOV-M2-MODEL-GATEWAY-SCOPE
+  actual1 because the contract does not exist.'
+allowed_scope:
+- path: .codex/maintenance/GOV-M2-MODEL-GATEWAY-SCOPE/CONTRACT.yaml
+  section_id: GOV-M2-MODEL-GATEWAY-SCOPE
+  kind: machine-contract
+- path: internal/projectctl/commands.go
+  section_id: PROJECTCTL-POSTGRES-SCOPE-GATE
+  kind: production-code
+- path: internal/projectctl/commands.go
+  section_id: PROJECTCTL-MIGRATION-PATH-SCOPE-GATE
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-POSTGRES-SCOPE-GATE-TESTS
+  kind: test
+forbidden_scope:
+- No B009 business source, current/frozen M2 plan, completed M1 archive, public API/Schema, Host API,
+  Lua backend, license or dependency changes.
+- No browser model calls, provider SDK imports, PostgreSQL import expansion, generic model path authorization,
+  altered CI checks or lowered original assertions.
+- No use of historical retired Bootstrap; new Bootstrap018 permits only this exact contract creation and
+  must retire before control code changes.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-TRIGGERS
+  kind: normative-section
+- path: docs/80-roadmap/V1_MILESTONES.md
+  section_id: SPEC-V1-ROADMAP-M2
+  kind: normative-section
+acceptance:
+- Exact M2 plan native validation and B009 digest 3b1d11d51100dac5d3da52c714c33da89cd90ec9c9f2a78b5931d819c8194890
+  are required; only IMPLEMENTING,BLOCKED,VERIFYING,COMPLETED authorize the existing server text scope.
+- Missing,malformed,changed,duplicate,M1,M3,PLANNED,FROZEN authority and noncanonical/neighbor/client
+  paths fail closed.
+- Only api.openai.com,Ollama,llama.cpp textual protocol references may be accepted in the frozen server
+  paths; import parsing still rejects every provider SDK, extra Lua backend,NATS or unauthorized SQL dependency.
+- All existing governance assertions, PostgreSQL and archived M1 migration authorities remain unchanged;
+  original migration repository gate passes on valid current M2 source.
+- Clean signed required Linux checks and independent maintenance ACCEPT pass; all 570 prior nonstate source
+  files outside the two control files remain exact.
+- After independent maintenance reception rerun all B009 required checks against the combined clean signed
+  candidate, close the preserved control failure, and continue ordinary B009 acceptance before remote
+  push.
+tests:
+- go test -count=1 -json ./internal/projectctl
+- just check
+- just test
+- go vet ./...
+- just ci
+- projectctl codex route --mode REPAIR --maintenance GOV-M2-MODEL-GATEWAY-SCOPE
+- projectctl codex route --mode ACCEPT --maintenance GOV-M2-MODEL-GATEWAY-SCOPE
+- projectctl codex check
+stop_conditions:
+- Stop for any file outside these three exact paths, native authority/digest mismatch, failed required
+  gate, weakened historical assertion, or unapproved public/dependency/client/Lua expansion.
+- Bootstrap018 may create only this contract after explicit Owner CHANGE approval; formal clean signed
+  REPAIR/check actual0 permanently retires it before code edits.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-018
+  authorization: Apply only after direct Owner approval of concrete CHANGE-M2-MODEL-GATEWAY-SCOPE; store
+    its approval receipt outside the repository. Actual missing-contract route failure is preserved at
+    f9e41fa.
+  allowed_scope:
+  - Create only .codex/maintenance/GOV-M2-MODEL-GATEWAY-SCOPE/CONTRACT.yaml from the clean signed f9e41fa
+    source; no code edit before valid formal REPAIR and codex check.
+  retirement_condition: Permanent retirement after actual clean-HEAD formal REPAIR/check0 and before production-code
+    changes.
+  status: AUTHORIZED_ONCE
+status: READY_FOR_ACCEPTANCE
