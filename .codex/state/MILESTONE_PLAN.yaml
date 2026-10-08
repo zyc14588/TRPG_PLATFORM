@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 31
+plan_version: 32
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -521,8 +521,9 @@ batches:
   frozen_contract_sha256: 769eda90cd775639e349e8a50db1efa908f23835ec6fa4e4666d785f5c914434
 - batch_id: M2-B008
   sequence: 8
-  state: PLANNED
-  objective: Implement AI-seat context/tool isolation and multi-level resource budget reservations with hard-stop semantics.
+  state: FROZEN
+  objective: Implement AI-seat context/tool isolation and multi-level resource budget reservations with hard-stop
+    semantics.
   non_goals:
   - Treating prompt instructions as access control, shared private memory or direct model state mutation.
   allowed_scope:
@@ -559,28 +560,32 @@ batches:
   - SPEC-DATA-001
   - SPEC-SECURITY-001
   acceptance:
-  - Identity, seat view, private memory, tools and model configuration are isolated before prompt construction; no full hidden
-    state is supplied to a less-privileged seat.
-  - Workspace/room/session/seat/task call, token, cost, latency and local-compute reservations enforce concurrent hard limits
-    and conservatively handle uncertain external consumption.
-  - Host sub-agents return advice without authority; budget exhaustion pauses the affected seat without silent overspend or
-    forged success.
+  - Identity, seat view, private memory, tools and model configuration are isolated before prompt construction;
+    no full hidden state is supplied to a less-privileged seat.
+  - Workspace/room/session/seat/task call, token, cost, latency and local-compute reservations enforce concurrent
+    hard limits and conservatively handle uncertain external consumption.
+  - Host sub-agents return advice without authority; budget exhaustion pauses the affected seat without silent overspend
+    or forged success.
   tests:
-  - go test -count=1 -json ./internal/ai/context/... ./internal/ai/budget/...
+  - go test -count=1 -json ./internal/ai/context/... ./internal/ai/budget/... ./internal/platform/session/...
   - go test -count=1 -tags integration -json ./tests/integration/ai_isolation/...
+  - go test -count=1 -race -tags integration -json ./internal/ai/context/... ./internal/ai/budget/... ./internal/platform/session/...
+    ./tests/integration/ai_isolation/...
   - just check, just test, go vet ./..., and Linux just ci pass on a clean signed candidate.
   stop_conditions:
-  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate unless
-    its concrete CHANGE has been approved.
-  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen binding,
-    or failed required verification.
+  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate
+    unless its concrete CHANGE has been approved.
+  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen
+    binding, or failed required verification.
   - Do not modify another frozen batch, claim an unexecuted integration as PASS, or skip incomplete dependencies.
   depends_on:
   - M2-B005
   - M2-B007
+  - M2-B006
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
+  frozen_contract_sha256: b702faf607a4d61d518301a5f696de63c6476a787bc0563d495a667b21a61faa
 - batch_id: M2-B009
   sequence: 9
   state: PLANNED
