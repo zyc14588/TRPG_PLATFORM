@@ -119,7 +119,7 @@ func TestPlayerPauseAcknowledgmentCancelsInFlightProviderAndFencesFallbackRetry(
 		case <-time.After(6 * time.Second):
 			w.WriteHeader(503)
 		}
-	}, 4*time.Second)
+	}, 2*time.Second)
 	f.source(t)
 	// Establish the current revision before starting the external callback.
 	// A native snapshot after provider start would race the adapter timeout.
