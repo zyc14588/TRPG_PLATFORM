@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "5008b82f3260268b73a4bc67c9075f1e89ade566"
+source_commit: "42b56316bb29e6388f2c422968224a45946d9138"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B009 Linux模型网关实现启动
+
+正常 PLAN v36→v37 仅将尚未开始的 M2-B009 FROZEN→IMPLEMENTING，原生十四字段摘要 3b1d11d51100dac5d3da52c714c33da89cd90ec9c9f2a78b5931d819c8194890。其余十一批、next13、tombstones及M1归档保持。Linux M2完成8/12≈66.67%；B009业务NOT_RUN，其他平台NOT_RUN，最终完整出口由B012闭环。
+
+B008最终签名源5008b82已完成独立业务验收、最终状态接收、本地主线接收、清理及远端普通推送，准确远端哈希已核对。业务候选c1d68ed实测单元17、真实SQL20、race37、治理315全部通过；独立7个真实SQL/race探针通过。最终550非状态文件与业务候选按全部字节、blob、mode一致，当前业务明确NOT_RERUN。首次SQL20 run/2 pass/18 fail及所有NOT_RUN、辅助失败保留；正式修复后闭合，未改写历史验收。完成档案SHA256 f1c6bda2da99fb8d8e8bc1c99ffbd7bb818ed47bc5b0cf7a744cf5f3c7b3e7d8，1437成员完整回读。专属数据库、秘密文件、已释放副本和可重建缓存已清理，证据保留。
+
+Owner直接“批准”已授权CHANGE-M2-B009-AI-INTENT-SOURCE。原host.ai.request写入ai和dispatch-ai，既有B006来源入口只接收task；本批冻结前仅增加platform_task_source.go与新platform_task_source_test.go两个明确批准的上游路径，补齐已有异步AI入口与严格类型/租户/来源配对。具体批准补丁SHA256 e2a1f5e6be8eace7f91b1a5cac01e4650922f3284d7a5fea272375071d9dd370，授权回执SHA256 28bc206b56fbd615e3bf7b0a1a9578522e25a8db913604cf13c6d8b5523b3d31。B006原冻结契约和完成证据保留，補修及回归单独绑定本批候选，不增加公开API/Schema/Host操作、许可或V1范围。
+
+B009完成服务器端OpenAI-compatible、Ollama/llama.cpp兼容服务器的有限模型调用、端点网络及秘密边界、能力认证、持久任务、结构化动作先验证提交再叙事、有限格式修复和预授权兼容后备。沿用B006持久租约和Actor回调、B007模型绑定及凭据库、B008过滤上下文及真实多级预算。仅合成本地provider夹具参与本批网络验证，付费外部提供方认证及完整混合游戏由B012验收，production daemon接线由B011完成。本批新增race、相关单元和原B006真实SQL回归，不降低原验收标准。实现和业务测试均尚未执行。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B009 模型网关契约冻结
 
