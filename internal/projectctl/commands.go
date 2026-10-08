@@ -937,11 +937,68 @@ func m0IntegrationTokens() []string {
 	}
 }
 
-func integrationScopeProblems(relative string, data []byte, plan milestonePlan) []string {
+// The model boundary is authority for the exact already approved M2 batch.
+// It does not grant provider SDK imports or model code in a browser/client.
+const approvedModelGatewayContract = "3b1d11d51100dac5d3da52c714c33da89cd90ec9c9f2a78b5931d819c8194890"
+
+func (a *App) modelGatewayScopeAuthority() (milestonePlan, error) {
+	plan, err := readPostgresScopeAuthority(filepath.Join(a.root, ".codex", "state", "MILESTONE_PLAN.yaml"))
+	if err != nil {
+		return milestonePlan{}, err
+	}
+	if plan.Milestone != "M2" {
+		return milestonePlan{}, nil
+	}
+	if err := validateMilestonePlan(plan, v1MilestoneCatalog{known: map[string]bool{"M2": true}}); err != nil {
+		return milestonePlan{}, fmt.Errorf("current M2 model gateway scope: %w", err)
+	}
+	return plan, nil
+}
+
+func hasApprovedModelGatewayScope(plan milestonePlan) bool {
+	if plan.SchemaVersion != milestonePlanSchemaVersion || plan.Milestone != "M2" || (plan.Status != "ACTIVE" && plan.Status != "COMPLETE") {
+		return false
+	}
+	if err := validateMilestonePlan(plan, v1MilestoneCatalog{known: map[string]bool{"M2": true}}); err != nil {
+		return false
+	}
+	count, approved := 0, false
+	for _, batch := range plan.Batches {
+		if batch.BatchID != "M2-B009" {
+			continue
+		}
+		count++
+		switch batch.State {
+		case "IMPLEMENTING", "BLOCKED", "VERIFYING", "COMPLETED":
+			digest, err := batchContractDigest(batch)
+			approved = err == nil && digest == approvedModelGatewayContract && batch.FrozenContractSHA256 == approvedModelGatewayContract
+		}
+	}
+	return count == 1 && approved
+}
+
+func approvedModelGatewayPath(relative string, plan milestonePlan) bool {
+	if strings.Contains(relative, "\\") || filepath.IsAbs(relative) || filepath.ToSlash(filepath.Clean(relative)) != relative || !strings.HasSuffix(relative, ".go") || !hasApprovedModelGatewayScope(plan) {
+		return false
+	}
+	return strings.HasPrefix(relative, "internal/ai/gateway/") || strings.HasPrefix(relative, "internal/ai/certification/") || strings.HasPrefix(relative, "internal/ai/action/") || strings.HasPrefix(relative, "tests/integration/model_gateway/") || (filepath.Dir(relative) == "cmd/workerd" && strings.HasPrefix(filepath.Base(relative), "model"))
+}
+
+func approvedModelProviderToken(relative, forbidden string, current []milestonePlan) bool {
+	if len(current) != 1 || !approvedModelGatewayPath(relative, current[0]) {
+		return false
+	}
+	return forbidden == "api."+"openai.com" || forbidden == "ol"+"lama" || forbidden == "llama"+".cpp"
+}
+
+func integrationScopeProblems(relative string, data []byte, plan milestonePlan, current ...milestonePlan) []string {
 	var problems []string
 	goSource := strings.HasSuffix(relative, ".go")
 	lower := strings.ToLower(string(data))
 	for _, forbidden := range m0IntegrationTokens() {
+		if approvedModelProviderToken(relative, forbidden, current) {
+			continue // only text for the approved server protocol; imports remain checked below
+		}
 		if goSource && (forbidden == "database/sql" || forbidden == "pgx") {
 			continue // Go declarations are parsed below; comments cannot link a driver
 		}
@@ -1070,6 +1127,10 @@ func (a *App) checkScope(ctx context.Context) error {
 	if authorityErr != nil {
 		problems.add("PostgreSQL scope authority: %v", authorityErr)
 	}
+	modelAuthority, modelAuthorityErr := a.modelGatewayScopeAuthority()
+	if modelAuthorityErr != nil {
+		problems.add("model gateway scope authority: %v", modelAuthorityErr)
+	}
 	goModules := 0
 	for _, relative := range files {
 		normalized := filepath.ToSlash(relative)
@@ -1096,7 +1157,7 @@ func (a *App) checkScope(ctx context.Context) error {
 				problems.add("read %s: %v", normalized, readErr)
 				continue
 			}
-			for _, problem := range integrationScopeProblems(normalized, data, postgresAuthority) {
+			for _, problem := range integrationScopeProblems(normalized, data, postgresAuthority, modelAuthority) {
 				problems.add("%s", problem)
 			}
 		}

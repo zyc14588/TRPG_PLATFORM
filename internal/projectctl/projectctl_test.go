@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -2849,6 +2850,107 @@ func TestPostgresScopePreservesOtherIntegrationRestrictions(t *testing.T) {
 	source := []byte("package fixture\n// database/sql pgx\nvar fixture = `import \"database/sql\"`\n")
 	if problems := integrationScopeProblems("internal/projectctl/fixture_test.go", source, milestonePlan{}); len(problems) != 0 {
 		t.Fatal("fixture strings unexpectedly linked a database driver", problems)
+	}
+}
+
+func TestModelGatewayScopeRequiresExactFrozenM2Authority(t *testing.T) {
+	load := func() milestonePlan {
+		plan, err := readPostgresScopeAuthority(filepath.Join(testApp(t).root, ".codex", "state", "MILESTONE_PLAN.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan.Status = "ACTIVE"
+		for i := 9; i < len(plan.Batches); i++ {
+			plan.Batches[i].State = "PLANNED"
+			plan.Batches[i].FrozenContractSHA256 = ""
+		}
+		return plan
+	}
+	original := load()
+	if !hasApprovedModelGatewayScope(original) {
+		t.Fatal("approved frozen M2 gateway rejected")
+	}
+	for _, state := range []string{"IMPLEMENTING", "BLOCKED", "VERIFYING", "COMPLETED"} {
+		t.Run(state, func(t *testing.T) {
+			p := load()
+			p.Batches[8].State = state
+			if !hasApprovedModelGatewayScope(p) {
+				t.Fatal("approved state rejected")
+			}
+		})
+	}
+	for _, name := range []string{"absent", "M1", "future", "planned", "frozen", "digest", "contract", "duplicate", "malformed"} {
+		t.Run(name, func(t *testing.T) {
+			p := load()
+			switch name {
+			case "absent":
+				p = milestonePlan{}
+			case "M1":
+				p.Milestone = "M1"
+			case "future":
+				p.Milestone = "M3"
+			case "planned":
+				p.Batches[8].State = "PLANNED"
+				p.Batches[8].FrozenContractSHA256 = ""
+			case "frozen":
+				p.Batches[8].State = "FROZEN"
+			case "digest":
+				p.Batches[8].FrozenContractSHA256 = strings.Repeat("0", 64)
+			case "contract":
+				p.Batches[8].AllowedScope = append(p.Batches[8].AllowedScope, "apps/**")
+			case "duplicate":
+				p.Batches = append(p.Batches, p.Batches[8])
+			case "malformed":
+				p.SchemaVersion = 99
+			}
+			if name == "planned" || name == "frozen" {
+				if err := validateMilestonePlan(p, v1MilestoneCatalog{known: map[string]bool{"M2": true}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if hasApprovedModelGatewayScope(p) {
+				t.Fatal("unapproved model authority admitted")
+			}
+		})
+	}
+}
+
+func TestModelGatewayProviderTextDoesNotGrantClientOrDependencyScope(t *testing.T) {
+	app := testApp(t)
+	current, err := app.modelGatewayScopeAuthority()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prior, err := app.postgresScopeAuthority()
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := []string{"internal/ai/gateway/provider.go", "internal/ai/certification/provider.go", "internal/ai/action/provider.go", "tests/integration/model_gateway/provider_test.go", "cmd/workerd/model.go"}
+	text := "package fixture\n// " + "ol" + "lama and llama" + ".cpp compatible servers at api." + "openai.com\n"
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			if p := integrationScopeProblems(path, []byte(text), prior, current); len(p) != 0 {
+				t.Fatal(p)
+			}
+			if p := integrationScopeProblems(path, []byte(text), prior); len(p) == 0 {
+				t.Fatal("missing M2 authority admitted model text")
+			}
+		})
+	}
+	for _, path := range []string{"apps/web-player/src/App.tsx", "apps/creator-studio/frontend/src/App.tsx", "cmd/workerd/main.go", "cmd/workerd/modeldir/provider.go", "internal/ai/model/provider.go", "internal/ai/gateway-other/provider.go", "internal/ai/gateway/../model/provider.go", "/internal/ai/gateway/provider.go", "internal\\ai\\gateway\\provider.go"} {
+		t.Run(path, func(t *testing.T) {
+			if p := integrationScopeProblems(path, []byte(text), prior, current); len(p) == 0 {
+				t.Fatal("client or noncanonical path admitted model integration")
+			}
+		})
+	}
+	for _, imported := range []string{"github.com/" + "ol" + "lama/ol" + "lama", "github.com/" + "nats-io/nats.go", "github.com/" + "lib/" + "pq", "database/sql", "github.com/" + "yuin/gopher" + "-lua", "github.com/" + "Shopify/" + "go-lua"} {
+		t.Run(imported, func(t *testing.T) {
+			source := "package fixture\nimport _ " + strconv.Quote(imported) + "\n"
+			if p := integrationScopeProblems(paths[0], []byte(source), prior, current); len(p) == 0 {
+				t.Fatal("M2 text authority granted forbidden dependency import")
+			}
+		})
 	}
 }
 
