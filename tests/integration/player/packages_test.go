@@ -173,6 +173,17 @@ func phaseNeed(t *testing.T, phase string, e error) {
 func genericTaskBuild(runtime install.RuntimeConfig, source string) (*archive.Package, install.PolicyConfig, error) {
 	if source == "" {
 		source = strings.Replace(IncrementSource, ";host.ai.request({value=next})", "", 1)
+		source = strings.Replace(source, "\nreturn M\n", `
+M.resume_continuation=function(command)
+ if not command.payload then return {} end
+ assert(command.seat_id=="task-system" and command.type=="resume-continuation")
+ assert(type(command.payload.continuation)=="table" and math.type(command.payload.result)=="integer")
+ host.state.put({"counter"},host.state.get({"counter"})+command.payload.result)
+ host.event.emit("change",state())
+ return {}
+end
+return M
+`, 1)
 	}
 	return Build(runtime, source)
 }
