@@ -2024,11 +2024,12 @@ func TestPlayerNormativePlanAndOptionalSource(t *testing.T) {
 					status = "DRAFT"
 				}
 				writePlatformRouteFixture(t, a, platformPlayerDocumentPath, []byte("---\ndocument_id: SPEC-PLATFORM-PLAYER-API-V1\nstatus: "+status+"\n---\nApproved player source.\n"))
+				commitFixturePaths(t, a, "isolated player PLAN document", platformPlayerDocumentPath)
 			}
 			err := a.generateCodexRouteRequest(context.Background(), testCodexRequest("PLAN", "M1", ""))
 			if name == "draft" {
-				if err == nil {
-					t.Fatal("PLAN accepted unapproved player source")
+				if err == nil || !strings.Contains(err.Error(), "player API document requires its approved identity and ACTIVE status") {
+					t.Fatal("PLAN did not reject the DRAFT player source through its intended identity/ACTIVE gate", err)
 				}
 				return
 			}

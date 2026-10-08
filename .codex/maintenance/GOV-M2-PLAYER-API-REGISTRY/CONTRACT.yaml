@@ -9,10 +9,15 @@ objective:
 reason: Direct Owner approved exact CHANGE-M2-PLAYER-API-V1 at clean signed31178c0;
   register only its exact bounded document and Schema before B010 adoption. No business
   implementation is authorized by maintenance.
-source_blocker: Formal REPAIR GOV-M2-PLAYER-API-REGISTRY actual1 at clean31178c0 because
-  exact CONTRACT.yaml is absent; immutable bootstrap019-missing-contract.json/log
+source_blocker: 'Formal REPAIR GOV-M2-PLAYER-API-REGISTRY actual1 at clean31178c0
+  because exact CONTRACT.yaml is absent; immutable bootstrap019-missing-contract.json/log
   preserve it. Current bounded catalog supports only auth/room Schema; native inventory
-  needs the exact Owner-approved player additions.
+  needs the exact Owner-approved player additions. In-scope ACC-GOV-M2-PLAYER-API-REGISTRY-001
+  at signed3e9385fc: producer-governance actual1,423 named tests,421 pass,2 fail,0
+  skip. New PLAN positive fixture has an untracked adopted-looking document, so clean-tree
+  gate correctly stops it. Commit only the temporary active/DRAFT fixture document
+  before PLAN and strengthen DRAFT intended-cause assertion; old381 named checks and
+  their assertions remain unchanged.'
 allowed_scope:
 - path: .codex/maintenance/GOV-M2-PLAYER-API-REGISTRY/CONTRACT.yaml
   section_id: GOV-M2-PLAYER-API-REGISTRY
