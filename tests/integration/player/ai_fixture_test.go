@@ -75,6 +75,10 @@ func aiLimits() model.Limits {
 }
 func newActualAI(t *testing.T, handler http.HandlerFunc) *actualAI {
 	t.Helper()
+	return newActualAIWithTimeout(t, handler, time.Second)
+}
+func newActualAIWithTimeout(t *testing.T, handler http.HandlerFunc, providerTimeout time.Duration) *actualAI {
+	t.Helper()
 	l := newLaunchFixtureWithBuilder(t, nil, aiBuild)
 	n := playerFixtureWithLaunch(t, l, false)
 	slots := n.humanSlots()
@@ -131,7 +135,7 @@ func newActualAI(t *testing.T, handler http.HandlerFunc) *actualAI {
 	need(t, e)
 	registry, e := certification.New([]model.Certification{cert})
 	need(t, e)
-	adapter, e := gateway.NewAdapter(gateway.AdapterOptions{Endpoint: endpoints[0], Timeout: time.Second, ResponseBytes: 4096, MicrosPerToken: 1, MaxActive: 2})
+	adapter, e := gateway.NewAdapter(gateway.AdapterOptions{Endpoint: endpoints[0], Timeout: providerTimeout, ResponseBytes: 4096, MicrosPerToken: 1, MaxActive: 2})
 	need(t, e)
 	t.Cleanup(adapter.Close)
 	g, e := gateway.New(gateway.Options{Authority: l.authority, Contexts: contexts, Budgets: broker, BudgetStorage: bs, Models: models, ModelStorage: mt, Vault: vault, Registry: registry, Adapters: []*gateway.Adapter{adapter}, WorkspaceCaps: map[string]budget.Caps{l.w: caps}, Commands: func(_ context.Context, _ core.Transaction, _ aicontext.Subject) (map[string]func(checkpoint.Value) error, error) {
@@ -182,7 +186,11 @@ func playerWorker(t *testing.T, l *launchFixture) (*postgres.ControlledPlayerTas
 }
 func (f *actualAI) runtime(t *testing.T) *task.Runtime {
 	t.Helper()
-	r, e := task.NewWorker(task.WorkerOptions{Identity: f.worker, Storage: f.storage, Policies: f.policies, Post: f.completion.Post, MaxActive: 2, ExternalTimeout: 2 * time.Second, PostTimeout: 3 * time.Second, Poll: 50 * time.Millisecond})
+	return f.runtimeWithTimeout(t, 2*time.Second)
+}
+func (f *actualAI) runtimeWithTimeout(t *testing.T, externalTimeout time.Duration) *task.Runtime {
+	t.Helper()
+	r, e := task.NewWorker(task.WorkerOptions{Identity: f.worker, Storage: f.storage, Policies: f.policies, Post: f.completion.Post, MaxActive: 2, ExternalTimeout: externalTimeout, PostTimeout: 3 * time.Second, Poll: 50 * time.Millisecond})
 	need(t, e)
 	return r
 }

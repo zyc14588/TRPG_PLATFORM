@@ -103,21 +103,28 @@ func TestPlayerPauseRetainsActualAIProposalAndNarrativeWithoutDispatchOrBilling(
 func TestPlayerPauseAcknowledgmentCancelsInFlightProviderAndFencesFallbackRetry(t *testing.T) {
 	var calls atomic.Int64
 	started := make(chan struct{}, 1)
-	f := newActualAI(t, func(w http.ResponseWriter, r *http.Request) {
+	var f *actualAI
+	f = newActualAIWithTimeout(t, func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		_ = readAI(t, r)
+		if f == nil || f.unlocked(r.Context()) != nil {
+			t.Error("external provider held native SQL transaction")
+		}
 		select {
 		case started <- struct{}{}:
 		default:
 		}
 		select {
 		case <-r.Context().Done():
-		case <-time.After(3 * time.Second):
+		case <-time.After(6 * time.Second):
 			w.WriteHeader(503)
 		}
-	})
+	}, 4*time.Second)
 	f.source(t)
-	runtime := f.runtime(t)
+	// Establish the current revision before starting the external callback.
+	// A native snapshot after provider start would race the adapter timeout.
+	ctl := f.snapshot(t, f.owner, f.hostConnection, "0", 8)["control"].(map[string]any)
+	runtime := f.runtimeWithTimeout(t, 5*time.Second)
 	finished := make(chan error, 1)
 	go func() { _, e := runtime.RunOnce(f.ctx); finished <- e }()
 	select {
@@ -125,10 +132,10 @@ func TestPlayerPauseAcknowledgmentCancelsInFlightProviderAndFencesFallbackRetry(
 	case <-time.After(3 * time.Second):
 		t.Fatal("owned provider did not start")
 	}
-	if f.unlocked(f.ctx) != nil {
-		t.Fatal("external provider held native SQL transaction")
+	paused := f.api(t, f.participant, "pause", map[string]any{"expected_control_revision": ctl["revision"]})
+	if !paused["paused"].(bool) {
+		t.Fatal("pause failed durable acknowledgment")
 	}
-	f.pauseNow(t)
 	select {
 	case e := <-finished:
 		if e == nil {
