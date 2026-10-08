@@ -11,7 +11,10 @@ reason: Current signed Linux B009 business tests pass, but the old M0 token gate
   approval is required before applying this draft.
 source_blocker: 'f9e41fa35d1dd63085f0e14265db3175932ba73f: governance actual1 (311 named tests,310 pass,1
   fail); TestMigrationScopeNativeRepositoryGate rejects server adapter names. Formal REPAIR GOV-M2-MODEL-GATEWAY-SCOPE
-  actual1 because the contract does not exist.'
+  actual1 because the contract does not exist. In-scope ACC-GOV-M2-MODEL-GATEWAY-SCOPE-001 at clean signed
+  3680f266: producer-governance actual1,350 named tests,349 pass,1 fail. The original native migration
+  test deliberately switches its temporary fixture to M1 authority while retaining M2 model files; repair
+  only that temporary fixture and preserve all assertions.'
 allowed_scope:
 - path: .codex/maintenance/GOV-M2-MODEL-GATEWAY-SCOPE/CONTRACT.yaml
   section_id: GOV-M2-MODEL-GATEWAY-SCOPE
@@ -24,6 +27,9 @@ allowed_scope:
   kind: production-code
 - path: internal/projectctl/projectctl_test.go
   section_id: PROJECTCTL-POSTGRES-SCOPE-GATE-TESTS
+  kind: test
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-MIGRATION-PATH-SCOPE-GATE-TESTS
   kind: test
 forbidden_scope:
 - No B009 business source, current/frozen M2 plan, completed M1 archive, public API/Schema, Host API,
