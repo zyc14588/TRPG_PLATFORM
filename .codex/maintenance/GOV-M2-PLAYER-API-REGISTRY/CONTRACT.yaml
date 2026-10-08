@@ -1,0 +1,81 @@
+schema_version: 1
+x-section-id: GOV-M2-PLAYER-API-REGISTRY
+maintenance_id: GOV-M2-PLAYER-API-REGISTRY
+objective:
+- Register only exact Owner-approved PLAYER_API.md and SCHEMA-PLATFORM-PLAYER-API-V1
+  in the bounded current M2 inventory.
+- Preserve prior auth/room/milestone/schema registrations and unknown/missing/unapproved
+  failures.
+reason: Direct Owner approved exact CHANGE-M2-PLAYER-API-V1 at clean signed31178c0;
+  register only its exact bounded document and Schema before B010 adoption. No business
+  implementation is authorized by maintenance.
+source_blocker: Formal REPAIR GOV-M2-PLAYER-API-REGISTRY actual1 at clean31178c0 because
+  exact CONTRACT.yaml is absent; immutable bootstrap019-missing-contract.json/log
+  preserve it. Current bounded catalog supports only auth/room Schema; native inventory
+  needs the exact Owner-approved player additions.
+allowed_scope:
+- path: .codex/maintenance/GOV-M2-PLAYER-API-REGISTRY/CONTRACT.yaml
+  section_id: GOV-M2-PLAYER-API-REGISTRY
+  kind: machine-contract
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG
+  kind: production-code
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-CODEX-CATALOG
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG-TESTS
+  kind: test
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-CODEX-ROUTE-TESTS
+  kind: test
+forbidden_scope:
+- No business/public contract payload, completed/frozen batch, M1 archive, dependency,
+  import allowlist, CI, Lua, Host API, license or other-platform changes.
+- No arbitrary document/schema discovery, gate weakening, lowered assertions or reactivation
+  of Bootstrap016/017/018.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-TRIGGERS
+  kind: normative-section
+acceptance:
+- Add only exact document path docs/20-architecture/PLAYER_API.md and Schema path
+  schemas/platform/platform-player-api-v1.schema.json with stable IDs SPEC-PLATFORM-PLAYER-API-V1
+  and SCHEMA-PLATFORM-PLAYER-API-V1. Missing optional document stays unloaded; requested
+  missing Schema fails.
+- Reject DRAFT/wrong identity/missing/malformed/unknown/wrong path/symlink files;
+  compile root and every local definition with external loading denied.
+- All prior assertions and current state/576 source outside these three files remain
+  exact; clean signed required Linux gates and independent maintenance ACCEPT pass.
+tests:
+- go test -count=1 -json ./internal/projectctl
+- just check
+- just test
+- go vet ./...
+- Linux just ci
+- projectctl codex route --mode REPAIR --maintenance GOV-M2-PLAYER-API-REGISTRY
+- projectctl codex route --mode ACCEPT --maintenance GOV-M2-PLAYER-API-REGISTRY
+- projectctl codex check
+stop_conditions:
+- Stop on mutations outside the exact3files, stale/invalid route, unapproved Schema/public
+  scope or failed required gate.
+- No business/private state or credentials in ordinary logs. Bootstrap019 may only
+  create this contract after exact actual missing-contract deadlock and explicit Owner
+  approval; retire before production code edits.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-019
+  authorization: Owner direct reply 同意 to CHANGE-M2-PLAYER-API-V1 proposal sha256
+    f0ad57a8028b0a483c6903012dbdca5052ea7badcd831852ce0384e8877078e8; approval receipt
+    sha256 3d7668786ab23ceadc6a50bfe5e85b22d076b3652d910de28dd687ef67cbc024. Actual
+    exact missing-contract REPAIR1 at clean31178c0 sha256 9bf046eb4feb839c9a6d5eee427bba6a050e9fd16b8fd6c0ef6ac346935884b1
+    permits only this contract creation; Bootstrap016/017/018 remain retired.
+  allowed_scope:
+  - Create only .codex/maintenance/GOV-M2-PLAYER-API-REGISTRY/CONTRACT.yaml at the
+    current clean signed source before catalog changes.
+  retirement_condition: Permanently retire once formal signed REPAIR/native reading/codex
+    check0 succeeds, before production code edits.
+  status: AUTHORIZED_ONCE
+status: ACTIVE
