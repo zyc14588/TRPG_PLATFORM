@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -95,6 +96,12 @@ func TestRedirectOversizeMalformedAndTimeoutRemainCanonical(t *testing.T) {
 				case "usage":
 					_, _ = w.Write([]byte(strings.Replace(string(responseJSON("ok")), `"total_tokens":3`, `"total_tokens":999`, 1)))
 				case "timeout":
+					// Consume the bounded request before waiting so net/http can
+					// observe the client disconnect and release this fixture.
+					if _, err := io.Copy(io.Discard, r.Body); err != nil {
+						t.Error("synthetic timeout request unavailable")
+						return
+					}
 					<-r.Context().Done()
 				case "encoding":
 					w.Header().Set("Content-Encoding", "gzip")
