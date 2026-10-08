@@ -194,7 +194,7 @@ func (o RecoveryContext) ValidateRecord(r data.EffectRecord) error {
 	for _, i := range r.Continuations {
 		schema, ok := o.IntentSchemas[i.PackageID+"/continuation"]
 		task, found := tasks[i.Payload.Table["task"].String]
-		if !ok || i.Kind != "continuation" || i.Payload.Kind != "table" || len(i.Payload.Table) != 2 || i.Payload.Table["task"].Kind != "string" || !found || task.PackageID != i.PackageID || task.Kind != "task" || schema.Validate(i.Payload.Table["value"]) != nil {
+		if !ok || i.Kind != "continuation" || i.Payload.Kind != "table" || len(i.Payload.Table) != 2 || i.Payload.Table["task"].Kind != "string" || !found || task.PackageID != i.PackageID || (task.Kind != "task" && task.Kind != "ai") || schema.Validate(i.Payload.Table["value"]) != nil {
 			return eventstore.ErrHistory
 		}
 	}

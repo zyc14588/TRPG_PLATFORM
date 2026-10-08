@@ -53,3 +53,46 @@ func TestRecoveryRevalidatesApprovedIntentSchemasAndGoWrappers(t *testing.T) {
 		})
 	}
 }
+
+func TestRecoveryRevalidatesTaskAndAIContinuationReferences(t *testing.T) {
+	h, o, err := fixture.History(1)
+	if err != nil {
+		t.Fatal("bound replay fixture failed")
+	}
+	original := h.Records[0]
+	seal := func(r data.EffectRecord) data.EffectRecord { r.Hash = ""; r.Hash = eventstore.Digest(r); return r }
+	bound := func(kind string) data.EffectRecord {
+		r := eventstore.Copy(original)
+		r.Tasks[0].Kind = kind
+		r.Outbox[0].Kind = "dispatch-" + kind
+		r.Continuations = []data.Intent{{ID: "continuation", PackageID: r.Tasks[0].PackageID, Kind: "continuation", Payload: checkpoint.Object(map[string]checkpoint.Value{"task": checkpoint.Text(r.Tasks[0].ID), "value": eventstore.Copy(r.Tasks[0].Payload)})}}
+		return seal(r)
+	}
+	for _, kind := range []string{"task", "ai"} {
+		t.Run("approved-"+kind, func(t *testing.T) {
+			r := bound(kind)
+			if eventstore.Validate(r) != nil {
+				t.Fatal("fixture failed immutable effect validation")
+			}
+			if o.ValidateRecord(r) != nil {
+				t.Fatal("approved bound continuation rejected")
+			}
+		})
+	}
+	cases := map[string]func(*data.EffectRecord){
+		"unknown-source":                func(r *data.EffectRecord) { r.Continuations[0].Payload.Table["task"] = checkpoint.Text("unknown-task") },
+		"different-source-package":      func(r *data.EffectRecord) { r.Tasks[0].PackageID = "example.test/other" },
+		"unapproved-source-kind":        func(r *data.EffectRecord) { r.Tasks[0].Kind = "unapproved"; r.Outbox[0].Kind = "dispatch-unapproved" },
+		"unapproved-continuation-value": func(r *data.EffectRecord) { r.Continuations[0].Payload.Table["value"] = checkpoint.Text("unapproved") },
+		"extra-wrapper-key":             func(r *data.EffectRecord) { r.Continuations[0].Payload.Table["extra"] = checkpoint.Int(1) },
+	}
+	for name, change := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := bound("ai")
+			change(&r)
+			if o.ValidateRecord(seal(r)) == nil {
+				t.Fatal("unapproved continuation reference accepted")
+			}
+		})
+	}
+}
