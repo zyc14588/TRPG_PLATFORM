@@ -2015,8 +2015,12 @@ func TestPlayerNormativePlanAndOptionalSource(t *testing.T) {
 	for _, name := range []string{"absent", "approved", "draft"} {
 		t.Run(name, func(t *testing.T) {
 			a := newFrozenRouteFixture(t, []string{"SPEC-LUA-RUNTIME-001"})
-			if err := os.Remove(filepath.Join(a.root, platformPlayerDocumentPath)); err != nil && !os.IsNotExist(err) {
-				t.Fatal(err)
+			if err := os.Remove(filepath.Join(a.root, platformPlayerDocumentPath)); err != nil {
+				if !os.IsNotExist(err) {
+					t.Fatal(err)
+				}
+			} else if name == "absent" {
+				commitFixturePaths(t, a, "isolated absent player PLAN document", platformPlayerDocumentPath)
 			}
 			if name != "absent" {
 				status := "ACTIVE"
