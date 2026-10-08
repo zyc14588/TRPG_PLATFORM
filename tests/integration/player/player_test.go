@@ -5,7 +5,6 @@ package player_test
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
