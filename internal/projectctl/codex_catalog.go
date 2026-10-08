@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 	"gopkg.in/yaml.v3"
@@ -70,6 +72,11 @@ const platformAuthSchemaID = "SCHEMA-PLATFORM-AUTH-API-V1"
 const platformRoomDocumentPath = "docs/20-architecture/ROOM_API.md"
 const platformRoomSchemaPath = "schemas/platform/platform-room-api-v1.schema.json"
 const platformRoomSchemaID = "SCHEMA-PLATFORM-ROOM-API-V1"
+
+// CHANGE-M2-PLAYER-API-V1 approves only these bounded player sources.
+const platformPlayerDocumentPath = "docs/20-architecture/PLAYER_API.md"
+const platformPlayerSchemaPath = "schemas/platform/platform-player-api-v1.schema.json"
+const platformPlayerSchemaID = "SCHEMA-PLATFORM-PLAYER-API-V1"
 
 type routeSchemaLoader struct{}
 
@@ -280,6 +287,11 @@ func (a *App) requestedSchemaRoutes(identifiers []string) ([]routeSpec, error) {
 			if err := a.validateRoomRouteSchema(); err != nil {
 				return nil, err
 			}
+		case platformPlayerSchemaID:
+			spec = route(platformPlayerSchemaPath, identifier, "machine-contract")
+			if err := a.validatePlayerRouteSchema(); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, fmt.Errorf("requested Schema %s is not in the approved bounded inventory", identifier)
 		}
@@ -400,6 +412,151 @@ func (a *App) validateRoomRouteDocument() error {
 	}
 	if metadata["document_id"] != "SPEC-PLATFORM-ROOM-API-V1" || metadata["status"] != "ACTIVE" {
 		return errors.New("bounded room API document requires its approved identity and ACTIVE status")
+	}
+	return nil
+}
+
+// Check the approved player Schema before map decoding so duplicate JSON keys
+// cannot silently replace identity metadata or an unused local definition.
+func validatePlayerSchemaKeys(data []byte) error {
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	var visit func(int) error
+	visit = func(depth int) error {
+		if depth > 64 {
+			return errors.New("player Schema nesting exceeds bound")
+		}
+		token, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		delimiter, composite := token.(json.Delim)
+		if !composite {
+			return nil
+		}
+		switch delimiter {
+		case '{':
+			keys := map[string]bool{}
+			for decoder.More() {
+				token, err := decoder.Token()
+				if err != nil {
+					return err
+				}
+				key, ok := token.(string)
+				if !ok || keys[key] {
+					return errors.New("player Schema has duplicate or invalid keys")
+				}
+				keys[key] = true
+				if err := visit(depth + 1); err != nil {
+					return err
+				}
+			}
+			token, err = decoder.Token()
+			if err != nil || token != json.Delim('}') {
+				return errors.New("invalid player Schema object")
+			}
+		case '[':
+			for decoder.More() {
+				if err := visit(depth + 1); err != nil {
+					return err
+				}
+			}
+			token, err = decoder.Token()
+			if err != nil || token != json.Delim(']') {
+				return errors.New("invalid player Schema array")
+			}
+		default:
+			return errors.New("invalid player Schema value")
+		}
+		return nil
+	}
+	if err := visit(0); err != nil {
+		return err
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return errors.New("player Schema contains trailing data")
+	}
+	return nil
+}
+
+func (a *App) validatePlayerRouteSchema() error {
+	path := filepath.Join(a.root, platformPlayerSchemaPath)
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return fmt.Errorf("requested player Schema must be a regular file at its approved path: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read requested player Schema: %w", err)
+	}
+	if len(data) > 65536 || !utf8.Valid(data) {
+		return errors.New("requested player Schema exceeds its bound or has invalid UTF-8")
+	}
+	if err := validatePlayerSchemaKeys(data); err != nil {
+		return fmt.Errorf("decode requested player Schema: %w", err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		return fmt.Errorf("decode requested player Schema: %w", err)
+	}
+	if document["x-section-id"] != platformPlayerSchemaID || document["x-status"] != "ACTIVE" ||
+		document["$id"] != "urn:trpg-platform:platform-player-api:v1" ||
+		document["$schema"] != "https://json-schema.org/draft/2020-12/schema" {
+		return errors.New("requested player Schema identity, ACTIVE status or draft metadata is invalid")
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.DefaultDraft(jsonschema.Draft2020)
+	compiler.AssertFormat()
+	compiler.UseLoader(routeSchemaLoader{})
+	uri := document["$id"].(string)
+	if err := compiler.AddResource(uri, document); err != nil {
+		return fmt.Errorf("register requested player Schema: %w", err)
+	}
+	if _, err := compiler.Compile(uri); err != nil {
+		return fmt.Errorf("compile requested player Schema: %w", err)
+	}
+	definitions, ok := document["$defs"].(map[string]any)
+	if !ok || len(definitions) == 0 {
+		return errors.New("requested player Schema has no executable definitions")
+	}
+	names := make([]string, 0, len(definitions))
+	for name := range definitions {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	escape := strings.NewReplacer("~", "~0", "/", "~1")
+	for _, name := range names {
+		if _, err := compiler.Compile(uri + "#/$defs/" + escape.Replace(name)); err != nil {
+			return fmt.Errorf("compile requested player Schema definition: %w", err)
+		}
+	}
+	return nil
+}
+
+func (a *App) validatePlayerRouteDocument() error {
+	data, err := os.ReadFile(filepath.Join(a.root, platformPlayerDocumentPath))
+	if err != nil {
+		return fmt.Errorf("read bounded player API document: %w", err)
+	}
+	if len(data) > 65536 || !utf8.Valid(data) {
+		return errors.New("bounded player API document exceeds its bound or has invalid UTF-8")
+	}
+	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	if len(lines) < 3 || lines[0] != "---" {
+		return errors.New("bounded player API document lacks front matter")
+	}
+	end := 1
+	for end < len(lines) && lines[end] != "---" {
+		end++
+	}
+	if end == len(lines) {
+		return errors.New("bounded player API document has unterminated front matter")
+	}
+	var metadata map[string]any
+	if err := yaml.Unmarshal([]byte(strings.Join(lines[1:end], "\n")), &metadata); err != nil {
+		return fmt.Errorf("decode bounded player API document metadata: %w", err)
+	}
+	if metadata["document_id"] != "SPEC-PLATFORM-PLAYER-API-V1" || metadata["status"] != "ACTIVE" {
+		return errors.New("bounded player API document requires its approved identity and ACTIVE status")
 	}
 	return nil
 }
@@ -620,6 +777,17 @@ func (a *App) normativeSectionCatalog() (normativeSectionCatalog, error) {
 		paths = append(paths, platformRoomDocumentPath)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read bounded room API document: %w", err)
+	}
+	if info, err := os.Lstat(filepath.Join(a.root, platformPlayerDocumentPath)); err == nil {
+		if !info.Mode().IsRegular() {
+			return nil, errors.New("bounded player API document must be a regular file at its approved path")
+		}
+		if err := a.validatePlayerRouteDocument(); err != nil {
+			return nil, err
+		}
+		paths = append(paths, platformPlayerDocumentPath)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("read bounded player API document: %w", err)
 	}
 	roadmap, err := a.loadV1MilestoneCatalog()
 	if err != nil {

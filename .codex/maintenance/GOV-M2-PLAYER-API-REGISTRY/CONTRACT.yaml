@@ -93,4 +93,4 @@ bootstrap:
   - /home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/gov-m2-player-api-registry/bootstrap019-signature.json
     sha256 03ef426e3cedb298031a9820c537cf0de23318a751bb1495a71ea363322571a8
   - Bootstrap019 may never be reused. Bootstrap016/017/018 remain permanently retired.
-status: ACTIVE
+status: READY_FOR_ACCEPTANCE

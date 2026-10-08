@@ -1841,6 +1841,248 @@ func runFixtureGit(t *testing.T, root string, arguments ...string) {
 	}
 }
 
+func TestApprovedPlayerNormativeRoutesAndClosedSources(t *testing.T) {
+	valid := []byte("---\ndocument_id: SPEC-PLATFORM-PLAYER-API-V1\nstatus: ACTIVE\n---\nApproved player contract.\n")
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		t.Run(mode, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-PLATFORM-PLAYER-API-V1"})
+			writePlatformRouteFixture(t, a, platformPlayerDocumentPath, valid)
+			paths, err := a.routePaths(testCodexRequest(mode, "M1", "M1-B001"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			count := 0
+			for _, section := range paths.normative {
+				if section.sectionID == "SPEC-PLATFORM-PLAYER-API-V1" {
+					count++
+					if section.path != platformPlayerDocumentPath {
+						t.Fatal("player document resolved outside its approved path")
+					}
+				}
+			}
+			if count != 1 {
+				t.Fatal("player document did not resolve exactly once")
+			}
+		})
+	}
+	for _, name := range []string{"missing", "unapproved-path", "draft", "wrong-identity", "malformed", "duplicate-metadata", "ambiguous", "symlink"} {
+		t.Run(name, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-PLATFORM-PLAYER-API-V1"})
+			if err := os.Remove(filepath.Join(a.root, platformPlayerDocumentPath)); err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+			data, path := append([]byte(nil), valid...), platformPlayerDocumentPath
+			switch name {
+			case "unapproved-path":
+				path = "docs/20-architecture/UNAPPROVED_PLAYER_API.md"
+			case "draft":
+				data = bytes.Replace(data, []byte("status: ACTIVE"), []byte("status: DRAFT"), 1)
+			case "wrong-identity":
+				data = bytes.Replace(data, []byte("document_id: SPEC-PLATFORM-PLAYER-API-V1"), []byte("document_id: SPEC-UNAPPROVED"), 1)
+			case "malformed":
+				data = []byte("document_id: SPEC-PLATFORM-PLAYER-API-V1\n")
+			case "duplicate-metadata":
+				data = bytes.Replace(data, []byte("status: ACTIVE"), []byte("status: DRAFT\nstatus: ACTIVE"), 1)
+			case "ambiguous":
+				data = append(data, []byte("<a id=\"SPEC-PLATFORM-PLAYER-API-V1\"></a>\n")...)
+			case "symlink":
+				target := filepath.Join(t.TempDir(), "approved-looking-player.md")
+				if err := os.WriteFile(target, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(target, filepath.Join(a.root, path)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if name != "missing" && name != "symlink" {
+				writePlatformRouteFixture(t, a, path, data)
+			}
+			if _, err := a.routePaths(testCodexRequest("REPAIR", "M1", "M1-B001")); err == nil {
+				t.Fatal("invalid or unapproved player document accepted")
+			}
+		})
+	}
+}
+
+func playerRouteSchemaFixture() map[string]any {
+	return map[string]any{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"$id":     "urn:trpg-platform:platform-player-api:v1", "x-section-id": platformPlayerSchemaID,
+		"x-status": "ACTIVE", "$defs": map[string]any{"Request": map[string]any{"type": "object"}},
+	}
+}
+
+func TestApprovedPlayerSchemaFrozenRoutes(t *testing.T) {
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		t.Run(mode, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-LUA-RUNTIME-001"})
+			plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan.Batches[0].MachineContracts = append(plan.Batches[0].MachineContracts, platformPlayerSchemaID)
+			plan.Batches[0].FrozenContractSHA256 = mustBatchContractDigest(t, plan.Batches[0])
+			writeFixtureMilestonePlan(t, a, plan)
+			data, _ := json.MarshalIndent(playerRouteSchemaFixture(), "", "  ")
+			writePlatformRouteFixture(t, a, platformPlayerSchemaPath, data)
+			commitFixturePaths(t, a, "approved player Schema fixture", ".codex/state/MILESTONE_PLAN.yaml", platformPlayerSchemaPath)
+			routeMap := generateFixtureBatchRoute(t, a, mode)
+			count := 0
+			for _, section := range routeMap.MachineContracts {
+				if section.SectionID == platformPlayerSchemaID {
+					count++
+					if section.Path != platformPlayerSchemaPath || section.SHA256 == "" || section.SectionSHA256 == "" {
+						t.Fatal("player Schema content/path not bound")
+					}
+				}
+			}
+			if count != 1 {
+				t.Fatal("player Schema not materialized exactly once")
+			}
+			document := playerRouteSchemaFixture()
+			document["$defs"] = map[string]any{"Unused": map[string]any{"$ref": "#/missing"}}
+			data, _ = json.MarshalIndent(document, "", "  ")
+			writePlatformRouteFixture(t, a, platformPlayerSchemaPath, data)
+			if err := a.validateCanonicalReadingMap(routeMap); err == nil {
+				t.Fatal("bound room route accepted invalid unused definition")
+			}
+		})
+	}
+}
+
+func TestRequestedPlayerSchemaFailsClosedAndRemainsOptional(t *testing.T) {
+	for _, name := range []string{"missing", "malformed-json", "wrong-section", "draft", "wrong-uri", "wrong-draft", "bad-schema", "missing-definitions", "dangling-definition", "external-reference", "external-unused-definition", "unknown-id", "unapproved-path", "symlink"} {
+		t.Run(name, func(t *testing.T) {
+			a := &App{root: t.TempDir()}
+			document := playerRouteSchemaFixture()
+			id, path := platformPlayerSchemaID, platformPlayerSchemaPath
+			switch name {
+			case "wrong-section":
+				document["x-section-id"] = platformAuthSchemaID
+			case "draft":
+				document["x-status"] = "DRAFT"
+			case "wrong-uri":
+				document["$id"] = "urn:trpg-platform:platform-auth-api:v1"
+			case "wrong-draft":
+				document["$schema"] = "https://unapproved.invalid/schema"
+			case "bad-schema":
+				document["type"] = 123
+			case "missing-definitions":
+				delete(document, "$defs")
+			case "dangling-definition":
+				document["$defs"] = map[string]any{"Unused": map[string]any{"$ref": "#/missing"}}
+			case "external-reference":
+				document["$ref"] = "https://unapproved.invalid/must-not-load.json"
+			case "external-unused-definition":
+				document["$defs"] = map[string]any{"Unused": map[string]any{"$ref": "https://unapproved.invalid/must-not-load.json"}}
+			case "unknown-id":
+				id = "SCHEMA-PLATFORM-PLAYER-API-V2"
+			case "unapproved-path":
+				path = "schemas/platform/unapproved-player.schema.json"
+			}
+			data, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if name == "malformed-json" {
+				data = []byte(`{"x-section-id":`)
+			}
+			if name == "symlink" {
+				writePlatformRouteFixture(t, a, "fixture-schema.json", data)
+				if err := os.MkdirAll(filepath.Dir(filepath.Join(a.root, path)), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(filepath.Join(a.root, "fixture-schema.json"), filepath.Join(a.root, path)); err != nil {
+					t.Fatal(err)
+				}
+			} else if name != "missing" {
+				writePlatformRouteFixture(t, a, path, data)
+			}
+			if _, err := a.requestedSchemaRoutes([]string{id}); err == nil {
+				t.Fatal("invalid or unapproved requested player Schema accepted")
+			}
+		})
+	}
+	a := &App{root: t.TempDir()}
+	writePlatformRouteFixture(t, a, platformPlayerSchemaPath, []byte("invalid JSON"))
+	routes, err := a.requestedSchemaRoutes([]string{"REQ-PLAYER-001", "TEST-PLAYER-001", "SCHEMA-CODEX-MILESTONE-PLAN-V2"})
+	if err != nil || len(routes) != 1 || routes[0].sectionID != "SCHEMA-CODEX-MILESTONE-PLAN-V2" {
+		t.Fatal("unrequested player Schema affected existing routing", err)
+	}
+}
+
+func TestPlayerNormativePlanAndOptionalSource(t *testing.T) {
+	for _, name := range []string{"absent", "approved", "draft"} {
+		t.Run(name, func(t *testing.T) {
+			a := newFrozenRouteFixture(t, []string{"SPEC-LUA-RUNTIME-001"})
+			if err := os.Remove(filepath.Join(a.root, platformPlayerDocumentPath)); err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+			if name != "absent" {
+				status := "ACTIVE"
+				if name == "draft" {
+					status = "DRAFT"
+				}
+				writePlatformRouteFixture(t, a, platformPlayerDocumentPath, []byte("---\ndocument_id: SPEC-PLATFORM-PLAYER-API-V1\nstatus: "+status+"\n---\nApproved player source.\n"))
+			}
+			err := a.generateCodexRouteRequest(context.Background(), testCodexRequest("PLAN", "M1", ""))
+			if name == "draft" {
+				if err == nil {
+					t.Fatal("PLAN accepted unapproved player source")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if name == "approved" {
+				catalog, err := a.normativeSectionCatalog()
+				if err != nil {
+					t.Fatal(err)
+				}
+				spec, err := resolveNormativeSection(catalog, "SPEC-PLATFORM-PLAYER-API-V1")
+				if err != nil || spec.path != platformPlayerDocumentPath {
+					t.Fatal("PLAN catalog did not retain exact player source", err)
+				}
+			}
+		})
+	}
+}
+
+func TestPlayerSchemaDuplicateSizeAndUTF8Bounds(t *testing.T) {
+	valid, err := json.Marshal(playerRouteSchemaFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"duplicate-identity", "duplicate-unused-definition", "oversize", "invalid-utf8", "trailing-json", "deep-nesting"} {
+		t.Run(name, func(t *testing.T) {
+			a := &App{root: t.TempDir()}
+			data := append([]byte(nil), valid...)
+			switch name {
+			case "duplicate-identity":
+				data = bytes.Replace(data, []byte(`"x-status":"ACTIVE"`), []byte(`"x-status":"DRAFT","x-status":"ACTIVE"`), 1)
+			case "duplicate-unused-definition":
+				data = bytes.Replace(data, []byte(`"$defs":{"Request":{"type":"object"}}`), []byte(`"$defs":{"Request":{"type":123},"Request":{"type":"object"}}`), 1)
+			case "oversize":
+				data = append(data, bytes.Repeat([]byte(" "), 65536)...)
+			case "invalid-utf8":
+				data = bytes.Replace(data, []byte(`"type":"object"`), append([]byte(`"description":"`), append([]byte{255}, []byte(`","type":"object"`)...)...), 1)
+			case "trailing-json":
+				data = append(data, []byte(` {}`)...)
+			case "deep-nesting":
+				data = bytes.Replace(data, []byte(`"type":"object"`), []byte(`"type":"object","default":`+strings.Repeat("[", 65)+"0"+strings.Repeat("]", 65)), 1)
+			}
+			if bytes.Equal(data, valid) {
+				t.Fatal("negative fixture was not changed")
+			}
+			writePlatformRouteFixture(t, a, platformPlayerSchemaPath, data)
+			if _, err := a.requestedSchemaRoutes([]string{platformPlayerSchemaID}); err == nil {
+				t.Fatal("invalid player Schema accepted")
+			}
+		})
+	}
+}
+
 // x-section-id: PROJECTCTL-MILESTONE-LIFECYCLE-TESTS
 func TestSuccessorPlanRouteRequiresCompletedConsecutivePredecessor(t *testing.T) {
 	catalog := testV1MilestoneCatalog(t, testApp(t))
