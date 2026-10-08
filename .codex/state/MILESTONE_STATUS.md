@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "12673d965ec726ff6a35a51ac0adfc147a71851d"
+source_commit: "c1d68edd82f8c59f93e589a2bd76bf5c58ccd9e3"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B008 Linux AI 上下文隔离与资源预算 候选等待独立验收
+
+正常 PLAN v33→v34 仅将 M2-B008 IMPLEMENTING→VERIFYING；十四字段冻结摘要 b702faf607a4d61d518301a5f696de63c6476a787bc0563d495a667b21a61faa 保持，其余十一批、next13、tombstones及M1归档保持。当前Linux M2完成 7/12≈58.33%；其他平台业务NOT_RUN，最终出口由B012闭环。
+
+B008在11个冻结范围内新增源码/测试文件，将当前真实账号、房间、AI席位、开局绑定、模型资格和受控能力交集在提示构造前校验；受保护宿主状态和事件先按现有席位视图过滤，记忆仅绑定本席位及仍可见事件来源。提示、任务及建议使用不透明私有句柄；模型结果仅为建议，不获得宿主游戏状态写入权限。workspace、room、session、seat、task五级预算对call、token、cost、latency、tool、subagent、context和local compute八项资源进行真实SQL事务预留及有限上界检查；重复调度不能重复调用，超限暂停相关席位，未知消耗保留预留，重启不能重置额度。
+
+清洁签名业务候选c1d68edd82f8c59f93e589a2bd76bf5c58ccd9e3实测单元17/17、专用真实PostgreSQL20/20、race37/37、治理315/315，零失败/跳过；just check、just test、go vet ./...及Linux just ci实际退出0。首次准确7dca67694f8855dbf7d6c54c35fb6d415361b984 SQL实际20 run/2 pass/18 fail/0 skip原样保留：新增夹具更新准备信息后未登记对应新确认，现有授权正确拒绝。正式REPAIR仅修复本批isolation_test.go初始化，在同一事务明确登记revision2及其有效确认；原有全部Test函数和断言逐字节一致，未修改B007或既有授权检查。两次只读诊断实际1、零业务PASS信用；修复后所有必需检查重新运行，生产证据在仓库外m2-b008-ai-platform/BUSINESS_PRODUCER_RECEIPT.json及REQUIRED_SQL_FAILURE_R1_CLOSURE.json。
+
+真实PostgreSQL夹具内使用受控合成资格、视图策略和类型化provider回调验证隔离及额度；外部provider资格和网络调用NOT_RUN，由B012闭环，混合玩家完整游戏循环及production daemon启动NOT_RUN，由B011/B012闭环。无物理夹具的探针明确非零退出、NOT_RUN且零业务用例/跳过。未新增公开HTTP/JSON Schema、Host方法、Lua后端、许可或依赖，539个此前非状态文件完整保留；最后三状态文件改变后550个非状态blob/mode必须准确一致，业务检查仅按准确来源继承NOT_RERUN。
+
+独立验收、本地主线接收、清理封存及远端推送尚未执行，B008不记完成。下一步复用Owner已授权的只读独立验收代理；Root完整接收通过后再转完成。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B008 Linux AI席位隔离与预算实现启动
 
