@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 35
+plan_version: 36
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -588,18 +588,20 @@ batches:
   frozen_contract_sha256: b702faf607a4d61d518301a5f696de63c6476a787bc0563d495a667b21a61faa
 - batch_id: M2-B009
   sequence: 9
-  state: PLANNED
-  objective: Implement the server model gateway, capability certification and bounded failure/fallback pipeline through durable
-    tasks.
+  state: FROZEN
+  objective: Implement the server model gateway, capability certification and bounded failure/fallback pipeline
+    through durable tasks.
   non_goals:
-  - Unapproved model providers, browser-local inference, unlimited retry, silent price escalation or authority writes from
-    a provider.
+  - Unapproved model providers, browser-local inference, unlimited retry, silent price escalation or authority writes
+    from a provider.
   allowed_scope:
   - internal/ai/gateway/**
   - internal/ai/certification/**
   - internal/ai/action/**
   - cmd/workerd/model*.go
   - tests/integration/model_gateway/**
+  - internal/storage/postgres/platform_task_source.go
+  - internal/storage/postgres/platform_task_source_test.go
   forbidden_scope:
   - docs/**
   - .codex/**
@@ -631,22 +633,32 @@ batches:
   acceptance:
   - Server adapters for the existing allowed compatible protocols obey endpoint egress, credential, timeout, response-size
     and model-capability bounds.
-  - AI proposes a structured action, authority validates/commits it, then narrative is produced; narrative failure uses a
-    deterministic result template and does not roll back the event.
-  - Format repair/retry is bounded and fallback is both capability-compatible and preauthorized; lack of valid fallback pauses
-    the seat and retains committed state.
-  - Synthetic local provider fixtures validate isolation, malformed output, timeout, backpressure and budget/fallback paths
-    without paid external calls.
+  - AI proposes a structured action, authority validates/commits it, then narrative is produced; narrative failure
+    uses a deterministic result template and does not roll back the event.
+  - Format repair/retry is bounded and fallback is both capability-compatible and preauthorized; lack of valid fallback
+    pauses the seat and retains committed state.
+  - Synthetic local provider fixtures validate isolation, malformed output, timeout, backpressure and budget/fallback
+    paths without paid external calls.
+  - Approved CHANGE-M2-B009-AI-INTENT-SOURCE admits existing AI intents only with their matching committed dispatch
+    and tenant/source binding; original B006 continuation behavior is preserved.
   tests:
-  - go test -count=1 -json ./internal/ai/gateway/... ./internal/ai/certification/... ./internal/ai/action/...
+  - go test -count=1 -json ./internal/ai/gateway/... ./internal/ai/certification/... ./internal/ai/action/... ./internal/storage/postgres/...
+    ./cmd/workerd
   - go test -count=1 -tags integration -json ./tests/integration/model_gateway/...
+  - go test -count=1 -race -tags integration -json ./internal/ai/gateway/... ./internal/ai/certification/... ./internal/ai/action/...
+    ./internal/storage/postgres/... ./cmd/workerd ./tests/integration/model_gateway/...
+  - go test -count=1 -json ./internal/task/... ./internal/platform/session/... ./internal/ai/model/... ./internal/ai/context/...
+    ./internal/ai/budget/... ./internal/ai/credential/...
+  - go test -count=1 -tags integration -json ./tests/integration/continuation/... on a fresh, separately owned B006-compatible
+    physical PostgreSQL fixture.
   - just check, just test, go vet ./..., and Linux just ci pass on a clean signed candidate.
   stop_conditions:
-  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate unless
-    its concrete CHANGE has been approved.
-  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen binding,
-    or failed required verification.
-  - Do not modify another frozen batch, claim an unexecuted integration as PASS, or skip incomplete dependencies.
+  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate
+    unless its concrete CHANGE has been approved.
+  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen
+    binding, or failed required verification.
+  - Do not modify another frozen batch except the two paths explicitly approved by CHANGE-M2-B009-AI-INTENT-SOURCE;
+    never claim an unexecuted integration as PASS or skip incomplete dependencies.
   depends_on:
   - M2-B006
   - M2-B007
@@ -654,6 +666,7 @@ batches:
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
+  frozen_contract_sha256: 3b1d11d51100dac5d3da52c714c33da89cd90ec9c9f2a78b5931d819c8194890
 - batch_id: M2-B010
   sequence: 10
   state: PLANNED
