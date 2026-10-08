@@ -19,7 +19,11 @@ source_blocker: 'f9e41fa35d1dd63085f0e14265db3175932ba73f: governance actual1 (3
   are allowed by old fixed tokens. Same three-file R2 repair rejects official and legacy OpenAI SDK families
   after AST decoding, while preserving protocol text permission and all old controls. Independent just-test
   sandbox actual1 (002) is separately preserved as an execution environment failure; next required round
-  needs authorized local listener and pnpm cache permissions.'
+  needs authorized local listener and pnpm cache permissions. In-scope ACC-GOV-M2-MODEL-GATEWAY-SCOPE-004
+  at signed a741dbd8: native reader Go-test compile actual1 because new SDK test references fmt without
+  importing it. Correct the same routed test section using already available strconv and explicit hex
+  encoding; retain every case and assertion. Native section extraction may use a virtual compile-only
+  test overlay; no runtime or acceptance credit from it.'
 allowed_scope:
 - path: .codex/maintenance/GOV-M2-MODEL-GATEWAY-SCOPE/CONTRACT.yaml
   section_id: GOV-M2-MODEL-GATEWAY-SCOPE
