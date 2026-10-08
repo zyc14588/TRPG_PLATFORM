@@ -42,6 +42,8 @@ type serviceData struct {
 	connections map[string]*connection
 	reserved    int
 	closed      bool
+	operations  chan struct{}
+	urgent      chan struct{}
 }
 type connection struct {
 	native *platformsession.Connection
@@ -64,7 +66,7 @@ func New(o Options) (*Service, error) {
 	if e != nil {
 		return nil, e
 	}
-	d := &serviceData{options: o, schemas: schemas, games: map[string]Game{}, connections: map[string]*connection{}}
+	d := &serviceData{options: o, schemas: schemas, games: map[string]Game{}, connections: map[string]*connection{}, operations: make(chan struct{}, 2), urgent: make(chan struct{}, 1)}
 	registered := map[string]launch.PlayerConfigurationData{}
 	for _, x := range o.Launch.PlayerConfigurations() {
 		c := x.StorageValue()
@@ -487,6 +489,19 @@ func (s *Service) Do(ctx context.Context, c launch.Caller, request Request) (aut
 		return auth.Outcome{}, e
 	}
 	r = sealed.StorageValue()
+	// Bound front-door concurrency before a SQL admission waits on auth locks.
+	// Two normal operations leave room in the existing eight-connection pool
+	// for native validation, dispatch fences and one urgent control operation.
+	slots := d.operations
+	if r.Action == "pause" || r.Action == "disconnect" || r.Action == "resume" {
+		slots = d.urgent
+	}
+	select {
+	case slots <- struct{}{}:
+		defer func() { <-slots }()
+	default:
+		return auth.Outcome{}, auth.ErrRateLimited
+	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	s.prune()

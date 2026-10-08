@@ -208,7 +208,9 @@ func TestPlayerPauseGuardsActualGenericTaskRetryAndContinuation(t *testing.T) {
 	}
 	n.resumeAll(t)
 	report, e := runtime.RunOnce(n.ctx)
-	need(t, e)
+	if e != nil {
+		t.Fatalf("generic continuation runtime failed: %s; private detail withheld", task.SafeError(e).Error())
+	}
 	if report.Executed != 1 || report.Applied != 1 || calls.Load() != 2 || n.sql(t, "SELECT version FROM host_command.sessions WHERE workspace='"+n.w+"'") != "3" {
 		t.Fatal("resumed generic task failed native continuation")
 	}

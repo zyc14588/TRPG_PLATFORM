@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -98,7 +100,7 @@ func newActualAI(t *testing.T, handler http.HandlerFunc) *actualAI {
 	t.Cleanup(server.Close)
 	endpointURL := server.URL + "/v1"
 	endpoints := []model.Endpoint{model.NewEndpoint(model.EndpointData{ID: "approved-local", URL: endpointURL, Adapter: "openai-compatible", Models: []string{"fixture:small"}, AllowLANHTTP: true})}
-	cert := model.NewCertification(model.CertificationData{ID: "default-model", WorkspaceID: scope.WorkspaceID, Tuple: model.Tuple{Model: "fixture:small", Endpoint: endpointURL, Adapter: "openai-compatible", PromptTemplate: "safe-v1", ToolMode: "structured", TestVersion: "fixture-v1"}, Level: 3, Capabilities: []string{"structured-actions", "ai-player"}, Games: []model.GameEvidence{{GraphHash: prep.GraphHash, TestVersion: "fixture-v1", EvidenceHash: checkpoint.Hash([]byte("synthetic actual player Actor")), Capabilities: []string{"structured-actions", "ai-player"}}}, EvidenceHash: checkpoint.Hash([]byte("synthetic owned local provider binding")), ExpiresAt: time.Now().Add(time.Hour)})
+	cert := model.NewCertification(model.CertificationData{ID: "default-model", WorkspaceID: scope.WorkspaceID, Tuple: model.Tuple{Model: "fixture:small", Endpoint: endpointURL, Adapter: "openai-compatible", PromptTemplate: "safe-v1", ToolMode: "structured", TestVersion: "fixture-v1"}, Level: 3, Capabilities: []string{"structured-actions", "ai-player"}, Games: []model.GameEvidence{{GraphHash: prep.GraphHash, TestVersion: "fixture-v1", EvidenceHash: modelEvidence("synthetic actual player Actor"), Capabilities: []string{"structured-actions", "ai-player"}}}, EvidenceHash: modelEvidence("synthetic owned local provider binding"), ExpiresAt: time.Now().Add(time.Hour)})
 	models, e := model.New(model.Options{Authority: l.authority, Rooms: l.store, Launches: l.storage, Storage: mt, Vault: vault, Endpoints: endpoints, Certifications: []model.Certification{cert}, Defaults: map[string]string{l.w: "default-model"}, WorkspaceLimits: map[string]model.Limits{l.w: aiLimits()}})
 	need(t, e)
 	cv := l.owner.StorageValue()
@@ -236,3 +238,5 @@ func proposalText(version uint64) string {
 	b, _ := json.Marshal(action.ProposalData{Type: "increment", ExpectedVersion: version, Payload: checkpoint.Object(map[string]checkpoint.Value{"delta": checkpoint.Int(1)})})
 	return string(b)
 }
+
+func modelEvidence(s string) string { v := sha256.Sum256([]byte(s)); return hex.EncodeToString(v[:]) }
