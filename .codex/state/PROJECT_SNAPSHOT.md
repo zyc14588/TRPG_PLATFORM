@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "7e5b482480eb37e49651432eaf549eaa3298d542"
+source_commit: "830a78b40a8406c34026aa56b3b835894991302e"
 ---
 
 # 项目摘要
+
+## 当前 M2：新增 B013 玩家 API 上游批次
+
+Owner“同意”已批准 CHANGE-M2-PLAYER-API-V1，授权回执SHA256 3d7668786ab23ceadc6a50bfe5e85b22d076b3652d910de28dd687ef67cbc024。正常 PLAN v39→v40 新增未使用ID M2-B013 为永久分配sequence13；B010/B011/B012保持原分配编号10/11/12，next14，tombstones及九个已完成冻结契约原样保留。草案曾把分配编号当执行顺序，外部原生预检actual1拒绝sequence10；失败原件保留且未修改仓库。当前按原生单调分配规则追加13，通过B010对B013的依赖保证API先行，不改变公开API或业务目录。B010增加B013依赖和当前已存在auth/room契约引用；新增player规范/Schema在B013 IMPLEMENT采纳并验收后才登记到仍未开始的B010，绝不提前请求不存在的规范文件。
+
+Linux M2统计分母由12调整为13，当前完成9/13≈69.23%。这是补齐浏览器与权威服务连接所需上游批次的范围细化；九个既有完成批次没有失效。B013业务实现、真实SQL/race和完整玩家浏览器循环均NOT_RUN；其他平台NOT_RUN。
+
+独立 GOV-M2-PLAYER-API-REGISTRY 当前签名源830a78b4 已通过 Root 和独立治理436/436、必需Linux检查与五个前向签名；原样77登记探针、原017的3探针和18补充路径探针全部通过，001/002当前闭合，旧FAIL日志保持。577源码及574范围外文件完整字节绑定。独立217证据成员由Root完整收件；本地Main保持main分支快进接收同源、原生28节点与check通过。两份快照、三个专属缓存、两处可重建输出和12个临时助手已归档后清理；阶段完成归档1249成员完整回读。远端codex/m2-room-platform已核对到830a78b4，远端回执SHA256 466afb579cd80238fe4dad24f098eed91db5a8b754db0b1d4ba4ee1a029000ac。此治理完成不计玩家业务信用。
+
+B009最终状态31178c0的独立接收、Main接收、资源清理、归档与远端推送均已完成，准确回执保存在m2-b009-linux-final及m2-b009-remote-reception-31178c0。此前“等待最终状态接收”的记录作为历史原文保留。
+
+下一步正常PLAN冻结并激活B013，在已批准的17条业务路径内采纳精确15条HTTPS路由及39个Schema定义，连接现有房间、开局、原生Session和AI续接，并补齐持久暂停/连接租约。生产启动接线保留B011，玩家界面保留B010；当前不改业务源码。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B009 Linux 模型网关 业务已独立验收，等待最终状态接收
 

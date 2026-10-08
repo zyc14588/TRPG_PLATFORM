@@ -1,10 +1,10 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 39
+plan_version: 40
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
-next_batch_sequence: 13
+next_batch_sequence: 14
 batches:
 - batch_id: M2-B001
   sequence: 1
@@ -707,6 +707,8 @@ batches:
   - TEST-PLAYER-005
   - TEST-PLAYER-007
   - SCHEMA-CODEX-MILESTONE-PLAN-V2
+  - SCHEMA-PLATFORM-AUTH-API-V1
+  - SCHEMA-PLATFORM-ROOM-API-V1
   reading_map_sections:
   - SPEC-V1-ROADMAP-M2
   - SPEC-M2-ALLOWED
@@ -715,39 +717,43 @@ batches:
   - SPEC-PLAYER-EXPERIENCE-001
   - SPEC-PRODUCT-001
   - SPEC-AI-001
+  - SPEC-PLATFORM-AUTH-API-V1
+  - SPEC-PLATFORM-ROOM-API-V1
   acceptance:
-  - A player can choose available game/content, create/join a private room, consent to packages and boundaries, take a human/AI
-    seat, prepare and play through the authoritative server.
-  - Normal flows use clear game and participant language; advanced model/endpoint/BYOK configuration stays in its designated
-    advanced flow.
-  - Disconnect, safety pause, failed readiness and filtered save/export are visible and recoverable with no local authority
-    shortcuts or hidden-seat leakage.
+  - A player can choose available game/content, create/join a private room, consent to packages and boundaries,
+    take a human/AI seat, prepare and play through the authoritative server.
+  - Normal flows use clear game and participant language; advanced model/endpoint/BYOK configuration stays in its
+    designated advanced flow.
+  - Disconnect, safety pause, failed readiness and filtered save/export are visible and recoverable with no local
+    authority shortcuts or hidden-seat leakage.
   tests:
   - pnpm --filter web-player typecheck, test and build.
   - The approved browser E2E command covers account/guest invitation, readiness denial, mixed-seat play, disconnect/reconnect
     and filtered export with exact candidate evidence.
   - just check, just test, go vet ./..., and Linux just ci pass on a clean signed candidate.
   stop_conditions:
-  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate unless
-    its concrete CHANGE has been approved.
-  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen binding,
-    or failed required verification.
+  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate
+    unless its concrete CHANGE has been approved.
+  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen
+    binding, or failed required verification.
   - Do not modify another frozen batch, claim an unexecuted integration as PASS, or skip incomplete dependencies.
   depends_on:
   - M2-B003
   - M2-B004
   - M2-B005
   - M2-B009
+  - M2-B013
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
 - batch_id: M2-B011
   sequence: 11
   state: PLANNED
-  objective: Implement and verify the Linux single-host production Compose topology, secret files and owned-resource lifecycle
-    for the M2 platform.
+  objective: Implement and verify the Linux single-host production Compose topology, secret files and owned-resource
+    lifecycle for the M2 platform.
   non_goals:
-  - M7 hosted beta deployment, multi-host replication, zero-downtime guarantees or modification of accepted M1 fixture semantics.
+  - M7 hosted beta deployment, multi-host replication, zero-downtime guarantees or modification of accepted M1 fixture
+    semantics.
   allowed_scope:
   - deploy/compose.yaml
   - deploy/docker/**
@@ -784,19 +790,19 @@ batches:
   acceptance:
   - Reverse proxy, single-authority platformd, workerd, lua-runner, PostgreSQL and object storage are separate fixed-host
     services with no horizontal replica or public internal management port.
-  - Read-only secret files supply database/cookie/credential keys; health checks, readiness and offline local-provider operation
-    are exercised.
+  - Read-only secret files supply database/cookie/credential keys; health checks, readiness and offline local-provider
+    operation are exercised.
   - Actual startup, mixed-seat platform smoke, persistence/restart and failure/signal cleanup complete under owned-project
     labels; unrelated services are preserved.
   tests:
-  - docker compose config plus the actual owned Linux M2 lifecycle command and machine report, with secret-marker checks and
-    complete cleanup evidence.
+  - docker compose config plus the actual owned Linux M2 lifecycle command and machine report, with secret-marker
+    checks and complete cleanup evidence.
   - just check, just test, go vet ./..., and Linux just ci pass on a clean signed candidate.
   stop_conditions:
-  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate unless
-    its concrete CHANGE has been approved.
-  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen binding,
-    or failed required verification.
+  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate
+    unless its concrete CHANGE has been approved.
+  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen
+    binding, or failed required verification.
   - Do not modify another frozen batch, claim an unexecuted integration as PASS, or skip incomplete dependencies.
   depends_on:
   - M2-B009
@@ -807,8 +813,8 @@ batches:
 - batch_id: M2-B012
   sequence: 12
   state: PLANNED
-  objective: Certify every M2 requirement on the complete authenticated mixed-seat platform with repeatable negative, recovery
-    and Linux lifecycle evidence.
+  objective: Certify every M2 requirement on the complete authenticated mixed-seat platform with repeatable negative,
+    recovery and Linux lifecycle evidence.
   non_goals:
   - Fixing core implementation in the certification batch; defects return to their owning batch.
   - Declaring official M3/M4 gameplay, full V1 or a public release complete.
@@ -883,24 +889,24 @@ batches:
   - SPEC-SECURITY-001
   - SPEC-QUALITY-001
   acceptance:
-  - All 13 mapped M2 TEST IDs report actual PASS with exact clean signed source, repeatable command/exit, private evidence
-    manifest and no required unresolved findings.
+  - All 13 mapped M2 TEST IDs report actual PASS with exact clean signed source, repeatable command/exit, private
+    evidence manifest and no required unresolved findings.
   - Fresh account/guest, tenant/object isolation, role/seat denial, content/model/readiness rejection, command idempotency,
     reconnect, filtered export and safety pause scenarios pass.
-  - Continuation crash/retry and AI context/tool/budget/fallback violations are exercised using synthetic local providers;
-    ordinary logs and exports contain no keys or private seat markers.
-  - Linux Compose actual lifecycle, persistence restoration and owned-resource cleanup pass. Independent business/state acceptance
-    and source-qualified completion records are required before M2 COMPLETE.
+  - Continuation crash/retry and AI context/tool/budget/fallback violations are exercised using synthetic local
+    providers; ordinary logs and exports contain no keys or private seat markers.
+  - Linux Compose actual lifecycle, persistence restoration and owned-resource cleanup pass. Independent business/state
+    acceptance and source-qualified completion records are required before M2 COMPLETE.
   tests:
-  - The M2 exit-gate runner executes all mapped tests, emits a versioned JSON report and fails on missing or skipped mandatory
-    work.
+  - The M2 exit-gate runner executes all mapped tests, emits a versioned JSON report and fails on missing or skipped
+    mandatory work.
   - Fresh Linux Compose and browser E2E commands are included in the qualified candidate receipt.
   - just check, just test, go vet ./..., and Linux just ci pass on a clean signed candidate.
   stop_conditions:
-  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate unless
-    its concrete CHANGE has been approved.
-  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen binding,
-    or failed required verification.
+  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate
+    unless its concrete CHANGE has been approved.
+  - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen
+    binding, or failed required verification.
   - Do not modify another frozen batch, claim an unexecuted integration as PASS, or skip incomplete dependencies.
   depends_on:
   - M2-B001
@@ -914,6 +920,149 @@ batches:
   - M2-B009
   - M2-B010
   - M2-B011
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
+- batch_id: M2-B013
+  sequence: 13
+  state: PLANNED
+  objective: Implement the exact approved server-authoritative player API and durable player control upstream of
+    the Linux M2 browser flow.
+  non_goals:
+  - Browser UI remains B010; production daemon startup and Compose remain B011.
+  - No public room discovery, browser-local models, new dependencies, Host API, native game envelope/checkpoint,
+    license or other-platform changes.
+  allowed_scope:
+  - docs/20-architecture/PLAYER_API.md
+  - schemas/platform/platform-player-api-v1.schema.json
+  - internal/platform/player/**
+  - internal/platform/httpapi/player.go
+  - internal/platform/httpapi/player_test.go
+  - internal/platform/launch/player.go
+  - internal/platform/launch/player_test.go
+  - internal/platform/launch/service.go
+  - internal/platform/launch/session_bridge.go
+  - internal/platform/launch/continuation.go
+  - internal/platform/session/service.go
+  - internal/storage/postgres/platform_player.go
+  - internal/storage/postgres/platform_player_test.go
+  - cmd/platformd/platform_player.go
+  - cmd/platformd/platform_player_test.go
+  - tests/contract/player/**
+  - tests/integration/player/**
+  forbidden_scope:
+  - .codex/**
+  - internal/projectctl/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  - go.mod
+  - go.sum
+  - internal/host/**
+  - internal/lua/**
+  - internal/session/command/**
+  - docs/00-governance/**
+  - docs/70-decisions/**
+  - docs/80-roadmap/**
+  - docs/90-traceability/**
+  requirements:
+  - REQ-PRODUCT-001
+  - REQ-PLAYER-001
+  - REQ-PLAYER-002
+  - REQ-PLAYER-003
+  - REQ-PLAYER-004
+  - REQ-PLAYER-005
+  - REQ-PLAYER-007
+  - REQ-SESSION-001
+  - REQ-AI-001
+  - REQ-AI-003
+  - REQ-DATA-002
+  machine_contracts:
+  - REQ-PRODUCT-001
+  - REQ-PLAYER-001
+  - REQ-PLAYER-002
+  - REQ-PLAYER-003
+  - REQ-PLAYER-004
+  - REQ-PLAYER-005
+  - REQ-PLAYER-007
+  - REQ-SESSION-001
+  - REQ-AI-001
+  - REQ-AI-003
+  - REQ-DATA-002
+  - TEST-PRODUCT-001
+  - TEST-PLAYER-001
+  - TEST-PLAYER-002
+  - TEST-PLAYER-003
+  - TEST-PLAYER-004
+  - TEST-PLAYER-005
+  - TEST-PLAYER-007
+  - TEST-SESSION-001
+  - TEST-AI-001
+  - TEST-AI-003
+  - TEST-DATA-002
+  - SCHEMA-CODEX-MILESTONE-PLAN-V2
+  - SCHEMA-PLATFORM-AUTH-API-V1
+  - SCHEMA-PLATFORM-ROOM-API-V1
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M2
+  - SPEC-M2-ALLOWED
+  - SPEC-M2-FORBIDDEN
+  - SPEC-M2-EXIT
+  - SPEC-PRODUCT-001
+  - SPEC-PLAYER-EXPERIENCE-001
+  - SPEC-SESSION-001
+  - SPEC-AI-001
+  - SPEC-DATA-001
+  - SPEC-SECURITY-001
+  - SPEC-PLATFORM-AUTH-API-V1
+  - SPEC-PLATFORM-ROOM-API-V1
+  acceptance:
+  - Adopt only DRAFT-to-ACTIVE metadata/comment changes to exact Owner-approved PLAYER_API.md draft sha256 9bc7765e64e0e76d201ebe70152dfe886e880da5703848b57eed17bf5ff51c97
+    and player Schema draft sha256 eb8119162dd4a271c88bc74f5ef34c809ba9351365f9103ba74cbb3a50b7e5d3, with exactly39
+    definitions and15 routes pinned by ENDPOINTS_DRAFT.json sha256 f91874cde8ce013ce00cf6d6ed0a1960a5d00d6397d9abd70e1588ca6d57ffb3.
+    Approval receipt sha256 3d7668786ab23ceadc6a50bfe5e85b22d076b3652d910de28dd687ef67cbc024 binds CHANGE-M2-PLAYER-API-V1.
+  - Same-origin HTTPS Cookie/CSRF/idempotence authenticate every workspace/room request and derive all principal/seat/session/lease
+    authority on the server; DTOs never carry raw private handles, arbitrary model/endpoint/key configuration, authority
+    overrides or other-seat state.
+  - Installed catalog, preparation and readiness filter by current workspace/guest/role/seat authority; current
+    human members consent only for themselves. Launch connects the accepted native Actor, real command/reconnect/recovery/filter/export
+    and mixed-seat behavior without mocks or M1 fixture substitution.
+  - Durable pause and connection revisions bind the current room session. Any admitted current participant can pause
+    without Host approval; human mutation and new AI/continuation dispatch, retry and mutation share control. In-flight
+    commits precede pause acknowledgement; no automatic resume or AI takeover on disconnect/reconnect/restart; explicit
+    necessary-member consent gates resume.
+  - Requests are at most16KiB, Schema/document at most64KiB, responses at most256KiB and catalog pages at most128;
+    decimal-string counters and canonical existing CheckpointValue enforce finite numbers, depth32/nodes8192/value256KiB,
+    exact keys and immutable M1 command/event/checkpoint formats.
+  - Use separately owned real physical PostgreSQL and native Actor/HTTP loop for positive/negative tenant, guest,
+    private-view, pause concurrency, human/AI dispatch, idempotence, disconnection, restart, consent and filtered
+    export/recovery. Old authority, export-kind and launch assertions remain unchanged; no private marker or credential
+    in ordinary logs.
+  - Independent exact-source acceptance, Main reception, owned cleanup, full evidence archive and ordinary remote
+    push precede B010. Governance registry source830a78b4 is separately accepted, cleaned and pushed; business authority
+    uses approved new scope without rewriting any earlier frozen contract.
+  tests:
+  - go test -count=1 -json ./internal/platform/player/... ./internal/platform/httpapi/... ./internal/platform/launch/...
+    ./internal/platform/session/... ./internal/storage/postgres/... ./cmd/platformd/... ./tests/contract/player/...
+  - go test -count=1 -tags integration -json ./tests/integration/player/... on fresh separately owned physical PostgreSQL,
+    zero skips; exact candidate/Schema/fixture hashes and named tests recorded.
+  - go test -race -count=1 -tags integration -json ./tests/integration/player/... and related unchanged launch/platform_session/continuation/model_gateway
+    integration regressions on their compatible owned fixtures.
+  - just check; just test; go vet ./...; Linux just ci; clean signed source and fresh formal codex check.
+  stop_conditions:
+  - Stop for semantic changes beyond the exact approved15 routes/39 definitions, public room discovery, new dependencies,
+    Host API, native M1 format, license, fixed Lua backend, other-platform work or new startup/Compose scope; exact
+    approved API adoption and17 business paths are authorized.
+  - Stop for mutations outside this frozen scope or earlier completed contracts; the explicitly approved upstream
+    launch/session service paths may receive only the player control seams described in CHANGE-M2-PLAYER-API-V1.
+  - Stop on invalid/stale route or frozen binding, failed required check, missing tenant/role/control boundaries,
+    secrets/private state in ordinary logs or falsely credited SQL/browser/model integration; preserve every failure
+    and NOT_RUN and repair through the formal owning route.
+  depends_on:
+  - M2-B003
+  - M2-B004
+  - M2-B005
+  - M2-B009
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
