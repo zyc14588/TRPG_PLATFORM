@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 41
+plan_version: 42
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -925,7 +925,7 @@ batches:
   parallel_scope_keys: []
 - batch_id: M2-B013
   sequence: 13
-  state: FROZEN
+  state: IMPLEMENTING
   objective: Implement the exact approved server-authoritative player API and durable player control upstream of
     the Linux M2 browser flow.
   non_goals:

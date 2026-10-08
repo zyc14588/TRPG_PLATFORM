@@ -4,10 +4,20 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "cfc420b9871098540ebc7b3a7045120b9d63e451"
+source_commit: "00df95902d1db73001d6715a65ec59a60d4221fb"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B013 Linux玩家API实现启动
+
+正常 PLAN v41→v42 仅将 M2-B013 FROZEN→IMPLEMENTING，原生十四字段冻结摘要 5d65d5fa4e239f20579ea05637336831c515fc3b93032a56ecabeecdac21f3e2。永久分配sequence13、next14、九个已完成冻结契约及B010–B012的分配编号与计划内容均保持；B010依赖B013保证API先行。Linux M2完成9/13≈69.23%；B013业务测试、完整浏览器循环及其他平台均NOT_RUN。
+
+Owner“同意”已批准 CHANGE-M2-PLAYER-API-V1；精确15路由/39定义及17业务路径的原始草案/授权SHA在冻结acceptance中绑定。只采纳DRAFT→ACTIVE元数据/注释，公共语义改变仍须新的Owner决定。原外部规划草案将分配编号误作执行顺序导致actual1，辅助缺失overlay实际1均保留；修正后的原生PLAN投影actual0，旧12分配编号与9完成契约不变，仓库控制门禁未改。
+
+上游治理830a78b4已独立验收、Main接收、清理归档并核对远端；其登记权限不计玩家业务信用。B009完成与旧历史保持。本批连接原生Actor、房间准备/开局、服务端Session及持久暂停/连接租约，统一人类与AI续接控制；只使用专属真实物理PostgreSQL与本地合成provider进行集成/race/租户/访客/隐私/幂等/暂停/断线/重启/导出回归，全部必需检查和独立收件通过后再记完成并提交远端。生产启动/Compose保留B011，玩家界面保留B010。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B013 玩家API契约冻结
 
