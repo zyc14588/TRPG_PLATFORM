@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 44
+plan_version: 45
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -670,7 +670,8 @@ batches:
 - batch_id: M2-B010
   sequence: 10
   state: PLANNED
-  objective: Implement the player-facing private-room and mixed-seat gameplay flow using the approved platform contract.
+  objective: Implement the player-facing private-room and mixed-seat gameplay flow using the approved platform
+    contract.
   non_goals:
   - M6 Creator Studio, public room listing or browser-local models.
   allowed_scope:
@@ -709,6 +710,7 @@ batches:
   - SCHEMA-CODEX-MILESTONE-PLAN-V2
   - SCHEMA-PLATFORM-AUTH-API-V1
   - SCHEMA-PLATFORM-ROOM-API-V1
+  - SCHEMA-PLATFORM-PLAYER-API-V1
   reading_map_sections:
   - SPEC-V1-ROADMAP-M2
   - SPEC-M2-ALLOWED
@@ -719,21 +721,27 @@ batches:
   - SPEC-AI-001
   - SPEC-PLATFORM-AUTH-API-V1
   - SPEC-PLATFORM-ROOM-API-V1
+  - SPEC-PLATFORM-PLAYER-API-V1
   acceptance:
   - A player can choose available game/content, create/join a private room, consent to packages and boundaries,
     take a human/AI seat, prepare and play through the authoritative server.
-  - Normal flows use clear game and participant language; advanced model/endpoint/BYOK configuration stays in its
-    designated advanced flow.
+  - Normal flows use clear game and participant language; advanced model/endpoint/BYOK configuration stays in
+    its designated advanced flow.
   - Disconnect, safety pause, failed readiness and filtered save/export are visible and recoverable with no local
     authority shortcuts or hidden-seat leakage.
   tests:
-  - pnpm --filter web-player typecheck, test and build.
-  - The approved browser E2E command covers account/guest invitation, readiness denial, mixed-seat play, disconnect/reconnect
-    and filtered export with exact candidate evidence.
+  - pnpm --filter @trpg-platform/web-player typecheck; pnpm --filter @trpg-platform/web-player test; pnpm --filter
+    @trpg-platform/web-player build.
+  - go test -race -count=1 -tags=integration -json ./tests/e2e/player/... covers real Linux Chrome account/guest
+    invitation and claim, readiness denial, mixed human/AI seat play, safety pause, disconnect/reconnect, current
+    authorization, and filtered export through an owned real PostgreSQL fixture, production Lua runner and actual
+    same-origin HTTPS routes.
+  - Missing exclusive PostgreSQL or installed Linux Chrome is business NOT_RUN with a failing command, never mock
+    PASS or a skipped test. Synthetic local model fixtures are not paid model qualification.
   - just check, just test, go vet ./..., and Linux just ci pass on a clean signed candidate.
   stop_conditions:
-  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance gate
-    unless its concrete CHANGE has been approved.
+  - Stop for a new or changed public API/Schema, Host API, V1 scope, license, fixed Lua backend or acceptance
+    gate unless its concrete CHANGE has been approved.
   - Stop for missing tenant boundaries, raw credentials/private state in ordinary logs or exports, invalid route/frozen
     binding, or failed required verification.
   - Do not modify another frozen batch, claim an unexecuted integration as PASS, or skip incomplete dependencies.

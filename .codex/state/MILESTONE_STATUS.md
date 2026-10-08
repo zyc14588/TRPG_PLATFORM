@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "8413b7a4adcd8de0715be78dd6f6244308d2972e"
+source_commit: "4a35626e72ef3b9675137e85c8ac13b496d1ca4e"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M2：B010 玩家网页规划契约引用与真实浏览器验收
+
+正常 PLAN v44→v45 仅调整未开始 B010 或推进其合法状态；B001–B009/B013 完成记录、其余十二批、next14、墓碑和 M1 保持。B010 业务范围仅 apps/web-player/** 与 tests/e2e/player/**，不得修改后端、公共契约、规范、许可或治理控制面。依赖均已完整验收。
+
+B013 精确签名源 4a35626e72ef3b9675137e85c8ac13b496d1ca4e / tree b182e2b0776e4eabe7d618d02bc3195a9a86fc1e 已业务及最终状态独立接收、本地主线仅快进接收、归档完整回读、十个专属测试数据库及私密凭证/缓存/可重建产物清理，并普通非强制推送远端 codex/m2-room-platform；远端准确源已复核。完整关闭回执 SHA256 7dda3c12c3c875a19f272964834706f5445e946b9eb3eed163033d2238ba5087，路径 m2-b013-completed-linux-4a35626e/FINAL_BATCH_RECEIPT.json。941 项必要具名测试及18项额外原生检查通过；最终状态仅三文件变化，602业务文件逐字节继承，明确不虚报状态提交重新执行业务测试。原 R1–R10 FAIL、缺夹具 NOT_RUN 与准备诊断保留且不计旧运行通过。
+
+当前 Linux M2 完成10/13≈76.92%（按批次数量），剩余 B010/B011/B012；其他平台业务 NOT_RUN。B010 消费已批准 auth/room/player v1，新增阅读与 Schema 引用只是采用既有15路由/39定义，未改变公共语义。正常界面采用游戏、房间、参与者语言；高级模型配置按已有边界处理，不引入浏览器本地模型或资格捷径。真实浏览器验收采用已有 Linux Chrome、真实 PostgreSQL、生产 Lua runner 与同源 HTTPS，明确区分合成本地模型夹具和付费外部资格。
+
+B010 尚未业务验收、Main接收、清理封存或远端提交。任何未执行测试不计通过。规范或公共接口不足、冻结范围外变更、未解决隐私/租户/门禁或必要检查失败时按既有门禁停止并提交具体提案。完成后仍复用已获 Owner 授权的一名只读独立验收代理；不新增实现代理。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B013 Linux 玩家服务端 API 业务已独立验收，等待最终状态接收与远端提交
 
