@@ -41,7 +41,7 @@ M.execute_command=function(command)
  host.event.emit("change",state())
  local task=host.ai.request({seat_id="ai",selection="selected",mode="proposal"});host.task.continuation(task,{value=next})
  assert(host.time.now()>0);local draw=host.random.next(10);assert(draw>=0 and draw<10)
- assert(host.content.get("content.txt")=="loopFixture content")
+ assert(host.content.get("content.txt")=="fixture content")
  assert(host.rules.call("integer.compare",before,next)==-1)
  host.log.write("synthetic metadata only")
  if command.type=="fail" then error("synthetic callback failure after intents") end

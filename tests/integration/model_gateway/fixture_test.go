@@ -99,7 +99,7 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, "M2-B009 owned bootstrap unavailable; integration NOT_RUN")
 		os.Exit(1)
 	}
-	loopDsn, loopPrefix = dsn, prefix
+	loopDsn, loopPrefix = dsn, "native_"+prefix
 	loopAuthSchema = authSchema
 	loopRoomSchema, e = os.ReadFile("../../../schemas/platform/platform-room-api-v1.schema.json")
 	if e != nil {

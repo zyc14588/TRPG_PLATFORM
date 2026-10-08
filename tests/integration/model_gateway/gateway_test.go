@@ -104,7 +104,11 @@ func TestNoFallbackDurablyPausesOnlySelectedSeatWithoutFictitiousBilling(t *test
 }
 func TestTimeoutRetainsEveryHoldAndDoesNotAttemptFallback(t *testing.T) {
 	var calls atomic.Int64
-	f, g := configuredGateway(t, func(w http.ResponseWriter, r *http.Request) { calls.Add(1); <-r.Context().Done() }, true, 20*time.Millisecond, 3)
+	f, g := configuredGateway(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		readLocal(t, r)
+		<-r.Context().Done()
+	}, true, 20*time.Millisecond, 3)
 	out, e := g.Execute(f.ctx, f.caller(f.owner, ""), gatewayRequest(t, f, "timeout-action", "proposal"))
 	need(t, e)
 	if out.StorageValue().Status != "paused" || calls.Load() != 1 {
