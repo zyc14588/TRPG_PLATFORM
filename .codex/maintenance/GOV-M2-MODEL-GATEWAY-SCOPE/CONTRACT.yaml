@@ -80,5 +80,15 @@ bootstrap:
     source; no code edit before valid formal REPAIR and codex check.
   retirement_condition: Permanent retirement after actual clean-HEAD formal REPAIR/check0 and before production-code
     changes.
-  status: AUTHORIZED_ONCE
+  status: RETIRED
+  retirement_evidence:
+  - Formal clean signed REPAIR/check actual0 at commit 792b09978839c5d63f2c9e07950cb3f3dd2f2a03 tree 8cee70deba09779fb815833b32c46f95a157d488
+    before any control-code changes.
+  - Formal route receipt /home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/gov-m2-model-gateway-scope/bootstrap018-formal-repair-route.json
+    sha256 53ce27ede318470dc6c151f59eaa6f5106d60d6b8ab23283a47c7c0b2b7bf4e3
+  - Formal check receipt /home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/gov-m2-model-gateway-scope/bootstrap018-formal-repair-check.json
+    sha256 f0382f81f18f337dbeace15ede3ff5346d5ec814d63340ed9081f8ff4868f054
+  - 'Native exact reading 28 sections: /home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/gov-m2-model-gateway-scope/GOV-MODEL-SCOPE-BOOTSTRAP-ENTRY_PLAN_READING.json
+    sha256 29e33f98a01241bb9d16dc7494d1532414e9e3b0e763876867ec58a9f9c6c90d'
+  - Bootstrap018 is permanently retired; no reuse for current or later code changes.
 status: READY_FOR_ACCEPTANCE
