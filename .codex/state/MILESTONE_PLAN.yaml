@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 46
+plan_version: 47
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -669,7 +669,7 @@ batches:
   frozen_contract_sha256: 3b1d11d51100dac5d3da52c714c33da89cd90ec9c9f2a78b5931d819c8194890
 - batch_id: M2-B010
   sequence: 10
-  state: FROZEN
+  state: IMPLEMENTING
   objective: Implement the player-facing private-room and mixed-seat gameplay flow using the approved platform
     contract.
   non_goals:
