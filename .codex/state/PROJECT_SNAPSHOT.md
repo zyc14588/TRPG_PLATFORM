@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "0cbdd6fe1c51593251e41c2bb0d2d085bf105688"
+source_commit: "ed3b98c208bb18c227c6469f9f6342650dc62282"
 ---
 
 # 项目摘要
+
+## 当前 M2：B007 Linux 凭据与模型配置 候选等待独立验收
+
+正常 PLAN v29→v30 仅将 M2-B007 IMPLEMENTING→VERIFYING；十四字段冻结摘要 769eda90cd775639e349e8a50db1efa908f23835ec6fa4e4666d785f5c914434 保持，其余十一批、next13、tombstones及M1归档保持。当前Linux M2完成 6/12=50%；其他平台业务NOT_RUN，最终出口由B012闭环。
+
+B007在12个冻结范围内新增源码/测试文件实现只读文件AES-GCM主密钥或明确一游戏临时凭据，凭据的工作区、房间、游戏、席位、所有者、期限和版本全部认证绑定；长期授权沿用现有Owner/Admin权限，参与或管理房间不自动获得长期凭据权限。配置绑定服务器批准的endpoint、model、adapter、prompt template、tool mode、test version、MC能力等级和游戏资格；旧认证、过期/撤销凭据、跨范围及准备修订失效均拒绝。默认平台路由和显式获准fallback只引用受控登记，预算配置有有限上限；当前认证、房间、席位、资格与安全确认在既有launch.ModelChecker事务中重校验，无网络或游戏状态写入。
+
+清洁签名业务候选ed3b98c208bb18c227c6469f9f6342650dc62282实测单元71/71、专用真实PostgreSQL43/43、race114/114、治理315/315，零失败/跳过；just check、just test、go vet ./...及Linux just ci实际退出0。首次单元1项与真实SQL7项失败（含父项）及just check原样保留，五文件正式范围内REPAIR与对应完整必需重跑已关闭。原生适配器登记未引入，服务器兼容端点统一使用OpenAI-compatible协议且未改M0门禁。无物理数据库夹具的探针明确非零退出、NOT_RUN且零业务用例/跳过；外置阅读辅助错误与测试源码格式化失败均保持零业务PASS计数。生产证据在仓库外m2-b007-model-platform/BUSINESS_PRODUCER_RECEIPT.json。
+
+本批只用受控合成模型资格记录验证登记绑定，不将实际provider资格测试、AI调用、总量预算记为已运行；这些由B008/B012完成，实际production daemon启动由B011完成。提供受控platformd类型化工厂，未新增公开HTTP/JSON Schema、Host方法、Lua后端、许可或依赖，527个此前非状态文件完整保留。最后三状态文件改变后539个非状态blob/mode必须准确一致，业务检查仅按准确来源继承NOT_RERUN。
+
+独立验收、本地主线接收、清理封存及远端推送尚未执行，B007不记完成。下一步复用Owner已授权的只读独立验收代理；Root完整接收通过后再转完成。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B007 Linux 凭据与模型配置实现启动
 
