@@ -153,7 +153,7 @@ func TestPlayerPauseAcknowledgmentCancelsInFlightProviderAndFencesFallbackRetry(
 }
 
 func TestPlayerPauseGuardsActualGenericTaskRetryAndContinuation(t *testing.T) {
-	n := newPlayerFixture(t, false)
+	n := playerFixtureWithLaunch(t, newLaunchFixtureWithBuilder(t, nil, genericTaskBuild), false)
 	n.configureAndLaunch(t)
 	pre, e := n.service.PlayerLobby(n.ctx, n.caller(n.owner, ""), n.w, n.room)
 	need(t, e)

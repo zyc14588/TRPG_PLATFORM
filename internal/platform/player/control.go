@@ -390,7 +390,10 @@ func (c *Control) ResumeWithin(ctx context.Context, tx Transaction, ref launch.P
 	}
 	v := s.StorageValue()
 	r := ref.StorageValue()
-	if v.Revision != expected || !v.Paused || v.Quiescing || !r.OwnConfirmed || !r.Ready {
+	// Each required human confirms their own current preparation and safety
+	// acknowledgment. Role-restricted model-management readiness is checked by
+	// the existing launch/gateway authority, and grants no participant vote.
+	if v.Revision != expected || !v.Paused || v.Quiescing || !r.OwnConfirmed {
 		return State{}, auth.ErrConflict
 	}
 	leases, e := tx.Leases(ctx, v.Binding)

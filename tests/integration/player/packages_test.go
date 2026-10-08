@@ -19,6 +19,7 @@ import (
 	data "github.com/zyc14588/TRPG_PLATFORM/internal/storage/package"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/storage/postgres"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -167,4 +168,11 @@ func phaseNeed(t *testing.T, phase string, e error) {
 	if e != nil {
 		t.Fatalf("owned fixture phase %s failed: %v; private detail withheld", phase, auth.SafeError(e))
 	}
+}
+
+func genericTaskBuild(runtime install.RuntimeConfig, source string) (*archive.Package, install.PolicyConfig, error) {
+	if source == "" {
+		source = strings.Replace(IncrementSource, ";host.ai.request({value=next})", "", 1)
+	}
+	return Build(runtime, source)
 }

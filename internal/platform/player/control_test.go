@@ -153,3 +153,20 @@ func TestPlayerPreparationAndPrivateHandlesCannotBeSubstitutedOrLogged(t *testin
 		}
 	}
 }
+
+func TestPlayerOwnResumeDoesNotRequireModelManagementPermission(t *testing.T) {
+	c, m, one, two := controlFixture(t)
+	a := two.StorageValue()
+	a.Ready = false
+	two = auth.RoomSecret(a)
+	if _, e := c.ResumeWithin(context.Background(), m, one, 1); e != nil {
+		t.Fatal("host own vote rejected")
+	}
+	a.OwnConfirmed = false
+	if _, e := c.ResumeWithin(context.Background(), m, auth.RoomSecret(a), 2); e != auth.ErrConflict {
+		t.Fatal("missing own current confirmation accepted")
+	}
+	if _, e := c.ResumeWithin(context.Background(), m, two, 2); e != nil || m.value.StorageValue().Paused {
+		t.Fatal("ordinary own confirmation required model management permission")
+	}
+}
