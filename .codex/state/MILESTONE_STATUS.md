@@ -4,10 +4,24 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "bc3d93c91584e88d26d25495e7da7771c1d32bac"
+source_commit: "7e5b482480eb37e49651432eaf549eaa3298d542"
 ---
 
 # 里程碑状态
+
+## 当前 M2：B009 Linux 模型网关 业务已独立验收，等待最终状态接收
+
+正常 PLAN v38→v39 仅将 M2-B009 VERIFYING→COMPLETED；十四字段冻结摘要 3b1d11d51100dac5d3da52c714c33da89cd90ec9c9f2a78b5931d819c8194890 保持，其余十一批、next13、tombstones及M1归档保持。当前Linux M2完成 9/12=75%，其他平台业务NOT_RUN。
+
+生产验证准确签名源bc3d93c91584e88d26d25495e7da7771c1d32bac在新建专属物理PostgreSQL夹具上实测unit61/61、SQL16/16、race77/77、相关回归73/73、独立B006旧SQL回归26/26、治理381/381，均零失败/跳过；just check、just test、go vet ./...及Linux just ci退出0。无夹具探针实际1、NOT_RUN、零业务用例/跳过，不计PASS。生产证据在m2-b009-client-platform/BUSINESS_PRODUCER_RECEIPT.json及REQUIRED_B009_FAILURE_CLOSURE_R5.json；原始生产与只读诊断失败原样保留，完整当前检查已重新执行。
+
+B009服务端固定兼容协议适配器执行出口、凭据、超时、大小和资格限制；AI结构化建议先由权威Lua Actor事务提交，再生成叙述。任务、模型资格、席位视图及五级八维预算继承已有边界；有界格式修复和降级需预授权与能力兼容，不确定消耗保留预算，不重复付费调度，无可用降级时暂停席位。真实SQL验证持久叙述及确定结果模板，叙述失败不回滚事件。测试使用合成本地HTTP提供者与真实物理SQL，未付费调用外部提供者；完整玩家界面循环和生产监听仍由后续批次闭环。
+
+既有CHANGE-M2-B009-AI-INTENT-SOURCE批准的两文件修复仅接纳对应已提交派发的AI意图。另经Owner三文件CHANGE-M2-MODEL-GATEWAY-SCOPE授权及正式GOV维护验收补齐M2冻结权限读取和SDK拒绝；维护独立governance381/381、反向探针103/103及全部Linux检查通过，711成员全回读，原001–005失败保持，Bootstrap018永久退役，临时阶段产物已清理。维护回执在gov-m2-model-gateway-scope/INDEPENDENT_BC3D93C_PASS_RECEPTION.json；本批不将维护权限混入业务目录。当前29个相对B008来源变化中，23为冻结B009允许业务路径，3为上述独立接收维护路径，3为正常PLAN状态。全部576源码和573非状态blob/mode/字节绑定；当前PLAN仅改变三状态，573非状态源码保持，并按准确生产来源记录检查继承。
+
+业务候选已由Owner授权的只读独立验收代理实际重跑及源码审查，Root完整回读接收通过，未决必需项为空；证据在ROOT_INDEPENDENT_BUSINESS_RECEPTION.json。最终三状态文件接收、本地主线接收、专属资源清理、封存及普通远端推送尚未完成，需全部通过后按Owner“每批次完工提交远端”继续推进B010。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B009 Linux 模型网关 候选等待独立验收
 

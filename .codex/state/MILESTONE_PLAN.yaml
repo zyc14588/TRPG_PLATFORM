@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 38
+plan_version: 39
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -588,7 +588,7 @@ batches:
   frozen_contract_sha256: b702faf607a4d61d518301a5f696de63c6476a787bc0563d495a667b21a61faa
 - batch_id: M2-B009
   sequence: 9
-  state: VERIFYING
+  state: COMPLETED
   objective: Implement the server model gateway, capability certification and bounded failure/fallback pipeline
     through durable tasks.
   non_goals:
