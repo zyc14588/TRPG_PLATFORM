@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 32
+plan_version: 33
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -521,7 +521,7 @@ batches:
   frozen_contract_sha256: 769eda90cd775639e349e8a50db1efa908f23835ec6fa4e4666d785f5c914434
 - batch_id: M2-B008
   sequence: 8
-  state: FROZEN
+  state: IMPLEMENTING
   objective: Implement AI-seat context/tool isolation and multi-level resource budget reservations with hard-stop
     semantics.
   non_goals:

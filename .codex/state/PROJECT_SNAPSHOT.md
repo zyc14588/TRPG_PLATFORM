@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "f81c016d25a27e03716a7328651880d1fa144f54"
+source_commit: "12673d965ec726ff6a35a51ac0adfc147a71851d"
 ---
 
 # 项目摘要
+
+## 当前 M2：B008 Linux AI席位隔离与预算实现启动
+
+正常 PLAN v32→v33 仅冻结/启动尚未开始的 M2-B008，FROZEN→IMPLEMENTING；原生十四字段摘要 b702faf607a4d61d518301a5f696de63c6476a787bc0563d495a667b21a61faa。其余十一批、next13、tombstones及M1归档保持。Linux M2已完成7/12≈58.33%，B008业务NOT_RUN；其他平台业务NOT_RUN，最终出口由B012闭环。
+
+B007准确最终签名源f81c016d25a27e03716a7328651880d1fa144f54通过独立业务与最终复核、Root和本地主线接收；542源码、181已接受业务证据及235最终复核证据完整回读。业务源8b1884e上单元75/75、真实SQL47/47、并发122/122、原始不变时区探针2/2、治理315/315及check/test/vet/Linux CI实际通过。最终仅三状态变化，539非状态文件按准确blob/mode/全部字节一致继承且当前明确NOT_RERUN，最终独立治理315/315、原生状态投影1/1及13项当前必需actual0。最初bf337b2的时区失败2run/1pass/1fail/0skip及后续NOT_RUN保持；仅经三文件正式范围内REPAIR与原断言不变复查闭合。专用容器、两份凭据及三个已释放副本已清理。完成档案SHA256 d6a1d737ecc5fac5b9c0087ebe67b150008f202bcbff9fe0a0b09fbff30f4a5f，1644成员全部回读；远端codex/m2-room-platform已普通推送并核对f81c016，回执SHA256 7827e5f7dade6d8553b6ad8c9216540e0742cb2452fd233e1f5438e08fde2d67。
+
+B008在模型提示构造前建立实际Session/席位身份、可见事件/投影、私有记忆、模型配置与工具授权的隔离边界；禁止提供全隐藏状态后仅靠提示词控制。主持内部子Agent只有建议，无权提交权威事件。工作区/房间/Session/席位/任务多级预算预留覆盖调用数、Token、费用、延迟、工具、子Agent、上下文及本地计算；并发硬上限、到限暂停与外部消耗不确定时保守结算必须真实验证。复用现有权限事务、模型配置和Session/恢复接缝，不更改公开API/Schema/Host API。实际提供者网络认证、最终玩家循环及生产监听仍由后续批次负责，不提前声明其PASS。
+
+冻结前依据CODEX-AUTONOMOUS-PLANNING与SPEC-CHANGE-CONTROL-NONTRIGGERS完成内部工程安排：追加已完成B006为Session继续/恢复数据接缝依赖，补充真实SQL并发race和既有Session回归检查。允许目录、单一目标、V1范围、公开契约、固定Lua后端、许可及出口门禁保持。当前只修改三状态路径，B008实现与业务测试均NOT_RUN。
+
+## 此前状态（保留原文）
 
 ## 当前 M2：B008 AI席位隔离与预算契约冻结
 
