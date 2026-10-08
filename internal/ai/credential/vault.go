@@ -175,11 +175,19 @@ func ValidBinding(b Binding) bool {
 		return false
 	}
 }
+
+// canonicalBinding preserves the instant and precision while making authenticated
+// metadata stable across PostgreSQL timestamptz and equivalent caller time zones.
+func canonicalBinding(b Binding) Binding {
+	b.ExpiresAt = b.ExpiresAt.UTC()
+	return b
+}
 func aad(b Binding) []byte {
-	raw, _ := json.Marshal(b)
+	raw, _ := json.Marshal(canonicalBinding(b))
 	return append([]byte("platform-model-credential/v1\x00"), raw...)
 }
 func (v *Vault) Seal(ctx context.Context, b Binding, k Key, now time.Time) (Record, error) {
+	b = canonicalBinding(b)
 	d := v.state()
 	if d == nil || ctx == nil || ctx.Err() != nil || !ValidBinding(b) || now.IsZero() {
 		return Record{}, auth.ErrInvalid
@@ -209,6 +217,8 @@ func (v *Vault) Seal(ctx context.Context, b Binding, k Key, now time.Time) (Reco
 func (v *Vault) Open(ctx context.Context, r Record, expected Binding, now time.Time) (Key, error) {
 	d := v.state()
 	x := RecordValue(r)
+	x.Binding = canonicalBinding(x.Binding)
+	expected = canonicalBinding(expected)
 	if d == nil || ctx == nil || ctx.Err() != nil || !ValidBinding(expected) || x.Binding != expected || x.Revoked || now.IsZero() {
 		return Key{}, auth.ErrDenied
 	}

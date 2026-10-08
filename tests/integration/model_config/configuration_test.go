@@ -478,3 +478,45 @@ func TestUnboundStorageAndCheckerRejectSpoofedTransactions(t *testing.T) {
 		t.Fatal("spoofed cookie gained scoped configuration")
 	}
 }
+
+func TestTemporaryCredentialTimeZonesSurvivePostgresRoundtrip(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		offset int
+	}{{"UTC", 0}, {"positive-offset", 19800}, {"negative-offset", -25200}} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, nil)
+			expiry := time.Now().UTC().Truncate(time.Microsecond).Add(20 * time.Minute).In(time.FixedZone(tc.name, tc.offset))
+			need(t, f.store(t, f.owner, "ai", "temporary", credential.Temporary, expiry))
+			var record credential.Record
+			f.inspect(t, f.owner, func(tx auth.Transaction) error {
+				mt, e := f.mt.Bind(tx.Core())
+				if e != nil {
+					return e
+				}
+				record, e = mt.Credential(f.ctx, f.scope, "ai", "temporary")
+				return e
+			})
+			b := record.StorageValue().Binding
+			if !b.ExpiresAt.Equal(expiry) || b.ExpiresAt.Location() != time.UTC {
+				t.Fatal("PostgreSQL changed expiry instant or failed UTC normalization")
+			}
+			opened, e := f.vault.Open(f.ctx, record, b, time.Now())
+			need(t, e)
+			need(t, opened.Use(func(raw []byte) error {
+				if !bytes.Equal(raw, []byte("owned-fixture-private-provider-key-329874")) {
+					t.Fatal("PostgreSQL roundtrip changed provider credential")
+				}
+				return nil
+			}))
+			opened.Close()
+			r := model.NewConfigureRequest(model.ConfigureRequestData{Scope: f.scope, SeatID: "ai", Selection: "selected", CredentialID: "temporary", Budget: limits()})
+			_, e = f.models.Configure(f.ctx, f.caller(f.owner, token(t)), r)
+			need(t, e)
+			need(t, f.check(t, f.models, f.proof()))
+			if _, e := f.vault.Open(f.ctx, record, b, b.ExpiresAt); e != auth.ErrDenied {
+				t.Fatal("persisted temporary credential remained valid at expiry")
+			}
+		})
+	}
+}

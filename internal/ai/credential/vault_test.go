@@ -233,3 +233,59 @@ func TestKeyInputLimits(t *testing.T) {
 		}
 	}
 }
+
+func TestTemporaryExpirySurvivesTimeZoneNormalization(t *testing.T) {
+	v, e := New(master(t))
+	need(t, e)
+	defer v.Close()
+	raw := []byte("time-zone-fixture-private-key")
+	k, e := NewKey(raw)
+	need(t, e)
+	defer k.Close()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	for _, tc := range []struct {
+		name   string
+		offset int
+	}{{"UTC", 0}, {"positive-offset", 19800}, {"negative-offset", -25200}} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := binding()
+			b.ExpiresAt = now.Add(time.Hour).In(time.FixedZone(tc.name, tc.offset))
+			if !ValidBinding(b) {
+				t.Fatal("valid offset expiry rejected")
+			}
+			r, e := v.Seal(context.Background(), b, k, now)
+			need(t, e)
+			stored := RecordValue(r)
+			stored.Binding.ExpiresAt = stored.Binding.ExpiresAt.UTC()
+			if !stored.Binding.ExpiresAt.Equal(b.ExpiresAt) {
+				t.Fatal("normalization changed the expiry instant")
+			}
+			for _, expected := range []Binding{b, stored.Binding} {
+				opened, e := v.Open(context.Background(), StoredRecord(stored), expected, now)
+				need(t, e)
+				need(t, opened.Use(func(got []byte) error {
+					if !bytes.Equal(got, raw) {
+						t.Fatal("normalized expiry changed credential")
+					}
+					return nil
+				}))
+				opened.Close()
+			}
+			if _, e := v.Open(context.Background(), StoredRecord(stored), b, b.ExpiresAt); e != auth.ErrDenied {
+				t.Fatal("expired offset credential accepted")
+			}
+			forged := stored
+			forged.Binding.ExpiresAt = forged.Binding.ExpiresAt.Add(time.Microsecond)
+			if _, e := v.Open(context.Background(), StoredRecord(forged), forged.Binding, now); e != auth.ErrDenied {
+				t.Fatal("changed expiry instant bypassed authenticated binding")
+			}
+			b.ExpiresAt = b.ExpiresAt.Add(time.Nanosecond)
+			if ValidBinding(b) {
+				t.Fatal("unsupported sub-microsecond expiry accepted")
+			}
+			if _, e := v.Seal(context.Background(), b, k, now); e != auth.ErrInvalid {
+				t.Fatal("precision validation was weakened")
+			}
+		})
+	}
+}
