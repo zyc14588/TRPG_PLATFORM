@@ -79,12 +79,17 @@ func newIsolated(t *testing.T, change func(*budget.Caps), fault func(context.Con
 	t.Helper()
 	f := newFixture(t, fault)
 	f.prep.Slots = append(f.prep.Slots, launch.Slot{ID: "ai-other", Mode: "ai", ModelSelection: "selected"})
+	f.prep.Revision++
+	f.ack.Revision = f.prep.Revision
 	f.inspect(t, f.owner, func(tx auth.Transaction) error {
 		lt, e := f.lt.Bind(tx.Core())
 		if e != nil {
 			return e
 		}
-		return lt.PutPreparation(f.ctx, auth.RoomSecret(f.prep))
+		if e = lt.PutPreparation(f.ctx, auth.RoomSecret(f.prep)); e != nil {
+			return e
+		}
+		return lt.PutAcknowledgment(f.ctx, auth.RoomSecret(f.ack))
 	})
 	f.configured(t)
 	need(t, f.store(t, f.owner, "ai-other", "byok-other", "retained", time.Time{}))
