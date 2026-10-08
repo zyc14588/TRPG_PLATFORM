@@ -165,6 +165,15 @@ func (t *SessionTransport) state() *sessionTransportData {
 	return *t.data
 }
 func (s *Service) ConnectSession(ctx context.Context, access SessionAccess, current command.NativeResolver) (*SessionTransport, error) {
+	return s.connectSession(ctx, access, current, false)
+}
+
+// ConnectSessionPolling issues the same current native seat identity without
+// allocating an unsolicited realtime queue. No disconnect is synthesized.
+func (s *Service) ConnectSessionPolling(ctx context.Context, access SessionAccess, current command.NativeResolver) (*SessionTransport, error) {
+	return s.connectSession(ctx, access, current, true)
+}
+func (s *Service) connectSession(ctx context.Context, access SessionAccess, current command.NativeResolver, polling bool) (*SessionTransport, error) {
 	a := access.state()
 	if a == nil || a.issuer != s || current == nil {
 		return nil, auth.ErrDenied
@@ -198,10 +207,13 @@ func (s *Service) ConnectSession(ctx context.Context, access SessionAccess, curr
 		_ = authority.ReleaseNative(identity)
 		return nil, auth.ErrDenied
 	}
-	connection, e := hub.SubscribeContext(ctx, identity)
-	if e != nil {
-		_ = authority.ReleaseNative(identity)
-		return nil, e
+	var connection *realtime.Connection
+	if !polling {
+		connection, e = hub.SubscribeContext(ctx, identity)
+		if e != nil {
+			_ = authority.ReleaseNative(identity)
+			return nil, e
+		}
 	}
 	td := &sessionTransportData{authority: authority, identity: identity, registry: registry, hub: hub, connection: connection, control: s.state().player, scope: v.Scope}
 	return &SessionTransport{data: &td}, nil
@@ -255,7 +267,7 @@ func (t *SessionTransport) Reconnect(ctx context.Context, after uint64) error {
 	return e
 }
 func (t *SessionTransport) Next(ctx context.Context) (realtime.Frame, error) {
-	if t.state() == nil || t.state().closed.Load() {
+	if t.state() == nil || t.state().closed.Load() || t.state().connection == nil {
 		return realtime.Frame{}, command.ErrDenied
 	}
 	return t.state().connection.Next(ctx)
@@ -283,14 +295,8 @@ func (t *SessionTransport) Close() {
 		return
 	}
 	d := t.state()
-	d.connection.Close()
-	_ = d.authority.ReleaseNative(d.identity)
-}
-
-// Polling keeps the issued native identity and bounded Actor reads, but has no
-// unsolicited realtime queue. The approved player protocol uses HTTPS pages.
-func (t *SessionTransport) DetachDelivery() {
-	if t.state() != nil && t.state().connection != nil {
-		t.state().connection.Close()
+	if d.connection != nil {
+		d.connection.Close()
 	}
+	_ = d.authority.ReleaseNative(d.identity)
 }

@@ -58,9 +58,9 @@ func newLaunchFixtureWithBuilder(t *testing.T, fault func(context.Context, strin
 	need(t, e)
 	runtime := install.RuntimeConfig{Runner: runner, SHA256: runnerHash, Limits: profile.DefaultLimits()}
 	pkg, pc, e := build(runtime, "")
-	need(t, e)
+	phaseNeed(t, "native-package-build", e)
 	policy, e := install.NewPolicy(pc)
-	need(t, e)
+	phaseNeed(t, "native-install-policy", e)
 	objectRoot, stagingRoot := t.TempDir(), t.TempDir()
 	need(t, os.Chmod(objectRoot, 0700))
 	need(t, os.Chmod(stagingRoot, 0700))
@@ -90,11 +90,11 @@ func newLaunchFixtureWithBuilder(t *testing.T, fault func(context.Context, strin
 	need(t, e)
 	_, e = i.Install(f.ctx, install.Request{Credential: credential, Workspace: f.w, ID: "initial-install", Root: install.Input{Archive: bytes.NewReader(raw)}})
 	clear(raw)
-	need(t, e)
+	phaseNeed(t, "native-package-install", e)
 	reader, e := store.NewReader(repo, objects, access, extension.DefaultSupport)
 	need(t, e)
 	factory, e := install.NewSessionFactory(install.SessionOptions{Reader: reader, Policy: policy, Repository: ls.SessionRepository(), Runtime: runtime, Execution: observe, Audit: func(data.Audit) error { return nil }, Validate: func(context.Context, data.Commit) error { return nil }})
-	need(t, e)
+	phaseNeed(t, "native-session-factory", e)
 	base := launch.ConfigurationData{ID: "minimal", WorkspaceID: f.w, Factory: factory, Request: install.SessionRequest{Credential: credential, Workspace: f.w, Root: string(pkg.ArtifactIdentity().Digest())}, Seats: []launch.SeatRule{{ID: "gm", Required: true, Modes: []string{"human"}}, {ID: "player", Required: true, Modes: []string{"human"}}}, SafetyTags: []string{"violence", "gore"}}
 	violent := base
 	violent.ID = "labeled"
@@ -113,7 +113,7 @@ func (l *launchFixture) recomposeLaunch(t *testing.T, configs []launch.Configura
 		need(t, l.service.Close())
 	}
 	s, e := launch.New(launch.Options{Context: l.ctx, Authority: l.authority, Rooms: l.store, Storage: l.guarded, Configurations: configs, MaxSessions: 8, PlayerControl: l.control, Models: l.models})
-	need(t, e)
+	phaseNeed(t, "native-launch-composition", e)
 	l.service = s
 	t.Cleanup(func() { need(t, s.Close()) })
 }
@@ -159,5 +159,12 @@ func (l *launchFixture) inspectAbsent(t *testing.T, r string) {
 	}
 	if l.sql(t, `SELECT state FROM platform_room.rooms WHERE workspace_id='`+l.w+`' AND room_id='`+r+`'`) != "lobby" {
 		t.Fatal("failed launch changed lobby state")
+	}
+}
+
+func phaseNeed(t *testing.T, phase string, e error) {
+	t.Helper()
+	if e != nil {
+		t.Fatalf("owned fixture phase %s failed: %v; private detail withheld", phase, auth.SafeError(e))
 	}
 }

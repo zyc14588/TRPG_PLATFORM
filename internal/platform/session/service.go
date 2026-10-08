@@ -243,6 +243,9 @@ func (c *Connection) current(ctx context.Context, mutation bool) (launch.Session
 	return access, policy, e
 }
 func (s *Service) Connect(ctx context.Context, caller launch.Caller, w, r string, after uint64) (*Connection, error) {
+	return s.connect(ctx, caller, w, r, after, false)
+}
+func (s *Service) connect(ctx context.Context, caller launch.Caller, w, r string, after uint64, polling bool) (*Connection, error) {
 	if s.state() == nil || ctx == nil || ctx.Err() != nil || after >= math.MaxInt64 {
 		return nil, auth.ErrInvalid
 	}
@@ -263,7 +266,11 @@ func (s *Service) Connect(ctx context.Context, caller launch.Caller, w, r string
 		}
 		return command.NativeSeat{Binding: v.Binding, Principal: v.Principal, Seat: v.Seat, Commands: p.Commands, Views: p.View, Inputs: p.Inputs, RecoveryPoint: v.Host && p.RecoveryPoint}, nil
 	}
-	d.transport, e = s.state().launch.ConnectSession(ctx, access, current)
+	if polling {
+		d.transport, e = s.state().launch.ConnectSessionPolling(ctx, access, current)
+	} else {
+		d.transport, e = s.state().launch.ConnectSession(ctx, access, current)
+	}
 	if e != nil {
 		return nil, SafeError(e)
 	}
@@ -274,12 +281,7 @@ func (s *Service) Connect(ctx context.Context, caller launch.Caller, w, r string
 	return c, nil
 }
 func (s *Service) ConnectPolling(ctx context.Context, caller launch.Caller, w, r string, after uint64) (*Connection, error) {
-	c, e := s.Connect(ctx, caller, w, r, after)
-	if e != nil {
-		return nil, e
-	}
-	c.state().transport.DetachDelivery()
-	return c, nil
+	return s.connect(ctx, caller, w, r, after, true)
 }
 func (c *Connection) Close() {
 	if c.state() == nil || c.state().closed.Swap(true) {
