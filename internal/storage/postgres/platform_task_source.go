@@ -40,11 +40,13 @@ func projectTask(raw []byte, v task.JobData) (task.JobData, error) {
 	v.OriginVersion = r.Version
 	v.OriginPrincipal = r.Header.Principal
 	found := false
+	intentKind := ""
 	for _, t := range r.Tasks {
 		if t.ID == v.TaskID {
-			if found || t.PackageID != v.PackageID || t.Kind != "task" {
+			if found || t.PackageID != v.PackageID || (t.Kind != "task" && t.Kind != "ai") {
 				return task.JobData{}, task.ErrDenied
 			}
+			intentKind = t.Kind
 			v.Payload, e = task.NewValue(t.Payload)
 			if e != nil {
 				return task.JobData{}, e
@@ -58,7 +60,7 @@ func projectTask(raw []byte, v task.JobData) (task.JobData, error) {
 	found = false
 	for _, o := range r.Outbox {
 		if o.ID == v.OutboxID {
-			if found || o.PackageID != v.PackageID || o.Kind != "dispatch-task" || o.Payload.Kind != "table" || len(o.Payload.Table) != 1 || o.Payload.Table["task"].Kind != "string" || o.Payload.Table["task"].String != v.TaskID {
+			if found || o.PackageID != v.PackageID || o.Kind != "dispatch-"+intentKind || o.Payload.Kind != "table" || len(o.Payload.Table) != 1 || o.Payload.Table["task"].Kind != "string" || o.Payload.Table["task"].String != v.TaskID {
 				return task.JobData{}, task.ErrDenied
 			}
 			found = true
@@ -89,6 +91,7 @@ func projectTask(raw []byte, v task.JobData) (task.JobData, error) {
 
 type taskSeed struct {
 	v                                   task.JobData
+	intentKind                          string
 	taskRaw, outboxRaw, source, receipt []byte
 }
 
@@ -105,7 +108,7 @@ func (s *PlatformTaskStorage) seed(ctx context.Context, tx *sql.Tx, space string
 	}
 	// Match the typed checkpoint payload to avoid a cross product between
 	// multiple tasks in one committed command. Both inputs are server data.
-	rows, e := tx.QueryContext(ctx, `SELECT l.workspace_id,l.room_id,l.game_id,l.session_id,l.graph_hash,l.configuration_id,l.configuration_hash,t.id,o.id,t.command_id,t.package_id,t.payload,o.payload,r.evidence,q.receipt FROM platform_launch.sessions l JOIN platform_room.rooms room ON room.workspace_id=l.workspace_id AND room.room_id=l.room_id AND room.game_id=l.game_id JOIN host_command.sessions h ON h.workspace=l.workspace_id AND h.session=l.session_id AND h.graph_hash=l.graph_hash JOIN host_command.tasks t ON t.workspace=h.workspace AND t.session=h.session AND t.kind='task' JOIN host_command.outbox o ON o.workspace=t.workspace AND o.session=t.session AND o.command_id=t.command_id AND o.package_id=t.package_id AND o.kind='dispatch-task' AND convert_from(o.payload,'UTF8')::jsonb->'table'->'task'->>'string'=t.id JOIN host_command.replay_effects r ON r.workspace=t.workspace AND r.session=t.session AND r.command_id=t.command_id JOIN host_command.requests q ON q.workspace=t.workspace AND q.session=t.session AND q.command_id=t.command_id WHERE l.workspace_id=$1 AND room.state='launched' AND NOT EXISTS(SELECT 1 FROM host_command.endings e WHERE e.workspace=h.workspace AND e.session=h.session) AND NOT EXISTS(SELECT 1 FROM platform_task.jobs j WHERE j.workspace=t.workspace AND j.session=t.session AND (j.task_id=t.id OR j.outbox_id=o.id)) ORDER BY r.version,t.id LIMIT $2`, space, limit)
+	rows, e := tx.QueryContext(ctx, `SELECT l.workspace_id,l.room_id,l.game_id,l.session_id,l.graph_hash,l.configuration_id,l.configuration_hash,t.id,o.id,t.command_id,t.package_id,t.kind,t.payload,o.payload,r.evidence,q.receipt FROM platform_launch.sessions l JOIN platform_room.rooms room ON room.workspace_id=l.workspace_id AND room.room_id=l.room_id AND room.game_id=l.game_id JOIN host_command.sessions h ON h.workspace=l.workspace_id AND h.session=l.session_id AND h.graph_hash=l.graph_hash JOIN host_command.tasks t ON t.workspace=h.workspace AND t.session=h.session AND t.kind IN ('task','ai') JOIN host_command.outbox o ON o.workspace=t.workspace AND o.session=t.session AND o.command_id=t.command_id AND o.package_id=t.package_id AND o.kind='dispatch-'||t.kind AND convert_from(o.payload,'UTF8')::jsonb->'table'->'task'->>'string'=t.id JOIN host_command.replay_effects r ON r.workspace=t.workspace AND r.session=t.session AND r.command_id=t.command_id JOIN host_command.requests q ON q.workspace=t.workspace AND q.session=t.session AND q.command_id=t.command_id WHERE l.workspace_id=$1 AND room.state='launched' AND NOT EXISTS(SELECT 1 FROM host_command.endings e WHERE e.workspace=h.workspace AND e.session=h.session) AND NOT EXISTS(SELECT 1 FROM platform_task.jobs j WHERE j.workspace=t.workspace AND j.session=t.session AND (j.task_id=t.id OR j.outbox_id=o.id)) ORDER BY r.version,t.id LIMIT $2`, space, limit)
 	if e != nil {
 		return 0, taskSQL(e)
 	}
@@ -114,7 +117,7 @@ func (s *PlatformTaskStorage) seed(ctx context.Context, tx *sql.Tx, space string
 	for rows.Next() {
 		p := taskSeed{v: task.JobData{Status: task.Queued, Expires: now.Add(s.state().lifetime)}}
 		v := &p.v
-		if e = rows.Scan(&v.Scope.WorkspaceID, &v.Scope.RoomID, &v.Scope.GameID, &v.Binding.Session, &v.Binding.GraphHash, &v.ConfigurationID, &v.ConfigurationHash, &v.TaskID, &v.OutboxID, &v.SourceCommand, &v.PackageID, &p.taskRaw, &p.outboxRaw, &p.source, &p.receipt); e != nil {
+		if e = rows.Scan(&v.Scope.WorkspaceID, &v.Scope.RoomID, &v.Scope.GameID, &v.Binding.Session, &v.Binding.GraphHash, &v.ConfigurationID, &v.ConfigurationHash, &v.TaskID, &v.OutboxID, &v.SourceCommand, &v.PackageID, &p.intentKind, &p.taskRaw, &p.outboxRaw, &p.source, &p.receipt); e != nil {
 			return 0, taskSQL(e)
 		}
 		v.Binding.Workspace = space
@@ -137,6 +140,17 @@ func (s *PlatformTaskStorage) seed(ctx context.Context, tx *sql.Tx, space string
 		}
 		record, e := eventstore.Decode(p.source)
 		if e != nil || original.Header != record.Header || original.Version != record.Version || !equalTaskValue(original.Inputs, record.Inputs) || !equalTaskValue(original.Events, record.Events) || !equalTaskValue(original.Result, record.Result) {
+			return 0, task.ErrDenied
+		}
+		// The SQL kind must match the immutable replay intent as well as its
+		// matching dispatch kind. Neither mutable row can relabel a task.
+		kindMatches := false
+		for _, intent := range record.Tasks {
+			if intent.ID == v.TaskID {
+				kindMatches = intent.Kind == p.intentKind
+			}
+		}
+		if !kindMatches {
 			return 0, task.ErrDenied
 		}
 		payload, e := v.Payload.StorageValue()
