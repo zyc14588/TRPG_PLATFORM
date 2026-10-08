@@ -2967,13 +2967,15 @@ func TestModelGatewayProviderSDKImportsStayDeniedAfterDecoding(t *testing.T) {
 	for _, imported := range []string{"github.com/openai/openai-go", "github.com/openai/openai-go/v2", "github.com/openai/openai-go/packages/param", "github.com/sashabaranov/go-openai", "github.com/sashabaranov/go-openai/internal/config"} {
 		for _, alias := range []string{"_ ", "sdk ", ". "} {
 			for _, escaped := range []bool{false, true} {
-				t.Run(fmt.Sprintf("%s/%s/escaped=%t", imported, alias, escaped), func(t *testing.T) {
+				t.Run(imported+"/"+alias+"/escaped="+strconv.FormatBool(escaped), func(t *testing.T) {
 					literal := strconv.Quote(imported)
 					if escaped {
 						var encoded strings.Builder
 						encoded.WriteByte('"')
 						for _, b := range []byte(imported) {
-							fmt.Fprintf(&encoded, "\\x%02x", b)
+							encoded.WriteString("\\x")
+							encoded.WriteByte("0123456789abcdef"[b>>4])
+							encoded.WriteByte("0123456789abcdef"[b&15])
 						}
 						encoded.WriteByte('"')
 						literal = encoded.String()
