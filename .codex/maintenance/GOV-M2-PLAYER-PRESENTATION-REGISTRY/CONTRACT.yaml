@@ -28,6 +28,9 @@ allowed_scope:
 - path: internal/projectctl/projectctl_test.go
   section_id: PROJECTCTL-CODEX-ROUTE-TESTS
   kind: test
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-PLAYER-PRESENTATION-REGISTRY-TESTS
+  kind: test
 forbidden_scope:
 - No existing public contract, business implementation, frozen/completed batch, dependency,
   license, Lua, other-platform or unrelated changes.
@@ -75,6 +78,13 @@ bootstrap:
     before any code or product adoption.
   retirement_condition: Permanently retire after formal signed REPAIR/native reading/codex
     check0 before production edits.
-  status: AUTHORIZED_ONCE
-  retirement_evidence: []
+  status: RETIRED
+  retirement_evidence:
+  - Clean signed f05b805c89919f6f72bb248aec648a0cf39b86a9 tree a4581a2f2a9924875dbd1d3e9384a6a3db4bc284
+    formal native REPAIR/check/signature0 before production edits.
+  - Exact 29-section native reading /home/zyc14588/.codex/visualizations/2026/10/05/01a10c5c-1d16-7a91-8c2f-1909e2af4f43/gov-m2-player-presentation-registry/GOV-PRESENTATION-BOOTSTRAP020-R1_READING.json
+    sha256 87ba6ac46e69f050ca10efbcf6d9ee93a927b43ab891e44fa7bd81d5a2306f0b
+  - Formal check receipt sha256 75b63ddbae66e3fa19a5f49c554c646e8e7f6b4b5059369abdfffeff38a91e71
+  - Bootstrap020 may never be reused. External preparation failures and the bounded-reading
+    stop remain immutable and have no business credit.
 status: ACTIVE

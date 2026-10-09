@@ -2184,6 +2184,8 @@ func TestPlayerDocumentAncestorPathsFailClosed(t *testing.T) {
 	}
 }
 
+// x-section-id: PROJECTCTL-PLAYER-PRESENTATION-REGISTRY-TESTS
+
 // x-section-id: PROJECTCTL-MILESTONE-LIFECYCLE-TESTS
 func TestSuccessorPlanRouteRequiresCompletedConsecutivePredecessor(t *testing.T) {
 	catalog := testV1MilestoneCatalog(t, testApp(t))
