@@ -4,10 +4,22 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "8335edcb131a77f4e0a746756ef46b40aa735f75"
+source_commit: "6df9760d3b673891a9a9c1904ca36011757214fe"
 ---
 
 # 项目摘要
+
+## 当前 Linux M2：B014 玩家游戏说明上游批次已规划
+
+正常 PLAN v47→v48 按 next14 分配 M2-B014（sequence14，PLANNED），next15。仅增加已批准只读游戏说明上游；十个已完成批次、B012、墓碑和 M1 保持。B010 仍为 IMPLEMENTING，全部字段及冻结摘要 bac1060f0aac5ca9b4142c94a6ba4683748c87fa027fc239980afe5c62b35ac6 原样保留，其业务执行停止等待 B014，不并行施工。
+
+Owner 已批准 CHANGE-M2-B010-PLAYER-PRESENTATION-V1。独立公共文档和8定义 Schema 已由签名源 6df9760d3b673891a9a9c1904ca36011757214fe / tree 5326e802b0adb221775cc51bc3e87dd406dcea2a 采用并通过 fresh PLAN、codex check、just check；原606文件逐字节继承、旧 PLAYER_API 的15路由/39定义不变。公共契约登记与治理检查不计业务完成。
+
+B014 只允许九项新文件/测试路径，单一 GET 由当前已验证包图和真实授权兼容模型资料产生，遵守完整列表、closed Schema、同源 HTTPS Cookie、当前租户/访客授权及既有准备/启动复验。显式 platformPlayersWithPresentation 组合入口必须由 B014 真实 HTTPS/独占 PostgreSQL/生产 Lua 集成实际调用；无人调用的新增函数、写死包清单或假 ready 不算通过。正式 daemon/Compose 接入仍由 B011 负责；本轮仅给未冻结 B011 增加 B014 依赖和接线验收，不扩大其允许路径，B012 经 B011 保留完整出口依赖。当前 main.go 仅有 M1/基线分派，B011 冻结前须在正常 PLAN 核定实际启动入口和精确路径，不得以 init/linkname 绕行，也不得把后端改动塞进 B010。
+
+当前 Linux M2 完成10/14≈71.43%（仅按批次数量；分母因新增上游批次增加）。B014 尚未冻结或实现，业务、真实数据库/浏览器/模型验收、独立接收、Main 接收、清理封存与远端提交均未据此完成；其他平台业务 NOT_RUN。B014 后续须沿 PLANNED→FROZEN→IMPLEMENTING 合法推进，独立验收、准确来源证据、接收清理和普通远端推送完成后再恢复原 B010。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M2：B010 玩家网页进入实现
 

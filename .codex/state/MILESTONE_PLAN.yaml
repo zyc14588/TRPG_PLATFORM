@@ -1,10 +1,10 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 47
+plan_version: 48
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
-next_batch_sequence: 14
+next_batch_sequence: 15
 batches:
 - batch_id: M2-B001
   sequence: 1
@@ -803,6 +803,9 @@ batches:
     operation are exercised.
   - Actual startup, mixed-seat platform smoke, persistence/restart and failure/signal cleanup complete under owned-project
     labels; unrelated services are preserved.
+  - Production startup explicitly calls the M2-B014 platformPlayersWithPresentation composition and verifies the approved
+    presentation GET through the actual daemon listener, same-origin HTTPS, current source data and ordinary lifecycle.
+    B010 does not own this backend wiring; upstream B014 tests alone do not satisfy daemon or Compose acceptance.
   tests:
   - docker compose config plus the actual owned Linux M2 lifecycle command and machine report, with secret-marker
     checks and complete cleanup evidence.
@@ -816,6 +819,7 @@ batches:
   depends_on:
   - M2-B009
   - M2-B010
+  - M2-B014
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
@@ -1076,4 +1080,166 @@ batches:
   dependency_independent: false
   parallel_scope_keys: []
   frozen_contract_sha256: 5d65d5fa4e239f20579ea05637336831c515fc3b93032a56ecabeecdac21f3e2
+- batch_id: M2-B014
+  sequence: 14
+  state: PLANNED
+  objective: Implement and independently verify the exact approved read-only player presentation API as a new-file
+    upstream service for the Linux M2 player flow.
+  non_goals:
+  - B010 browser UI and B011 production listeners, startup, secret files and Compose remain with their existing
+    owners; no current daemon integration is claimed by this upstream batch.
+  - No new public mutation, model-management permission, provider call, task dispatch, credential provisioning,
+    database write schema, dependency, Host API, native M1 format, license or other-platform change.
+  - Do not edit the accepted 15-route/39-definition player contract, any pre-existing implementation file, B010
+    frozen fields or completed batch records.
+  allowed_scope:
+  - internal/platform/player/presentation*.go
+  - internal/platform/httpapi/player_presentation*.go
+  - internal/platform/launch/player_presentation*.go
+  - internal/package/install/presentation*.go
+  - internal/ai/model/presentation*.go
+  - internal/storage/postgres/platform_presentation*.go
+  - cmd/platformd/player_presentation*.go
+  - tests/contract/player_presentation/**
+  - tests/integration/player_presentation/**
+  forbidden_scope:
+  - docs/**
+  - schemas/**
+  - .codex/**
+  - internal/projectctl/**
+  - cmd/projectctl/**
+  - apps/**
+  - tests/e2e/player/**
+  - legal/**
+  - LICENSE
+  - LICENSES/**
+  - go.mod
+  - go.sum
+  - internal/hostapi/**
+  - internal/luaruntime/**
+  - internal/session/command/**
+  - cmd/platformd/main.go
+  requirements:
+  - REQ-PRODUCT-001
+  - REQ-PLAYER-002
+  - REQ-PLAYER-003
+  - REQ-PLAYER-004
+  - REQ-AI-003
+  - REQ-DATA-002
+  machine_contracts:
+  - REQ-PRODUCT-001
+  - REQ-PLAYER-002
+  - REQ-PLAYER-003
+  - REQ-PLAYER-004
+  - REQ-AI-003
+  - REQ-DATA-002
+  - TEST-PRODUCT-001
+  - TEST-PLAYER-002
+  - TEST-PLAYER-003
+  - TEST-PLAYER-004
+  - TEST-AI-003
+  - TEST-DATA-002
+  - SCHEMA-CODEX-MILESTONE-PLAN-V2
+  - SCHEMA-PLATFORM-AUTH-API-V1
+  - SCHEMA-PLATFORM-ROOM-API-V1
+  - SCHEMA-PLATFORM-PLAYER-API-V1
+  - SCHEMA-PLATFORM-PLAYER-PRESENTATION-API-V1
+  reading_map_sections:
+  - SPEC-V1-ROADMAP-M2
+  - SPEC-M2-ALLOWED
+  - SPEC-M2-FORBIDDEN
+  - SPEC-M2-EXIT
+  - SPEC-PRODUCT-001
+  - SPEC-PLAYER-EXPERIENCE-001
+  - SPEC-AI-001
+  - SPEC-DATA-001
+  - SPEC-PACKAGE-001
+  - SPEC-SECURITY-001
+  - SPEC-PLATFORM-AUTH-API-V1
+  - SPEC-PLATFORM-ROOM-API-V1
+  - SPEC-PLATFORM-PLAYER-API-V1
+  - SPEC-PLATFORM-PLAYER-PRESENTATION-API-V1
+  acceptance:
+  - Use only Owner-approved CHANGE-M2-B010-PLAYER-PRESENTATION-V1, approval receipt sha256 c871141757063c324594e17f04be232eb27dca80951e50d75ce1919094a469ae.
+    The adopted document sha256 306e994d184ba23b3f67268e7fd69faff0de4b2891b6d429efa632ff835a8905 and Schema sha256
+    6e450caec18b6a24cb78bdb609c377c047697d01f10ece4459e26bc0f914f8e5 are separately signed at 6df9760d3b673891a9a9c1904ca36011757214fe;
+    all eight approved definition payloads are unchanged. That adoption conveys zero business credit.
+  - Serve exactly GET /api/v1/workspaces/{workspace}/games/{configuration}/presentation with the separate closed
+    eight-definition Schema. Reject body, query, Authorization, unknown/duplicate request forms and invalid or
+    mismatched identities; enforce current same-origin HTTPS Cookie authority, no-store and no-referrer.
+  - Derive complete package metadata from the actual currently authenticated SessionFactory graph and existing
+    rights/policy evidence. Verify package identity/version/title, artifact and rights digests, license and declared
+    permissions against that graph and the selected configuration; never accept browser-provided or hardcoded
+    substitute packages, truncate a package list for consent, or instantiate an authoritative Session as a read
+    side effect.
+  - Derive model selection IDs and compatible seats/capabilities/readiness from live registered model rows and
+    current certification, caller/tenant/seat access, graph/revision, credential and budget checks. Trusted labels
+    only annotate verified records; missing, revoked, expired, incompatible or inaccessible models cannot default
+    to ready. This read grants no model-management permission or guest long-term BYOK privilege and dispatches
+    no model/task.
+  - Revalidate active account/workspace membership or the admitted single-game guest and its current room-selected
+    configuration on every read. Removal, Cookie revocation, changed preparation, wrong graph and cross-tenant
+    identical hashes deny stale reuse. Return no endpoints, keys, cookies, tokens, execution handles, Actor state,
+    other-seat boundaries, raw certification reports or underlying SQL.
+  - Bound every package/model/capability/seat array at 64, label at 80 characters, digests at canonical sha256,
+    Schema at 64KiB, response at 256KiB and operation at 5 seconds. Closed response validation and fixed safe
+    errors fail closed on malformed, over-limit, incomplete, cancelled or unknown outcomes; absence never fabricates
+    success.
+  - Add an explicit platformPlayersWithPresentation composition entry in cmd/platformd/player_presentation*.go
+    that calls the existing platformPlayers composition and wraps its real handler with the presentation handler.
+    A new exported HTTP composition entry serves B014 integration. Tests must invoke the actual production composition
+    and authenticated factory/model/storage sources over real same-origin HTTPS, proving this GET is reachable
+    and all accepted routes still delegate correctly; no init, linkname, unused mock handler or accepted-file
+    rewrite is allowed.
+  - Fresh owned physical PostgreSQL and the production Lua runner prove account/guest/tenant/role denial, full
+    actual package graphs, source/digest mismatch, live model revocation and readiness, bounds/timeouts, no business-state
+    mutation or dispatch, and no private markers in ordinary output. Existing consent/configure/readiness/launch/pause/continuation/model
+    authorization regressions remain intact; the presentation response is never launch permission.
+  - B011 must explicitly call this presentation-aware composition from its eventual production daemon startup
+    and verify the real listener and lifecycle. B014 upstream HTTPS evidence does not claim that the current baseline
+    daemon or Compose is already wired; B010 cannot absorb backend source changes.
+  - Independent exact signed-source business/state acceptance, Main reception, complete evidence readback, owned
+    resource cleanup and ordinary remote push precede resuming B010. Preserve every failure and NOT_RUN; final
+    complete M2 requirement certification remains B012.
+  tests:
+  - go test -count=1 -json ./internal/platform/player/... ./internal/platform/httpapi/... ./internal/platform/launch/...
+    ./internal/package/install/... ./internal/ai/model/... ./internal/storage/postgres/... ./cmd/platformd/...
+    ./tests/contract/player_presentation/...
+  - go test -count=1 -tags integration -json ./tests/integration/player_presentation/... on fresh exclusively
+    owned physical PostgreSQL, production Lua runner and real same-origin HTTPS; missing prerequisites fail as
+    NOT_RUN with zero skipped mandatory cases.
+  - go test -race -count=1 -tags integration -json ./tests/integration/player_presentation/... ./cmd/platformd/...
+    executes the new presentation-aware production composition integration tests with the same actual sources
+    and a separately owned fixture.
+  - go test -count=1 -tags integration -json ./tests/integration/player/... ./tests/integration/launch/... ./tests/integration/platform_session/...
+    ./tests/integration/model_config/... ./tests/integration/model_gateway/... ./tests/integration/continuation/...
+    using each suite's compatible separately owned fixture, preserving original assertions and failure evidence.
+  - just check; just test; go vet ./...; Linux just ci; formal current codex check on the exact clean signed candidate.
+    All executed commands record actual exit, source/tree, fixture and Schema hashes; synthetic local provider
+    tests confer no paid model qualification.
+  stop_conditions:
+  - Stop for any public semantic change beyond the exact approved one route/eight definitions, new permission/mutation,
+    private information disclosure, missing current authorization, fabricated package/model readiness or resource-bound
+    bypass.
+  - Only new files matching the nine allowed paths may be added. Stop before modifying any pre-existing implementation,
+    other frozen contract, dependency, Host API, license, native M1 format or startup/Compose source; present
+    a concrete CHANGE for any genuinely required expansion.
+  - Stop for stale/invalid route, incomplete dependency, failed mandatory check, absent real fixture, unowned
+    service/resource use, untested production composition, or any attempt to credit governance checks as business
+    acceptance.
+  - Keep B010 IMPLEMENTING with its original frozen digest bac1060f0aac5ca9b4142c94a6ba4683748c87fa027fc239980afe5c62b35ac6
+    and all original fields. Its business execution remains stopped pending this upstream batch; do not run both
+    as parallel implementation.
+  depends_on:
+  - M2-B001
+  - M2-B002
+  - M2-B003
+  - M2-B004
+  - M2-B005
+  - M2-B007
+  - M2-B009
+  - M2-B013
+  parallel_safe: false
+  dependency_independent: false
+  parallel_scope_keys: []
 tombstones: []
