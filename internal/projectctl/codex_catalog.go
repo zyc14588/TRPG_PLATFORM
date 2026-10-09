@@ -78,6 +78,12 @@ const platformPlayerDocumentPath = "docs/20-architecture/PLAYER_API.md"
 const platformPlayerSchemaPath = "schemas/platform/platform-player-api-v1.schema.json"
 const platformPlayerSchemaID = "SCHEMA-PLATFORM-PLAYER-API-V1"
 
+// CHANGE-M2-B010-PLAYER-PRESENTATION-V1 approves this independent pair only.
+const playerPresentationDocumentPath = "docs/20-architecture/PLAYER_PRESENTATION_API.md"
+const playerPresentationDocumentID = "SPEC-PLATFORM-PLAYER-PRESENTATION-API-V1"
+const playerPresentationSchemaPath = "schemas/platform/platform-player-presentation-api-v1.schema.json"
+const playerPresentationSchemaID = "SCHEMA-PLATFORM-PLAYER-PRESENTATION-API-V1"
+
 type routeSchemaLoader struct{}
 
 func (routeSchemaLoader) Load(string) (any, error) {
@@ -260,6 +266,10 @@ func (a *App) routePaths(request codexRouteRequest) (codexRoutePaths, error) {
 			route("docs/60-quality/ACCEPTANCE_POLICY.md", "SPEC-ACCEPTANCE-FINDINGS", "read-on-demand"),
 		}
 	}
+	paths, err = a.appendPlayerPresentationRoutes(request, paths)
+	if err != nil {
+		return codexRoutePaths{}, err
+	}
 	return deduplicateRoutePaths(paths), nil
 }
 
@@ -290,6 +300,11 @@ func (a *App) requestedSchemaRoutes(identifiers []string) ([]routeSpec, error) {
 		case platformPlayerSchemaID:
 			spec = route(platformPlayerSchemaPath, identifier, "machine-contract")
 			if err := a.validatePlayerRouteSchema(); err != nil {
+				return nil, err
+			}
+		case playerPresentationSchemaID:
+			spec = route(playerPresentationSchemaPath, identifier, "machine-contract")
+			if err := a.validatePlayerPresentationSchema(); err != nil {
 				return nil, err
 			}
 		default:
@@ -603,6 +618,125 @@ func (a *App) validatePlayerRouteDocument() error {
 	return nil
 }
 
+func (a *App) playerPresentationSourcePath(relative string) (string, error) {
+	if relative != playerPresentationDocumentPath && relative != playerPresentationSchemaPath {
+		return "", errors.New("presentation source is outside the approved inventory")
+	}
+	root, err := filepath.Abs(a.root)
+	if err != nil {
+		return "", fmt.Errorf("resolve presentation root: %w", err)
+	}
+	canonical, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve presentation root: %w", err)
+	}
+	if canonical != root {
+		return "", errors.New("presentation root contains a symlink")
+	}
+	path := root
+	parts := strings.Split(relative, "/")
+	for i, part := range parts {
+		path = filepath.Join(path, part)
+		info, err := os.Lstat(path)
+		if err != nil {
+			return "", fmt.Errorf("inspect presentation source: %w", err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", errors.New("presentation source contains a symlink")
+		}
+		if i < len(parts)-1 && !info.IsDir() {
+			return "", errors.New("presentation ancestor must be a directory")
+		}
+		if i == len(parts)-1 && !info.Mode().IsRegular() {
+			return "", errors.New("presentation source must be a regular file")
+		}
+	}
+	return path, nil
+}
+
+func (a *App) validatePlayerPresentationDocument() error {
+	path, err := a.playerPresentationSourcePath(playerPresentationDocumentPath)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read presentation document: %w", err)
+	}
+	if len(data) > 65536 || !utf8.Valid(data) {
+		return errors.New("presentation document exceeds its bound or has invalid UTF-8")
+	}
+	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	if len(lines) < 3 || lines[0] != "---" {
+		return errors.New("presentation document lacks front matter")
+	}
+	end := 1
+	for end < len(lines) && lines[end] != "---" {
+		end++
+	}
+	if end == len(lines) {
+		return errors.New("presentation document has unterminated front matter")
+	}
+	var metadata map[string]any
+	if err := yaml.Unmarshal([]byte(strings.Join(lines[1:end], "\n")), &metadata); err != nil {
+		return fmt.Errorf("decode presentation metadata: %w", err)
+	}
+	if metadata["document_id"] != playerPresentationDocumentID || metadata["status"] != "ACTIVE" {
+		return errors.New("presentation document requires its approved identity and ACTIVE status")
+	}
+	return nil
+}
+
+func (a *App) validatePlayerPresentationSchema() error {
+	path, err := a.playerPresentationSourcePath(playerPresentationSchemaPath)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read presentation Schema: %w", err)
+	}
+	if len(data) > 65536 || !utf8.Valid(data) {
+		return errors.New("presentation Schema exceeds its bound or has invalid UTF-8")
+	}
+	if err := validatePlayerSchemaKeys(data); err != nil {
+		return fmt.Errorf("decode presentation Schema: %w", err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		return fmt.Errorf("decode presentation Schema: %w", err)
+	}
+	const uri = "urn:trpg-platform:platform-player-presentation-api:v1"
+	if document["x-section-id"] != playerPresentationSchemaID || document["x-status"] != "ACTIVE" ||
+		document["$id"] != uri || document["$schema"] != "https://json-schema.org/draft/2020-12/schema" {
+		return errors.New("presentation Schema identity, ACTIVE status or draft metadata is invalid")
+	}
+	names := []string{"ID", "Digest", "Label", "Package", "ModelSelection", "Presentation", "PresentationResponse", "ErrorResponse"}
+	definitions, ok := document["$defs"].(map[string]any)
+	if !ok || len(definitions) != len(names) {
+		return errors.New("presentation Schema requires exactly its eight approved definitions")
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.DefaultDraft(jsonschema.Draft2020)
+	compiler.AssertFormat()
+	compiler.UseLoader(routeSchemaLoader{})
+	if err := compiler.AddResource(uri, document); err != nil {
+		return fmt.Errorf("register presentation Schema: %w", err)
+	}
+	if _, err := compiler.Compile(uri); err != nil {
+		return fmt.Errorf("compile presentation Schema: %w", err)
+	}
+	for _, name := range names {
+		if _, exists := definitions[name]; !exists {
+			return errors.New("presentation Schema has an unapproved definition inventory")
+		}
+		if _, err := compiler.Compile(uri + "#/$defs/" + name); err != nil {
+			return fmt.Errorf("compile presentation definition: %w", err)
+		}
+	}
+	return nil
+}
+
 func (a *App) milestoneScopeSections(request codexRouteRequest, currentPlan milestonePlan) ([]routeSpec, error) {
 	relative := fmt.Sprintf("docs/80-roadmap/%s_SCOPE_AND_EXIT_GATE.md", request.Milestone)
 	if _, err := os.Stat(filepath.Join(a.root, filepath.FromSlash(relative))); err != nil {
@@ -827,6 +961,14 @@ func (a *App) normativeSectionCatalog() (normativeSectionCatalog, error) {
 		paths = append(paths, platformPlayerDocumentPath)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read bounded player API document: %w", err)
+	}
+	if _, err := a.playerPresentationSourcePath(playerPresentationDocumentPath); err == nil {
+		if err := a.validatePlayerPresentationDocument(); err != nil {
+			return nil, err
+		}
+		paths = append(paths, playerPresentationDocumentPath)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("read bounded presentation document: %w", err)
 	}
 	roadmap, err := a.loadV1MilestoneCatalog()
 	if err != nil {

@@ -260,6 +260,46 @@ type codexRoutePaths struct {
 	onDemand  []routeSpec
 }
 
+// Bind only the Owner-approved supplemental sources. Frozen batch fields stay
+// untouched; normal canonical route hashing/checking covers these additions.
+func (a *App) appendPlayerPresentationRoutes(request codexRouteRequest, paths codexRoutePaths) (codexRoutePaths, error) {
+	if request.MaintenanceID != "" || request.Milestone != "M2" {
+		return paths, nil
+	}
+	eligible := request.Mode == "PLAN" && request.BatchID == "" ||
+		(request.Mode == "IMPLEMENT" || request.Mode == "ACCEPT" || request.Mode == "REPAIR") &&
+			(request.BatchID == "M2-B010" || request.BatchID == "M2-B014")
+	if !eligible {
+		return paths, nil
+	}
+	_, docErr := a.playerPresentationSourcePath(playerPresentationDocumentPath)
+	_, schemaErr := a.playerPresentationSourcePath(playerPresentationSchemaPath)
+	if docErr != nil && !errors.Is(docErr, os.ErrNotExist) {
+		return codexRoutePaths{}, docErr
+	}
+	if schemaErr != nil && !errors.Is(schemaErr, os.ErrNotExist) {
+		return codexRoutePaths{}, schemaErr
+	}
+	// Before normal PLAN adopts the pair there is no new public source to read.
+	if request.Mode == "PLAN" && errors.Is(docErr, os.ErrNotExist) && errors.Is(schemaErr, os.ErrNotExist) {
+		return paths, nil
+	}
+	if docErr != nil || schemaErr != nil {
+		return codexRoutePaths{}, errors.New("presentation supplemental sources require the complete approved pair")
+	}
+	if err := a.validatePlayerPresentationDocument(); err != nil {
+		return codexRoutePaths{}, err
+	}
+	if err := a.validatePlayerPresentationSchema(); err != nil {
+		return codexRoutePaths{}, err
+	}
+	paths.normative = appendUniqueRouteSpecs(paths.normative,
+		route(playerPresentationDocumentPath, playerPresentationDocumentID, "normative-section"))
+	paths.machine = appendUniqueRouteSpecs(paths.machine,
+		route(playerPresentationSchemaPath, playerPresentationSchemaID, "machine-contract"))
+	return paths, nil
+}
+
 type routeSpec struct {
 	path      string
 	sectionID string

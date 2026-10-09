@@ -2186,6 +2186,299 @@ func TestPlayerDocumentAncestorPathsFailClosed(t *testing.T) {
 
 // x-section-id: PROJECTCTL-PLAYER-PRESENTATION-REGISTRY-TESTS
 
+func presentationRouteSchemaFixture() map[string]any {
+	definitions := map[string]any{}
+	for _, name := range []string{"ID", "Digest", "Label", "Package", "ModelSelection", "Presentation", "PresentationResponse", "ErrorResponse"} {
+		definitions[name] = map[string]any{"type": "object", "additionalProperties": false}
+	}
+	return map[string]any{"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"$id": "urn:trpg-platform:platform-player-presentation-api:v1", "x-status": "ACTIVE",
+		"x-section-id": playerPresentationSchemaID, "$defs": definitions}
+}
+
+func writePresentationRoutePair(t *testing.T, a *App) {
+	t.Helper()
+	writePlatformRouteFixture(t, a, playerPresentationDocumentPath,
+		[]byte("---\ndocument_id: "+playerPresentationDocumentID+"\nstatus: ACTIVE\n---\nApproved presentation source.\n"))
+	data, err := json.Marshal(presentationRouteSchemaFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	writePlatformRouteFixture(t, a, playerPresentationSchemaPath, data)
+}
+
+func TestPresentationSupplementExactTargetsAndClosedPair(t *testing.T) {
+	for _, name := range []string{"PLAN", "IMPLEMENT-B010", "ACCEPT-B010", "REPAIR-B010", "IMPLEMENT-B014", "ACCEPT-B014", "REPAIR-B014"} {
+		t.Run(name, func(t *testing.T) {
+			a := &App{root: t.TempDir()}
+			writePresentationRoutePair(t, a)
+			parts := strings.Split(name, "-")
+			request := testCodexRequest(parts[0], "M2", "")
+			if len(parts) == 2 {
+				request.BatchID = "M2-" + parts[1]
+			}
+			paths, err := a.appendPlayerPresentationRoutes(request, codexRoutePaths{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			paths, err = a.appendPlayerPresentationRoutes(request, paths)
+			if err != nil || len(paths.normative) != 1 || len(paths.machine) != 1 ||
+				paths.normative[0].path != playerPresentationDocumentPath || paths.machine[0].path != playerPresentationSchemaPath {
+				t.Fatal("approved supplemental pair was not exact and unique", err)
+			}
+			bound, err := a.hashRouteSections(append(paths.normative, paths.machine...))
+			if err != nil || len(bound) != 2 || bound[0].SHA256 == "" || bound[1].SectionSHA256 == "" {
+				t.Fatal("supplemental source bytes were not bound", err)
+			}
+		})
+	}
+	a := &App{root: t.TempDir()}
+	// Invalid sources cannot affect unrelated targets through the supplement.
+	writePlatformRouteFixture(t, a, playerPresentationSchemaPath, []byte("invalid"))
+	requests := []codexRouteRequest{
+		testCodexRequest("PLAN", "M1", ""), testCodexRequest("PLAN", "M3", ""),
+		testCodexRequest("REPAIR", "M2", "M2-B009"), testCodexRequest("ACCEPT", "M2", "M2-B011"),
+		testCodexRequest("IMPLEMENT", "M2", "M2-B014-neighbor"), testCodexRequest("UNKNOWN", "M2", "M2-B010"),
+		testCodexRequest("PLAN", "M2", "M2-B010"),
+	}
+	maintenance := testCodexRequest("REPAIR", "M2", "M2-B010")
+	maintenance.MaintenanceID = "GOV-UNRELATED"
+	requests = append(requests, maintenance)
+	for _, request := range requests {
+		paths, err := a.appendPlayerPresentationRoutes(request, codexRoutePaths{})
+		if err != nil || len(paths.normative)+len(paths.machine) != 0 {
+			t.Fatal("supplement affected an unapproved target", request, err)
+		}
+	}
+	for _, name := range []string{"both-absent", "document-only", "schema-only", "draft"} {
+		t.Run(name, func(t *testing.T) {
+			a := &App{root: t.TempDir()}
+			if name != "both-absent" {
+				writePresentationRoutePair(t, a)
+				if name == "document-only" || name == "schema-only" {
+					path := playerPresentationSchemaPath
+					if name == "schema-only" {
+						path = playerPresentationDocumentPath
+					}
+					if err := os.Remove(filepath.Join(a.root, path)); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					writePlatformRouteFixture(t, a, playerPresentationDocumentPath,
+						[]byte("---\ndocument_id: "+playerPresentationDocumentID+"\nstatus: DRAFT\n---\n"))
+				}
+			}
+			paths, err := a.appendPlayerPresentationRoutes(testCodexRequest("PLAN", "M2", ""), codexRoutePaths{})
+			if name == "both-absent" {
+				if err != nil || len(paths.normative)+len(paths.machine) != 0 {
+					t.Fatal("pre-adoption PLAN did not retain optional absence", err)
+				}
+			} else if err == nil {
+				t.Fatal("PLAN accepted incomplete or DRAFT supplemental pair")
+			}
+			if _, err := a.appendPlayerPresentationRoutes(testCodexRequest("REPAIR", "M2", "M2-B010"), codexRoutePaths{}); err == nil {
+				t.Fatal("B010 accepted absent or invalid supplemental sources")
+			}
+		})
+	}
+}
+
+func TestPresentationNativeB010RoutesPreserveFrozenContract(t *testing.T) {
+	a := newFrozenRouteFixture(t, []string{"SPEC-LUA-RUNTIME-001"})
+	plan, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.PlanID, plan.Milestone = "M2-MILESTONE-PLAN", "M2"
+	plan.Batches[0].BatchID, plan.Batches[0].Sequence = "M2-B010", 10
+	plan.Batches[0].Requirements = []string{"REQ-PLAYER-001"}
+	plan.NextBatchSequence = 11
+	plan.Batches[0].FrozenContractSHA256 = mustBatchContractDigest(t, plan.Batches[0])
+	last := plan.Batches[0]
+	plan.Batches = nil
+	for sequence := 1; sequence < 10; sequence++ {
+		prior := last
+		prior.BatchID, prior.Sequence = "M2-B00"+strconv.Itoa(sequence), sequence
+		plan.Batches = append(plan.Batches, prior)
+	}
+	plan.Batches = append(plan.Batches, last)
+	before, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFixtureMilestonePlan(t, a, plan)
+	writePresentationRoutePair(t, a)
+	commitFixturePaths(t, a, "exact presentation B010 route fixture", ".codex/state/MILESTONE_PLAN.yaml", playerPresentationDocumentPath, playerPresentationSchemaPath)
+	for _, mode := range []string{"IMPLEMENT", "ACCEPT", "REPAIR"} {
+		request := testCodexRequest(mode, "M2", "M2-B010")
+		if err := a.generateCodexRouteRequest(context.Background(), request); err != nil {
+			t.Fatal(mode, err)
+		}
+		routeMap, err := loadYAML[readingMap](a.root, ".codex/runtime/READING_MAP.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		counts := map[string]int{}
+		for _, section := range allReadingMapSections(routeMap) {
+			counts[section.SectionID]++
+		}
+		if counts[playerPresentationDocumentID] != 1 || counts[playerPresentationSchemaID] != 1 || counts["SPEC-LUA-RUNTIME-001"] != 1 {
+			t.Fatal("native route omitted or duplicated approved/frozen material")
+		}
+		if err := a.checkCodex(context.Background()); err != nil {
+			t.Fatal(mode, err)
+		}
+		after, err := loadYAML[milestonePlan](a.root, ".codex/state/MILESTONE_PLAN.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := json.Marshal(after)
+		if err != nil || !bytes.Equal(before, data) {
+			t.Fatal("native supplement rewrote frozen fields", err)
+		}
+	}
+	routeMap, err := loadYAML[readingMap](a.root, ".codex/runtime/READING_MAP.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendFixtureText(t, a, playerPresentationDocumentPath, "\nchanged approved material\n")
+	if err := a.validateCanonicalReadingMap(routeMap); err == nil {
+		t.Fatal("canonical route accepted changed supplemental bytes")
+	}
+}
+
+func TestPresentationSchemaFailsClosed(t *testing.T) {
+	for _, name := range []string{"missing", "unknown-id", "unapproved-path", "malformed", "draft", "identity", "uri", "wrong-draft", "extra-definition", "missing-definition", "bad-schema", "dangling-unused", "external-unused", "duplicate-key", "oversize", "invalid-utf8", "trailing", "deep-nesting"} {
+		t.Run(name, func(t *testing.T) {
+			a := &App{root: t.TempDir()}
+			document := presentationRouteSchemaFixture()
+			defs := document["$defs"].(map[string]any)
+			id, path := playerPresentationSchemaID, playerPresentationSchemaPath
+			switch name {
+			case "unknown-id":
+				id += "-UNKNOWN"
+			case "unapproved-path":
+				path = "schemas/platform/unapproved-presentation.schema.json"
+			case "draft":
+				document["x-status"] = "DRAFT"
+			case "identity":
+				document["x-section-id"] = platformPlayerSchemaID
+			case "uri":
+				document["$id"] = "urn:unapproved"
+			case "wrong-draft":
+				document["$schema"] = "https://unapproved.invalid/draft"
+			case "extra-definition":
+				defs["Extra"] = map[string]any{}
+			case "missing-definition":
+				delete(defs, "Package")
+			case "bad-schema":
+				document["type"] = 123
+			case "dangling-unused":
+				defs["Package"] = map[string]any{"$ref": "#/missing"}
+			case "external-unused":
+				defs["Package"] = map[string]any{"$ref": "https://unapproved.invalid/source"}
+			}
+			data, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch name {
+			case "malformed":
+				data = []byte("{")
+			case "duplicate-key":
+				data = bytes.Replace(data, []byte(`"x-status":"ACTIVE"`), []byte(`"x-status":"DRAFT","x-status":"ACTIVE"`), 1)
+			case "oversize":
+				data = append(data, bytes.Repeat([]byte(" "), 65536)...)
+			case "invalid-utf8":
+				data = append(data, 255)
+			case "trailing":
+				data = append(data, []byte("{}")...)
+			case "deep-nesting":
+				data = bytes.Replace(data, []byte(`"x-status":"ACTIVE"`), []byte(`"x-status":"ACTIVE","default":`+strings.Repeat("[", 65)+"0"+strings.Repeat("]", 65)), 1)
+			}
+			if name != "missing" {
+				writePlatformRouteFixture(t, a, path, data)
+			}
+			if _, err := a.requestedSchemaRoutes([]string{id}); err == nil {
+				t.Fatal("invalid presentation Schema accepted")
+			}
+		})
+	}
+}
+
+func TestPresentationExactSourceAncestorsAndDocumentFailures(t *testing.T) {
+	for _, relative := range []string{playerPresentationDocumentPath, playerPresentationSchemaPath} {
+		for _, name := range []string{"leaf-symlink", "ancestor-symlink", "dangling-ancestor", "missing-leaf-under-symlink", "root-alias", "ancestor-file"} {
+			t.Run(relative+"/"+name, func(t *testing.T) {
+				a := &App{root: t.TempDir()}
+				writePresentationRoutePair(t, a)
+				if name == "root-alias" {
+					alias := filepath.Join(t.TempDir(), "alias")
+					if err := os.Symlink(a.root, alias); err != nil {
+						t.Fatal(err)
+					}
+					a.root = alias
+				} else {
+					if name == "missing-leaf-under-symlink" {
+						if err := os.Remove(filepath.Join(a.root, relative)); err != nil {
+							t.Fatal(err)
+						}
+					}
+					target := filepath.Join(a.root, filepath.Dir(relative))
+					if name == "leaf-symlink" {
+						target = filepath.Join(a.root, relative)
+					}
+					outside := filepath.Join(t.TempDir(), "outside")
+					if err := os.Rename(target, outside); err != nil {
+						t.Fatal(err)
+					}
+					if name == "ancestor-file" {
+						if err := os.WriteFile(target, []byte("file"), 0600); err != nil {
+							t.Fatal(err)
+						}
+					} else {
+						if name == "dangling-ancestor" {
+							outside += "-absent"
+						}
+						if err := os.Symlink(outside, target); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+				if _, err := a.playerPresentationSourcePath(relative); err == nil || os.IsNotExist(err) {
+					t.Fatal("redirected source accepted or mistaken for optional absence", err)
+				}
+			})
+		}
+	}
+	for _, name := range []string{"missing", "draft", "wrong-id", "duplicate-metadata", "malformed", "oversize", "invalid-utf8"} {
+		t.Run(name, func(t *testing.T) {
+			a := &App{root: t.TempDir()}
+			data := []byte("---\ndocument_id: " + playerPresentationDocumentID + "\nstatus: ACTIVE\n---\n")
+			switch name {
+			case "draft":
+				data = bytes.Replace(data, []byte("status: ACTIVE"), []byte("status: DRAFT"), 1)
+			case "wrong-id":
+				data = bytes.Replace(data, []byte(playerPresentationDocumentID), []byte("UNAPPROVED"), 1)
+			case "duplicate-metadata":
+				data = bytes.Replace(data, []byte("status: ACTIVE"), []byte("status: DRAFT\nstatus: ACTIVE"), 1)
+			case "malformed":
+				data = []byte("---\nstatus: ACTIVE\n")
+			case "oversize":
+				data = append(data, bytes.Repeat([]byte(" "), 65536)...)
+			case "invalid-utf8":
+				data = append(data, 255)
+			}
+			if name != "missing" {
+				writePlatformRouteFixture(t, a, playerPresentationDocumentPath, data)
+			}
+			if err := a.validatePlayerPresentationDocument(); err == nil {
+				t.Fatal("invalid presentation document accepted")
+			}
+		})
+	}
+}
+
 // x-section-id: PROJECTCTL-MILESTONE-LIFECYCLE-TESTS
 func TestSuccessorPlanRouteRequiresCompletedConsecutivePredecessor(t *testing.T) {
 	catalog := testV1MilestoneCatalog(t, testApp(t))
