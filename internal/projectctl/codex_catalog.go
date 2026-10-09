@@ -84,6 +84,10 @@ const playerPresentationDocumentID = "SPEC-PLATFORM-PLAYER-PRESENTATION-API-V1"
 const playerPresentationSchemaPath = "schemas/platform/platform-player-presentation-api-v1.schema.json"
 const playerPresentationSchemaID = "SCHEMA-PLATFORM-PLAYER-PRESENTATION-API-V1"
 
+// The current-room contract reuses the existing presentation Schema unchanged.
+const roomPlayerPresentationDocumentPath = "docs/20-architecture/ROOM_PLAYER_PRESENTATION_API.md"
+const roomPlayerPresentationDocumentID = "SPEC-PLATFORM-ROOM-PLAYER-PRESENTATION-API-V1"
+
 type routeSchemaLoader struct{}
 
 func (routeSchemaLoader) Load(string) (any, error) {
@@ -619,7 +623,8 @@ func (a *App) validatePlayerRouteDocument() error {
 }
 
 func (a *App) playerPresentationSourcePath(relative string) (string, error) {
-	if relative != playerPresentationDocumentPath && relative != playerPresentationSchemaPath {
+	if relative != playerPresentationDocumentPath && relative != playerPresentationSchemaPath &&
+		relative != roomPlayerPresentationDocumentPath {
 		return "", errors.New("presentation source is outside the approved inventory")
 	}
 	root, err := filepath.Abs(a.root)
@@ -655,7 +660,11 @@ func (a *App) playerPresentationSourcePath(relative string) (string, error) {
 }
 
 func (a *App) validatePlayerPresentationDocument() error {
-	path, err := a.playerPresentationSourcePath(playerPresentationDocumentPath)
+	return a.validatePresentationDocument(playerPresentationDocumentPath, playerPresentationDocumentID)
+}
+
+func (a *App) validatePresentationDocument(relative, documentID string) error {
+	path, err := a.playerPresentationSourcePath(relative)
 	if err != nil {
 		return err
 	}
@@ -681,7 +690,7 @@ func (a *App) validatePlayerPresentationDocument() error {
 	if err := yaml.Unmarshal([]byte(strings.Join(lines[1:end], "\n")), &metadata); err != nil {
 		return fmt.Errorf("decode presentation metadata: %w", err)
 	}
-	if metadata["document_id"] != playerPresentationDocumentID || metadata["status"] != "ACTIVE" {
+	if metadata["document_id"] != documentID || metadata["status"] != "ACTIVE" {
 		return errors.New("presentation document requires its approved identity and ACTIVE status")
 	}
 	return nil
@@ -877,6 +886,16 @@ func (a *App) loadMilestoneRouteInputs(request codexRouteRequest) (milestoneRout
 	if err != nil {
 		return milestoneRouteInputs{}, err
 	}
+	roomPresentationSupplement := request.Milestone == "M2" &&
+		(request.Mode == "PLAN" && request.BatchID == "" || request.BatchID == "M2-B010" &&
+			(request.Mode == "IMPLEMENT" || request.Mode == "ACCEPT" || request.Mode == "REPAIR"))
+	if roomPresentationSupplement {
+		if _, err := a.playerPresentationSourcePath(roomPlayerPresentationDocumentPath); err == nil {
+			frozenReadingSectionIDs = append(frozenReadingSectionIDs, roomPlayerPresentationDocumentID)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return milestoneRouteInputs{}, err
+		}
+	}
 	for _, requirement := range inputs.requirements {
 		if !ownerIDs[requirement.OwningSpec] {
 			continue
@@ -888,9 +907,17 @@ func (a *App) loadMilestoneRouteInputs(request codexRouteRequest) (milestoneRout
 		inputs.normative = appendUniqueRouteSpecs(inputs.normative, spec)
 	}
 	for _, sectionID := range frozenReadingSectionIDs {
+		if sectionID == roomPlayerPresentationDocumentID {
+			if err := a.validatePresentationDocument(roomPlayerPresentationDocumentPath, roomPlayerPresentationDocumentID); err != nil {
+				return milestoneRouteInputs{}, err
+			}
+		}
 		spec, err := resolveNormativeSection(sectionCatalog, sectionID)
 		if err != nil {
 			return milestoneRouteInputs{}, fmt.Errorf("frozen reading_map_sections entry %s: %w", sectionID, err)
+		}
+		if sectionID == roomPlayerPresentationDocumentID && spec.path != roomPlayerPresentationDocumentPath {
+			return milestoneRouteInputs{}, errors.New("room presentation Section requires its approved document path")
 		}
 		inputs.normative = appendUniqueRouteSpecs(inputs.normative, spec)
 	}
@@ -969,6 +996,14 @@ func (a *App) normativeSectionCatalog() (normativeSectionCatalog, error) {
 		paths = append(paths, playerPresentationDocumentPath)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read bounded presentation document: %w", err)
+	}
+	if _, err := a.playerPresentationSourcePath(roomPlayerPresentationDocumentPath); err == nil {
+		if err := a.validatePresentationDocument(roomPlayerPresentationDocumentPath, roomPlayerPresentationDocumentID); err != nil {
+			return nil, err
+		}
+		paths = append(paths, roomPlayerPresentationDocumentPath)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("read bounded room presentation document: %w", err)
 	}
 	roadmap, err := a.loadV1MilestoneCatalog()
 	if err != nil {

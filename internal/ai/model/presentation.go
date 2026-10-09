@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/platform/auth"
+	"github.com/zyc14588/TRPG_PLATFORM/internal/platform/core"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/platform/launch"
 	"io"
 	"slices"
@@ -19,6 +20,12 @@ import (
 type PresentationRegistry interface {
 	PresentationConfigurations(context.Context, string, string) ([]Configuration, error)
 	PresentationBudgetReady(context.Context, Configuration) (bool, error)
+}
+
+// RoomPresentationRegistry scopes the physical candidates before the 65-row
+// overflow probe. The configuration endpoint retains its original enumeration.
+type RoomPresentationRegistry interface {
+	RoomPresentationConfigurations(context.Context, core.Scope, string) ([]Configuration, error)
 }
 type PresentationSelection struct {
 	SelectionID  string   `json:"selection_id"`
@@ -81,6 +88,14 @@ func (s *PresentationSource) UsesLaunch(l *launch.Service) bool {
 // certificates, credential ownership/lifetime, and aggregate budget evidence.
 // Guests and unseated administrators receive no private AI-seat inventory.
 func (s *PresentationSource) Within(ctx context.Context, tx auth.Transaction, caller auth.SessionData, graph launch.PresentationGraph) ([]PresentationSelection, error) {
+	return s.within(ctx, tx, caller, graph, false)
+}
+
+func (s *PresentationSource) WithinRoom(ctx context.Context, tx auth.Transaction, caller auth.SessionData, graph launch.PresentationGraph) ([]PresentationSelection, error) {
+	return s.within(ctx, tx, caller, graph, true)
+}
+
+func (s *PresentationSource) within(ctx context.Context, tx auth.Transaction, caller auth.SessionData, graph launch.PresentationGraph, room bool) ([]PresentationSelection, error) {
 	if s == nil || s.service.state() == nil || ctx == nil || ctx.Err() != nil || tx == nil {
 		return nil, auth.ErrUnavailable
 	}
@@ -92,6 +107,9 @@ func (s *PresentationSource) Within(ctx context.Context, tx auth.Transaction, ca
 	if !scopeLabelID(g.WorkspaceID) || !scopeLabelID(g.ConfigurationID) || !graphHash(g.ConfigurationHash) || !graphHash(g.GraphHash) || len(g.Seats) < 1 || len(g.Seats) > 64 {
 		return nil, auth.ErrDenied
 	}
+	if room && (g.Scope.WorkspaceID != g.WorkspaceID || !scopeLabelID(g.Scope.RoomID) || !scopeLabelID(g.Scope.GameID)) {
+		return nil, auth.ErrDenied
+	}
 	mt, e := s.service.state().storage.Bind(tx.Core())
 	if e != nil {
 		return nil, auth.SafeError(e)
@@ -100,7 +118,16 @@ func (s *PresentationSource) Within(ctx context.Context, tx auth.Transaction, ca
 	if !ok {
 		return nil, auth.ErrUnavailable
 	}
-	rows, e := registry.PresentationConfigurations(ctx, g.WorkspaceID, g.ConfigurationID)
+	var rows []Configuration
+	if room {
+		roomRegistry, ok := mt.(RoomPresentationRegistry)
+		if !ok {
+			return nil, auth.ErrUnavailable
+		}
+		rows, e = roomRegistry.RoomPresentationConfigurations(ctx, g.Scope, g.ConfigurationID)
+	} else {
+		rows, e = registry.PresentationConfigurations(ctx, g.WorkspaceID, g.ConfigurationID)
+	}
 	if e != nil {
 		return nil, auth.SafeError(e)
 	}
@@ -113,7 +140,7 @@ func (s *PresentationSource) Within(ctx context.Context, tx auth.Transaction, ca
 			return nil, auth.ErrUnavailable
 		}
 		c := row.StorageValue()
-		if c.Scope.WorkspaceID != g.WorkspaceID || c.ConfigurationID != g.ConfigurationID {
+		if c.Scope.WorkspaceID != g.WorkspaceID || c.ConfigurationID != g.ConfigurationID || room && c.Scope != g.Scope {
 			return nil, auth.ErrDenied
 		}
 		if c.Revoked || c.ConfigurationHash != g.ConfigurationHash || c.GraphHash != g.GraphHash {

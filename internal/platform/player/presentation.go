@@ -135,6 +135,14 @@ func (s *PresentationService) encode(v Presentation) (auth.Outcome, error) {
 }
 
 func (s *PresentationService) Read(ctx context.Context, caller launch.Caller, w, id string) (auth.Outcome, error) {
+	return s.read(ctx, caller, w, id, false)
+}
+
+func (s *PresentationService) ReadRoom(ctx context.Context, caller launch.Caller, w, room string) (auth.Outcome, error) {
+	return s.read(ctx, caller, w, room, true)
+}
+
+func (s *PresentationService) read(ctx context.Context, caller launch.Caller, w, id string, room bool) (auth.Outcome, error) {
 	if s == nil || s.players.state() == nil || ctx == nil || ctx.Err() != nil {
 		return auth.Outcome{}, auth.ErrUnavailable
 	}
@@ -149,28 +157,43 @@ func (s *PresentationService) Read(ctx context.Context, caller launch.Caller, w,
 		return auth.Outcome{}, auth.ErrUnavailable
 	}
 	g, ok := d.games[w+"/"+id]
-	if !ok {
+	if !room && !ok {
 		return auth.Outcome{}, auth.ErrDenied
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	var out auth.Outcome
 	e := d.options.Authority.Inspect(ctx, caller.StorageValue().Credential, "", false, func(ctx context.Context, tx auth.Transaction, v auth.SessionData) error {
-		graph, e := d.options.Launch.PlayerPresentationWithin(ctx, tx, v, w, id, g.GameID)
+		var graph launch.PresentationGraph
+		var e error
+		if room {
+			graph, e = d.options.Launch.PlayerRoomPresentationWithin(ctx, tx, v, w, id)
+		} else {
+			graph, e = d.options.Launch.PlayerPresentationWithin(ctx, tx, v, w, id, g.GameID)
+		}
 		if e != nil {
 			return e
 		}
-		models, e := s.models.Within(ctx, tx, v, graph)
+		x := graph.StorageValue()
+		var models []model.PresentationSelection
+		if room {
+			g, ok = d.games[w+"/"+x.ConfigurationID]
+			if !ok || g.GameID != x.Scope.GameID {
+				return auth.ErrDenied
+			}
+			models, e = s.models.WithinRoom(ctx, tx, v, graph)
+		} else {
+			models, e = s.models.Within(ctx, tx, v, graph)
+		}
 		if e != nil {
 			return e
 		}
 		if ctx.Err() != nil {
 			return auth.ErrUnavailable
 		}
-		x := graph.StorageValue()
 		// Lists are complete and owned. Never substitute a catalog, cached graph,
 		// endpoint alias, or a consent/launch/readiness result for these facts.
-		out, e = s.encode(Presentation{w, id, g.GameID, x.ConfigurationHash, x.GraphHash, slices.Clone(x.Packages), models})
+		out, e = s.encode(Presentation{w, x.ConfigurationID, g.GameID, x.ConfigurationHash, x.GraphHash, slices.Clone(x.Packages), models})
 		return e
 	})
 	if e != nil || ctx.Err() != nil {

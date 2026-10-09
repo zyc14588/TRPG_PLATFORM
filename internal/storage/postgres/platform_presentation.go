@@ -13,6 +13,7 @@ import (
 )
 
 var _ model.PresentationRegistry = (*platformModelTransaction)(nil)
+var _ model.RoomPresentationRegistry = (*platformModelTransaction)(nil)
 
 // Counter rows are complete native eight-dimensional records. A missing
 // dimension must not acquire Go's implicit zero value and restore readiness.
@@ -36,10 +37,27 @@ func presentationBudgetUnits(raw []byte) (budget.Units, error) {
 // Enumerate physical identities, then use the original strict point decoder so
 // neither an unbound body nor a forged duplicate column can become authority.
 func (t *platformModelTransaction) PresentationConfigurations(ctx context.Context, w, id string) ([]model.Configuration, error) {
+	return t.presentationConfigurations(ctx, w, id, nil)
+}
+
+func (t *platformModelTransaction) RoomPresentationConfigurations(ctx context.Context, scope core.Scope, id string) ([]model.Configuration, error) {
+	if !store.ValidID(scope.RoomID) || !store.ValidID(scope.GameID) {
+		return nil, auth.ErrDenied
+	}
+	return t.presentationConfigurations(ctx, scope.WorkspaceID, id, &scope)
+}
+
+func (t *platformModelTransaction) presentationConfigurations(ctx context.Context, w, id string, scope *core.Scope) ([]model.Configuration, error) {
 	if t.state() == nil || ctx == nil || ctx.Err() != nil || !store.ValidID(w) || !store.ValidID(id) {
 		return nil, auth.ErrDenied
 	}
-	rows, e := t.state().core.tx.QueryContext(ctx, `SELECT room_id,game_id,seat_id,selection FROM platform_model.configurations WHERE workspace_id=$1 AND configuration_id=$2 ORDER BY room_id,game_id,seat_id,selection LIMIT 65`, w, id)
+	query := `SELECT room_id,game_id,seat_id,selection FROM platform_model.configurations WHERE workspace_id=$1 AND configuration_id=$2 ORDER BY room_id,game_id,seat_id,selection LIMIT 65`
+	args := []any{w, id}
+	if scope != nil {
+		query = `SELECT room_id,game_id,seat_id,selection FROM platform_model.configurations WHERE workspace_id=$1 AND room_id=$2 AND game_id=$3 AND configuration_id=$4 ORDER BY seat_id,selection LIMIT 65`
+		args = []any{w, scope.RoomID, scope.GameID, id}
+	}
+	rows, e := t.state().core.tx.QueryContext(ctx, query, args...)
 	if e != nil {
 		return nil, authStorageError(e)
 	}

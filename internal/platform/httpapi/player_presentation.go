@@ -38,7 +38,7 @@ func NewPlayerPresentationHandler(players *player.Service, rooms *room.Service, 
 }
 func playerPresentationRoute(method, path string) (w, id string, owned, valid bool) {
 	p := strings.Split(path, "/")
-	if len(p) < 7 || p[0] != "" || p[1] != "api" || p[2] != "v1" || p[3] != "workspaces" || p[5] != "games" {
+	if len(p) < 7 || p[0] != "" || p[1] != "api" || p[2] != "v1" || p[3] != "workspaces" || p[5] != "games" && p[5] != "rooms" {
 		return
 	}
 	if len(p) >= 8 && p[7] == "presentation" {
@@ -133,7 +133,13 @@ func (h *PlayerPresentationHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		playerFail(w, e)
 		return
 	}
-	out, e := h.presentation.Read(ctx, auth.RoomSecret(launch.CallerData{Credential: cookie}), workspace, id)
+	caller := auth.RoomSecret(launch.CallerData{Credential: cookie})
+	var out auth.Outcome
+	if strings.Split(r.URL.Path, "/")[5] == "rooms" {
+		out, e = h.presentation.ReadRoom(ctx, caller, workspace, id)
+	} else {
+		out, e = h.presentation.Read(ctx, caller, workspace, id)
+	}
 	if e != nil {
 		playerFail(w, e)
 		return
