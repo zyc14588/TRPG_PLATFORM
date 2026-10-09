@@ -31,7 +31,9 @@
       "type": "object",
       "properties": {
         "package_id": {
-          "$ref": "#/$defs/ID"
+          "type": "string",
+          "maxLength": 255,
+          "pattern": "^[a-z0-9](?:[a-z0-9.-]{0,126}[a-z0-9])?/[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$"
         },
         "version": {
           "type": "string",
