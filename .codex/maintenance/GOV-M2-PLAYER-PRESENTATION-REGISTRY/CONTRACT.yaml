@@ -6,9 +6,14 @@ objective:
   supplemental reading bindings without changing frozen contracts.
 reason: Owner directly approved CHANGE-M2-B010-PLAYER-PRESENTATION-V1 at signed6d5718b5.
   Approval receipt sha256 c871141757063c324594e17f04be232eb27dca80951e50d75ce1919094a469ae.
-source_blocker: Exact native REPAIR missing-contract actual1 at signed6d5718b5, receipt
+source_blocker: 'Exact native REPAIR missing-contract actual1 at signed6d5718b5, receipt
   c8f1de621a0c30c5e6705f3f07087ddec5f86887ff3f26d4fbdc810d0ca34bcd. Current inventory
-  has no presentation sources or exact supplemental binding.
+  has no presentation sources or exact supplemental binding. In-scope ACC-GOV-M2-PLAYER-PRESENTATION-001
+  at signed d51b2f3525e03354c90035084c3a41408afc7c7b: required governance actual1,
+  488 named tests, 479 pass, 9 fail, 0 skip. Only the new positive fixture wrote compact
+  JSON without a standalone x-section-id line. Use MarshalIndent in that new fixture,
+  preserving all assertions and production section parsing; retain original FAIL and
+  run fresh checks.'
 allowed_scope:
 - path: .codex/maintenance/GOV-M2-PLAYER-PRESENTATION-REGISTRY/CONTRACT.yaml
   section_id: GOV-M2-PLAYER-PRESENTATION-REGISTRY

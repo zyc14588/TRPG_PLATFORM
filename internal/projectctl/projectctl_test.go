@@ -2200,7 +2200,7 @@ func writePresentationRoutePair(t *testing.T, a *App) {
 	t.Helper()
 	writePlatformRouteFixture(t, a, playerPresentationDocumentPath,
 		[]byte("---\ndocument_id: "+playerPresentationDocumentID+"\nstatus: ACTIVE\n---\nApproved presentation source.\n"))
-	data, err := json.Marshal(presentationRouteSchemaFixture())
+	data, err := json.MarshalIndent(presentationRouteSchemaFixture(), "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
