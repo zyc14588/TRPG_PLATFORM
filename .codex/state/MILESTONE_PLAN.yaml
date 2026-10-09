@@ -1,6 +1,6 @@
 schema_version: 2
 plan_id: M2-MILESTONE-PLAN
-plan_version: 48
+plan_version: 49
 milestone: M2
 status: ACTIVE
 modifiable_only_in_mode: PLAN
@@ -1082,7 +1082,7 @@ batches:
   frozen_contract_sha256: 5d65d5fa4e239f20579ea05637336831c515fc3b93032a56ecabeecdac21f3e2
 - batch_id: M2-B014
   sequence: 14
-  state: PLANNED
+  state: FROZEN
   objective: Implement and independently verify the exact approved read-only player presentation API as a new-file
     upstream service for the Linux M2 player flow.
   non_goals:
@@ -1242,4 +1242,5 @@ batches:
   parallel_safe: false
   dependency_independent: false
   parallel_scope_keys: []
+  frozen_contract_sha256: ce0fc8f027f78d572a633540797b2e04be9649ec169726e75b3636817eaeb233
 tombstones: []

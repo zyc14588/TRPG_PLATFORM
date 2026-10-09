@@ -4,10 +4,18 @@ schema_version: 1
 document_kind: state-summary
 authority: state-summary
 status: ACTIVE
-source_commit: "6df9760d3b673891a9a9c1904ca36011757214fe"
+source_commit: "42ec093d21dae7dca8d6e0b8ffa7ec4248388466"
 ---
 
 # 里程碑状态
+
+## 当前 Linux M2：B014 玩家游戏说明冻结获批合同
+
+正常 PLAN v48→v49 仅将 M2-B014 PLANNED→FROZEN，冻结摘要 ce0fc8f027f78d572a633540797b2e04be9649ec169726e75b3636817eaeb233。v48 已批准的九项新文件范围、目标、验收、依赖和停止条件全部保持；next15、十四批与十个完成批次保持。B010 仍 IMPLEMENTING 且业务停等，全部字段及冻结摘要 bac1060f0aac5ca9b4142c94a6ba4683748c87fa027fc239980afe5c62b35ac6 原样保持。
+
+B014 生产组合器与真实 HTTPS、独占 PostgreSQL、生产 Lua、live model/包图验证按冻结合同实施。B011 仍负责实际 daemon 启动接入，当前尚未接通；本次状态推进不计业务、独立接收、主线接收或远端提交完成。Linux M2 当前完成10/14，其他平台业务 NOT_RUN。业务仅在独立 IMPLEMENT 原生路由合格工作区执行。
+
+## 此前状态（保留原文）
 
 ## 当前 Linux M2：B014 玩家游戏说明上游批次已规划
 
