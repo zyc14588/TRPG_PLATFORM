@@ -1,0 +1,80 @@
+schema_version: 1
+x-section-id: GOV-M2-PLAYER-PRESENTATION-REGISTRY
+maintenance_id: GOV-M2-PLAYER-PRESENTATION-REGISTRY
+objective:
+- Register only exact approved presentation document/Schema and exact M2 PLAN / B010,B014
+  supplemental reading bindings without changing frozen contracts.
+reason: Owner directly approved CHANGE-M2-B010-PLAYER-PRESENTATION-V1 at signed6d5718b5.
+  Approval receipt sha256 c871141757063c324594e17f04be232eb27dca80951e50d75ce1919094a469ae.
+source_blocker: Exact native REPAIR missing-contract actual1 at signed6d5718b5, receipt
+  c8f1de621a0c30c5e6705f3f07087ddec5f86887ff3f26d4fbdc810d0ca34bcd. Current inventory
+  has no presentation sources or exact supplemental binding.
+allowed_scope:
+- path: .codex/maintenance/GOV-M2-PLAYER-PRESENTATION-REGISTRY/CONTRACT.yaml
+  section_id: GOV-M2-PLAYER-PRESENTATION-REGISTRY
+  kind: machine-contract
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG
+  kind: production-code
+- path: internal/projectctl/codex_catalog.go
+  section_id: PROJECTCTL-CODEX-CATALOG
+  kind: production-code
+- path: internal/projectctl/codex.go
+  section_id: PROJECTCTL-CODEX-ROUTING
+  kind: production-code
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-NORMATIVE-CATALOG-TESTS
+  kind: test
+- path: internal/projectctl/projectctl_test.go
+  section_id: PROJECTCTL-CODEX-ROUTE-TESTS
+  kind: test
+forbidden_scope:
+- No existing public contract, business implementation, frozen/completed batch, dependency,
+  license, Lua, other-platform or unrelated changes.
+- The approved new docs/20-architecture/PLAYER_PRESENTATION_API.md and schemas/platform/platform-player-presentation-api-v1.schema.json
+  are adopted only through normal PLAN, not added to the governance product-write
+  allowlist.
+normative_references:
+- path: docs/00-governance/IMPLEMENTATION_GOVERNANCE.md
+  section_id: SPEC-IMPLEMENTATION-GOV-MAINTENANCE
+  kind: normative-section
+- path: docs/00-governance/CHANGE_CONTROL.md
+  section_id: SPEC-CHANGE-CONTROL-TRIGGERS
+  kind: normative-section
+acceptance:
+- Only exact stable presentation document/Schema paths and IDs registered; optional
+  absent pair stays unloaded; requested missing/malformed/DRAFT/unknown/symlink sources
+  fail closed.
+- Compile root and every local Schema definition with external loading denied, duplicate-key
+  and resource bounds.
+- Native supplement only M2 PLAN and B010/B014 IMPLEMENT/ACCEPT/REPAIR; both exact
+  adopted sources source/hash bound; other targets unchanged; frozen refs/digests
+  never rewritten.
+- Append independent regressions without altering old assertions; native route/check/signature,
+  projectctl, just check/test, vet and Linux CI pass on clean signed source.
+tests:
+- go test -count=1 -json ./internal/projectctl
+- just check
+- just test
+- go vet ./...
+- Linux just ci
+- projectctl codex route --mode REPAIR --maintenance GOV-M2-PLAYER-PRESENTATION-REGISTRY
+- projectctl codex route --mode ACCEPT --maintenance GOV-M2-PLAYER-PRESENTATION-REGISTRY
+- projectctl codex check
+stop_conditions:
+- Stop on unapproved scope/API/permissions, stale route or required verification failure;
+  preserve actual FAIL/NOT_RUN evidence.
+- Bootstrap020 permits this exact contract only and expires before production edits
+  after formal signed REPAIR reading/check0.
+bootstrap:
+  bootstrap_id: GOVERNANCE-MAINTENANCE-BOOTSTRAP-020
+  authorization: Direct human 批准 to the sealed proposal, receipt sha256 c871141757063c324594e17f04be232eb27dca80951e50d75ce1919094a469ae.
+    Missing-contract actual1 independently captured above.
+  allowed_scope:
+  - Create only .codex/maintenance/GOV-M2-PLAYER-PRESENTATION-REGISTRY/CONTRACT.yaml
+    before any code or product adoption.
+  retirement_condition: Permanently retire after formal signed REPAIR/native reading/codex
+    check0 before production edits.
+  status: AUTHORIZED_ONCE
+  retirement_evidence: []
+status: ACTIVE
