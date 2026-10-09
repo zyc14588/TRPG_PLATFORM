@@ -1198,6 +1198,7 @@ func (a *App) checkScope(ctx context.Context) error {
 // x-section-id: PROJECTCTL-FRONTEND-BOUNDARY-CONTRACT
 const (
 	creatorExtensionCapabilitySentinel = "schemas/package/manifest-v2.schema.json"
+	webPlayerCapabilitySentinel        = "apps/web-player/src/player.ts"
 	webPlayerFrontendPath              = "apps/web-player/src/App.tsx"
 	creatorFrontendPath                = "apps/creator-studio/frontend/src/App.tsx"
 	frontendM0RestartMarker            = "V1 restart baseline"
@@ -1210,8 +1211,9 @@ const (
 )
 
 type frontendBoundaryContract struct {
-	path     string
-	required []string
+	path      string
+	required  []string
+	forbidden []string
 }
 
 type lstatFunc func(string) (fs.FileInfo, error)
@@ -1221,7 +1223,20 @@ func (a *App) frontendBoundaryContracts() ([]frontendBoundaryContract, error) {
 }
 
 func (a *App) frontendBoundaryContractsWithLstat(lstat lstatFunc) ([]frontendBoundaryContract, error) {
-	contracts := []frontendBoundaryContract{m0FrontendBoundaryContract(webPlayerFrontendPath)}
+	contracts := []frontendBoundaryContract{}
+	playerSentinel := filepath.Join(a.root, filepath.FromSlash(webPlayerCapabilitySentinel))
+	playerInfo, playerErr := lstat(playerSentinel)
+	switch {
+	case playerErr == nil:
+		if playerInfo == nil || !playerInfo.Mode().IsRegular() {
+			return nil, fmt.Errorf("Player capability sentinel %s is not a regular file", webPlayerCapabilitySentinel)
+		}
+		contracts = append(contracts, frontendBoundaryContract{path: webPlayerFrontendPath, forbidden: []string{frontendM0RestartMarker, frontendM0NoPlayableMarker, frontendM0ShellMarker}})
+	case errors.Is(playerErr, fs.ErrNotExist):
+		contracts = append(contracts, m0FrontendBoundaryContract(webPlayerFrontendPath))
+	default:
+		return nil, fmt.Errorf("inspect Player capability sentinel %s: %w", webPlayerCapabilitySentinel, playerErr)
+	}
 	sentinel := filepath.Join(a.root, filepath.FromSlash(creatorExtensionCapabilitySentinel))
 	info, err := lstat(sentinel)
 	switch {
@@ -1265,6 +1280,11 @@ func (a *App) checkFrontendBoundaryCopy(contracts []frontendBoundaryContract) er
 		for _, marker := range contract.required {
 			if !bytes.Contains(data, []byte(marker)) {
 				problems.add("%s is missing frontend boundary marker %q", contract.path, marker)
+			}
+		}
+		for _, marker := range contract.forbidden {
+			if bytes.Contains(data, []byte(marker)) {
+				problems.add("%s contains obsolete frontend boundary marker %q", contract.path, marker)
 			}
 		}
 	}

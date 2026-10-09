@@ -148,20 +148,20 @@ func (unexpectedCapabilitySentinelError) Error() string {
 
 func TestFrontendBoundarySelectorBaseline(t *testing.T) {
 	a := &App{root: t.TempDir()}
-	wantSentinel := filepath.Join(a.root, filepath.FromSlash(creatorExtensionCapabilitySentinel))
+	wantSentinels := []string{filepath.Join(a.root, filepath.FromSlash(webPlayerCapabilitySentinel)), filepath.Join(a.root, filepath.FromSlash(creatorExtensionCapabilitySentinel))}
 	calls := 0
 	contracts, err := a.frontendBoundaryContractsWithLstat(func(path string) (fs.FileInfo, error) {
-		calls++
-		if path != wantSentinel {
-			t.Fatalf("Lstat path = %q, want %q", path, wantSentinel)
+		if calls >= len(wantSentinels) || path != wantSentinels[calls] {
+			t.Fatalf("unexpected Lstat call %d: %q", calls, path)
 		}
+		calls++
 		return nil, fs.ErrNotExist
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calls != 1 {
-		t.Fatalf("Lstat calls = %d, want 1", calls)
+	if calls != 2 {
+		t.Fatalf("Lstat calls = %d, want 2", calls)
 	}
 	assertFrontendBoundaryContract(t, contracts, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
 	assertFrontendBoundaryContract(t, contracts, creatorFrontendPath, m0FrontendBoundaryContract(creatorFrontendPath).required)
@@ -169,9 +169,7 @@ func TestFrontendBoundarySelectorBaseline(t *testing.T) {
 
 func TestFrontendBoundarySelectorCapability(t *testing.T) {
 	a := &App{root: t.TempDir()}
-	contracts, err := a.frontendBoundaryContractsWithLstat(func(string) (fs.FileInfo, error) {
-		return frontendBoundaryFileInfo{}, nil
-	})
+	contracts, err := a.frontendBoundaryContractsWithLstat(creatorOnlyLstat(t, a, frontendBoundaryFileInfo{}, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,9 +189,7 @@ func TestCapabilitySentinelErrorsFailClosed(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			a := &App{root: t.TempDir()}
-			contracts, err := a.frontendBoundaryContractsWithLstat(func(string) (fs.FileInfo, error) {
-				return nil, test.err
-			})
+			contracts, err := a.frontendBoundaryContractsWithLstat(creatorOnlyLstat(t, a, nil, test.err))
 			if err == nil {
 				t.Fatal("selector unexpectedly accepted a sentinel inspection error")
 			}
@@ -241,9 +237,7 @@ func TestCapabilitySentinelSymlinkFailsClosed(t *testing.T) {
 
 func TestCapabilitySentinelOtherNonRegularFailsClosed(t *testing.T) {
 	a := &App{root: t.TempDir()}
-	contracts, err := a.frontendBoundaryContractsWithLstat(func(string) (fs.FileInfo, error) {
-		return frontendBoundaryFileInfo{mode: fs.ModeNamedPipe}, nil
-	})
+	contracts, err := a.frontendBoundaryContractsWithLstat(creatorOnlyLstat(t, a, frontendBoundaryFileInfo{mode: fs.ModeNamedPipe}, nil))
 	if err == nil || !strings.Contains(err.Error(), "not a regular file") {
 		t.Fatalf("named-pipe sentinel error = %v, want non-regular failure", err)
 	}
@@ -345,9 +339,7 @@ func TestCapabilitySentinelErrorOverridesValidFrontendCopy(t *testing.T) {
 	a := newFrontendBoundaryFixture(t)
 	writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
 	writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, genericCreatorBoundaryContract().required)
-	err := a.checkFrontendBoundariesWithLstat(func(string) (fs.FileInfo, error) {
-		return nil, fs.ErrPermission
-	})
+	err := a.checkFrontendBoundariesWithLstat(creatorOnlyLstat(t, a, nil, fs.ErrPermission))
 	if err == nil || !errors.Is(err, fs.ErrPermission) || !strings.Contains(err.Error(), "inspect Creator capability sentinel") {
 		t.Fatalf("sentinel inspection error = %v, want fail-closed permission failure", err)
 	}
@@ -408,6 +400,252 @@ func withoutFrontendBoundaryMarker(markers []string, missing string) []string {
 		}
 	}
 	return result
+}
+
+func creatorOnlyLstat(t *testing.T, a *App, info fs.FileInfo, err error) lstatFunc {
+	t.Helper()
+	calls := 0
+	t.Cleanup(func() {
+		if calls != 2 {
+			t.Errorf("Lstat calls = %d, want 2", calls)
+		}
+	})
+	return func(path string) (fs.FileInfo, error) {
+		calls++
+		switch {
+		case calls == 1 && path == filepath.Join(a.root, filepath.FromSlash(webPlayerCapabilitySentinel)):
+			return nil, fs.ErrNotExist
+		case calls == 2 && path == filepath.Join(a.root, filepath.FromSlash(creatorExtensionCapabilitySentinel)):
+			return info, err
+		default:
+			t.Fatalf("unexpected Lstat call %d: %q", calls, path)
+			return nil, fs.ErrInvalid
+		}
+	}
+}
+
+func TestFrontendBoundaryPlayerAndCreatorMatrix(t *testing.T) {
+	for _, playerPresent := range []bool{false, true} {
+		for _, creatorPresent := range []bool{false, true} {
+			name := "player=" + strconv.FormatBool(playerPresent) + "/creator=" + strconv.FormatBool(creatorPresent)
+			t.Run(name, func(t *testing.T) {
+				a := newFrontendBoundaryFixture(t)
+				playerCopy := m0FrontendBoundaryContract(webPlayerFrontendPath).required
+				if playerPresent {
+					writeFrontendBoundaryFile(t, a.root, webPlayerCapabilitySentinel, []string{"export class Player {}"})
+					playerCopy = []string{"选择游戏，与朋友一起开始冒险。"}
+				}
+				creatorCopy := m0FrontendBoundaryContract(creatorFrontendPath).required
+				if creatorPresent {
+					writeCapabilitySentinel(t, a.root)
+					creatorCopy = genericCreatorBoundaryContract().required
+				}
+				writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, playerCopy)
+				writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, creatorCopy)
+				contracts, err := a.frontendBoundaryContracts()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(contracts) != 2 || contracts[0].path != webPlayerFrontendPath || contracts[1].path != creatorFrontendPath {
+					t.Fatalf("unexpected contracts: %#v", contracts)
+				}
+				if playerPresent {
+					if len(contracts[0].required) != 0 || strings.Join(contracts[0].forbidden, "\x00") != strings.Join(m0FrontendBoundaryContract(webPlayerFrontendPath).required, "\x00") {
+						t.Fatalf("player capability imposes incorrect copy requirements: %#v", contracts[0])
+					}
+				} else {
+					assertFrontendBoundaryContract(t, contracts, webPlayerFrontendPath, playerCopy)
+					if len(contracts[0].forbidden) != 0 {
+						t.Fatalf("baseline has forbidden markers: %#v", contracts[0])
+					}
+				}
+				assertFrontendBoundaryContract(t, contracts, creatorFrontendPath, creatorCopy)
+				if len(contracts[1].forbidden) != 0 {
+					t.Fatalf("Creator semantics changed: %#v", contracts[1])
+				}
+				if err := a.checkFrontendBoundaries(); err != nil {
+					t.Fatal(err)
+				}
+				if playerPresent {
+					for _, obsolete := range m0FrontendBoundaryContract(webPlayerFrontendPath).required {
+						t.Run("reject_"+obsolete, func(t *testing.T) {
+							writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, append(append([]string{}, playerCopy...), obsolete))
+							err := a.checkFrontendBoundaries()
+							if err == nil || !strings.Contains(err.Error(), webPlayerFrontendPath) || !strings.Contains(err.Error(), obsolete) || !strings.Contains(err.Error(), "obsolete") {
+								t.Fatalf("obsolete marker %q error = %v", obsolete, err)
+							}
+						})
+					}
+					writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, playerCopy)
+				}
+				for _, missing := range creatorCopy {
+					t.Run("creator_requires_"+missing, func(t *testing.T) {
+						writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, withoutFrontendBoundaryMarker(creatorCopy, missing))
+						err := a.checkFrontendBoundaries()
+						if err == nil || !strings.Contains(err.Error(), creatorFrontendPath) || !strings.Contains(err.Error(), missing) {
+							t.Fatalf("missing Creator marker %q error = %v", missing, err)
+						}
+					})
+				}
+			})
+		}
+	}
+}
+
+func TestPlayerCapabilitySentinelFailuresAreClosed(t *testing.T) {
+	tests := []struct {
+		name string
+		info fs.FileInfo
+		err  error
+	}{
+		{name: "nil_info"},
+		{name: "directory", info: frontendBoundaryFileInfo{mode: fs.ModeDir}},
+		{name: "symlink", info: frontendBoundaryFileInfo{mode: fs.ModeSymlink}},
+		{name: "pipe", info: frontendBoundaryFileInfo{mode: fs.ModeNamedPipe}},
+		{name: "device", info: frontendBoundaryFileInfo{mode: fs.ModeDevice}},
+		{name: "character_device", info: frontendBoundaryFileInfo{mode: fs.ModeDevice | fs.ModeCharDevice}},
+		{name: "socket", info: frontendBoundaryFileInfo{mode: fs.ModeSocket}},
+		{name: "permission", err: fs.ErrPermission},
+		{name: "io", err: io.ErrUnexpectedEOF},
+		{name: "unexpected", err: unexpectedCapabilitySentinelError{}},
+		{name: "not_exist_text_is_not_absence", err: errors.New("file does not exist")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			a := newFrontendBoundaryFixture(t)
+			// Even otherwise valid copy cannot override a failed capability inspection.
+			writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
+			writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, m0FrontendBoundaryContract(creatorFrontendPath).required)
+			calls := 0
+			inspect := func(path string) (fs.FileInfo, error) {
+				calls++
+				if path != filepath.Join(a.root, filepath.FromSlash(webPlayerCapabilitySentinel)) {
+					t.Fatalf("unexpected Lstat path %q", path)
+				}
+				return test.info, test.err
+			}
+			contracts, err := a.frontendBoundaryContractsWithLstat(inspect)
+			if contracts != nil || err == nil || !strings.Contains(err.Error(), webPlayerCapabilitySentinel) {
+				t.Fatalf("failed sentinel contracts=%#v error=%v", contracts, err)
+			}
+			if test.err != nil && !errors.Is(err, test.err) {
+				t.Fatalf("error %v does not preserve inspection error %v", err, test.err)
+			}
+			if test.err == nil && !strings.Contains(err.Error(), "not a regular file") {
+				t.Fatalf("malformed sentinel error = %v", err)
+			}
+			if calls != 1 {
+				t.Fatalf("Lstat calls = %d, want 1", calls)
+			}
+			if err := a.checkFrontendBoundariesWithLstat(inspect); err == nil {
+				t.Fatal("valid frontend copy bypassed a failed sentinel inspection")
+			}
+		})
+	}
+}
+
+func TestPlayerCapabilityTrueAbsenceKeepsBaseline(t *testing.T) {
+	for _, absence := range []error{fs.ErrNotExist, &fs.PathError{Op: "lstat", Path: webPlayerCapabilitySentinel, Err: fs.ErrNotExist}} {
+		a := newFrontendBoundaryFixture(t)
+		calls := 0
+		contracts, err := a.frontendBoundaryContractsWithLstat(func(path string) (fs.FileInfo, error) {
+			calls++
+			switch path {
+			case filepath.Join(a.root, filepath.FromSlash(webPlayerCapabilitySentinel)):
+				return nil, absence
+			case filepath.Join(a.root, filepath.FromSlash(creatorExtensionCapabilitySentinel)):
+				return nil, fs.ErrNotExist
+			default:
+				t.Fatalf("unexpected Lstat path %q", path)
+				return nil, fs.ErrInvalid
+			}
+		})
+		if err != nil || calls != 2 {
+			t.Fatalf("absence error = %v, calls = %d", err, calls)
+		}
+		assertFrontendBoundaryContract(t, contracts, webPlayerFrontendPath, m0FrontendBoundaryContract(webPlayerFrontendPath).required)
+	}
+}
+
+func TestCreatorSentinelFailuresRemainClosedWithPlayerCapability(t *testing.T) {
+	tests := []struct {
+		name string
+		info fs.FileInfo
+		err  error
+	}{
+		{name: "nil_info"},
+		{name: "directory", info: frontendBoundaryFileInfo{mode: fs.ModeDir}},
+		{name: "symlink", info: frontendBoundaryFileInfo{mode: fs.ModeSymlink}},
+		{name: "pipe", info: frontendBoundaryFileInfo{mode: fs.ModeNamedPipe}},
+		{name: "device", info: frontendBoundaryFileInfo{mode: fs.ModeDevice}},
+		{name: "socket", info: frontendBoundaryFileInfo{mode: fs.ModeSocket}},
+		{name: "permission", err: fs.ErrPermission},
+		{name: "io", err: io.ErrUnexpectedEOF},
+		{name: "unexpected", err: unexpectedCapabilitySentinelError{}},
+	}
+	for _, playerPresent := range []bool{false, true} {
+		for _, test := range tests {
+			t.Run("player="+strconv.FormatBool(playerPresent)+"/"+test.name, func(t *testing.T) {
+				a := newFrontendBoundaryFixture(t)
+				calls := 0
+				contracts, err := a.frontendBoundaryContractsWithLstat(func(path string) (fs.FileInfo, error) {
+					calls++
+					switch {
+					case calls == 1 && path == filepath.Join(a.root, filepath.FromSlash(webPlayerCapabilitySentinel)):
+						if playerPresent {
+							return frontendBoundaryFileInfo{}, nil
+						}
+						return nil, fs.ErrNotExist
+					case calls == 2 && path == filepath.Join(a.root, filepath.FromSlash(creatorExtensionCapabilitySentinel)):
+						return test.info, test.err
+					default:
+						t.Fatalf("unexpected Lstat call %d: %q", calls, path)
+						return nil, fs.ErrInvalid
+					}
+				})
+				if contracts != nil || err == nil || !strings.Contains(err.Error(), creatorExtensionCapabilitySentinel) || calls != 2 {
+					t.Fatalf("contracts=%#v error=%v calls=%d", contracts, err, calls)
+				}
+				if test.err != nil && !errors.Is(err, test.err) {
+					t.Fatalf("error %v does not preserve inspection error %v", err, test.err)
+				}
+				if test.err == nil && !strings.Contains(err.Error(), "not a regular file") {
+					t.Fatalf("malformed sentinel error = %v", err)
+				}
+			})
+		}
+	}
+}
+
+func TestPlayerCapabilityStillRequiresReadableApp(t *testing.T) {
+	for _, directory := range []bool{false, true} {
+		t.Run("directory="+strconv.FormatBool(directory), func(t *testing.T) {
+			a := newFrontendBoundaryFixture(t)
+			writeFrontendBoundaryFile(t, a.root, webPlayerCapabilitySentinel, []string{"export class Player {}"})
+			writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, m0FrontendBoundaryContract(creatorFrontendPath).required)
+			if directory {
+				if err := os.MkdirAll(filepath.Join(a.root, filepath.FromSlash(webPlayerFrontendPath)), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			err := a.checkFrontendBoundaries()
+			if err == nil || !strings.Contains(err.Error(), "read frontend boundary "+webPlayerFrontendPath) {
+				t.Fatalf("unreadable player App error = %v", err)
+			}
+		})
+	}
+}
+
+func TestPlayerCopyCannotSelfSelectCapability(t *testing.T) {
+	a := newFrontendBoundaryFixture(t)
+	writeFrontendBoundaryFile(t, a.root, webPlayerFrontendPath, []string{"选择游戏，与朋友一起开始冒险。"})
+	writeFrontendBoundaryFile(t, a.root, creatorFrontendPath, m0FrontendBoundaryContract(creatorFrontendPath).required)
+	err := a.checkFrontendBoundaries()
+	for _, marker := range m0FrontendBoundaryContract(webPlayerFrontendPath).required {
+		if err == nil || !strings.Contains(err.Error(), marker) {
+			t.Fatalf("copy without the player module must retain baseline marker %q: %v", marker, err)
+		}
+	}
 }
 
 // x-section-id: PROJECTCTL-CODEX-ROUTE-TESTS
@@ -2623,6 +2861,32 @@ func newSuccessorPlanningFixture(t *testing.T) *App {
 		paths = append(paths, relative)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		t.Fatal(err)
+	}
+	// This fixture intentionally models the predecessor before its successor scope exists.
+	// Exclude only contracts whose normative references require that removed scope.
+	contracts, err := filepath.Glob(filepath.Join(a.root, ".codex", "maintenance", "*", "CONTRACT.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range contracts {
+		contractPath, err := filepath.Rel(a.root, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		contract, err := loadYAML[governanceMaintenanceContract](a.root, contractPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, reference := range contract.NormativeReferences {
+			if reference.Path != relative {
+				continue
+			}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			paths = append(paths, filepath.ToSlash(contractPath))
+			break
+		}
 	}
 	commitFixturePaths(t, a, "completed predecessor without successor scope", paths...)
 	return a
