@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:trpg-platform:platform-player-presentation-api:v1",
+  "x-section-id": "SCHEMA-PLATFORM-PLAYER-PRESENTATION-API-V1",
+  "x-status": "ACTIVE",
+  "$comment": "SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0. Owner approval required under CHANGE-M2-B010-PLAYER-PRESENTATION-V1. This separate additive contract does not rewrite the accepted15 player routes or39 definitions.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/PresentationResponse"
+    },
+    {
+      "$ref": "#/$defs/ErrorResponse"
+    }
+  ],
+  "$defs": {
+    "ID": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    },
+    "Digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "Label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[^\\x00-\\x1F\\x7F]+$"
+    },
+    "Package": {
+      "type": "object",
+      "properties": {
+        "package_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "title": {
+          "$ref": "#/$defs/Label"
+        },
+        "artifact_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "rights_digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ID"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "package_id",
+        "version",
+        "title",
+        "artifact_digest",
+        "rights_digest",
+        "license",
+        "permissions"
+      ],
+      "additionalProperties": false
+    },
+    "ModelSelection": {
+      "type": "object",
+      "properties": {
+        "selection_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "label": {
+          "$ref": "#/$defs/Label"
+        },
+        "seat_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ID"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ID"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "ready": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "selection_id",
+        "label",
+        "seat_ids",
+        "capabilities",
+        "ready"
+      ],
+      "additionalProperties": false
+    },
+    "Presentation": {
+      "type": "object",
+      "properties": {
+        "workspace_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "configuration_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "game_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "configuration_hash": {
+          "$ref": "#/$defs/Digest"
+        },
+        "graph_hash": {
+          "$ref": "#/$defs/Digest"
+        },
+        "packages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Package"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "model_selections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ModelSelection"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "workspace_id",
+        "configuration_id",
+        "game_id",
+        "configuration_hash",
+        "graph_hash",
+        "packages",
+        "model_selections"
+      ],
+      "additionalProperties": false
+    },
+    "PresentationResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "data": {
+          "$ref": "#/$defs/Presentation"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "request_id": {
+          "$ref": "#/$defs/ID"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "INVALID_REQUEST",
+                "UNAUTHENTICATED",
+                "DENIED",
+                "CONFLICT",
+                "CLAIM_REQUIRED",
+                "RATE_LIMITED",
+                "UNAVAILABLE",
+                "OUTCOME_UNKNOWN",
+                "PLAYER_PAUSED",
+                "PLAYER_CONNECTION_EXPIRED"
+              ]
+            },
+            "message": {
+              "enum": [
+                "Invalid request",
+                "Authentication required",
+                "Request denied",
+                "Request conflicts",
+                "Guest claim required",
+                "Request limit reached",
+                "Service unavailable",
+                "Commit outcome unknown",
+                "Game paused",
+                "Reconnect required"
+              ]
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "request_id",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
