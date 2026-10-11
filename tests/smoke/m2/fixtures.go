@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -2869,8 +2870,15 @@ func daemonKernel(v daemonBirth) (daemonBirth, string, error) {
 	return v, f[0], nil
 }
 func observeDaemon(ctx context.Context, c m2.Config, service, executable string, compose Compose, command Command) (daemonBirth, error) {
-	expected := map[string]string{"workerd": "/app/workerd", "platformd": "/app/platformd", "lua-runner": "/app/lua-supervisord"}
-	if expected[service] == "" || expected[service] != executable {
+	// These are the fixed serving commands in deploy/m2/compose.yaml, not
+	// commands inferred from the process table or a daemon's own claims.
+	expected := map[string][]string{
+		"workerd":    {"/app/workerd", "m2-serve", "--config=/run/operator/config.json"},
+		"platformd":  {"/app/platformd", "m2-serve", "--config=/run/operator/config.json"},
+		"lua-runner": {"/app/lua-supervisord", "--config=/run/operator/config.json"},
+	}
+	argv := expected[service]
+	if len(argv) == 0 || argv[0] != executable {
 		return daemonBirth{}, m2.ErrPrivate
 	}
 	raw, e := compose(ctx, "ps", "--quiet", service)
@@ -2887,24 +2895,60 @@ func observeDaemon(ctx context.Context, c m2.Config, service, executable string,
 	if e != nil {
 		return v, e
 	}
-	count := 0
-	for _, line := range strings.Split(string(raw), "\n") {
-		f := strings.Fields(line)
-		if len(f) < 3 || f[2] != executable {
-			continue
-		}
-		pid, e := strconv.Atoi(f[0])
-		if e != nil {
-			return v, m2.ErrPrivate
-		}
-		v.PID = pid
-		count++
-	}
-	if count != 1 {
-		return v, m2.ErrPrivate
+	v.PID, e = servingDaemonPID(raw, v.InitPID, argv)
+	if e != nil {
+		return v, e
 	}
 	v, _, e = daemonKernel(v)
+	if e == nil && v.Parent != v.InitPID {
+		return v, m2.ErrPrivate
+	}
 	return v, e
+}
+
+// Health probes may use the same binary concurrently. Only the exact serving
+// command under this container's init participates in daemon uniqueness.
+// The selected PID still needs every daemonKernel check before it can be used.
+func servingDaemonPID(raw []byte, initPID int, argv []string) (int, error) {
+	if initPID < 1 || len(argv) == 0 {
+		return 0, m2.ErrPrivate
+	}
+	header := false
+	seen := map[int]bool{}
+	selected := 0
+	for _, line := range strings.Split(string(raw), "\n") {
+		f := strings.Fields(line)
+		if len(f) == 0 {
+			continue
+		}
+		if !header {
+			if !slices.Equal(f, []string{"PID", "PPID", "COMMAND"}) {
+				return 0, m2.ErrPrivate
+			}
+			header = true
+			continue
+		}
+		if len(f) < 3 {
+			return 0, m2.ErrPrivate
+		}
+		pid, pe := strconv.Atoi(f[0])
+		parent, ie := strconv.Atoi(f[1])
+		if pe != nil || ie != nil || pid < 1 || parent < 1 || pid == parent || strconv.Itoa(pid) != f[0] || strconv.Itoa(parent) != f[1] || seen[pid] {
+			return 0, m2.ErrPrivate
+		}
+		seen[pid] = true
+		if parent != initPID || !slices.Equal(f[2:], argv) {
+			continue
+		}
+		if selected != 0 {
+			return 0, m2.ErrPrivate
+		}
+		selected = pid
+	}
+	if selected == 0 {
+		return 0, m2.ErrPrivate
+	}
+	return selected, nil
 }
 func revalidateDaemon(ctx context.Context, v daemonBirth, command Command) (string, error) {
 	current, e := daemonContainer(ctx, v.Container, command)

@@ -5,12 +5,18 @@ package m2smoke
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/zyc14588/TRPG_PLATFORM/internal/deployment/m2"
 )
 
 func snapshotTestLobby(t *testing.T, handler http.HandlerFunc) *Lobby {
@@ -218,6 +224,140 @@ func TestInventoryRequiresSixKnownDistinctServicesAndOnlyProxyTLS(t *testing.T) 
 			raw, _ := json.Marshal(v)
 			if _, ready, e := ServiceInventory(raw); e == nil && ready {
 				t.Fatal("bad inventory counted as healthy deployment")
+			}
+		})
+	}
+}
+
+func TestServingDaemonPIDIgnoresConcurrentHealthProbes(t *testing.T) {
+	for _, tc := range []struct {
+		name, executable string
+		serve, health    []string
+	}{
+		{"workerd", "/app/workerd", []string{"m2-serve"}, []string{"m2-health"}},
+		{"platformd", "/app/platformd", []string{"m2-serve"}, []string{"m2-health"}},
+		{"lua-runner", "/app/lua-supervisord", nil, []string{"--mode=health"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			argv := append([]string{tc.executable}, tc.serve...)
+			argv = append(argv, "--config=/run/operator/config.json")
+			health := append([]string{tc.executable}, tc.health...)
+			health = append(health, "--config=/run/operator/config.json")
+			rows := []string{
+				"100 90 /sbin/docker-init -- " + strings.Join(argv, " "),
+				"101 100 " + strings.Join(argv, " "),
+				"102 90 " + strings.Join(health, " "),
+				"103 100 " + strings.Join(health, " "),
+			}
+			// Both the observed Docker topology and reordered rows must select
+			// the serving init child, even when a probe shares its parent.
+			for _, order := range [][]int{{0, 1, 2, 3}, {3, 2, 1, 0}} {
+				top := "PID PPID COMMAND\n"
+				for _, index := range order {
+					top += rows[index] + "\n"
+				}
+				pid, e := servingDaemonPID([]byte(top), 100, argv)
+				if e != nil || pid != 101 {
+					t.Fatalf("serving child obscured by health probe: pid=%d error=%v", pid, e)
+				}
+			}
+		})
+	}
+}
+
+func TestServingDaemonPIDRejectsMissingDuplicateAndAmbiguousTargets(t *testing.T) {
+	argv := []string{"/app/workerd", "m2-serve", "--config=/run/operator/config.json"}
+	serve := "101 100 " + strings.Join(argv, " ") + "\n"
+	for _, tc := range []struct{ name, rows string }{
+		{"absent", "100 90 /sbin/docker-init -- /app/workerd m2-serve --config=/run/operator/config.json\n"},
+		{"health-only", "102 90 /app/workerd m2-health --config=/run/operator/config.json\n"},
+		{"duplicate-serving", serve + "102 100 /app/workerd m2-serve --config=/run/operator/config.json\n"},
+		{"duplicate-pid", serve + "101 90 /app/workerd m2-health --config=/run/operator/config.json\n"},
+		{"wrong-parent", "101 90 /app/workerd m2-serve --config=/run/operator/config.json\n"},
+		{"wrong-executable", "101 100 /app/workerd-copy m2-serve --config=/run/operator/config.json\n"},
+		{"wrong-mode", "101 100 /app/workerd m2-health --config=/run/operator/config.json\n"},
+		{"wrong-config", "101 100 /app/workerd m2-serve --config=/run/operator/other.json\n"},
+		{"missing-config", "101 100 /app/workerd m2-serve\n"},
+		{"extra-argument", serve[:len(serve)-1] + " --mode=health\n"},
+		{"duplicate-config", serve[:len(serve)-1] + " --config=/run/operator/config.json\n"},
+		{"reordered-command", "101 100 /app/workerd --config=/run/operator/config.json m2-serve\n"},
+		{"invalid-pid", "bad 100 /app/workerd m2-serve --config=/run/operator/config.json\n"},
+		{"invalid-parent", "101 bad /app/workerd m2-serve --config=/run/operator/config.json\n"},
+		{"zero-pid", "0 100 /app/workerd m2-serve --config=/run/operator/config.json\n"},
+		{"negative-parent", "101 -100 /app/workerd m2-serve --config=/run/operator/config.json\n"},
+		{"noncanonical-pid", "0101 100 /app/workerd m2-serve --config=/run/operator/config.json\n"},
+		{"self-parent", "100 100 /app/workerd m2-serve --config=/run/operator/config.json\n"},
+		{"malformed-unrelated-row", serve + "102 90\n"},
+		{"repeated-header", serve + "PID PPID COMMAND\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pid, e := servingDaemonPID([]byte("PID PPID COMMAND\n"+tc.rows), 100, argv)
+			if !errors.Is(e, m2.ErrPrivate) || pid != 0 {
+				t.Fatalf("invalid target selected: pid=%d error=%v", pid, e)
+			}
+		})
+	}
+	for _, raw := range []string{"", serve, "PID COMMAND\n" + serve} {
+		if _, e := servingDaemonPID([]byte(raw), 100, argv); !errors.Is(e, m2.ErrPrivate) {
+			t.Fatal("missing or ambiguous columns accepted")
+		}
+	}
+	for _, init := range []int{0, -1} {
+		if _, e := servingDaemonPID([]byte("PID PPID COMMAND\n"+serve), init, argv); !errors.Is(e, m2.ErrPrivate) {
+			t.Fatal("unbound init accepted")
+		}
+	}
+}
+
+func TestObserveDaemonRetainsContainerAndKernelBinding(t *testing.T) {
+	container := strings.Repeat("a", 64)
+	c := m2.Config{DeploymentID: "owned-test-project", Source: "owned-test-source"}
+	for _, fault := range []string{"selected-host-pid", "wrong-project", "wrong-source", "wrong-container", "invalid-image", "not-running", "invalid-init", "unknown-service", "wrong-executable"} {
+		t.Run(fault, func(t *testing.T) {
+			binding := map[string]any{"container": container, "image": "sha256:" + strings.Repeat("b", 64), "project": c.DeploymentID, "source": c.Source, "init_pid": os.Getppid(), "running": true}
+			service, executable := "workerd", "/app/workerd"
+			switch fault {
+			case "wrong-project":
+				binding["project"] = "other-project"
+			case "wrong-source":
+				binding["source"] = "other-source"
+			case "wrong-container":
+				binding["container"] = strings.Repeat("c", 64)
+			case "invalid-image":
+				binding["image"] = "unbound-image"
+			case "not-running":
+				binding["running"] = false
+			case "invalid-init":
+				binding["init_pid"] = 0
+			case "unknown-service":
+				service = "other-service"
+			case "wrong-executable":
+				executable = "/app/workerd-copy"
+			}
+			compose := func(context.Context, ...string) ([]byte, error) { return []byte(container), nil }
+			topCalls := 0
+			command := func(_ context.Context, name string, _ []byte, _ ...string) ([]byte, error) {
+				switch name {
+				case "daemon-container-binding":
+					return json.Marshal(binding)
+				case "daemon-kernel-top":
+					topCalls++
+					return []byte(fmt.Sprintf("PID PPID COMMAND\n%d %d /app/workerd m2-serve --config=/run/operator/config.json\n", os.Getpid(), os.Getppid())), nil
+				default:
+					t.Fatalf("unexpected command %s", name)
+					return nil, m2.ErrPrivate
+				}
+			}
+			birth, e := observeDaemon(context.Background(), c, service, executable, compose, command)
+			if !errors.Is(e, m2.ErrPrivate) {
+				t.Fatal("unbound process accepted")
+			}
+			if fault == "selected-host-pid" {
+				if birth.PID != os.Getpid() || topCalls != 1 || birth.StartTime != "" {
+					t.Fatal("selected host PID bypassed the real kernel guard")
+				}
+			} else if topCalls != 0 {
+				t.Fatal("untrusted service or container reached process selection")
 			}
 		})
 	}
