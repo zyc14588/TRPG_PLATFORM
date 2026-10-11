@@ -201,6 +201,7 @@ type Document struct {
 	payload        jsondocument.Value
 	compiled       *jsonschema.Schema
 	audit          schemaAudit
+	costPlan       *validationCostPlan
 }
 
 // SchemaBytes returns a defensive copy of the exact referenced schema bytes.
@@ -286,13 +287,16 @@ func LoadWithCanonicalLimit(descriptor Descriptor, files map[string][]byte, supp
 	}
 	document.compiled = compiled
 	document.audit = audit
+	document.costPlan = newValidationCostPlan(compiled, audit)
 	document.Status = Supported
 	parsedPayload, err := jsondocument.Parse(payload)
 	if err != nil {
 		return Document{}, contractError(ErrInvalid, value.Namespace, "payload JSON: %v", err)
 	}
-	if err := document.audit.validatePayloadShape(parsedPayload); err != nil {
-		return Document{}, contractError(ErrInvalid, value.Namespace, "schema validation budget: %v", err)
+	if document.costPlan == nil {
+		if err := document.audit.validatePayloadShape(parsedPayload); err != nil {
+			return Document{}, contractError(ErrInvalid, value.Namespace, "schema validation budget: %v", err)
+		}
 	}
 	canonical, err := parsedPayload.CanonicalLimited(canonicalLimit)
 	if err != nil {
@@ -342,8 +346,10 @@ func (document Document) ValidateReplacementWithCanonicalLimit(data []byte, cano
 	if err != nil {
 		return nil, contractError(ErrInvalid, document.Descriptor.Namespace, "payload JSON: %v", err)
 	}
-	if err := document.audit.validatePayloadShape(value); err != nil {
-		return nil, contractError(ErrInvalid, document.Descriptor.Namespace, "schema validation budget: %v", err)
+	if document.costPlan == nil {
+		if err := document.audit.validatePayloadShape(value); err != nil {
+			return nil, contractError(ErrInvalid, document.Descriptor.Namespace, "schema validation budget: %v", err)
+		}
 	}
 	canonical, err := value.CanonicalLimited(canonicalLimit)
 	if err != nil {
@@ -356,8 +362,14 @@ func (document Document) ValidateReplacementWithCanonicalLimit(data []byte, cano
 }
 
 func (document Document) validateValue(value jsondocument.Value, canonicalBytes int) error {
-	if err := document.audit.validatePayloadBytes(canonicalBytes, value.Complexity().MaxArrayWidth); err != nil {
-		return contractError(ErrInvalid, document.Descriptor.Namespace, "schema validation budget: %v", err)
+	var budgetErr error
+	if document.costPlan != nil {
+		_, budgetErr = document.costPlan.measure(value)
+	} else {
+		budgetErr = document.audit.validatePayloadBytes(canonicalBytes, value.Complexity().MaxArrayWidth)
+	}
+	if budgetErr != nil {
+		return contractError(ErrInvalid, document.Descriptor.Namespace, "schema validation budget: %v", budgetErr)
 	}
 	if err := document.compiled.Validate(value.Interface()); err != nil {
 		return contractError(ErrSchemaValidation, document.Descriptor.Namespace, "%s", boundedValidationDiagnostic(err))
@@ -379,6 +391,9 @@ type schemaAudit struct {
 	assertionDataWork    int
 	assertionComparisons int
 	regexpWork           int
+	localAssertions      map[string]assertionCost
+	localRegexpPrograms  map[string]map[string]int
+	locations            map[string]struct{}
 }
 
 type assertionCost struct {
@@ -388,19 +403,20 @@ type assertionCost struct {
 }
 
 type schemaGraphBuilder struct {
-	nodes        map[string]struct{}
-	edges        map[string][]string
-	anchors      map[string]string
-	references   []schemaReference
-	edgeCount    int
-	patternCount int
-	patternBytes int
-	regexpInst   int
-	unicodeClass int
-	regexpRunes  int
-	uniqueCount  int
-	assertions   map[string]assertionCost
-	regexpWork   map[string]int
+	nodes          map[string]struct{}
+	edges          map[string][]string
+	anchors        map[string]string
+	references     []schemaReference
+	edgeCount      int
+	patternCount   int
+	patternBytes   int
+	regexpInst     int
+	unicodeClass   int
+	regexpRunes    int
+	uniqueCount    int
+	assertions     map[string]assertionCost
+	regexpWork     map[string]int
+	regexpPrograms map[string]map[string]int
 }
 
 // auditSchema walks only positions that Draft 2020-12 defines as schemas.
@@ -409,11 +425,12 @@ type schemaGraphBuilder struct {
 // and assigned a bounded expansion cost before the third-party compiler runs.
 func auditSchema(value jsondocument.Value) (schemaAudit, error) {
 	builder := schemaGraphBuilder{
-		nodes:      make(map[string]struct{}),
-		edges:      make(map[string][]string),
-		anchors:    make(map[string]string),
-		assertions: make(map[string]assertionCost),
-		regexpWork: make(map[string]int),
+		nodes:          make(map[string]struct{}),
+		edges:          make(map[string][]string),
+		anchors:        make(map[string]string),
+		assertions:     make(map[string]assertionCost),
+		regexpWork:     make(map[string]int),
+		regexpPrograms: make(map[string]map[string]int),
 	}
 	if err := builder.visitSchema(value, "#"); err != nil {
 		return schemaAudit{}, err
@@ -451,6 +468,7 @@ func auditSchema(value jsondocument.Value) (schemaAudit, error) {
 	return schemaAudit{
 		expansion: expansion, patternCount: builder.patternCount, uniqueCount: builder.uniqueCount,
 		assertionDataWork: assertionData, assertionComparisons: assertionComparisons, regexpWork: regexpWork,
+		localAssertions: builder.assertions, localRegexpPrograms: builder.regexpPrograms, locations: builder.nodes,
 	}, nil
 }
 
@@ -730,6 +748,10 @@ func (builder *schemaGraphBuilder) addPattern(pointer, pattern string) error {
 	builder.patternBytes += len(pattern)
 	builder.regexpInst += len(program.Inst)
 	builder.regexpWork[pointer] += len(program.Inst)
+	if builder.regexpPrograms[pointer] == nil {
+		builder.regexpPrograms[pointer] = make(map[string]int)
+	}
+	builder.regexpPrograms[pointer][pattern] = len(program.Inst)
 	builder.unicodeClass += unicodeClasses
 	builder.regexpRunes += runeCount
 	return nil

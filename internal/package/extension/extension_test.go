@@ -577,6 +577,79 @@ func TestSmallAssertionsRemainSupported(t *testing.T) {
 	}
 }
 
+func TestComposedFourHundredNodeStateUsesApplicableProperties(t *testing.T) {
+	t.Parallel()
+	properties := make(map[string]any)
+	payload := make(map[string]any)
+	for index := 0; index < 199; index++ {
+		name := fmt.Sprintf("field-%03d", index)
+		properties[name] = map[string]any{"type": "string", "maxLength": 2048}
+		payload[name] = "value"
+	}
+	properties["history"] = map[string]any{"type": "array", "items": map[string]any{"type": "integer"}}
+	history := make([]int, 199)
+	for index := range history {
+		history[index] = index
+	}
+	payload["history"] = history
+	schema, err := json.Marshal(map[string]any{
+		"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object",
+		"properties": properties, "additionalProperties": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := descriptor(schema)
+	document, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: raw}, extension.DefaultSupport)
+	if err != nil {
+		t.Fatalf("composed state rejected: %v", err)
+	}
+	value, _ := document.PayloadValue()
+	if value.Complexity().Nodes != 400 {
+		t.Fatalf("regression vector has %d nodes, want 400", value.Complexity().Nodes)
+	}
+	// Max-length control-character text is valid data; its JSON escape bytes
+	// still count toward canonical admission and applicable subtree work.
+	payload["field-000"] = strings.Repeat("\x00", 2048)
+	raw, err = json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := document.ValidateReplacement(raw); err != nil {
+		t.Fatalf("composed control-character replacement rejected: %v", err)
+	}
+	payload["field-000"] = strings.Repeat("\x00", 2049)
+	raw, _ = json.Marshal(payload)
+	if _, err := document.ValidateReplacement(raw); !extension.IsCode(err, extension.ErrSchemaValidation) {
+		t.Fatalf("maxLength semantics changed: %v", err)
+	}
+}
+
+func TestRegexpDoesNotChargeAnUnrelatedLongSibling(t *testing.T) {
+	t.Parallel()
+	schema := []byte(`{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"tag":{"type":"string","pattern":"^(?:a|A){1000}b$"},"body":{"type":"string"}}}`)
+	payload, err := json.Marshal(map[string]string{"tag": strings.Repeat("a", 1000) + "b", "body": strings.Repeat("x", 256<<10)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := descriptor(schema)
+	document, err := extension.Load(item, map[string][]byte{item.SchemaPath: schema, item.PayloadPath: payload}, extension.DefaultSupport)
+	if err != nil {
+		t.Fatalf("unrelated text was charged to tag pattern: %v", err)
+	}
+	if _, err := document.ValidateReplacement(payload); err != nil {
+		t.Fatalf("same valid replacement rejected: %v", err)
+	}
+	expensive, _ := json.Marshal(map[string]string{"tag": strings.Repeat("a", 16384) + "b"})
+	if _, err := document.ValidateReplacement(expensive); !extension.IsCode(err, extension.ErrInvalid) || !strings.Contains(err.Error(), "regular-expression byte") {
+		t.Fatalf("actual long pattern input lost its budget: %v", err)
+	}
+}
+
 type collisionArray struct {
 	children []*collisionArray
 }
