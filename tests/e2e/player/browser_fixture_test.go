@@ -384,6 +384,12 @@ func (c *chrome) download(t *testing.T) {
 				t.Fatal("downloaded player export invalid")
 			}
 			private(t, exported, false)
+			if evidence := os.Getenv("M2B010_EVIDENCE_DIR"); evidence != "" {
+				name := fmt.Sprintf("filtered-personal-v%s-c%s.json", exported.Version, exported.NextCursor)
+				if e = os.WriteFile(filepath.Join(evidence, name), raw, 0600); e != nil {
+					t.Fatal("filtered download proof storage failed")
+				}
+			}
 			clear(raw)
 			return
 		}

@@ -211,6 +211,30 @@ func TestChromePrivateRoomMixedPlaySafetyRecoveryAndCurrentAuthorization(t *test
 		t.Fatal("pending seat action did not recover")
 	}
 	guest.screen(t, "02-player-filtered-game")
+	// Finish the same mixed-seat session through the existing authorized host
+	// command, after real AI, recovery, pagination and reconnection evidence.
+	host.input(t, "input[name=action]", "end")
+	host.input(t, "input[aria-label='选项名称 1']", "delta")
+	host.input(t, "select[aria-label='选项类型 1']", "number")
+	host.input(t, "input[aria-label='选项内容 1']", "1")
+	host.button(t, "提交行动")
+	host.waitText(t, "本局已结束。")
+	guest.waitText(t, "本局已结束。")
+	if f.sql(t, "SELECT count(*) FROM host_command.endings WHERE workspace='"+f.w+"'") != "1" || f.sql(t, "SELECT version FROM host_command.sessions WHERE workspace='"+f.w+"'") != "5" || calls.Load() != 2 {
+		t.Fatal("mixed-seat authorized end was not durably committed once")
+	}
+	guest.input(t, "input[name=export-limit]", "8")
+	guest.button(t, "生成权限过滤导出")
+	guest.wait(t, "document.querySelector('main').getAttribute('aria-busy')==='false'&&document.querySelector('[data-testid=export]')?.dataset.nextCursor==='4'")
+	guest.assertNoPrivate(t)
+	guest.download(t)
+	final := f.api(t, f.participant, "export", map[string]any{"kind": "personal", "after_cursor": "0", "limit": 8})
+	if final["ended"] != true || final["state_version"] != "5" {
+		t.Fatal("durable final mixed-seat export did not retain ended state")
+	}
+	private(t, final, false)
+	guest.screen(t, "06-player-ended-filtered-result")
+	t.Log("actual Chrome authorized mixed-seat end durably committed; final ended export and downloaded result stayed filtered")
 	// Revocation is observed by current-cookie polling, clearing view and export.
 	_ = f.sql(t, "UPDATE platform_auth.sessions SET revoked=true WHERE account_id='"+f.participant.StorageValue().ID+"'")
 	guest.waitText(t, "登录已失效")
