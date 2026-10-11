@@ -1,0 +1,160 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+name: ${TRPG_M2_PROJECT:?owned deployment project required}
+
+x-runtime: &runtime
+  image: ${TRPG_M2_IMAGE:?fixed owned image digest required}
+  pull_policy: never
+  restart: "no"
+  init: true
+  user: ${TRPG_M2_UID:-65532}:${TRPG_M2_GID:-65532}
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  cpus: 1
+  mem_limit: 512m
+  pids_limit: 128
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  networks: [private]
+  labels:
+    trpg.m2.project: ${TRPG_M2_PROJECT}
+    trpg.m2.source: ${TRPG_M2_SOURCE:?exact source binding required}
+
+services:
+  reverse-proxy:
+    <<: *runtime
+    networks: [private, edge]
+    entrypoint: ["/app/reverse-proxyd"]
+    command: ["--config=/run/operator/config.json"]
+    volumes:
+      - "${TRPG_M2_ROOT:?private operator root required}/operator/reverse-proxy:/run/operator:ro"
+    ports: ["127.0.0.1:${TRPG_M2_PORT:?explicit HTTPS port required}:8443"]
+    depends_on:
+      platformd: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "/app/reverse-proxyd", "--mode=health", "--config=/run/operator/config.json"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  platformd:
+    <<: *runtime
+    entrypoint: ["/app/platformd"]
+    command: ["m2-serve", "--config=/run/operator/config.json"]
+    volumes:
+      - "${TRPG_M2_ROOT}/operator/platformd:/run/operator:ro"
+      - "supervisor-socket:/run/m2/supervisor:ro"
+      - "object-socket:/run/m2/object:ro"
+      - "worker-socket:/run/m2/worker"
+    tmpfs:
+      - "/tmp:size=64m,mode=1777"
+      - "/run/staging:size=64m,mode=0700,uid=${TRPG_M2_UID:-65532},gid=${TRPG_M2_GID:-65532}"
+    depends_on:
+      postgres: {condition: service_healthy}
+      lua-runner: {condition: service_healthy}
+      object-storage: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "/app/platformd", "m2-health", "--config=/run/operator/config.json"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  workerd:
+    <<: *runtime
+    networks: [private, provider]
+    entrypoint: ["/app/workerd"]
+    command: ["m2-serve", "--config=/run/operator/config.json"]
+    volumes:
+      - "${TRPG_M2_ROOT}/operator/workerd:/run/operator:ro"
+      - "worker-socket:/run/m2/worker:ro"
+    depends_on:
+      platformd: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "/app/workerd", "m2-health", "--config=/run/operator/config.json"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  lua-runner:
+    <<: *runtime
+    entrypoint: ["/app/lua-supervisord"]
+    command: ["--config=/run/operator/config.json"]
+    mem_limit: 768m
+    volumes:
+      - "${TRPG_M2_ROOT}/operator/lua-runner:/run/operator:ro"
+      - "supervisor-socket:/run/m2/supervisor"
+    healthcheck:
+      test: ["CMD", "/app/lua-supervisord", "--mode=health", "--config=/run/operator/config.json"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  object-storage:
+    <<: *runtime
+    entrypoint: ["/app/objectd"]
+    command: ["--config=/run/operator/config.json"]
+    volumes:
+      - "${TRPG_M2_ROOT}/operator/object-storage:/run/operator:ro"
+      - "object-socket:/run/m2/object"
+      - "objects:/var/lib/trpg/objects"
+    healthcheck:
+      test: ["CMD", "/app/objectd", "--mode=health", "--config=/run/operator/config.json"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  postgres:
+    <<: *runtime
+    image: sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a
+    mem_limit: 1g
+    read_only: false
+    environment:
+      POSTGRES_DB: trpg_m2
+      POSTGRES_USER: trpg_operator
+      POSTGRES_PASSWORD_FILE: /run/operator/password
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - "${TRPG_M2_ROOT}/operator/postgres:/run/operator:ro"
+      - "postgres:/var/lib/postgresql"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "trpg_operator", "-d", "trpg_m2"]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+
+networks:
+  private:
+    external: true
+    name: ${TRPG_M2_NETWORK:?owned rootful internal network required}
+  edge:
+    external: true
+    name: ${TRPG_M2_EDGE_NETWORK:?owned proxy-only edge bridge required}
+  # Referencing this existing Operator network grants no endpoint permission.
+  # Only workerd has this attachment; Compose never creates or removes it.
+  provider:
+    external: true
+    name: ${TRPG_M2_PROVIDER_NETWORK:?explicit existing fixed-provider network required}
+
+volumes:
+  postgres:
+    driver: local
+    labels: {trpg.m2.project: "${TRPG_M2_PROJECT}", trpg.m2.source: "${TRPG_M2_SOURCE}"}
+    driver_opts: {type: none, o: bind, device: "${TRPG_M2_ROOT}/data/postgres"}
+  objects:
+    driver: local
+    labels: {trpg.m2.project: "${TRPG_M2_PROJECT}", trpg.m2.source: "${TRPG_M2_SOURCE}"}
+    driver_opts: {type: none, o: bind, device: "${TRPG_M2_ROOT}/data/objects"}
+  supervisor-socket:
+    driver: local
+    labels: {trpg.m2.project: "${TRPG_M2_PROJECT}", trpg.m2.source: "${TRPG_M2_SOURCE}"}
+    driver_opts: {type: none, o: bind, device: "${TRPG_M2_ROOT}/run/supervisor"}
+  worker-socket:
+    driver: local
+    labels: {trpg.m2.project: "${TRPG_M2_PROJECT}", trpg.m2.source: "${TRPG_M2_SOURCE}"}
+    driver_opts: {type: none, o: bind, device: "${TRPG_M2_ROOT}/run/worker"}
+  object-socket:
+    driver: local
+    labels: {trpg.m2.project: "${TRPG_M2_PROJECT}", trpg.m2.source: "${TRPG_M2_SOURCE}"}
+    driver_opts: {type: none, o: bind, device: "${TRPG_M2_ROOT}/run/object"}

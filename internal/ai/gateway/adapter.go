@@ -37,6 +37,7 @@ type AdapterOptions struct {
 	ResponseBytes  int
 	MicrosPerToken uint64
 	MaxActive      int
+	Transport      ProviderTransport
 }
 type Adapter struct{ data **adapterData }
 type adapterData struct {
@@ -46,6 +47,8 @@ type adapterData struct {
 	responseBytes  int
 	microsPerToken uint64
 	active         chan struct{}
+	private        ProviderTransport
+	binding        string
 }
 
 func (Adapter) Format(f fmt.State, _ rune) {
@@ -150,7 +153,7 @@ func NewAdapter(o AdapterOptions) (*Adapter, error) {
 		return nil, auth.ErrUnavailable
 	}
 	client := &http.Client{Transport: tr, Timeout: o.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return auth.ErrDenied }}
-	d := &adapterData{endpoint: e, client: client, transport: tr, responseBytes: o.ResponseBytes, microsPerToken: o.MicrosPerToken, active: make(chan struct{}, o.MaxActive)}
+	d := &adapterData{endpoint: e, client: client, transport: tr, responseBytes: o.ResponseBytes, microsPerToken: o.MicrosPerToken, active: make(chan struct{}, o.MaxActive), private: o.Transport, binding: TransportBinding(o)}
 	return &Adapter{data: &d}, nil
 }
 func (a *Adapter) Close() {
@@ -202,6 +205,9 @@ type providerResponse struct {
 }
 
 func (a *Adapter) Call(ctx context.Context, tuple model.Tuple, key credential.Key, prompt []byte, instruction string, cap budget.Units) (answer Answer, err error) {
+	return a.call(ctx, tuple, key, prompt, instruction, cap, nil)
+}
+func (a *Adapter) call(ctx context.Context, tuple model.Tuple, key credential.Key, prompt []byte, instruction string, cap budget.Units, guard func(context.Context) error) (answer Answer, err error) {
 	defer func() {
 		if recover() != nil {
 			answer = Answer{}
@@ -234,17 +240,35 @@ func (a *Adapter) Call(ctx context.Context, tuple model.Tuple, key credential.Ke
 	e = key.Use(func(secret []byte) error {
 		request.Header.Set("Authorization", "Bearer "+string(secret))
 		defer request.Header.Del("Authorization")
-		r, e := d.client.Do(request)
-		if e != nil {
-			return auth.ErrUnavailable
+		var body []byte
+		if d.private != nil {
+			if guard == nil {
+				return auth.ErrDenied
+			}
+			x := Dispatch{data: &dispatchData{body: append([]byte(nil), raw...), authorization: append([]byte(nil), secret...), guard: guard, binding: d.binding, bound: cap}}
+			defer x.close()
+			var e error
+			body, e = d.private.Send(ctx, x)
+			if e != nil {
+				return auth.ErrUnavailable
+			}
+		} else {
+			r, e := d.client.Do(request)
+			if e != nil {
+				return auth.ErrUnavailable
+			}
+			defer r.Body.Close()
+			if r.StatusCode != http.StatusOK || r.ContentLength > int64(d.responseBytes) || r.Header.Get("Content-Encoding") != "" {
+				return auth.ErrUnavailable
+			}
+			body, e = io.ReadAll(io.LimitReader(r.Body, int64(d.responseBytes)+1))
+			if e != nil {
+				clear(body)
+				return auth.ErrUnavailable
+			}
 		}
-		defer r.Body.Close()
-		if r.StatusCode != http.StatusOK || r.ContentLength > int64(d.responseBytes) || r.Header.Get("Content-Encoding") != "" {
-			return auth.ErrUnavailable
-		}
-		body, e := io.ReadAll(io.LimitReader(r.Body, int64(d.responseBytes)+1))
 		defer clear(body)
-		if e != nil || len(body) > d.responseBytes {
+		if len(body) > d.responseBytes {
 			return auth.ErrUnavailable
 		}
 		var response providerResponse

@@ -17,15 +17,19 @@ import (
 )
 
 type Client struct {
-	mu            sync.Mutex
-	cmd           *exec.Cmd
-	input         io.WriteCloser
-	output        io.ReadCloser
-	done          chan struct{}
-	next          uint64
-	closed        bool
-	limits        profile.Limits
-	callbackLimit int
+	mu                      sync.Mutex
+	cmd                     *exec.Cmd
+	input                   io.WriteCloser
+	output                  io.ReadCloser
+	done                    chan struct{}
+	next                    uint64
+	closed                  bool
+	limits                  profile.Limits
+	callbackLimit           int
+	stopMu                  sync.Mutex
+	stopOnce                sync.Once
+	stopDone                chan struct{}
+	stopUnknown, stopReaped bool
 }
 
 func Start(ctx context.Context, executable string, config profile.Config) (*Client, error) {

@@ -52,7 +52,7 @@ type InstalledSession struct {
 func (s *InstalledSession) Close() error {
 	pid := s.VM.PID()
 	err := s.VM.Destroy()
-	if audit := s.observe(Execution{Package: string(s.Graph.Root().ExactLock().Root()), Case: "session-vm-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: s.runtime.SHA256, Outcome: runtimeCode(err), PID: pid, Reaped: true}); audit != nil {
+	if audit := s.observe(Execution{Package: string(s.Graph.Root().ExactLock().Root()), Case: "session-vm-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: s.runtime.SHA256, Outcome: runtimeCode(err), PID: pid, Reaped: s.VM.Reaped()}); audit != nil {
 		return audit
 	}
 	return err
@@ -110,7 +110,7 @@ func (f *SessionFactory) open(ctx context.Context, r SessionRequest, resume bool
 	if err = verifyRuntime(o.Runtime); err != nil {
 		return nil, err
 	}
-	s, err := vm.New(ctx, vm.Options{SessionID: r.Session, Runner: o.Runtime.Runner, Package: g.Root(), Dependencies: g.Dependencies(), State: state, Limits: o.Runtime.Limits, Host: h, Fallbacks: proofs, Audit: func(a profile.Audit) error {
+	s, err := vm.New(ctx, vm.Options{SessionID: r.Session, Runner: o.Runtime.Runner, Launcher: o.Runtime.Launcher, Package: g.Root(), Dependencies: g.Dependencies(), State: state, Limits: o.Runtime.Limits, Host: h, Fallbacks: proofs, Audit: func(a profile.Audit) error {
 		return o.Audit(data.Audit{Workspace: r.Workspace, Session: r.Session, Level: a.Level, Operation: "vm/" + a.Kind, Outcome: a.Outcome})
 	}})
 	if err != nil {
@@ -119,7 +119,7 @@ func (f *SessionFactory) open(ctx context.Context, r SessionRequest, resume bool
 	pid := s.PID()
 	fail := func(e error) (*InstalledSession, error) {
 		destroy := s.Destroy()
-		audit := o.Execution(Execution{Package: string(g.Root().ExactLock().Root()), Case: "session-vm-failed-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: o.Runtime.SHA256, Outcome: runtimeCode(e), PID: pid, Reaped: true})
+		audit := o.Execution(Execution{Package: string(g.Root().ExactLock().Root()), Case: "session-vm-failed-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: o.Runtime.SHA256, Outcome: runtimeCode(e), PID: pid, Reaped: s.Reaped()})
 		return nil, errors.Join(e, destroy, audit)
 	}
 	if err = o.Execution(Execution{Package: string(g.Root().ExactLock().Root()), Case: "session-vm-ready", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: o.Runtime.SHA256, Outcome: runtimeCode(nil), PID: pid}); err != nil {

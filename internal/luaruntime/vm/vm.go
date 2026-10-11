@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/ipc"
@@ -71,6 +72,7 @@ type AuditSink func(profile.Audit) error
 type Options struct {
 	SessionID    string
 	Runner       string
+	Launcher     ipc.Launcher
 	Package      *archive.Package
 	Dependencies []*archive.Package
 	State        State
@@ -88,19 +90,22 @@ type Session struct {
 // expand the backing runtime. Public handle copies share this immutable pointer
 // and the same lock; they never copy private state, credentials, or a mutex.
 type sessionRuntime struct {
-	mu        sync.Mutex
-	client    *ipc.Client
-	runner    string
-	config    profile.Config
-	entry     []byte
-	binding   checkpoint.Binding
-	state     State
-	token     Token
-	audit     AuditSink
-	poisoned  bool
-	destroyed bool
-	sequence  uint64
-	modules   map[string]ModuleIdentity
+	mu         sync.Mutex
+	client     ipc.Runner
+	launcher   ipc.Launcher
+	cleanupErr error
+	reaped     bool
+	runner     string
+	config     profile.Config
+	entry      []byte
+	binding    checkpoint.Binding
+	state      State
+	token      Token
+	audit      AuditSink
+	poisoned   bool
+	destroyed  bool
+	sequence   uint64
+	modules    map[string]ModuleIdentity
 }
 
 // runtimeState is private to this package. The factory sets runtime once and
@@ -119,7 +124,7 @@ func New(ctx context.Context, options Options) (*Session, error) {
 	if options.Audit == nil {
 		return nil, profile.Fail(profile.ErrConfiguration)
 	}
-	data := &sessionRuntime{runner: options.Runner, audit: options.Audit}
+	data := &sessionRuntime{runner: options.Runner, launcher: options.Launcher, audit: options.Audit}
 	s := &Session{runtime: &data}
 	reject := func(err error) (*Session, error) {
 		if auditErr := s.record("initialization-denied", err); auditErr != nil {
@@ -151,8 +156,8 @@ func New(ctx context.Context, options Options) (*Session, error) {
 	return s, nil
 }
 
-func (s *Session) start(ctx context.Context, state, saved checkpoint.Value) (*ipc.Client, error) {
-	c, err := ipc.Start(ctx, s.runtimeState().runner, s.runtimeState().config)
+func (s *Session) start(ctx context.Context, state, saved checkpoint.Value) (ipc.Runner, error) {
+	c, err := ipc.Launch(ctx, s.runtimeState().launcher, s.runtimeState().runner, s.runtimeState().config)
 	if err != nil {
 		if auditErr := s.record("runner-start", err); auditErr != nil {
 			return nil, auditErr
@@ -170,8 +175,7 @@ func (s *Session) start(ctx context.Context, state, saved checkpoint.Value) (*ip
 		err = auditErr
 	}
 	if err != nil {
-		c.Kill()
-		return nil, err
+		return nil, errors.Join(err, stop(c))
 	}
 	return c, nil
 }
@@ -213,8 +217,8 @@ func (s *Session) execute(ctx context.Context, token Token, source []byte) (prof
 	if err := s.check(token); err != nil {
 		if auditErr := s.record("execution-denied", err); auditErr != nil {
 			s.runtimeState().poisoned = true
-			s.runtimeState().client.Kill()
-			return profile.Result{}, auditErr
+			s.stopRunner()
+			return profile.Result{}, errors.Join(auditErr, s.runtimeState().cleanupErr)
 		}
 		return profile.Result{}, err
 	}
@@ -232,9 +236,9 @@ func (s *Session) execute(ctx context.Context, token Token, source []byte) (prof
 	if auditErr := s.record("execution", err); auditErr != nil {
 		err = auditErr
 		s.runtimeState().poisoned = true
-		s.runtimeState().client.Kill()
+		s.stopRunner()
 	}
-	return response.Result, err
+	return response.Result, errors.Join(err, s.runtimeState().cleanupErr)
 }
 
 func (s *Session) Capture(ctx context.Context, token Token, source []byte) (checkpoint.Checkpoint, error) {
@@ -251,7 +255,7 @@ func (s *Session) capture(ctx context.Context, token Token, source []byte) (chec
 		s.runtimeState().poisoned = true
 		err = profile.Fail(profile.ErrValue)
 		if auditErr := s.record("checkpoint", err); auditErr != nil {
-			s.runtimeState().client.Kill()
+			s.stopRunner()
 			err = auditErr
 		}
 		return checkpoint.Checkpoint{}, err
@@ -263,9 +267,9 @@ func (s *Session) capture(ctx context.Context, token Token, source []byte) (chec
 	if auditErr := s.record("checkpoint", err); auditErr != nil {
 		err = auditErr
 		s.runtimeState().poisoned = true
-		s.runtimeState().client.Kill()
+		s.stopRunner()
 	}
-	return c, err
+	return c, errors.Join(err, s.runtimeState().cleanupErr)
 }
 
 // Reconstruct receives authoritative state, never a serialized VM. A supplied
@@ -279,10 +283,13 @@ func (s *Session) Reconstruct(ctx context.Context, state State, saved *checkpoin
 	return s.reconstruct(ctx, state, saved)
 }
 func (s *Session) reconstruct(ctx context.Context, state State, saved *checkpoint.Checkpoint) (resultErr error) {
+	if s.runtimeState().cleanupErr != nil {
+		return s.runtimeState().cleanupErr
+	}
 	defer func() {
 		if err := s.record("reconstruction", resultErr); err != nil {
 			s.runtimeState().poisoned = true
-			s.runtimeState().client.Kill()
+			s.stopRunner()
 			resultErr = err
 		}
 	}()
@@ -315,7 +322,11 @@ func (s *Session) reconstruct(ctx context.Context, state State, saved *checkpoin
 	if err != nil {
 		return err
 	}
-	s.runtimeState().client.Kill()
+	if e := s.stopRunner(); e != nil {
+		s.runtimeState().poisoned = true
+		return errors.Join(e, stop(replacement))
+	}
+	s.runtimeState().reaped = false
 	s.runtimeState().client = replacement
 	s.runtimeState().binding = authoritative.Binding
 	s.runtimeState().state = State{Version: state.Version, Value: authoritative.State}
@@ -339,17 +350,49 @@ func (s *Session) Destroy() error {
 	s.runtimeState().mu.Lock()
 	defer s.runtimeState().mu.Unlock()
 	if s.runtimeState().destroyed {
-		return nil
+		return s.runtimeState().cleanupErr
 	}
 	s.runtimeState().destroyed = true
 	s.runtimeState().token = Token{}
 	if s.runtimeState().client != nil {
-		s.runtimeState().client.Kill()
+		s.stopRunner()
 	}
-	return s.record("destroy", nil)
+	return errors.Join(s.runtimeState().cleanupErr, s.record("destroy", s.runtimeState().cleanupErr))
 }
 
 // IsBoundaryFailure distinguishes runner/environment loss from a script finding.
 func IsBoundaryFailure(err error) bool {
-	return errors.Is(err, ipc.ErrRunner) || errors.Is(err, ipc.ErrProtocol) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+	return errors.Is(err, ipc.ErrUnknownExit) || errors.Is(err, ipc.ErrRunner) || errors.Is(err, ipc.ErrProtocol) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
+// stop requires acknowledgement from the actual process parent. A canceled
+// command gets a separate bounded cleanup lifetime, never a fabricated Wait.
+func stop(r ipc.Runner) error {
+	if r == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	exit, err := r.StopAndWait(ctx)
+	if err != nil || !exit.Reaped || exit.PID != r.PID() || exit.PID <= 0 {
+		return errors.Join(ipc.ErrUnknownExit, err)
+	}
+	return nil
+}
+func (s *Session) stopRunner() error {
+	err := stop(s.runtimeState().client)
+	if err != nil {
+		s.runtimeState().cleanupErr = errors.Join(s.runtimeState().cleanupErr, err)
+		s.runtimeState().poisoned = true
+	} else if s.runtimeState().cleanupErr == nil {
+		s.runtimeState().reaped = true
+	}
+	return s.runtimeState().cleanupErr
+}
+
+// Reaped is independent of Destroyed: a failed remote close remains unknown.
+func (s *Session) Reaped() bool {
+	s.runtimeState().mu.Lock()
+	defer s.runtimeState().mu.Unlock()
+	return s.runtimeState().reaped && s.runtimeState().cleanupErr == nil
 }

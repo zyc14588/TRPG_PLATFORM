@@ -39,6 +39,12 @@ type OutputData struct {
 }
 type Output = auth.Secret[OutputData]
 type Commands func(context.Context, core.Transaction, aicontext.Subject) (map[string]func(checkpoint.Value) error, error)
+
+// DispatchGuard is an optional trusted deployment read boundary. The first
+// phase locks the canonical execution lease before Context reads; the returned
+// phase verifies the exact dispatched reservation after the original Context
+// and model checks. Neither phase creates authority or performs provider I/O.
+type DispatchGuard func(context.Context, core.Transaction, RequestData) (func(context.Context, aicontext.SubjectData, budget.Units, uint64) error, error)
 type Options struct {
 	Authority     *auth.RoomAuthority
 	Contexts      *aicontext.Service
@@ -53,6 +59,7 @@ type Options struct {
 	Commands      Commands
 	Amount        budget.Units
 	MaxCalls      int
+	DispatchGuard DispatchGuard
 }
 type Service struct{ data **serviceData }
 type serviceData struct {
@@ -79,6 +86,9 @@ func New(o Options) (*Service, error) {
 	d := &serviceData{options: o, adapters: map[string]*Adapter{}, caps: map[string]budget.Caps{}, active: make(chan struct{}, 4)}
 	for _, a := range o.Adapters {
 		if a.state() == nil {
+			return nil, auth.ErrInvalid
+		}
+		if a.state().private != nil && o.DispatchGuard == nil {
 			return nil, auth.ErrInvalid
 		}
 		key := a.state().endpoint.URL + "\x00" + a.state().endpoint.Adapter
@@ -174,56 +184,85 @@ type provider struct {
 func (p provider) Call(ctx context.Context, prompt aicontext.Prompt, cap budget.Units) (budget.Response, error) {
 	var key credential.Key
 	defer func() { key.Close() }()
-	c := p.caller.StorageValue()
-	o := p.s.state().options
-	e := o.Authority.Inspect(ctx, c.Credential, c.CSRF, false, func(ctx context.Context, tx auth.Transaction, _ auth.SessionData) error {
-		current, e := o.Contexts.BuildWithin(ctx, tx.Core(), target(p.request))
-		if e != nil {
-			return e
-		}
-		if current.Subject().StorageValue() != prompt.Subject().StorageValue() || !sameRequest(current.Subject().StorageValue(), p.request) {
-			return auth.ErrDenied
-		}
-		var a, b []byte
-		defer func() { clear(a); clear(b) }()
-		if current.Use(func(v []byte) error { a = append([]byte(nil), v...); return nil }) != nil || prompt.Use(func(v []byte) error { b = append([]byte(nil), v...); return nil }) != nil || !slices.Equal(a, b) {
-			return auth.ErrDenied
-		}
-		mt, e := o.ModelStorage.Bind(tx.Core())
-		if e != nil {
-			return auth.SafeError(e)
-		}
-		stored, e := mt.Configuration(ctx, p.request.Scope, p.request.SeatID, p.request.Selection)
-		if e != nil {
-			return auth.SafeError(e)
-		}
-		config := stored.StorageValue()
-		if certification.Hash(config) != certification.Hash(p.configuration) {
-			return auth.ErrDenied
-		}
-		record, e := mt.Credential(ctx, config.Scope, config.SeatID, config.CredentialID)
-		if e != nil {
-			return auth.SafeError(e)
-		}
-		v := record.StorageValue()
-		bnd := v.Binding
-		if bnd.Scope != config.Scope || bnd.SeatID != config.SeatID || bnd.ID != config.CredentialID || bnd.OwnerKind != config.OwnerKind || bnd.OwnerID != config.OwnerID || bnd.Version != config.CredentialVersion {
-			return auth.ErrDenied
-		}
-		now, e := tx.Core().Now(ctx)
-		if e != nil {
-			return auth.SafeError(e)
-		}
-		key, e = o.Vault.Open(ctx, record, bnd, now)
-		return e
-	})
+	authorize := func(ctx context.Context, retain bool) error {
+		c := p.caller.StorageValue()
+		o := p.s.state().options
+		e := o.Authority.Inspect(ctx, c.Credential, c.CSRF, false, func(ctx context.Context, tx auth.Transaction, _ auth.SessionData) error {
+			var finish func(context.Context, aicontext.SubjectData, budget.Units, uint64) error
+			if o.DispatchGuard != nil {
+				var e error
+				finish, e = o.DispatchGuard(ctx, tx.Core(), p.request)
+				if e != nil || finish == nil {
+					return auth.ErrDenied
+				}
+			}
+			current, e := o.Contexts.BuildWithin(ctx, tx.Core(), target(p.request))
+			if e != nil {
+				return e
+			}
+			if current.Subject().StorageValue() != prompt.Subject().StorageValue() || !sameRequest(current.Subject().StorageValue(), p.request) {
+				return auth.ErrDenied
+			}
+			var a, b []byte
+			defer func() { clear(a); clear(b) }()
+			if current.Use(func(v []byte) error { a = append([]byte(nil), v...); return nil }) != nil || prompt.Use(func(v []byte) error { b = append([]byte(nil), v...); return nil }) != nil || !slices.Equal(a, b) {
+				return auth.ErrDenied
+			}
+			mt, e := o.ModelStorage.Bind(tx.Core())
+			if e != nil {
+				return auth.SafeError(e)
+			}
+			stored, e := mt.Configuration(ctx, p.request.Scope, p.request.SeatID, p.request.Selection)
+			if e != nil {
+				return auth.SafeError(e)
+			}
+			config := stored.StorageValue()
+			if certification.Hash(config) != certification.Hash(p.configuration) {
+				return auth.ErrDenied
+			}
+			record, e := mt.Credential(ctx, config.Scope, config.SeatID, config.CredentialID)
+			if e != nil {
+				return auth.SafeError(e)
+			}
+			v := record.StorageValue()
+			bnd := v.Binding
+			if bnd.Scope != config.Scope || bnd.SeatID != config.SeatID || bnd.ID != config.CredentialID || bnd.OwnerKind != config.OwnerKind || bnd.OwnerID != config.OwnerID || bnd.Version != config.CredentialVersion {
+				return auth.ErrDenied
+			}
+			now, e := tx.Core().Now(ctx)
+			if e != nil {
+				return auth.SafeError(e)
+			}
+			if !budget.Fits(cap, config.Budget) || cap != o.Amount || ctx.Err() != nil {
+				return auth.ErrDenied
+			}
+			if finish != nil {
+				if e = finish(ctx, current.Subject().StorageValue(), cap, uint64(current.Bytes())); e != nil {
+					return auth.SafeError(e)
+				}
+			}
+			opened, e := o.Vault.Open(ctx, record, bnd, now)
+			if e != nil {
+				return e
+			}
+			if retain {
+				key = opened
+			} else {
+				opened.Close()
+			}
+			return nil
+		})
+		return auth.SafeError(e)
+	}
+	guard := func(ctx context.Context) error { return authorize(ctx, false) }
+	e := authorize(ctx, true)
 	if e != nil {
 		return budget.Response{}, auth.SafeError(e)
 	}
 	var answer Answer
 	e = prompt.Use(func(raw []byte) error {
 		var e error
-		answer, e = p.route.adapter.Call(ctx, p.route.certificate.Tuple, key, raw, p.instruction, cap)
+		answer, e = p.route.adapter.call(ctx, p.route.certificate.Tuple, key, raw, p.instruction, cap, guard)
 		return e
 	})
 	if e != nil {

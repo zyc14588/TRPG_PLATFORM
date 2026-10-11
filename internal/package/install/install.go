@@ -22,7 +22,7 @@ type Options struct {
 	StagingRoot string
 	Policy      *Policy
 	Access      *store.Access
-	Objects     *object.Directory
+	Objects     object.Store
 	Repository  store.Repository
 	Support     extension.Support
 	Runtime     RuntimeConfig

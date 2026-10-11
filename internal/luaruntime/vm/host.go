@@ -4,6 +4,7 @@ package vm
 
 import (
 	"context"
+	"errors"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/ipc"
@@ -94,8 +95,8 @@ func (s *Session) invoke(ctx context.Context, token Token, sid, name string, arg
 	}
 	if err != nil {
 		s.runtimeState().poisoned = true
-		s.runtimeState().client.Kill()
-		return profile.Result{}, err
+		s.stopRunner()
+		return profile.Result{}, errors.Join(err, s.runtimeState().cleanupErr)
 	}
 	return response.Result, nil
 }
@@ -103,9 +104,9 @@ func (s *Session) deniedHost(err error) error {
 	if e := s.record("host-denied", err); e != nil {
 		s.runtimeState().poisoned = true
 		if s.runtimeState().client != nil {
-			s.runtimeState().client.Kill()
+			s.stopRunner()
 		}
-		return e
+		return errors.Join(e, s.runtimeState().cleanupErr)
 	}
 	return err
 }
@@ -117,7 +118,7 @@ func (s *Session) Poison() {
 	defer s.runtimeState().mu.Unlock()
 	s.runtimeState().poisoned = true
 	if s.runtimeState().client != nil {
-		s.runtimeState().client.Kill()
+		s.stopRunner()
 	}
 }
 func (s *Session) HostEnabled() bool {
@@ -167,7 +168,7 @@ func (s *Session) CaptureHost(ctx context.Context, token Token, sid string, hand
 	}
 	if len(result.Values) != 1 {
 		s.runtimeState().poisoned = true
-		s.runtimeState().client.Kill()
+		s.stopRunner()
 		return checkpoint.Checkpoint{}, checkpoint.ErrRejected
 	}
 	return checkpoint.Seal(s.runtimeState().binding, result.Values[0])

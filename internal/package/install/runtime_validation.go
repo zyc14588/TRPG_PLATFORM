@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/checkpoint"
 	"github.com/zyc14588/TRPG_PLATFORM/internal/luaruntime/ipc"
@@ -22,6 +23,7 @@ import (
 type RuntimeConfig struct {
 	Runner, SHA256 string
 	Limits         profile.Limits
+	Launcher       ipc.Launcher
 }
 type Execution struct {
 	Package, Case, Profile, Runtime, RunnerHash, Outcome string
@@ -117,7 +119,7 @@ func validateRuntime(ctx context.Context, c RuntimeConfig, items []staged, repor
 		// Non-session packages execute in the same B002 isolated IPC profile.
 		// Module results are intentionally not serialized (libraries may return
 		// functions); the trusted tests must explicitly return boolean true.
-		client, err := ipc.Start(ctx, c.Runner, config)
+		client, err := ipc.Launch(ctx, c.Launcher, c.Runner, config)
 		if err != nil {
 			return "", err
 		}
@@ -153,8 +155,13 @@ func validateRuntime(ctx context.Context, c RuntimeConfig, items []staged, repor
 				}
 			}
 		}
-		client.Kill() // waits for cmd.Wait; no runner survives successful or failed validation
-		if auditErr := emit(Execution{Package: id, Case: "ipc-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: c.SHA256, Outcome: runtimeCode(err), PID: pid, Reaped: true}); auditErr != nil {
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		exit, stopErr := client.StopAndWait(cleanup)
+		cancel()
+		if stopErr != nil || !exit.Reaped || exit.PID != pid {
+			err = errors.Join(err, ipc.ErrUnknownExit, stopErr)
+		}
+		if auditErr := emit(Execution{Package: id, Case: "ipc-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: c.SHA256, Outcome: runtimeCode(err), PID: pid, Reaped: exit.Reaped && stopErr == nil}); auditErr != nil {
 			return "", auditErr
 		}
 		if err != nil {
@@ -176,7 +183,7 @@ func validateRuntime(ctx context.Context, c RuntimeConfig, items []staged, repor
 				return "", err
 			}
 		} else {
-			s, err := vm.New(ctx, vm.Options{SessionID: "install-validation", Runner: c.Runner, Package: root.pkg, Dependencies: deps, Limits: c.Limits, State: vm.State{Value: checkpoint.Value{Kind: "nil"}}, Fallbacks: proofs, Audit: func(profile.Audit) error { return nil }})
+			s, err := vm.New(ctx, vm.Options{SessionID: "install-validation", Runner: c.Runner, Launcher: c.Launcher, Package: root.pkg, Dependencies: deps, Limits: c.Limits, State: vm.State{Value: checkpoint.Value{Kind: "nil"}}, Fallbacks: proofs, Audit: func(profile.Audit) error { return nil }})
 			if err != nil {
 				return "", err
 			}
@@ -195,7 +202,7 @@ func validateRuntime(ctx context.Context, c RuntimeConfig, items []staged, repor
 				}
 			}
 			destroyErr := s.Destroy()
-			if auditErr := emit(Execution{Package: string(document.Package.PackageID), Case: "vm-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: c.SHA256, Outcome: runtimeCode(destroyErr), PID: pid, Reaped: true}); auditErr != nil {
+			if auditErr := emit(Execution{Package: string(document.Package.PackageID), Case: "vm-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: c.SHA256, Outcome: runtimeCode(destroyErr), PID: pid, Reaped: s.Reaped()}); auditErr != nil {
 				return "", auditErr
 			}
 			if err != nil {

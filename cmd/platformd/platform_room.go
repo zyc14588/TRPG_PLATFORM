@@ -15,42 +15,57 @@ import (
 
 // platformRooms composes the approved local authentication and room services.
 // Actual startup, Session launch and Compose are provided by later batches.
+type platformRoomComponents struct {
+	repo      *postgres.PlatformAuthRepository
+	storage   *postgres.PlatformRoomStorage
+	authority *auth.RoomAuthority
+	rooms     *room.Service
+	handler   http.Handler
+}
+
 func platformRooms(ctx context.Context, origin, dsnFile, cookieKeyFile, replayKeyFile, invitationKeyFile, authSchemaFile, roomSchemaFile, seedFile, grantsFile string) (http.Handler, func() error, error) {
-	dsn, e := auth.ReadSecretFile(dsnFile, 16384)
+	c, e := platformRoomCore(ctx, origin, dsnFile, cookieKeyFile, replayKeyFile, invitationKeyFile, authSchemaFile, roomSchemaFile, seedFile, grantsFile)
 	if e != nil {
 		return nil, nil, e
+	}
+	return c.handler, c.repo.Close, nil
+}
+func platformRoomCore(ctx context.Context, origin, dsnFile, cookieKeyFile, replayKeyFile, invitationKeyFile, authSchemaFile, roomSchemaFile, seedFile, grantsFile string) (*platformRoomComponents, error) {
+	dsn, e := auth.ReadSecretFile(dsnFile, 16384)
+	if e != nil {
+		return nil, e
 	}
 	defer clear(dsn.StorageValue())
 	cookie, e := auth.ReadSecretFile(cookieKeyFile, 32)
 	if e != nil {
-		return nil, nil, e
+		return nil, e
 	}
 	defer clear(cookie.StorageValue())
 	replay, e := auth.ReadSecretFile(replayKeyFile, 32)
 	if e != nil {
-		return nil, nil, e
+		return nil, e
 	}
 	defer clear(replay.StorageValue())
 	invite, e := auth.ReadSecretFile(invitationKeyFile, 32)
 	if e != nil {
-		return nil, nil, e
+		return nil, e
 	}
 	defer clear(invite.StorageValue())
 	as, e := os.ReadFile(authSchemaFile)
 	if e != nil || len(as) > 65536 {
-		return nil, nil, auth.ErrUnavailable
+		return nil, auth.ErrUnavailable
 	}
 	rs, e := os.ReadFile(roomSchemaFile)
 	if e != nil || len(rs) > 65536 {
-		return nil, nil, auth.ErrUnavailable
+		return nil, auth.ErrUnavailable
 	}
 	repo, e := postgres.OpenPlatformAuthRepository(ctx, string(dsn.StorageValue()), nil)
 	if e != nil {
-		return nil, nil, e
+		return nil, e
 	}
-	fail := func(e error) (http.Handler, func() error, error) {
+	fail := func(e error) (*platformRoomComponents, error) {
 		_ = repo.Close()
-		return nil, nil, auth.SafeError(e)
+		return nil, auth.SafeError(e)
 	}
 	if e = repo.Bootstrap(ctx); e != nil {
 		return fail(e)
@@ -81,5 +96,5 @@ func platformRooms(ctx context.Context, origin, dsnFile, cookieKeyFile, replayKe
 	if e != nil {
 		return fail(e)
 	}
-	return h, repo.Close, nil
+	return &platformRoomComponents{repo, store, authority, rooms, h}, nil
 }

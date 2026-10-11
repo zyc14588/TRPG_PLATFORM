@@ -1,5 +1,19 @@
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
+# The Linux M2 lifecycle assembles these exact source-built binaries, current
+# schemas and the unchanged web build in its owned context. No runtime base or
+# generic shell is added; every Compose entry selects a real service binary.
+FROM scratch AS m2
+ARG M2_UID=65532
+ARG M2_GID=65532
+ARG M2_PROJECT
+ARG M2_SOURCE
+LABEL trpg.m2.project=${M2_PROJECT} trpg.m2.source=${M2_SOURCE}
+COPY --chown=${M2_UID}:${M2_GID} rootfs/ /
+USER ${M2_UID}:${M2_GID}
+WORKDIR /app
+ENTRYPOINT ["/app/platformd"]
+
 FROM docker.io/library/golang:1.26.5-alpine3.23@sha256:622e56dbc11a8cfe87cafa2331e9a201877271cbff918af53d3be315f3da88cc AS build
 
 ARG BINARY
@@ -26,6 +40,7 @@ USER 65532:65532
 WORKDIR /app
 ENTRYPOINT ["/app/platformd"]
 CMD ["--help"]
+
 
 FROM scratch
 

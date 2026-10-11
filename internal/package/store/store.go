@@ -98,12 +98,12 @@ type Repository interface {
 
 type Reader struct {
 	repository Repository
-	objects    *object.Directory
+	objects    object.Store
 	access     *Access
 	support    extension.Support
 }
 
-func NewReader(repo Repository, objects *object.Directory, access *Access, support extension.Support) (*Reader, error) {
+func NewReader(repo Repository, objects object.Store, access *Access, support extension.Support) (*Reader, error) {
 	if repo == nil || objects == nil || access == nil {
 		return nil, ErrDenied
 	}
@@ -134,7 +134,7 @@ func (r *Reader) load(ctx context.Context, c Credential, workspace, identity str
 
 // VerifyArtifact binds the complete index to canonical immutable content. It is
 // used before publication and after an authorized lookup; it grants no access.
-func VerifyArtifact(ctx context.Context, objects *object.Directory, a Artifact, support extension.Support) (*archive.Package, error) {
+func VerifyArtifact(ctx context.Context, objects object.Store, a Artifact, support extension.Support) (*archive.Package, error) {
 	raw, err := objects.Read(ctx, a.ArchiveKey)
 	if err != nil {
 		return nil, err

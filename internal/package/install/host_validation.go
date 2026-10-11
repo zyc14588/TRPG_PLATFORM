@@ -5,6 +5,7 @@ package install
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 
 	"github.com/zyc14588/TRPG_PLATFORM/internal/hostapi"
@@ -54,18 +55,16 @@ func validateHostRuntime(ctx context.Context, c RuntimeConfig, items []staged, p
 	for _, item := range items[1:] {
 		deps = append(deps, item.pkg)
 	}
-	s, err := vm.New(ctx, vm.Options{SessionID: "host-quarantine", Runner: c.Runner, Package: root.pkg, Dependencies: deps, State: vm.State{Version: 1, Value: contract.State.Seed}, Limits: c.Limits, Fallbacks: proofs, Host: h, Audit: func(profile.Audit) error { return nil }})
+	s, err := vm.New(ctx, vm.Options{SessionID: "host-quarantine", Runner: c.Runner, Launcher: c.Launcher, Package: root.pkg, Dependencies: deps, State: vm.State{Version: 1, Value: contract.State.Seed}, Limits: c.Limits, Fallbacks: proofs, Host: h, Audit: func(profile.Audit) error { return nil }})
 	if err != nil {
 		return err
 	}
 	pid := s.PID()
 	defer func() {
 		destroyErr := s.Destroy()
-		if resultErr == nil {
-			resultErr = destroyErr
-		}
-		if e := emit(Execution{Package: id, Case: "host-quarantine-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: c.SHA256, Outcome: runtimeCode(resultErr), PID: pid, Reaped: true}); e != nil {
-			resultErr = e
+		resultErr = errors.Join(resultErr, destroyErr)
+		if e := emit(Execution{Package: id, Case: "host-quarantine-destroy", Profile: profile.ID, Runtime: profile.RuntimeVersion, RunnerHash: c.SHA256, Outcome: runtimeCode(resultErr), PID: pid, Reaped: s.Reaped()}); e != nil {
+			resultErr = errors.Join(resultErr, e)
 		}
 	}()
 	binding := data.Binding{Workspace: "install-quarantine", Session: s.SessionID(), GraphHash: s.GraphHash()}

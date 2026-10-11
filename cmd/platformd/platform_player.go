@@ -34,6 +34,7 @@ type platformPlayerOptions struct {
 	schema                      []byte
 	origin                      string
 	maxSessions, maxConnections int
+	shared                      *platformPlayerCoreData
 }
 type platformPlayerComponents struct {
 	data **platformPlayerComponentsData
@@ -62,28 +63,19 @@ func platformPlayers(o platformPlayerOptions) (*platformPlayerComponents, error)
 	if o.ctx == nil || o.ctx.Err() != nil || o.repo == nil || o.authority == nil || o.roomStorage == nil || o.rooms == nil || o.policies == nil || o.rooms.Authentication() != o.authority.Authentication() {
 		return nil, auth.ErrInvalid
 	}
-	base, e := postgres.NewPlatformLaunchStorage(o.repo)
-	if e != nil {
-		return nil, e
+	shared := o.shared
+	var e error
+	if shared == nil {
+		shared, e = platformPlayerCore(o.ctx, o.repo)
+		if e != nil {
+			return nil, e
+		}
 	}
-	if e = base.Bootstrap(o.ctx); e != nil {
-		return nil, e
+	if shared.repo != o.repo {
+		return nil, auth.ErrInvalid
 	}
-	storage, e := postgres.NewPlatformPlayerStorage(o.repo)
-	if e != nil {
-		return nil, e
-	}
-	if e = storage.Bootstrap(o.ctx); e != nil {
-		return nil, e
-	}
-	guarded, e := postgres.NewControlledLaunchStorage(base, storage)
-	if e != nil {
-		return nil, e
-	}
-	control, e := player.NewControl(storage)
-	if e != nil {
-		return nil, e
-	}
+	storage, guarded, control := shared.storage, shared.guarded, shared.control
+
 	launches, e := launch.New(launch.Options{Context: o.ctx, Authority: o.authority, Rooms: o.roomStorage, Storage: guarded, Configurations: o.configurations, Models: o.models, MaxSessions: o.maxSessions, PlayerControl: control})
 	if e != nil {
 		return nil, e
@@ -150,4 +142,37 @@ func platformPlayerTasks(ctx context.Context, repo *postgres.PlatformAuthReposit
 		return nil, nil, nil, e
 	}
 	return storage, continuations, wrapped, nil
+}
+
+type platformPlayerCoreData struct {
+	storage *postgres.PlatformPlayerStorage
+	guarded *postgres.ControlledLaunchStorage
+	control *player.Control
+	repo    *postgres.PlatformAuthRepository
+}
+
+func platformPlayerCore(ctx context.Context, repo *postgres.PlatformAuthRepository) (*platformPlayerCoreData, error) {
+	base, e := postgres.NewPlatformLaunchStorage(repo)
+	if e != nil {
+		return nil, e
+	}
+	if e = base.Bootstrap(ctx); e != nil {
+		return nil, e
+	}
+	storage, e := postgres.NewPlatformPlayerStorage(repo)
+	if e != nil {
+		return nil, e
+	}
+	if e = storage.Bootstrap(ctx); e != nil {
+		return nil, e
+	}
+	guarded, e := postgres.NewControlledLaunchStorage(base, storage)
+	if e != nil {
+		return nil, e
+	}
+	control, e := player.NewControl(storage)
+	if e != nil {
+		return nil, e
+	}
+	return &platformPlayerCoreData{storage, guarded, control, repo}, nil
 }
