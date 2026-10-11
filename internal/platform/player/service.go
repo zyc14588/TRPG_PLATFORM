@@ -692,15 +692,10 @@ func (s *Service) Do(ctx context.Context, c launch.Caller, request Request) (aut
 			return s.response(r.Action, Result{x.CommandID, decimal(x.Version), decimal(x.Cursor), x.Replayed, x.Result, ctl})
 		}
 	}
-	native, e := d.options.Sessions.ConnectPolling(ctx, c, r.WorkspaceID, r.RoomID, 0)
-	if e != nil {
-		return auth.Outcome{}, platformsession.SafeError(e)
-	}
-	defer native.Close()
 	if r.Action == "export" {
 		after, _ := counter(r.Fields["after_cursor"].(string))
 		limit, _ := integer(r.Fields["limit"])
-		x, e := native.Export(ctx, platformsession.ExportKind(r.Fields["kind"].(string)), after, limit)
+		x, e := d.options.Sessions.Export(ctx, c, r.WorkspaceID, r.RoomID, platformsession.ExportKind(r.Fields["kind"].(string)), after, limit)
 		if e != nil {
 			return auth.Outcome{}, platformsession.SafeError(e)
 		}
@@ -711,6 +706,11 @@ func (s *Service) Do(ctx context.Context, c launch.Caller, request Request) (aut
 		}
 		return s.response(r.Action, Export{v.FormatVersion, v.Kind, v.Binding.Session, v.Seat, decimal(v.Version), decimal(v.Cursor), decimal(v.NextCursor), v.More, v.Ended, v.View, events})
 	}
+	native, e := d.options.Sessions.ConnectPolling(ctx, c, r.WorkspaceID, r.RoomID, 0)
+	if e != nil {
+		return auth.Outcome{}, platformsession.SafeError(e)
+	}
+	defer native.Close()
 	var point platformsession.Point
 	if r.Action == "create_point" {
 		point, e = native.CreateRecoveryPoint(ctx)

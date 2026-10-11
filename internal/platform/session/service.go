@@ -255,17 +255,7 @@ func (s *Service) connect(ctx context.Context, caller launch.Caller, w, r string
 	}
 	d := &connectionData{owner: s, caller: caller, basis: access}
 	c := &Connection{data: &d}
-	current := func(ctx context.Context) (command.NativeSeat, error) {
-		a, p, e := c.current(ctx, false)
-		if e != nil {
-			return command.NativeSeat{}, e
-		}
-		v := a.StorageValue()
-		if !v.Host {
-			delete(p.Commands, "end")
-		}
-		return command.NativeSeat{Binding: v.Binding, Principal: v.Principal, Seat: v.Seat, Commands: p.Commands, Views: p.View, Inputs: p.Inputs, RecoveryPoint: v.Host && p.RecoveryPoint}, nil
-	}
+	current := c.nativeSeat
 	if polling {
 		d.transport, e = s.state().launch.ConnectSessionPolling(ctx, access, current)
 	} else {
@@ -347,6 +337,38 @@ func allowedExport(a launch.SessionAccessData, p SeatPolicy, k ExportKind) (comm
 	}
 	return v, nil
 }
+
+// nativeSeat keeps the same current authority checks for live transports.
+func (c *Connection) nativeSeat(ctx context.Context) (command.NativeSeat, error) {
+	a, p, e := c.current(ctx, false)
+	if e != nil {
+		return command.NativeSeat{}, e
+	}
+	v := a.StorageValue()
+	if !v.Host {
+		delete(p.Commands, "end")
+	}
+	return command.NativeSeat{Binding: v.Binding, Principal: v.Principal, Seat: v.Seat, Commands: p.Commands, Views: p.View, Inputs: p.Inputs, RecoveryPoint: v.Host && p.RecoveryPoint}, nil
+}
+
+// Export is a trusted server read, using the same current membership, seat,
+// export-kind and leaf filters as Connection.Export. Ended journals need no
+// Session Actor or session-specific VM; admission still authenticates the package
+// through its existing quarantine validation.
+func (s *Service) Export(ctx context.Context, caller launch.Caller, w, r string, kind ExportKind, after uint64, limit int) (Export, error) {
+	if s.state() == nil || ctx == nil || ctx.Err() != nil || after >= math.MaxInt64 || limit < 1 || limit > 128 {
+		return Export{}, auth.ErrInvalid
+	}
+	access, e := s.state().launch.AdmitSession(ctx, caller, w, r)
+	if e != nil {
+		return Export{}, SafeError(e)
+	}
+	d := &connectionData{owner: s, caller: caller, basis: access}
+	c := &Connection{data: &d}
+	defer c.Close()
+	return c.Export(ctx, kind, after, limit)
+}
+
 func (c *Connection) Export(ctx context.Context, kind ExportKind, after uint64, limit int) (Export, error) {
 	if after >= math.MaxInt64 || limit < 1 || limit > 128 {
 		return Export{}, auth.ErrInvalid
@@ -369,6 +391,14 @@ func (c *Connection) Export(ctx context.Context, kind ExportKind, after uint64, 
 	}
 	view := checkpoint.Object(map[string]checkpoint.Value{})
 	if !v.Ended {
+		// Only a live journal needs the Actor projection. The short-lived
+		// Service.Export connection owns this transport and closes it on return.
+		if c.state().transport == nil {
+			c.state().transport, e = c.state().owner.state().launch.ConnectSessionPolling(ctx, access, c.nativeSeat)
+			if e != nil {
+				return Export{}, SafeError(e)
+			}
+		}
 		f, e := c.state().transport.Snapshot(ctx, v.Cursor)
 		if e != nil {
 			return Export{}, SafeError(e)
