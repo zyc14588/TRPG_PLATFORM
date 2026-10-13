@@ -13,6 +13,12 @@ baseline: R0-R24
 
 标识建议为 `platform-lua-5.5-p1`。只接受 UTF-8 Lua 源码，拒绝预编译 Bytecode。默认允许受限 basic、table、string、utf8、math、coroutine；生产不加载 `io`、`os`、`debug`、原生 package 加载器、C Module 或动态库。
 
+`string.sha256(value)` 是纯确定性函数：只接受恰好一个 Lua 字符串，对其原始字节计算 SHA-256，保留 NUL、UTF-8 和其他二进制字节，不解码或规范化输入。输入长度允许 0–65536 字节（含边界），返回恰好 64 个小写十六进制字符。参数数量错误返回 `SCRIPT_FAILED`；非字符串或超过字节上限返回 `CHECKPOINT_VALUE_REJECTED`。错误不包含输入内容。
+
+该函数不执行 I/O、不调用 Host API、不授予能力、不读写权威状态，也不使用随机或时间。Lua Profile 标识仍为 `platform-lua-5.5-p1`，Host API 主次版本保持不变；指令、墙钟、内存及其他资源预算保持不变，调用仍处于原有执行预算和失败处理边界内。
+
+运行时版本为 `golua-v2.0.5/p1.1`，用于区分新增原生函数的执行环境。检查点继续绑定完整运行时版本；旧 `golua-v2.0.5/p1` 检查点不会在新运行时中自动恢复或迁移，运行时版本不匹配仍按现有绑定检查拒绝。
+
 <a id="SPEC-LUA-RUNTIME-VM"></a>
 ## 2. Session 专属 VM
 

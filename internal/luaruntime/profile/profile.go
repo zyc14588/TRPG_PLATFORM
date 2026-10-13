@@ -6,6 +6,8 @@ package profile
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -28,7 +30,7 @@ import (
 
 const (
 	ID               = "platform-lua-5.5-p1"
-	RuntimeVersion   = "golua-v2.0.5/p1"
+	RuntimeVersion   = "golua-v2.0.5/p1.1"
 	MaxSourceBytes   = 256 << 10
 	MaxModuleBytes   = 1 << 20
 	ErrSource        = "SOURCE_REJECTED"
@@ -185,6 +187,25 @@ func New(config Config) (*Engine, error) {
 		return 1
 	}))
 	stringsTable := e.runtime.GetGlobal("string").AsTable()
+	if err := stringsTable.Set(lua.NewString("sha256"), lua.NewNativeFunc(func(v *lua.VM) int {
+		if v.ArgCount() != 1 {
+			panic(ErrScript)
+		}
+		value := v.Get(1)
+		if !value.IsString() {
+			e.hostFail(ErrValue)
+		}
+		input := value.AsString()
+		if len(input) > 64<<10 {
+			e.hostFail(ErrValue)
+		}
+		digest := sha256.Sum256([]byte(input))
+		v.Set(0, lua.NewString(hex.EncodeToString(digest[:])))
+		return 1
+	})); err != nil {
+		e.Close()
+		return nil, Fail(ErrConfiguration)
+	}
 	format := stringsTable.Get(lua.NewString("format"))
 	_ = stringsTable.Set(lua.NewString("format"), lua.NewNativeFunc(func(v *lua.VM) int {
 		args := make([]lua.Value, v.ArgCount())

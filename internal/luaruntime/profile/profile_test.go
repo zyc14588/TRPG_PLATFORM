@@ -153,3 +153,71 @@ func TestOpaqueIdentitiesCannotEnterDeterministicResults(t *testing.T) {
 		t.Fatalf("primitive formatting failed: %#v %v", r, err)
 	}
 }
+
+func TestStringSHA256VectorsAndByteBoundaries(t *testing.T) {
+	cases := []struct {
+		name, source, digest string
+	}{
+		{"empty", `return string.sha256("")`, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+		{"abc", `return string.sha256("abc")`, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"},
+		{"FIPS56", `return string.sha256("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")`, "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"},
+		{"binary-NUL", `return string.sha256(string.char(0, 1, 2, 255, 0))`, "79eebf0b2aae05b2490234d0b884581935b2e28127f06a74a5b48e758f86bd25"},
+		{"unicode-UTF8", `return string.sha256("雪😀")`, "c7d6344b3b16cb73d55e41f1bf3ec5e71eafcf3296b3eb41e8f9e776e7d5bd45"},
+		{"exact65536", `return string.sha256(string.rep("a", 65536))`, "bf718b6f653bebc184e1479f1935b8da974d701b893afcf49e701f3e2f9f9c5a"},
+		{"unicode-exact65536-bytes", `return string.sha256(string.rep("雪", 21845) .. "a")`, "6992b6498f8beffe494b5b5082c7819ee5664df4298c377bf3d50d780df1d4dd"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := engine(t)
+			for attempt := 0; attempt < 2; attempt++ {
+				r, err := e.Execute(context.Background(), []byte(tc.source))
+				if err != nil || len(r.Values) != 1 || r.Values[0].Kind != "string" || r.Values[0].String != tc.digest {
+					t.Fatalf("digest mismatch: %#v %v", r, err)
+				}
+				if len(r.Values[0].String) != 64 || strings.Trim(r.Values[0].String, "0123456789abcdef") != "" {
+					t.Fatal("digest must contain exactly64 lowercase hex characters")
+				}
+			}
+		})
+	}
+}
+
+func TestStringSHA256StrictArgumentsAndNonDisclosingErrors(t *testing.T) {
+	cases := []struct {
+		name, source, code string
+	}{
+		{"missing", `return string.sha256()`, ErrScript},
+		{"extra", `return string.sha256("input-secret", "extra")`, ErrScript},
+		{"nil", `return string.sha256(nil)`, ErrValue},
+		{"boolean", `return string.sha256(true)`, ErrValue},
+		{"integer", `return string.sha256(7)`, ErrValue},
+		{"float", `return string.sha256(1.5)`, ErrValue},
+		{"table", `return string.sha256({secret="input-secret"})`, ErrValue},
+		{"function", `return string.sha256(function() return "input-secret" end)`, ErrValue},
+		{"coroutine", `return string.sha256(coroutine.create(function() end))`, ErrValue},
+		{"65537-bytes", `return string.sha256(string.rep("a", 65537))`, ErrValue},
+		{"unicode-over-byte-bound", `return string.sha256(string.rep("雪", 21846))`, ErrValue},
+		{"over-bound-secret", `return string.sha256(string.rep("input-secret", 6554))`, ErrValue},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r, err := engine(t).Execute(context.Background(), []byte(tc.source))
+			if Code(err) != tc.code || err == nil || err.Error() != tc.code || r.Audit.Outcome != tc.code {
+				t.Fatalf("expected fixed error %s, got %#v %v", tc.code, r, err)
+			}
+			if len(r.Output) != 0 || strings.Contains(err.Error(), "input-secret") {
+				t.Fatal("hash argument was disclosed")
+			}
+		})
+	}
+}
+
+func TestStringSHA256RequiresNoHostAuthority(t *testing.T) {
+	r, err := engine(t).Execute(context.Background(), []byte(`
+		assert(host == nil and io == nil and os == nil and debug == nil and package == nil)
+		return string.sha256("abc")
+	`))
+	if err != nil || len(r.Values) != 1 || r.Values[0].String != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" {
+		t.Fatalf("pure hash changed sandbox authority: %#v %v", r, err)
+	}
+}
