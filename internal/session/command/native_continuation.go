@@ -67,7 +67,7 @@ func (a *Authority) IssueContinuation(ctx context.Context, current NativeResolve
 	v := i.state()
 	d.mu.Lock()
 	r, ok := d.records[v.key]
-	if !ok || r.seat.Principal != "task-system" || r.seat.Seat != "task-system" || owned.SessionID != r.seat.Binding.Session || len(r.seat.Commands) != 1 || r.seat.Commands[owned.Type] == nil || r.inputs == nil || len(r.seat.Views.ViewFields) != 0 || len(r.seat.Views.ResultFields) != 0 || len(r.seat.Views.EventFields) != 0 || r.seat.Views.ScalarResult || r.recovery {
+	if !ok || r.seat.Principal != "task-system" || r.seat.Seat != "task-system" || owned.SessionID != r.seat.Binding.Session || len(r.seat.Commands) != 1 || r.seat.Commands[owned.Type] == nil || r.inputs == nil || len(r.seat.Views.ViewFields) != 0 || r.seat.Views.ViewProjection != nil || len(r.seat.Views.ResultFields) != 0 || len(r.seat.Views.EventFields) != 0 || r.seat.Views.ScalarResult || r.recovery {
 		delete(d.records, v.key)
 		d.mu.Unlock()
 		return Identity{}, ErrDenied

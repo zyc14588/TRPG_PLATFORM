@@ -254,7 +254,7 @@ func (t *SessionTransport) Snapshot(ctx context.Context, after uint64) (realtime
 	if e != nil {
 		return realtime.Frame{}, e
 	}
-	f.View = realtime.Filter(f.View, p.ViewFields)
+	f.View = realtime.FilterView(f.View, p)
 	f.Events = realtime.FilterEvents(f.Events, p)
 	return f, nil
 }

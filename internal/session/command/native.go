@@ -107,7 +107,7 @@ func (a *Authority) resolveCurrent(ctx context.Context, i Identity) (record, err
 		if e != nil || live.seat.Binding != v.binding || live.seat.Principal != v.principal || live.seat.Seat != v.seat {
 			return record{}, ErrDenied
 		}
-		if r.continuation != nil && (len(live.seat.Commands) != 1 || live.seat.Commands["resume-continuation"] == nil || live.inputs == nil || live.recovery || len(live.seat.Views.ViewFields) != 0 || len(live.seat.Views.ResultFields) != 0 || len(live.seat.Views.EventFields) != 0 || live.seat.Views.ScalarResult) {
+		if r.continuation != nil && (len(live.seat.Commands) != 1 || live.seat.Commands["resume-continuation"] == nil || live.inputs == nil || live.recovery || len(live.seat.Views.ViewFields) != 0 || live.seat.Views.ViewProjection != nil || len(live.seat.Views.ResultFields) != 0 || len(live.seat.Views.EventFields) != 0 || live.seat.Views.ScalarResult) {
 			return record{}, ErrDenied
 		}
 		// The resolver executes outside our lock. Closing/revoking the handle while

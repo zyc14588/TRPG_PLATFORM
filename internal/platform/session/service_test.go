@@ -59,3 +59,39 @@ func TestExportManagementStillRequiresCurrentRequesterRole(t *testing.T) {
 		t.Fatal("unregistered export profile allowed")
 	}
 }
+
+func TestServiceOwnsNestedLiveAndExportPoliciesIndependently(t *testing.T) {
+	leaf := &command.ViewSelector{Kind: "scalar"}
+	record := &command.ViewSelector{Kind: "table", Fields: map[string]*command.ViewSelector{"visible": leaf}}
+	root := &command.ViewSelector{Kind: "table", Fields: map[string]*command.ViewSelector{"record": record, "list": {Kind: "array", Element: record}}}
+	view := command.ViewPolicy{ViewProjection: root}
+	p, err := ownPolicy(SeatPolicy{View: view, Exports: map[ExportKind]command.ViewPolicy{Personal: view, Host: view}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf.Nullable = true
+	record.Fields["secret"] = &command.ViewSelector{Kind: "scalar"}
+	delete(root.Fields, "list")
+	for _, owned := range []command.ViewPolicy{p.View, p.Exports[Personal], p.Exports[Host]} {
+		if len(owned.ViewProjection.Fields) != 2 || len(owned.ViewProjection.Fields["record"].Fields) != 1 || owned.ViewProjection.Fields["record"].Fields["visible"].Nullable {
+			t.Fatal("caller mutation reached an owned service policy")
+		}
+	}
+	p.View.ViewProjection.Fields["record"].Fields["visible"].Nullable = true
+	p.Exports[Personal].ViewProjection.Fields["list"].Element.Fields["visible"].Nullable = true
+	if p.View.ViewProjection.Fields["list"].Element.Fields["visible"].Nullable || p.Exports[Personal].ViewProjection.Fields["record"].Fields["visible"].Nullable || p.Exports[Host].ViewProjection.Fields["list"].Element.Fields["visible"].Nullable {
+		t.Fatal("live, export or element policy ownership was shared")
+	}
+	if _, err = allowedExport(launch.SessionAccessData{}, p, Host); err != auth.ErrDenied {
+		t.Fatal("nested host export bypassed role gate")
+	}
+	if _, err = allowedExport(launch.SessionAccessData{}, p, Personal); err != nil {
+		t.Fatal("approved nested personal export denied")
+	}
+	malformed := command.ViewPolicy{ViewProjection: &command.ViewSelector{Kind: "table", Fields: map[string]*command.ViewSelector{"child": nil}}}
+	for _, policy := range []SeatPolicy{{View: malformed}, {Exports: map[ExportKind]command.ViewPolicy{Personal: malformed}}} {
+		if _, err := ownPolicy(policy); err != auth.ErrDenied {
+			t.Fatal("invalid live or export selector accepted")
+		}
+	}
+}

@@ -168,7 +168,7 @@ func (c *Connection) SnapshotPage(ctx context.Context, after uint64, limit int) 
 		return Export{}, e
 	}
 	v = a.StorageValue()
-	return auth.RoomSecret(ExportData{FormatVersion: 1, Kind: Personal, Scope: v.Scope, Binding: v.Binding, Seat: v.Seat, Version: d.Version, Cursor: d.Cursor, NextCursor: d.NextCursor, More: d.More, Ended: d.Ended, View: realtime.Filter(view, p.View.ViewFields), Events: realtime.FilterEvents(d.Events, p.View)}), nil
+	return auth.RoomSecret(ExportData{FormatVersion: 1, Kind: Personal, Scope: v.Scope, Binding: v.Binding, Seat: v.Seat, Version: d.Version, Cursor: d.Cursor, NextCursor: d.NextCursor, More: d.More, Ended: d.Ended, View: realtime.FilterView(view, p.View), Events: realtime.FilterEvents(d.Events, p.View)}), nil
 }
 func SafeError(e error) error {
 	switch {
@@ -310,7 +310,7 @@ func (c *Connection) Reconnect(ctx context.Context, after uint64) (Frame, error)
 	if e != nil {
 		return Frame{}, e
 	}
-	f.View = realtime.Filter(f.View, p.View.ViewFields)
+	f.View = realtime.FilterView(f.View, p.View)
 	f.Events = realtime.FilterEvents(f.Events, p.View)
 	return auth.RoomSecret(f), nil
 }
@@ -326,7 +326,7 @@ func (c *Connection) Next(ctx context.Context) (Frame, error) {
 	if e != nil {
 		return Frame{}, e
 	}
-	f.View = realtime.Filter(f.View, p.View.ViewFields)
+	f.View = realtime.FilterView(f.View, p.View)
 	f.Events = realtime.FilterEvents(f.Events, p.View)
 	return auth.RoomSecret(f), nil
 }
@@ -416,7 +416,7 @@ func (c *Connection) Export(ctx context.Context, kind ExportKind, after uint64, 
 	if e != nil {
 		return Export{}, e
 	}
-	return auth.RoomSecret(ExportData{FormatVersion: 1, Kind: kind, Scope: a.Scope, Binding: a.Binding, Seat: a.Seat, Version: v.Version, Cursor: v.Cursor, NextCursor: v.NextCursor, More: v.More, Ended: v.Ended, View: realtime.Filter(view, filter.ViewFields), Events: realtime.FilterEvents(v.Events, filter)}), nil
+	return auth.RoomSecret(ExportData{FormatVersion: 1, Kind: kind, Scope: a.Scope, Binding: a.Binding, Seat: a.Seat, Version: v.Version, Cursor: v.Cursor, NextCursor: v.NextCursor, More: v.More, Ended: v.Ended, View: realtime.FilterView(view, filter), Events: realtime.FilterEvents(v.Events, filter)}), nil
 }
 func (c *Connection) CreateRecoveryPoint(ctx context.Context) (Point, error) {
 	access, p, e := c.current(ctx, true)

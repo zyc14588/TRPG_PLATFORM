@@ -291,7 +291,7 @@ func (e *entry) safely(q request) (answer response, end bool) {
 		if err != nil {
 			return response{err: err}, false
 		}
-		frame := realtime.Frame{Kind: "reconnect", Session: e.binding.Session, Version: page.Version, Cursor: page.Cursor, View: realtime.Filter(view, policy.ViewFields), Events: realtime.FilterEvents(page.Events, policy)}
+		frame := realtime.Frame{Kind: "reconnect", Session: e.binding.Session, Version: page.Version, Cursor: page.Cursor, View: realtime.FilterView(view, policy), Events: realtime.FilterEvents(page.Events, policy)}
 		if q.connection != nil {
 			if err = r.options.Hub.EnqueueContext(ctx, q.connection, frame); err != nil {
 				return response{err: err}, false

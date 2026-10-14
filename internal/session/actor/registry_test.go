@@ -419,6 +419,72 @@ func TestSleepReactivateReconnectAndRevocation(t *testing.T) {
 		t.Fatal("activation/cleanup", s.open, s.active, s.checkpoints)
 	}
 }
+
+type nestedViewBackend struct {
+	*memory
+	view checkpoint.Value
+}
+
+type nestedViewEngine struct {
+	Engine
+	view checkpoint.Value
+}
+
+func (b *nestedViewBackend) Open(ctx context.Context, binding data.Binding) (Engine, error) {
+	e, err := b.memory.Open(ctx, binding)
+	if err != nil {
+		return nil, err
+	}
+	return &nestedViewEngine{Engine: e, view: b.view}, nil
+}
+
+func (e *nestedViewEngine) Project(context.Context, command.Identity) (checkpoint.Value, error) {
+	return e.view, nil
+}
+
+func TestReconnectProjectsOnlyCurrentExplicitNestedDescendants(t *testing.T) {
+	rig := newRig(t, 4, time.Hour)
+	item := checkpoint.Object(map[string]checkpoint.Value{"visible": checkpoint.Text("own-view"), "secret": checkpoint.Text("other-seat-secret")})
+	rig.registry.options.Backend = &nestedViewBackend{memory: rig.store, view: checkpoint.Object(map[string]checkpoint.Value{"record": item, "list": checkpoint.Array(item), "root-secret": checkpoint.Text("root-secret")})}
+	ctx := context.Background()
+	p := command.ViewPolicy{ViewProjection: &command.ViewSelector{Kind: "table", Fields: map[string]*command.ViewSelector{
+		"record": {Kind: "table", Fields: map[string]*command.ViewSelector{"visible": {Kind: "scalar"}}},
+		"list":   {Kind: "array", Element: &command.ViewSelector{Kind: "table", Fields: map[string]*command.ViewSelector{"visible": {Kind: "scalar"}}}},
+	}}}
+	i, err := rig.authority.IssueNative(ctx, func(context.Context) (command.NativeSeat, error) {
+		return command.NativeSeat{Binding: rig.identities["one-player"].Binding(), Principal: "player", Seat: "player", Views: p}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := rig.hub.Subscribe(i)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	frame, err := rig.registry.Reconnect(ctx, i, 0, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := func(f realtime.Frame) {
+		t.Helper()
+		if f.Kind != "reconnect" || len(f.View.Table) != 2 || len(f.View.Table["record"].Table) != 1 || f.View.Table["record"].Table["visible"].String != "own-view" || len(f.View.Table["list"].Array) != 1 || len(f.View.Table["list"].Array[0].Table) != 1 || f.View.Table["list"].Array[0].Table["visible"].String != "own-view" {
+			t.Fatal("reconnect lost selected descendants or exposed a sibling", f)
+		}
+	}
+	check(frame)
+	frame.View.Table["record"].Table["visible"] = checkpoint.Text("caller-change")
+	queued, err := c.Next(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(queued)
+	delete(p.ViewProjection.Fields["record"].Fields, "visible")
+	frame, err = rig.registry.Reconnect(ctx, i, 0, nil)
+	if err != nil || len(frame.View.Table["record"].Table) != 0 || len(frame.View.Table["list"].Array[0].Table) != 1 {
+		t.Fatal("reconnect used a stale nested policy", err)
+	}
+}
 func TestIdleCreatesCheckpointAndReleasesRuntime(t *testing.T) {
 	rig := newRig(t, 4, 20*time.Millisecond)
 	i := rig.identities["one-gm"]

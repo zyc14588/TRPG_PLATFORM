@@ -32,10 +32,21 @@ type Envelope struct {
 	CorrelationID        string           `json:"correlation_id"`
 }
 type ViewPolicy struct {
-	ViewFields   []string
-	EventFields  map[string][]string
-	ResultFields []string
-	ScalarResult bool
+	ViewFields     []string
+	ViewProjection *ViewSelector
+	EventFields    map[string][]string
+	ResultFields   []string
+	ScalarResult   bool
+}
+
+// ViewSelector grants only explicitly selected descendants of a trusted view.
+// Tables use literal field names; arrays use one homogeneous element selector.
+// A scalar never grants a container, and nil requires an explicit Nullable grant.
+type ViewSelector struct {
+	Kind     string
+	Nullable bool
+	Fields   map[string]*ViewSelector
+	Element  *ViewSelector
 }
 type FixtureSeat struct {
 	Credential      string
@@ -144,13 +155,13 @@ func NewFixtureAuthority(seats []FixtureSeat) (*Authority, error) {
 	return a, nil
 }
 func copyPolicy(p ViewPolicy) (ViewPolicy, error) {
+	if len(p.ViewFields) > 128 || len(p.ResultFields) > 128 || len(p.EventFields) > 64 {
+		return ViewPolicy{}, ErrDenied
+	}
 	q := p
 	q.ViewFields = append([]string(nil), p.ViewFields...)
 	q.ResultFields = append([]string(nil), p.ResultFields...)
 	q.EventFields = map[string][]string{}
-	if len(p.ViewFields) > 128 || len(p.ResultFields) > 128 || len(p.EventFields) > 64 {
-		return q, ErrDenied
-	}
 	for name, fields := range p.EventFields {
 		if name == "" || len(name) > 256 || len(fields) > 128 {
 			return q, ErrDenied
@@ -170,6 +181,67 @@ func copyPolicy(p ViewPolicy) (ViewPolicy, error) {
 				return q, ErrDenied
 			}
 		}
+	}
+	if p.ViewProjection != nil {
+		if p.ViewProjection.Kind != "table" || p.ViewProjection.Nullable {
+			return ViewPolicy{}, ErrDenied
+		}
+		for _, field := range p.ViewFields {
+			if _, overlaps := p.ViewProjection.Fields[field]; overlaps {
+				return ViewPolicy{}, ErrDenied
+			}
+		}
+		nodes := len(p.ViewFields)
+		var err error
+		q.ViewProjection, err = ownViewSelector(p.ViewProjection, 0, &nodes, map[*ViewSelector]bool{})
+		if err != nil {
+			return ViewPolicy{}, ErrDenied
+		}
+	}
+	return q, nil
+}
+
+// Depth starts at zero, as it does for checkpoint.Value. Repeated aliases count
+// once per reference and are copied independently; only an active path is a cycle.
+func ownViewSelector(s *ViewSelector, depth int, nodes *int, active map[*ViewSelector]bool) (*ViewSelector, error) {
+	if s == nil || depth > checkpoint.MaxDepth || active[s] || *nodes >= 128 {
+		return nil, ErrDenied
+	}
+	*nodes = *nodes + 1
+	q := &ViewSelector{Kind: s.Kind, Nullable: s.Nullable}
+	active[s] = true
+	defer delete(active, s)
+	switch s.Kind {
+	case "scalar":
+		if s.Fields != nil || s.Element != nil {
+			return nil, ErrDenied
+		}
+	case "table":
+		if s.Element != nil || len(s.Fields) > 128-*nodes {
+			return nil, ErrDenied
+		}
+		q.Fields = make(map[string]*ViewSelector, len(s.Fields))
+		for name, child := range s.Fields {
+			if !store.ValidID(name) {
+				return nil, ErrDenied
+			}
+			owned, err := ownViewSelector(child, depth+1, nodes, active)
+			if err != nil {
+				return nil, ErrDenied
+			}
+			q.Fields[name] = owned
+		}
+	case "array":
+		if s.Fields != nil {
+			return nil, ErrDenied
+		}
+		var err error
+		q.Element, err = ownViewSelector(s.Element, depth+1, nodes, active)
+		if err != nil {
+			return nil, ErrDenied
+		}
+	default:
+		return nil, ErrDenied
 	}
 	return q, nil
 }

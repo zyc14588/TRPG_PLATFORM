@@ -120,7 +120,7 @@ func (c *Connection) Next(ctx context.Context) (Frame, error) {
 			c.Close()
 			return Frame{}, command.ErrDenied
 		}
-		f.View = Filter(f.View, p.ViewFields)
+		f.View = FilterView(f.View, p)
 		f.Events = FilterEvents(f.Events, p)
 		return f, nil
 	}
@@ -194,7 +194,7 @@ func (h *Hub) EnqueueContext(ctx context.Context, c *Connection, f Frame) error 
 		c.Close()
 		return err
 	}
-	f.View = Filter(f.View, p.ViewFields)
+	f.View = FilterView(f.View, p)
 	f.Events = FilterEvents(f.Events, p)
 	raw, err := json.Marshal(f)
 	if err != nil || len(raw) > 256<<10 {

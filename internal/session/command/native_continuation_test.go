@@ -141,3 +141,36 @@ func TestContinuationRevalidatesLiveResultScopeRevocationAndDeniesViews(t *testi
 		})
 	}
 }
+
+func TestContinuationRejectsAnyNestedProjectionAtIssueAndRevalidation(t *testing.T) {
+	for name, projection := range map[string]*ViewSelector{
+		"empty":  {Kind: "table"},
+		"nested": {Kind: "table", Fields: map[string]*ViewSelector{"details": {Kind: "table", Fields: map[string]*ViewSelector{"visible": {Kind: "scalar"}}}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			a, seat, e := continuationFixture(t)
+			ctx := context.Background()
+			resolver := func(context.Context) (NativeSeat, error) { return seat, nil }
+			seat.Views.ViewProjection = projection
+			if _, err := a.IssueContinuation(ctx, resolver, e); err != ErrDenied {
+				t.Fatal("continuation issued a nested projection", err)
+			}
+			seat.Views.ViewProjection = nil
+			i, err := a.IssueContinuation(ctx, resolver, e)
+			if err != nil {
+				t.Fatal("baseline continuation denied", err)
+			}
+			defer a.ReleaseNative(i)
+			seat.Views.ViewProjection = projection
+			if a.VerifyContext(ctx, i) != ErrDenied {
+				t.Fatal("continuation retained expanded nested authority")
+			}
+			if _, err := a.ValidateContext(ctx, i, e); err != ErrDenied {
+				t.Fatal("continuation command accepted expanded nested authority")
+			}
+			if _, err := a.InputsContext(ctx, i, e); err != ErrDenied {
+				t.Fatal("continuation inputs accepted expanded nested authority")
+			}
+		})
+	}
+}
